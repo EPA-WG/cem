@@ -292,3 +292,48 @@ under normal ordering passes all 220 Storybook tests, 508 unit tests, and
 `verify-demo-coverage` gate, lint and typecheck pass; lint retains two existing
 warnings. This closes the referrer fixture and cell-override audit sign-off.
 The separate historical HTTP/location/stock investigations remain open.
+
+## Data-slices audit checkpoint, 2026-09-24
+
+`EveryAuthoredSample` now exposes named steps for all 16 authored samples.
+The first six steps (A1, A2, B and 1–3) strengthen the existing checks:
+
+| Samples | Added observable assertions |
+| --- | --- |
+| A1 / A2 | Initial input and displayed count agree; increments, decrements and direct editing (A1) or the declared tap event (A2) keep them paired. |
+| B | Initial outputs are empty; mousemove and click each display the exact dispatched page X, event type and offset Y, with both offsets present in a valid computed shadow. |
+| 1 / 2 | Initial input and output agree; input events leave the displayed slice unchanged until change, and clearing keeps both empty without restoring the default. |
+| 3 | Initial input and output agree; input events update both, including an empty value. |
+
+The next step exposed a defect in sample 4, whose legend promises an initial
+slice value from an attribute. After the source render settled, both inputs
+were empty while their attribute outputs correctly showed `😁` and `🤗`.
+Both connected instances reported `cem.ql.render.compile_failed` at revision 1;
+the declaration had no diagnostics. Native compilation of the actual authored
+template identifies the attribute expression `$s ?? $a` as rejected XPath-style
+variable syntax.
+
+A temporary native probe replaced only that expression in memory with
+`s ?? a`. It compiled without diagnostics and rendered the default `😁`, supplied
+`🤗`, edited, and explicitly empty values correctly. Empty slices already use
+the intended absent-versus-empty distinction; this diagnosis does not require
+a change to their shared semantics. The probe and browser observations were
+removed after recording the evidence.
+
+The user chose to investigate shared syntax support instead of the proposed
+demo-only correction. The [investigation](../../../docs/cem-ql-template-dollar-investigation.md)
+confirms that both the renderer and embedded audit normalize only simple
+references. Three native probes cover the current host surfaces, byte-preserving
+token normalization, and its unwanted acceptance of prefixed declarations and
+record keys. They support a parser-context implementation instead of global
+replacement. The remaining decision is template-only reference aliases versus
+aliases throughout CEM-QL, with declaration names kept bare in either case.
+
+The authored HTML, compiler, runtime and independent gallery contracts are
+unchanged. Existing assertions for samples 4–13 remain in place; their
+strengthened audit and the gallery audit remain open in `docs/todo.md`.
+
+Checkpoint validation passes the focused story and serial aggregate gate:
+220 Storybook tests, 508 unit tests, all 31 standalone pages and 37 source-loaded
+documents, lint and typecheck. Lint retains two existing warnings. Passing
+these existing gates does not close sample 4's defect or the remaining audit.

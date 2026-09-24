@@ -3990,6 +3990,50 @@ registration identities may reuse an inherited or existing definition.
           the attribute-backed examples, and checkbox/radio DOM state alongside
           displayed slice values. Fill coverage gaps, preserve authored HTML,
           and run affected verification gates.
+          Partial 2026-09-24: the source story now names all 16 sample steps;
+          A1, A2, B and 1–3 assert paired initial/event values, exact pointer
+          metadata and shadow offsets, event boundaries, and clearing. The
+          remaining story and independent gallery audit awaits the shared
+          syntax-scope decision below; this fixture remains open.
+          Checkpoint validation passes the focused story, all 220 Storybook
+          tests, 508 unit tests, 31 standalone pages / 37 source-loaded
+          documents, aggregate coverage, lint (two existing warnings) and
+          typecheck.
+    - [x] Fixture: diagnose sample 4's blank initial inputs before changing
+          authored HTML or expression semantics. Capture settled browser values
+          and diagnostics, compile the actual template natively, and compare
+          its compound attribute expression with canonical CEM-QL syntax.
+          Record the scoped correction decision and retain passing audit work.
+          Completed 2026-09-24: both settled inputs are blank and both owning
+          instances report `cem.ql.render.compile_failed`. Native compilation
+          rejects `$s ?? $a` as XPath-style variable syntax. An in-memory
+          `{s ?? a}` replacement compiles without diagnostics and renders the
+          default, supplied, edited, and explicitly empty values correctly.
+          Temporary observations and the diagnostic probe were removed.
+    - [x] Decision: correct only sample 4's attribute-value expression from
+          `{$s ?? $a}` to `{s ?? a}` (recommended), or investigate shared support
+          for compound `$` syntax. Accepted 2026-09-24: the user chose to
+          investigate shared syntax support.
+    - [x] Fixture: investigate shared compound `$` support against the current
+          CEM-QL grammar and template-host boundaries. Trace renderer, embedded
+          audit and event-expression handling; probe token-safe normalization,
+          literal/comment preservation and source offsets natively. Record a
+          concrete compatibility scope and stop for any language-contract
+          decision before changing production semantics.
+          Completed 2026-09-24: three native probes confirm the host-surface
+          matrix, token-safe literal/comment/offset preservation, and the
+          unwanted declaration/key syntax accepted by lexical replacement.
+          The recommended parser mode, shared compilation boundaries and raw
+          event-expression boundary are recorded in
+          [the investigation](cem-ql-template-dollar-investigation.md).
+    - [ ] Decision: support compound `$name` references only in template
+          expressions (recommended), or in all CEM-QL queries. Keep declaration
+          names bare in either scope; record the accepted contract before
+          changing the parser, renderer and embedded audit.
+    - [ ] Fixture: after the sample 4 decision, verify its actual authored
+          template natively and both browser instances, including default,
+          supplied, edited and empty input values and compiler diagnostics.
+          Then resume the remaining data-slices story and gallery audit.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

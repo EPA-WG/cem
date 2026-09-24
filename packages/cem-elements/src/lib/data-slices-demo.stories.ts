@@ -43,7 +43,7 @@ export const EveryAuthoredSample: Story = {
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG) as HTMLElement;
         await whenCemSourceRendered(host);
         for (const legend of EXPECTED_LEGENDS) {
@@ -58,82 +58,95 @@ export const EveryAuthoredSample: Story = {
         );
         assertDeepEqual(actualLegends, [...EXPECTED_LEGENDS], 'data-slices sample inventory');
 
-        await verifyInlineCounter(sampleByLegend(host, EXPECTED_LEGENDS[0]));
-        await verifyDeclaredCounter(sampleByLegend(host, EXPECTED_LEGENDS[1]));
-        await verifyEventPayload(sampleByLegend(host, EXPECTED_LEGENDS[2]));
-        await verifyBasicSlice(sampleByLegend(host, EXPECTED_LEGENDS[3]));
-        await verifyInitialChangeSlice(sampleByLegend(host, EXPECTED_LEGENDS[4]));
-        await verifyInitialInputSlice(sampleByLegend(host, EXPECTED_LEGENDS[5]));
-        await verifyAttributeInitialSlice(sampleByLegend(host, EXPECTED_LEGENDS[6]));
-        await verifyTransformedSlice(sampleByLegend(host, EXPECTED_LEGENDS[7]));
-        await verifyButtonSlice(sampleByLegend(host, EXPECTED_LEGENDS[8]));
-        await verifyNestedInitialSlice(sampleByLegend(host, EXPECTED_LEGENDS[9]));
-        await verifyMultipleNestedSlices(sampleByLegend(host, EXPECTED_LEGENDS[10]));
-        await verifyAttributeSlice(sampleByLegend(host, EXPECTED_LEGENDS[11]));
-        await verifyFanoutSlice(sampleByLegend(host, EXPECTED_LEGENDS[12]));
-        await verifyAttributeFanoutSlice(sampleByLegend(host, EXPECTED_LEGENDS[13]));
-        await verifyCheckboxSlices(sampleByLegend(host, EXPECTED_LEGENDS[14]));
-        await verifyRadioSlice(sampleByLegend(host, EXPECTED_LEGENDS[15]));
+        const verifiers = [
+            verifyInlineCounter, verifyDeclaredCounter, verifyEventPayload,
+            verifyBasicSlice, verifyInitialChangeSlice, verifyInitialInputSlice,
+            verifyAttributeInitialSlice, verifyTransformedSlice, verifyButtonSlice,
+            verifyNestedInitialSlice, verifyMultipleNestedSlices, verifyAttributeSlice,
+            verifyFanoutSlice, verifyAttributeFanoutSlice, verifyCheckboxSlices, verifyRadioSlice,
+        ];
+        for (const [index, verify] of verifiers.entries()) {
+            const legend = EXPECTED_LEGENDS[index];
+            await step(legend, () => verify(sampleByLegend(host, legend)));
+        }
     },
 };
 
 async function verifyInlineCounter(sample: HTMLElement): Promise<void> {
-    assertEqual(inputValue(sample, 'input'), '0', 'A1 input-owned fallback initializes to zero');
-    assert(normalizedText(requiredElement(sample, 'article.demo-card')).includes('0'), 'A1 exposes its initial value');
-
-    click(sample, 'button:first-of-type');
-    await waitForTextValue(sample, 'input', '1', 'A1 increment updates the inline slice');
-    click(sample, 'button:nth-of-type(2)');
-    await waitForTextValue(sample, 'input', '0', 'A1 decrement updates the inline slice');
+    const count = () => normalize(Array.from(requiredElement(sample, 'article.demo-card').childNodes)
+        .filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent ?? '').join(''));
+    assertValues(sample, ['0'], [], 'A1 initial input');
+    assertEqual(count(), '0', 'A1 initial displayed count');
+    for (const [selector, value] of [['button:first-of-type', '1'], ['button:nth-of-type(2)', '0']]) {
+        click(sample, selector);
+        await waitForCondition(() => inputValue(sample, 'input') === value && count() === value,
+            'A1 updates input and displayed count together');
+    }
+    setValueAndDispatch(sample, 'input', '5', 'change');
+    await waitForCondition(() => inputValue(sample, 'input') === '5' && count() === '5',
+        'A1 accepts a directly edited count');
 }
 
 async function verifyDeclaredCounter(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', '0', 'A2 declared slice initializes to zero');
+    assertValues(sample, ['0'], ['0'], 'A2 initial count');
     click(sample, 'button:first-of-type');
-    await waitForText(sample, 'output', '1', 'A2 click/tap increment updates the slice');
+    await waitForValues(sample, ['1'], ['1'], 'A2 click increments');
+    requiredElement(sample, 'button:first-of-type').dispatchEvent(new Event('tap', { bubbles: true }));
+    await waitForValues(sample, ['2'], ['2'], 'A2 tap increments');
     click(sample, 'button:nth-of-type(2)');
-    await waitForText(sample, 'output', '0', 'A2 decrement updates the slice');
+    await waitForValues(sample, ['1'], ['1'], 'A2 decrement');
 }
 
 async function verifyEventPayload(sample: HTMLElement): Promise<void> {
-    requiredElement(sample, 'textarea').dispatchEvent(
-        new MouseEvent('mousemove', { bubbles: true, clientX: 42, clientY: 17 })
-    );
-    await waitForCondition(
-        () => {
-            const textarea = sample.querySelector('textarea');
-            const offsetY = textValue(sample, 'p:nth-of-type(3) output');
-            const inlineShadow = textarea?.style.boxShadow ?? '';
-            return (
-                textValue(sample, 'p:nth-of-type(1) output').startsWith('x:') &&
-                textValue(sample, 'p:nth-of-type(1) output') !== 'x:' &&
-                offsetY !== '' &&
-                textValue(sample, 'p:nth-of-type(2) output') === 'mousemove' &&
-                inlineShadow !== '' &&
-                inlineShadow.includes(`${offsetY}px`) &&
-                (textarea ? getComputedStyle(textarea).boxShadow : 'none') !== 'none'
-            );
-        },
-        'B exposes the event payload and computes its coordinates into box-shadow'
-    );
+    assertDeepEqual(outputValues(sample), ['', '', ''], 'B starts without event metadata');
+    assertEqual((requiredElement(sample, 'textarea') as HTMLTextAreaElement).value, '', 'B initial textarea');
+    for (const [type, x, y] of [['mousemove', 42, 17], ['click', 21, 9]] as const) {
+        const textarea = requiredElement(sample, 'textarea') as HTMLTextAreaElement;
+        const coordinates = { pageX: Number.NaN, offsetX: Number.NaN, offsetY: Number.NaN };
+        textarea.addEventListener(type, event => {
+            const mouse = event as MouseEvent;
+            Object.assign(coordinates, { pageX: mouse.pageX, offsetX: mouse.offsetX, offsetY: mouse.offsetY });
+        }, { once: true });
+        textarea.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y }));
+        assert(Number.isFinite(coordinates.pageX), 'B receives the dispatched pointer event');
+        const expected = coordinates;
+        await waitForCondition(() => {
+            const current = requiredElement(sample, 'textarea') as HTMLTextAreaElement;
+            return sameValues(outputValues(sample), [`x:${expected.pageX}`, type, String(expected.offsetY)])
+                && current.style.boxShadow.includes(`${expected.offsetX}px ${expected.offsetY}px`)
+                && getComputedStyle(current).boxShadow !== 'none';
+        }, `B displays exact ${type} payload and both shadow offsets`);
+    }
 }
 
 async function verifyBasicSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', '', 'sample 1 starts blank');
+    assertValues(sample, [''], [''], 'sample 1 starts blank');
+    setValueAndDispatch(sample, 'input', 'pending', 'input');
+    await whenCemSourceRendered(sample);
+    assertValues(sample, ['pending'], [''], 'sample 1 waits for change');
     setValueAndDispatch(sample, 'input', 'basic', 'change');
-    await waitForText(sample, 'output', 'basic', 'sample 1 default change event updates the slice');
+    await waitForValues(sample, ['basic'], ['basic'], 'sample 1 change commits');
+    setValueAndDispatch(sample, 'input', '', 'change');
+    await waitForValues(sample, [''], [''], 'sample 1 clears');
 }
 
 async function verifyInitialChangeSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', 'B', 'sample 2 exposes its initial slice');
+    assertValues(sample, ['B'], ['B'], 'sample 2 initial value');
+    setValueAndDispatch(sample, 'input', 'pending', 'input');
+    await whenCemSourceRendered(sample);
+    assertValues(sample, ['pending'], ['B'], 'sample 2 waits for change');
     setValueAndDispatch(sample, 'input', 'changed', 'change');
-    await waitForText(sample, 'output', 'changed', 'sample 2 change event updates the slice');
+    await waitForValues(sample, ['changed'], ['changed'], 'sample 2 change commits');
+    setValueAndDispatch(sample, 'input', '', 'change');
+    await waitForValues(sample, [''], [''], 'sample 2 clears without restoring the default');
 }
 
 async function verifyInitialInputSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', 'B', 'sample 3 exposes its initial slice');
+    assertValues(sample, ['B'], ['B'], 'sample 3 initial value');
     setValueAndDispatch(sample, 'input', 'input event', 'input');
-    await waitForText(sample, 'output', 'input event', 'sample 3 input event updates the slice');
+    await waitForValues(sample, ['input event'], ['input event'], 'sample 3 input commits');
+    setValueAndDispatch(sample, 'input', '', 'input');
+    await waitForValues(sample, [''], [''], 'sample 3 clears');
 }
 
 async function verifyAttributeInitialSlice(sample: HTMLElement): Promise<void> {
@@ -249,6 +262,28 @@ async function verifyRadioSlice(sample: HTMLElement): Promise<void> {
 }
 
 
+function outputValues(sample: ParentNode): string[] {
+    return Array.from(sample.querySelectorAll('output'), output => normalize(output.textContent ?? ''));
+}
+
+function inputValues(sample: ParentNode): string[] {
+    return Array.from(sample.querySelectorAll<HTMLInputElement>('input'), input => input.value);
+}
+
+function sameValues(actual: readonly unknown[], expected: readonly unknown[]): boolean {
+    return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
+}
+
+function assertValues(sample: ParentNode, inputs: readonly string[], outputs: readonly string[], label: string): void {
+    assertDeepEqual(inputValues(sample), inputs, `${label}: inputs`);
+    assertDeepEqual(outputValues(sample), outputs, `${label}: outputs`);
+}
+
+async function waitForValues(sample: ParentNode, inputs: readonly string[], outputs: readonly string[], label: string): Promise<void> {
+    await waitForCondition(() => sameValues(inputValues(sample), inputs)
+        && sameValues(outputValues(sample), outputs), label);
+}
+
 function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
     const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
         (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
@@ -289,19 +324,6 @@ async function waitForText(sample: ParentNode, selector: string, expected: strin
     await waitForCondition(() => textValue(sample, selector) === expected, label);
 }
 
-async function waitForTextValue(
-    sample: ParentNode,
-    selector: string,
-    expected: string,
-    label: string
-): Promise<void> {
-    await waitForCondition(() => inputValue(sample, selector) === expected, label);
-}
-
-function normalizedText(element: Element): string {
-    return normalize(element.textContent ?? '');
-}
-
 function normalize(value: string): string {
     return value.replace(/\s+/gu, ' ').trim();
 }
@@ -322,7 +344,7 @@ function assertEqual(actual: unknown, expected: unknown, label: string): void {
     }
 }
 
-function assertDeepEqual(actual: readonly string[], expected: readonly string[], label: string): void {
+function assertDeepEqual(actual: readonly unknown[], expected: readonly unknown[], label: string): void {
     const actualJson = JSON.stringify(actual);
     const expectedJson = JSON.stringify(expected);
     if (actualJson !== expectedJson) {
