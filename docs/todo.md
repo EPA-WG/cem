@@ -2106,6 +2106,12 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       while historical timeout attribution remains open on traced recurrence.
       This supersedes the earlier stabilization-first order, not its open
       investigations. The inventory follow-up below records the accepted work.
+      Follow-up 2026-09-24: the cell-overrides audit and real source-harness
+      component pass their focused stories and all 31 standalone / 37
+      source-loaded gallery documents. The referrer matrix's scalar-URL frame
+      timeout recurred in both final aggregate runs and a dedicated full
+      Storybook rerun (219/220 each), leaving aggregate sign-off blocked.
+      Trace that recurrence before changing its predicate, budget or runtime.
   - [x] Fixture: capture output-specific lifecycle state for the null inline
         resource `href` in `NestedExternalSrcUsesLoadedDocumentBase` and null
         logo `src` in `MaterialIconLinkParity`, observed during the authored
@@ -3932,6 +3938,37 @@ registration identities may reuse an inherited or existing definition.
           source-loaded story assertions; fill any observable-output or
           interaction gaps, cross-check the independent gallery, preserve the
           authored HTML, and run affected verification gates.
+          The four source-loaded stories now cover all six samples with exact
+          row and source-preview assertions. Independent gallery table/selection
+          checks are strengthened; both gallery modes now require exact file
+          previews. All 31 standalone pages and 37 source-loaded documents pass
+          with the real source-harness component. The four affected stories pass,
+          but full-suite sign-off remains blocked by the existing referrer-frame
+          timeout (219/220 in the final aggregate and dedicated full rerun).
+    - [x] Decision: replace the independent source-document harness's minimal
+          `cem-demo-element` stub with the real shared component (recommended),
+          or retain the stub and document file-preview rendering as covered only
+          by standalone pages and Storybook. The stub only activates direct
+          templates and ignores external `src` previews, so added preview-text
+          assertions time out with no code element. Accepted 2026-09-24: the
+          user chose the real shared component.
+    - [x] Fixture: use the real shared `cem-demo-element` in the independent
+          source-document harness with its browser WASM import. Require exact
+          contents and empty demo output for all three cell-override file
+          previews in both harness modes. Validate all 37 source-loaded
+          documents and affected coverage, lint and typecheck gates; preserve
+          authored demos and existing timeout budgets.
+          Completed 2026-09-24: both gallery modes pass, including all three
+          exact file previews. The scoped-CSS `b` assertion targets the live
+          demo slot, excluding source tokens. All 508 unit tests, lint (two
+          existing warnings) and typecheck pass. The separate referrer timeout
+          keeps the aggregate gate and audit sign-off open above.
+    - [ ] Fixture: audit all 16 `demo/data-slices.html` samples against their
+          existing source-loaded story and independent gallery assertions.
+          Check initial values and event results together, both instances in
+          the attribute-backed examples, and checkbox/radio DOM state alongside
+          displayed slice values. Fill coverage gaps, preserve authored HTML,
+          and run affected verification gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -219,3 +219,45 @@ architecture, lint and package typecheck pass; lint retains its two existing
 warnings. The eight-sample attributes audit is complete. The next behavior-audit
 fixture covers the six `cell-overrides.html` samples. The wider per-sample audit
 and earlier startup-timeout investigations remain open.
+
+## Cell-override behavior audit, 2026-09-24
+
+All six samples have named steps in `AuthoredSourcePreviews`, with the existing
+specialized stories retaining their interaction coverage. The authored HTML,
+data files, templates and runtime are unchanged.
+
+| Sample | Story and observable assertions |
+| --- | --- |
+| 1. Name cells become Pokémon pictures | `AuthoredSourcePreviews` checks every initial row. `PokemonCellPictures` checks each name, image alternative, sprite URL and unchanged data URL before sorting and after ascending/descending sorting; one selected source row remains selected. |
+| pokemon-cells.json | `AuthoredSourcePreviews` checks the exact file text, highlighted source tokens and empty demo output. `PokemonCellPictures` also checks that sorting leaves the source preview unchanged. |
+| 2. Zero-stock cells get a warning | `AuthoredSourcePreviews` checks all five name/stock pairs. `ConditionalStockFallback` verifies both sort directions, selection retention, the single zero-stock warning and ordinary reference stock. |
+| stock-cells.xml | `AuthoredSourcePreviews` checks exact highlighted file text and empty demo output. `ConditionalStockFallback` checks that the preview remains unchanged after interactions. |
+| stock-cell.cemt | `AuthoredSourcePreviews` checks exact highlighted template text and empty demo output. |
+| 3. Native values pass into another component | `AuthoredSourcePreviews` and `NativeAttributeValues` check the exact paragraph values, numeric result, date, retained mixed-content name subtree and text-only projection. |
+
+Stock assertions account for the base viewer's direct-text column before name
+and stock. The story finds those columns by heading; the independent verifier
+checks their headings and positions.
+
+Both independent gallery modes additionally check per-row Pokémon name/URL
+pairing after sorting, all five stock values before and after sorting, and
+selection retention. Both modes require exact external-file preview text and
+empty demo output, independently of Storybook.
+
+The independent source harness now imports the real shared `cem-demo-element`
+and maps its browser WASM dependency. The user approved this change after exact
+preview-text assertions exposed that the former inline stub activated templates
+but ignored external `src` previews. All three file-preview checks are shared
+between standalone pages and source-loaded documents. The offline route for
+legacy remote demo-helper imports is unchanged.
+The scoped-CSS anonymous-checkbox assertion now targets `[slot=demo] b` so
+source-highlighting tokens cannot substitute for the live element under test.
+
+The focused four-story selection, 508 unit tests, lint and typecheck pass. The
+independent gallery passes all 31 standalone pages and 37 source-loaded
+documents with the real helper. Both final aggregate attempts and a dedicated
+full Storybook rerun pass 219/220, failing only the previously recorded
+referrer-frame timeout. An earlier full run before the harness replacement
+passed 220/220. The timeout's budget and semantics are unchanged; the aggregate
+gate and six-sample audit sign-off remain open pending that investigation.
+Lint retains its two existing warnings.

@@ -11,6 +11,7 @@ const meta: Meta = { title: 'CEM Elements/Cell Template Overrides', tags: ['test
 export default meta;
 type Story = StoryObj;
 const POKEMON_NAMES = ['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'caterpie'];
+const STOCK = { Cherry: 'Out of stock (0)', Lemon: '5', Apple: '12', Pear: '3', Plum: '8' };
 const SOURCE_URL = new URL('../../demo/cell-overrides.html', import.meta.url);
 function renderDocument(): HTMLElement {
     const root = document.createElement('section');
@@ -30,9 +31,68 @@ function select(element: HTMLElement, value: string): void {
     element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function text(element: Element | null): string {
+    return (element?.textContent ?? '').replace(/\s+/gu, ' ').trim();
+}
+
+async function expectPokemonRows(viewer: HTMLElement, names: readonly string[]): Promise<void> {
+    await waitFor(() => {
+        const rows = Array.from(viewer.querySelectorAll('table > tbody > tr'));
+        expect(rows.map(row => text(row.querySelector('.pokemon-name')))).toEqual(names);
+        expect(viewer.querySelectorAll('img')).toHaveLength(names.length);
+        for (const [index, row] of rows.entries()) {
+            const name = names[index];
+            const id = POKEMON_NAMES.indexOf(name) + 1;
+            const cells = row.querySelectorAll('td');
+            expect(cells).toHaveLength(2);
+            expect(cells[0].querySelectorAll('img')).toHaveLength(1);
+            expect(cells[0].querySelector('img')).toHaveAttribute('alt', name);
+            expect(cells[0].querySelector('img')).toHaveAttribute('src',
+                `https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/${id}.svg`);
+            expect(text(cells[1])).toBe(`https://pokeapi.co/api/v2/pokemon/${id}/`);
+            expect(cells[1].querySelector('img')).toBeNull();
+        }
+    }, { timeout: 10000 });
+}
+
+async function expectStockRows(viewer: HTMLElement, names: readonly (keyof typeof STOCK)[]): Promise<void> {
+    await waitFor(() => {
+        const headings = Array.from(viewer.querySelectorAll('thead th'), text);
+        const nameColumn = headings.indexOf('name');
+        const stockColumn = headings.indexOf('stock');
+        expect(nameColumn).toBeGreaterThanOrEqual(0);
+        expect(stockColumn).toBeGreaterThanOrEqual(0);
+        const rows = Array.from(viewer.querySelectorAll('table > tbody > tr'));
+        expect(rows.map(row => text(row.children.item(nameColumn)?.querySelector('.value') ?? null))).toEqual(names);
+        for (const [index, row] of rows.entries()) {
+            expect(text(row.children.item(stockColumn)?.querySelector('strong, .value') ?? null)).toBe(STOCK[names[index]]);
+        }
+        expect(viewer.querySelectorAll('strong')).toHaveLength(1);
+        const reference = Array.from(viewer.querySelectorAll('details')).find(details =>
+            details.querySelector(':scope > summary')?.textContent?.includes('document/reference'));
+        expect(reference).toBeDefined();
+        expect(text(reference?.querySelector('.value') ?? null)).toBe('0');
+        expect(reference?.querySelector('strong')).toBeNull();
+    }, { timeout: 10000 });
+}
+
+async function expectNativeValues(root: HTMLElement): Promise<void> {
+    await waitFor(() => {
+        expect(root.querySelectorAll('cem-native-value-card article')).toHaveLength(1);
+        const card = root.querySelector('cem-native-value-card article');
+        expect(Array.from(card?.querySelectorAll('p') ?? [], text)).toEqual([
+            'ivysaur', 'Next count: 3', 'Date: 2024-02-29', 'Text-only label: ivysaur',
+        ]);
+        const name = card?.querySelector('.value-label > name');
+        expect(name?.firstChild?.textContent).toBe('ivy');
+        expect(name?.querySelector('em')).toHaveTextContent('saur');
+        expect(card?.querySelector(':scope > section name')).toBeNull();
+    }, { timeout: 10000 });
+}
+
 export const AuthoredSourcePreviews: Story = {
     render: renderDocument,
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const authored = document.createElement('template');
         authored.innerHTML = authoredPage;
         const expected = Array.from(authored.content.querySelectorAll('cem-demo-element'), card => ({
@@ -45,26 +105,30 @@ export const AuthoredSourcePreviews: Story = {
         await waitFor(() => {
             expect(canvasElement.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(6);
         }, { timeout: 30000 });
-        const cards = Array.from(canvasElement.querySelectorAll('cem-demo-element'));
+        const cards = Array.from(canvasElement.querySelectorAll<HTMLElement>('cem-demo-element'));
         expect(cards.map(card => card.getAttribute('legend'))).toEqual(expected.map(card => card.legend));
         for (const [index, card] of cards.entries()) {
-            await waitFor(() => expect(card.querySelector('[slot=text] code')?.textContent).toBe(expected[index].source));
-            if (card.hasAttribute('src')) {
-                expect(card).toHaveAttribute('demo', 'false');
-                expect(card.querySelector('[slot=demo]')?.textContent).toBe('');
-                const code = card.querySelector('[slot=text] code');
-                const token = code?.querySelector(card.getAttribute('type') === 'json' ? 'i' : 'b');
-                expect(token).not.toBeNull();
-                expect(getComputedStyle(token as Element).color).not.toBe(getComputedStyle(code as Element).color);
-            }
+            await step(expected[index].legend ?? '', async () => {
+                await waitFor(() => expect(card.querySelector('[slot=text] code')?.textContent).toBe(expected[index].source));
+                if (card.hasAttribute('src')) {
+                    expect(card).toHaveAttribute('demo', 'false');
+                    expect(card.querySelector('[slot=demo]')?.textContent).toBe('');
+                    expect(card.querySelector('[slot=demo]')?.children).toHaveLength(0);
+                    const code = card.querySelector('[slot=text] code');
+                    const token = code?.querySelector(card.getAttribute('type') === 'json' ? 'i' : 'b');
+                    expect(token).not.toBeNull();
+                    expect(getComputedStyle(token as Element).color).not.toBe(getComputedStyle(code as Element).color);
+                } else if (card.querySelector('cem-pokemon-cells')) {
+                    await expectPokemonRows(await ready(card, 'cem-pokemon-cells'), POKEMON_NAMES);
+                } else if (card.querySelector('cem-stock-cells')) {
+                    await expectStockRows(await ready(card, 'cem-stock-cells'), ['Cherry', 'Lemon', 'Apple', 'Pear', 'Plum']);
+                } else {
+                    await expectNativeValues(card);
+                }
+            });
         }
         const template = canvasElement.querySelector('cem-demo-element > template') as HTMLTemplateElement;
         expect(template.content.querySelector('cem-element')?.hasAttribute('data-cem-render-node-id')).toBe(true);
-        await waitFor(() => {
-            expect(canvasElement.querySelectorAll('cem-pokemon-cells img')).toHaveLength(10);
-            expect(canvasElement.querySelector('cem-stock-cells strong')).toHaveTextContent('Out of stock (0)');
-            expect(canvasElement.querySelector('cem-native-value-card article')).toHaveTextContent('Next count: 3');
-        }, { timeout: 10000 });
     },
 };
 
@@ -78,29 +142,19 @@ export const PokemonCellPictures: Story = {
         const preview = canvasElement.querySelector('cem-demo-element[legend="pokemon-cells.json"]');
         await waitFor(() => expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(pokemonSource));
         expect(preview?.querySelector('[slot=demo]')?.textContent).toBe('');
-        const images = () => Array.from(viewer.querySelectorAll('img'));
-        await waitFor(() => {
-            expect(images().map(image => image.alt)).toEqual(POKEMON_NAMES);
-        }, { timeout: 10000 });
-        for (const [index, image] of images().entries()) {
-            expect(image.src).toBe(`https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/${index + 1}.svg`);
-        }
-        expect(viewer.querySelector('table')).toHaveTextContent('venusaur');
-        expect(viewer.querySelector('table')).toHaveTextContent('ivysaur');
+        await expectPokemonRows(viewer, POKEMON_NAMES);
         expect(Array.from(viewer.querySelectorAll('thead th'), th => th.textContent?.trim())).toEqual(['✓', 'name', 'url']);
         await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
         await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('bulbasaur'), { timeout: 10000 });
         select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
-        await waitFor(() => expect(images().map(image => image.alt)).toEqual([...POKEMON_NAMES].sort()), { timeout: 10000 });
+        await expectPokemonRows(viewer, [...POKEMON_NAMES].sort());
         expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('bulbasaur');
         select(controls.getByRole('combobox', { name: 'Direction' }), 'descending');
-        await waitFor(() => expect(images().map(image => image.alt)).toEqual([...POKEMON_NAMES].sort().reverse()), { timeout: 10000 });
-        expect(viewer.querySelector('table')).toHaveTextContent('https://pokeapi.co/api/v2/pokemon/1/');
+        await expectPokemonRows(viewer, [...POKEMON_NAMES].sort().reverse());
+        expect(viewer.querySelectorAll('tr[aria-selected=true]')).toHaveLength(1);
+        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('bulbasaur');
+        expect(viewer.querySelector('tr[aria-selected=true] button')).toHaveAttribute('aria-pressed', 'true');
         expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(pokemonSource);
-        expect(viewer.querySelectorAll('td .pokemon-name')).toHaveLength(10);
-        for (const cell of viewer.querySelectorAll('td .pokemon-name')) {
-            expect(cell).toHaveTextContent((cell.querySelector('img') as HTMLImageElement).alt);
-        }
     },
 };
 
@@ -206,22 +260,20 @@ export const ConditionalStockFallback: Story = {
         const controls = within(viewer);
         expect(controls.queryByRole('textbox', { name: 'Source' })).toBeNull();
         expect(controls.queryByRole('button', { name: 'Reset source' })).toBeNull();
-        expect(viewer.querySelectorAll('tbody tr')).toHaveLength(5);
-        expect(viewer.querySelectorAll('strong')).toHaveLength(1);
-        expect(viewer.querySelector('strong')).toHaveTextContent('Out of stock (0)');
-        const reference = Array.from(viewer.querySelectorAll('details')).find(details =>
-            details.querySelector(':scope > summary')?.textContent?.includes('document/reference'));
-        expect(reference).toHaveTextContent('0');
-        expect(reference?.querySelector('strong')).toBeNull();
+        await expectStockRows(viewer, ['Cherry', 'Lemon', 'Apple', 'Pear', 'Plum']);
         const preview = canvasElement.querySelector('cem-demo-element[legend="stock-cells.xml"]');
         await waitFor(() => expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(stockSource));
         expect(preview?.querySelector('[slot=demo]')?.textContent).toBe('');
         await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
         await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Cherry'));
         select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
-        await waitFor(() => expect(viewer.querySelector('tbody tr')).toHaveTextContent('Apple'), { timeout: 10000 });
+        await expectStockRows(viewer, ['Apple', 'Cherry', 'Lemon', 'Pear', 'Plum']);
         expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Out of stock (0)');
-        expect(viewer.querySelectorAll('strong')).toHaveLength(1);
+        select(controls.getByRole('combobox', { name: 'Direction' }), 'descending');
+        await expectStockRows(viewer, ['Plum', 'Pear', 'Lemon', 'Cherry', 'Apple']);
+        expect(viewer.querySelectorAll('tr[aria-selected=true]')).toHaveLength(1);
+        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Cherry');
+        expect(viewer.querySelector('tr[aria-selected=true] button')).toHaveAttribute('aria-pressed', 'true');
         expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(stockSource);
     },
 };
@@ -378,12 +430,6 @@ export const FailedStockDeclarationCanRemount: Story = {
 export const NativeAttributeValues: Story = {
     render: renderDocument,
     play: async ({ canvasElement }) => {
-        await waitFor(() => expect(canvasElement.querySelector('cem-native-value-card article')).not.toBeNull(), { timeout: 10000 });
-        const card = canvasElement.querySelector('cem-native-value-card article');
-        expect(card).toHaveTextContent('Next count: 3');
-        expect(card).toHaveTextContent('Date: 2024-02-29');
-        expect(card?.querySelector('.value-label > name > em')).toHaveTextContent('saur');
-        expect(card?.querySelector(':scope > section > p')).toHaveTextContent('Text-only label: ivysaur');
-        expect(card?.querySelector(':scope > section name')).toBeNull();
+        await expectNativeValues(canvasElement);
     },
 };

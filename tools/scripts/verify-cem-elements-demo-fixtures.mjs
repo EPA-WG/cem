@@ -527,18 +527,36 @@ const hexRowSample = sampleContract('9. Horizontal row with a current page', [
     computedStyle('nav a[aria-current="page"] .hex-label', 'transform', 'matrix(1, 0, 0, 1, 0, 0)'),
 ]);
 
+const cellPokemonNames = ['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'caterpie'];
+const cellStockRows = [['Cherry', 'Out of stock (0)'], ['Lemon', '5'], ['Apple', '12'], ['Pear', '3'], ['Plum', '8']];
+function cellStockChecks(rows) {
+    return rows.flatMap(([name, stock], index) => [
+        normalizedText(`table > tbody > tr:nth-child(${index + 1}) > td:nth-last-of-type(2) .value`, name),
+        normalizedText(`table > tbody > tr:nth-child(${index + 1}) > td:last-of-type :is(strong, .value)`, stock),
+    ]);
+}
+
 const cellOverrideSamples = [
     sampleContract('1. Name cells become Pokémon pictures', [
         countExactly('img', 10),
-        ...['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'caterpie'].map(name => imageLoaded(`img[alt="${name}"]`)),
+        ...cellPokemonNames.map(name => imageLoaded(`img[alt="${name}"]`)),
         attributeEquals('img[alt="ivysaur"]', 'src', 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/2.svg'),
         text('table > tbody > tr:first-child', 'bulbasaur'),
+        clickThenText('table > tbody > tr:first-child button', 'tr[aria-selected=true]', 'bulbasaur'),
         selectThenText('select[aria-label="Sort column"]', 'name',
             'table > tbody > tr:first-child', 'blastoise'),
         attributeEquals('table > tbody > tr:first-child img', 'alt', 'blastoise'),
         countExactly('img', 10),
         selectThenText('select[aria-label="Direction"]', 'descending',
             'table > tbody > tr:first-child', 'wartortle'),
+        ...[...cellPokemonNames].sort().reverse().flatMap((name, index) => [
+            normalizedText(`table > tbody > tr:nth-child(${index + 1}) .pokemon-name`, name),
+            normalizedText(`table > tbody > tr:nth-child(${index + 1}) > td:last-child`,
+                `https://pokeapi.co/api/v2/pokemon/${cellPokemonNames.indexOf(name) + 1}/`),
+        ]),
+        countExactly('tr[aria-selected=true]', 1),
+        text('tr[aria-selected=true]', 'bulbasaur'),
+        attributeEquals('tr[aria-selected=true] button', 'aria-pressed', 'true'),
         countExactly('img', 10),
         countExactly('textarea', 0),
         countExactly('button[aria-label="Reset source"]', 0),
@@ -547,15 +565,29 @@ const cellOverrideSamples = [
         attributeContains(':scope', 'src', '/pokemon-cells.json'),
         attributeEquals(':scope', 'type', 'json'),
         attributeEquals(':scope', 'demo', 'false'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/pokemon-cells.json'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
         countExactly('table', 0),
     ]),
     sampleContract('2. Zero-stock cells get a warning', [
         countExactly('strong', 1),
         normalizedText('table strong', 'Out of stock (0)'),
         countExactly('table > tbody > tr', 5),
-        text('table > tbody > tr:last-child', 'Plum'),
+        normalizedText('table > thead th:nth-last-child(2)', 'name'),
+        normalizedText('table > thead th:last-child', 'stock'),
+        ...cellStockChecks(cellStockRows),
+        clickThenText('table > tbody > tr:first-child button', 'tr[aria-selected=true]', 'Cherry'),
         selectThenText('select[aria-label="Sort column"]', 'name',
             'table > tbody > tr:first-child', 'Apple'),
+        text('tr[aria-selected=true]', 'Cherry'),
+        selectThenText('select[aria-label="Direction"]', 'descending',
+            'table > tbody > tr:first-child', 'Plum'),
+        ...cellStockChecks([...cellStockRows].sort(([left], [right]) => right.localeCompare(left))),
+        countExactly('tr[aria-selected=true]', 1),
+        text('tr[aria-selected=true]', 'Cherry'),
+        attributeEquals('tr[aria-selected=true] button', 'aria-pressed', 'true'),
         countExactly('strong', 1),
         countExactly('textarea', 0),
         countExactly('button[aria-label="Reset source"]', 0),
@@ -564,12 +596,20 @@ const cellOverrideSamples = [
         attributeContains(':scope', 'src', '/stock-cells.xml'),
         attributeEquals(':scope', 'type', 'xml'),
         attributeEquals(':scope', 'demo', 'false'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/stock-cells.xml'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
         countExactly('table', 0),
     ]),
     sampleContract('stock-cell.cemt', [
         attributeContains(':scope', 'src', '/stock-cell.cemt'),
         attributeEquals(':scope', 'type', 'cem-ml'),
         attributeEquals(':scope', 'demo', 'false'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/stock-cell.cemt'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
         countExactly('table', 0),
     ]),
     sampleContract('3. Native values pass into another component', [
@@ -2433,7 +2473,7 @@ const sourceDocumentSpecs = [
             sampleContract('10. uid-seed stabilizes keyframe names', [keyframeIdentity('cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]', 'cem-css-keyframes', '[part~="indicator"]', 'seeded-pulse', 'udemoz2fcssz2fkeyframes')]),
             sampleContract('11. Descendant selectors stay inside the component', [
                 computedStyle('label', 'color', 'rgb(0, 128, 0)'),
-                computedStyle('b', 'color', 'rgb(0, 0, 139)'),
+                computedStyle('[slot=demo] b', 'color', 'rgb(0, 0, 139)'),
             ]),
             sampleContract('12. CSS from an external template fragment', [
                 text('cem-css-external-fragment', 'projected external template'),
@@ -2498,6 +2538,7 @@ const sourceHarnessHtml = `<!doctype html>
     <script type="importmap">
         {
             "imports": {
+                "@epa-wg/cem-ml/wasm": "/packages/cem-ml-npm/dist/wasm/browser/cem_ml.js",
                 "@epa-wg/cem-elements/": "/packages/cem-elements/",
                 "@epa-wg/cem-elements/demo/lib-dir/Smiley.svg": "/packages/cem-elements/demo/lib-dir/Smiley.svg",
                 "@epa-wg/material": "/packages/custom-element/material/",
@@ -2520,7 +2561,6 @@ const sourceHarnessHtml = `<!doctype html>
             }
         }
     </script>
-    <script>${htmlDemoElementModule}</script>
     <script>
         localStorage.setItem('cemDemoLiveText', 'stored initial');
         localStorage.setItem('cemDemoPersistedDefault', 'DEF');
@@ -2544,6 +2584,7 @@ const sourceHarnessHtml = `<!doctype html>
         });
     </script>
     <script type="module">
+        import '/packages/cem-demo-element/dist/index.js';
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
         window.__cemFixtureRuntime = installCemElementRuntime(window);
     </script>
