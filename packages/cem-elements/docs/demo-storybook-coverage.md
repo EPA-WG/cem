@@ -337,3 +337,57 @@ Checkpoint validation passes the focused story and serial aggregate gate:
 220 Storybook tests, 508 unit tests, all 31 standalone pages and 37 source-loaded
 documents, lint and typecheck. Lint retains two existing warnings. Passing
 these existing gates does not close sample 4's defect or the remaining audit.
+
+## Shared reference syntax and data-slices audit, 2026-09-24
+
+The user selected optional `$name` references in all CEM-QL queries, with
+declaration names kept bare. AC-QS-7 records that contract. The shared expression
+parser now accepts an adjacent prefix, retaining the original source and byte
+ranges while using existing name resolution, type checking and lowering.
+The renderer and embedded auditor no longer strip simple prefixes. Native
+regressions cover module and standalone APIs, template spans and content,
+audit agreement, literals/comments, diagnostic offsets, malformed prefixes,
+and forbidden prefixes on declarations, parameters, members, static keys and
+types. All 722 native tests pass, with 9 existing ignored tests.
+
+Sample 4 retains its authored `{$s ?? $a}` expression. Its native regression
+reads the actual HTML template and verifies default, supplied, edited and empty
+values. The source contract retains that expression, and Storybook checks both
+instances and rejects declaration/instance diagnostics. Nx's native test inputs
+include `data-slices.html` so changes to the authored fixture invalidate the
+test cache.
+
+All 16 Storybook steps now check initial and resulting state. Both independent
+gallery modes use the same sample contracts, with an atomic form-state check
+for input values, checked properties and displayed output arrays.
+
+| Sample | Observable behavior checked |
+| --- | --- |
+| A1 | Initial input and displayed count, increment, decrement and direct editing. |
+| A2 | Initial input/output pair, click and tap increments, and decrement. |
+| B | Initially empty metadata; mousemove and click handling. Storybook checks exact observed coordinates and both shadow offsets; gallery checks hover offset Y and both authored style offsets. |
+| 1 | Blank initial state, input waiting for change, committed value and clearing. |
+| 2 | `B` initial state, input waiting for change, committed value and clearing without restoring the default. |
+| 3 | `B` initial state, input-event updates and clearing. |
+| 4 | Default/supplied attribute fallbacks, independent edits to both instances, and empty slice distinct from an absent slice. |
+| 5 | Input `B` paired with slice `xB`, edited `C`/`xC`, and empty input/`x`. |
+| 6 | Initial `anonymous` and button-driven `broccoli`, paired with the input. |
+| 7 | Nested initial zero and click/tap increments. |
+| 8 | Independent clicked/focused values across focus, click, tap and blur. |
+| 9 | Supplied/default emotions, independent edits and clearing, plus reflected host attributes. |
+| 10 | Initially absent slices, one input updating both outputs, and clearing both. |
+| 11 | Initial attribute/absent slice, updates and clearing paired with the input and reflected attribute. |
+| 12 | Initial checkbox properties and all three outputs; independent uncheck/recheck transitions and explicit slice values. |
+| 13 | Initial radio choice, switching to the other value and back, with exclusive checked state. |
+
+Authored HTML and raw legacy event-expression evaluation are unchanged. The
+broader per-sample audit and historical HTTP/location/stock investigations
+remain separate open work.
+
+Final aggregate validation passes all 220 Storybook tests, 508 unit tests,
+31 standalone pages and 37 source-loaded documents, component lint and
+typecheck. The inventory check requires literal `sampleContract` legends;
+the two initially generated entries were made explicit before the successful
+rerun. Rust lint also passes with caching disabled, with warnings in unchanged
+code; component lint retains its two existing warnings. This completes the
+16-sample data-slices audit. The next fixture audits the 10 data-table samples.

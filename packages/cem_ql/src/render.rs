@@ -2402,13 +2402,11 @@ impl TemplateCompiler<'_> {
         let select = if valid {
             let content_type = content_type.unwrap();
             let type_expression = whole_avt_expression(&content_type)
-                .map(normalize_host_expression)
                 .map(str::to_owned)
                 .unwrap_or_else(|| serde_json::to_string(&content_type).expect("string literal"));
             let projection_argument = projection
                 .map(|projection| {
                     let expression = whole_avt_expression(&projection)
-                        .map(normalize_host_expression)
                         .map(str::to_owned)
                         .unwrap_or_else(|| {
                             serde_json::to_string(&projection).expect("string literal")
@@ -2682,7 +2680,7 @@ impl TemplateCompiler<'_> {
         source: &str,
         host: &SchemaToken,
     ) -> CompiledTemplateExpression {
-        let source = normalize_host_expression(source).to_owned();
+        let source = source.to_owned();
         let query = match self.type_checking.compile(&source, &self.compile_context) {
             Ok(mut query) => {
                 // Keep the enclosing template slot before the query-local frames
@@ -3899,20 +3897,6 @@ pub(crate) fn item_to_string(item: &Item) -> String {
         | Item::Resource(_) => String::new(),
         Item::Atomic(_) => unreachable!("atomic items return above"),
     }
-}
-
-fn normalize_host_expression(source: &str) -> &str {
-    let trimmed = source.trim();
-    if let Some(rest) = trimmed.strip_prefix('$') {
-        let is_simple_binding = !rest.is_empty()
-            && rest
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
-        if is_simple_binding {
-            return rest;
-        }
-    }
-    trimmed
 }
 
 fn whole_avt_expression(value: &str) -> Option<&str> {

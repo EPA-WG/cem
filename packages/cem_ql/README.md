@@ -88,6 +88,14 @@ and retains string-valued fields. This is not a JSON AST handoff.
 
 ### Native values in templates
 
+CEM-QL accepts optional `$` prefixes on expression references in queries and
+templates: `$s ?? $a` and `s ?? a` resolve the same bindings. Declarations and
+parameters remain bare, as in `{ let value = 1; $value + value }`; field names,
+record keys and type names also remain bare. The prefix must touch the name.
+Strings and comments preserve literal dollar signs. CEM-ML's content marker
+is separate: `{$s ?? $a}` contains the query `s ?? $a`, while
+`@value="{$s ?? $a}"` contains `$s ?? $a`.
+
 Named attribute types compose with local restrictions; bounds and regex patterns
 must all hold after final conversion. CEMV version 3 preserves the complete
 contract through clones, XPath-selected attributes, workers and saved pipelines,

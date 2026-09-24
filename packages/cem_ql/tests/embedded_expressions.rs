@@ -105,7 +105,7 @@ fn embedded_functional_fixtures(
                 expressions,
                 dom_projection,
                 EmbeddedHostKind::AttributeValueTemplate,
-                "node.name",
+                "$node.name",
             ),
             bindings(&[("node", ItemStream::once(dom_node.clone()))]),
             vec![string("article")],
@@ -117,7 +117,7 @@ fn embedded_functional_fixtures(
                 expressions,
                 dom_projection,
                 EmbeddedHostKind::SelectAttribute,
-                "node.attributes",
+                "$node.attributes",
             ),
             bindings(&[("node", ItemStream::once(dom_node.clone()))]),
             vec![attribute.clone()],
@@ -129,7 +129,7 @@ fn embedded_functional_fixtures(
                 expressions,
                 dom_projection,
                 EmbeddedHostKind::AttributeValueTemplate,
-                "attribute.value",
+                "$attribute.value",
             ),
             bindings(&[("attribute", ItemStream::once(attribute.clone()))]),
             vec![string("hero")],
@@ -141,7 +141,7 @@ fn embedded_functional_fixtures(
                 expressions,
                 dom_projection,
                 EmbeddedHostKind::CallWithAttribute,
-                "child",
+                "$child",
             ),
             bindings(&[("child", ItemStream::once(child.clone()))]),
             vec![child.clone()],
@@ -177,7 +177,7 @@ fn embedded_functional_fixtures(
                 expressions,
                 data_island_story,
                 EmbeddedHostKind::SelectAttribute,
-                "node.children",
+                "$node.children",
             ),
             bindings(&[("node", ItemStream::once(story_node))]),
             vec![child],
@@ -259,7 +259,7 @@ fn repository_extractor_covers_required_embedding_classes() {
             && expression.provenance.source_path.ends_with(
                 "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
             )
-            && expression.normalized_source == "node.name"
+            && expression.normalized_source == "$node.name"
     }));
     assert!(expressions.iter().any(|expression| {
         expression.provenance.artifact_role == EmbeddedArtifactRole::TransformConfig
@@ -703,12 +703,12 @@ fn source_extractor_keeps_host_and_expression_ranges_distinct() {
 
     let avt = &expressions[0];
     assert_eq!(avt.source, "$label");
-    assert_eq!(avt.normalized_source, "label");
+    assert_eq!(avt.normalized_source, "$label");
     assert!(avt.provenance.host.range.start < avt.provenance.cem_ql_range.start);
     assert!(avt.provenance.host.range.end() > avt.provenance.cem_ql_range.end());
 
     let content = &expressions[1];
     assert_eq!(content.source, "$body");
-    assert_eq!(content.normalized_source, "body");
+    assert_eq!(content.normalized_source, "$body");
     assert!(content.provenance.host.range.start < content.provenance.cem_ql_range.start);
 }

@@ -576,7 +576,9 @@ name resolution but before final IR lowering:
   remains the numeric type error.
 
 This preserves XPath `a/b` child-selection meaning without adding XPath
-absolute paths, `//`, `@`, axis `::`, predicates, or `$` variable syntax.
+absolute paths, `//`, `@`, axis `::`, predicates, or XPath variable declarations.
+Optional adjacent `$` prefixes on expression references are accepted throughout
+CEM-QL under AC-QS-7; declaration names remain bare.
 
 ### 7.5 Strict-Default Failure Profile
 

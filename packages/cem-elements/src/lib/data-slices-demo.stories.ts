@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-data-slices-document';
 const EXPECTED_LEGENDS = [
@@ -150,117 +150,110 @@ async function verifyInitialInputSlice(sample: HTMLElement): Promise<void> {
 }
 
 async function verifyAttributeInitialSlice(sample: HTMLElement): Promise<void> {
-    assertText(
-        sample,
-        'cem-slice-attribute-initial:first-of-type p:nth-of-type(1) output',
-        '😁',
-        'sample 4 uses the default attribute'
-    );
-    assertText(
-        sample,
-        'cem-slice-attribute-initial:last-of-type p:nth-of-type(1) output',
-        '🤗',
-        'sample 4 preserves a supplied attribute'
-    );
+    for (const owner of sample.querySelectorAll<HTMLElement>('cem-element, cem-slice-attribute-initial')) {
+        assertDeepEqual(cemDiagnosticCodes(owner), [], 'sample 4 has no declaration or instance diagnostics');
+    }
+    assertValues(sample, ['😁', '🤗'], ['😁', '', '🤗', ''], 'sample 4 attribute fallbacks');
     setValueAndDispatch(sample, 'cem-slice-attribute-initial:first-of-type input', 'qqq', 'keyup');
-    await waitForText(
-        sample,
-        'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output',
-        'qqq',
-        'sample 4 keyup keeps the final event value'
-    );
+    await waitForValues(sample, ['qqq', '🤗'], ['😁', 'qqq', '🤗', ''], 'sample 4 first instance changes independently');
+    setValueAndDispatch(sample, 'cem-slice-attribute-initial:last-of-type input', 'second', 'keyup');
+    await waitForValues(sample, ['qqq', 'second'], ['😁', 'qqq', '🤗', 'second'], 'sample 4 second instance changes independently');
+    setValueAndDispatch(sample, 'cem-slice-attribute-initial:first-of-type input', '', 'keyup');
+    await waitForValues(sample, ['', 'second'], ['😁', '', '🤗', 'second'], 'sample 4 empty slice is distinct from an absent slice');
+    assertEqual(requiredElement(sample, 'cem-slice-attribute-initial:first-of-type').getAttribute('a'), '😁', 'sample 4 keeps the default attribute');
+    assertEqual(requiredElement(sample, 'cem-slice-attribute-initial:last-of-type').getAttribute('a'), '🤗', 'sample 4 keeps the supplied attribute');
 }
 
 async function verifyTransformedSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', 'xB', 'sample 5 exposes the transformed initial slice');
-    assertEqual(inputValue(sample, 'input'), 'B', 'sample 5 derives the input value from the slice');
+    assertValues(sample, ['B'], ['xB'], 'sample 5 initial transformed value');
     setValueAndDispatch(sample, 'input', 'C', 'change');
-    await waitForText(sample, 'output', 'xC', 'sample 5 transforms the changed value into the slice');
+    await waitForValues(sample, ['C'], ['xC'], 'sample 5 transforms the event value');
+    setValueAndDispatch(sample, 'input', '', 'change');
+    await waitForValues(sample, [''], ['x'], 'sample 5 transforms empty input');
 }
 
 async function verifyButtonSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', 'anonymous', 'sample 6 starts with the declared nickname');
+    assertValues(sample, ['anonymous'], ['anonymous'], 'sample 6 ignores the button until click');
     click(sample, 'button');
-    await waitForText(sample, 'output', 'broccoli', 'sample 6 button supplies the explicit slice value');
+    await waitForValues(sample, ['broccoli'], ['broccoli'], 'sample 6 button updates input and slice');
 }
 
 async function verifyNestedInitialSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', '0', 'sample 7 nested slice directive initializes the value');
+    assertValues(sample, [], ['0'], 'sample 7 nested default');
     click(sample, 'button');
-    await waitForText(sample, 'output', '1', 'sample 7 nested click handler updates the value');
+    await waitForValues(sample, [], ['1'], 'sample 7 click increments');
+    requiredElement(sample, 'button').dispatchEvent(new Event('tap', { bubbles: true }));
+    await waitForValues(sample, [], ['2'], 'sample 7 tap increments');
 }
 
 async function verifyMultipleNestedSlices(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'p:nth-of-type(1) output', '0', 'sample 8 initializes clicked');
-    assertText(sample, 'p:nth-of-type(2) output', '0', 'sample 8 initializes focused');
-
+    assertValues(sample, [], ['0', '0'], 'sample 8 initial slices');
     (requiredElement(sample, 'button') as HTMLButtonElement).focus();
-    await waitForText(sample, 'p:nth-of-type(2) output', '1', 'sample 8 focus updates focused');
+    await waitForValues(sample, [], ['0', '1'], 'sample 8 focus changes only focused');
     click(sample, 'button');
-    await waitForText(sample, 'p:nth-of-type(1) output', '1', 'sample 8 click updates clicked');
+    await waitForValues(sample, [], ['1', '1'], 'sample 8 click changes only clicked');
+    requiredElement(sample, 'button').dispatchEvent(new Event('tap', { bubbles: true }));
+    await waitForValues(sample, [], ['2', '1'], 'sample 8 tap changes only clicked');
     (requiredElement(sample, 'button') as HTMLButtonElement).blur();
-    await waitForText(sample, 'p:nth-of-type(2) output', '0', 'sample 8 blur clears focused');
+    await waitForValues(sample, [], ['2', '0'], 'sample 8 blur changes only focused');
 }
 
 async function verifyAttributeSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'cem-slice-emotion-attribute:first-of-type output', ':)', 'sample 9 keeps the supplied emotion');
-    assertText(sample, 'cem-slice-emotion-attribute:last-of-type output', '😃', 'sample 9 supplies the default emotion');
+    assertValues(sample, [':)', '😃'], [':)', '😃'], 'sample 9 supplied and default attributes');
+    setValueAndDispatch(sample, 'cem-slice-emotion-attribute:first-of-type input', 'supplied change', 'change');
+    await waitForValues(sample, ['supplied change', '😃'], ['supplied change', '😃'], 'sample 9 first instance updates independently');
+    assertEqual(requiredElement(sample, 'cem-slice-emotion-attribute:first-of-type').getAttribute('emotion'), 'supplied change', 'sample 9 first reflection');
     setValueAndDispatch(sample, 'cem-slice-emotion-attribute:last-of-type input', 'joyful', 'change');
-    await waitForText(
-        sample,
-        'cem-slice-emotion-attribute:last-of-type output',
-        'joyful',
-        'sample 9 updates the attribute-backed slice'
-    );
-    assertEqual(
-        requiredElement(sample, 'cem-slice-emotion-attribute:last-of-type').getAttribute('emotion'),
-        'joyful',
-        'sample 9 reflects the changed emotion'
-    );
+    await waitForValues(sample, ['supplied change', 'joyful'], ['supplied change', 'joyful'], 'sample 9 second instance updates independently');
+    assertEqual(requiredElement(sample, 'cem-slice-emotion-attribute:last-of-type').getAttribute('emotion'), 'joyful', 'sample 9 second reflection');
+    setValueAndDispatch(sample, 'cem-slice-emotion-attribute:first-of-type input', '', 'change');
+    await waitForValues(sample, ['', 'joyful'], ['', 'joyful'], 'sample 9 clears one attribute without affecting the other');
+    assertEqual(requiredElement(sample, 'cem-slice-emotion-attribute:first-of-type').getAttribute('emotion'), '', 'sample 9 reflects an empty attribute');
 }
 
 async function verifyFanoutSlice(sample: HTMLElement): Promise<void> {
+    assertValues(sample, [''], ['', ''], 'sample 10 initial fanout');
     setValueAndDispatch(sample, 'input', 'mirrored', 'input');
-    await waitForCondition(
-        () =>
-            textValue(sample, 'p:nth-of-type(2) output') === 'mirrored' &&
-            textValue(sample, 'p:nth-of-type(3) output') === 'mirrored',
-        'sample 10 fans one value out to both slices'
-    );
+    await waitForValues(sample, ['mirrored'], ['mirrored', 'mirrored'], 'sample 10 updates both slices');
+    setValueAndDispatch(sample, 'input', '', 'input');
+    await waitForValues(sample, [''], ['', ''], 'sample 10 clears both slices');
 }
 
 async function verifyAttributeFanoutSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'p:nth-of-type(1) output', '😃', 'sample 11 initializes the attribute');
+    assertValues(sample, ['😃'], ['😃', ''], 'sample 11 initial attribute and absent slice');
     setValueAndDispatch(sample, 'input', 'grinning', 'change');
-    await waitForCondition(
-        () =>
-            textValue(sample, 'p:nth-of-type(1) output') === 'grinning' &&
-            textValue(sample, 'p:nth-of-type(2) output') === 'grinning',
-        'sample 11 fans one value out to the attribute and slice'
-    );
-    assertEqual(
-        requiredElement(sample, 'cem-slice-attribute-fanout').getAttribute('emotion'),
-        'grinning',
-        'sample 11 reflects the changed emotion'
-    );
+    await waitForValues(sample, ['grinning'], ['grinning', 'grinning'], 'sample 11 updates attribute and slice');
+    assertEqual(requiredElement(sample, 'cem-slice-attribute-fanout').getAttribute('emotion'), 'grinning', 'sample 11 reflects changed emotion');
+    setValueAndDispatch(sample, 'input', '', 'change');
+    await waitForValues(sample, [''], ['', ''], 'sample 11 clears attribute and slice');
+    assertEqual(requiredElement(sample, 'cem-slice-attribute-fanout').getAttribute('emotion'), '', 'sample 11 reflects empty emotion');
 }
 
 async function verifyCheckboxSlices(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'p:nth-of-type(1) output', 'V0', 'sample 12 starts with the checked value attribute');
-    setCheckedAndDispatch(sample, 'label:nth-of-type(1) input', false);
-    await waitForText(sample, 'p:nth-of-type(1) output', '', 'sample 12 clears an unchecked value');
-    setCheckedAndDispatch(sample, 'label:nth-of-type(2) input', true);
-    await waitForText(sample, 'p:nth-of-type(3) output', 'V1', 'sample 12 resolves slice-value');
-    setCheckedAndDispatch(sample, 'label:nth-of-type(3) input', true);
-    await waitForText(sample, 'p:nth-of-type(4) output', 'V1', 'sample 12 resolves a variable value');
+    assertCheckedValues(sample, [true, false, false], ['V0', '', ''], 'sample 12 initial checked state');
+    for (const [index, checked, outputs] of [
+        [1, [false, false, false], ['', '', '']],
+        [1, [true, false, false], ['V0', '', '']],
+        [2, [true, true, false], ['V0', 'V1', '']],
+        [3, [true, true, true], ['V0', 'V1', 'V1']],
+        [2, [true, false, true], ['V0', '', 'V1']],
+        [3, [true, false, false], ['V0', '', '']],
+    ] as const) {
+        click(sample, `label:nth-of-type(${index}) input`);
+        await waitForCondition(() => sameValues(checkedValues(sample), checked)
+            && sameValues(outputValues(sample), outputs), 'sample 12 keeps checkbox state and all slices together');
+    }
 }
 
 async function verifyRadioSlice(sample: HTMLElement): Promise<void> {
-    assertText(sample, 'output', 'V1', 'sample 13 starts with the checked radio value');
-    setCheckedAndDispatch(sample, 'label:first-of-type input', true);
-    await waitForText(sample, 'output', 'V0', 'sample 13 propagates the newly checked radio value');
+    assertCheckedValues(sample, [false, true], ['V1'], 'sample 13 initial radio choice');
+    click(sample, 'label:first-of-type input');
+    await waitForCondition(() => sameValues(checkedValues(sample), [true, false])
+        && sameValues(outputValues(sample), ['V0']), 'sample 13 selects only V0');
+    click(sample, 'label:last-of-type input');
+    await waitForCondition(() => sameValues(checkedValues(sample), [false, true])
+        && sameValues(outputValues(sample), ['V1']), 'sample 13 returns to only V1');
 }
-
 
 function outputValues(sample: ParentNode): string[] {
     return Array.from(sample.querySelectorAll('output'), output => normalize(output.textContent ?? ''));
@@ -270,12 +263,21 @@ function inputValues(sample: ParentNode): string[] {
     return Array.from(sample.querySelectorAll<HTMLInputElement>('input'), input => input.value);
 }
 
+function checkedValues(sample: ParentNode): boolean[] {
+    return Array.from(sample.querySelectorAll<HTMLInputElement>('input'), input => input.checked);
+}
+
 function sameValues(actual: readonly unknown[], expected: readonly unknown[]): boolean {
     return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
 function assertValues(sample: ParentNode, inputs: readonly string[], outputs: readonly string[], label: string): void {
     assertDeepEqual(inputValues(sample), inputs, `${label}: inputs`);
+    assertDeepEqual(outputValues(sample), outputs, `${label}: outputs`);
+}
+
+function assertCheckedValues(sample: ParentNode, checked: readonly boolean[], outputs: readonly string[], label: string): void {
+    assertDeepEqual(checkedValues(sample), checked, `${label}: checked`);
     assertDeepEqual(outputValues(sample), outputs, `${label}: outputs`);
 }
 
@@ -298,30 +300,12 @@ function setValueAndDispatch(sample: ParentNode, selector: string, value: string
     input.dispatchEvent(new Event(eventName, { bubbles: true }));
 }
 
-function setCheckedAndDispatch(sample: ParentNode, selector: string, checked: boolean): void {
-    const input = requiredElement(sample, selector) as HTMLInputElement;
-    input.checked = checked;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
 function click(sample: ParentNode, selector: string): void {
-    (requiredElement(sample, selector) as HTMLButtonElement).click();
+    (requiredElement(sample, selector) as HTMLElement).click();
 }
 
 function inputValue(sample: ParentNode, selector: string): string {
     return (requiredElement(sample, selector) as HTMLInputElement).value;
-}
-
-function textValue(sample: ParentNode, selector: string): string {
-    return normalize(requiredElement(sample, selector).textContent ?? '');
-}
-
-function assertText(sample: ParentNode, selector: string, expected: string, label: string): void {
-    assertEqual(textValue(sample, selector), expected, label);
-}
-
-async function waitForText(sample: ParentNode, selector: string, expected: string, label: string): Promise<void> {
-    await waitForCondition(() => textValue(sample, selector) === expected, label);
 }
 
 function normalize(value: string): string {

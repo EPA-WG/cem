@@ -3984,21 +3984,22 @@ registration identities may reuse an inherited or existing definition.
           demo slot, excluding source tokens. All 508 unit tests, lint (two
           existing warnings) and typecheck pass. The referrer readiness
           correction completes aggregate verification and audit sign-off.
-    - [ ] Fixture: audit all 16 `demo/data-slices.html` samples against their
+    - [x] Fixture: audit all 16 `demo/data-slices.html` samples against their
           existing source-loaded story and independent gallery assertions.
           Check initial values and event results together, both instances in
           the attribute-backed examples, and checkbox/radio DOM state alongside
           displayed slice values. Fill coverage gaps, preserve authored HTML,
           and run affected verification gates.
-          Partial 2026-09-24: the source story now names all 16 sample steps;
-          A1, A2, B and 1–3 assert paired initial/event values, exact pointer
-          metadata and shadow offsets, event boundaries, and clearing. The
-          remaining story and independent gallery audit awaits the shared
-          syntax-scope decision below; this fixture remains open.
-          Checkpoint validation passes the focused story, all 220 Storybook
-          tests, 508 unit tests, 31 standalone pages / 37 source-loaded
-          documents, aggregate coverage, lint (two existing warnings) and
-          typecheck.
+          Completed 2026-09-24: all 16 named steps and shared contracts for both
+          gallery modes check paired initial/event values, both attribute
+          instances, clearing, independent slices and actual checkbox/radio
+          properties. Storybook also checks exact pointer metadata and both
+          shadow offsets. Authored HTML remains unchanged; the shared `$`
+          reference support below fixes sample 4. Final aggregate validation
+          passes all 220 Storybook tests, 508 unit tests, 31 standalone pages /
+          37 source-loaded documents, lint (two existing warnings) and
+          typecheck. All 722 native tests and Rust lint pass; Rust lint retains
+          warnings in unchanged code.
     - [x] Fixture: diagnose sample 4's blank initial inputs before changing
           authored HTML or expression semantics. Capture settled browser values
           and diagnostics, compile the actual template natively, and compare
@@ -4026,14 +4027,39 @@ registration identities may reuse an inherited or existing definition.
           The recommended parser mode, shared compilation boundaries and raw
           event-expression boundary are recorded in
           [the investigation](cem-ql-template-dollar-investigation.md).
-    - [ ] Decision: support compound `$name` references only in template
+    - [x] Decision: support compound `$name` references only in template
           expressions (recommended), or in all CEM-QL queries. Keep declaration
           names bare in either scope; record the accepted contract before
           changing the parser, renderer and embedded audit.
-    - [ ] Fixture: after the sample 4 decision, verify its actual authored
+          Accepted 2026-09-24: the user chose all CEM-QL queries.
+    - [x] Fixture: support optional adjacent `$` prefixes on expression name
+          references throughout CEM-QL. Add native parser, standalone/module,
+          template and embedded-audit regressions first, preserving original
+          source ranges, literal/comment content and ordinary name resolution.
+          Keep declarations, parameters, field/key names and types bare;
+          reject malformed prefixes. Remove simple-reference-only host
+          normalization, update the normative syntax contract, verify native
+          and WASM paths, then resume the data-slices audit.
+          Completed 2026-09-24: the shared expression parser implements
+          AC-QS-7 without rewriting source or changing name resolution. Six
+          new regressions pass, along with all 722 native tests (9 existing
+          ignored), the rebuilt WASM and all 220 Storybook tests. The renderer
+          and embedded audit retain prefixes and original query offsets.
+    - [x] Fixture: after the sample 4 decision, verify its actual authored
           template natively and both browser instances, including default,
           supplied, edited and empty input values and compiler diagnostics.
           Then resume the remaining data-slices story and gallery audit.
+          Completed 2026-09-24: the unchanged authored expression passes native,
+          source-loaded Storybook and both independent gallery modes. Both
+          instances initialize correctly, update independently and distinguish
+          an empty slice from an absent slice. Native test inputs include the
+          actual demo HTML; source contracts retain the compound expression.
+    - [ ] Fixture: audit all 10 `demo/data-table.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          XML/CSV/YAML/JSON cells and empty/missing values, sorting and retained
+          selection in CEMT/XSLT viewers, tree/form presentation aspects, and
+          the three external-file previews. Preserve authored HTML and run
+          affected verification gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

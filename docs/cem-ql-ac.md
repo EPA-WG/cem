@@ -223,6 +223,21 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   `$` expression nodes (`{$ ...}` or `{$ | ...}`). The cem-ql parser is invoked by the
   template compiler on the unescaped attribute span, whole-attribute value, or `$` node
   body; cem-ql itself sees plain UTF-8.
+- **AC-QS-7 [A] MUST** accept an optional adjacent `$` prefix on expression
+  name references in every CEM-QL entry point. `$name` and `name` resolve to the
+  same binding; qualified names, member access, function arguments and compound
+  expressions use the existing resolution, precedence and type rules. For
+  example, `$s ?? $a`, `$record.field`, and `{ let x = 1; $x + x }` are valid.
+  Declarations, parameters, import aliases, member names after `.`, static
+  record keys and type names remain bare. Computed record keys may contain
+  references such as `{ [$key]: $value }`. A prefix must immediately precede
+  a name: `$`, `$$name`, `$1`, `$ name` and `$/*comment*/name` are errors.
+  Strings and comments retain literal dollar signs. Parsing MUST preserve the
+  original source and byte ranges, including the prefix in a reference's
+  expression range; hosts MUST NOT strip prefixes before parsing. This is a
+  reference alias, not XPath declaration or path syntax. CEM-ML's content-node
+  marker remains separate: `{$s ?? $a}` has the query body `s ?? $a`, while
+  `@value="{$s ?? $a}"` has the query body `$s ?? $a`.
 
 ---
 
@@ -361,7 +376,9 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 
   This overload preserves the functional meaning of XPath `a/b` ("`b` child
   nodes of `a`") but does not add XPath absolute paths, `//`, `@` shorthand,
-  axis `::` syntax, XPath predicates, `$` variables, or XPath operator words.
+  axis `::` syntax, XPath predicates, XPath variable declarations, or XPath
+  operator words. Optional `$` reference aliases are defined separately by
+  AC-QS-7.
 
 ### 4.1 Functional Parity Matrix (Informative Sketch)
 

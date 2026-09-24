@@ -26,6 +26,159 @@ class HtmlDemoElement extends HTMLElement {
 customElements.define('cem-demo-element', HtmlDemoElement);
 `;
 
+const dataSliceSamples = [
+    sampleContract('A1. inline slice initialization, change on event', [
+        formState({ inputs: ['0'], outputs: [] }),
+        normalizedText('article.demo-card', '+ − 0'),
+        clickThenText('button:first-of-type', 'article.demo-card', '1'),
+        formState({ inputs: ['1'], outputs: [] }),
+        normalizedText('article.demo-card', '+ − 1'),
+        clickThenText('button:nth-of-type(2)', 'article.demo-card', '0'),
+        formState({ inputs: ['0'], outputs: [] }),
+        normalizedText('article.demo-card', '+ − 0'),
+        fillBlurThenText('input', '5', 'article.demo-card', '5'),
+        formState({ inputs: ['5'], outputs: [] }),
+        normalizedText('article.demo-card', '+ − 5'),
+    ]),
+    sampleContract('A2. slice initialization, change on event', [
+        formState({ inputs: ['0'], outputs: ['0'] }),
+        clickThenText('button:first-of-type', 'output', '1'),
+        formState({ inputs: ['1'], outputs: ['1'] }),
+        dispatchThenText('button:first-of-type', 'tap', 'output', '2'),
+        formState({ inputs: ['2'], outputs: ['2'] }),
+        clickThenText('button:nth-of-type(2)', 'output', '1'),
+        formState({ inputs: ['1'], outputs: ['1'] }),
+    ]),
+    sampleContract('B. slice event data.', [
+        formState({ outputs: ['', '', ''] }),
+        propertyEquals('textarea', 'value', ''),
+        mouseThenText('textarea', { x: 42, y: 17 }, 'p:nth-of-type(2) output', 'mousemove'),
+        normalizedText('p:nth-of-type(3) output', '17'),
+        text('p:first-of-type output', 'x:'),
+        attributeContains('textarea', 'style', '42px 17px'),
+        computedStyleNot('textarea', 'boxShadow', 'none'),
+        computedStyleNot('textarea', 'boxShadow', ''),
+        dispatchThenText('textarea', 'click', 'p:nth-of-type(2) output', 'click'),
+        normalizedText('p:nth-of-type(2) output', 'click'),
+    ]),
+    sampleContract('1. slice change on event. 1:1 slice⮂value', [
+        formState({ inputs: [''], outputs: [''] }),
+        fillThenText('input', 'pending', 'output', ''),
+        formState({ inputs: ['pending'], outputs: [''] }),
+        fillBlurThenText('input', 'basic', 'output', 'basic'),
+        formState({ inputs: ['basic'], outputs: ['basic'] }),
+        fillBlurThenText('input', '', 'output', ''),
+        formState({ inputs: [''], outputs: [''] }),
+    ]),
+    sampleContract('2. initial slice value, slice change on event. slice⮂value', [
+        formState({ inputs: ['B'], outputs: ['B'] }),
+        fillThenText('input', 'pending', 'output', 'B'),
+        formState({ inputs: ['pending'], outputs: ['B'] }),
+        fillBlurThenText('input', 'changed', 'output', 'changed'),
+        formState({ inputs: ['changed'], outputs: ['changed'] }),
+        fillBlurThenText('input', '', 'output', ''),
+        formState({ inputs: [''], outputs: [''] }),
+    ]),
+    sampleContract('3. on input event. slice⮂value', [
+        formState({ inputs: ['B'], outputs: ['B'] }),
+        fillThenText('input', 'input event', 'output', 'input event'),
+        formState({ inputs: ['input event'], outputs: ['input event'] }),
+        fillThenText('input', '', 'output', ''),
+        formState({ inputs: [''], outputs: [''] }),
+    ]),
+    sampleContract('4. initial slice value from attribute', [
+        formState({ inputs: ['😁', '🤗'], outputs: ['😁', '', '🤗', ''] }),
+        fillDispatchThenText('cem-slice-attribute-initial:first-of-type input', 'qqq', 'keyup', 'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output', 'qqq'),
+        formState({ inputs: ['qqq', '🤗'], outputs: ['😁', 'qqq', '🤗', ''] }),
+        fillDispatchThenText('cem-slice-attribute-initial:last-of-type input', 'second', 'keyup', 'cem-slice-attribute-initial:last-of-type p:nth-of-type(2) output', 'second'),
+        formState({ inputs: ['qqq', 'second'], outputs: ['😁', 'qqq', '🤗', 'second'] }),
+        fillDispatchThenText('cem-slice-attribute-initial:first-of-type input', '', 'keyup', 'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output', ''),
+        formState({ inputs: ['', 'second'], outputs: ['😁', '', '🤗', 'second'] }),
+        attributeEquals('cem-slice-attribute-initial:first-of-type', 'a', '😁'),
+        attributeEquals('cem-slice-attribute-initial:last-of-type', 'a', '🤗'),
+    ]),
+    sampleContract('5. slice value computed from event', [
+        formState({ inputs: ['B'], outputs: ['xB'] }),
+        fillBlurThenText('input', 'C', 'output', 'xC'),
+        formState({ inputs: ['C'], outputs: ['xC'] }),
+        fillBlurThenText('input', '', 'output', 'x'),
+        formState({ inputs: [''], outputs: ['x'] }),
+    ]),
+    sampleContract('6. button ignored till change on click.', [
+        formState({ inputs: ['anonymous'], outputs: ['anonymous'] }),
+        clickThenText('button', 'output', 'broccoli'),
+        formState({ inputs: ['broccoli'], outputs: ['broccoli'] }),
+    ]),
+    sampleContract('7. initial slice value from SLICE element', [
+        formState({ outputs: ['0'] }),
+        clickThenText('button', 'output', '1'),
+        formState({ outputs: ['1'] }),
+        dispatchThenText('button', 'tap', 'output', '2'),
+        formState({ outputs: ['2'] }),
+    ]),
+    sampleContract('8. multiple slices by SLICE element', [
+        formState({ outputs: ['0', '0'] }),
+        focusThenText('button', 'p:nth-of-type(2) output', '1'),
+        formState({ outputs: ['0', '1'] }),
+        clickThenText('button', 'p:first-of-type output', '1'),
+        formState({ outputs: ['1', '1'] }),
+        dispatchThenText('button', 'tap', 'p:first-of-type output', '2'),
+        formState({ outputs: ['2', '1'] }),
+        blurThenText('button', 'p:nth-of-type(2) output', '0'),
+        formState({ outputs: ['2', '0'] }),
+    ]),
+    sampleContract('9. slice in attribute', [
+        formState({ inputs: [':)', '😃'], outputs: [':)', '😃'] }),
+        fillBlurThenText('cem-slice-emotion-attribute:first-of-type input', 'supplied change', 'cem-slice-emotion-attribute:first-of-type output', 'supplied change'),
+        formState({ inputs: ['supplied change', '😃'], outputs: ['supplied change', '😃'] }),
+        attributeEquals('cem-slice-emotion-attribute:first-of-type', 'emotion', 'supplied change'),
+        fillBlurThenText('cem-slice-emotion-attribute:last-of-type input', 'joyful', 'cem-slice-emotion-attribute:last-of-type output', 'joyful'),
+        formState({ inputs: ['supplied change', 'joyful'], outputs: ['supplied change', 'joyful'] }),
+        fillBlurThenText('cem-slice-emotion-attribute:first-of-type input', '', 'cem-slice-emotion-attribute:first-of-type output', ''),
+        formState({ inputs: ['', 'joyful'], outputs: ['', 'joyful'] }),
+        attributeEquals('cem-slice-emotion-attribute:first-of-type', 'emotion', ''),
+        attributeEquals('cem-slice-emotion-attribute:last-of-type', 'emotion', 'joyful'),
+    ]),
+    sampleContract('10. multiple slices by same field', [
+        formState({ inputs: [''], outputs: ['', ''] }),
+        fillThenText('input', 'mirrored', 'p:nth-of-type(2) output', 'mirrored'),
+        formState({ inputs: ['mirrored'], outputs: ['mirrored', 'mirrored'] }),
+        fillThenText('input', '', 'p:nth-of-type(2) output', ''),
+        formState({ inputs: [''], outputs: ['', ''] }),
+    ]),
+    sampleContract('11. slices and attribute', [
+        formState({ inputs: ['😃'], outputs: ['😃', ''] }),
+        fillBlurThenText('input', 'grinning', 'p:first-of-type output', 'grinning'),
+        formState({ inputs: ['grinning'], outputs: ['grinning', 'grinning'] }),
+        attributeEquals('cem-slice-attribute-fanout', 'emotion', 'grinning'),
+        fillBlurThenText('input', '', 'p:first-of-type output', ''),
+        formState({ inputs: [''], outputs: ['', ''] }),
+        attributeEquals('cem-slice-attribute-fanout', 'emotion', ''),
+    ]),
+    sampleContract('12. checkbox use', [
+        formState({ checked: [true, false, false], outputs: ['V0', '', ''] }),
+        uncheckThenNormalizedText('label:first-of-type input', 'p:first-of-type output', ''),
+        formState({ checked: [false, false, false], outputs: ['', '', ''] }),
+        checkThenText('label:first-of-type input', 'p:first-of-type output', 'V0'),
+        formState({ checked: [true, false, false], outputs: ['V0', '', ''] }),
+        checkThenText('label:nth-of-type(2) input', 'p:nth-of-type(3) output', 'V1'),
+        formState({ checked: [true, true, false], outputs: ['V0', 'V1', ''] }),
+        checkThenText('label:nth-of-type(3) input', 'p:nth-of-type(4) output', 'V1'),
+        formState({ checked: [true, true, true], outputs: ['V0', 'V1', 'V1'] }),
+        uncheckThenNormalizedText('label:nth-of-type(2) input', 'p:nth-of-type(3) output', ''),
+        formState({ checked: [true, false, true], outputs: ['V0', '', 'V1'] }),
+        uncheckThenNormalizedText('label:nth-of-type(3) input', 'p:nth-of-type(4) output', ''),
+        formState({ checked: [true, false, false], outputs: ['V0', '', ''] }),
+    ]),
+    sampleContract('13. Radio group', [
+        formState({ checked: [false, true], outputs: ['V1'] }),
+        checkThenText('label:first-of-type input', 'output', 'V0'),
+        formState({ checked: [true, false], outputs: ['V0'] }),
+        checkThenText('label:last-of-type input', 'output', 'V1'),
+        formState({ checked: [false, true], outputs: ['V1'] }),
+    ]),
+];
+
 const domChainSamples = [
     sampleContract("Wrap values", [normalizedText('output', "a, b, a")]),
     sampleContract("Parent", [normalizedText('output', "row")]),
@@ -856,100 +1009,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/data-slices.html',
-        checks: [
-            attributeEquals('cem-slice-counter-input-default input', 'value', '0'),
-            text('cem-slice-counter-input-default article.demo-card', '0'),
-            clickThenText(
-                'cem-slice-counter-input-default button:first-of-type',
-                'cem-slice-counter-input-default article.demo-card',
-                '1',
-            ),
-            text('cem-slice-counter output', '0'),
-            clickThenText(
-                'cem-slice-counter button:first-of-type',
-                'cem-slice-counter output',
-                '1',
-            ),
-            mouseThenText(
-                'cem-slice-event-data textarea',
-                { x: 42, y: 17 },
-                'cem-slice-event-data p:nth-of-type(1) output',
-                'x:',
-            ),
-            computedStyleNot('cem-slice-event-data textarea', 'boxShadow', 'none'),
-            computedStyleNot('cem-slice-event-data textarea', 'boxShadow', ''),
-            text('cem-slice-event-data p:nth-of-type(2) output', 'mousemove'),
-            fillBlurThenText('cem-slice-basic input', 'basic', 'cem-slice-basic output', 'basic'),
-            text('cem-slice-initial-change output', 'B'),
-            fillBlurThenText('cem-slice-initial-change input', 'changed', 'cem-slice-initial-change output', 'changed'),
-            fillThenText(
-                'cem-slice-initial-input input',
-                'input event',
-                'cem-slice-initial-input output',
-                'input event',
-            ),
-            text('cem-slice-attribute-initial:first-of-type p:nth-of-type(1) output', '😁'),
-            text('cem-slice-attribute-initial:last-of-type p:nth-of-type(1) output', '🤗'),
-            fillDispatchThenText(
-                'cem-slice-attribute-initial:first-of-type input',
-                'qqq',
-                'keyup',
-                'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output',
-                'qqq',
-            ),
-            text('cem-slice-transform output', 'xB'),
-            fillBlurThenText('cem-slice-transform input', 'C', 'cem-slice-transform output', 'xC'),
-            text('cem-slice-broccoli output', 'anonymous'),
-            clickThenText('cem-slice-broccoli button', 'cem-slice-broccoli output', 'broccoli'),
-            clickThenText('cem-slice-declared-counter button', 'cem-slice-declared-counter output', '1'),
-            focusThenText(
-                'cem-slice-multi-directive button',
-                'cem-slice-multi-directive p:nth-of-type(2) output',
-                '1',
-            ),
-            clickThenText(
-                'cem-slice-multi-directive button',
-                'cem-slice-multi-directive p:nth-of-type(1) output',
-                '1',
-            ),
-            blurThenText(
-                'cem-slice-multi-directive button',
-                'cem-slice-multi-directive p:nth-of-type(2) output',
-                '0',
-            ),
-            text('cem-slice-emotion-attribute:first-of-type output', ':)'),
-            text('cem-slice-emotion-attribute:last-of-type output', '😃'),
-            fillBlurThenText('cem-slice-emotion-attribute:last-of-type input', 'joyful', 'cem-slice-emotion-attribute:last-of-type output', 'joyful'),
-            attributeEquals('cem-slice-emotion-attribute:last-of-type', 'emotion', 'joyful'),
-            fillThenText('cem-slice-fanout input', 'mirrored', 'cem-slice-fanout p:nth-of-type(2) output', 'mirrored'),
-            text('cem-slice-fanout p:nth-of-type(3) output', 'mirrored'),
-            fillBlurThenText(
-                'cem-slice-attribute-fanout input',
-                'grinning',
-                'cem-slice-attribute-fanout p:nth-of-type(1) output',
-                'grinning',
-            ),
-            text('cem-slice-attribute-fanout p:nth-of-type(2) output', 'grinning'),
-            attributeEquals('cem-slice-attribute-fanout', 'emotion', 'grinning'),
-            text('cem-slice-checkboxes p:nth-of-type(1) output', 'V0'),
-            uncheckThenNormalizedText(
-                'cem-slice-checkboxes label:nth-of-type(1) input',
-                'cem-slice-checkboxes p:nth-of-type(1) output',
-                '',
-            ),
-            checkThenText(
-                'cem-slice-checkboxes label:nth-of-type(2) input',
-                'cem-slice-checkboxes p:nth-of-type(3) output',
-                'V1',
-            ),
-            checkThenText(
-                'cem-slice-checkboxes label:nth-of-type(3) input',
-                'cem-slice-checkboxes p:nth-of-type(4) output',
-                'V1',
-            ),
-            text('cem-slice-radios output', 'V1'),
-            checkThenText('cem-slice-radios label:first-of-type input', 'cem-slice-radios output', 'V0'),
-        ],
+        checks: dataSliceSamples.flatMap((sample) => sample.checks.map((check) =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
@@ -1858,88 +1919,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/data-slices.html',
-        samples: [
-            sampleContract('A1. inline slice initialization, change on event', [
-                attributeEquals('cem-slice-counter-input-default input', 'value', '0'),
-                text('cem-slice-counter-input-default article.demo-card', '0'),
-                clickThenText('cem-slice-counter-input-default button:first-of-type', 'cem-slice-counter-input-default article.demo-card', '1'),
-                clickThenText('cem-slice-counter-input-default button:nth-of-type(2)', 'cem-slice-counter-input-default article.demo-card', '0'),
-            ]),
-            sampleContract('A2. slice initialization, change on event', [
-                text('cem-slice-counter output', '0'),
-                clickThenText('cem-slice-counter button:first-of-type', 'cem-slice-counter output', '1'),
-                clickThenText('cem-slice-counter button:nth-of-type(2)', 'cem-slice-counter output', '0'),
-            ]),
-            sampleContract('B. slice event data.', [
-                mouseThenText('cem-slice-event-data textarea', { x: 42, y: 17 }, 'cem-slice-event-data p:nth-of-type(1) output', 'x:'),
-                computedStyleNot('cem-slice-event-data textarea', 'boxShadow', 'none'),
-                computedStyleNot('cem-slice-event-data textarea', 'boxShadow', ''),
-                text('cem-slice-event-data p:nth-of-type(3) output', '17'),
-                text('cem-slice-event-data p:nth-of-type(2) output', 'mousemove'),
-            ]),
-            sampleContract('1. slice change on event. 1:1 slice⮂value', [
-                normalizedText('cem-slice-basic output', ''),
-                fillBlurThenText('cem-slice-basic input', 'basic', 'cem-slice-basic output', 'basic'),
-            ]),
-            sampleContract('2. initial slice value, slice change on event. slice⮂value', [
-                text('cem-slice-initial-change output', 'B'),
-                fillBlurThenText('cem-slice-initial-change input', 'changed', 'cem-slice-initial-change output', 'changed'),
-            ]),
-            sampleContract('3. on input event. slice⮂value', [
-                text('cem-slice-initial-input output', 'B'),
-                fillThenText('cem-slice-initial-input input', 'input event', 'cem-slice-initial-input output', 'input event'),
-            ]),
-            sampleContract('4. initial slice value from attribute', [
-                text('cem-slice-attribute-initial:first-of-type p:nth-of-type(1) output', '😁'),
-                text('cem-slice-attribute-initial:last-of-type p:nth-of-type(1) output', '🤗'),
-                fillDispatchThenText('cem-slice-attribute-initial:first-of-type input', 'qqq', 'keyup', 'cem-slice-attribute-initial:first-of-type p:nth-of-type(2) output', 'qqq'),
-            ]),
-            sampleContract('5. slice value computed from event', [
-                text('cem-slice-transform output', 'xB'),
-                attributeEquals('cem-slice-transform input', 'value', 'B'),
-                fillBlurThenText('cem-slice-transform input', 'C', 'cem-slice-transform output', 'xC'),
-            ]),
-            sampleContract('6. button ignored till change on click.', [
-                text('cem-slice-broccoli output', 'anonymous'),
-                clickThenText('cem-slice-broccoli button', 'cem-slice-broccoli output', 'broccoli'),
-            ]),
-            sampleContract('7. initial slice value from SLICE element', [
-                text('cem-slice-declared-counter output', '0'),
-                clickThenText('cem-slice-declared-counter button', 'cem-slice-declared-counter output', '1'),
-            ]),
-            sampleContract('8. multiple slices by SLICE element', [
-                text('cem-slice-multi-directive p:nth-of-type(1) output', '0'),
-                focusThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(2) output', '1'),
-                clickThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(1) output', '1'),
-                blurThenText('cem-slice-multi-directive button', 'cem-slice-multi-directive p:nth-of-type(2) output', '0'),
-            ]),
-            sampleContract('9. slice in attribute', [
-                text('cem-slice-emotion-attribute:first-of-type output', ':)'),
-                text('cem-slice-emotion-attribute:last-of-type output', '😃'),
-                fillBlurThenText('cem-slice-emotion-attribute:last-of-type input', 'joyful', 'cem-slice-emotion-attribute:last-of-type output', 'joyful'),
-                attributeEquals('cem-slice-emotion-attribute:last-of-type', 'emotion', 'joyful'),
-            ]),
-            sampleContract('10. multiple slices by same field', [
-                fillThenText('cem-slice-fanout input', 'mirrored', 'cem-slice-fanout p:nth-of-type(2) output', 'mirrored'),
-                text('cem-slice-fanout p:nth-of-type(3) output', 'mirrored'),
-            ]),
-            sampleContract('11. slices and attribute', [
-                text('cem-slice-attribute-fanout p:nth-of-type(1) output', '😃'),
-                fillBlurThenText('cem-slice-attribute-fanout input', 'grinning', 'cem-slice-attribute-fanout p:nth-of-type(1) output', 'grinning'),
-                text('cem-slice-attribute-fanout p:nth-of-type(2) output', 'grinning'),
-                attributeEquals('cem-slice-attribute-fanout', 'emotion', 'grinning'),
-            ]),
-            sampleContract('12. checkbox use', [
-                text('cem-slice-checkboxes p:nth-of-type(1) output', 'V0'),
-                uncheckThenNormalizedText('cem-slice-checkboxes label:nth-of-type(1) input', 'cem-slice-checkboxes p:nth-of-type(1) output', ''),
-                checkThenText('cem-slice-checkboxes label:nth-of-type(2) input', 'cem-slice-checkboxes p:nth-of-type(3) output', 'V1'),
-                checkThenText('cem-slice-checkboxes label:nth-of-type(3) input', 'cem-slice-checkboxes p:nth-of-type(4) output', 'V1'),
-            ]),
-            sampleContract('13. Radio group', [
-                text('cem-slice-radios output', 'V1'),
-                checkThenText('cem-slice-radios label:first-of-type input', 'cem-slice-radios output', 'V0'),
-            ]),
-        ],
+        samples: dataSliceSamples,
     },
     {
         path: '/packages/cem-elements/demo/xpath-nodes.html',
@@ -3119,6 +3099,21 @@ async function runCheck(page, check) {
             case 'propertyEquals':
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
+            case 'formState':
+                await poll(page, ({ selector, expected }) => {
+                    const root = document.querySelector(selector);
+                    if (!root) return false;
+                    const inputs = Array.from(root.querySelectorAll('input'));
+                    const actual = {
+                        inputs: inputs.map(input => input.value),
+                        checked: inputs.map(input => input.checked),
+                        outputs: Array.from(root.querySelectorAll('output'), output =>
+                            globalThis.__cemFixtureNormalizeText(globalThis.__cemFixtureVisibleText(output))),
+                    };
+                    return Object.entries(expected).every(([key, values]) =>
+                        JSON.stringify(actual[key]) === JSON.stringify(values));
+                }, check);
+                return;
             case 'imageLoaded':
                 await page.waitForFunction((selector) => {
                     const image = document.querySelector(selector);
@@ -3192,6 +3187,11 @@ async function runCheck(page, check) {
             case 'fillDispatchThenText':
                 await page.waitForSelector(check.actionSelector, { timeout });
                 await page.fill(check.actionSelector, check.value);
+                await page.dispatchEvent(check.actionSelector, check.eventName);
+                await waitForText(page, check.resultSelector, check.expected);
+                return;
+            case 'dispatchThenText':
+                await page.waitForSelector(check.actionSelector, { timeout });
                 await page.dispatchEvent(check.actionSelector, check.eventName);
                 await waitForText(page, check.resultSelector, check.expected);
                 return;
@@ -3373,6 +3373,10 @@ function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
 }
 
+function formState(expected) {
+    return { kind: 'formState', selector: ':scope', expected };
+}
+
 function imageLoaded(selector) {
     return { kind: 'imageLoaded', selector };
 }
@@ -3447,6 +3451,10 @@ function fillBlurThenText(actionSelector, value, resultSelector, expected) {
 
 function fillDispatchThenText(actionSelector, value, eventName, resultSelector, expected) {
     return { kind: 'fillDispatchThenText', actionSelector, value, eventName, resultSelector, expected };
+}
+
+function dispatchThenText(actionSelector, eventName, resultSelector, expected) {
+    return { kind: 'dispatchThenText', actionSelector, eventName, resultSelector, expected };
 }
 
 function mouseThenText(actionSelector, eventInit, resultSelector, expected) {
@@ -3727,6 +3735,8 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'formState':
+            return `formState(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'imageLoaded':
             return `imageLoaded(${check.selector})`;
         case 'pressThenProperty':

@@ -279,8 +279,20 @@ impl<'src> Parser<'src> {
                 })
             }
             TokenKind::Dollar => {
-                self.error_at(PARSE_ERROR, dollar_name_message(), token.range);
-                None
+                if !matches!(self.current().kind, TokenKind::Ident | TokenKind::PrefixedName)
+                    || self.current().range.start != token.range.end()
+                {
+                    self.error_at(
+                        PARSE_ERROR,
+                        "expected a name immediately after `$`",
+                        token.range,
+                    );
+                    return None;
+                }
+                let next = self.bump();
+                let name = self.finish_qname(next)?;
+                let range = join_ranges(token.range, name.range);
+                Some(Expression::Name(name, range))
             }
             TokenKind::Assign => {
                 self.error_at(PARSE_ERROR, equality_assign_message(), token.range);
@@ -607,18 +619,22 @@ impl<'src> Parser<'src> {
             if name.prefix.is_none() && name.local == "treat_as" {
                 if args.len() == 2 {
                     if let Expression::Name(type_name, type_range) = &args[1] {
-                        return Some(Expression::TreatAs {
-                            range,
-                            value: Box::new(args[0].clone()),
-                            ty: TypeExpr {
-                                name: type_name.clone(),
-                                range: *type_range,
-                            },
-                        });
+                        // A reference alias includes `$` in its expression range,
+                        // while the QName retains the identifier's original span.
+                        if type_name.range == *type_range {
+                            return Some(Expression::TreatAs {
+                                range,
+                                value: Box::new(args[0].clone()),
+                                ty: TypeExpr {
+                                    name: type_name.clone(),
+                                    range: *type_range,
+                                },
+                            });
+                        }
                     }
                     self.error_at(
                         PARSE_ERROR,
-                        "expected type name as second `treat_as` argument",
+                        "expected bare type name as second `treat_as` argument",
                         args[1].range(),
                     );
                 } else {
@@ -1311,7 +1327,7 @@ pub struct ParseError {
 }
 
 fn dollar_name_message() -> &'static str {
-    "use bare CEM-QL names without the XPath `$` variable prefix"
+    "use bare names here; `$` is only allowed on expression references"
 }
 
 fn equality_assign_message() -> &'static str {

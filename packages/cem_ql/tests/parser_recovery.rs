@@ -447,17 +447,16 @@ fn parser_reports_rust_first_replacements_for_legacy_syntax() {
 }
 
 #[test]
-fn parser_rejects_xpath_dollar_prefixed_names() {
+fn parser_rejects_dollar_prefixed_declaration_names() {
     for source in [
         r#"declare let $greeting = "Hello""#,
         r#"declare function local:greet($who) { who }"#,
         r#"import "cem:stdlib/strings" as $str"#,
-        "$greeting",
     ] {
         let result = parse(source);
         assert!(
             result.diagnostics.iter().any(|diag| {
-                diag.code == "cem.ql.parse_error" && diag.message.contains("without the XPath `$`")
+                diag.code == "cem.ql.parse_error" && diag.message.contains("use bare names here")
             }),
             "{source}: {:?}",
             result.diagnostics

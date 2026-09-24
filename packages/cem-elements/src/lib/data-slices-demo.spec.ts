@@ -79,6 +79,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '<cem-element tag="cem-slice-attribute-initial">',
             '{attribute @name=a | 😁}',
             '@slice-event=keyup',
+            '@value="{$s ?? $a}"',
             '<cem-slice-attribute-initial></cem-slice-attribute-initial>',
             '<cem-slice-attribute-initial a="🤗"></cem-slice-attribute-initial>',
         ],

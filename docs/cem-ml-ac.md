@@ -895,6 +895,9 @@ participate in interpreter ownership, scope scheduling, batching, and diagnostic
   attribute-value span or `$` expression-node body after host-syntax unescaping; the
   emitted source-map frame is `TransformKind::TemplateEmbedding` and preserves both the
   host span and the cem-ql sub-span per AC-P-7.
+  Optional `$name` reference prefixes belong to the query grammar under
+  `cem-ql-ac.md` AC-QS-7 and are passed through unchanged; they are distinct
+  from the CEM-ML `$` content-expression node marker.
 
 ## 7. Transformation Plugins
 

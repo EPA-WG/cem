@@ -37,6 +37,8 @@ use crate::types::{AtomType, FunctionSignature, TyConfig, Type};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedExpression {
     pub source: String,
+    /// Query source after host extraction; `$` reference prefixes are retained
+    /// so query-local diagnostic offsets match the original expression span.
     pub normalized_source: String,
     pub provenance: EmbeddedExpressionProvenance,
 }
@@ -1187,7 +1189,7 @@ fn push_expression(input: EmbeddedExpressionInput<'_>) {
     let source = slice_range(input.source, input.expression_range)
         .unwrap_or_default()
         .to_owned();
-    let normalized_source = normalize_host_expression(&source).to_owned();
+    let normalized_source = source.clone();
     input.expressions.push(EmbeddedExpression {
         source,
         normalized_source,
@@ -1548,20 +1550,6 @@ fn slice_range(source: &str, range: ByteRange) -> Option<&str> {
     source.get(start..end)
 }
 
-fn normalize_host_expression(source: &str) -> &str {
-    let trimmed = source.trim();
-    if let Some(rest) = trimmed.strip_prefix('$') {
-        let is_simple_binding = !rest.is_empty()
-            && rest
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
-        if is_simple_binding {
-            return rest;
-        }
-    }
-    trimmed
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 fn walk_cem_sources(root: &Path, dir: &Path, paths: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
@@ -1645,13 +1633,13 @@ mod tests {
                     EmbeddedHostKind::SelectAttribute,
                     Some("select"),
                     "$node.children",
-                    "node.children"
+                    "$node.children"
                 ),
                 (
                     EmbeddedHostKind::ExpressionNode,
                     None,
                     "$child.name",
-                    "child.name"
+                    "$child.name"
                 ),
             ]
         );
