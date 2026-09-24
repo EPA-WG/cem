@@ -391,3 +391,36 @@ the two initially generated entries were made explicit before the successful
 rerun. Rust lint also passes with caching disabled, with warnings in unchanged
 code; component lint retains its two existing warnings. This completes the
 16-sample data-slices audit. The next fixture audits the 10 data-table samples.
+
+## Data-table audit, 2026-09-24
+
+`EveryAuthoredSample` now runs a named step for each of the 10 authored samples,
+awaiting the source document's render before inspecting its viewers. Both
+independent gallery modes use the same sample contracts. Table-state checks
+compare every scalar cell and the selected row/button state together; nested
+cells have separate table assertions.
+
+| Samples | Observable behavior checked |
+| --- | --- |
+| 1. XML | Exact attribute/text headings and cells, missing and empty mood values, plus both nested evolution rows. |
+| 2. CSV | Exact columns and cells, including a quoted comma, escaped quotes and the empty final field. |
+| 3. YAML | Exact quantities, fruit and later boolean values, missing cells, and both nested tag rows. |
+| 4. JSON | Empty string, absent key and null remain distinct; malformed input removes stale tables and reset restores source, cells and selection. |
+| 1–4 and 6. CEMT/XSLT tables | Text order and numeric order in both directions, selected row and pressed button retained across sorting, edited source clearing selection, reset restoring it, and explicit return to source order. The gallery also retains pointer/Enter/Space disclosure checks. |
+| 5 and 7. CEMT/XSLT aspects | Notes render as a tree while visits retain exact table cells; local address/action edits survive disabling and restoring aspects. Clearing the address keeps the preview empty, and the source textarea remains unchanged. |
+| Three external previews | Displayed code exactly matches each repository file, the shared helper reaches ready state, and its demo output remains empty. |
+
+The XML namespace and inert processing-instruction regression now has its own
+story. Existing XSLT format-switching, focus/caret preservation, instance
+isolation and render-patch tests remain. The select helper checks the control's
+selected value; complete row-state assertions verify the resulting sort.
+Authored HTML, CEMT/XSLT templates and shared runtime behavior are unchanged.
+
+Final aggregate validation passes all 221 Storybook tests, 508 unit tests,
+31 standalone pages and 37 source-loaded documents, lint and typecheck. Lint
+retains two existing warnings. The initial gallery run exposed whitespace
+inserted by its visible-text helper between adjacent text nodes; form-output
+checks now use exact DOM `textContent`, matching the Storybook assertions.
+This completes the 10-sample data-table audit. The six data-tree samples are
+next; the broader per-sample audit and historical startup investigations remain
+open.

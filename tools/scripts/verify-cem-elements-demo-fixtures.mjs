@@ -544,93 +544,137 @@ const wordCountEdgeChecks = [
     ),
 ];
 
+const dataTablePage = await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table.html'), 'utf8');
+const tableSources = Object.fromEntries(['xml', 'csv', 'yaml', 'json'].map(format => [format,
+    dataTablePage.split(`<cem-data-table format="${format}">`)[1].split('</cem-data-table>')[0]
+        .replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&').trim(),
+]));
+const xmlTableCells = [['10', 'caterpie', '∅', '∅'], ['2', 'ivysaur', '🌱', '∅'], ['3', 'venusaur', '""', null]];
+const csvTableCells = [['10', '🍒', 'sweet, red'], ['2', '🍋', 'say "zest"'], ['3', '🍌', '""']];
+const yamlTableCells = [['10', '🍒', null, '∅'], ['2', '🍋', '∅', 'true'], ['3', '🍌', '∅', 'false']];
+const jsonTableCells = [['10', '🍒', '""'], ['2', '🍋', '∅'], ['3', '🍌', 'null']];
 const dataTableSamples = [
     sampleContract('1. XML table: attributes and text', [
-        text('table[aria-label$="/row"]', 'ivysaur'),
-        text('table[aria-label$="/row"]', '@mood'),
-        ...tableInteractions('@id', 'table[aria-label$="/row"]'),
+        countExactly('table', 2),
+        tableState('table[aria-label$="/name"]', [['🌿'], ['🌸']]),
+        ...auditedTableChecks('xml', '@id', 'table[aria-label$="/row"]', ['@id', '#text', '@mood', 'evolutions'], xmlTableCells),
     ]),
     sampleContract('2. CSV table: quoted fields', [
-        text('tbody', 'sweet, red'), text('tbody', 'say "zest"'),
-        ...tableInteractions('qty', 'table'),
+        countExactly('table', 1),
+        ...auditedTableChecks('csv', 'qty', 'table', ['qty', 'fruit', 'note'], csvTableCells),
     ]),
     sampleContract('3. YAML table: nested collections', [
-        countExactly('table', 2), text('table[aria-label="document"]', 'fresh'),
-        ...tableInteractions('qty', 'table[aria-label="document"]'),
+        countExactly('table', 2),
+        tableState('table[aria-label="tags"]', [['red'], ['sweet']]),
+        ...auditedTableChecks('yaml', 'qty', 'table[aria-label="document"]', ['qty', 'fruit', 'tags', 'fresh'], yamlTableCells),
     ]),
     sampleContract('4. JSON table: empty and missing', [
-        text('tbody', '∅'), text('tbody', '""'), text('tbody', 'null'),
-        ...tableInteractions('qty', 'table'),
-        fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
-        countExactly('table', 0),
-        clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
-        countExactly('[role="alert"]', 0),
+        countExactly('table', 1),
+        ...auditedTableChecks('json', 'qty', 'table', ['qty', 'fruit', 'note'], jsonTableCells),
+        ...tableParseRecovery(),
     ]),
-    sampleContract('5. Presentation aspects: tree and IP-filter form', [
-        countExactly('table[aria-label="visits"]', 1),
-        countExactly('table[aria-label="notes"]', 0),
-        text('form[aria-label="IP filter"] output', 'allow'),
-        text('form[aria-label="IP filter"] output', '192.0.2.0/24'),
-        fillBlurThenText('input[aria-label="Address / CIDR"]', '198.51.100.0/24', 'form output', '198.51.100.0/24'),
-        selectThenText('select[aria-label="Action"]', 'deny', 'form output', 'deny'),
-        clickThenText('input[aria-label="Presentation aspects"]', 'article', 'ip-filter'),
-        countExactly('table[aria-label="notes"]', 1),
-        countExactly('form[aria-label="IP filter"]', 0),
-        clickThenText('input[aria-label="Presentation aspects"]', 'form output', '198.51.100.0/24'),
-        text('form output', 'deny'),
-        countExactly('table[aria-label="notes"]', 0),
-        countExactly('table[aria-label="visits"]', 1),
-    ]),
+    sampleContract('5. Presentation aspects: tree and IP-filter form', aspectTableChecks()),
     sampleContract('6. XSLT table: native sorting and selection', [
-        text('tbody', '∅'), text('tbody', '""'), text('tbody', 'null'),
-        ...tableInteractions('qty', 'table'),
-        fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
-        countExactly('table', 0),
-        clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
-        countExactly('[role="alert"]', 0),
+        countExactly('table', 1),
+        ...auditedTableChecks('json', 'qty', 'table', ['qty', 'fruit', 'note'], jsonTableCells),
+        ...tableParseRecovery(),
     ]),
-    sampleContract('7. XSLT aspects: tree and IP-filter form', [
-        countExactly('table[aria-label="visits"]', 1),
-        countExactly('table[aria-label="notes"]', 0),
-        text('form[aria-label="IP filter"] output', 'allow'),
-        text('form[aria-label="IP filter"] output', '192.0.2.0/24'),
-        fillBlurThenText('input[aria-label="Address / CIDR"]', '198.51.100.0/24', 'form output', '198.51.100.0/24'),
-        selectThenText('select[aria-label="Action"]', 'deny', 'form output', 'deny'),
-        clickThenText('input[aria-label="Presentation aspects"]', 'article', 'ip-filter'),
-        countExactly('table[aria-label="notes"]', 1),
-        countExactly('form[aria-label="IP filter"]', 0),
-        clickThenText('input[aria-label="Presentation aspects"]', 'form output', '198.51.100.0/24'),
-        text('form output', 'deny'),
-        countExactly('table[aria-label="notes"]', 0),
-        countExactly('table[aria-label="visits"]', 1),
-    ]),
+    sampleContract('7. XSLT aspects: tree and IP-filter form', aspectTableChecks()),
     sampleContract('./data-table-view.cemt', [
         attributeEquals(':scope', 'src', './data-table-view.cemt'),
         attributeEquals(':scope', 'type', 'text/cem-ml'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table-view.cemt'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
+        attributeEquals(':scope', 'data-state', 'ready'),
     ]),
     sampleContract('./data-table-view.xslt', [
         attributeEquals(':scope', 'src', './data-table-view.xslt'),
         attributeEquals(':scope', 'type', 'application/xslt+xml'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table-view.xslt'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
+        attributeEquals(':scope', 'data-state', 'ready'),
     ]),
     sampleContract('./data-table-aspects.xslt', [
         attributeEquals(':scope', 'src', './data-table-aspects.xslt'),
         attributeEquals(':scope', 'type', 'application/xslt+xml'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table-aspects.xslt'), 'utf8')),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
+        attributeEquals(':scope', 'data-state', 'ready'),
     ]),
 ];
 
-function tableInteractions(column, table) {
+function auditedTableChecks(format, column, table, headings, cells) {
     return [
+        tableState(table, cells),
+        ...['✓', ...headings].map((heading, index) => normalizedText(`${table} > thead th:nth-child(${index + 1})`, heading)),
         clickThenText(`${table} > tbody > tr:nth-child(2) > th > button`, `${table} > tbody`, '✓'),
-        selectThenText('select[aria-label="Sort column"]', column, `${table} > tbody > tr:first-child`, '10'),
-        selectThenText('select[aria-label="Compare"]', 'number', `${table} > tbody > tr:first-child > td:nth-child(2)`, '2'),
-        attributeEquals(`${table} > tbody > tr:first-child > th > button`, 'aria-pressed', 'true'),
-        selectThenText('select[aria-label="Direction"]', 'descending', `${table} > tbody > tr:first-child > td:nth-child(2)`, '10'),
-        attributeEquals(`${table} > tbody > tr:last-child > th > button`, 'aria-pressed', 'true'),
+        tableState(table, cells, [1]),
+        selectThenText('select[aria-label="Sort column"]', column, table, '10'),
+        tableState(table, cells, [1]),
+        selectThenText('select[aria-label="Compare"]', 'number', table, '2'),
+        tableState(table, [cells[1], cells[2], cells[0]], [0]),
+        selectThenText('select[aria-label="Direction"]', 'descending', table, '10'),
+        tableState(table, [cells[0], cells[2], cells[1]], [2]),
+        fillBlurThenText('textarea', tableSources[format].replace('10', '11'), table, '11'),
+        tableState(table, [['11', ...cells[0].slice(1)], cells[2], cells[1]]),
+        clickThenText('button[aria-label="Reset source"]', table, '10'),
+        tableState(table, [cells[0], cells[2], cells[1]], [2]),
+        propertyEquals('textarea', 'value', tableSources[format]),
+        selectThenText('select[aria-label="Sort column"]', '', table, '10'),
+        tableState(table, cells, [1]),
         clickThenText('article > details > summary', 'article', 'Source'),
         propertyEquals('article > details', 'open', false),
         pressThenProperty('article > details > summary', 'Enter', 'article > details', 'open', true),
         pressThenProperty('article > details > summary', 'Space', 'article > details', 'open', false),
         pressThenProperty('article > details > summary', 'Enter', 'article > details', 'open', true),
+    ];
+}
+
+function tableParseRecovery() {
+    return [
+        fillBlurThenText('textarea', '[oops]', '[role="alert"]', '⚠'),
+        countExactly('table', 0),
+        clickThenText('button[aria-label="Reset source"]', 'tbody', '🍒'),
+        tableState('table', jsonTableCells, [1]),
+        countExactly('[role="alert"]', 0),
+        propertyEquals('textarea', 'value', tableSources.json),
+    ];
+}
+
+function aspectTableChecks() {
+    const visits = [['192.0.2.1', '10'], ['192.0.2.2', '2']];
+    const original = dataTablePage.split('<cem-aspect-view format="json">')[1].split('</cem-aspect-view>')[0].trim();
+    return [
+        tableState('table[aria-label="visits"]', visits),
+        countExactly('table[aria-label="notes"]', 0),
+        text('article > details > ul > li:nth-child(2) > details', '🍒 ready'),
+        text('article > details > ul > li:nth-child(2) > details', '🍋 review'),
+        propertyEquals('input[aria-label="Presentation aspects"]', 'checked', true),
+        propertyEquals('input[aria-label="Address / CIDR"]', 'value', '192.0.2.0/24'),
+        propertyEquals('form output', 'textContent', 'allow: 192.0.2.0/24'),
+        fillThenText('input[aria-label="Address / CIDR"]', '198.51.100.0/24', 'form output', '198.51.100.0/24'),
+        selectThenText('select[aria-label="Action"]', 'deny', 'form output', 'deny'),
+        propertyEquals('form output', 'textContent', 'deny: 198.51.100.0/24'),
+        clickThenText('input[aria-label="Presentation aspects"]', 'article', 'ip-filter'),
+        tableState('table[aria-label="notes"]', [['🍒 ready'], ['🍋 review']]),
+        countExactly('form[aria-label="IP filter"]', 0),
+        tableState('table[aria-label="visits"]', visits),
+        propertyEquals('input[aria-label="Presentation aspects"]', 'checked', false),
+        clickThenText('input[aria-label="Presentation aspects"]', 'form output', 'deny'),
+        propertyEquals('form output', 'textContent', 'deny: 198.51.100.0/24'),
+        propertyEquals('input[aria-label="Address / CIDR"]', 'value', '198.51.100.0/24'),
+        fillThenText('input[aria-label="Address / CIDR"]', '', 'form output', 'deny'),
+        propertyEquals('form output', 'textContent', 'deny: '),
+        propertyEquals('input[aria-label="Address / CIDR"]', 'value', ''),
+        propertyEquals('textarea', 'value', original),
+        countExactly('table[aria-label="notes"]', 0),
+        tableState('table[aria-label="visits"]', visits),
     ];
 }
 
@@ -3099,6 +3143,22 @@ async function runCheck(page, check) {
             case 'propertyEquals':
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
+            case 'tableState':
+                await poll(page, ({ selector, cells, selected }) => {
+                    const table = document.querySelector(selector);
+                    if (!table) return false;
+                    const rows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
+                    return rows.length === cells.length && rows.every((row, index) => {
+                        const actual = Array.from(row.querySelectorAll(':scope > td'), cell =>
+                            (cell.textContent ?? '').replace(/\s+/gu, ' ').trim());
+                        const pressed = String(selected.includes(index));
+                        return actual.length === cells[index].length
+                            && cells[index].every((value, column) => value === null || actual[column] === value)
+                            && row.getAttribute('aria-selected') === pressed
+                            && row.querySelector(':scope > th > button')?.getAttribute('aria-pressed') === pressed;
+                    });
+                }, check);
+                return;
             case 'formState':
                 await poll(page, ({ selector, expected }) => {
                     const root = document.querySelector(selector);
@@ -3371,6 +3431,11 @@ function attributeEquals(selector, name, expected) {
 
 function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
+}
+
+// null skips a nested cell whose own table has a separate contract.
+function tableState(selector, cells, selected = []) {
+    return { kind: 'tableState', selector, cells, selected };
 }
 
 function formState(expected) {
@@ -3735,6 +3800,8 @@ function describeCheck(check) {
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'tableState':
+            return `tableState(${check.selector}, ${JSON.stringify(check.cells)}, selected=${JSON.stringify(check.selected)})`;
         case 'formState':
             return `formState(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'imageLoaded':

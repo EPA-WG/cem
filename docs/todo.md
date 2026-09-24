@@ -4054,12 +4054,23 @@ registration identities may reuse an inherited or existing definition.
           instances initialize correctly, update independently and distinguish
           an empty slice from an absent slice. Native test inputs include the
           actual demo HTML; source contracts retain the compound expression.
-    - [ ] Fixture: audit all 10 `demo/data-table.html` samples against their
+    - [x] Fixture: audit all 10 `demo/data-table.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           XML/CSV/YAML/JSON cells and empty/missing values, sorting and retained
           selection in CEMT/XSLT viewers, tree/form presentation aspects, and
           the three external-file previews. Preserve authored HTML and run
           affected verification gates.
+          Completed 2026-09-24: all ten Storybook steps and both gallery modes
+          check exact cells, nested collections, selection across sorting and
+          source reset, aspect edits/toggling, and exact external previews.
+          Authored HTML and shared behavior are unchanged. Aggregate coverage
+          passes 221 stories, 508 unit tests and 31 standalone / 37 source-loaded
+          documents; lint and typecheck pass with the two existing lint warnings.
+    - [ ] Fixture: audit all 6 `demo/data-tree.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          XML/JSON branches, independent selection and disclosure, malformed
+          source recovery, local-document loading/release, and both external
+          source previews. Preserve authored HTML and run affected gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
