@@ -1001,6 +1001,42 @@ fn currency_prefixes_render_natively_in_loop_cells() {
 }
 
 #[test]
+fn form_confirmation_guards_handle_initial_and_selected_methods() {
+    let source = r#"{cem:if @test='datadom.formData.lifecycle.confirmBy == "password"' | {output | password}}{cem:if @test='datadom.formData.lifecycle.confirmBy == "sms"' | {output | sms}}{cem:if @test='not(datadom.formData.lifecycle.confirmBy)' | {output | Select a confirmation method.}}"#;
+    let guarded = source
+        .replace("datadom.formData.lifecycle.confirmBy ==", "(datadom.formData.lifecycle.confirmBy ?? \"\") ==")
+        .replace("not(datadom.formData.lifecycle.confirmBy)", "!(datadom.formData.lifecycle.confirmBy ?? \"\")");
+    for (method, expected) in [
+        (None, "<output>Select a confirmation method.</output>"),
+        (Some("email"), ""),
+        (Some("sms"), "<output>sms</output>"),
+        (Some("password"), "<output>password</output>"),
+    ] {
+        let fields = method.into_iter().map(|value|
+            ("confirmBy", vec![Item::Atomic(AtomValue::String(value.to_owned()))]));
+        let data = TemplateData::default().with_binding("datadom", ItemStream::once(record([
+            ("formData", vec![record([("lifecycle", vec![record(fields)])])]),
+        ])));
+        let authored = render_template(source, &data);
+        assert!(authored.diagnostics.iter().any(|diagnostic|
+            diagnostic.code == "cem.ql.render.compile_failed"
+                && diagnostic.message.contains("use prefix `!`")), "{:?}", authored.diagnostics);
+        if method.is_none() {
+            assert_eq!(authored.rendered, "");
+            for code in ["cem.ql.type_error", "cem.ql.render.test_failed"] {
+                assert!(authored.diagnostics.iter().any(|diagnostic| diagnostic.code == code),
+                    "{:?}", authored.diagnostics);
+            }
+        } else {
+            assert_eq!(authored.rendered, expected);
+        }
+        let corrected = render_template(&guarded, &data);
+        assert!(corrected.diagnostics.is_empty(), "{:?}", corrected.diagnostics);
+        assert_eq!(corrected.rendered, expected);
+    }
+}
+
+#[test]
 fn declared_boolean_slice_defaults_keep_their_boolean_type() {
     let rendered = render_template(
         r#"{slice @name="open" | false}{output | {$open}|{$datadom.slices.open}}{cem:if @test="datadom.slices.open" | {p | must stay hidden}}"#,

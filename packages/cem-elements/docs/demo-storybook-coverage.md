@@ -710,3 +710,28 @@ This completes the 11-sample audit. The broader per-sample audit remains open.
 The next fixture covers all five `form.html` samples: step advancement,
 lifecycle validation, native/custom validity messages and form-associated DCE
 values.
+
+## Form audit checkpoint, 2026-09-24
+
+The existing five-sample source-loaded Storybook interaction passes, but its
+checks skip sample 2's initial confirmation prompt and diagnostic history.
+The browser never renders `Select a confirmation method.`: its authored
+`not(datadom.formData.lifecycle.confirmBy)` fails to compile with
+`cem.ql.use_rust_boolean_ops`, which explicitly directs authors to prefix `!`.
+The two password/SMS guards also compare an absent value with a string and
+report `cem.ql.type_error` / `cem.ql.render.test_failed`.
+
+A small native render fixture reproduces the missing prompt and all three
+diagnostic categories. A candidate fixture correction uses
+`(datadom.formData.lifecycle.confirmBy ?? "") == "password"` (and `"sms"`)
+plus `!(datadom.formData.lifecycle.confirmBy ?? "")`. It produces the initial
+prompt and the expected email/SMS/password branches without diagnostics.
+
+All 52 native template-render tests, the existing form Storybook interaction
+and native lint pass (existing warnings). Temporary browser diagnostic logging
+was removed.
+
+The authored demo remains unchanged. The five-sample audit stays open while
+the user chooses fixture-only corrections versus shared syntax/comparison
+work. Passing existing browser checks do not constitute sign-off on the
+initial state or on complete form behavior.

@@ -4224,6 +4224,25 @@ registration identities may reuse an inherited or existing definition.
           explicit step advancement, live validation and conditional controls,
           native/custom validity messages and form-associated DCE values.
           Preserve authored examples and stop for any new behavior decision.
+          Checkpoint 2026-09-24: the existing story passes but misses sample 2's
+          absent initial prompt and compiler/comparison errors. The full audit
+          remains open pending the fixture/shared-handling decision below.
+    - [x] Fixture: characterize sample 2's initial confirmation-method guards
+          in a small native render test. Compare the authored XPath `not(...)`
+          and unset comparisons with canonical `!` and explicit empty-string
+          fallbacks, retaining all three selected-method outcomes. Record the
+          browser findings before choosing fixture corrections or shared changes.
+          Completed 2026-09-24: native and browser paths report
+          `cem.ql.render.compile_failed`, `cem.ql.type_error` and
+          `cem.ql.render.test_failed`. Canonical negation with empty-string
+          fallbacks renders the initial prompt and all three selected-method
+          outcomes without diagnostics. All 52 native template-render tests,
+          the existing form Storybook interaction and native lint pass (existing
+          warnings). The authored demo is unchanged.
+    - [ ] Decision: correct only form sample 2's confirmation-method guards
+          with `!` and explicit empty-string fallbacks (recommended), or
+          investigate shared syntax/comparison support. Resume the five-sample
+          behavior audit after this decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
