@@ -794,8 +794,9 @@ const formSamples = [
             ]),
         ]),
         ...fruitFormChecks('', ''),
-        // Initial empty-choice submission exposes the pending validation-focus
-        // issue in docs/todo.md; do not allowlist its browser console errors.
+        submitForm('button[type="submit"]', 'blocked'),
+        focusedElement('cem-form-fruit-choice:first-of-type button[data-option-index="0"]'),
+        ...fruitFormChecks('', ''),
         ...[
             ['first', 1, '🍏', ''], ['last', 2, '🍏', '🍌'], ['last', 1, '🍏', '🍏'],
             ['first', 0, '', '🍏'], ['first', 2, '🍌', '🍏'], ['last', 2, '🍌', '🍌'],
@@ -803,6 +804,11 @@ const formSamples = [
             clickThenText(`cem-form-fruit-choice:${position}-of-type button[data-option-index="${index}"]`,
                 'form > p:first-of-type output', position === 'first' ? first : second),
             ...fruitFormChecks(first, second),
+            ...(!first || !second ? [
+                submitForm('button[type="submit"]', 'blocked'),
+                focusedElement(`cem-form-fruit-choice:${!first ? 'first' : 'last'}-of-type button[data-option-index="0"]`),
+                ...fruitFormChecks(first, second),
+            ] : []),
         ]),
         ...['Space', 'ArrowUp', 'Space'].map(key => pressThenProperty(
             'cem-form-fruit-choice:last-of-type button[data-option-index="2"]', key,
@@ -3300,6 +3306,12 @@ async function runCheck(page, check) {
             case 'propertyEquals':
                 await waitForExactProperty(page, check.selector, check.name, check.expected);
                 return;
+            case 'focusedElement':
+                await poll(page, ({ selector }) => {
+                    const element = document.querySelector(selector);
+                    return element?.isConnected && document.activeElement === element;
+                }, check);
+                return;
             case 'elementIdentity':
                 if (check.action === 'remember') {
                     await waitForExactCount(page, check.selector, 1);
@@ -3697,6 +3709,10 @@ function attributeEquals(selector, name, expected) {
 
 function propertyEquals(selector, name, expected) {
     return { kind: 'propertyEquals', selector, name, expected };
+}
+
+function focusedElement(selector) {
+    return { kind: 'focusedElement', selector };
 }
 
 function elementIdentity(selector, action) {
@@ -4101,6 +4117,8 @@ function describeCheck(check) {
             return `urlEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'focusedElement':
+            return `focusedElement(${check.selector})`;
         case 'elementIdentity':
             return `elementIdentity(${check.selector}, ${check.action})`;
         case 'editControl':

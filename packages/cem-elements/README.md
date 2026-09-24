@@ -59,6 +59,15 @@ count Unicode codepoints. In this validity dialect, false, null/missing, empty
 strings, zero and the string `"false"` select the fallback; ordinary CEM-QL
 queries use null/empty-sequence coalescing and retain false and zero.
 
+Choice declarations provide a focusable `.cem-select__control` or a wrapper
+with focusable children. The shared choice capability uses that control, or
+its first usable HTML descendant, as the native
+[validation anchor](https://html.spec.whatwg.org/multipage/custom-elements.html#dom-elementinternals-setvalidity).
+It skips disabled, hidden and inert elements, preserves authored tab stops
+(including `tabindex=-1`) and refreshes the anchor after each DOM commit.
+Updating the anchor does not move focus; native invalid submission or `reportValidity()`
+can focus the current anchor without changing the selected value.
+
 CEMT and XSLT render plans derive node IDs from native source provenance, the
 parent ID and the occurrence at that source site. Conditional output at another
 site leaves those IDs stable, allowing unaffected DOM nodes to retain browser

@@ -4219,16 +4219,19 @@ registration identities may reuse an inherited or existing definition.
           native template-render tests, 513 unit tests, 221 Storybook tests and
           31 standalone / 37 source-loaded documents pass. Aggregate coverage,
           native/package lint and typecheck pass with existing warnings.
-    - [ ] Fixture: audit all five `demo/form.html` samples against their
+    - [x] Fixture: audit all five `demo/form.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           explicit step advancement, live validation and conditional controls,
           native/custom validity messages and form-associated DCE values.
           Preserve authored examples and stop for any new behavior decision.
-          Checkpoint 2026-09-24: the existing story passes but misses sample 2's
-          absent initial prompt and compiler/comparison errors. The approved
-          corrections below restore the prompt, form refresh and sample 4's
-          length/validity behavior. The full audit remains open for sample 5's
-          native invalid-submission focus decision.
+          Completed 2026-09-24: all five samples cover step advancement,
+          confirmation branches, conditional controls, native/custom validity,
+          length and Unicode values, native FormData, choice keyboard behavior
+          and blocked/cancelled/allowed submission. The approved corrections
+          below resolve the prompt, form refresh, validity-expression and native
+          validation-focus findings. Storybook and both independent gallery
+          modes pass, including desktop two-card layout and desktop/mobile
+          overflow checks. The next page audit is `demo/hex-grid.html`.
     - [x] Fixture: characterize sample 2's initial confirmation-method guards
           in a small native render test. Compare the authored XPath `not(...)`
           and unset comparisons with canonical `!` and explicit empty-string
@@ -4334,8 +4337,32 @@ registration identities may reuse an inherited or existing definition.
           validity anchor; this demo supplies a nonfocusable fieldset there.
           Keep the initial-submit focus case open rather than allowlisting the
           console errors. Mismatch cancellation and valid submission pass.
-    - [ ] Decision: fix shared form-associated validation focus (recommended),
+    - [x] Decision: fix shared form-associated validation focus (recommended),
           or record the sample 5 limitation and defer that part of the audit.
+          Accepted 2026-09-24: fix shared validation focus.
+    - [x] Fixture: select a usable native validation anchor for shared choice
+          controls and refresh it after DOM commits. Cover focusable controls,
+          nonfocusable wrappers, disabled/hidden/inert descendants, replacement
+          controls, native reportValidity and blocked submission without changing
+          values or stealing focus during rendering. Restore sample 5's empty
+          submission and exact-focus checks in Storybook and both gallery modes;
+          finish the five-sample form audit if no new behavior decision remains.
+          Completed 2026-09-24: two new browser regressions fail before the fix
+          and pass afterward. Native invalid submission focuses the first empty
+          fruit choice, then the second after filling the first, and the first
+          again after clearing it, without browser errors or value changes.
+          All 232 Storybook tests (including production cem-select), 513 unit
+          tests and 31 standalone / 37 source-loaded documents pass. Aggregate
+          coverage, lint and typecheck pass with the two existing lint warnings;
+          the form page passes desktop two-card and desktop/mobile overflow
+          checks. The authored demo is unchanged and the five-sample audit is
+          complete.
+    - [ ] Fixture: audit all nine `demo/hex-grid.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          responsive geometry, link/image resolution, labels and image fallback,
+          wrapper themes, hover/keyboard focus and the current-page row. Verify
+          desktop/mobile layout, preserve authored examples and stop for any
+          new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

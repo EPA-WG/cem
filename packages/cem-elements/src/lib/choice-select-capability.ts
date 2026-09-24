@@ -97,6 +97,9 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
     },
     rendered(instance) {
         const state = stateFor(instance);
+        // The first render and conditional control replacement need a live
+        // anchor from the committed DOM, not the preceding render's control.
+        synchronizeForm(instance, state);
         const listbox = instance.querySelector<HTMLElement>('.cem-select__listbox');
         if (listbox) {
             listbox.style.blockSize = `calc(var(--cem-list-row-height) * ${reflectedSize(instance)})`;
@@ -516,7 +519,7 @@ function synchronizeForm(instance: HTMLElement, state: SelectState): void {
         internals.setValidity({});
         return;
     }
-    const anchor = controlFor(instance);
+    const anchor = validationAnchorFor(instance);
     internals.setValidity(
         { valueMissing: true },
         requiredValidationMessage(instance.ownerDocument, state.mode === 'multiple-listbox'),
@@ -541,6 +544,21 @@ function isDisabled(instance: HTMLElement, state: SelectState): boolean {
 
 function controlFor(instance: HTMLElement): HTMLElement | null {
     return instance.querySelector<HTMLElement>('.cem-select__control');
+}
+
+function validationAnchorFor(instance: HTMLElement): HTMLElement | undefined {
+    const control = controlFor(instance);
+    if (!control) return undefined;
+    // Preserve authored focus surfaces (including tabindex=-1); a wrapper
+    // such as fieldset delegates native validation to its first usable child.
+    return [control, ...control.querySelectorAll<HTMLElement>('*')].find(element => {
+        if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+            || !(element.tabIndex >= 0 || element.hasAttribute('tabindex') || element.isContentEditable)
+            || element.matches(':disabled') || element.closest('[hidden],[inert]')
+            || !element.isConnected || element.getClientRects().length === 0) return false;
+        const visibility = element.ownerDocument.defaultView?.getComputedStyle(element).visibility;
+        return visibility !== 'hidden' && visibility !== 'collapse';
+    });
 }
 
 function installHostApi(instance: HTMLElement, state: SelectState): void {

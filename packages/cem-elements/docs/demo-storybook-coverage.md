@@ -854,3 +854,30 @@ Checkpoint validation passes: the native fallback/codepoint regression,
 documents. Aggregate coverage, lint and typecheck pass with the two existing
 lint warnings. The form page passes desktop two-card layout and 1280px/390px
 overflow checks. The next item is the shared invalid-submission focus decision.
+
+## Shared validation focus and form audit, 2026-09-24
+
+The user approved the shared focus fix. The choice capability now selects its
+focusable control or the first usable HTML descendant of a wrapper. Disabled,
+hidden, inert and non-HTML descendants are excluded. Authored focus surfaces,
+including negative tabindex values, retain their behavior. The runtime updates
+native validity and its anchor after DOM commits, covering the initial render
+and replacement controls as well as the demo's nonfocusable fieldset.
+
+Two browser regressions failed before the fix, including a focusable button
+whose initial validity anchor was set before its DOM existed. They now exercise
+native `checkValidity`, `reportValidity` and submission, disabled-anchor changes,
+conditional control replacement, preserved selection/FormData, no focus movement
+during rendering and no injected host/wrapper tab stops. Sample 5's Storybook
+and both independent gallery modes require blocked empty submission and exact
+focus on the first invalid fruit choice, then the second after the first is
+filled, and the first again after clearing it. Mismatch cancellation and valid
+submission remain covered. The authored demo is unchanged.
+
+Validation passes: all 232 Storybook tests, including the production `cem-select`
+consumer, 513 unit tests and 31 standalone / 37 source-loaded documents.
+Aggregate coverage, lint and typecheck pass with the two existing lint warnings.
+The form page passes desktop two-card layout and 1280px/390px overflow checks.
+All five form samples are now audited. The next fixture covers the nine
+`hex-grid.html` samples; the overall per-sample audit and separate browser-startup
+investigations remain open.
