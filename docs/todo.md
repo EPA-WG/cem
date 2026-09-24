@@ -2106,7 +2106,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       while historical timeout attribution remains open on traced recurrence.
       This supersedes the earlier stabilization-first order, not its open
       investigations. The inventory follow-up below records the accepted work.
-  - [ ] Fixture: capture output-specific lifecycle state for the null inline
+  - [x] Fixture: capture output-specific lifecycle state for the null inline
         resource `href` in `NestedExternalSrcUsesLoadedDocumentBase` and null
         logo `src` in `MaterialIconLinkParity`, observed during the authored
         coverage gate. Both repeat in the three-file control with the original
@@ -2115,6 +2115,31 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         or shared behavior. Keep the referrer matrix's traced frame timeout
         separate; that story passes the focused control. Evidence is recorded
         in `packages/cem-elements/docs/demo-storybook-coverage.md`.
+        Captured 2026-09-24: Material's href appears at revision 2, before its
+        logo src at revision 3; both eventually resolve without diagnostics.
+        The nested resource slice resolves correctly, but `{$asset}` remains
+        rejected as an unknown variable even after the owning render settles.
+        These are separate causes, not a shared URL-resolution timeout.
+  - [x] Fixture: make `MaterialIconLinkParity` wait for both module URL outputs
+        in its existing predicate budget, retaining exact URL, composition and
+        accessibility assertions. Verify focused and full Storybook, lint and
+        typecheck without changing resource publication or runtime semantics.
+  - [x] Decision: correct only the nested-source fixture's unbound `{$asset}`
+        expression to `{$datadom.slices.asset}`, wait for its own render, and
+        reject compilation diagnostics (recommended), or investigate implicit
+        resource-slice alias support as a shared runtime/compiler change first.
+        Accepted 2026-09-24: the user chose the fixture-only correction. A
+        longer wait cannot fix the captured compilation error.
+  - [x] Fixture: compile the nested-source story's actual inline template
+        natively before its resource slice exists, then reuse that artifact
+        after URL publication. Correct the fixture to the explicit slice path,
+        settle its own render, and assert no compilation diagnostics. Verify
+        native, focused/full browser, unit, lint and typecheck gates.
+        Completed 2026-09-24: the native regression fails before the correction
+        and passes afterward. All 217 Storybook tests, 508 unit tests and all
+        31 standalone / 37 source-loaded gallery documents pass together in
+        `verify-demo-coverage`. Lint/typecheck pass with two existing lint
+        warnings. Runtime/compiler behavior and timing budgets are unchanged.
   - [x] Investigate failed source acquisition and recovery: HTTP 503 and
         interrupted response bodies both remain cached as rejected promises;
         original and replacement declarations make no new request after the
@@ -3845,9 +3870,9 @@ registration identities may reuse an inherited or existing definition.
           afterward. All 31 standalone / 37 source-loaded gallery documents
           pass. At 1280px and 390px the root page has exact payload button
           counts and labels, no horizontal overflow, and no browser errors.
-          Final verification passes 508 unit tests and 215/217 Storybook tests;
-          the two existing URL-attribute failures remain open above, so the
-          combined coverage gate is not yet green.
+          Initial verification on 2026-09-23 passed 508 unit tests and 215/217
+          Storybook tests. The two URL-attribute failures were attributed and
+          corrected above on 2026-09-24; the combined coverage gate now passes.
     - [x] Add a machine-checked page-and-legend inventory that fails when an
           authored demo page or `cem-demo-element[legend]` lacks a corresponding
           Storybook contract, or when a contract names a removed page or legend.
@@ -3858,6 +3883,11 @@ registration identities may reuse an inherited or existing definition.
           Storybook `play` test, while retaining exact source-shape assertions in
           `test:unit` and avoiding test-only IDs, roles, or data attributes in the
           demo HTML.
+    - [ ] Fixture: begin the behavior audit with all eight `demo/attributes.html`
+          samples. Add explicit rendered default/container-value assertions and
+          cover `#precedence-default`, currently absent from the source-loaded
+          story's assertions. Cross-check the independent gallery contracts,
+          preserve the authored HTML, and run the affected verification gates.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

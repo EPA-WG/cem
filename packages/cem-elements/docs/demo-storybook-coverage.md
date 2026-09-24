@@ -28,8 +28,8 @@ that the designated story already asserts every sample's behavior.
 
 The broader TODO item remains open until each sample's observable output and
 interaction contract has been audited. Structural ownership does not substitute
-for those assertions. Runtime behavior, existing waits and timing budgets are
-unchanged. The separately approved root-gallery correction is described below.
+for those assertions. Inventory enforcement adds no runtime changes or readiness
+waits. The approved root-gallery and fixture corrections are described below.
 
 ## Approved root-gallery correction
 
@@ -73,8 +73,9 @@ SVG fixtures, so this check does not assert remote-service availability.
   all 31 standalone / 37 source-loaded gallery documents, and 215/217 Storybook
   tests. Its only failing prerequisite is Storybook: the same null `href` in
   `NestedExternalSrcUsesLoadedDocumentBase` and null `src` in
-  `MaterialIconLinkParity`. The aggregate remains failing until those separate
-  cases are resolved; no test is skipped or weakened to make the inventory pass.
+  `MaterialIconLinkParity`. At that point the aggregate failed; no test was
+  skipped or weakened to make the inventory pass.
+  The 2026-09-24 follow-up below attributes the two failures separately.
 - The earlier traced full browser run passes 214/217. `NestedExternalSrcUsesLoadedDocumentBase`
   reads a null inline resource `href`; `MaterialIconLinkParity` reads a null logo
   `src`; the referrer matrix exceeds its existing frame budget. The selected
@@ -91,3 +92,47 @@ SVG fixtures, so this check does not assert remote-service availability.
 The original HTTP/location/stock timeout attribution remains open. Existing
 whole-scope replacement behavior remains accepted. Readiness failures require
 captured lifecycle state before changing fixture waits or runtime semantics.
+
+## URL failure attribution, 2026-09-24
+
+Read-only worker transport observations captured the affected render revisions,
+the `asset`, `cemurl` and `logourl` scalar slices, emitted resource controls,
+diagnostics, and corresponding DOM attributes. No source documents or runtime
+snapshots were serialized. The diagnostic run retained each original assertion;
+on failure it observed the owning instance's render settlement and then rethrew
+the original error. This later observation is evidence, not passing coverage.
+Temporary instrumentation was removed before validation.
+
+| Story | Original assertion | After the owning render settled | Attribution |
+| --- | --- | --- | --- |
+| `MaterialIconLinkParity` | At 1920.7ms, revision 2 has the expected href and a null logo src. Its render input contains only `cemurl`. | At 1949.1ms, revision 3 contains both slices and publishes the expected logo src, without diagnostics. | The href predicate completes before the independent logo URL publication. |
+| `NestedExternalSrcUsesLoadedDocumentBase` | At 1929.9ms, the anchor href is null and compilation reports unknown variable `asset`. | At 1948.1ms, the next render input contains the correct absolute `asset` slice, but compilation still rejects `asset` and href remains null. | The authored bare variable is not a declared binding; extra waiting does not repair compilation. |
+
+Material's existing predicate now requires both exact URLs before the remaining
+URL, nested-icon, composition and accessibility assertions. Its 120-frame budget
+and the shared runtime are unchanged. The focused icon-link selection passes
+both matching stories after reproducing the original failure.
+
+The user approved the fixture-only correction on 2026-09-24. The nested-source
+template now uses `{$datadom.slices.asset}`. After its first output appears, the
+story settles that specific instance and rejects diagnostics before asserting
+the exact URL. The shared runtime/compiler and alias behavior are unchanged.
+The native regression reads the actual story template, reproduced the unknown
+variable error before the correction, and now verifies one compiled artifact
+across absent, resolved and cleared resource-slice states. Nx native test inputs
+include that source file.
+
+The diagnostic run captured both failures and their settled states, then stalled
+while the runner finished; it was terminated without claiming a full-suite
+result. Final validation uses the restored, uninstrumented stories. Historical
+HTTP/location/stock timeouts and the separate traced referrer-frame timeout
+remain open.
+
+Final validation after both corrections passes the native authored-template
+regression, all 217 Storybook tests, all 508 unit tests, and all 31 standalone /
+37 source-loaded gallery documents. The combined `verify-demo-coverage` gate,
+lint and package typecheck pass through serial Nx execution; lint retains the
+same two existing warnings. The full browser run with only the Material fix
+passed 216/217, isolating the remaining nested-source failure before its approved
+correction. The per-sample behavior audit remains open, starting with the eight
+attributes-demo samples and their missing default-precedence assertion.

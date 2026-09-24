@@ -2454,7 +2454,7 @@ export const NestedExternalSrcUsesLoadedDocumentBase: Story = {
                                 <cem-element-story-nested-source tag="story-nested-inline-resource">
                                     <template type="text/cem-ml">
                                         {module-url @slice=asset @src="./asset.svg"}
-                                        {a @class=nested-inline-resource @href="{$asset}" | Inline resource}
+                                        {a @class=nested-inline-resource @href="{$datadom.slices.asset}" | Inline resource}
                                     </template>
                                 </cem-element-story-nested-source>
                                 <story-nested-inline-resource></story-nested-inline-resource>
@@ -2506,7 +2506,15 @@ export const NestedExternalSrcUsesLoadedDocumentBase: Story = {
             ].join('\n')
         );
         assertEqual(result.textContent, 'Nested source', 'the nested relative declaration renders');
-        const inlineResource = await waitForElement(root, 'story-nested-inline-resource .nested-inline-resource');
+        await waitForElement(root, 'story-nested-inline-resource .nested-inline-resource');
+        const inlineInstance = requiredElement(root, 'story-nested-inline-resource') as HTMLElement;
+        await root.sourceRuntime?.whenRenderSettled(inlineInstance);
+        assertEqual(
+            root.sourceRuntime?.diagnosticsFor(inlineInstance).length,
+            0,
+            'the inline resource template compiles and renders without diagnostics'
+        );
+        const inlineResource = requiredElement(inlineInstance, '.nested-inline-resource');
         assertEqual(
             inlineResource.getAttribute('href'),
             'https://fixtures.example.test/demo/asset.svg',

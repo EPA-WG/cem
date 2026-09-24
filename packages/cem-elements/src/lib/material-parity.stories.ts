@@ -320,11 +320,14 @@ export const MaterialIconLinkParity: Story = {
     play: async ({ canvasElement }) => {
         const link = requiredElement(canvasElement, 'mat-icon-link');
         await waitForElement(link, 'a.cem-icon-link');
+        // Resource slices can publish in separate renders; the href alone does not settle the logo.
         await waitForCondition(
             () =>
                 requiredElement(link, 'a.cem-icon-link').getAttribute('href') ===
-                'https://cdn.example.test/@epa-wg/material',
-            'the module-url `cemurl` slice rerenders the link href'
+                'https://cdn.example.test/@epa-wg/material' &&
+                link.querySelector('img.resolved-logo')?.getAttribute('src') ===
+                'https://cdn.example.test/@epa-wg/custom-element/demo/wc-square.svg',
+            'the module-url slices rerender both the link href and logo src'
         );
         const anchor = requiredElement(link, 'a.cem-icon-link') as HTMLAnchorElement;
         const logo = requiredElement(link, 'img.resolved-logo') as HTMLImageElement;
