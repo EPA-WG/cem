@@ -735,3 +735,39 @@ The authored demo remains unchanged. The five-sample audit stays open while
 the user chooses fixture-only corrections versus shared syntax/comparison
 work. Passing existing browser checks do not constitute sign-off on the
 initial state or on complete form behavior.
+
+## Form guard correction and follow-up findings, 2026-09-24
+
+The user approved fixture-only correction of sample 2's confirmation guards.
+Its password/SMS comparisons now use empty-string fallbacks, and its initial
+prompt uses canonical prefix negation. All five samples have named Storybook steps;
+sample 2 now checks its initial prompt and clean diagnostic history, the
+ten-character username boundary, every confirmation method, pointer/keyboard
+selection, password validation recovery, retained values across branch changes
+and live form/username/radio identity. The independent gallery shares those
+contracts across standalone and source-document loading. The other four
+samples retain their existing contracts pending the remainder of the audit.
+
+The expanded checks exposed two further decisions:
+
+- Selecting Password after SMS with username `abcdefghij` inserts an empty
+  required password control. Its native `validity.valid` is false, but the
+  rendered form state still says `true` with no message. The strict browser
+  assertion fails; subsequent password input refreshes the form correctly.
+  Passing checkpoint tests cover the inserted control and later validation
+  transitions, leaving the immediate form-state refresh explicitly open.
+- Sample 4 initially displays length 4 for its empty control. A native
+  characterization shows that an unset declared slice projects empty text but
+  converts to the four-character string `null` inside `str:length`.
+  `str:length(datadom.slices.email ?? "")` gives initial length 0 and preserves
+  later empty, three/four-character and Unicode values. Its validity expression
+  and displayed count need the same policy decision.
+
+No shared runtime behavior or sample 4 markup has changed. The pending choices
+are shared form-validation refresh versus recording the limitation, and a
+sample 4 fallback versus shared null conversion. The five-sample audit remains
+open. All 53 native template-render tests, 513 unit tests, 221 Storybook tests
+and 31 standalone / 37 source-loaded documents pass. Aggregate coverage,
+native/package lint and typecheck pass with existing warnings. The form page
+also passes the desktop two-card layout and 1280px/390px overflow checks.
+Existing Nx inputs cover the changed sources and fixtures.

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { whenCemSourceRendered } from '../../.storybook/preview.js';
+import { expect, userEvent, waitFor } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-form-demo-document';
 const DEMO_URL = new URL('../../demo/form.html', import.meta.url);
@@ -33,7 +34,7 @@ export const EveryAuthoredSample: Story = {
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await whenCemSourceRendered(host);
         assertEqual(
@@ -50,11 +51,11 @@ export const EveryAuthoredSample: Story = {
             'form sample inventory'
         );
 
-        await verifySimpleValidation(sampleByLegend(host, EXPECTED_LEGENDS[0]));
-        await verifyFormLifecycle(sampleByLegend(host, EXPECTED_LEGENDS[1]));
-        await verifyNativeMessage(sampleByLegend(host, EXPECTED_LEGENDS[2]));
-        await verifyFormMessage(sampleByLegend(host, EXPECTED_LEGENDS[3]));
-        await verifyFormAssociatedDce(sampleByLegend(host, EXPECTED_LEGENDS[4]));
+        await step(EXPECTED_LEGENDS[0], () => verifySimpleValidation(sampleByLegend(host, EXPECTED_LEGENDS[0])));
+        await step(EXPECTED_LEGENDS[1], () => verifyFormLifecycle(sampleByLegend(host, EXPECTED_LEGENDS[1])));
+        await step(EXPECTED_LEGENDS[2], () => verifyNativeMessage(sampleByLegend(host, EXPECTED_LEGENDS[2])));
+        await step(EXPECTED_LEGENDS[3], () => verifyFormMessage(sampleByLegend(host, EXPECTED_LEGENDS[3])));
+        await step(EXPECTED_LEGENDS[4], () => verifyFormAssociatedDce(sampleByLegend(host, EXPECTED_LEGENDS[4])));
     },
 };
 
@@ -81,22 +82,80 @@ async function verifySimpleValidation(sample: HTMLElement): Promise<void> {
 }
 
 async function verifyFormLifecycle(sample: HTMLElement): Promise<void> {
-    setValueAndDispatch(requiredControl(sample, 'input[name="username"]'), 'long-username');
-    click(requiredElement(sample, 'input[value="sms"]'));
-    await waitForCondition(
-        () => normalize(requiredElement(sample, 'fieldset').textContent ?? '').includes('Message and data rates may apply.'),
-        'the SMS lifecycle branch renders its warning'
-    );
+    const instance = requiredElement(sample, 'article').parentElement as HTMLElement;
+    const form = requiredElement(sample, 'form');
+    const username = requiredControl(sample, 'input[name="username"]');
+    const methods = ['email', 'sms', 'password'];
+    const radios = methods.map(method => requiredControl(sample, `input[value="${method}"]`));
+    const state = async (method: string, valid: boolean, message = '') => {
+        await whenCemRendered(instance);
+        await waitFor(() => {
+            expect(requiredElement(sample, 'form')).toBe(form);
+            expect(requiredControl(sample, 'input[name="username"]')).toBe(username);
+            expect(username.isConnected).toBe(true);
+            expect(radios.map(radio => radio.checked)).toEqual(methods.map(value => value === method));
+            expect(radios.every(radio => radio.isConnected)).toBe(true);
+            expect(textValue(sample, 'form > p:nth-of-type(2) output')).toBe(username.value);
+            expect(textValue(sample, 'form > p:nth-of-type(3) output')).toBe(method);
+            expect(textValue(sample, 'form > p:nth-of-type(4) output')).toBe(String(valid));
+            expect(textValue(sample, 'form > p:nth-of-type(5) output')).toBe(message);
+            expect(sample.querySelectorAll('input[name="password"]')).toHaveLength(method === 'password' ? 1 : 0);
+            expect(Array.from(sample.querySelectorAll('fieldset > p'), node => normalize(node.textContent ?? '')))
+                .toEqual(method === 'sms' ? ['Message and data rates may apply.'] : method ? [] : ['Select a confirmation method.']);
+        });
+        expect(cemDiagnosticCodes(instance)).toEqual([]);
+    };
+    const choose = async (method: string, keyboard = false) => {
+        const radio = radios[methods.indexOf(method)];
+        if (keyboard) {
+            radio.focus();
+            await userEvent.keyboard(' ');
+        } else await userEvent.click(radio);
+    };
+    const edit = async (control: HTMLInputElement, value: string) => {
+        await userEvent.clear(control);
+        if (value) await userEvent.type(control, value);
+        await whenCemRendered(instance);
+        expect(control.isConnected).toBe(true);
+        expect(document.activeElement).toBe(control);
+        expect(control.value).toBe(value);
+    };
 
-    click(requiredElement(sample, 'input[value="password"]'));
-    await waitForCondition(
-        () => sample.querySelector('input[name="password"]') !== null,
-        'the password lifecycle branch renders its control'
-    );
-    setValueAndDispatch(requiredControl(sample, 'input[name="password"]'), 'secret');
-    await waitForText(sample, 'form > p:nth-of-type(4) output', 'true', 'the lifecycle form becomes valid');
-    assertText(sample, 'form > p:nth-of-type(3) output', 'password', 'form data records the confirmation choice');
-    assertText(sample, 'form > p:first-of-type output', '', 'the username control message clears');
+    await whenCemRendered(instance);
+    expect(textValue(sample, 'fieldset > p')).toBe('Select a confirmation method.');
+    expect(radios.map(radio => radio.checked)).toEqual([false, false, false]);
+    expect(sample.querySelector('input[name="password"]')).toBeNull();
+    expect(cemDiagnosticCodes(instance)).toEqual([]);
+    await edit(username, 'short');
+    await state('', false, 'Complete the username and confirmation method');
+    expect(username.validationMessage).toBe('Use at least 10 characters');
+    expect(textValue(sample, 'form > p:first-of-type output')).toBe(username.validationMessage);
+    await edit(username, 'abcdefghij');
+    await state('', false, 'Complete the username and confirmation method');
+    expect(username.validationMessage).toBe('');
+    await choose('email');
+    await state('email', true);
+    await choose('sms', true);
+    await state('sms', true);
+    await choose('password');
+    await whenCemRendered(instance);
+    const password = requiredControl(sample, 'input[name="password"]');
+    expect(password.value).toBe('');
+    expect(password.validity.valid).toBe(false);
+    // The initial form-valid output after this conditional insertion is a
+    // recorded shared-refresh investigation in docs/todo.md.
+
+    for (const [value, valid] of [['abc', false], ['abcd', true], ['', false], ['secret', true]] as const) {
+        await edit(password, value);
+        await state('password', valid, valid ? '' : 'Complete the username and confirmation method');
+        expect(requiredControl(sample, 'input[name="password"]')).toBe(password);
+        if (value === 'abc') expect(password.validationMessage).toBe('Password is too short');
+    }
+    await choose('email', true);
+    await state('email', true);
+    await choose('password');
+    await state('password', true);
+    expect(requiredControl(sample, 'input[name="password"]').value).toBe('secret');
 }
 
 async function verifyNativeMessage(sample: HTMLElement): Promise<void> {

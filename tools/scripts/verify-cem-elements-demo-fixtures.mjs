@@ -700,6 +700,80 @@ function aspectTableChecks() {
     ];
 }
 
+const formSamples = [
+    sampleContract('1. Simple validation', [
+        fillThenText('input[name="username"]', 'long-username', 'form', 'Username: long-username'),
+        countExactly('input[name="password"]', 0),
+        clickThenText('button', 'form', '🔑'),
+        fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(2) output', 'true'),
+    ]),
+    sampleContract('2. Form lifecycle', [
+        nodeTexts('fieldset > p', ['Select a confirmation method.']),
+        countExactly('input[name="password"]', 0),
+        ...['email', 'sms', 'password'].map(method => propertyEquals(`input[value="${method}"]`, 'checked', false)),
+        ...['form', 'input[name="username"]', ...['email', 'sms', 'password'].map(method => `input[value="${method}"]`)]
+            .map(selector => elementIdentity(selector, 'remember')),
+        fillThenText('input[name="username"]', 'short', 'form > p:nth-of-type(2) output', 'short'),
+        formState({ outputs: ['Use at least 10 characters', 'short', '', 'false', 'Complete the username and confirmation method'] }),
+        fillThenText('input[name="username"]', 'abcdefghij', 'form > p:nth-of-type(2) output', 'abcdefghij'),
+        ...lifecycleChecks('', false),
+        clickThenText('input[value="email"]', 'form > p:nth-of-type(3) output', 'email'),
+        ...lifecycleChecks('email', true),
+        pressThenProperty('input[value="sms"]', 'Space', 'input[value="sms"]', 'checked', true),
+        ...lifecycleChecks('sms', true),
+        clickThenText('input[value="password"]', 'form > p:nth-of-type(3) output', 'password'),
+        countExactly('input[name="password"]', 1),
+        propertyEquals('input[name="password"]', 'value', ''),
+        propertyEquals('input[name="password"]', 'required', true),
+        // Form-valid refresh immediately after insertion remains an open audit finding.
+        ...[['abc', false], ['abcd', true], ['', false], ['secret', true]].flatMap(([value, valid]) => [
+            fillThenText('input[name="password"]', value, 'form > p:nth-of-type(4) output', String(valid)),
+            propertyEquals('input[name="password"]', 'value', value),
+            ...lifecycleChecks('password', valid),
+        ]),
+        pressThenProperty('input[value="email"]', 'Space', 'input[value="email"]', 'checked', true),
+        ...lifecycleChecks('email', true),
+        clickThenText('input[value="password"]', 'form > p:nth-of-type(3) output', 'password'),
+        ...lifecycleChecks('password', true),
+        propertyEquals('input[name="password"]', 'value', 'secret'),
+        ...['form', 'input[name="username"]', ...['email', 'sms', 'password'].map(method => `input[value="${method}"]`)]
+            .map(selector => elementIdentity(selector, 'same')),
+    ]),
+    sampleContract('3. Native control validity message', [
+        fillThenText('input[name="email"]', '', 'form > p:nth-of-type(2) output', 'Please fill out this field.'),
+    ]),
+    sampleContract('4. Form custom validity message', [
+        fillThenText('input[name="email"]', 'abc', 'form > p:nth-of-type(4) output', 'Use more than 3 characters'),
+        text('form > p:nth-of-type(2) output', '3'),
+    ]),
+    sampleContract('5. DCE as a form input', [
+        clickThenText(
+            'cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
+            'form > p:first-of-type output:first-of-type',
+            '🍏',
+        ),
+        clickThenText(
+            'cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
+            'form > p:nth-of-type(3) output',
+            'Choose the same fruit',
+        ),
+        clickThenText(
+            'cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
+            'form > p:nth-of-type(2) output',
+            'true',
+        ),
+    ]),
+];
+
+function lifecycleChecks(method, valid) {
+    return [
+        formState({ outputs: ['', 'abcdefghij', method, String(valid), valid ? '' : 'Complete the username and confirmation method'] }),
+        countExactly('input[name="password"]', method === 'password' ? 1 : 0),
+        nodeTexts('fieldset > p', method === 'sms' ? ['Message and data rates may apply.'] : method ? [] : ['Select a confirmation method.']),
+        ...['email', 'sms', 'password'].map(value => propertyEquals(`input[value="${value}"]`, 'checked', value === method)),
+    ];
+}
+
 const forEachSamples = [
     sampleContract('1. Simple for-each', [
         nodeTexts('ul > li', ['🍏', '🍌', '🍒']),
@@ -1490,75 +1564,8 @@ const fixtureSpecs = [
         checks: [
             countExactly('cem-demo-element[legend]', 5),
             text('main > section', 'datadom.formData.<slice>'),
-            fillThenText(
-                'cem-demo-element[legend="1. Simple validation"] input[name="username"]',
-                'long-username',
-                'cem-demo-element[legend="1. Simple validation"] form',
-                'Username: long-username',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="1. Simple validation"] button',
-                'cem-demo-element[legend="1. Simple validation"] form', '🔑',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="1. Simple validation"] input[name="password"]',
-                'secret',
-                'cem-demo-element[legend="1. Simple validation"] form > p:nth-of-type(2) output',
-                'true',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="2. Form lifecycle"] input[name="username"]',
-                'long-username',
-                'cem-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(2) output',
-                'long-username',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="2. Form lifecycle"] input[value="sms"]',
-                'cem-demo-element[legend="2. Form lifecycle"] fieldset',
-                'Message and data rates may apply.',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="2. Form lifecycle"] input[value="password"]',
-                'cem-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(3) output',
-                'password',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="2. Form lifecycle"] input[name="password"]',
-                'secret',
-                'cem-demo-element[legend="2. Form lifecycle"] form > p:nth-of-type(4) output',
-                'true',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="3. Native control validity message"] input[name="email"]',
-                '',
-                'cem-demo-element[legend="3. Native control validity message"] form > p:nth-of-type(2) output',
-                'Please fill out this field.',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="4. Form custom validity message"] input[name="email"]',
-                'abc',
-                'cem-demo-element[legend="4. Form custom validity message"] form > p:nth-of-type(4) output',
-                'Use more than 3 characters',
-            ),
-            text(
-                'cem-demo-element[legend="4. Form custom validity message"] form > p:nth-of-type(2) output',
-                '3',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
-                'cem-demo-element[legend="5. DCE as a form input"] form > p:first-of-type output:first-of-type',
-                '🍏',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
-                'cem-demo-element[legend="5. DCE as a form input"] form > p:nth-of-type(3) output',
-                'Choose the same fruit',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="5. DCE as a form input"] cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
-                'cem-demo-element[legend="5. DCE as a form input"] form > p:nth-of-type(2) output',
-                'true',
-            ),
+            ...formSamples.flatMap(sample => sample.checks.map(check =>
+                scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
         ],
     },
     {
@@ -2284,44 +2291,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/form.html',
-        samples: [
-            sampleContract('1. Simple validation', [
-                fillThenText('input[name="username"]', 'long-username', 'form', 'Username: long-username'),
-                countExactly('input[name="password"]', 0),
-                clickThenText('button', 'form', '🔑'),
-                fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(2) output', 'true'),
-            ]),
-            sampleContract('2. Form lifecycle', [
-                fillThenText('input[name="username"]', 'long-username', 'form > p:nth-of-type(2) output', 'long-username'),
-                clickThenText('input[value="sms"]', 'fieldset', 'Message and data rates may apply.'),
-                clickThenText('input[value="password"]', 'form > p:nth-of-type(3) output', 'password'),
-                fillThenText('input[name="password"]', 'secret', 'form > p:nth-of-type(4) output', 'true'),
-            ]),
-            sampleContract('3. Native control validity message', [
-                fillThenText('input[name="email"]', '', 'form > p:nth-of-type(2) output', 'Please fill out this field.'),
-            ]),
-            sampleContract('4. Form custom validity message', [
-                fillThenText('input[name="email"]', 'abc', 'form > p:nth-of-type(4) output', 'Use more than 3 characters'),
-                text('form > p:nth-of-type(2) output', '3'),
-            ]),
-            sampleContract('5. DCE as a form input', [
-                clickThenText(
-                    'cem-form-fruit-choice:first-of-type button[data-option-index="1"]',
-                    'form > p:first-of-type output:first-of-type',
-                    '🍏',
-                ),
-                clickThenText(
-                    'cem-form-fruit-choice:last-of-type button[data-option-index="2"]',
-                    'form > p:nth-of-type(3) output',
-                    'Choose the same fruit',
-                ),
-                clickThenText(
-                    'cem-form-fruit-choice:last-of-type button[data-option-index="1"]',
-                    'form > p:nth-of-type(2) output',
-                    'true',
-                ),
-            ]),
-        ],
+        samples: formSamples,
     },
     {
         path: '/packages/cem-elements/demo/hex-grid.html',
@@ -2777,6 +2747,9 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/for-each.html') {
                 await verifyDemoLayout(page, 11);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/form.html') {
+                await verifyDemoLayout(page, 5);
             }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
                 await verifyHexRowNavigation(page);

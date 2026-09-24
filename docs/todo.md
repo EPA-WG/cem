@@ -4225,8 +4225,9 @@ registration identities may reuse an inherited or existing definition.
           native/custom validity messages and form-associated DCE values.
           Preserve authored examples and stop for any new behavior decision.
           Checkpoint 2026-09-24: the existing story passes but misses sample 2's
-          absent initial prompt and compiler/comparison errors. The full audit
-          remains open pending the fixture/shared-handling decision below.
+          absent initial prompt and compiler/comparison errors. The approved
+          correction below restores the prompt; the full audit remains open
+          for conditional form-validation refresh and the initial text count.
     - [x] Fixture: characterize sample 2's initial confirmation-method guards
           in a small native render test. Compare the authored XPath `not(...)`
           and unset comparisons with canonical `!` and explicit empty-string
@@ -4239,10 +4240,43 @@ registration identities may reuse an inherited or existing definition.
           outcomes without diagnostics. All 52 native template-render tests,
           the existing form Storybook interaction and native lint pass (existing
           warnings). The authored demo is unchanged.
-    - [ ] Decision: correct only form sample 2's confirmation-method guards
+    - [x] Decision: correct only form sample 2's confirmation-method guards
           with `!` and explicit empty-string fallbacks (recommended), or
           investigate shared syntax/comparison support. Resume the five-sample
           behavior audit after this decision.
+          Accepted 2026-09-24: correct the fixture only.
+    - [x] Fixture: apply the approved form sample 2 guard corrections. Require
+          the initial prompt, all three confirmation branches and clean
+          diagnostics in Storybook, standalone and source-document checks;
+          resume the remaining form audit and verify desktop/mobile layout.
+          Completed 2026-09-24: only the three authored guards changed. Named
+          Storybook steps and shared gallery contracts cover every confirmation
+          branch, keyboard/pointer input, validation recovery and live identity.
+          Desktop two-card layout and desktop/mobile overflow checks pass.
+          All 53 native template-render tests, 513 unit tests, 221 Storybook
+          tests and 31 standalone / 37 source-loaded documents pass, as do
+          aggregate coverage, native/package lint and typecheck (existing warnings).
+          The two findings below remain outside this completed correction.
+    - [x] Fixture: investigate form sample 4's initial character count before
+          its first input event. Compare the native unset-slice result with an
+          explicit empty-string fallback and browser output before choosing a
+          fixture correction or shared handling.
+          Completed 2026-09-24: native and browser paths report length 4 while
+          the unset slice displays no text. Native `?? ""` gives initial length
+          0 and preserves empty, three/four-character and Unicode values. The
+          sample is unchanged pending the decision below.
+    - [ ] Decision: investigate and fix shared form-validation refresh after
+          inserting conditional controls (recommended), or record the limitation.
+          Sample 2 switches from SMS to Password with a ten-character username
+          and reports `Form valid: true` / no form message while the new empty
+          required password has native `validity.valid === false`. Editing that
+          password refreshes the form correctly. The strict browser assertion
+          reproduces this mismatch; current passing checks explicitly leave it
+          open instead of treating the stale value as desired behavior.
+    - [ ] Decision: correct only sample 4's `str:length` calls in its validity
+          expression and displayed length with an explicit empty-string fallback
+          (recommended), or investigate shared null conversion. Continue the
+          five-sample form audit after these decisions.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -1037,6 +1037,32 @@ fn form_confirmation_guards_handle_initial_and_selected_methods() {
 }
 
 #[test]
+fn form_text_length_distinguishes_uninitialized_and_empty_slices() {
+    let source = r#"{slice @name=email}{output | {$datadom.slices.email}}{output | {$str:length(datadom.slices.email)}}"#;
+    let result = render_template(source, &TemplateData::default());
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    // The unset declaration contains null: text projection is empty while
+    // str:length observes the four characters of its string conversion.
+    assert_eq!(result.rendered, "<output></output><output>4</output>");
+    let guarded = source.replace(
+        "str:length(datadom.slices.email)",
+        "str:length(datadom.slices.email ?? \"\")",
+    );
+    let initial = render_template(&guarded, &TemplateData::default());
+    assert!(initial.diagnostics.is_empty(), "{:?}", initial.diagnostics);
+    assert_eq!(initial.rendered, "<output></output><output>0</output>");
+    for (value, length) in [("", 0), ("abc", 3), ("abcd", 4), ("🍒ab", 3)] {
+        let mut data = TemplateData::default();
+        data.bind_native_slice("email", string_value(value)).unwrap();
+        for template in [source, &guarded] {
+            let result = render_template(template, &data);
+            assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+            assert_eq!(result.rendered, format!("<output>{value}</output><output>{length}</output>"));
+        }
+    }
+}
+
+#[test]
 fn declared_boolean_slice_defaults_keep_their_boolean_type() {
     let rendered = render_template(
         r#"{slice @name="open" | false}{output | {$open}|{$datadom.slices.open}}{cem:if @test="datadom.slices.open" | {p | must stay hidden}}"#,

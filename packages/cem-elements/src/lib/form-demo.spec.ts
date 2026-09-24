@@ -30,7 +30,13 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '2. Form lifecycle',
         declarationCount: 1,
-        includes: ['@slice=lifecycle', '@name=confirmBy', 'Message and data rates may apply.', 'Select a confirmation method.'],
+        includes: [
+            '@slice=lifecycle', '@name=confirmBy',
+            '(datadom.formData.lifecycle.confirmBy ?? "") == "password"',
+            '(datadom.formData.lifecycle.confirmBy ?? "") == "sms"',
+            '!(datadom.formData.lifecycle.confirmBy ?? "")',
+            'Message and data rates may apply.', 'Select a confirmation method.',
+        ],
     },
     {
         legend: '3. Native control validity message',

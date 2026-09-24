@@ -165,7 +165,7 @@
             {label | {input @type=radio @name=confirmBy @value=email} Email}
             {label | {input @type=radio @name=confirmBy @value=sms} Text message}
             {label | {input @type=radio @name=confirmBy @value=password} Password}
-            {cem:if @test='datadom.formData.lifecycle.confirmBy == "password"' |
+            {cem:if @test='(datadom.formData.lifecycle.confirmBy ?? "") == "password"' |
                 {label |
                     Password
                     {input
@@ -183,10 +183,10 @@
                     }
                 }
             }
-            {cem:if @test='datadom.formData.lifecycle.confirmBy == "sms"' |
+            {cem:if @test='(datadom.formData.lifecycle.confirmBy ?? "") == "sms"' |
                 {p | Message and data rates may apply.}
             }
-            {cem:if @test="not(datadom.formData.lifecycle.confirmBy)" |
+            {cem:if @test='!(datadom.formData.lifecycle.confirmBy ?? "")' |
                 {p | Select a confirmation method.}
             }
         }
