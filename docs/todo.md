@@ -4163,12 +4163,25 @@ registration identities may reuse an inherited or existing definition.
           tests, 221 Storybook tests and 31 standalone / 37 source-loaded
           documents pass. Aggregate coverage, lint and typecheck pass with
           existing warnings. Existing Nx inputs cover all changed fixtures.
-    - [ ] Fixture: audit all 23 `demo/external-template.html` samples against
+    - [x] Fixture: audit all 23 `demo/external-template.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Check named/anonymous sources, SVG/MathML/HTML fragments, CEM-ML/XSLT
           payloads, missing-source/fragment fallbacks, nested relative resource
           resolution and exact external-file previews. Preserve authored
           examples and stop for any new behavior decision.
+          Completed 2026-09-24: all 23 named Storybook steps and shared gallery
+          contracts cover exact outputs, fragment isolation, typed payloads,
+          live disclosure identity, nested URLs and file previews. Authored
+          examples are unchanged; no new behavior decision was needed. All
+          510 unit tests, 221 Storybook tests and 31 standalone / 37
+          source-loaded documents pass, as do aggregate coverage, lint and
+          typecheck (two existing lint warnings).
+    - [ ] Fixture: audit all 11 `demo/for-each.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          sequence order and positions, nested rows and attributes, complete
+          checkbox toggle cycles, payload/location/HTTP JSON/XML loops and
+          exact external-file previews. Preserve authored examples and stop
+          for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

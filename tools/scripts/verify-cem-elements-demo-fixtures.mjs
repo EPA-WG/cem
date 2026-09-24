@@ -700,29 +700,185 @@ function aspectTableChecks() {
     ];
 }
 
-const xsltVariantSamples = [
+const externalTemplateSamples = [
+    sampleContract('1. reference the template in page DOM', [
+        countExactly('dce-internal', 2),
+        normalizedText('dce-internal:first-of-type', '👋 World!'),
+        normalizedText('dce-internal:last-of-type', 'Hello World!'),
+    ]),
+    sampleContract('2. without TAG, inline instantiation', [
+        countExactly('cem-element[src="#template2"][data-cem-anonymous-declaration]', 2),
+        countExactly('[data-cem-anonymous-instance]', 2),
+        normalizedText('cem-element:first-of-type > [data-cem-anonymous-instance]', '🏗️ construction'),
+        normalizedText('cem-element:last-of-type > [data-cem-anonymous-instance]', '🏗️ construction'),
+    ]),
+    sampleContract('3. external SVG file', externalSvgChecks('dce-external')),
+    sampleContract('3a. Anonymous external SVG', externalSvgChecks(
+        'cem-element[src="confused.svg"] > [data-cem-anonymous-instance]')),
+    sampleContract('3b. Missing source fallback', [
+        normalizedText('dce-external-missing', 'fallback for missing image'),
+        countExactly('dce-external-missing > i', 1),
+        countExactly('svg', 0),
+    ]),
+    sampleContract('4. external CEM-ML template file', externalIslandChecks('dce-external-4', [
+        'Payload comment: explicit inert envelope follows', 'DCE with complete external CEMT island',
+        'wrapped-payload', 'slot="heading"', 'slot=""', 'data-fruit="🍌"', 'aria-label="Fruit choice"',
+        'Every element, attribute, dataset entry, and text node is data.',
+    ])),
+    sampleContract('4a. Live HTML payload capture', externalIslandChecks('dce-external-4-inline', [
+        'A second external-CEMT data island', 'DCE with live payload capture',
+        'name="data-smile"', 'name="data-basket"', 'data-kind="live-payload"', '👼', '🍒',
+    ])),
+    sampleContract('4b. CEM-ML source payload', externalIslandChecks('dce-external-4-cem-ml', [
+        'content-type="text/cem-ml"', 'schema="https://cem.dev/ns/cem-ml/1"',
+        '{payload:item @name=fruit @slot=default | Banana from CEM-ML payload source}',
+    ])),
+    sampleContract('5. external HTML template', externalHtmlChecks('dce-external-5')),
+    sampleContract('5a. Anonymous external HTML', externalHtmlChecks(
+        '#dce-external-5-inline > [data-cem-anonymous-instance]')),
+    sampleContract('6. HTML, SVG by ID within external file', [
+        normalizedText('dce-html-wave', '👋'),
+        countExactly('dce-html-wave b', 1),
+        countExactly('dce-html-wave :is(svg, math, #ok, i, script)', 0),
+    ]),
+    sampleContract('6a. SVG fragment by ID', [
+        countExactly('dce-html-logo svg', 1),
+        propertyEquals('dce-html-logo svg', 'namespaceURI', 'http://www.w3.org/2000/svg'),
+        countExactly('dce-html-logo :is(math, #wave, #ok, i, script)', 0),
+    ]),
+    sampleContract('6b. MathML fragment by ID', [
+        countExactly('dce-html-formula math', 1),
+        propertyEquals('dce-html-formula math', 'namespaceURI', 'http://www.w3.org/1998/Math/MathML'),
+        countExactly('dce-html-formula :is(svg, #wave, #ok, i, script)', 0),
+    ]),
+    sampleContract('7a. external CEM-ML data-island tree template', externalPayloadTreeChecks(
+        'CEM-ML data island tree', 'cem-elements', 'alpha', 'a1', 'Leaf text from cem-elements data island')),
+    sampleContract('7b. External XSLT XML payload tree', externalPayloadTreeChecks(
+        'XSLT XML payload tree', 'cem-elements-xslt', 'beta', 'b1', 'Leaf text from cem-elements XSLT data island')),
+    sampleContract('7c. Missing fragment fallback', [
+        normalizedText('dce-missing-none', 'element with id=none is missing in template'),
+        countExactly('dce-missing-none > i', 1),
+        countExactly(':is(svg, math, #wave, #ok)', 0),
+    ]),
     sampleContract('7d. Anonymous external XSLT', [
-        text('article h2', 'XSLT XML payload tree'),
-        text('article', '🍒 from anonymous XSLT'),
-        countExactly('details', 4),
-        clickThenText('article > details > summary', 'article', 'catalog'),
-        propertyEquals('article > details', 'open', false),
-        clickThenText('article > details > summary', 'article', 'catalog'),
-        propertyEquals('article > details', 'open', true),
+        attributeEquals('cem-element', 'data-cem-anonymous-declaration', ''),
+        ...externalPayloadTreeChecks('XSLT XML payload tree', 'anonymous-xslt', 'fruit', 'cherry', '🍒 from anonymous XSLT'),
     ]),
     sampleContract('7e. Embedded XSLT fragment', [
-        text('article h2', 'Embedded XSLT fruit tree'),
+        normalizedText('article h2', 'Embedded XSLT fruit tree'),
         normalizedText('summary', 'basket'),
         countExactly('details', 1),
         countExactly('li', 2),
         normalizedText('li:first-of-type', '🍒'),
         normalizedText('li:last-of-type', '🍋'),
-        clickThenText('summary', 'article', 'basket'),
-        propertyEquals('details', 'open', false),
-        clickThenText('summary', 'article', 'basket'),
-        propertyEquals('details', 'open', true),
+        countExactly(':is(svg, math, #wave, #ok, script)', 0),
+        ...externalDisclosureChecks('basket'),
     ]),
+    sampleContract('8. external file with embedding of another external DCE', [
+        normalizedText('dce-embed-1 h4', 'embed-1.html'),
+        normalizedText('dce-embed-1 [data-cem-anonymous-instance]', '🖖'),
+    ]),
+    sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [
+        text('dce-embed-relative-hash', '👌 from embed-relative-hash invoking'),
+        normalizedText('dce-embed-lib-component', '👋 from embed-lib-component'),
+        urlEquals('a', 'href', '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-lib-component'),
+        urlEquals('img', 'src', '/packages/cem-elements/demo/lib-dir/Smiley.svg'),
+        imageLoaded('img'),
+    ]),
+    sampleContract('10. external file with invoking of template in another relative path file by enclosed custom-element', [
+        text('dce-embed-relative-file', '👍 from embed-relative-file invoking'),
+        urlEquals('a', 'href', '/packages/cem-elements/demo/embed-1.html'),
+        normalizedText('dce-embed-lib-file h4', 'embed-1.html'),
+        normalizedText('dce-embed-lib-file [data-cem-anonymous-instance]', '🖖'),
+    ]),
+    sampleContract('embed-1.html external file', await externalPreviewChecks('embed-1.html')),
+    sampleContract('embed-lib.html with multiple templates', await externalPreviewChecks('embed-lib.html')),
 ];
+
+function externalSvgChecks(selector) {
+    return [
+        countExactly(`${selector} svg`, 1),
+        propertyEquals(`${selector} svg`, 'namespaceURI', 'http://www.w3.org/2000/svg'),
+        svgUseReferences(`${selector} svg`, ['#h', '#j']),
+        countExactly(`${selector} i`, 0),
+    ];
+}
+
+function externalIslandChecks(selector, evidence) {
+    return [
+        normalizedText(`${selector} h2`, 'External CEMT data-island transformation'),
+        ...[
+            'template[data-cem-island="instance"]', 'cem-island:context-root', 'cem-hydration:data',
+            'cem-attributes:attributes', 'cem-dataset:dataset', 'cem-payload:payload', 'cem-slices:slices',
+            'cem-resources:resources', 'cem-form:form-state', 'cem-validation:validation-state', 'cem-events:event-state',
+            ...evidence,
+        ].map(value => text(selector, value)),
+        countAtLeast(`${selector} details`, 21),
+        ...externalDisclosureChecks('template[data-cem-island="instance"]'),
+    ];
+}
+
+function externalHtmlChecks(selector) {
+    return [
+        normalizedText(`${selector} #wave`, '👋'),
+        normalizedText(`${selector} #ok`, '👌'),
+        countExactly(`${selector} svg`, 1),
+        propertyEquals(`${selector} svg`, 'namespaceURI', 'http://www.w3.org/2000/svg'),
+        countExactly(`${selector} math`, 1),
+        propertyEquals(`${selector} math`, 'namespaceURI', 'http://www.w3.org/1998/Math/MathML'),
+        countExactly(`${selector} :is(script, i)`, 0),
+    ];
+}
+
+async function externalPreviewChecks(file) {
+    return [
+        attributeEquals(':scope', 'src', `./${file}`),
+        attributeEquals(':scope', 'type', 'html'),
+        attributeEquals(':scope', 'demo', 'false'),
+        attributeEquals(':scope', 'data-state', 'ready'),
+        propertyEquals('[slot=text] code', 'textContent',
+            await readFile(join(repoRoot, 'packages/cem-elements/demo', file), 'utf8')),
+        countAtLeast('[slot=text] code b', 1),
+        propertyEquals('[slot=demo]', 'textContent', ''),
+        countExactly('[slot=demo] > *', 0),
+    ];
+}
+
+function externalDisclosureChecks(label) {
+    const disclosure = 'article > details';
+    return [
+        propertyEquals(disclosure, 'open', true),
+        elementIdentity(disclosure, 'remember'),
+        clickThenText(`${disclosure} > summary`, `${disclosure} > summary`, label),
+        elementIdentity(disclosure, 'same'),
+        propertyEquals(disclosure, 'open', false),
+        clickThenText(`${disclosure} > summary`, `${disclosure} > summary`, label),
+        elementIdentity(disclosure, 'same'),
+        propertyEquals(disclosure, 'open', true),
+    ];
+}
+
+function externalPayloadTreeChecks(heading, root, name, code, payload) {
+    return [
+        normalizedText('article h2', heading),
+        countExactly('details', 4),
+        ...[
+            ['catalog', `data-root="${root}"`], ['section', 'data-level="1"', `name="${name}"`],
+            ['item', 'data-level="2"', `code="${code}"`], ['leaf', 'data-level="3"'],
+        ].flatMap(([tag, ...attributes], depth) => {
+            const summary = `article${' > details'.repeat(depth + 1)} > summary`;
+            return [
+                normalizedText(`${summary} > b`, tag),
+                countExactly(`${summary} > code`, attributes.length),
+                // Read each attribute's actual text without inserting spaces at binding boundaries.
+                ...attributes.map((attribute, index) => propertyEquals(
+                    `${summary} > code:nth-of-type(${index + 1})`, 'textContent', attribute)),
+            ];
+        }),
+        normalizedText('article p', payload),
+        ...externalDisclosureChecks('catalog'),
+    ];
+}
 
 const mappedImageFragmentSample = sampleContract('4d. Mapped image and same-library fragment', [
     countExactly('article img', 2),
@@ -1239,81 +1395,8 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/external-template.html',
         allowedPageErrors: ['Failed to load resource: the server responded with a status of 404 (Not Found)'],
-        checks: [
-            text('dce-internal', '👋'),
-            text('dce-internal', 'World!'),
-            countExactly('cem-demo-element[legend="2. without TAG, inline instantiation"] cem-element[src="#template2"]', 2),
-            text('cem-demo-element[legend="2. without TAG, inline instantiation"] cem-element[src="#template2"]', 'construction'),
-            countAtLeast('dce-external svg', 1),
-            svgUseReferences('dce-external svg', ['#h', '#j']),
-            countAtLeast('cem-element[src="confused.svg"] svg', 1),
-            svgUseReferences('cem-element[src="confused.svg"] svg', ['#h', '#j']),
-            text('dce-external-missing', 'fallback for missing image'),
-            text('dce-external-4', 'External CEMT data-island transformation'),
-            text('dce-external-4', 'template[data-cem-island="instance"]'),
-            text('dce-external-4', 'cem-island:context-root'),
-            text('dce-external-4', 'cem-hydration:data'),
-            text('dce-external-4', 'cem-attributes:attributes'),
-            text('dce-external-4', 'cem-dataset:dataset'),
-            text('dce-external-4', 'cem-payload:payload'),
-            text('dce-external-4', 'cem-slices:slices'),
-            text('dce-external-4', 'cem-resources:resources'),
-            text('dce-external-4', 'cem-form:form-state'),
-            text('dce-external-4', 'cem-validation:validation-state'),
-            text('dce-external-4', 'cem-events:event-state'),
-            text('dce-external-4', 'Payload comment: explicit inert envelope follows'),
-            text('dce-external-4', 'DCE with complete external CEMT island'),
-            text('dce-external-4', 'wrapped-payload'),
-            text('dce-external-4', 'slot="heading"'),
-            text('dce-external-4', 'slot=""'),
-            text('dce-external-4', 'data-fruit="🍌"'),
-            text('dce-external-4', 'aria-label="Fruit choice"'),
-            text('dce-external-4', 'Every element, attribute, dataset entry, and text node is data.'),
-            countAtLeast('dce-external-4 details', 20),
-            text('dce-external-4-inline', 'A second external-CEMT data island'),
-            text('dce-external-4-inline', 'DCE with live payload capture'),
-            text('dce-external-4-inline', 'name="data-smile"'),
-            text('dce-external-4-inline', 'name="data-basket"'),
-            text('dce-external-4-inline', 'data-kind="live-payload"'),
-            text('dce-external-4-cem-ml', 'content-type="text/cem-ml"'),
-            text('dce-external-4-cem-ml', 'Banana from CEM-ML payload source'),
-            text('dce-external-5', '👋'),
-            text('dce-external-5', '👌'),
-            countAtLeast('dce-external-5 svg', 1),
-            countAtLeast('dce-external-5 math', 1),
-            attributeEquals('#dce-external-5-inline', 'data-cem-anonymous-declaration', ''),
-            text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👋'),
-            text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👌'),
-            countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] svg', 1),
-            countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] math', 1),
-            text('dce-html-wave', '👋'),
-            countAtLeast('dce-html-logo svg', 1),
-            countAtLeast('dce-html-formula math', 1),
-            text('dce-cemt-tree', 'CEM-ML data island tree'),
-            text('dce-cemt-tree article.demo-card > details > summary > b', 'catalog'),
-            text('dce-cemt-tree', 'data-root='),
-            text('dce-cemt-tree', 'data-level='),
-            text('dce-cemt-tree', 'cem-elements'),
-            text('dce-cemt-tree', 'code='),
-            text('dce-cemt-tree', 'a1'),
-            text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
-            countAtLeast('dce-cemt-tree details', 4),
-            text('dce-xslt-tree', 'XSLT XML payload tree'),
-            text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
-            text('dce-xslt-tree', 'data-root='),
-            text('dce-xslt-tree', 'data-level='),
-            text('dce-xslt-tree', 'cem-elements-xslt'),
-            text('dce-xslt-tree', 'code='),
-            text('dce-xslt-tree', 'b1'),
-            text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
-            countAtLeast('dce-xslt-tree details', 4),
-            text('dce-missing-none', 'element with id=none is missing in template'),
-            ...xsltVariantSamples.flatMap((sample) => sample.checks.map((check) =>
-                scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
-            text('dce-embed-1', '🖖'),
-            text('dce-embed-relative-hash', 'from embed-lib-component'),
-            text('dce-embed-relative-file', '🖖'),
-        ],
+        checks: externalTemplateSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/for-each.html',
@@ -2132,94 +2215,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/external-template.html',
         allowedPageErrors: ['Failed to load resource: the server responded with a status of 404 (Not Found)'],
-        samples: [
-            sampleContract('1. reference the template in page DOM', [text('dce-internal:first-of-type', '👋 World!'), text('dce-internal:last-of-type', 'Hello World!')]),
-            sampleContract('2. without TAG, inline instantiation', [
-                countExactly('cem-element[src="#template2"]', 2),
-                text('cem-element[src="#template2"]', 'construction'),
-            ]),
-            sampleContract('3. external SVG file', [countAtLeast('dce-external svg', 1), svgUseReferences('dce-external svg', ['#h', '#j'])]),
-            sampleContract('3a. Anonymous external SVG', [countAtLeast('cem-element[src="confused.svg"] svg', 1), svgUseReferences('cem-element[src="confused.svg"] svg', ['#h', '#j'])]),
-            sampleContract('3b. Missing source fallback', [text('dce-external-missing', 'fallback for missing image')]),
-            sampleContract('4. external CEM-ML template file', [
-                text('dce-external-4', 'External CEMT data-island transformation'),
-                text('dce-external-4', 'template[data-cem-island="instance"]'),
-                text('dce-external-4', 'cem-island:context-root'),
-                text('dce-external-4', 'cem-hydration:data'),
-                text('dce-external-4', 'cem-attributes:attributes'),
-                text('dce-external-4', 'cem-dataset:dataset'),
-                text('dce-external-4', 'cem-payload:payload'),
-                text('dce-external-4', 'cem-slices:slices'),
-                text('dce-external-4', 'cem-resources:resources'),
-                text('dce-external-4', 'cem-form:form-state'),
-                text('dce-external-4', 'cem-validation:validation-state'),
-                text('dce-external-4', 'cem-events:event-state'),
-                text('dce-external-4', 'Payload comment: explicit inert envelope follows'),
-                text('dce-external-4', 'DCE with complete external CEMT island'),
-                text('dce-external-4', 'wrapped-payload'),
-                text('dce-external-4', 'slot="heading"'),
-                text('dce-external-4', 'slot=""'),
-                text('dce-external-4', 'data-fruit="🍌"'),
-                text('dce-external-4', 'aria-label="Fruit choice"'),
-                text('dce-external-4', 'Every element, attribute, dataset entry, and text node is data.'),
-                countAtLeast('dce-external-4 details', 20),
-            ]),
-            sampleContract('4a. Live HTML payload capture', [
-                text('dce-external-4-inline', 'A second external-CEMT data island'),
-                text('dce-external-4-inline', 'DCE with live payload capture'),
-                text('dce-external-4-inline', 'name="data-smile"'),
-                text('dce-external-4-inline', 'name="data-basket"'),
-                text('dce-external-4-inline', 'data-kind="live-payload"'),
-            ]),
-            sampleContract('4b. CEM-ML source payload', [
-                text('dce-external-4-cem-ml', 'content-type="text/cem-ml"'),
-                text('dce-external-4-cem-ml', 'Banana from CEM-ML payload source'),
-            ]),
-            sampleContract('5. external HTML template', [
-                text('dce-external-5', '👋'),
-                text('dce-external-5', '👌'),
-                countAtLeast('dce-external-5 svg', 1),
-                countAtLeast('dce-external-5 math', 1),
-            ]),
-            sampleContract('5a. Anonymous external HTML', [
-                attributeEquals('#dce-external-5-inline', 'data-cem-anonymous-declaration', ''),
-                text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👋'),
-                text('#dce-external-5-inline > [data-cem-anonymous-instance]', '👌'),
-                countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] svg', 1),
-                countAtLeast('#dce-external-5-inline > [data-cem-anonymous-instance] math', 1),
-            ]),
-            sampleContract('6. HTML, SVG by ID within external file', [text('dce-html-wave', '👋')]),
-            sampleContract('6a. SVG fragment by ID', [countAtLeast('dce-html-logo svg', 1)]),
-            sampleContract('6b. MathML fragment by ID', [countAtLeast('dce-html-formula math', 1)]),
-            sampleContract('7a. external CEM-ML data-island tree template', [
-                text('dce-cemt-tree', 'CEM-ML data island tree'),
-                text('dce-cemt-tree article.demo-card > details > summary > b', 'catalog'),
-                text('dce-cemt-tree', 'Leaf text from cem-elements data island'),
-                countAtLeast('dce-cemt-tree details', 4),
-            ]),
-            sampleContract('7b. External XSLT XML payload tree', [
-                text('dce-xslt-tree', 'XSLT XML payload tree'),
-                text('dce-xslt-tree article.demo-card > details > summary > b', 'catalog'),
-                text('dce-xslt-tree', 'Leaf text from cem-elements XSLT data island'),
-                countAtLeast('dce-xslt-tree details', 4),
-            ]),
-            sampleContract('7c. Missing fragment fallback', [
-                text('dce-missing-none', 'element with id=none is missing in template'),
-            ]),
-            ...xsltVariantSamples,
-            sampleContract('8. external file with embedding of another external DCE', [text('dce-embed-1', '🖖')]),
-            sampleContract('9. external file with invoking of relative template as hash by enclosed custom-element', [
-                text('dce-embed-relative-hash', 'from embed-lib-component'),
-                attributeContains(
-                    'dce-embed-relative-hash img',
-                    'src',
-                    '/packages/cem-elements/demo/lib-dir/Smiley.svg',
-                ),
-            ]),
-            sampleContract('10. external file with invoking of template in another relative path file by enclosed custom-element', [text('dce-embed-relative-file', '🖖')]),
-            sampleContract('embed-1.html external file', [attributeEquals(':scope', 'src', './embed-1.html'), attributeEquals(':scope', 'type', 'html'), attributeEquals(':scope', 'demo', 'false')]),
-            sampleContract('embed-lib.html with multiple templates', [attributeEquals(':scope', 'src', './embed-lib.html'), attributeEquals(':scope', 'type', 'html'), attributeEquals(':scope', 'demo', 'false')]),
-        ],
+        samples: externalTemplateSamples,
     },
     {
         path: '/packages/cem-elements/demo/for-each.html',
@@ -3330,6 +3326,10 @@ async function runCheck(page, check) {
                         JSON.stringify(actual[key]) === JSON.stringify(values));
                 }, check);
                 return;
+            case 'urlEquals':
+                await poll(page, ({ selector, name, expected }) =>
+                    document.querySelector(selector)?.[name] === new URL(expected, location.href).href, check);
+                return;
             case 'imageLoaded':
                 await page.waitForFunction((selector) => {
                     const image = document.querySelector(selector);
@@ -3616,6 +3616,10 @@ function tableState(selector, cells, selected = []) {
 
 function formState(expected) {
     return { kind: 'formState', selector: ':scope', expected };
+}
+
+function urlEquals(selector, name, expected) {
+    return { kind: 'urlEquals', selector, name, expected };
 }
 
 function imageLoaded(selector) {
@@ -3974,6 +3978,8 @@ function describeCheck(check) {
             return `attributeContains(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'attributeEquals':
             return `attributeEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
+        case 'urlEquals':
+            return `urlEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'propertyEquals':
             return `propertyEquals(${check.selector}, ${check.name}, ${JSON.stringify(check.expected)})`;
         case 'elementIdentity':

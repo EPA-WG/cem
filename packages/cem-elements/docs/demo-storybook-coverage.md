@@ -633,3 +633,38 @@ This closes the three-sample DOM-merge audit. The broader per-sample audit stays
 open; the next fixture is the 23-sample `external-template.html` audit, including
 named/anonymous sources, fragment types, payloads, fallbacks, nested relative
 resources and file previews.
+
+## External-template behavior audit, 2026-09-24
+
+The existing source-loaded owner now has a named step for every one of the 23
+public legends and checks their exact order. The independent gallery uses the
+same complete 23-sample contract in standalone and source-document modes.
+Authored demos, supporting resources and story ownership remain unchanged.
+
+The checks distinguish supplied versus default slot content, verify both
+anonymous local instances, preserve SVG namespaces and internal `use`
+references, and require exact missing-source/fragment fallback text. Storybook
+also requires the corresponding loader diagnostics. Whole HTML keeps its SVG
+and MathML namespaces while selected fragments exclude unrelated siblings.
+Imported scripts are absent from rendered instances; the gallery's existing
+console-error gate also detects execution of the source's `Stranger danger!`
+script.
+
+All three complete-island trees expose lifecycle namespaces and their distinct
+payload evidence. Sample 4b retains the typed CEM-ML source and schema, as its
+description promises. The named CEM-ML and named/anonymous XSLT payload trees
+require four branches, their exact names/attributes and their own leaf text.
+The embedded XSLT fragment requires only its basket and two fruit items.
+Disclosure checks close and reopen the connected live element and verify its
+identity. Nested templates require the expected output, exact library-relative
+link/image URLs and a loaded image. Both file previews must display the exact
+file contents with highlighted tokens and no demo output.
+
+Validation passes all 510 unit tests, 221 Storybook tests and 31 standalone /
+37 source-loaded documents. Aggregate coverage, lint and typecheck pass with
+the two existing lint warnings. No shared transformation behavior or authored
+fixture changed, and no new behavior decision was needed.
+
+This completes the 23-sample audit. The broader per-sample audit remains open;
+the next fixture covers all 11 `for-each.html` samples, including its two
+external-file previews.
