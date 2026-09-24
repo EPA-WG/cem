@@ -15,6 +15,21 @@ fn bool_value(value: bool) -> ItemStream {
 }
 
 #[test]
+fn textarea_body_preserves_authored_whitespace_after_a_binding() {
+    for value in ["one two three", "", "🍒e\u{0301}"] {
+        for suffix in ["\n            ", ""] {
+            let source = format!("{{textarea | {{$text}}{suffix}}}");
+            let result = render_template(
+                &source,
+                &TemplateData::default().with_binding("text", string_value(value)),
+            );
+            assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+            assert_eq!(result.rendered, format!("<textarea>{value}{suffix}</textarea>"));
+        }
+    }
+}
+
+#[test]
 fn conditional_labels_preserve_native_disclosure_provenance_in_repeated_branches() {
     let source = r#"{cem:for-each @select='("first", "second")' @as=name |
         {section |

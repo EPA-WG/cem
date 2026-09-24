@@ -4106,6 +4106,24 @@ registration identities may reuse an inherited or existing definition.
           word/character counts, empty and whitespace input, Unicode text,
           and focus/caret retention across updates. Preserve authored HTML
           and run affected verification gates.
+          Audit finding 2026-09-24: sample 1's textarea body includes a newline
+          and 12 spaces after its slice expression. Committing `one two three`
+          projects that suffix into the live value; the count is correctly 3.
+          Exact-value coverage and final audit sign-off await the decision below.
+    - [x] Fixture: attribute the textarea suffix with a native authored-body
+          whitespace regression and settled browser observations. Preserve the
+          source and shared whitespace rules while the correction is undecided.
+          Completed 2026-09-24: native fixtures preserve the literal suffix for
+          nonempty, empty and Unicode bindings; the same fixtures with a compact
+          closing brace render the exact binding. A source-loaded browser probe
+          confirms that typing alone keeps the value exact and count unchanged,
+          while Tab commits count 3 and appends the suffix to the live value.
+          Draft exact-value assertions fail after the owning render settles;
+          they are not claimed as passing coverage or included in the checkpoint.
+    - [ ] Decision: correct only sample 1's textarea closing-brace placement
+          (recommended), or investigate shared whitespace handling. The existing
+          author-controlled textarea projection applies the literal body suffix;
+          moving its closing brace beside the expression avoids adding it.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

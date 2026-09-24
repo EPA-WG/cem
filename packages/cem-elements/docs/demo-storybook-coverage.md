@@ -488,3 +488,36 @@ Validation passes all 723 native tests (9 existing ignored), 510 unit tests,
 aggregate coverage gate, native lint, package lint and typecheck pass; existing
 lint warnings remain. This closes the six-sample data-tree audit. The three
 `dom-merge.html` samples are next; the broader per-sample audit remains open.
+
+## DOM-merge audit checkpoint, 2026-09-24
+
+The three samples cover a change-bound textarea counter, an input-bound CEM-QL
+counter and an input-bound XPath comparison. Existing Storybook checks exercise
+counts, repeated words, Unicode codepoints and some focus/caret retention. The
+independent gallery has counting checks but lacks control identity, focus and
+selection assertions. Those gaps remain part of the open audit.
+
+A draft source-loaded interaction exposed a value-preservation issue in sample 1:
+
+1. Its initial textarea value is `Hello world!` followed by a newline and 12 spaces.
+2. Clearing and typing `one two three` leaves that exact value and the old count, 2.
+3. Pressing Tab commits the slice. After the owning render settles, the count is
+   3, but the live value is `one two three` followed by the same 13-character suffix.
+
+The textarea's authored CEM-ML body places its closing brace on a separate,
+indented line after `{$datadom.slices.text}`. A native regression confirms that
+this literal suffix is preserved for nonempty, empty and Unicode bindings.
+Putting the closing brace beside the expression yields exactly the binding in
+all three cases. The shared projection's `setRenderedText` then applies the
+rendered textarea body to its live value, explaining the browser observation.
+
+The recommended correction is limited to sample 1's closing-brace placement.
+The user was asked to choose that correction or investigate shared whitespace
+handling. Authored HTML and runtime behavior remain unchanged while the choice
+is pending. The draft exact-value assertions reproduced the failure and were
+removed from the checkpoint; they are not passing regression coverage. The
+three-sample audit remains open in `docs/todo.md`.
+
+Checkpoint validation: all 49 native template-render tests pass, including the
+new whitespace case. Native lint passes with existing warnings. Browser
+evidence is a deliberately failing exact-value probe, not a passing audit.
