@@ -4120,10 +4120,31 @@ registration identities may reuse an inherited or existing definition.
           while Tab commits count 3 and appends the suffix to the live value.
           Draft exact-value assertions fail after the owning render settles;
           they are not claimed as passing coverage or included in the checkpoint.
-    - [ ] Decision: correct only sample 1's textarea closing-brace placement
-          (recommended), or investigate shared whitespace handling. The existing
-          author-controlled textarea projection applies the literal body suffix;
-          moving its closing brace beside the expression avoids adding it.
+    - [x] Decision: correct only sample 1's textarea closing-brace placement,
+          or investigate shared whitespace handling. Accepted 2026-09-24:
+          investigate shared handling before changing the demo. This does not
+          yet select a new template-whitespace policy.
+    - [x] Fixture: investigate shared template whitespace at native token and
+          render boundaries. Characterize leading/trailing indentation, inline
+          separators, literal and rich text, whitespace-bearing bindings and
+          source ranges; compare existing textarea edit/reset behavior and
+          record the compatibility implications before selecting a policy.
+          Completed 2026-09-24: five native characterization tests prove that
+          opening trivia is skipped while later trivia is emitted for all
+          tested element names. Binding and rich-content whitespace remain
+          exact, and the suffix has its own source range. CEM `xml:space` is
+          pass-through; XSLT owns a separate policy. All 63 affected native
+          tests and native lint pass (existing warnings). See the investigation in
+          `packages/cem-elements/docs/demo-storybook-coverage.md`.
+    - [ ] Decision: add an explicitly scoped template layout policy and opt
+          sample 1 into it (recommended), or make layout stripping the default
+          for all CEM templates. Proposed layout mode removes only ASCII
+          whitespace-only source trivia containing a line break; preserve
+          inline spaces, Unicode spacing, literal text, expression values,
+          rich content and source evidence. Include an explicit preserve mode.
+          A default change also affects preformatted text and multiline inline
+          separators. Implementation and the three-sample audit await this
+          compatibility decision; do not trim live textarea values.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

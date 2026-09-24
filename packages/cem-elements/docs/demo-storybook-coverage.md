@@ -511,13 +511,88 @@ Putting the closing brace beside the expression yields exactly the binding in
 all three cases. The shared projection's `setRenderedText` then applies the
 rendered textarea body to its live value, explaining the browser observation.
 
-The recommended correction is limited to sample 1's closing-brace placement.
-The user was asked to choose that correction or investigate shared whitespace
-handling. Authored HTML and runtime behavior remain unchanged while the choice
-is pending. The draft exact-value assertions reproduced the failure and were
+The initial recommendation was limited to sample 1's closing-brace placement.
+The user instead selected investigation of shared whitespace handling on
+2026-09-24. The draft exact-value assertions reproduced the failure and were
 removed from the checkpoint; they are not passing regression coverage. The
 three-sample audit remains open in `docs/todo.md`.
 
 Checkpoint validation: all 49 native template-render tests pass, including the
 new whitespace case. Native lint passes with existing warnings. Browser
 evidence is a deliberately failing exact-value probe, not a passing audit.
+
+### Shared whitespace investigation, 2026-09-24
+
+The suffix is source whitespace, not whitespace introduced by the browser or
+the slice expression. The native tokenizer emits it as `Trivia` with an exact
+byte range. `TemplateCompiler::parse_attributes` skips trivia through the first
+body item, including whitespace after `|`. Once child compilation starts,
+`compile_node` converts both `Text` and `Trivia` into rendered text. This makes
+leading and trailing whitespace asymmetric. It applies equally to `textarea`,
+`pre`, `p` and `code`; the CEM template compiler has no element-specific
+whitespace mode.
+
+The new `packages/cem_ql/tests/template_whitespace.rs` characterization fixture
+records these results with binding `text = "A"`. Escapes below denote actual
+source characters, not CEM escape syntax.
+
+| CEM body after `\|` | Current rendered body | Compatibility implication |
+| --- | --- | --- |
+| `\n  {$text}\n  ` | `A\n  ` | Opening layout is skipped; closing layout is emitted. |
+| `  {$text}  ` | `A  ` | Inline trailing spaces also survive. |
+| `\n  literal\n  ` | `literal\n  ` | Trailing whitespace belongs to a nonempty literal text run. |
+| `{span \| A} {span \| B}` | `<span>A</span> <span>B</span>` | Discarding all trivia would remove an intentional separator. |
+| `{span \| A}\n  {span \| B}\n  ` | `<span>A</span>\n  <span>B</span>\n  ` | Discarding newline trivia changes existing mixed-content output too. |
+
+Further cases establish that CRLF/tab layout behaves the same way, Unicode
+spaces survive after a binding, and a whitespace-only body currently renders
+empty. Bound values and triple-backtick rich-content bodies retain exact spaces,
+newlines, tabs, NBSP/EM spaces and Unicode text. The render plan keeps the bound
+value and suffix in separate text nodes, with a distinct source range for the
+suffix even when the binding is empty. This gives a compiler policy enough
+information to distinguish source layout from user data before projection.
+
+`@xml:space=default` and `@xml:space=preserve` currently pass through as output
+attributes in CEM templates; neither changes this behavior. The bounded XSLT
+compiler has its own implemented `xml:space` rules, verified by the existing
+`xslt_output` suite. Those rules do not currently configure CEM template bodies.
+
+The input-AST requirements in [AC-P-9 and AC-O-6](../../../docs/cem-ml-ac.md)
+require whitespace/source evidence to survive parsing and reporting. The
+[rendered-output contract](../../../docs/cem-ml-stack-design.md#rendered-output-projections)
+allows a selected transform/renderer to control emitted whitespace. These
+requirements permit a shared compiler policy, but do not choose automatic
+layout stripping. The generic AST builder separately suppresses tokenizer
+trivia payloads while retaining their source ranges; the template compiler
+consumes tokens directly, so changing that builder would not fix this demo.
+
+Changing `setRenderedText` to trim the final body would remove legitimate
+user-entered whitespace too. Ignoring changed textarea bodies would break the
+accepted DATA-TABLE-2 edit/reset behavior: unrelated renders preserve dirty
+edits, while a changed authored body updates the live control. The existing
+`TextPatchIdentityAndDirtyTextarea` story covers that distinction. No projection
+change is warranted by this investigation.
+
+**Proposed decision, not an accepted contract:** add a shared, explicitly scoped
+template layout policy and opt sample 1 into it (recommended), or make that
+layout policy the default for all CEM templates. The proposed layout mode drops
+only whitespace-only source trivia containing CR/LF and otherwise made of ASCII
+spaces/tabs/line endings. It preserves inline spaces, Unicode spacing, nonempty
+literal runs, expression values and rich-content bodies. An explicit preserve
+mode would retain body whitespace, including opening layout; policy selection
+would be declarative and inherited within the selected template scope. Compiler
+handling must retain source evidence and stay independent of browser projection
+and the XSLT compiler. Exact control syntax is part of implementation after the
+scope/default decision.
+
+An opt-in policy protects current templates, especially inline mixed content and
+text generators, while allowing sample 1 to retain its multiline formatting.
+A new default would fix sample 1 without a policy annotation, but changes the
+rendered output of existing templates, including `pre`/`textarea` and multiline
+inline separators. That compatibility choice needs user direction before
+implementation, per the instruction to stop at decisions.
+
+Investigation validation: 5 new characterization tests, 49 template-render tests
+and 9 XSLT-output tests pass (63 total). Native lint passes with existing
+warnings. These characterize current behavior; they do not claim the textarea
+issue or the three-sample audit is fixed.
