@@ -668,3 +668,45 @@ fixture changed, and no new behavior decision was needed.
 This completes the 23-sample audit. The broader per-sample audit remains open;
 the next fixture covers all 11 `for-each.html` samples, including its two
 external-file previews.
+
+## For-each behavior audit, 2026-09-24
+
+The source-loaded owner has 11 named steps in authored legend order. The
+independent gallery applies one shared contract to both loading modes, including
+exact external-file contents, highlighted tokens and empty preview demo output.
+The checks cover all fruit/record fields, one-based positions, computed row
+colors, nested table cells, payload order, grouped location parameters and both
+HTTP result rows in each format. Checkbox cases exercise two complete
+pointer/keyboard cycles, connected control identity and the dynamic table's
+persistent header. Every product row must include its exact price: `$10`, `$25`
+and `$15`. Storybook rejects diagnostics for every executable sample.
+
+The user approved fixture corrections for the unset comparisons in samples 3,
+6 and 9 and the missing final brace in sample 6. The checkbox guards now use
+`?? false`, and the HTTP resource-state guards use `?? ""`. Small native render
+fixtures demonstrate the absent-slice errors and clean guarded states, followed
+by both boolean outcomes. Shared comparison semantics remain unchanged.
+
+The separate approved browser investigation traced the blank prices to shared
+HTML projection. Native CEM-ML renders the prices correctly even with their
+authored newline, and adding the missing brace alone did not fix the browser.
+The outer source-document projector consumed `${$product.price}` as its own
+interpolation before the inner CEM-ML template could compile it.
+
+Projection now preserves text, attributes and slots inside nested inert HTML
+`template` contents for their eventual consumer. The template element's own
+attributes still belong to the outer projection. Boundary regressions cover
+both null and XHTML namespaces, nested templates, source-map retention, input
+immutability, outer slot projection and ordinary behavior for foreign elements
+named `template`. The regressions failed before the fix and pass afterward.
+
+Validation passes all 51 native template-render tests, 513 package unit tests,
+221 Storybook tests and 31 standalone / 37 source-loaded documents. Aggregate
+coverage, native/package lint and typecheck pass with existing warnings. The
+gallery also verifies a two-card row at 1280px and no overflow at 1280px/390px.
+Existing Nx inputs cover the changed sources and fixtures.
+
+This completes the 11-sample audit. The broader per-sample audit remains open.
+The next fixture covers all five `form.html` samples: step advancement,
+lifecycle validation, native/custom validity messages and form-associated DCE
+values.

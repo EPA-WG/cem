@@ -25,7 +25,7 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     },
     {
         legend: '3. Conditional for-each',
-        includes: ['@slice=show-items', '@as=item', '{$position}:{$item}'],
+        includes: ['(datadom.slices.show-items ?? false) == true', '@slice=show-items', '@as=item', '{$position}:{$item}'],
     },
     {
         legend: '4. Nested for-each table',
@@ -37,7 +37,7 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     },
     {
         legend: '6. Dynamic table with toggle',
-        includes: ['@slice=show-products', '@as=product', '{$product.name}'],
+        includes: ['(datadom.slices.show-products ?? false) == true', '{td | ${$product.price}', '@slice=show-products', '@as=product', '{$product.name}'],
     },
     {
         legend: '7. for-each over payload data',
@@ -51,7 +51,11 @@ const SAMPLE_CONTRACTS: readonly SampleContract[] = [
     {
         legend: '9. for-each over HTTP JSON/XML data',
         tag: 'cem-loop-http',
-        includes: ['{http-request @slice=loop-json', '{http-request @slice=loop-xml', 'json-url="./http-data.json"'],
+        includes: [
+            '{http-request @slice=loop-json', '{http-request @slice=loop-xml', 'json-url="./http-data.json"',
+            '(datadom.slices.loop-json.state ?? "") == "loaded"',
+            '(datadom.slices.loop-xml.state ?? "") == "loaded"',
+        ],
     },
 ] as const;
 

@@ -100,7 +100,7 @@
     }
     {div |
         BEFORE
-        {cem:if @test="datadom.slices.show-items == true" |
+        {cem:if @test="(datadom.slices.show-items ?? false) == true" |
 {cem:for-each @select='("First", "Second", "Third")' @as=item |
     {span |
         {$position}:{$item}
@@ -190,7 +190,7 @@
 {tr | {th | #}{th | Product}{th | Price}}
         }
         {tbody |
-{cem:if @test="datadom.slices.show-products == true" |
+{cem:if @test="(datadom.slices.show-products ?? false) == true" |
     {cem:for-each @select='
         (   {"name":"Widget", "price":"10"}
         ,   {"name":"Gadget", "price":"25"}
@@ -200,7 +200,7 @@
             {td | {$position}}
             {td | {$product.name}}
             {td | ${$product.price}
-}   }   }   }   }   }
+}   }   }   }   }   }   }
     </template>
 </cem-element>
 
@@ -273,13 +273,13 @@
     {h2 | 9. for-each over HTTP JSON/XML data}
     {p | Local JSON and XML fixtures feed CEM node sequences into the same loop syntax.}
     {p | json state: {output @data-role=json-state | {$datadom.slices.loop-json.state}}}
-    {cem:if @test='datadom.slices.loop-json.state == "loaded"' |
+    {cem:if @test='(datadom.slices.loop-json.state ?? "") == "loaded"' |
         {ul @class=http-json-feed |
 {cem:for-each @select='native:call("http.rows", datadom.slices.loop-json.data)' @as=item |
     {li | {$native:call("http.field", item, "name")}: {$native:call("http.field", item, "status")}}
     }   }   }
     {p | xml state: {output @data-role=xml-state | {$datadom.slices.loop-xml.state}}}
-    {cem:if @test='datadom.slices.loop-xml.state == "loaded"' |
+    {cem:if @test='(datadom.slices.loop-xml.state ?? "") == "loaded"' |
         {ul @class=http-xml-feed |
 {cem:for-each @select='native:call("http.rows", datadom.slices.loop-xml.data)' @as=item |
     {li | {$native:call("http.field", item, "name")}: {$native:call("http.field", item, "status")}}

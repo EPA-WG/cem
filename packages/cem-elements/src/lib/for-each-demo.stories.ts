@@ -1,5 +1,7 @@
 import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-for-each-document';
 const DEMO_URL = new URL('../../demo/for-each.html', import.meta.url);
@@ -38,126 +40,100 @@ export const EveryAuthoredSample: Story = {
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length + PREVIEW_FILES.length,
-            'all for-each samples render from the HTML source'
-        );
-        assertDeepEqual(
-            Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
-                normalize(sample.getAttribute('legend') ?? '')
-            ),
-            [...EXPECTED_LEGENDS, ...PREVIEW_FILES],
-            'for-each sample inventory'
-        );
+        await whenCemSourceRendered(host);
+        expect(Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample => sample.getAttribute('legend')))
+            .toEqual([...EXPECTED_LEGENDS, ...PREVIEW_FILES]);
+        const audit = async (index: number, check: (sample: HTMLElement) => void | Promise<void>) => {
+            const sample = requiredElement(host, `cem-demo-element[legend="${EXPECTED_LEGENDS[index]}"]`);
+            await step(EXPECTED_LEGENDS[index], async () => {
+                await check(sample);
+                expect(cemDiagnosticCodes(requiredElement(sample, 'article').parentElement as HTMLElement)).toEqual([]);
+            });
+        };
 
-        await verifyExternalFilePreviews(host, DEMO_URL, PREVIEW_FILES);
-
-        const simple = sampleByLegend(host, EXPECTED_LEGENDS[0]);
-        await waitForCondition(
-            () => textList(simple, 'li').join('|') === '🍏|🍌|🍒',
-            'simple loop renders all fruit',
-            300
-        );
-
-        const positioned = sampleByLegend(host, EXPECTED_LEGENDS[1]);
-        await waitForCondition(
-            () => textList(positioned, 'article > div > div').join('|') ===
-                '1. Red|2. Green|3. Blue',
-            'positioned loop renders numbered record fields'
-        );
-
-        const conditional = sampleByLegend(host, EXPECTED_LEGENDS[2]);
-        await waitForCondition(
-            () => conditional.querySelector('input') !== null,
-            'conditional loop control renders'
-        );
-        const conditionalInput = requiredElement(conditional, 'input') as HTMLInputElement;
-        conditionalInput.click();
-        await waitForCondition(
-            () => textList(conditional, 'article > div span').join('|') ===
-                '1:First|2:Second|3:Third',
-            () => `conditional loop renders after its checkbox changes; checked=${conditionalInput.checked}, spans=${JSON.stringify(textList(conditional, 'span'))}`
-        );
-        conditionalInput.click();
-        await waitForCondition(
-            () => conditional.querySelectorAll('article > div span').length === 0,
-            'unchecking removes the conditional sequence'
-        );
-
-        const nested = sampleByLegend(host, EXPECTED_LEGENDS[3]);
-        await waitForCondition(
-            () => textList(nested, 'tbody td').join('|') ===
-                'A1|A2|A3|B1|B2|B3|C1|C2|C3',
-            'nested loops render the complete table'
-        );
-
-        const attributes = sampleByLegend(host, EXPECTED_LEGENDS[4]);
-        await waitForCondition(
-            () => normalize(attributes.querySelector('article')?.textContent ?? '')
-                .includes('#1 Alice (admin)')
-                && normalize(attributes.querySelector('article')?.textContent ?? '')
-                    .includes('#3 Charlie (viewer)'),
-            'record fields render through loop variables'
-        );
-
-        const dynamic = sampleByLegend(host, EXPECTED_LEGENDS[5]);
-        await waitForCondition(
-            () => dynamic.querySelector('input') !== null,
-            'dynamic table control renders'
-        );
-        const dynamicInput = requiredElement(dynamic, 'input') as HTMLInputElement;
-        dynamicInput.click();
-        await waitForCondition(
-            () => textList(dynamic, 'tbody tr').length === 3
-                && normalize(dynamic.querySelector('tbody')?.textContent ?? '')
-                    .includes('Widget'),
-            'dynamic table loop renders after its checkbox changes'
-        );
-        dynamicInput.click();
-        await waitForCondition(
-            () => dynamic.querySelectorAll('tbody tr').length === 0,
-            'unchecking removes the dynamic table rows'
-        );
-
-        const payload = sampleByLegend(host, EXPECTED_LEGENDS[6]);
-        await waitForCondition(
-            () => textList(payload, 'cem-loop-payload .payload-feed li').join('|') ===
-                '1. payload-alpha: Payload Alpha|2. payload-beta: Payload Beta',
-            () => `payload loop renders serialized child elements; items=${JSON.stringify(textList(payload, 'cem-loop-payload .payload-feed li'))}`
-        );
-
-        const location = sampleByLegend(host, EXPECTED_LEGENDS[7]);
-        await waitForCondition(
-            () => textList(location, '.location-feed li').join('|') ===
-                'topic = feeds|item = payload,resource',
-            'location loop renders ordered query parameter entries'
-        );
-
-        const http = sampleByLegend(host, EXPECTED_LEGENDS[8]);
-        await waitForCondition(
-            () => normalize(http.querySelector('output[data-role="json-state"]')?.textContent ?? '') === 'loaded'
-                && normalize(http.querySelector('output[data-role="xml-state"]')?.textContent ?? '') === 'loaded'
-                && normalize(http.querySelector('.http-json-feed')?.textContent ?? '').includes('beta: loaded')
-                && normalize(http.querySelector('.http-xml-feed')?.textContent ?? '').includes('delta: xml-loaded'),
-            () => `HTTP JSON and XML loops render loaded resource data; json=${normalize(http.querySelector('output[data-role="json-state"]')?.textContent ?? '')}, xml=${normalize(http.querySelector('output[data-role="xml-state"]')?.textContent ?? '')}, jsonRows=${JSON.stringify(textList(http, '.http-json-feed li'))}, xmlRows=${JSON.stringify(textList(http, '.http-xml-feed li'))}`,
-            300
-        );
+        await audit(0, async sample => {
+            await waitFor(() => expect(textList(sample, 'ul > li')).toEqual(['🍏', '🍌', '🍒']));
+            expect(sample.querySelectorAll('ul')).toHaveLength(1);
+        });
+        await audit(1, async sample => {
+            await waitFor(() => expect(textList(sample, 'article > div > div')).toEqual(['1. Red', '2. Green', '3. Blue']));
+            const rows = sample.querySelectorAll('article > div > div');
+            expect(Array.from(rows, row => getComputedStyle(row).backgroundColor))
+                .toEqual(['rgb(193, 18, 31)', 'rgb(21, 128, 61)', 'rgb(29, 78, 216)']);
+            expect(Array.from(rows, row => getComputedStyle(row).color))
+                .toEqual(['rgb(255, 255, 255)', 'rgb(255, 255, 255)', 'rgb(255, 255, 255)']);
+        });
+        await audit(2, async sample => {
+            const checkbox = within(sample).getByRole('checkbox', { name: 'Show items' }) as HTMLInputElement;
+            await toggleCycles(sample, checkbox, shown => {
+                expect(textList(sample, 'article > div span')).toEqual(shown ? ['1:First', '2:Second', '3:Third'] : []);
+                const content = requiredElement(sample, 'article > div').textContent ?? '';
+                expect(content.trimStart().startsWith('BEFORE')).toBe(true);
+                expect(content.trimEnd().endsWith('AFTER')).toBe(true);
+                expect(sample.querySelectorAll('input')).toHaveLength(1);
+            });
+        });
+        await audit(3, async sample => {
+            await waitFor(() => expect(tableRows(sample)).toEqual([
+                ['A1', 'A2', 'A3'], ['B1', 'B2', 'B3'], ['C1', 'C2', 'C3'],
+            ]));
+            expect(textList(sample, 'thead th')).toEqual(['Col 1', 'Col 2', 'Col 3']);
+            expect(sample.querySelectorAll('table')).toHaveLength(1);
+            expect(sample.querySelector('article > tr, article > td')).toBeNull();
+        });
+        await audit(4, async sample => {
+            await waitFor(() => expect(textList(sample, 'article > div')).toEqual([
+                '#1 Alice (admin)', '#2 Bob (editor)', '#3 Charlie (viewer)',
+            ]));
+            expect(textList(sample, 'article > div > strong')).toEqual(['#1', '#2', '#3']);
+            expect(textList(sample, 'article > div > em')).toEqual(['(admin)', '(editor)', '(viewer)']);
+        });
+        await audit(5, async sample => {
+            const checkbox = within(sample).getByRole('checkbox', { name: 'Show products' }) as HTMLInputElement;
+            const table = requiredElement(sample, 'table');
+            const header = requiredElement(sample, 'thead');
+            await toggleCycles(sample, checkbox, shown => {
+                expect(tableRows(sample)).toEqual(shown ? [
+                    ['1', 'Widget', '$10'], ['2', 'Gadget', '$25'], ['3', 'Gizmo', '$15'],
+                ] : []);
+                expect(textList(sample, 'thead th')).toEqual(['#', 'Product', 'Price']);
+                expect(requiredElement(sample, 'table')).toBe(table);
+                expect(requiredElement(sample, 'thead')).toBe(header);
+                expect(table.isConnected && header.isConnected).toBe(true);
+                expect(sample.querySelectorAll('table')).toHaveLength(1);
+            });
+        });
+        await audit(6, async sample => {
+            await waitFor(() => expect(textList(sample, '.payload-feed li')).toEqual([
+                '1. payload-alpha: Payload Alpha', '2. payload-beta: Payload Beta',
+            ]));
+            expect(sample.querySelectorAll('cem-loop-payload .payload-feed')).toHaveLength(1);
+        });
+        await audit(7, async sample => {
+            await waitFor(() => expect(textList(sample, '.location-feed li'))
+                .toEqual(['topic = feeds', 'item = payload,resource']));
+        });
+        await audit(8, async sample => {
+            await waitFor(() => {
+                expect(textList(sample, 'output')).toEqual(['loaded', 'loaded']);
+                expect(textList(sample, '.http-json-feed li')).toEqual(['alpha: ready', 'beta: loaded']);
+                expect(textList(sample, '.http-xml-feed li')).toEqual(['gamma: xml-ready', 'delta: xml-loaded']);
+            }, { timeout: 15000 });
+        });
+        for (const file of PREVIEW_FILES) {
+            await step(file, () => verifyExternalFilePreviews(host, DEMO_URL, [file]));
+        }
     },
 };
 
-
-function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
-    const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
-        (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
-    );
-    if (!sample) throw new Error(`expected sample ${legend}`);
-    return sample;
+function textList(root: ParentNode, selector: string): string[] {
+    return Array.from(root.querySelectorAll(selector), element => (element.textContent ?? '').replace(/\s+/gu, ' ').trim());
 }
 
-function textList(root: ParentNode, selector: string): string[] {
-    return Array.from(root.querySelectorAll(selector), (element) => normalize(element.textContent ?? ''));
+function tableRows(sample: HTMLElement): string[][] {
+    return Array.from(sample.querySelectorAll('table > tbody > tr'), row => textList(row, ':scope > td'));
 }
 
 function requiredElement(root: ParentNode, selector: string): HTMLElement {
@@ -166,24 +142,23 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
     return element;
 }
 
-async function waitForCondition(
-    condition: () => boolean,
-    message: string | (() => string),
-    attempts = 120
-): Promise<void> {
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+async function toggleCycles(sample: HTMLElement, checkbox: HTMLInputElement, check: (shown: boolean) => void): Promise<void> {
+    const instance = requiredElement(sample, 'article').parentElement as HTMLElement;
+    const assertState = async (shown: boolean) => {
+        await whenCemRendered(instance);
+        await waitFor(() => {
+            expect(requiredElement(sample, 'input[type=checkbox]')).toBe(checkbox);
+            expect(checkbox.isConnected).toBe(true);
+            expect(checkbox.checked).toBe(shown);
+            check(shown);
+        });
+    };
+    await assertState(false);
+    for (const shown of [true, false, true, false]) {
+        // Exercise pointer and keyboard activation against the current live control.
+        if (shown) await userEvent.click(checkbox);
+        else await userEvent.keyboard(' ');
+        await assertState(shown);
+        expect(document.activeElement).toBe(checkbox);
     }
-    throw new Error(typeof message === 'string' ? message : message());
-}
-
-function assertDeepEqual(actual: readonly string[], expected: readonly string[], label: string): void {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error(`${label}: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-    }
-}
-
-function normalize(value: string): string {
-    return value.replace(/\s+/gu, ' ').trim();
 }

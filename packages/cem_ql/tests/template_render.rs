@@ -930,6 +930,77 @@ fn declared_slice_defaults_update_the_current_data_document() {
 }
 
 #[test]
+fn for_each_checkbox_guards_distinguish_missing_and_boolean_slices() {
+    for name in ["show-items", "show-products"] {
+        let source = format!(
+            r#"{{article | {{slice @name={name}}}{{cem:if @test="datadom.slices.{name} == true" | {{output | shown}}}}}}"#
+        );
+        let empty = TemplateData::default().with_binding(
+            "datadom",
+            ItemStream::once(record([("slices", vec![record([])])])),
+        );
+        let uninitialized = render_template(&source, &empty);
+        let hidden = format!(r#"<article><slice name="{name}"></slice></article>"#);
+        assert_eq!(uninitialized.rendered, hidden);
+        for code in ["cem.ql.type_error", "cem.ql.render.test_failed"] {
+            assert!(
+                uninitialized.diagnostics.iter().any(|diagnostic| diagnostic.code == code),
+                "{:?}",
+                uninitialized.diagnostics
+            );
+        }
+
+        // The fixture guard supplies a boolean only when the slice is absent.
+        let guarded = source.replace(
+            &format!("datadom.slices.{name} == true"),
+            &format!("(datadom.slices.{name} ?? false) == true"),
+        );
+        let initial = render_template(&guarded, &empty);
+        assert_eq!(initial.rendered, hidden);
+        assert!(initial.diagnostics.is_empty(), "{:?}", initial.diagnostics);
+
+        for value in [true, false] {
+            let mut data = empty.clone();
+            data.bind_native_slice(name, bool_value(value)).unwrap();
+            for template in [&source, &guarded] {
+                let rendered = render_template(template, &data);
+                let expected = if value {
+                    hidden.replace("</article>", "<output>shown</output></article>")
+                } else {
+                    hidden.clone()
+                };
+                assert_eq!(rendered.rendered, expected);
+                assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+            }
+        }
+    }
+}
+
+#[test]
+fn currency_prefixes_render_natively_in_loop_cells() {
+    for cell in [r#"{td | ${$product.price}}"#, "{td | ${$product.price}\n}"] {
+        let source = format!(
+            r#"{{table | {{tbody | {{cem:for-each @select='({{"price":"10"}}, {{"price":"25"}}, {{"price":"15"}})' @as=product | {{tr | {cell}}}}}}}}}"#
+        );
+        let rendered = render_template(&source, &TemplateData::default());
+        assert!(rendered.diagnostics.is_empty(), "{:?}", rendered.diagnostics);
+        let suffix = if cell.contains('\n') { "\n" } else { "" };
+        assert_eq!(rendered.rendered, format!(
+            "<table><tbody><tr><td>$10{suffix}</td></tr><tr><td>$25{suffix}</td></tr><tr><td>$15{suffix}</td></tr></tbody></table>"
+        ));
+        let malformed = &source[..source.len() - 1];
+        let recovered = render_template(malformed, &TemplateData::default());
+        assert!(
+            recovered.diagnostics.iter().any(|diagnostic|
+                diagnostic.code == "cem.tokenizer.unterminated_node"),
+            "{:?}",
+            recovered.diagnostics
+        );
+        assert_eq!(recovered.rendered, rendered.rendered);
+    }
+}
+
+#[test]
 fn declared_boolean_slice_defaults_keep_their_boolean_type() {
     let rendered = render_template(
         r#"{slice @name="open" | false}{output | {$open}|{$datadom.slices.open}}{cem:if @test="datadom.slices.open" | {p | must stay hidden}}"#,

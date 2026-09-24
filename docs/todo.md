@@ -4176,12 +4176,54 @@ registration identities may reuse an inherited or existing definition.
           510 unit tests, 221 Storybook tests and 31 standalone / 37
           source-loaded documents pass, as do aggregate coverage, lint and
           typecheck (two existing lint warnings).
-    - [ ] Fixture: audit all 11 `demo/for-each.html` samples against their
+    - [x] Fixture: audit all 11 `demo/for-each.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           sequence order and positions, nested rows and attributes, complete
           checkbox toggle cycles, payload/location/HTTP JSON/XML loops and
           exact external-file previews. Preserve authored examples and stop
           for any new behavior decision.
+          Completed 2026-09-24: all 11 legends have named Storybook steps and
+          shared standalone/source-document contracts, including exact prices,
+          repeated toggle cycles, persistent controls/headers, clean diagnostics
+          and file previews. Desktop two-card layout and desktop/mobile overflow
+          checks pass after the approved corrections below.
+    - [x] Fixture: characterize the for-each checkbox samples' initial
+          conditional diagnostics in small native render tests. Compare an
+          uninitialized slice with an explicit guard and subsequent true/false
+          values. Characterize sample 6’s malformed template and blank price
+          cells; record browser evidence before deciding between fixture
+          corrections and shared runtime changes.
+          Completed 2026-09-24: native missing-slice comparisons reproduce
+          `cem.ql.type_error` / `cem.ql.render.test_failed`; `?? false` guards
+          avoid them. Browser diagnostics also identify sample 9's initial
+          resource-state comparisons and sample 6's missing closing brace.
+          Native loop cells render `$10`, `$25`, `$15`, including with an
+          authored newline. A brace-corrected browser probe still lost prices,
+          isolating a separate shared projection defect. All 51 native
+          template-render tests pass. See the coverage investigation.
+    - [x] Decision: investigate and fix the shared browser rendering path that
+          loses sample 6's prices despite correct native render output
+          (recommended), or record the limitation and leave the fix pending.
+          Accepted 2026-09-24: investigate and fix shared rendering.
+    - [x] Decision: correct only the initial guards in samples 3, 6 and 9 with
+          explicit fallbacks and repair sample 6's missing closing brace
+          (recommended), or investigate shared empty-comparison handling.
+          Accepted 2026-09-24: correct fixture guards and brace.
+    - [x] Fixture: preserve inert HTML template contents across shared
+          projection so outer bindings cannot consume inner currency syntax,
+          attributes or slots. Add boundary and source-loaded regressions;
+          retain native currency evidence, apply the approved guard/brace
+          corrections and finish the 11-sample for-each audit.
+          Completed 2026-09-24: shared projection preserves nested HTML/XHTML
+          template contents while retaining outer bindings and slots. All 51
+          native template-render tests, 513 unit tests, 221 Storybook tests and
+          31 standalone / 37 source-loaded documents pass. Aggregate coverage,
+          native/package lint and typecheck pass with existing warnings.
+    - [ ] Fixture: audit all five `demo/form.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Check
+          explicit step advancement, live validation and conditional controls,
+          native/custom validity messages and form-associated DCE values.
+          Preserve authored examples and stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

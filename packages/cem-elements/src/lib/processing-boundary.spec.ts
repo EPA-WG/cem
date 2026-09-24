@@ -13,6 +13,7 @@ import {
     setRenderPlanAttribute,
     validateRenderPlanGeneratedIds,
     type RenderPlan,
+    type TemplateSourceNode,
 } from './projection.js';
 import {
     PROCESSING_BOUNDARY_TEMPLATE_SOURCE as TEMPLATE_SOURCE,
@@ -20,6 +21,64 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('host processing boundary contracts', () => {
+    it.each([null, 'http://www.w3.org/1999/xhtml'])('defers bindings and slots inside an inert HTML template (%s)', namespace => {
+        const sourceMapRef = { fidelity: 'dom-canonical', frame: 'dom:0/0' } as const;
+        const currency = '{td | ${$product.price}\n}';
+        const source: TemplateSourceNode[] = [{
+            kind: 'element', namespace: null, tag: 'section', attributes: [{ name: 'title', value: '{$label}' }],
+            children: [
+                { kind: 'text', text: '${$label}' },
+                {
+                    kind: 'element', namespace, tag: 'template', attributes: [{ name: 'id', value: '{$label}' }],
+                    sourceMapRef,
+                    children: [
+                        { kind: 'text', text: currency, sourceMapRef },
+                        { kind: 'comment', text: '${$label}', sourceMapRef },
+                        {
+                            kind: 'element', namespace: null, tag: 'template', attributes: [{ name: 'id', value: '{$label}' }],
+                            children: [{
+                                kind: 'element', namespace: null, tag: 'button',
+                                attributes: [{ name: 'title', value: '{$label}' }, { name: 'data-price', value: '{$product.price}' }],
+                                children: [{ kind: 'text', text: '${$label}' }],
+                            }],
+                        },
+                        { kind: 'element', namespace: null, tag: 'slot', attributes: [{ name: 'name', value: 'detail' }],
+                            children: [{ kind: 'text', text: 'Inner fallback' }] },
+                    ],
+                },
+                { kind: 'element', namespace: null, tag: 'slot', attributes: [{ name: 'name', value: 'detail' }], children: [] },
+            ],
+        }];
+        const before = structuredClone(source);
+        const originalSection = before[0];
+        if (originalSection.kind !== 'element') throw new Error('Missing source section');
+        const originalTemplate = originalSection.children[1];
+        if (originalTemplate.kind !== 'element') throw new Error('Missing source template');
+        const plan = projectTemplate(source, { snapshot: snapshotFixture(), values: { label: 'Outer', 'product.price': '999' } });
+        expect(source).toEqual(before);
+        const section = plan.nodes[0];
+        if (section.kind !== 'element') throw new Error('Missing projected section');
+        expect(section.attributes).toEqual([{ name: 'title', value: 'Outer' }]);
+        expect(section.children[0]).toMatchObject({ kind: 'text', text: 'Outer' });
+        expect(section.children[1]).toMatchObject({
+            kind: 'element', namespace, tag: 'template', sourceMapRef,
+            attributes: [{ name: 'id', value: 'Outer' }],
+            children: originalTemplate.children,
+        });
+        expect(section.children[2]).toMatchObject({ kind: 'element', tag: 'span', children: [{ kind: 'text', text: 'Detail' }] });
+    });
+
+    it('keeps ordinary projection inside a foreign element named template', () => {
+        const plan = projectTemplate([{
+            kind: 'element', namespace: 'urn:foreign', tag: 'template', attributes: [],
+            children: [{ kind: 'text', text: '${$label}' }],
+        }], { snapshot: snapshotFixture(), values: { label: 'Outer' } });
+        expect(plan.nodes[0]).toMatchObject({
+            kind: 'element', namespace: 'urn:foreign', tag: 'template',
+            children: [{ kind: 'text', text: 'Outer' }],
+        });
+    });
+
     it('materializes XLink attributes with their namespace', () => {
         const calls: Array<{ kind: 'plain' | 'namespaced'; namespace?: string; name: string; value: string }> = [];
         const element = {

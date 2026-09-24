@@ -950,9 +950,14 @@ function projectNode(
     source: TemplateSourceNode,
     input: TemplateProjectionInput,
     nextRenderNodeId: () => string,
+    inertTemplateContent = false,
 ): RenderPlanNode[] {
     if (source.kind === 'text') {
-        return [{ kind: 'text', text: interpolateText(source.text, input.values), sourceMapRef: source.sourceMapRef }];
+        return [{
+            kind: 'text',
+            text: inertTemplateContent ? source.text : interpolateText(source.text, input.values),
+            sourceMapRef: source.sourceMapRef,
+        }];
     }
     if (source.kind === 'comment') {
         return [{ kind: 'comment', text: source.text, sourceMapRef: source.sourceMapRef }];
@@ -960,7 +965,9 @@ function projectNode(
 
     const attributes: RenderPlanAttribute[] = [];
     for (const attribute of source.attributes) {
-        const resolved = resolveAttribute(attribute.name, attribute.value, input.values);
+        const resolved = inertTemplateContent
+            ? { ...attribute }
+            : resolveAttribute(attribute.name, attribute.value, input.values);
         if (resolved) {
             attributes.push(resolved);
         }
@@ -973,10 +980,18 @@ function projectNode(
             tag: source.tag,
             attributes,
             renderNodeId: nextRenderNodeId(),
-            children: source.children.flatMap((child) => projectNode(child, input, nextRenderNodeId)),
+            // A nested template belongs to its eventual consumer. Outer bindings
+            // must not evaluate either its source text or its descendant attributes.
+            children: source.children.flatMap((child) => projectNode(
+                child, input, nextRenderNodeId, inertTemplateContent || isHtmlTemplate(source),
+            )),
             sourceMapRef: source.sourceMapRef,
         },
     ];
+}
+
+function isHtmlTemplate(node: { tag: string; namespace: string | null }): boolean {
+    return node.tag === 'template' && (node.namespace === null || node.namespace === XHTML_NAMESPACE);
 }
 
 /**
@@ -1216,7 +1231,7 @@ function recordGeneratedRenderPlanId(
 function projectSlotNodes(nodes: readonly RenderPlanNode[], payload: ProjectionPayload): RenderPlanNode[] {
     const out: RenderPlanNode[] = [];
     for (const node of nodes) {
-        if (node.kind !== 'element') {
+        if (node.kind !== 'element' || isHtmlTemplate(node)) {
             out.push(node);
             continue;
         }
@@ -1379,7 +1394,7 @@ function scopeRenderNodes(
                 scopeUid,
                 diagnostics,
                 false,
-                inertTemplateContent || (node.tag === 'template' && node.namespace === null),
+                inertTemplateContent || isHtmlTemplate(node),
             ),
         };
     });

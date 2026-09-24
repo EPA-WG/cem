@@ -33,6 +33,13 @@ resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resourc
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements
 binding for resource role, acquisition policy, metadata, and expected content-type context.
 
+HTML projection preserves the contents of nested HTML `<template>` elements
+for their eventual consumer. Outer bindings and payload slots do not evaluate
+text, attributes or slots inside those inert contents. This keeps embedded
+CEM-ML such as `{td | ${$product.price}}` intact when a whole demo or declaration
+document is loaded through `src`. The template element's own attributes remain
+part of the outer projection.
+
 The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
 preserved from the local prototype and the standalone/source-loaded checks.
 

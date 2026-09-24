@@ -700,6 +700,88 @@ function aspectTableChecks() {
     ];
 }
 
+const forEachSamples = [
+    sampleContract('1. Simple for-each', [
+        nodeTexts('ul > li', ['🍏', '🍌', '🍒']),
+        countExactly('ul', 1),
+    ]),
+    sampleContract('2. for-each with position()', [
+        nodeTexts('article > div > div', ['1. Red', '2. Green', '3. Blue']),
+        ...['rgb(193, 18, 31)', 'rgb(21, 128, 61)', 'rgb(29, 78, 216)'].flatMap((color, index) => [
+            computedStyle(`article > div > div:nth-child(${index + 1})`, 'backgroundColor', color),
+            computedStyle(`article > div > div:nth-child(${index + 1})`, 'color', 'rgb(255, 255, 255)'),
+        ]),
+    ]),
+    sampleContract('3. Conditional for-each', [
+        propertyEquals('input[type=checkbox]', 'checked', false),
+        countExactly('input', 1),
+        elementIdentity('input[type=checkbox]', 'remember'),
+        ...conditionalLoopChecks(false),
+        ...[true, false, true, false].flatMap(shown => [
+            shown ? clickThenText('input[type=checkbox]', 'article', 'BEFORE')
+                : pressThenProperty('input[type=checkbox]', 'Space', 'input[type=checkbox]', 'checked', false),
+            propertyEquals('input[type=checkbox]', 'checked', shown),
+            elementIdentity('input[type=checkbox]', 'same'),
+            ...conditionalLoopChecks(shown),
+        ]),
+    ]),
+    sampleContract('4. Nested for-each table', [
+        countExactly('table', 1),
+        nodeTexts('thead th', ['Col 1', 'Col 2', 'Col 3']),
+        ...loopTableChecks([['A1', 'A2', 'A3'], ['B1', 'B2', 'B3'], ['C1', 'C2', 'C3']]),
+        countExactly('article > :is(tr, td)', 0),
+    ]),
+    sampleContract('5. for-each with attributes', [
+        nodeTexts('article > div', ['#1 Alice (admin)', '#2 Bob (editor)', '#3 Charlie (viewer)']),
+        nodeTexts('article > div > strong', ['#1', '#2', '#3']),
+        nodeTexts('article > div > em', ['(admin)', '(editor)', '(viewer)']),
+    ]),
+    sampleContract('6. Dynamic table with toggle', [
+        propertyEquals('input[type=checkbox]', 'checked', false),
+        countExactly('table', 1),
+        nodeTexts('thead th', ['#', 'Product', 'Price']),
+        ...loopTableChecks([]),
+        ...['input[type=checkbox]', 'table', 'thead'].map(selector => elementIdentity(selector, 'remember')),
+        ...[true, false, true, false].flatMap(shown => [
+            shown ? clickThenText('input[type=checkbox]', 'tbody', 'Widget')
+                : pressThenProperty('input[type=checkbox]', 'Space', 'input[type=checkbox]', 'checked', false),
+            propertyEquals('input[type=checkbox]', 'checked', shown),
+            ...loopTableChecks(shown ? [['1', 'Widget', '$10'], ['2', 'Gadget', '$25'], ['3', 'Gizmo', '$15']] : []),
+            nodeTexts('thead th', ['#', 'Product', 'Price']),
+            countExactly('table', 1),
+            ...['input[type=checkbox]', 'table', 'thead'].map(selector => elementIdentity(selector, 'same')),
+        ]),
+    ]),
+    sampleContract('7. for-each over payload data', [
+        countExactly('cem-loop-payload .payload-feed', 1),
+        nodeTexts('.payload-feed li', ['1. payload-alpha: Payload Alpha', '2. payload-beta: Payload Beta']),
+    ]),
+    sampleContract('8. for-each over location data', [
+        nodeTexts('.location-feed li', ['topic = feeds', 'item = payload,resource']),
+    ]),
+    sampleContract('9. for-each over HTTP JSON/XML data', [
+        nodeTexts('output', ['loaded', 'loaded']),
+        nodeTexts('.http-json-feed li', ['alpha: ready', 'beta: loaded']),
+        nodeTexts('.http-xml-feed li', ['gamma: xml-ready', 'delta: xml-loaded']),
+    ]),
+    sampleContract('http-data.json', await externalPreviewChecks('http-data.json', 'json')),
+    sampleContract('http-data.xml', await externalPreviewChecks('http-data.xml', 'xml')),
+];
+
+function conditionalLoopChecks(shown) {
+    return [
+        nodeTexts('article > div span', shown ? ['1:First', '2:Second', '3:Third'] : []),
+        nodeTexts('article > div', [shown ? 'BEFORE 1:First 2:Second 3:Third AFTER' : 'BEFORE AFTER']),
+    ];
+}
+
+function loopTableChecks(rows) {
+    return [
+        countExactly('table > tbody > tr', rows.length),
+        ...rows.map((cells, index) => nodeTexts(`table > tbody > tr:nth-child(${index + 1}) > td`, cells)),
+    ];
+}
+
 const externalTemplateSamples = [
     sampleContract('1. reference the template in page DOM', [
         countExactly('dce-internal', 2),
@@ -830,15 +912,15 @@ function externalHtmlChecks(selector) {
     ];
 }
 
-async function externalPreviewChecks(file) {
+async function externalPreviewChecks(file, type = 'html') {
     return [
         attributeEquals(':scope', 'src', `./${file}`),
-        attributeEquals(':scope', 'type', 'html'),
+        attributeEquals(':scope', 'type', type),
         attributeEquals(':scope', 'demo', 'false'),
         attributeEquals(':scope', 'data-state', 'ready'),
         propertyEquals('[slot=text] code', 'textContent',
             await readFile(join(repoRoot, 'packages/cem-elements/demo', file), 'utf8')),
-        countAtLeast('[slot=text] code b', 1),
+        countAtLeast(`[slot=text] code ${type === 'json' ? 'i' : 'b'}`, 1),
         propertyEquals('[slot=demo]', 'textContent', ''),
         countExactly('[slot=demo] > *', 0),
     ];
@@ -1400,29 +1482,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/for-each.html',
-        checks: [
-            countExactly('cem-demo-element[legend]', 11),
-            countExactly('cem-demo-element[legend="1. Simple for-each"] li', 3),
-            text('cem-demo-element[legend="1. Simple for-each"] li', '🍏'),
-            text('cem-demo-element[legend="2. for-each with position()"]', '1 . Red'),
-            text('cem-demo-element[legend="2. for-each with position()"]', '3 . Blue'),
-            clickThenText('cem-demo-element[legend="3. Conditional for-each"] input[type="checkbox"]', 'cem-demo-element[legend="3. Conditional for-each"] span', '1 : First'),
-            countExactly('cem-demo-element[legend="4. Nested for-each table"] tbody tr', 3),
-            text('cem-demo-element[legend="4. Nested for-each table"] tbody', 'B2'),
-            text('cem-demo-element[legend="5. for-each with attributes"] article', '# 1 Alice ( admin )'),
-            text('cem-demo-element[legend="5. for-each with attributes"] article', '# 3 Charlie ( viewer )'),
-            clickThenText('cem-demo-element[legend="6. Dynamic table with toggle"] input[type="checkbox"]', 'cem-demo-element[legend="6. Dynamic table with toggle"] tbody', 'Widget'),
-            text('cem-loop-payload .payload-feed li', 'payload-alpha : Payload Alpha'),
-            text('cem-loop-payload .payload-feed li', 'payload-beta : Payload Beta'),
-            text('cem-demo-element[legend="8. for-each over location data"] .location-feed li', 'topic = feeds'),
-            text('cem-demo-element[legend="8. for-each over location data"] .location-feed li', 'item = payload,resource'),
-            text('cem-loop-http output[data-role="json-state"]', 'loaded'),
-            text('cem-loop-http .http-json-feed li', 'alpha : ready'),
-            text('cem-loop-http .http-json-feed li', 'beta : loaded'),
-            text('cem-loop-http output[data-role="xml-state"]', 'loaded'),
-            text('cem-loop-http .http-xml-feed li', 'gamma : xml-ready'),
-            text('cem-loop-http .http-xml-feed li', 'delta : xml-loaded'),
-        ],
+        checks: forEachSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/form.html',
@@ -2219,46 +2280,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/for-each.html',
-        samples: [
-            sampleContract('1. Simple for-each', [
-                countExactly('li', 3),
-                text('li', '🍏'),
-            ]),
-            sampleContract('2. for-each with position()', [
-                text('article', '1 . Red'),
-                text('article', '3 . Blue'),
-            ]),
-            sampleContract('3. Conditional for-each', [
-                text('article', 'BEFORE'),
-                text('article', 'AFTER'),
-                clickThenText('input[type="checkbox"]', 'span', '1 : First'),
-            ]),
-            sampleContract('4. Nested for-each table', [
-                countExactly('tbody tr', 3),
-                text('tbody', 'B2'),
-            ]),
-            sampleContract('5. for-each with attributes', [
-                text('article', '# 1 Alice ( admin )'),
-                text('article', '# 3 Charlie ( viewer )'),
-            ]),
-            sampleContract('6. Dynamic table with toggle', [
-                clickThenText('input[type="checkbox"]', 'tbody', 'Widget'),
-            ]),
-            sampleContract('7. for-each over payload data', [
-                text('cem-loop-payload .payload-feed', 'payload-alpha : Payload Alpha'),
-                text('cem-loop-payload .payload-feed', 'payload-beta : Payload Beta'),
-            ]),
-            sampleContract('8. for-each over location data', [
-                text('.location-feed', 'topic = feeds'),
-                text('.location-feed', 'item = payload,resource'),
-            ]),
-            sampleContract('9. for-each over HTTP JSON/XML data', [
-                text('cem-loop-http output[data-role="json-state"]', 'loaded'),
-                text('cem-loop-http .http-json-feed', 'beta : loaded'),
-                text('cem-loop-http output[data-role="xml-state"]', 'loaded'),
-                text('cem-loop-http .http-xml-feed', 'delta : xml-loaded'),
-            ]),
-        ],
+        samples: forEachSamples,
     },
     {
         path: '/packages/cem-elements/demo/form.html',
@@ -2601,7 +2623,6 @@ const sourceDocumentSpecs = [
 // External source cards are part of both the standalone and source-loaded inventories.
 for (const [directory, page, files] of [
     ['cem-elements', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
-    ['cem-elements', 'for-each.html', ['http-data.json', 'http-data.xml']],
     ['cem-elements', 'npm-versions-demo.html', ['npm-versions.json']],
     ['custom-element', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
     ['custom-element', 'npm-versions-demo.html', ['npm-versions.json']],
@@ -2752,7 +2773,10 @@ try {
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/dom-merge.html') {
-                await verifyDomMergeLayout(page);
+                await verifyDemoLayout(page, 3);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/for-each.html') {
+                await verifyDemoLayout(page, 11);
             }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
                 await verifyHexRowNavigation(page);
@@ -3156,17 +3180,17 @@ async function verifyHexRowNavigation(page) {
     ]);
 }
 
-async function verifyDomMergeLayout(page) {
+async function verifyDemoLayout(page, expectedCount) {
     for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
-        await poll(page, ({ width }) => {
+        await poll(page, ({ width, expectedCount }) => {
             const cards = Array.from(document.querySelectorAll('main > cem-demo-element'),
                 card => card.getBoundingClientRect());
-            return cards.length === 3
+            return cards.length === expectedCount
                 && document.documentElement.scrollWidth <= width
                 && cards.every(card => card.left >= 0 && card.right <= width)
                 && (width < 1000 || (Math.abs(cards[0].top - cards[1].top) < 1 && cards[0].left !== cards[1].left));
-        }, { width });
+        }, { width, expectedCount });
     }
 }
 
@@ -3209,6 +3233,13 @@ async function runCheck(page, check) {
         switch (check.kind) {
             case 'text':
                 await waitForText(page, check.selector, check.expected);
+                return;
+            case 'nodeTexts':
+                await poll(page, ({ selector, expected }) => {
+                    const actual = Array.from(document.querySelectorAll(selector), element =>
+                        (element.textContent ?? '').replace(/\s+/gu, ' ').trim());
+                    return JSON.stringify(actual) === JSON.stringify(expected);
+                }, check);
                 return;
             case 'normalizedText':
                 await waitForNormalizedText(page, check.selector, check.expected);
@@ -3563,6 +3594,10 @@ function text(selector, expected) {
 
 function sampleContract(legend, checks) {
     return { legend, checks };
+}
+
+function nodeTexts(selector, expected) {
+    return { kind: 'nodeTexts', selector, expected };
 }
 
 function normalizedText(selector, expected) {
@@ -3969,6 +4004,7 @@ function describeCheck(check) {
     switch (check.kind) {
         case 'text':
         case 'normalizedText':
+        case 'nodeTexts':
             return `${check.kind}(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'countAtLeast':
             return `countAtLeast(${check.selector}, ${check.min})`;
