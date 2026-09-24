@@ -18,6 +18,13 @@ accessible names and matching tooltips; fruit counters keep named terms.
 Keep API names, URLs, typed values, validation messages, and other teaching
 labels literal when replacing them would obscure the demonstrated behavior.
 
+External data files have their own direct `cem-demo-element` source previews:
+relative `src`, an explicit syntax `type`, `demo=false`, a filename legend and
+a description of the data. HTTP, loop, tree and version-picker examples use
+this pattern alongside the cell overrides. The shared resource base keeps
+these previews working when a page is loaded inside another CEM declaration;
+the compatibility package also bundles the preview runtime and formatter.
+
 | Demo | Preserved or restored lesson |
 | --- | --- |
 | `local-storage.html` | External Storage API writes, removal, defaults, typed values, JSON baskets, live versus initial-only reads, reload, cross-tab updates, and two-way slice editors. |
@@ -27,7 +34,7 @@ labels literal when replacing them would obscure the demonstrated behavior.
 | `external-template.html` | Real anonymous declarations, reusable named declarations, independent SVG/HTML/MathML fragments, separate missing-source and missing-fragment fallbacks, complete CEMT islands, and compatibility XSLT trees. Expandable trees remain interactive. |
 | `embed-1.html`, `embed-lib.html`, `lib-dir/embed-lib.html` | An external document really contains another DCE. Source-relative `file#fragment` lookup and relative file/image resolution remain visible in source and rendered links. |
 | `for-each.html` | Sequences, position, record fields, nested tables, checkbox-controlled insertion/removal, payloads, location parameters, and JSON/XML resources. Explain why inert CEM-ML avoids HTML table-parser relocation. |
-| `cell-overrides.html` | An inline cell template receives the original `name` node, finds its sibling `id` through retained-tree navigation, and renders a Pokémon image plus name using `{$node}` to reuse the name subtree and project alternative text. A separate `inspect` rule changes zero-stock content inside the base cell. Missing and repeated values keep the base grouping; sorting and source-loaded image resolution remain visible. A third lesson passes a number, date and native subtree into a child component, with receiver declarations enforcing its integer, date and node contracts an explicit `cemt:apply_templates(label, "label")` call returning native content, and a scoped hook showing text-only insertion. |
+| `cell-overrides.html` | An inline cell template receives the original JSON name value, finds its sibling `url` through retained-tree navigation and extracts its ID with `.text().split("/").nth(6)`, and renders a Pokémon image plus name using `{$node}` to reuse the name subtree and project alternative text. The supplied ten-row PokéAPI JSON and five-product stock XML load from local files with separate source-preview cards; their tables have sorting and selection without source editors. A separate `inspect` rule changes zero-stock content inside the base cell; its `stock-cell.cemt` source preview follows the stock XML preview. Missing and repeated values keep the base grouping; sorting and images from the pinned unpkg `imgUrlRoot` remain visible. A third lesson passes a number, date and native subtree into a child component, with receiver declarations enforcing its integer, date and node contracts an explicit `cemt:apply_templates(label, "label")` call returning native content, and a scoped hook showing text-only insertion. |
 | `form.html` | A deliberate Next action advances the first form; native and custom validity, conditional confirmation controls, and form-associated DCE values remain intact. Valid native submissions navigate; use sample values only. |
 | `http-request.html` | Draft URL versus GET, initial idle state, empty URL, malformed JSON failure, stale-result removal, recovery, response-driven Pokémon buttons, and request/response metadata. Fixtures remain local; existing version-pinned illustration assets are preserved. |
 | `location-element.html` | Plain History API controls, native hash links and GET navigation feed a live reader; an initial-only reader stays unchanged until reload. Explicit `href` parses without navigating. |

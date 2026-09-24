@@ -71,8 +71,12 @@
         <template>{article @class=message | {strong | Hello from CEM-ML}}</template>
     </cem-demo-element>
 
-    <cem-demo-element legend="6. src from relative URL<br/>src=./dwarfs.json" src="./dwarfs.json" type="auto">
-    </cem-demo-element>
+    <cem-demo-element id="dwarfs.json"
+        src="./dwarfs.json"
+        type=json
+        demo=false
+        legend="dwarfs.json"
+        description="An external JSON file, shown with syntax highlighting and no live output"></cem-demo-element>
 </main>
 </body>
 </html>

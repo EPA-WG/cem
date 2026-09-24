@@ -38,7 +38,7 @@ describe('CEM-QL string-functions demo source contract', () => {
 
     it('lists every independently authored string-function case', () => {
         expect(Array.from(DEMO_SOURCE.matchAll(/legend="([^"]+)"/gu), (match) => match[1])).toEqual([
-            'str:shorten query/result matrix', ...METHODS.map((method) => `str:${method}`),
+            'str:shorten query/result matrix', 'URL ID with a string chain', ...METHODS.map((method) => `str:${method}`),
             'XPath normalize-space', 'XPath tokenize and string-join',
         ]);
     });
@@ -49,6 +49,11 @@ describe('CEM-QL string-functions demo source contract', () => {
         expect(sample).toContain('xpath-functions="../xpath-text.cemt"');
         expect(sample).toContain('@slice-event=input');
         expect(sample).not.toContain('tag=');
+    });
+
+    it('teaches Rust-style string splitting and zero-based selection', () => {
+        expect(DEMO_SOURCE).toContain('url.split("/").nth(6)');
+        expect(DEMO_SOURCE).toContain('{$id ?? "No ID"}');
     });
 
     it.each(METHODS)('str:%s has an anonymous, flush-left, interactive example', (method) => {

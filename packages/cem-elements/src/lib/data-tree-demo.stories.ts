@@ -1,3 +1,4 @@
+import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { storyTiming } from '../../.storybook/story-timing.js';
 import { startTreeProcessingTiming, watchTreeSelection } from '../../.storybook/tree-processing-timing.js';
@@ -220,5 +221,12 @@ export const SourceRelativeRequests: Story = {
         await waitFor(() => expect(loaded.querySelector('pre')).toHaveTextContent('xml-stylesheet'), { timeout: 20000 });
         expect(loaded.querySelectorAll('input:checked')).toHaveLength(0);
         expect(loaded.querySelector('script')).toBeNull();
+    },
+};
+
+export const ExternalSourcePreviews: Story = {
+    render: renderDocument,
+    play: async ({ canvasElement }) => {
+        await verifyExternalFilePreviews(canvasElement, SOURCE_URL, ['tree-source.xml', 'tree-source.json']);
     },
 };

@@ -409,43 +409,52 @@ inventory exercises Space on checkboxes and Enter on a sort button.
 
 The follow-up [cell-overrides.html](../demo/cell-overrides.html) contains three
 separate `cem-element` lessons. The first two own small CEMT modules, import the
-data viewer, add one match rule, and call `base.viewer`. The third demonstrates
-typed native values and expression hooks across a component boundary. Single-node data
+data viewer and add one match rule. Both pass retained documents to `base.inspect`: the first loads the supplied
+PokéAPI response from `pokemon-cells.json`, the second loads five products and
+a reference branch from `stock-cells.xml`. Each file has its own source-preview
+card, followed by a `stock-cell.cemt` template preview after the stock XML.
+Those previews use `type="json"`, `type="xml"` and `type="cem-ml"` with
+`demo="false"` for syntax highlighting without live output.
+Each preview is a direct `cem-demo-element` with a relative `src`, a filename
+`id` and `legend`, and a description. The preview inherits the declaring
+document's resource base when the page is source-loaded, so the same markup
+works standalone without a `cem-element` or `cem-module-url` wrapper.
+Both cases retain sorting and selection without source editors or reset buttons.
+The third demonstrates typed native values and expression hooks across a component boundary. Single-node data
 cells dispatch their original retained subjects through `cell` mode. The base
 `@match=true @priority=-20` rule generates a `td` and delegates content to
 `inspect`; a local cell rule can replace that entire cell.
 
 - The first sample inlines its entire template. Its primitive predicate is
-  `node.name == "name"` in `cell` mode, with no explicit priority. The template
-  receives the retained `name` node through the implicit `node` binding, without
+  `dom::chain(node).parent().attribute("name").text() == "name"` in `cell` mode,
+  with no explicit priority. The template receives the retained JSON name value through the implicit `node` binding, without
   a redundant parameter declaration. Its direct body works through shared
   native module preflight and browser imports; the optional `body` wrapper is
   omitted. See the [compact body contract](../../../docs/cemt-native-values.md#compact-template-bodies).
-  `dom:parent` and `dom:children` find
-  its sibling `id`, selecting the first match in source order with
-  `(sibling.name ?? "") == "id"`. The fallback skips nameless whitespace;
-  this simple demo compares only local names. It renders a 32px image beside
+  `dom::chain(node).parent().parent().children()` reaches the object fields;
+  `.find(|field| field.attribute("name").text() == "url")` finds the URL.
+  `.text().split("/").nth(6)` extracts its ID using Rust-style zero-based indexing. It renders a 32px image beside
   the original name, or just the name if no ID is present. Other field names
   retain the imported view. `{$node}` reuses the name subtree for the label and
   `@alt="{$node}"` supplies the image alternative through shared node text
   conversion; no separate name variable or child-value projection is needed.
-  The sample uses IDs 2 and 3, whose SVGs and upstream notice are bundled with
-  [source attribution](../demo/pokemon/README.md). `cem-module-url` resolves the
-  image directory relative to the declaration for source-loaded documents too.
+  The sample uses IDs 1 through 10 and an explicit `imgUrlRoot` pointing at
+  `https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/`.
+  Appending the ID and `.svg` uses the same pinned image URL standalone or
+  source-loaded. The page links the upstream images and licence.
 - [stock-cell.cemt](../demo/stock-cell.cemt) matches
   `/catalog/product/stock` only when its trimmed text is `0`. Its replacement is
   a visible “Out of stock (0)” warning in `inspect` mode, retaining the base
-  cell wrapper. Positive values, edited values and a
+  cell wrapper. Positive values and a
   reference branch's zero stock use the imported renderer.
 
 The stock path describes selected XML data; `@match` itself is a CEM-QL
-predicate. That module declares the inherited `document` parameter, queries
-the retained document for the intended source path, and compares opaque
-`data:node_key` values with the current `node`. Namespace and source identity
-checks constrain the stock rule; the inline name rule stays deliberately
-simple. The templates never reparse the source or query
-rendered HTML. `cem-data` in the base viewer remains the single import point.
-The module-URL slice contains scalar resource metadata only.
+predicate. Its implicit module needs no `module` or `body` wrappers, and its
+unnamed rule receives `node` automatically. A direct `parent()` chain checks
+the unqualified `product` and `catalog` ancestors and the document root.
+Namespace and parent checks constrain the stock rule; the inline name rule
+stays deliberately simple. The templates never reparse the source or query
+rendered HTML. HTTP document bindings enter through the shared CEM-ML import boundary.
 
 The base CEMT template owns the cell-generation hook. Missing values, repeated
 values in one column, attributes and direct row text use its `cell-values`
@@ -460,7 +469,7 @@ No other legacy XmlView features are part of this increment. Storybook startup
 stabilization follows DATA-CELL-MATCH-1 in `docs/todo.md`.
 
 The revised [native cell fixtures](../../cem_ql/tests/cell_overrides.rs) now
-verify sibling IDs, primitive matching, native label/attribute identity, final
+verify URL-derived IDs, property matching, native label/attribute identity, final
 projection, grouped/missing-value fallback, nested collections, source repair
 and selection through the existing row-heading button. The shared
 [node-value fixtures](../../cem_ql/tests/retained_node_values.rs) cover XML,

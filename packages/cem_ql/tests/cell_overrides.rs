@@ -1,10 +1,11 @@
 //! Imported presentation rules change cells, not the source tree or table renderer.
 use cem_ml::{
+    import::import_data,
     operation_control::{OperationControl, ROOT_EXECUTION_SCOPE_ID},
     value::artifact::CemValueArtifactLimits,
 };
 use cem_ql::{
-    eval::{AtomValue, Item, ItemStream},
+    eval::{imported_cem_tree, AtomValue, Item, ItemStream},
     render::{
         compile_template_module_closure, project_render_plan_with_control,
         render_compiled_template, CompileTemplateOptions, RenderPlan, RenderPlanNode, TemplateData,
@@ -23,8 +24,8 @@ fn pokemon_template() -> &'static str {
         .0
 }
 const STOCK: &str = include_str!("../../cem-elements/demo/stock-cell.cemt");
-const LIST: &str = "<catalog><pokemon><id>3</id><name>venusaur</name><type>grass</type></pokemon><pokemon><id>2</id><name>ivysaur</name><type>grass</type></pokemon></catalog>";
-const PRODUCTS: &str = "<catalog><product><name>Cherry</name><stock>0</stock></product><product><name>Lemon</name><stock>5</stock></product><reference><stock>0</stock></reference></catalog>";
+const LIST: &str = include_str!("../../cem-elements/demo/pokemon-cells.json");
+const PRODUCTS: &str = include_str!("../../cem-elements/demo/stock-cells.xml");
 
 fn string(value: &str) -> Item {
     Item::Atomic(AtomValue::String(value.into()))
@@ -41,16 +42,36 @@ fn render_native(template: &str, source: &str, mut slices: Vec<(&str, Item)>) ->
     let hash = |text: &str| {
         cem_ml::content_cache::ContentHash::from_blake3(text.as_bytes()).header_value()
     };
-    // Scalar resolver output is host control state; source documents still enter through cem-data.
-    slices.push(("images", string("https://example.test/demo/pokemon/")));
+    // HTTP data enters through the shared import boundary, just as in the browser.
+    let format = if template == pokemon_template() {
+        "json"
+    } else {
+        "xml"
+    };
+    let payload = if template == pokemon_template() || template == STOCK {
+        if !slices.iter().any(|(name, _)| *name == "catalog") {
+            let catalog =
+                match import_data(source, format, "cem", "https://example.test/demo/catalog") {
+                    Ok(owner) => record(vec![
+                        ("state", string("loaded")),
+                        ("data", imported_cem_tree(owner)),
+                    ]),
+                    Err(_) => record(vec![("state", string("failed"))]),
+                };
+            slices.push(("catalog", catalog));
+        }
+        ""
+    } else {
+        source
+    };
     let data = TemplateData::default()
-        .with_binding("format", ItemStream::once(string("xml")))
+        .with_binding("format", ItemStream::once(string(format)))
         .with_binding(
             "datadom",
             ItemStream::once(record(vec![
                 (
                     "payload",
-                    record(vec![("nodes", record(vec![("text", string(source))]))]),
+                    record(vec![("nodes", record(vec![("text", string(payload))]))]),
                 ),
                 ("slices", record(slices)),
             ])),
@@ -66,7 +87,11 @@ fn render_native(template: &str, source: &str, mut slices: Vec<(&str, Item)>) ->
             },
         },
     );
-    assert!(preflight.diagnostics.is_empty(), "{:?}", preflight.diagnostics);
+    assert!(
+        preflight.diagnostics.is_empty(),
+        "{:?}",
+        preflight.diagnostics
+    );
     let artifact = compile_template_module_closure(
         template,
         &TemplateModuleClosure {
@@ -138,94 +163,127 @@ fn find<'a>(nodes: &'a [RenderPlanNode], name: &str) -> Vec<&'a RenderPlanNode> 
 }
 
 #[test]
-fn inline_name_rule_renders_image_and_name_with_base_columns() {
-    let template = pokemon_template();
-    assert!(template.contains("@match='node.name == \"name\"'"));
-    let plan = render(template, LIST, vec![]);
+fn inline_name_rule_renders_json_images_and_base_columns() {
+    let plan = render(pokemon_template(), LIST, vec![]);
     let images = find(&plan.nodes, "img");
-    assert_eq!(images.len(), 2);
-    assert_eq!(
-        attr(images[0], "src"),
-        Some("https://example.test/demo/pokemon/3.svg")
-    );
-    assert_eq!(
-        attr(images[1], "src"),
-        Some("https://example.test/demo/pokemon/2.svg")
-    );
-    assert_eq!(attr(images[1], "alt"), Some("ivysaur"));
+    assert_eq!(images.len(), 10);
+    for (index, image) in images.iter().enumerate() {
+        assert_eq!(
+            attr(image, "src"),
+            Some(format!("https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/{}.svg", index + 1).as_str())
+        );
+    }
+    assert_eq!(attr(images[0], "alt"), Some("bulbasaur"));
     let table = find(&plan.nodes, "table")[0];
     assert_eq!(
         find(children(find(children(table), "thead")[0]), "th")
             .iter()
             .map(|n| text(n).trim().to_owned())
             .collect::<Vec<_>>(),
-        ["✓", "#text", "id", "name", "type"]
+        ["✓", "name", "url"]
     );
-    assert!(text(table).contains("ivysaur") && text(table).contains("venusaur"));
-    assert!(text(table).contains("grass"));
-    assert_eq!(text(find(&plan.nodes, "textarea")[0]), LIST);
+    assert!(text(table).contains("https://pokeapi.co/api/v2/pokemon/1/"));
+    assert!(find(&plan.nodes, "textarea").is_empty());
+    assert!(!find(&plan.nodes, "button")
+        .iter()
+        .any(|n| attr(n, "aria-label") == Some("Reset source")));
+}
+
+#[test]
+fn request_states_do_not_display_stale_tables() {
+    for (template, source, format) in [(pokemon_template(), LIST, "json"), (STOCK, PRODUCTS, "xml")]
+    {
+        for (state, role) in [("", "status"), ("loading", "status"), ("failed", "alert")] {
+            let stale =
+                imported_cem_tree(import_data(source, format, "cem", "memory:stale").unwrap());
+            let plan = render(
+                template,
+                source,
+                vec![(
+                    "catalog",
+                    if state.is_empty() { record(vec![]) } else { record(vec![("state", string(state)), ("data", stale)]) },
+                )],
+            );
+            assert!(find(&plan.nodes, "table").is_empty());
+            assert!(find(&plan.nodes, "img").is_empty());
+            assert!(find(&plan.nodes, "p")
+                .iter()
+                .any(|n| attr(n, "role") == Some(role)));
+        }
+    }
 }
 
 #[test]
 fn source_identity_and_name_sorting_survive_cell_overrides() {
-    let initial = render(pokemon_template(), LIST, vec![]);
+    let document = imported_cem_tree(import_data(LIST, "json", "cem", "memory:catalog").unwrap());
+    let catalog = record(vec![("state", string("loaded")), ("data", document)]);
+    let initial = render(pokemon_template(), LIST, vec![("catalog", catalog.clone())]);
     let table = find(&initial.nodes, "table")[0];
-    let row_heading = find(children(find(children(table), "tbody")[0]), "th")[0];
-    let button = find(children(row_heading), "button")
-        .into_iter()
-        .find(|n| attr(n, "slice") == Some("selected"))
-        .unwrap();
+    let button = find(children(find(children(table), "tbody")[0]), "button")[0];
     let selected = attr(button, "value").unwrap();
     assert!(!selected.is_empty());
     let plan = render(
         pokemon_template(),
         LIST,
         vec![
+            ("catalog", catalog),
             ("column", string("name")),
             ("mode", string("text")),
             ("selected", string(selected)),
         ],
     );
+    let names = find(&plan.nodes, "img")
+        .iter()
+        .map(|n| attr(n, "alt").unwrap())
+        .collect::<Vec<_>>();
     assert_eq!(
-        find(&plan.nodes, "img")
-            .iter()
-            .map(|n| attr(n, "alt").unwrap())
-            .collect::<Vec<_>>(),
-        ["ivysaur", "venusaur"]
+        names,
+        [
+            "blastoise",
+            "bulbasaur",
+            "caterpie",
+            "charizard",
+            "charmander",
+            "charmeleon",
+            "ivysaur",
+            "squirtle",
+            "venusaur",
+            "wartortle"
+        ]
     );
-    let selected_row = find(&plan.nodes, "tr")
+    let row = find(&plan.nodes, "tr")
         .into_iter()
         .find(|n| attr(n, "aria-selected") == Some("true"))
         .unwrap();
-    assert!(text(selected_row).contains("venusaur"));
+    assert!(text(row).contains("bulbasaur"));
 }
 
 #[test]
-fn primitive_name_match_is_independent_of_path_and_other_fields_fall_back() {
-    for source in [
-        LIST.replace("pokemon>", "other>"),
-        LIST.replace("<name>", "<p:name xmlns:p='urn:other'>")
-            .replace("</name>", "</p:name>"),
-    ] {
-        let plan = render(pokemon_template(), &source, vec![]);
-        assert_eq!(find(&plan.nodes, "img").len(), 2);
-    }
-    let source = LIST
-        .replace("<name>", "<title>")
-        .replace("</name>", "</title>");
+fn name_match_is_independent_of_path_and_other_fields_fall_back() {
+    let source = LIST.replace("results", "other");
+    assert_eq!(
+        find(&render(pokemon_template(), &source, vec![]).nodes, "img").len(),
+        10
+    );
+    let source = LIST.replace("\"name\"", "\"title\"");
     let plan = render(pokemon_template(), &source, vec![]);
     assert!(find(&plan.nodes, "img").is_empty());
     assert!(text(find(&plan.nodes, "table")[0]).contains("ivysaur"));
 }
 
 #[test]
-fn zero_stock_rule_is_conditional_and_scoped_to_product_cells() {
+fn zero_stock_rule_is_conditional_and_scoped_to_five_product_rows() {
     let plan = render(STOCK, PRODUCTS, vec![]);
     let warnings = find(&plan.nodes, "strong");
     assert_eq!(warnings.len(), 1);
     assert_eq!(text(warnings[0]).trim(), "Out of stock (0)");
-    assert!(text(find(&plan.nodes, "table")[0]).contains('5'));
-    assert_eq!(text(find(&plan.nodes, "textarea")[0]), PRODUCTS);
+    let table = find(&plan.nodes, "table")[0];
+    assert_eq!(
+        find(children(find(children(table), "tbody")[0]), "tr").len(),
+        5
+    );
+    assert!(text(table).contains('5'));
+    assert!(find(&plan.nodes, "textarea").is_empty());
     for source in [
         PRODUCTS.replace("<stock>0</stock>", "<stock>7</stock>"),
         PRODUCTS.replace(
@@ -235,9 +293,19 @@ fn zero_stock_rule_is_conditional_and_scoped_to_product_cells() {
         PRODUCTS
             .replace("<product>", "<other>")
             .replace("</product>", "</other>"),
+        PRODUCTS
+            .replace("<product>", "<p:product xmlns:p='urn:other'>")
+            .replace("</product>", "</p:product>"),
+        PRODUCTS
+            .replace("<catalog>", "<p:catalog xmlns:p='urn:other'>")
+            .replace("</catalog>", "</p:catalog>"),
+        format!("<wrapper>{PRODUCTS}</wrapper>"),
+        PRODUCTS.replace("<stock>0</stock>", "<stock><amount>0</amount></stock>"),
     ] {
         assert!(find(&render(STOCK, &source, vec![]).nodes, "strong").is_empty());
     }
+    let padded = PRODUCTS.replace("<stock>0</stock>", "<stock> 0 </stock>");
+    assert_eq!(find(&render(STOCK, &padded, vec![]).nodes, "strong").len(), 1);
 }
 
 #[test]
@@ -252,17 +320,16 @@ fn source_errors_clear_override_output_and_repair_restores_it() {
     }
     assert_eq!(
         find(&render(pokemon_template(), LIST, vec![]).nodes, "img").len(),
-        2
+        10
     );
 }
 
 #[test]
 fn nested_collections_keep_base_structure_and_apply_the_selected_rule() {
-    let source = LIST.replace("<type>grass</type>",
-        "<related><entry><id>2</id><name>ivysaur</name></entry><entry><id>3</id><name>venusaur</name></entry></related>");
-    let plan = render(pokemon_template(), &source, vec![]);
-    assert_eq!(find(&plan.nodes, "table").len(), 3);
-    assert_eq!(find(&plan.nodes, "img").len(), 6);
+    let source = r#"[{"name":"ivysaur","url":"https://pokeapi.co/api/v2/pokemon/2/","related":[{"name":"venusaur","url":"https://pokeapi.co/api/v2/pokemon/3/"}]}]"#;
+    let plan = render(pokemon_template(), source, vec![]);
+    assert_eq!(find(&plan.nodes, "table").len(), 2);
+    assert_eq!(find(&plan.nodes, "img").len(), 2);
     let source = PRODUCTS.replace("<stock>5</stock>",
         "<stock>5</stock><suppliers><supplier><stock>0</stock></supplier><supplier><stock>0</stock></supplier></suppliers>");
     let plan = render(STOCK, &source, vec![]);
@@ -273,8 +340,7 @@ fn nested_collections_keep_base_structure_and_apply_the_selected_rule() {
 
 #[test]
 fn name_body_reuses_the_same_native_node_as_the_alt_attribute() {
-    let source = LIST.replace("venusaur", "venu<em>saur</em>");
-    let native = render_native(pokemon_template(), &source, vec![]);
+    let native = render_native(pokemon_template(), LIST, vec![]);
     let label = find(&native.nodes, "span")
         .into_iter()
         .find(|n| attr(n, "class") == Some("pokemon-name"))
@@ -295,7 +361,7 @@ fn name_body_reuses_the_same_native_node_as_the_alt_attribute() {
     assert!(!target.source_map().unwrap().frames.is_empty());
     assert_eq!(
         target.view().unwrap().field("name").unwrap()[0].atom(),
-        Some(AtomValue::String("name".into()))
+        Some(AtomValue::String("string".into()))
     );
     let parent = target
         .view()
@@ -305,24 +371,22 @@ fn name_body_reuses_the_same_native_node_as_the_alt_attribute() {
         .unwrap();
     assert_eq!(
         parent.view().unwrap().field("name").unwrap()[0].atom(),
-        Some(AtomValue::String("pokemon".into()))
+        Some(AtomValue::String("property".into()))
     );
-
-    let projected = render(pokemon_template(), &source, vec![]);
-    let name = find(&projected.nodes, "name")[0];
-    assert_eq!(text(name), "venusaur");
-    assert_eq!(text(find(children(name), "em")[0]), "saur");
+    let projected = render(pokemon_template(), LIST, vec![]);
     assert_eq!(
         attr(find(&projected.nodes, "img")[0], "alt"),
-        Some("venusaur")
+        Some("bulbasaur")
     );
-    assert_eq!(text(find(&projected.nodes, "textarea")[0]), source);
+    assert!(find(&projected.nodes, "span")
+        .iter()
+        .any(|n| attr(n, "class") == Some("pokemon-name") && text(n).contains("bulbasaur")));
 }
 
 #[test]
 fn grouped_missing_and_attribute_values_keep_one_cell_per_heading() {
-    let source = "<catalog><pokemon name='attribute-name'><id>3</id><name>venusaur</name><name>ivysaur</name><type>grass</type>row text</pokemon><pokemon><id>2</id><type>grass</type></pokemon></catalog>";
-    let plan = render(pokemon_template(), source, vec![]);
+    let source = "<catalog><product name='attribute-name'><name>Cherry</name><name>Lemon</name><stock>5</stock>row text</product><product><stock>0</stock></product></catalog>";
+    let plan = render(STOCK, source, vec![]);
     let table = find(&plan.nodes, "table")[0];
     let heading_count = find(children(find(children(table), "thead")[0]), "th").len();
     let rows = find(children(find(children(table), "tbody")[0]), "tr");
@@ -338,30 +402,25 @@ fn grouped_missing_and_attribute_values_keep_one_cell_per_heading() {
     }
     let names = find(children(rows[0]), "td")
         .into_iter()
-        .filter(|cell| text(cell).contains("venusaur"))
+        .filter(|cell| text(cell).contains("Cherry"))
         .collect::<Vec<_>>();
     assert_eq!(names.len(), 1);
-    assert!(text(names[0]).contains("ivysaur"));
+    assert!(text(names[0]).contains("Lemon"));
     assert!(text(rows[0]).contains("attribute-name"));
     assert!(text(rows[0]).contains("row text"));
-    assert!(find(&plan.nodes, "img").is_empty());
 }
 
 #[test]
-fn sibling_id_lookup_skips_nameless_nodes_and_takes_first_local_name_match() {
-    for (source, image) in [
-        ("<catalog><pokemon> \n<!--note--><id>2</id><id>3</id><name>ivysaur</name></pokemon></catalog>", true),
-        ("<catalog><pokemon><p:id xmlns:p='urn:other'>2</p:id><name>ivysaur</name></pokemon></catalog>", true),
-        ("<catalog><pokemon><name>ivysaur</name></pokemon></catalog>", false),
+fn missing_null_empty_and_short_urls_leave_the_name_without_an_image() {
+    for field in [
+        "",
+        r#", "url":null"#,
+        r#", "url":"""#,
+        r#", "url":"/short/""#,
     ] {
-        // A repeated row kind selects the base viewer's collection/table path.
-        let source = source.replace("</catalog>", "<pokemon><type>grass</type></pokemon></catalog>");
+        let source = format!(r#"[{{"name":"ivysaur"{field}}}]"#);
         let plan = render(pokemon_template(), &source, vec![]);
-        let images = find(&plan.nodes, "img");
-        assert_eq!(images.len(), usize::from(image), "{source}");
-        if image {
-            assert_eq!(attr(images[0], "src"), Some("https://example.test/demo/pokemon/2.svg"));
-        }
+        assert!(find(&plan.nodes, "img").is_empty(), "{source}");
         assert!(text(find(&plan.nodes, "table")[0]).contains("ivysaur"));
     }
 }

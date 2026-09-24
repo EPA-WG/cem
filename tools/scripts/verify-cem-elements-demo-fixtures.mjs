@@ -42,6 +42,7 @@ const domChainSamples = [
     sampleContract("Filter", [normalizedText('output', "a, a")]),
     sampleContract("First value", [normalizedText('output', "a")]),
     sampleContract("Last value", [normalizedText('output', "b")]),
+    sampleContract("Zero-based selection", [normalizedText('output', "b")]),
     sampleContract("Take a prefix", [normalizedText('output', "a, b")]),
     sampleContract("Skip a prefix", [normalizedText('output', "b, c")]),
     sampleContract("Map values", [normalizedText('output', "a!, b!")]),
@@ -302,13 +303,18 @@ const xpathWordSample = sampleContract('3. XPath word and character count', [
 ]);
 
 const stringMethodSamples = [
+    sampleContract('URL ID with a string chain', [
+        normalizedText('output', '1'),
+        fillThenText('input', 'https://pokeapi.co/api/v2/pokemon/10/', 'output', '10'),
+        fillThenText('input', '/short/', 'output', 'No ID'),
+    ]),
     sampleContract('str:split', [
         normalizedText('output', '4'),
         ...splitPartChecks('🍒', '🍋', '', '🍌'),
-        fillThenText('label:nth-of-type(2) input', '', 'output', '6'),
-        fillThenText('label:first-of-type input', '🍒🍋', 'output', '2'),
-        ...splitPartChecks('🍒', '🍋'),
-        fillThenText('label:first-of-type input', '', 'output', '0'),
+        fillThenText('label:nth-of-type(2) input', '', 'output', '8'),
+        fillThenText('label:first-of-type input', '🍒🍋', 'output', '4'),
+        ...splitPartChecks('', '🍒', '🍋', ''),
+        fillThenText('label:first-of-type input', '', 'output', '2'),
         fillThenText('label:nth-of-type(2) input', ',', 'output', '1'),
         ...splitPartChecks(''),
         fillThenText('label:first-of-type input', 'a::b::::', 'ol', 'a::b::::'),
@@ -523,34 +529,48 @@ const hexRowSample = sampleContract('9. Horizontal row with a current page', [
 
 const cellOverrideSamples = [
     sampleContract('1. Name cells become Pokémon pictures', [
-        countExactly('img', 2),
-        imageLoaded('img[alt="ivysaur"]'),
-        imageLoaded('img[alt="venusaur"]'),
-        attributeContains('img[alt="ivysaur"]', 'src', '/demo/pokemon/2.svg'),
-        text('table > tbody > tr:first-child', 'venusaur'),
+        countExactly('img', 10),
+        ...['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'caterpie'].map(name => imageLoaded(`img[alt="${name}"]`)),
+        attributeEquals('img[alt="ivysaur"]', 'src', 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/2.svg'),
+        text('table > tbody > tr:first-child', 'bulbasaur'),
         selectThenText('select[aria-label="Sort column"]', 'name',
-            'table > tbody > tr:first-child', 'ivysaur'),
-        attributeEquals('table > tbody > tr:first-child img', 'alt', 'ivysaur'),
-        countExactly('img', 2),
-        fillBlurThenText('textarea', '<catalog><pokemon><id>3</id><title>venusaur</title></pokemon><pokemon><id>2</id><name>ivysaur</name></pokemon></catalog>',
-            'table', 'venusaur'),
-        countExactly('img', 1),
-        fillBlurThenText('textarea', '<broken>', '[role="alert"]', 'XML'),
-        countExactly('img', 0),
+            'table > tbody > tr:first-child', 'blastoise'),
+        attributeEquals('table > tbody > tr:first-child img', 'alt', 'blastoise'),
+        countExactly('img', 10),
+        selectThenText('select[aria-label="Direction"]', 'descending',
+            'table > tbody > tr:first-child', 'wartortle'),
+        countExactly('img', 10),
+        countExactly('textarea', 0),
+        countExactly('button[aria-label="Reset source"]', 0),
+    ]),
+    sampleContract('pokemon-cells.json', [
+        attributeContains(':scope', 'src', '/pokemon-cells.json'),
+        attributeEquals(':scope', 'type', 'json'),
+        attributeEquals(':scope', 'demo', 'false'),
         countExactly('table', 0),
-        clickThenText('button[aria-label="Reset source"]', 'table', 'venusaur'),
-        countExactly('img', 2),
-        imageLoaded('img[alt="venusaur"]'),
     ]),
     sampleContract('2. Zero-stock cells get a warning', [
         countExactly('strong', 1),
         normalizedText('table strong', 'Out of stock (0)'),
-        text('table > tbody > tr:last-child', '5'),
-        fillBlurThenText('textarea', '<catalog><product><name>Cherry</name><stock>7</stock></product><product><name>Lemon</name><stock>5</stock></product><reference><stock>0</stock></reference></catalog>',
-            'table > tbody > tr:first-child', '7'),
-        countExactly('strong', 0),
-        clickThenText('button[aria-label="Reset source"]', 'table strong', 'Out of stock (0)'),
+        countExactly('table > tbody > tr', 5),
+        text('table > tbody > tr:last-child', 'Plum'),
+        selectThenText('select[aria-label="Sort column"]', 'name',
+            'table > tbody > tr:first-child', 'Apple'),
         countExactly('strong', 1),
+        countExactly('textarea', 0),
+        countExactly('button[aria-label="Reset source"]', 0),
+    ]),
+    sampleContract('stock-cells.xml', [
+        attributeContains(':scope', 'src', '/stock-cells.xml'),
+        attributeEquals(':scope', 'type', 'xml'),
+        attributeEquals(':scope', 'demo', 'false'),
+        countExactly('table', 0),
+    ]),
+    sampleContract('stock-cell.cemt', [
+        attributeContains(':scope', 'src', '/stock-cell.cemt'),
+        attributeEquals(':scope', 'type', 'cem-ml'),
+        attributeEquals(':scope', 'demo', 'false'),
+        countExactly('table', 0),
     ]),
     sampleContract('3. Native values pass into another component', [
         text('cem-native-value-card article', 'Next count: 3'),
@@ -1059,7 +1079,7 @@ const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/for-each.html',
         checks: [
-            countExactly('cem-demo-element[legend]', 9),
+            countExactly('cem-demo-element[legend]', 11),
             countExactly('cem-demo-element[legend="1. Simple for-each"] li', 3),
             text('cem-demo-element[legend="1. Simple for-each"] li', '🍏'),
             text('cem-demo-element[legend="2. for-each with position()"]', '1 . Red'),
@@ -2043,8 +2063,8 @@ const sourceDocumentSpecs = [
                 ),
             ]),
             sampleContract('10. external file with invoking of template in another relative path file by enclosed custom-element', [text('dce-embed-relative-file', '🖖')]),
-            sampleContract('embed-1.html external file', [attributeEquals(':scope', 'src', 'embed-1.html')]),
-            sampleContract('embed-lib.html with multiple templates', [attributeEquals(':scope', 'src', 'embed-lib.html')]),
+            sampleContract('embed-1.html external file', [attributeEquals(':scope', 'src', './embed-1.html'), attributeEquals(':scope', 'type', 'html'), attributeEquals(':scope', 'demo', 'false')]),
+            sampleContract('embed-lib.html with multiple templates', [attributeEquals(':scope', 'src', './embed-lib.html'), attributeEquals(':scope', 'type', 'html'), attributeEquals(':scope', 'demo', 'false')]),
         ],
     },
     {
@@ -2427,6 +2447,32 @@ const sourceDocumentSpecs = [
         ],
     },
 ];
+
+// External source cards are part of both the standalone and source-loaded inventories.
+for (const [directory, page, files] of [
+    ['cem-elements', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
+    ['cem-elements', 'for-each.html', ['http-data.json', 'http-data.xml']],
+    ['cem-elements', 'data-tree.html', ['tree-source.xml', 'tree-source.json']],
+    ['cem-elements', 'npm-versions-demo.html', ['npm-versions.json']],
+    ['custom-element', 'http-request.html', ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']],
+    ['custom-element', 'npm-versions-demo.html', ['npm-versions.json']],
+]) {
+    const path = `/packages/${directory}/demo/${page}`;
+    const previews = files.map(file => sampleContract(file, [
+        attributeEquals(':scope', 'src', `./${file}`),
+        attributeEquals(':scope', 'type', file.endsWith('.xml') ? 'xml' : 'json'),
+        attributeEquals(':scope', 'demo', 'false'),
+        countExactly('[slot="demo"] > *', 0),
+    ]));
+    const checks = previews.flatMap(sample => sample.checks.map(check =>
+        scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`)));
+    const fixture = fixtureSpecs.find(fixture => fixture.path === path);
+    if (fixture) fixture.checks.push(...checks);
+    else fixtureSpecs.push({ path, checks });
+    const source = sourceDocumentSpecs.find(source => source.path === path);
+    if (source) source.samples.push(...previews);
+    else sourceDocumentSpecs.push({ path, samples: previews });
+}
 
 const sourceHarnessHtml = `<!doctype html>
 <html lang="en">

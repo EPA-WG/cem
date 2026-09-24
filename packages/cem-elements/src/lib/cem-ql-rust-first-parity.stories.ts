@@ -360,7 +360,7 @@ function sequenceFunctionRows(): ParityRow[] {
         {
             id: 'function-sequence-nth',
             sourceCategory: 'function/sequence',
-            query: 'seq:nth((1, 2, 3), 2)',
+            query: 'seq:nth((1, 2, 3), 1)',
             bindings: {},
             expectedItems: [integer(2)],
             expectedDiagnosticCodes: [],
@@ -434,6 +434,30 @@ function sequenceFunctionRows(): ParityRow[] {
 
 function stringFunctionRows(): ParityRow[] {
     return [
+        {
+            id: 'string-chain-pokemon-id',
+            sourceCategory: 'function/string-chain',
+            query: '"https://pokeapi.co/api/v2/pokemon/1/".split("/").nth(6)',
+            bindings: {},
+            expectedItems: [string('1')],
+            expectedDiagnosticCodes: [],
+        },
+        {
+            id: 'string-chain-empty-separator',
+            sourceCategory: 'function/string-chain',
+            query: '"🍒".split("")',
+            bindings: {},
+            expectedItems: [string(''), string('🍒'), string('')],
+            expectedDiagnosticCodes: [],
+        },
+        {
+            id: 'string-chain-index-exceeds-wasm-usize',
+            sourceCategory: 'function/string-chain',
+            query: '"a/b".split("/").nth(4294967296)',
+            bindings: {},
+            expectedItems: [],
+            expectedDiagnosticCodes: [],
+        },
         {
             id: 'function-string-length',
             sourceCategory: 'function/string',

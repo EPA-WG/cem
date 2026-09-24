@@ -68,8 +68,8 @@ fn split_is_literal_preserves_empty_fields_and_emits_a_sequence() {
         (r#"str:split("aaa", "aa")"#, vec!["", "a"]),
         (r#"str:split("plain", ",")"#, vec!["plain"]),
         (r#"str:split("", ",")"#, vec![""]),
-        (r#"str:split("", "")"#, vec![]),
-        (r#"str:split("a🍒é", "")"#, vec!["a", "🍒", "e", "\u{301}"]),
+        (r#"str:split("", "")"#, vec!["", ""]),
+        (r#"str:split("a🍒é", "")"#, vec!["", "a", "🍒", "e", "\u{301}", ""]),
         (r#"str:split("🍒🍋🍒", "🍒")"#, vec!["", "🍋", ""]),
     ] {
         assert_eq!(eval(source), strings(&expected), "{source}");
@@ -191,4 +191,14 @@ fn xml_whitespace_profile_preserves_nonbreaking_space_without_changing_defaults(
     assert_eq!(eval("str:normalize_space(\"  A\t  B\n  \")"), strings(&["A B"]));
     let query = compile(r#"str:trim("a", "guess")"#, &CompileContext::default()).unwrap();
     assert!(evaluate(&query, &EvaluationContext::default()).error.is_some());
+}
+
+#[test]
+fn authored_url_split_chain_renders_natively() {
+    let page = include_str!("../../cem-elements/demo/functions/str.html");
+    let sample = page.split_once("legend=\"URL ID with a string chain\"").unwrap().1;
+    let template = sample.split_once("<template type=\"text/cem-ml\">").unwrap().1.split_once("</template>").unwrap().0;
+    let output = render_template(template, &TemplateData::default());
+    assert!(output.diagnostics.is_empty(), "{:?}", output.diagnostics);
+    assert!(output.rendered.contains("<output>1</output>"), "{}", output.rendered);
 }

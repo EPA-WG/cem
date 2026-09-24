@@ -63,8 +63,10 @@ describe('http-request demo source contracts', () => {
     });
 
     it('adapts every legacy use case into an independent local sample', () => {
-        expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
-        expect(samples).toHaveLength(3);
+        expect(samples.map(({ legend }) => legend)).toEqual([
+            ...SAMPLE_CONTRACTS.map(({ legend }) => legend), 'http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json',
+        ]);
+        expect(samples).toHaveLength(7);
         expect(DEMO_SOURCE).not.toContain('pokeapi.co');
     });
 

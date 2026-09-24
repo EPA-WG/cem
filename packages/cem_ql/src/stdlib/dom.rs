@@ -22,10 +22,10 @@ pub const FUNCTIONS: &[StdlibFunction] = &[
 /// The receiver-method contract shared by lowering/type checking and execution.
 pub(crate) fn chain_method_arity(name: &str) -> Option<(usize, usize)> {
     Some(match name {
-        "parent" | "children" | "child_nodes" | "ancestors" | "name" | "text" | "first"
-        | "last" | "reversed" | "count" | "is_empty" => (0, 0),
-        "closest" | "find" | "find_last" | "filter" | "map" | "flat_map" | "any" | "all"
-        | "take" | "skip" | "attribute" => (1, 1),
+        "parent" | "children" | "child_nodes" | "ancestors" | "name" | "text" | "next"
+        | "last" | "rev" | "count" | "is_empty" => (0, 0),
+        "closest" | "find" | "rfind" | "filter" | "map" | "flat_map" | "any" | "all"
+        | "take" | "skip" | "nth" | "split" | "attribute" => (1, 1),
         "sorted" => (0, 2),
         "sorted_by_key" => (1, 3),
         _ => return None,

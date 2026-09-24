@@ -130,7 +130,10 @@ pub(super) fn apply_builtin_step(
         "last" => last(input),
         "take" => take(input, ctx.eval_arg_streams(args).first()),
         "drop" => drop(input, ctx.eval_arg_streams(args).first()),
-        "nth" => nth(input, ctx.eval_arg_streams(args).first()),
+        "nth" => {
+            let values = ctx.eval_arg_streams(args);
+            nth(input, values.first(), ctx, args.first().copied().unwrap_or(IrId(0)))
+        },
         "target" => resolve_ref(input, ctx, args.first().copied().unwrap_or(IrId(0))),
         "where" => where_step(input, args.first().copied(), ctx),
         _ => record_field(input, &name.local).unwrap_or_else(|| {
@@ -243,10 +246,10 @@ pub(crate) fn apply_stdlib_call(
             drop(source, n.as_ref())
         }
         ("cem:stdlib/sequence", "nth") => {
-            let mut args = arg_streams.into_iter();
-            let source = args.next().unwrap_or_default();
-            let n = args.next();
-            nth(source, n.as_ref())
+            let mut values = arg_streams.into_iter();
+            let source = values.next().unwrap_or_default();
+            let n = values.next();
+            nth(source, n.as_ref(), ctx, args.first().copied().unwrap_or(IrId(0)))
         }
         ("cem:stdlib/sequence", "union") => binary_set_call(SetOp::Union, arg_streams, ctx, args),
         ("cem:stdlib/sequence", "intersect") => {
@@ -697,14 +700,19 @@ fn drop(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
     input
 }
 
-fn nth(mut input: ItemStream, n: Option<&ItemStream>) -> ItemStream {
-    let n = n.and_then(first_integer).unwrap_or(1).max(1) as usize;
-    input.items = input
-        .items
-        .into_iter()
-        .nth(n.saturating_sub(1))
-        .into_iter()
-        .collect();
+fn nth(mut input: ItemStream, n: Option<&ItemStream>, ctx: &mut EvalCtx<'_>, source: IrId) -> ItemStream {
+    if input.error.is_some() { return input; }
+    if let Some(error) = n.filter(|value| value.error.is_some()) { return error.clone(); }
+    let Some([item]) = n.map(|value| value.items.as_slice()) else {
+        return ctx.type_error(source, "nth index must be one nonnegative integer");
+    };
+    let Some(AtomValue::Integer(index)) = item.atom() else {
+        return ctx.type_error(source, "nth index must be one nonnegative integer");
+    };
+    if index < 0 { return ctx.type_error(source, "nth index must be one nonnegative integer"); }
+    input.items = usize::try_from(index).ok()
+        .and_then(|index| input.items.into_iter().nth(index))
+        .into_iter().collect();
     input
 }
 
@@ -1543,23 +1551,13 @@ fn item_number(item: &Item) -> Option<f64> {
     }
 }
 
-/// Literal splitting returns a sequence, retaining empty fields. An empty separator
-/// yields Unicode scalar values, never UTF-16 surrogate halves or boundary empties.
+/// Rust literal splitting, including boundary empties for an empty separator.
 fn string_split(streams: Vec<ItemStream>) -> ItemStream {
     let value = first_string(&streams);
     let separator = nth_string(&streams, 1);
-    let items = if separator.is_empty() {
-        value
-            .chars()
-            .map(|ch| Item::Atomic(AtomValue::String(ch.to_string())))
-            .collect()
-    } else {
-        value
-            .split(&separator)
-            .map(|part| Item::Atomic(AtomValue::String(part.to_owned())))
-            .collect()
-    };
-    ItemStream::from_items(items)
+    ItemStream::from_items(value.split(separator.as_str())
+        .map(|part| Item::Atomic(AtomValue::String(part.to_owned())))
+        .collect())
 }
 
 /// ECMAScript WhiteSpace + LineTerminator (including BOM, excluding U+0085).

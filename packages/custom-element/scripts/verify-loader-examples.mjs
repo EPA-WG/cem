@@ -12,6 +12,8 @@ export async function verifyLoaderExamples(browser, origin, packagePath) {
     try {
         await page.goto(`${origin}${packagePath}/demo/http-request.html`);
         await page.waitForFunction(() => document.querySelectorAll('.result-buttons button[aria-label]').length === 6);
+        await verifySourcePreviews(page, origin, packagePath,
+            ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json']);
         const sample = page.locator('.loader-example').first();
         await sample.getByRole('button', { name: 'GET', exact: true }).click();
         await page.waitForFunction(() => [...document.querySelector('.loader-example').querySelectorAll('li')].map(n => n.textContent.trim()).join('|') === 'alpha: ready|beta: loaded');
@@ -26,11 +28,27 @@ export async function verifyLoaderExamples(browser, origin, packagePath) {
         await page.goto(`${origin}${packagePath}/demo/npm-versions-demo.html`);
         await page.waitForFunction(() => document.querySelectorAll('select').length === 5
             && document.querySelector('select')?.value === '0.1.0');
+        await verifySourcePreviews(page, origin, packagePath, ['npm-versions.json']);
         assert.equal(await page.locator('select').nth(1).inputValue(), '0.0.22');
         await page.locator('select').nth(2).selectOption('0.0.25');
         await page.waitForFunction(() => document.querySelector('cem-npm-version-propagated')?.getAttribute('value') === '0.0.25');
         assert.deepEqual(errors, [], `${packagePath}: migrated loader examples`);
     } finally {
         await page.close();
+    }
+}
+
+async function verifySourcePreviews(page, origin, packagePath, files) {
+    for (const file of files) {
+        const card = page.locator(`cem-demo-element[src="./${file}"]`);
+        await page.waitForFunction(file => document.querySelector(`cem-demo-element[src="./${file}"]`)
+            ?.getAttribute('data-state') === 'ready', file);
+        const response = await page.request.get(`${origin}${packagePath}/demo/${file}`);
+        assert(response.ok(), `${file} is included in the package`);
+        assert.equal(await card.locator('[slot=text] code').textContent(), await response.text());
+        assert.equal(await card.locator('[slot=demo]').textContent(), '');
+        if (file !== 'http-data-invalid.json') {
+            assert(await card.locator('[slot=text] code i').count() > 0, `${file} has JSON highlighting`);
+        }
     }
 }

@@ -206,6 +206,13 @@
             these string inputs, including an empty string and Unicode emoji.
             Use a nonempty separator when joining labels or tokens. This native
             CEM-QL call needs no XPath library dependency.</p>
+        <h3>Extract a URL segment with a string chain</h3>
+        <p><code>url.split("/").nth(6)</code> selects the Pokémon ID from
+            <code>https://pokeapi.co/api/v2/pokemon/1/</code>. Both splitting and
+            zero-based selection follow Rust conventions. Out-of-range selection
+            is empty; use <code>?? "No ID"</code> for a fallback. Try the
+            <a href="./functions/str.html">interactive string-function samples</a>
+            or the <a href="./cell-overrides.html">JSON cell override</a>.</p>
         <h3 id="cem-ql-predicate">Choose presentation with a predicate</h3>
         <p><code>node == "cherry"</code> matches the library's string equality
             test. A CEMT rule consumes either boolean result; the lower-priority

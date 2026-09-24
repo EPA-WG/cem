@@ -7,6 +7,7 @@ import {
 import { highlightedSource } from './source-highlight.js';
 
 const STYLE_MARKER = 'data-cem-demo-element-styles';
+const CEM_RESOURCE_BASE_URL = Symbol.for('@epa-wg/cem-elements/resource-base-url');
 // Presentation-only metadata from cem-elements. Never strip it from live nodes.
 const RENDER_TRACKING_ATTRIBUTES = [
     'data-cem-render-node-id',
@@ -41,6 +42,7 @@ export class CemDemoElement extends HTMLElement {
     ];
 
     #initialized = false;
+    #demoSuppressed = false;
     #sourceValue: string | undefined;
     #sourceUrl: string | undefined;
     #detectedType: string | undefined;
@@ -143,6 +145,7 @@ export class CemDemoElement extends HTMLElement {
     }
 
     #initialize(): void {
+        this.#demoSuppressed = this.getAttribute('demo') === 'false';
         const sourceControl = this.querySelector('[slot="source"]')
             ?? this.querySelector('template');
         if (this.#sourceValue === undefined) {
@@ -162,7 +165,7 @@ export class CemDemoElement extends HTMLElement {
         for (const name of REGION_NAMES) this.#regions.set(name, this.#ensureRegion(name, sourceControl));
         this.#configureStatusRegion();
         const demo = this.#requiredRegion('demo');
-        if (sourceControl instanceof HTMLTemplateElement) {
+        if (!this.#demoSuppressed && sourceControl instanceof HTMLTemplateElement) {
             demo.replaceChildren(sourceControl.content.cloneNode(true));
         }
     }
@@ -178,7 +181,7 @@ export class CemDemoElement extends HTMLElement {
             this.append(region);
         }
         this.#configureStatusRegion();
-        this.#requiredRegion('demo').append(...authoredNodes);
+        if (!this.#demoSuppressed) this.#requiredRegion('demo').append(...authoredNodes);
     }
 
     #ensureRegion(name: RegionName, sourceControl: Element): HTMLElement {
@@ -206,12 +209,13 @@ export class CemDemoElement extends HTMLElement {
         this.#abortController = controller;
         this.#setState('loading');
         try {
-            const response = await fetch(url, { signal: controller.signal });
+            const resolvedUrl = new URL(url, sourceBaseUrl(this)).href;
+            const response = await fetch(resolvedUrl, { signal: controller.signal });
             if (!response.ok) throw new Error(`Could not load ${url}: HTTP ${response.status}`);
             const source = await response.text();
             if (generation !== this.#generation) return;
             this.#sourceValue = source;
-            this.#sourceUrl = response.url || new URL(url, this.ownerDocument.baseURI).href;
+            this.#sourceUrl = response.url || resolvedUrl;
             this.#detectedType = detectType(
                 response.headers.get('content-type'),
                 this.#sourceUrl
@@ -231,11 +235,14 @@ export class CemDemoElement extends HTMLElement {
         await this.#renderSource(source, type);
         if (generation !== this.#generation) return;
 
-        if (type !== 'cem-ml') {
+        const demoEnabled = this.getAttribute('demo') !== 'false';
+        const restoreDemo = this.#demoSuppressed;
+        this.#demoSuppressed = !demoEnabled;
+        if (!demoEnabled || type !== 'cem-ml') {
             this.#lastResult = undefined;
-            if (this.src !== null) {
+            if (!demoEnabled || this.src !== null || restoreDemo) {
                 const demo = this.#requiredRegion('demo');
-                if (type === 'html') {
+                if (demoEnabled && type === 'html') {
                     demo.replaceChildren(trustedHtmlFragment(
                         this.ownerDocument,
                         source,
@@ -395,6 +402,14 @@ function directSlottedChild(parent: Element, slot: RegionName): HTMLElement | un
     return Array.from(parent.children).find(
         (child): child is HTMLElement => child instanceof HTMLElement && child.slot === slot
     );
+}
+
+function sourceBaseUrl(element: Element): string {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        const base = (parent as Element & { [CEM_RESOURCE_BASE_URL]?: string })[CEM_RESOURCE_BASE_URL];
+        if (typeof base === 'string' && base) return base;
+    }
+    return element.ownerDocument.baseURI;
 }
 
 function detectType(contentType: string | null, url: string): string {

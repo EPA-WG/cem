@@ -705,11 +705,16 @@ impl TypeChecker {
                 range,
             );
         }
+        if name.local == "split"
+            && !matches!(item, Type::Any | Type::Empty | Type::Atom(AtomType::String))
+        {
+            self.emit(TYPE_ERROR, "split requires strings", range);
+        }
         let arg_types: Vec<_> = args.iter().map(|a| self.infer_expression(a)).collect();
         if matches!(
             name.local.as_str(),
             "find"
-                | "find_last"
+                | "rfind"
                 | "filter"
                 | "closest"
                 | "any"
@@ -723,7 +728,7 @@ impl TypeChecker {
                     Type::Lambda { params, ret } if params.len() == 1 => {
                         if matches!(
                             name.local.as_str(),
-                            "find" | "find_last" | "filter" | "closest" | "any" | "all"
+                            "find" | "rfind" | "filter" | "closest" | "any" | "all"
                         ) && !matches!(ret.as_ref(), Type::Any | Type::Atom(AtomType::Boolean))
                         {
                             self.emit(TYPE_ERROR, "chain predicate must return a boolean", range);
@@ -734,7 +739,15 @@ impl TypeChecker {
                 }
             }
         }
+        if let Some(arg) = arg_types.first() {
+            if name.local == "split" {
+                self.expect_subtype(arg, &Type::atom(AtomType::String), range);
+            } else if matches!(name.local.as_str(), "nth" | "take" | "skip") {
+                self.expect_subtype(arg, &Type::atom(AtomType::Integer), range);
+            }
+        }
         match name.local.as_str() {
+            "split" => Type::Chain(Box::new(Type::atom(AtomType::String))),
             "any" | "all" | "is_empty" => boolean_type(),
             "count" => Type::atom(AtomType::Integer),
             "name" | "text" if !matches!(receiver, Type::Chain(_)) => Type::atom(AtomType::String),

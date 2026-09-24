@@ -1,0 +1,8 @@
+<catalog>
+  <product><name>Cherry</name><stock>0</stock></product>
+  <product><name>Lemon</name><stock>5</stock></product>
+  <product><name>Apple</name><stock>12</stock></product>
+  <product><name>Pear</name><stock>3</stock></product>
+  <product><name>Plum</name><stock>8</stock></product>
+  <reference><stock>0</stock></reference>
+</catalog>

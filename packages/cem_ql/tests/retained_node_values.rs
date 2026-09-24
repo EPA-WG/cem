@@ -1012,7 +1012,7 @@ fn native_axes_reject_invalid_nodes_and_selectors_even_on_empty_input() {
 
 #[test]
 fn chains_stop_native_enumeration_after_a_decisive_result() {
-    for suffix in ["find(|n| true)", "first()", "take(1)", "take(0)", "any(|n| true)", "all(|n| false)", "is_empty()"] {
+    for suffix in ["find(|n| true)", "next()", "nth(0)", "take(1)", "take(0)", "any(|n| true)", "all(|n| false)", "is_empty()"] {
         let query = format!("dom::chain(node).children().{suffix}");
         let result = host_result(&query, Behavior::DenyAfterFirst, 7, ScopePolicy::host_root(), &OperationControl::default());
         assert!(result.error.is_none(), "{query}: {result:?}");
@@ -1078,7 +1078,7 @@ fn chain_flat_map_materializes_members_for_portable_transport() {
     let decoded = decode_values(&encode_values(&result, &limits).unwrap(), &limits).unwrap();
     let mut context = EvaluationContext::default();
     context.policy_bindings.insert("values".into(), decoded);
-    let resumed = run("dom::chain(values).reversed()", &context);
+    let resumed = run("dom::chain(values).rev()", &context);
     assert_eq!(resumed.items.iter().map(Item::atom).collect::<Vec<_>>(),
         ["b", "b", "a", "a"].map(|s| Some(AtomValue::String(s.into()))));
 }

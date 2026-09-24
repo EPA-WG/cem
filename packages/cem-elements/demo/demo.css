@@ -34,7 +34,8 @@ cem-demo-element h3
 body > * { min-width: 0; }
 body > nav, body > main { flex-basis: 100%; min-width: 0; }
 main > section { flex-basis: 100%; min-width: 0; }
-main > cem-demo-element { flex: 1 1 32rem; min-width: 0; max-width: 100%; }
+main > cem-demo-element,
+main > cem-element:has(cem-demo-element) { flex: 1 1 32rem; min-width: 0; max-width: 100%; }
 cem-demo-element [slot="demo"] > * { min-width: 0; max-width: 100%; }
 cem-demo-element input, cem-demo-element textarea, cem-demo-element select {
     box-sizing: border-box;

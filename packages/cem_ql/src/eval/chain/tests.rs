@@ -23,6 +23,77 @@ fn texts(query: &str) -> Vec<String> {
 }
 
 #[test]
+fn rust_string_split_and_zero_based_selection() {
+    for value in ["", "abc", "a🍒é", "/a//b/"] {
+        for separator in ["", "/", "a"] {
+            let expression = format!("{value:?}.split({separator:?})");
+            let expected: Vec<_> = value.split(separator).collect();
+            assert_eq!(texts(&expression), expected);
+            for index in [0, 1, 6, 50, 4_294_967_296, i64::MAX as usize] {
+                assert_eq!(
+                    texts(&format!("{expression}.nth({index})")),
+                    value
+                        .split(separator)
+                        .nth(index)
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+    assert_eq!(
+        texts(r#""https://pokeapi.co/api/v2/pokemon/1/".split("/").nth(6)"#),
+        ["1"]
+    );
+    assert_eq!(texts(r#""a/b".split("/").skip(1).next()"#), ["b"]);
+    assert_eq!(texts(r#"seq:nth(("a", "b"), 0)"#), ["a"]);
+    assert_eq!(texts(r#"("a", "b").nth(1)"#), ["b"]);
+    assert!(texts(r#"dom::chain(()).split("/").nth(6)"#).is_empty());
+    assert_eq!(
+        texts(
+            r#"dom::chain(data:read("<url>a/b</url>", "xml").root.children).text().split("/").nth(1)"#
+        ),
+        ["b"]
+    );
+}
+
+#[test]
+fn rust_reverse_search_short_circuits_from_the_back() {
+    assert_eq!(texts(r#"dom::chain(("a", "b", "c")).rev().next()"#), ["c"]);
+    assert_eq!(
+        texts(
+            r#"dom::chain(("a", "b", "c")).rfind(|v| if v == "c" { true } else { report:raise("unreachable", "wrong direction") })"#
+        ),
+        ["c"]
+    );
+    assert_eq!(
+        texts(r#"dom::chain(("a", "b", "c")).rfind(|v| v != "c")"#),
+        ["b"]
+    );
+}
+
+#[test]
+fn invalid_split_and_indices_fail_even_on_empty_input() {
+    for query in [
+        "dom::chain(()).nth(-1)",
+        "seq:nth((), -1)",
+        "dom::chain(()).nth(1.5)",
+        "dom::chain(()).nth(())",
+        "dom::chain(()).split(1)",
+        "dom::chain(()).split(())",
+        "dom::chain(null).split(\"/\")",
+        "dom::chain(42).split(\"/\")",
+        "dom::chain(()).nth()",
+    ] {
+        if let Ok(compiled) = compile(query, &CompileContext::default()) {
+            let result = evaluate(&compiled, &EvaluationContext::default());
+            assert!(result.error.is_some(), "{query}");
+            assert!(result.items.is_empty(), "{query}");
+        }
+    }
+}
+
+#[test]
 fn native_sibling_chain_and_empty_propagation() {
     assert_eq!(
         texts(
@@ -46,7 +117,7 @@ fn collection_selection_and_terminals() {
         ["a", "b"]
     );
     assert_eq!(
-        texts(r#"dom::chain(("a", "b", "c")).find_last(|v| v != "c")"#),
+        texts(r#"dom::chain(("a", "b", "c")).rfind(|v| v != "c")"#),
         ["b"]
     );
     assert_eq!(
@@ -109,16 +180,14 @@ fn navigation_namespaces_and_closest_per_input() {
 #[test]
 fn functional_chains_and_scalar_terminals() {
     assert_eq!(
-        texts(
-            r#"let suffix = "!"; dom::chain(("a", "b", "c")).skip(1).map(|v| v + suffix).reversed()"#
-        ),
+        texts(r#"let suffix = "!"; dom::chain(("a", "b", "c")).skip(1).map(|v| v + suffix).rev()"#),
         ["c!", "b!"]
     );
     assert_eq!(
         texts(r#"dom::chain(("a", "b")).flat_map(|v| (v, v)).skip(1).take(2)"#),
         ["a", "b"]
     );
-    assert_eq!(texts(r#"dom::chain(("a", "b")).first()"#), ["a"]);
+    assert_eq!(texts(r#"dom::chain(("a", "b")).next()"#), ["a"]);
     assert_eq!(texts(r#"dom::chain(("a", "b")).last()"#), ["b"]);
     assert_eq!(
         run("dom::chain(()).is_empty()").items[0].atom(),
@@ -214,7 +283,7 @@ fn syntax_and_static_errors_are_explicit() {
 
 #[test]
 fn callback_errors_never_return_partial_results() {
-    for method in ["filter", "find_last", "sorted_by_key", "map"] {
+    for method in ["filter", "rfind", "sorted_by_key", "map"] {
         let query = format!(
             r#"dom::chain((1, 2)).{method}(|v| if v == 1 {{ true }} else {{ report:raise("test.failed", "failed") }})"#
         );

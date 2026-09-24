@@ -51,7 +51,8 @@ They complement the existing case conversion, substring, containment,
 replacement, and joining functions. `trim`/`trim_start`/`trim_end` and
 `normalize_space` accept an optional `"xml"` profile for XML whitespace only
 (space, tab, CR and LF); omitted or `"default"` preserves the existing behavior. Indices use Unicode codepoints; split
-returns a sequence and preserves empty fields. For example, a whitespace word
+returns a sequence and preserves empty fields, including boundary empties
+when the separator is empty, following Rust `str::split`. For example, a whitespace word
 count that retains repeated words and treats blank input as zero is:
 
 ```cem-ql
@@ -393,6 +394,13 @@ closures, immutable sorting, resource limits and transport behavior. Try the
 [DOM functions samples](../cem-elements/demo/functions/dom.html), with their
 own **CEM Elements/CEM-QL DOM Functions** Storybook group.
 
+String values also support Rust-style `.split("/").nth(6)` for the seventh
+segment of a URL. `nth` is zero-based in both chains and `seq:nth`; invalid
+indices are errors and out-of-range selection is empty. The chain selection
+names are `next`, `nth`, `rev` and `rfind`. These immutable query chains retain
+CEM's optional-result representation rather than exposing Rust `Option` values.
+Try the [interactive URL example](../cem-elements/demo/functions/str.html).
+
 ### Collections and presentation dispatch
 
 Two reusable Tier B collection operations preserve original items and native
@@ -438,7 +446,9 @@ API. An [imported extension](../cem-elements/demo/data-table-aspects.cemt)
 changes notes to a tree and an IP-filter record to a local preview form.
 The [cell override lessons](../cem-elements/demo/cell-overrides.html) import
 the viewer: its `cell` mode selects the original source node, and an inline
-name match finds a sibling ID to render Pokémon images beside their names.
+name match extracts an ID from the sibling URL with `.text().split("/").nth(6)`
+to render Pokémon images beside their names. Pokémon JSON and stock XML are
+local files with separate source previews.
 A separate `inspect` predicate replaces zero stock with a warning. Unmatched
 cells retain the imported presentation; source values and sort keys stay intact.
 Two independent XSLT cases use the same native import and rendering lifecycle

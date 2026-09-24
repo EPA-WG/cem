@@ -402,6 +402,8 @@ function inventory that makes those obligations executable.
   named set helpers are aliases for the Rust-spelled infix operators `|`,
   `&`, `-`, and `^`; the operators remain canonical in authored examples.
   `any` and `all` are the canonical quantified-predicate helpers.
+- `seq:nth(values, index)` and chain `.nth(index)` use zero-based Rust
+  indexing. Indices must be nonnegative integers; out-of-range is empty.
 - **Tier A string helpers:** `str:length`, `str:codepoints`, `str:lower`,
   `str:upper`, `str:slice`, `str:concat`, `str:contains`,
   `str:shorten`,
@@ -414,8 +416,9 @@ function inventory that makes those obligations executable.
   the stream-joining helper, including joins with a separator.
   `str:split(value, separator)` is literal, not regex-based, and returns an
   ordered string sequence with empty fields preserved. An empty separator
-  emits Unicode codepoints (no boundary empty fields); an empty input split
-  by a nonempty separator emits one empty string. String indices count
+  emits Unicode codepoints with boundary empty fields, following Rust
+  `str::split`; splitting an empty string on `""` yields two empty strings.
+  An empty input split by a nonempty separator emits one empty string. String indices count
   Unicode codepoints, not JavaScript UTF-16 code units. `char_at(value, index)`
   returns `""` for an out-of-range or negative index; `at(value, index)` counts
   negative indices from the end and returns the empty sequence out of range.

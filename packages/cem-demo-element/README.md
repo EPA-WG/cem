@@ -60,6 +60,14 @@ needs semantic formatting or live rendering. See [`demo/index.html`](./demo/inde
   and URL extension.
 - `type="cem-ml"` renders the source to live HTML through WASM. Invalid input
   is not injected and its structured diagnostics appear in the `status` region.
+- `demo="false"` shows highlighted source only. It skips live HTML insertion,
+  template cloning and CEM-ML rendering. Use it with `type="json"`, `type="xml"`
+  or `type="cem-ml"` to preview data and template files. Removing the attribute
+  restores the live demo.
+- A relative `src` resolves from the nearest CEM declaration host's resource
+  base, or the document base when standalone. The shared host contract is the
+  readonly `Symbol.for('@epa-wg/cem-elements/resource-base-url')` property;
+  previews need no wrapper or URL slice when a demo page is source-loaded.
 
 > **Language support:** The set of languages available for source formatting
 > comes from the CEM-ML formatters; `cem-demo-element` does not define a

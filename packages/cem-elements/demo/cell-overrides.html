@@ -21,56 +21,50 @@
 <main>
     <section>
         <h2>Import the viewer, replace one presentation</h2>
-        <p>The first two examples own small templates that import the existing
+        <p>The first two examples import the existing
             <a href="./data-table-view.cemt">data viewer</a>, declare one
-            <code>template @match</code> rule, and call <code>base.viewer</code>.
-            The viewer dispatches a cell's retained source node through
-            <code>apply-templates @mode=cell</code>. Its <code>@match=true</code> rule produces the
-            default <code>td</code>; a matching local rule can replace the whole cell.</p>
-        <p>The first sample includes its entire template inline. Its rule is
-            simply <code>node.name == "name"</code> in <code>cell</code> mode:
-            <code>node</code> is the original <code>&lt;name&gt;</code> element.
-            Matching supplies <code>node</code> automatically; it needs no
-            parameter declaration. The source is an implicit module: imports and
-            matching rules are declarations; other content runs in source order.
-            Neither <code>module</code> nor <code>body</code> wrappers are needed.
-            A rule selected only by matching needs no <code>@name</code>.
-            The replacement cell contains an image plus the original name.
-            <code>{$node}</code> reuses the name subtree in the label.
-            The image attribute projects that same native value to text.
-            Use <code>{$dom:text(node)}</code> when only text is wanted.
-            <a href="./functions/dom.html"><code>dom::chain(node).parent()</code></a> finds its row; searching that parent's
-            children finds the sibling <code>&lt;id&gt;</code> for the image.
-            No heading, row or ID is passed to the matching template.
-            Other fields keep the imported presentation.</p>
+            <code>template @match</code> rule, and call <code>base.inspect</code>
+            with a loaded document. The viewer dispatches a cell's retained source
+            node through <code>apply-templates @mode=cell</code>. Its default rule
+            produces a <code>td</code>; a matching local rule replaces the whole cell.</p>
+        <p>The first sample loads a local copy of the
+            <a href="https://pokeapi.co/">PokéAPI</a> Pokémon list as JSON.
+            CEM-ML imports it into a retained CEM tree: each object's field is a
+            <code>property</code> node with a <code>name</code> attribute.
+            The inline rule matches a value whose parent property is named
+            <code>name</code>. Matching supplies <code>node</code> automatically.
+            The replacement cell contains an image plus the original name;
+            <code>{$node}</code> reuses its native value in the label and image alternative text.</p>
+        <p><a href="./functions/dom.html"><code>dom::chain(node)</code></a>
+            navigates through the property to its object, then finds the sibling
+            <code>url</code> property. <code>.text().split("/").nth(6)</code>
+            extracts the ID from that URL. Like Rust, <code>nth</code> is zero-based:
+            index 6 selects the seventh segment. Missing, null or short URLs leave
+            the name visible without an image. URL cells keep the imported view.</p>
+        <p>The inline source is an implicit module: imports and matching rules
+            are declarations; other content runs in source order. Neither
+            <code>module</code> nor <code>body</code> wrappers are needed, and a rule
+            selected only by matching needs no <code>@name</code>.</p>
         <p>The separate <a href="./stock-cell.cemt">stock rule</a> demonstrates
             a content override in <code>inspect</code> mode, keeping the default
-            cell. It uses a narrower condition: <code>/catalog/product/stock</code> with
-            trimmed text <code>0</code>. Its CEM-QL predicate checks namespaces
-            and <code>data:node_key</code> membership in that source path, so a
-            reference branch's stock stays ordinary.</p>
-        <p>Editing, table discovery, columns, sorting and row selection all come
-            from the base viewer. The first sample replaces cell generation;
-            the second replaces matching content within a cell.
-            CEM-ML imports the source into a retained CEM tree; presentation
-            leaves that source intact. Edit the source, then Tab out to rerender.</p>
-        <p>Single-node cells use <code>cell</code> mode. Missing values,
-            repeated values sharing a column, attributes and direct row text
-            keep the base viewer's grouped cell generation. Missing values show
-            <code>∅</code>, and empty text shows <code>""</code>.
-            The default cell rule delegates its source node to <code>inspect</code> mode.</p>
-        <p>The sibling lookup selects the first sibling named <code>id</code>
-            in source order, comparing only its local name. The empty-name
-            fallback skips nameless nodes such as whitespace.
-            If no ID is present, the name still renders without an image.
-            This example uses a complete retained tree; it does not consume an
-            unfinished document stream. The existing import and query limits apply.</p>
-        <p>The Pokémon sample supplies an ID beside each name and uses the two
-            bundled images, IDs 2 and 3. These local SVGs come from the same pinned sprite
-            package used by the HTTP demo; see the
-            <a href="./pokemon/README.md">image sources and attribution</a>.
-            <code>cem-module-url</code> resolves their directory relative to the
-            declaration, including when this page is source-loaded.</p>
+            cell. It matches <code>/catalog/product/stock</code> with trimmed text
+            <code>0</code>. Namespace checks and a direct <code>parent()</code> chain
+            keep a reference branch's stock ordinary. Five products show the
+            warning alongside the default presentation for available stock.</p>
+        <p>Table discovery, columns, sorting and row selection come from the base
+            viewer. Both files, <a href="#pokemon-cells.json">pokemon-cells.json</a>
+            and <a href="#stock-cells.xml">stock-cells.xml</a>, have separate preview
+            cards below. Presentation leaves their retained source trees intact.
+            Missing values show <code>∅</code>; repeated values, attributes and
+            direct row text keep the base viewer's grouped cells.</p>
+        <p><code>imgUrlRoot</code> points to the Dream World SVG directory in
+            <a href="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg">pokeapi-sprites@2.0.2</a>.
+            Appending the Pokémon ID and <code>.svg</code> gives each image URL.
+            Images load from unpkg; the data files remain local. Pokémon imagery
+            belongs to The Pokémon Company; see the
+            <a href="https://unpkg.com/pokeapi-sprites@2.0.2/LICENCE.txt">upstream licence</a>.
+            These examples consume complete retained trees, subject to the existing
+            import and query limits.</p>
         <h3>See also</h3>
         <p><a href="./data-table.html">Data tables and imported presentation aspects</a> ·
             <a href="./http-request.html">HTTP data and Pokémon images</a> ·
@@ -78,11 +72,11 @@
     </section>
 
     <cem-demo-element legend="1. Name cells become Pokémon pictures"
-        description="An inline template matches name and renders an image plus the name. Sort by name; type cells keep the imported view">
+        description="A local PokéAPI (pokeapi.co) JSON snapshot supplies ten Pokémon. Name cells show Dream World pictures from unpkg; URL cells keep the imported view. Sort by name">
         <template>
 <cem-element tag="cem-pokemon-cells">
     <template type="text/cem-ml">
-{attribute @name=format | xml}
+{attribute @name=format | json}
 {style |```
     .pokemon-name
     {   display: inline-flex; align-items: center;
@@ -93,54 +87,60 @@
     }   }
 ```}
 {import @as=base @src="./data-table-view.cemt"}
-{template @mode=cell @match='node.name == "name"' |
+{cem:variable @name=imgUrlRoot
+    @select='"https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/"'}
+{template @mode=cell
+    @match='dom::chain(node).parent().attribute("name").text() == "name"' |
     {cem:variable @name=id @select='
-        dom::chain(node).parent().children()
-            .find(|sibling| sibling.name() == "id").text()'}
+        dom::chain(node).parent().parent().children()
+            .find(|field| field.attribute("name").text() == "url")
+            .text().split("/").nth(6)'}
     {td | {span @class=pokemon-name |
-        {cem:if @test='(datadom.slices.images ?? false)
-            && (id ?? "") != ""' |
-            {img @src="{$datadom.slices.images}{$id}.svg"
+        {cem:if @test='imgUrlRoot && id' |
+            {img @src="{$imgUrlRoot}{$id}.svg"
                 @alt="{$node}" @width=32 @height=32}}
         {$node}}}}
-{cem-module-url @slice=images @src="./pokemon/"}
-{call @from=base @template=viewer}
+{http-request @slice=catalog @url="./pokemon-cells.json"}
+{cem:variable @name=state @select='datadom.slices.catalog.state ?? "loading"'}
+{cem:choose |
+    {cem:when @test='state == "loaded"' |
+        {call @from=base @template=inspect
+            @with:root='{datadom.slices.catalog.data}'}}
+    {cem:when @test='state == "failed"' |
+        {p @role=alert | Could not load the Pokémon file.}}
+    {cem:otherwise | {p @role=status | Loading Pokémon…}}}
     </template>
 </cem-element>
-<cem-pokemon-cells format="xml">
-&lt;catalog&gt;
-  &lt;pokemon&gt;
-    &lt;id&gt;3&lt;/id&gt;
-    &lt;name&gt;venusaur&lt;/name&gt;
-    &lt;type&gt;grass&lt;/type&gt;
-  &lt;/pokemon&gt;
-  &lt;pokemon&gt;
-    &lt;id&gt;2&lt;/id&gt;
-    &lt;name&gt;ivysaur&lt;/name&gt;
-    &lt;type&gt;grass&lt;/type&gt;
-  &lt;/pokemon&gt;
-&lt;/catalog&gt;
-</cem-pokemon-cells>
+<cem-pokemon-cells></cem-pokemon-cells>
         </template>
     </cem-demo-element>
+    <cem-demo-element id="pokemon-cells.json"
+        src="./pokemon-cells.json"
+        type=json
+        demo=false
+        legend="pokemon-cells.json"
+        description="The supplied PokéAPI JSON response: each result contains a name and a URL with its Pokémon ID"></cem-demo-element>
     <cem-demo-element legend="2. Zero-stock cells get a warning"
-        description="Only product stock of 0 becomes a warning. Change it to 7 and Tab out to restore the base view; reference stock stays ordinary">
+        description="Five products load from a local XML file. Only product stock of 0 becomes a warning; reference stock stays ordinary">
         <template>
 <cem-element tag="cem-stock-cells"
     src="./stock-cell.cemt"></cem-element>
-<cem-stock-cells format="xml">
-&lt;catalog&gt;
-  &lt;product&gt;
-    &lt;name&gt;Cherry&lt;/name&gt;&lt;stock&gt;0&lt;/stock&gt;
-  &lt;/product&gt;
-  &lt;product&gt;
-    &lt;name&gt;Lemon&lt;/name&gt;&lt;stock&gt;5&lt;/stock&gt;
-  &lt;/product&gt;
-  &lt;reference&gt;&lt;stock&gt;0&lt;/stock&gt;&lt;/reference&gt;
-&lt;/catalog&gt;
-</cem-stock-cells>
+<cem-stock-cells></cem-stock-cells>
         </template>
     </cem-demo-element>
+    <cem-demo-element id="stock-cells.xml"
+        src="./stock-cells.xml"
+        type=xml
+        demo=false
+        legend="stock-cells.xml"
+        description="Five product rows and a reference branch: only a product's zero stock receives the warning"></cem-demo-element>
+
+    <cem-demo-element id="stock-cell.cemt"
+        src="./stock-cell.cemt"
+        type=cem-ml
+        demo=false
+        legend="stock-cell.cemt"
+        description="The stock template imports the data viewer and replaces a product's zero stock with a warning"></cem-demo-element>
     <p>The child below uses <code>cemt:apply_templates(label, "label")</code>
         to select its label rule from an expression. The function returns native
         content, so the result can feed another query or attribute without a

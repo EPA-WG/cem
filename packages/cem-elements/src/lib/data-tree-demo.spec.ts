@@ -14,6 +14,7 @@ describe('retained document tree demo', () => {
             '2. JSON through the same CEM tree',
             '3. Malformed source and repair',
             '4. Load and release a local document',
+            'tree-source.xml', 'tree-source.json',
         ]);
         expect(source.match(/<template>\n<cem-/gu)).toHaveLength(4);
         expect(source).toContain('src="./data-tree-view.cemt"');

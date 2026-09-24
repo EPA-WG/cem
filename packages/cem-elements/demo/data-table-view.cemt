@@ -24,7 +24,11 @@
 ```}
 {module |
     {template @name=viewer @visibility=public |
+        {call @template=inspect @with:root='{()}'}}
+    {template @name=inspect @visibility=public |
+        {param @name=root}
         {body |
+            {cem:variable @name=external @select='seq:count(root) > 0'}
             {cem:variable @name=initial @select='str:trim(str:concat(datadom.payload.nodes.text, ""))'}
             {cem:variable @name=source @select='datadom.slices.source ?? initial'}
             {cem:variable @name=column @select='datadom.slices.column ?? ""'}
@@ -33,7 +37,8 @@
             {cem:variable @name=inspection @select='(datadom.attributes.inspector ?? "false") == "true"'}
             {cem:variable @name=sourceRevision @select='"edit-" + num:string(datadom.eventPayloads.source.revision ?? 0)'}
             {cem:variable @name=selected @select='datadom.slices.selected ?? ""'}
-            {cem-data @name=document @select=source @type="{$format}"}
+            {cem:variable @name=document @select='if external { {root: root, error: ""} }
+                else { data:read(source, format) }'}
             {cem:variable @name=columns @select='
                 seq:union(for entry in seq:where(document.root.descendants, fn(entry) => entry.kind == "element") {
                     if entry.namespace == "cem:generic-data" {
@@ -48,13 +53,15 @@
                     }
                 }, ())'}
             {article @class=demo-card |
+                {cem:if @test='!external' |
                 {label | Source ({$str:upper(format)})
                     {textarea @aria-label="Source" @spellcheck=false
                         @slice=source @slice-event=change @slice-value="$target.value" | {$source}}}
-                {p | Edit, then Tab out to inspect.}
+                {p | Edit, then Tab out to inspect.}}
                 {div @class=toolbar |
+                    {cem:if @test='!external' |
                     {button @type=button @aria-label="Reset source" @title="Reset source"
-                        @slice=source @slice-event=click @value="{$initial}" | ↺}
+                        @slice=source @slice-event=click @value="{$initial}" | ↺}}
                     {cem:if @test='!inspection' |
                     {label | Sort column
                         {select @aria-label="Sort column" @slice=column @slice-event=change @value="{$column}" |

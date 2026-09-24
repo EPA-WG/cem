@@ -18,6 +18,7 @@ const legends = [
     "Filter",
     "First value",
     "Last value",
+    "Zero-based selection",
     "Take a prefix",
     "Skip a prefix",
     "Map values",
@@ -45,8 +46,8 @@ describe('CEM-QL DOM functions authored samples', () => {
     });
     it('covers all chain methods and keeps native import explicit', () => {
         for (const name of ['parent', 'children', 'child_nodes', 'ancestors', 'closest', 'name', 'text',
-            'attribute', 'find', 'find_last', 'filter', 'first', 'last', 'take', 'skip', 'map', 'flat_map',
-            'any', 'all', 'is_empty', 'count', 'sorted', 'sorted_by_key', 'reversed']) {
+            'attribute', 'find', 'rfind', 'filter', 'next', 'last', 'nth', 'take', 'skip', 'map', 'flat_map',
+            'any', 'all', 'is_empty', 'count', 'sorted', 'sorted_by_key', 'rev']) {
             expect(source).toContain(`.${name}(`);
         }
         expect(source).toContain('dom::chain(');

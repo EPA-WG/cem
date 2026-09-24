@@ -997,6 +997,8 @@ type RenderedResourceResult = {
 };
 
 const DEFAULT_DECLARATION_TAG = 'cem-element';
+/** Optional resource context for nested custom elements, without a package dependency. */
+export const CEM_RESOURCE_BASE_URL = Symbol.for('@epa-wg/cem-elements/resource-base-url');
 const CEM_BROWSER_REGISTRATION_MARKER = Symbol.for('@epa-wg/cem-elements/browser-registration-v1');
 const DEFAULT_SCOPE_POLICY_STAMP = 'phase-3a-local-default';
 const DEFAULT_PRIVACY_POLICY_STAMP = 'local-only';
@@ -2386,6 +2388,10 @@ export class CemElementRuntime {
         class ProducedCemElement extends baseElement {
             static formAssociated = compiled.behavior?.formAssociated ?? false;
 
+            get [CEM_RESOURCE_BASE_URL](): string {
+                return compiled.resourceBaseUrl;
+            }
+
             constructor() {
                 super();
                 const registeredConstructor = this.ownerDocument.defaultView?.customElements.get(compiled.producedTag);
@@ -2610,8 +2616,8 @@ export class CemElementRuntime {
         }
 
         if (compiled.wasmEligible && (compiled.cemMlSource !== null || compiled.legacySource !== null)) {
-            // URI/resource-bearing canonical CEM-ML stays on the established path until
-            // its streaming protocol is wired; legacy HTML+XSLT is lowered on first render.
+            // Storage/location resources stay on the established path until their
+            // processing protocol is wired; legacy HTML+XSLT is lowered on first render.
             // Both still use the authoritative `cem_ql` WASM boundary.
             this.renderSettled.set(
                 instance,
@@ -2761,7 +2767,7 @@ export class CemElementRuntime {
         return (
             compiled.mode === 'xslt' || (compiled.mode === 'cem-ml' &&
             compiled.cemMlSource !== null &&
-            !containsNonHttpRuntimeResourceDirective(compiled.cemMlSource))
+            !containsLegacyRuntimeResourceDirective(compiled.cemMlSource))
         );
     }
 
@@ -8396,8 +8402,8 @@ function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
     return plan.nodes.some(visit);
 }
 
-function containsNonHttpRuntimeResourceDirective(source: string): boolean {
-    return /\{\s*(?:cem-module-url|module-url|local-storage|location-element)(?=\s|@|\||\})/.test(source);
+function containsLegacyRuntimeResourceDirective(source: string): boolean {
+    return /\{\s*(?:local-storage|location-element)(?=\s|@|\||\})/.test(source);
 }
 
 function containsModuleMapPrelude(source: string): boolean {

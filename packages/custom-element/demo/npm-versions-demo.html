@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>cem-element npm versions demo</title>
     <link rel="stylesheet" href="./cem-loader-demo.css">
+    <script type="importmap">
+        {"imports": {"@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js"}}
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '../../cem-elements/dist/index.js';
         installCemElementRuntime(window);
@@ -219,6 +222,13 @@
     </template>
 </cem-element>
 </section>
+    <cem-demo-element id="npm-versions.json"
+        src="./npm-versions.json"
+        type=json
+        demo=false
+        legend="npm-versions.json"
+        description="Shared package-version and publication-date records used by all five pickers"></cem-demo-element>
 </main>
+<script type="module" src="../../cem-demo-element/dist/index.js"></script>
 </body>
 </html>

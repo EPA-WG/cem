@@ -38,8 +38,8 @@
         "vendor"
     ],
     "archive": {
-        "fileCount": 167,
-        "pathDigestSha256": "798516a0388b7fb7e3774c124028736568bd79327389c2c69289c1012b268829",
+        "fileCount": 189,
+        "pathDigestSha256": "2a5a3b7370fe96c1d1026fbf3decf0259e88623b4c1a7a80d91e87e2dbff19a4",
         "requiredFiles": [
             "LICENSE",
             "README.md",
@@ -54,6 +54,12 @@
             "module-url.js",
             "package.json",
             "vendor/@epa-wg/cem-elements/dist/index.js",
+            "vendor/@epa-wg/cem-demo-element/dist/index.js",
+            "vendor/@epa-wg/cem-demo-element/dist/cem-demo-element.js",
+            "vendor/@epa-wg/cem-demo-element/dist/cem-ml-runtime.js",
+            "vendor/@epa-wg/cem-demo-element/dist/source-highlight.js",
+            "vendor/@epa-wg/cem-ml/wasm/cem_ml.js",
+            "vendor/@epa-wg/cem-ml/wasm/cem_ml_bg.wasm",
             "vendor/@epa-wg/cem-elements/dist/lib/cem-elements.js",
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/cem-ql-render.js",
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/processing-worker.js",

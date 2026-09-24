@@ -15,6 +15,7 @@ pub(super) fn method(
     ctx: &mut EvalCtx<'_>,
 ) -> ItemStream {
     if input.chain
+        || arity(&name.local).is_some()
         || input.items.iter().any(|item| {
             item.view()
                 .is_some_and(|v| v.kind() == QueryItemViewKind::Node)
@@ -65,7 +66,7 @@ impl Stage {
     }
     fn limit(&self) -> usize {
         match self.args[0].items[0].atom() {
-            Some(AtomValue::Integer(n)) => n as usize,
+            Some(AtomValue::Integer(n)) => usize::try_from(n).unwrap_or(usize::MAX),
             _ => unreachable!("validated count"),
         }
     }
@@ -87,7 +88,7 @@ fn prepare(name: &QName, ids: &[IrId], ctx: &mut EvalCtx<'_>) -> Result<Stage, I
         name.local.as_str(),
         "closest"
             | "find"
-            | "find_last"
+            | "rfind"
             | "filter"
             | "map"
             | "flat_map"
@@ -102,10 +103,15 @@ fn prepare(name: &QName, ids: &[IrId], ctx: &mut EvalCtx<'_>) -> Result<Stage, I
             _ => return Err(ctx.type_error(source, "chain callback must accept one argument")),
         }
     }
-    if matches!(name.local.as_str(), "take" | "skip")
+    if matches!(name.local.as_str(), "take" | "skip" | "nth")
         && !matches!(args[0].items.as_slice(), [item] if matches!(item.atom(), Some(AtomValue::Integer(n)) if n >= 0))
     {
         return Err(ctx.type_error(source, "chain count must be one nonnegative integer"));
+    }
+    if name.local == "split"
+        && !matches!(args[0].items.as_slice(), [item] if matches!(item.atom(), Some(AtomValue::String(_))))
+    {
+        return Err(ctx.type_error(source, "split separator must be one string"));
     }
     if name.local == "attribute" {
         pipeline::attribute_selector(&args[0], ctx, source)?;
@@ -138,7 +144,7 @@ pub(super) fn apply(mut input: ItemStream, steps: &[IrStep], ctx: &mut EvalCtx<'
         consumed += 1;
         if matches!(
             name.local.as_str(),
-            "last" | "find_last" | "sorted" | "sorted_by_key" | "reversed"
+            "last" | "rfind" | "sorted" | "sorted_by_key" | "rev"
         ) {
             buffered = Some(stage);
             break;
@@ -276,14 +282,36 @@ fn push_stage(
             stage.seen += 1;
             Ok(stage.name == "is_empty")
         }
-        "first" | "take" | "skip" => {
+        "nth" => {
+            if stage.seen < stage.limit() {
+                stage.seen += 1;
+                return Ok(false);
+            }
+            emit(item, rest, out, ctx)?;
+            Ok(true)
+        }
+        "split" => {
+            let Some(AtomValue::String(value)) = item.atom() else {
+                return Err(ctx.type_error(stage.source, "split requires strings"));
+            };
+            let Some(AtomValue::String(separator)) = stage.args[0].items[0].atom() else {
+                unreachable!("validated separator")
+            };
+            for part in value.split(separator.as_str()) {
+                if emit(Item::Atomic(AtomValue::String(part.to_owned())), rest, out, ctx)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        "next" | "take" | "skip" => {
             stage.seen += 1;
             if stage.name == "skip" && stage.seen <= stage.limit() {
                 return Ok(false);
             }
             let stopped = emit(item, rest, out, ctx)?;
             Ok(stopped
-                || stage.name == "first"
+                || stage.name == "next"
                 || (stage.name == "take" && stage.seen >= stage.limit()))
         }
         "filter" | "find" => {
@@ -445,14 +473,14 @@ fn buffer(mut input: ItemStream, stage: Stage, ctx: &mut EvalCtx<'_>) -> ItemStr
         "last" => {
             input.items = input.items.pop().into_iter().collect();
         }
-        "reversed" => {
+        "rev" => {
             input.items.reverse();
         }
-        "find_last" => {
+        "rfind" => {
             let mut last = None;
-            for item in std::mem::take(&mut input.items) {
+            for item in std::mem::take(&mut input.items).into_iter().rev() {
                 match predicate(&stage, item.clone(), ctx, &mut input) {
-                    Ok(true) => last = Some(item),
+                    Ok(true) => { last = Some(item); break; },
                     Ok(false) => (),
                     Err(error) => return error,
                 }

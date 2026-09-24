@@ -26,7 +26,7 @@ describe('multi-format data table demo', () => {
             expect(source).toContain(`<template>\n<cem-data-table format="${format}">`);
         }
         expect(source).toContain('src="./data-table-view.cemt"');
-        expect(helper).toContain('{cem-data @name=document @select=source');
+        expect(helper).toContain('data:read(source, format)');
         expect(helper).toContain('seq:group_by(');
         expect(helper).toContain('seq:sorted(records,');
         expect(helper).not.toContain('data:table');

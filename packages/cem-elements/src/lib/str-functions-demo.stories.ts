@@ -30,12 +30,12 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend]').length === 11,
+            () => host.querySelectorAll('cem-demo-element[legend]').length === 12,
             'all string-functions samples render from the HTML source'
         );
         assertDeepEqual(
             Array.from(host.querySelectorAll('cem-demo-element'), (sample) => sample.getAttribute('legend') ?? ''),
-            [MATRIX_LEGEND, ...METHODS.map((method) => `str:${method}`), 'XPath normalize-space', 'XPath tokenize and string-join'],
+            [MATRIX_LEGEND, 'URL ID with a string chain', ...METHODS.map((method) => `str:${method}`), 'XPath normalize-space', 'XPath tokenize and string-join'],
             'string-function sample inventory'
         );
 
@@ -67,6 +67,12 @@ export const EveryAuthoredSample: Story = {
             ['short', 'abc…hij', 'abc…ghij', 'ab...hij', 'abchij', 'αβ💠ζη', 'https://example…emantic-card.cem'],
             'str:shorten result matrix'
         );
+        const chain = requiredElement(host, 'cem-demo-element[legend="URL ID with a string chain"]');
+        await waitForOutput(chain, '1');
+        await edit(chain, 'Pokémon URL', 'https://pokeapi.co/api/v2/pokemon/10/');
+        await waitForOutput(chain, '10');
+        await edit(chain, 'Pokémon URL', '/short/');
+        await waitForOutput(chain, 'No ID');
         await verifySimpleMethods(host);
         const normalized = requiredElement(host, 'cem-demo-element[legend="XPath normalize-space"]');
         await waitForOutput(normalized, '🍒 🍋');
@@ -99,10 +105,10 @@ async function verifySimpleMethods(host: HTMLElement): Promise<void> {
     await waitForCondition(() => parts(split).join('|') === '“a”|“b”|“”|“”', 'literal multi-character separator');
     await edit(split, 'Text', '🍒🍋');
     await edit(split, 'Separator', '');
-    await waitForOutput(split, '2');
-    assertDeepEqual(parts(split), ['“🍒”', '“🍋”'], 'empty separator emits complete codepoints');
+    await waitForOutput(split, '4');
+    assertDeepEqual(parts(split), ['“”', '“🍒”', '“🍋”', '“”'], 'Rust splitting keeps codepoints and boundary empties');
     await edit(split, 'Text', '');
-    await waitForOutput(split, '0');
+    await waitForOutput(split, '2');
     await edit(split, 'Separator', ',');
     await waitForOutput(split, '1');
     assertDeepEqual(parts(split), ['“”'], 'empty input has one empty field with a nonempty separator');

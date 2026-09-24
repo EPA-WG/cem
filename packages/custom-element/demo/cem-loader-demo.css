@@ -4,6 +4,7 @@ nav { display: flex; align-items: baseline; gap: 2rem; max-width: 78rem; margin:
 main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; max-width: 78rem; margin: auto; }
 main > p, main > section:not(.loader-example) { grid-column: 1 / -1; }
 .loader-example { min-width: 0; padding: 1.25rem; background: white; border: 1px solid #ccd3de; border-radius: .5rem; }
+main > cem-demo-element { min-width: 0; max-width: 100%; }
 .loader-example > h2 { font-size: 1.2rem; }
 .loader-example > p { color: #4b596b; }
 a { color: #174f9b; }

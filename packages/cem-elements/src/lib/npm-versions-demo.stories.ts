@@ -1,3 +1,4 @@
+import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
@@ -11,6 +12,7 @@ const EXPECTED_LEGENDS = [
     '4. Override the label slot',
     '5. Synchronize the selected version with the URL',
 ] as const;
+const PREVIEW_FILES = ['npm-versions.json'] as const;
 
 const meta: Meta = {
     title: 'CEM Elements/NPM Versions Demo',
@@ -27,15 +29,17 @@ export const EveryAuthoredSample: Story = {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         try {
             await waitForCondition(
-                () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
+                () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length + PREVIEW_FILES.length,
                 'all five npm-version samples render from the HTML source',
                 300
             );
-            assertDeepEqual(sampleLegends(host), [...EXPECTED_LEGENDS], 'npm-version sample inventory');
+            assertDeepEqual(sampleLegends(host), [...EXPECTED_LEGENDS, ...PREVIEW_FILES], 'npm-version sample inventory');
             await whenCemSourceRendered(host);
             readinessCheckpoint('initial-render-settled');
             // Initial rendering can precede HTTP completion. Keep the resource
             // and interaction predicates below, with their existing frame limits.
+
+            await verifyExternalFilePreviews(host, DEMO_URL, PREVIEW_FILES);
 
             const defaults = sampleByLegend(host, EXPECTED_LEGENDS[0]);
             await waitForCondition(

@@ -1,12 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import authoredPage from '../../demo/cell-overrides.html?raw';
+import pokemonSource from '../../demo/pokemon-cells.json?raw';
+import stockSource from '../../demo/stock-cells.xml?raw';
+import stockTemplate from '../../demo/stock-cell.cemt?raw';
 import { CemElementRuntime } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
 const meta: Meta = { title: 'CEM Elements/Cell Template Overrides', tags: ['test'] };
 export default meta;
 type Story = StoryObj;
+const POKEMON_NAMES = ['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard', 'squirtle', 'wartortle', 'blastoise', 'caterpie'];
 const SOURCE_URL = new URL('../../demo/cell-overrides.html', import.meta.url);
 function renderDocument(): HTMLElement {
     const root = document.createElement('section');
@@ -21,10 +25,6 @@ async function ready(root: HTMLElement, tag: string): Promise<HTMLElement> {
     await waitFor(() => expect(root.querySelector(`${tag} table`)).not.toBeNull(), { timeout: 30000 });
     return root.querySelector(tag) as HTMLElement;
 }
-function change(input: HTMLTextAreaElement, source: string): void {
-    input.value = source;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-}
 function select(element: HTMLElement, value: string): void {
     (element as HTMLSelectElement).value = value;
     element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -37,20 +37,31 @@ export const AuthoredSourcePreviews: Story = {
         authored.innerHTML = authoredPage;
         const expected = Array.from(authored.content.querySelectorAll('cem-demo-element'), card => ({
             legend: card.getAttribute('legend'),
-            source: (card.querySelector('template') as HTMLTemplateElement).innerHTML,
+            source: ({ './pokemon-cells.json': pokemonSource, './stock-cells.xml': stockSource,
+                './stock-cell.cemt': stockTemplate } as Record<string, string>)[card.getAttribute('src') ?? '']
+                ?? card.querySelector('template')?.innerHTML ?? '',
         }));
-        expect(expected).toHaveLength(3);
+        expect(expected).toHaveLength(6);
         await waitFor(() => {
-            expect(canvasElement.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(3);
+            expect(canvasElement.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(6);
         }, { timeout: 30000 });
-        expect(Array.from(canvasElement.querySelectorAll('cem-demo-element'), card => ({
-            legend: card.getAttribute('legend'),
-            source: card.querySelector('[slot=text] code')?.textContent,
-        }))).toEqual(expected);
+        const cards = Array.from(canvasElement.querySelectorAll('cem-demo-element'));
+        expect(cards.map(card => card.getAttribute('legend'))).toEqual(expected.map(card => card.legend));
+        for (const [index, card] of cards.entries()) {
+            await waitFor(() => expect(card.querySelector('[slot=text] code')?.textContent).toBe(expected[index].source));
+            if (card.hasAttribute('src')) {
+                expect(card).toHaveAttribute('demo', 'false');
+                expect(card.querySelector('[slot=demo]')?.textContent).toBe('');
+                const code = card.querySelector('[slot=text] code');
+                const token = code?.querySelector(card.getAttribute('type') === 'json' ? 'i' : 'b');
+                expect(token).not.toBeNull();
+                expect(getComputedStyle(token as Element).color).not.toBe(getComputedStyle(code as Element).color);
+            }
+        }
         const template = canvasElement.querySelector('cem-demo-element > template') as HTMLTemplateElement;
         expect(template.content.querySelector('cem-element')?.hasAttribute('data-cem-render-node-id')).toBe(true);
         await waitFor(() => {
-            expect(canvasElement.querySelectorAll('cem-pokemon-cells img')).toHaveLength(2);
+            expect(canvasElement.querySelectorAll('cem-pokemon-cells img')).toHaveLength(10);
             expect(canvasElement.querySelector('cem-stock-cells strong')).toHaveTextContent('Out of stock (0)');
             expect(canvasElement.querySelector('cem-native-value-card article')).toHaveTextContent('Next count: 3');
         }, { timeout: 10000 });
@@ -62,37 +73,31 @@ export const PokemonCellPictures: Story = {
     play: async ({ canvasElement }) => {
         const viewer = await ready(canvasElement, 'cem-pokemon-cells');
         const controls = within(viewer);
-        const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
-        const original = input.value;
+        expect(controls.queryByRole('textbox', { name: 'Source' })).toBeNull();
+        expect(controls.queryByRole('button', { name: 'Reset source' })).toBeNull();
+        const preview = canvasElement.querySelector('cem-demo-element[legend="pokemon-cells.json"]');
+        await waitFor(() => expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(pokemonSource));
+        expect(preview?.querySelector('[slot=demo]')?.textContent).toBe('');
         const images = () => Array.from(viewer.querySelectorAll('img'));
         await waitFor(() => {
-            expect(images().map(image => image.alt)).toEqual(['venusaur', 'ivysaur']);
-            expect(images().every(image => image.complete && image.naturalWidth > 0)).toBe(true);
+            expect(images().map(image => image.alt)).toEqual(POKEMON_NAMES);
         }, { timeout: 10000 });
-        for (const image of images()) expect(image.src).toContain(new URL('./pokemon/', SOURCE_URL).href);
+        for (const [index, image] of images().entries()) {
+            expect(image.src).toBe(`https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/${index + 1}.svg`);
+        }
         expect(viewer.querySelector('table')).toHaveTextContent('venusaur');
         expect(viewer.querySelector('table')).toHaveTextContent('ivysaur');
-        expect(Array.from(viewer.querySelectorAll('thead th'), th => th.textContent?.trim())).toEqual(['✓', '#text', 'id', 'name', 'type']);
+        expect(Array.from(viewer.querySelectorAll('thead th'), th => th.textContent?.trim())).toEqual(['✓', 'name', 'url']);
         await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
-        await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('venusaur'), { timeout: 10000 });
+        await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('bulbasaur'), { timeout: 10000 });
         select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
-        await waitFor(() => expect(images().map(image => image.alt)).toEqual(['ivysaur', 'venusaur']), { timeout: 10000 });
-        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('venusaur');
-        expect(input.value).toBe(original);
-        input.focus();
-        change(input, original.replace('<name>venusaur</name>', '<title>venusaur</title>'));
-        await waitFor(() => expect(images()).toHaveLength(1), { timeout: 10000 });
-        expect(viewer.querySelector('table')).toHaveTextContent('venusaur');
-        expect(viewer.querySelector('table')).toHaveTextContent('grass');
-        expect(document.activeElement).toBe(input);
-        change(input, '<broken>');
-        await waitFor(() => expect(controls.getByRole('alert')).toBeVisible(), { timeout: 10000 });
-        expect(viewer.querySelector('table')).toBeNull();
-        expect(images()).toHaveLength(0);
-        await userEvent.click(controls.getByRole('button', { name: 'Reset source' }));
-        await waitFor(() => expect(images()).toHaveLength(2), { timeout: 10000 });
-        expect(input.value).toBe(original);
-        expect(viewer.querySelectorAll('td .pokemon-name')).toHaveLength(2);
+        await waitFor(() => expect(images().map(image => image.alt)).toEqual([...POKEMON_NAMES].sort()), { timeout: 10000 });
+        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('bulbasaur');
+        select(controls.getByRole('combobox', { name: 'Direction' }), 'descending');
+        await waitFor(() => expect(images().map(image => image.alt)).toEqual([...POKEMON_NAMES].sort().reverse()), { timeout: 10000 });
+        expect(viewer.querySelector('table')).toHaveTextContent('https://pokeapi.co/api/v2/pokemon/1/');
+        expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(pokemonSource);
+        expect(viewer.querySelectorAll('td .pokemon-name')).toHaveLength(10);
         for (const cell of viewer.querySelectorAll('td .pokemon-name')) {
             expect(cell).toHaveTextContent((cell.querySelector('img') as HTMLImageElement).alt);
         }
@@ -199,26 +204,25 @@ export const ConditionalStockFallback: Story = {
     play: async ({ canvasElement }) => {
         const viewer = await ready(canvasElement, 'cem-stock-cells');
         const controls = within(viewer);
-        const input = controls.getByRole('textbox', { name: 'Source' }) as HTMLTextAreaElement;
-        const original = input.value;
+        expect(controls.queryByRole('textbox', { name: 'Source' })).toBeNull();
+        expect(controls.queryByRole('button', { name: 'Reset source' })).toBeNull();
+        expect(viewer.querySelectorAll('tbody tr')).toHaveLength(5);
         expect(viewer.querySelectorAll('strong')).toHaveLength(1);
         expect(viewer.querySelector('strong')).toHaveTextContent('Out of stock (0)');
-        expect(viewer.querySelector('table')).toHaveTextContent('5');
         const reference = Array.from(viewer.querySelectorAll('details')).find(details =>
             details.querySelector(':scope > summary')?.textContent?.includes('document/reference'));
         expect(reference).toHaveTextContent('0');
         expect(reference?.querySelector('strong')).toBeNull();
-        input.focus();
-        change(input, original.replace('<stock>0</stock>', '<stock>7</stock>'));
-        await waitFor(() => expect(viewer.querySelector('table')).toHaveTextContent('7'), { timeout: 10000 });
-        expect(viewer.querySelector('strong')).toBeNull();
-        expect(document.activeElement).toBe(input);
-        change(input, original.replace('<stock>5</stock>', '<stock>0</stock>'));
-        await waitFor(() => expect(viewer.querySelectorAll('strong')).toHaveLength(2), { timeout: 10000 });
-        expect(input.value).toContain('<name>Lemon</name><stock>0</stock>');
-        await userEvent.click(controls.getByRole('button', { name: 'Reset source' }));
-        await waitFor(() => expect(viewer.querySelectorAll('strong')).toHaveLength(1), { timeout: 10000 });
-        expect(input.value).toBe(original);
+        const preview = canvasElement.querySelector('cem-demo-element[legend="stock-cells.xml"]');
+        await waitFor(() => expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(stockSource));
+        expect(preview?.querySelector('[slot=demo]')?.textContent).toBe('');
+        await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
+        await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Cherry'));
+        select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
+        await waitFor(() => expect(viewer.querySelector('tbody tr')).toHaveTextContent('Apple'), { timeout: 10000 });
+        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Out of stock (0)');
+        expect(viewer.querySelectorAll('strong')).toHaveLength(1);
+        expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(stockSource);
     },
 };
 
@@ -261,9 +265,10 @@ export const DelayedStockDeclaration: Story = {
         try {
             await waitFor(() => expect(requested).toBe(true), { timeout: 10000 });
             const pokemon = await ready(page, 'story-delayed-pokemon-cells');
-            const source = pokemon.querySelector('textarea') as HTMLTextAreaElement;
-            change(source, '<catalog><pokemon><id>3</id><title>venusaur</title></pokemon><pokemon><id>2</id><name>ivysaur</name></pokemon></catalog>');
-            await waitFor(() => expect(pokemon.querySelectorAll('img')).toHaveLength(1), { timeout: 10000 });
+            select(within(pokemon).getByRole('combobox', { name: 'Sort column' }), 'name');
+            await waitFor(() => expect(pokemon.querySelector('tbody tr')).toHaveTextContent('blastoise'), { timeout: 10000 });
+            expect(pokemon.querySelectorAll('img')).toHaveLength(10);
+            expect(pokemon.querySelector('textarea')).toBeNull();
             const owner = page.querySelector(`${runtime.declarationTag}[tag="story-delayed-stock-cells"]`) as HTMLElement;
             const stock = page.querySelector('story-delayed-stock-cells') as HTMLElement;
             expect(owner).not.toBeNull();
@@ -279,13 +284,11 @@ export const DelayedStockDeclaration: Story = {
             expect(owner.querySelector('style[data-cem-declaration-style]')).not.toBeNull();
             expect(runtime.diagnosticsFor(owner)).toEqual([]);
             expect(runtime.diagnosticsFor(stock)).toEqual([]);
-            const stockSource = stock.querySelector('textarea') as HTMLTextAreaElement;
-            expect(stockSource.value).toContain('<name>Cherry</name><stock>0</stock>');
-            change(stockSource, stockSource.value.replace('<stock>0</stock>', '<stock>7</stock>'));
-            await waitFor(() => {
-                expect(stock.querySelector('table')).toHaveTextContent('7');
-                expect(stock.querySelector('strong')).toBeNull();
-            }, { timeout: 10000 });
+            expect(stock.querySelector('textarea')).toBeNull();
+            expect(stock.querySelectorAll('tbody tr')).toHaveLength(5);
+            select(within(stock).getByRole('combobox', { name: 'Sort column' }), 'name');
+            await waitFor(() => expect(stock.querySelector('tbody tr')).toHaveTextContent('Apple'), { timeout: 10000 });
+            expect(stock.querySelectorAll('strong')).toHaveLength(1);
         } finally {
             release();
             page.remove();
@@ -334,7 +337,7 @@ export const FailedStockDeclarationCanRemount: Story = {
         try {
             const first = mountPage('story-retry-cell-first-page');
             await ready(first, 'story-retry-pokemon-cells');
-            await waitFor(() => expect(first.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(3), { timeout: 10000 });
+            await waitFor(() => expect(first.querySelectorAll('cem-demo-element[data-state=ready]')).toHaveLength(6), { timeout: 10000 });
             const failedOwner = first.querySelector(`${runtime.declarationTag}[tag="story-retry-stock-cells"]`) as HTMLElement;
             await runtime.whenDeclarationSettled(failedOwner);
             expect(runtime.diagnosticsFor(failedOwner).map(diagnostic => diagnostic.code)).toEqual(['cem-element.src_load_failed']);
@@ -360,12 +363,11 @@ export const FailedStockDeclarationCanRemount: Story = {
             expect(runtime.diagnosticsFor(owner)).toEqual([]);
             expect(runtime.diagnosticsFor(stock)).toEqual([]);
             expect(runtime.diagnosticsFor(failedOwner).map(diagnostic => diagnostic.code)).toEqual(['cem-element.src_load_failed']);
-            const input = stock.querySelector('textarea') as HTMLTextAreaElement;
-            change(input, input.value.replace('<stock>0</stock>', '<stock>7</stock>'));
-            await waitFor(() => {
-                expect(stock.querySelector('table')).toHaveTextContent('7');
-                expect(stock.querySelector('strong')).toBeNull();
-            }, { timeout: 10000 });
+            expect(stock.querySelector('textarea')).toBeNull();
+            expect(stock.querySelectorAll('tbody tr')).toHaveLength(5);
+            select(within(stock).getByRole('combobox', { name: 'Sort column' }), 'name');
+            await waitFor(() => expect(stock.querySelector('tbody tr')).toHaveTextContent('Apple'), { timeout: 10000 });
+            expect(stock.querySelectorAll('strong')).toHaveLength(1);
         } finally {
             canvasElement.replaceChildren();
             scope.dispose();

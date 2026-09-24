@@ -31,6 +31,8 @@
             environment's resource limits; it never rearranges the source tree.</p>
         <p>Selection and transformation return chains. Explicit questions such
             as <code>any()</code> and <code>count()</code> return scalars.
+            Use <code>next()</code>, zero-based <code>nth(n)</code>,
+            <code>rev()</code> and <code>rfind()</code> for Rust-style selection.
             Invalid types, callback failures and denied access remain errors.</p>
         <p>Unlike Rust's <code>Iterator::find()</code>, this collection's
             <code>find()</code> returns a chain containing zero or one member.
@@ -199,12 +201,12 @@
         </template>
     </cem-demo-element>
     <cem-demo-element legend="Last match"
-        description="find_last() selects the last match in collection order.">
+        description="rfind() searches backwards and stops at the first match.">
         <template>
 <cem-element>
     <template type="text/cem-ml">
 {cem:variable @name=result @select='dom::chain(("a", "b", "a"))
-    .find_last(|v| v != "a")'}
+    .rfind(|v| v != "a")'}
 {article @class=demo-card |
     {output | {$str:concat(result, ", ")}}}
     </template>
@@ -225,11 +227,11 @@
         </template>
     </cem-demo-element>
     <cem-demo-element legend="First value"
-        description="first() produces a chain containing at most one value.">
+        description="next() produces a chain containing at most one value.">
         <template>
 <cem-element>
     <template type="text/cem-ml">
-{cem:variable @name=result @select='dom::chain(("a", "b")).first()'}
+{cem:variable @name=result @select='dom::chain(("a", "b")).next()'}
 {article @class=demo-card |
     {output | {$str:concat(result, ", ")}}}
     </template>
@@ -242,6 +244,18 @@
 <cem-element>
     <template type="text/cem-ml">
 {cem:variable @name=result @select='dom::chain(("a", "b")).last()'}
+{article @class=demo-card |
+    {output | {$str:concat(result, ", ")}}}
+    </template>
+</cem-element>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="Zero-based selection"
+        description="nth(1) selects the second member, following Rust iterator indexing. Out-of-range indices produce an empty chain.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=result @select='dom::chain(("a", "b", "c")).nth(1)'}
 {article @class=demo-card |
     {output | {$str:concat(result, ", ")}}}
     </template>
@@ -380,11 +394,11 @@
         </template>
     </cem-demo-element>
     <cem-demo-element legend="Reverse order"
-        description="reversed() changes collection order; the native tree stays unchanged.">
+        description="rev() changes collection order; the native tree stays unchanged.">
         <template>
 <cem-element>
     <template type="text/cem-ml">
-{cem:variable @name=result @select='dom::chain(("a", "b", "c")).reversed()'}
+{cem:variable @name=result @select='dom::chain(("a", "b", "c")).rev()'}
 {article @class=demo-card |
     {output | {$str:concat(result, ", ")}}}
     </template>

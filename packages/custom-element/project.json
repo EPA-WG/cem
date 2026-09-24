@@ -8,6 +8,7 @@
             "executor": "nx:run-commands",
             "dependsOn": [
                 { "projects": ["cem-elements"], "target": "build" },
+                { "projects": ["@epa-wg/cem-demo-element"], "target": "build" },
                 { "projects": ["cem_ql"], "target": "build:wasm" },
                 { "projects": ["cem_ml_cli"], "target": "build" }
             ],
@@ -38,6 +39,8 @@
                 "{workspaceRoot}/packages/cem-elements/package.json",
                 "{workspaceRoot}/packages/cem-elements/tsconfig.lib.json",
                 "{workspaceRoot}/packages/cem-elements/dist/**/*",
+                "{workspaceRoot}/packages/cem-demo-element/dist/**/*",
+                "{workspaceRoot}/packages/cem-ml-npm/dist/wasm/browser/**/*",
                 "{workspaceRoot}/packages/cem_ql/src/**/*",
                 "{workspaceRoot}/packages/cem_ql/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ql/dist/wasm/**/*",

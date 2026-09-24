@@ -1,20 +1,19 @@
-{attribute @name=format | xml}
-{style |```
-    .stock-warning { display: inline-block; padding: .15rem .35rem;
-        border: 1px solid currentColor; border-radius: .25rem; }
-```}
-{module |
-    {import @as=base @src="./data-table-view.cemt"}
-    {template @name=empty-stock @mode=inspect @priority=10
-        @match='node.kind == "element" && node.namespace == "" && node.name == "stock"
-            && str:trim(str:concat(node.children.value, "")) == "0"
-            && seq:any(
-                seq:where(
-                    seq:where(document.root.children, fn(root) =>
-                        root.kind == "element" && root.namespace == "" && root.name == "catalog").children,
-                    fn(row) => row.kind == "element" && row.namespace == "" && row.name == "product").children,
-                fn(field) => data:node_key(field) == data:node_key(node))' |
-        {param @name=node}{param @name=document}
-        {body | {strong @class=stock-warning | Out of stock (0)}}}
-    {body | {call @from=base @template=viewer}}
-}
+{import @as=base @src="./data-table-view.cemt"}
+{template @mode=inspect
+    @match='node.kind == "element" && node.name == "stock" && node.namespace == ""
+        && str:trim(str:concat(node.children.value, "")) == "0"
+        && dom::chain(node).parent()
+            .filter(|p| p.name == "product" && p.namespace == "")
+            .parent().filter(|p| p.name == "catalog" && p.namespace == "")
+            .parent().any(|p| p.kind == "document")' |
+    {strong | Out of stock (0)}}
+{http-request @slice=catalog @url="./stock-cells.xml"
+    @method=GET @content-type="application/xml"}
+{cem:variable @name=state @select='datadom.slices.catalog.state ?? "loading"'}
+{cem:choose |
+    {cem:when @test='state == "loaded"' |
+        {call @from=base @template=inspect
+            @with:root='{datadom.slices.catalog.data}'}}
+    {cem:when @test='state == "failed"' |
+        {p @role=alert | Could not load the stock file.}}
+    {cem:otherwise | {p @role=status | Loading stock…}}}

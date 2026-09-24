@@ -15,7 +15,7 @@ dom::chain(node)
 
 The [live DOM examples](../packages/cem-elements/demo/functions/dom.html) cover
 the methods below. The [cell override](../packages/cem-elements/demo/cell-overrides.html)
-uses this expression to find a Pokémon image identifier.
+combines navigation with string splitting to find a Pokémon image identifier.
 
 ## Syntax and values
 
@@ -72,8 +72,9 @@ There are no XML-, JSON-, YAML- or CSV-specific evaluation branches.
 | --- | --- |
 | `filter(predicate)` | Every accepted member |
 | `find(predicate)` | First accepted member across the collection, or empty |
-| `find_last(predicate)` | Last accepted member across the collection, or empty |
-| `first()`, `last()` | First or last member, or empty |
+| `rfind(predicate)` | Search backwards, stopping at the first accepted member, or empty |
+| `next()`, `last()` | First or last member, or empty |
+| `nth(n)` | Member at zero-based index `n`, or empty; `n` must be a nonnegative integer |
 | `take(n)`, `skip(n)` | Keep or omit a prefix; `n` is a nonnegative integer |
 | `map(callback)` | One result per member; a returned sequence/chain becomes a nested collection value |
 | `flat_map(callback)` | Concatenate callback results, flattening one collection level |
@@ -85,11 +86,47 @@ There are no XML-, JSON-, YAML- or CSV-specific evaluation branches.
 Predicates must return exactly one boolean. The explicit scalar terminals end
 the chain; a boolean containing `false` is never represented as a truthy wrapper.
 
-Adjacent streaming methods pass items incrementally. `find`, `first`, `take`,
+Adjacent streaming methods pass items incrementally. `find`, `next`, `nth`, `take`,
 `any`, `all` and `is_empty` stop upstream enumeration when their answer is known.
-`find_last` evaluates the predicate in forward order and retains the last match.
+`rfind` evaluates the predicate from the back and stops at its first match.
+Reversing or searching from the back buffers the preceding chain first.
 Assigning a chain to a binding materializes that expression's results, so a
 later `find` cannot undo earlier traversal work.
+
+## String splitting and Rust conventions
+
+String values can start a chain directly; `.text()` can continue into it:
+
+```rust
+"https://pokeapi.co/api/v2/pokemon/1/".split("/").nth(6)
+```
+
+```rust
+dom::chain(node).parent().parent().children()
+    .find(|field| field.attribute("name").text() == "url")
+    .text().split("/").nth(6)
+```
+
+`split(separator)` requires strings and a single literal string separator.
+It emits segments in source order, including adjacent and trailing empty
+segments. An empty separator follows Rust's `str::split`: Unicode scalar
+values with an empty segment at each end; `"".split("")` yields two empty
+strings. On a chain of strings, splitting concatenates each member's segments.
+An empty input chain stays empty. A null atomic value or nonstring is a type
+error; node text extraction remains explicit.
+
+Selection uses Rust names and indices: `next()`, `nth(0)`, `rev()` and
+`rfind(predicate)`. `seq:nth(values, n)` also uses zero-based indices. Negative,
+noninteger or missing indices are errors, including on empty input. Large or
+out-of-range nonnegative indices yield an empty result. Migrate old one-based
+`seq:nth(values, n)` calls to `seq:nth(values, n - 1)`, and chain `.first()`,
+`.reversed()` and `.find_last()` to `.next()`, `.rev()` and `.rfind()`.
+
+These are immutable query values: selection returns a zero-or-one-member chain
+rather than Rust's `Option`, and reusing a binding does not advance a mutable
+iterator. `??` supplies an empty-result fallback. DOM navigation and immutable
+`sorted` helpers are CEM extensions. No claim of full Rust language or iterator
+compatibility is made.
 
 ## Immutable ordering
 
@@ -97,7 +134,7 @@ later `find` cannot undo earlier traversal work.
 | --- | --- |
 | `sorted(direction?, mode?)` | Sort atomic members by their own values |
 | `sorted_by_key(callback, direction?, mode?)` | Sort original members by a computed atomic key |
-| `reversed()` | Reverse the collection's current order |
+| `rev()` | Reverse the collection's current order |
 
 Sorting uses shared `seq:sorted` behavior: default `"ascending"` and `"text"`,
 with explicit `"descending"` and finite `"number"` comparison available. It

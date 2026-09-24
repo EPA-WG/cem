@@ -66,7 +66,9 @@ describe('npm versions demo source contracts', () => {
     });
 
     it('ports all five legacy use cases and avoids test-only demo markup', () => {
-        expect(samples.map(({ legend }) => legend)).toEqual(SAMPLE_CONTRACTS.map(({ legend }) => legend));
+        expect(samples.map(({ legend }) => legend)).toEqual([
+            ...SAMPLE_CONTRACTS.map(({ legend }) => legend), 'npm-versions.json',
+        ]);
         expect(DEMO_SOURCE).not.toContain('data-role=');
         expect(DEMO_SOURCE).not.toContain('data-testid=');
         expect(DEMO_SOURCE).not.toContain('Apply selection to URL');

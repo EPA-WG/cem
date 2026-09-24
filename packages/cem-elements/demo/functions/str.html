@@ -29,7 +29,8 @@
         <p>CEM-QL <code>str:</code> helpers transform slice values without
             JavaScript UI code. Edit the inputs to see each result update.</p>
         <p><code>split</code> uses a literal separator and preserves empty fields;
-            clear the separator to split into Unicode codepoints. Indices count
+            clear the separator to split into Unicode codepoints with an empty field
+            at each end, as in Rust. Indices count
             codepoints, so an emoji such as 🍒 occupies one position. These are
             CEM functions, not UTF-16 JavaScript methods.</p>
         <p>The XPath comparisons load
@@ -98,6 +99,22 @@
 </cem-element>
 
 <cem-str-shorten-matrix></cem-str-shorten-matrix>
+        </template>
+    </cem-demo-element>
+    <cem-demo-element legend="URL ID with a string chain"
+        description="Split a Pokémon URL and select its seventh segment with Rust-style, zero-based nth(6). A short URL has no ID.">
+        <template>
+<cem-element>
+    <template type="text/cem-ml">
+{cem:variable @name=url
+    @select='datadom.slices.url ?? "https://pokeapi.co/api/v2/pokemon/1/"'}
+{cem:variable @name=id @select='url.split("/").nth(6)'}
+{article @class=demo-card |
+    {label | Pokémon URL
+        {input @slice=url @slice-event=input @value="{$url}"}}
+    {p | ID: {output | {$id ?? "No ID"}}}}
+    </template>
+</cem-element>
         </template>
     </cem-demo-element>
     <cem-demo-element legend="str:split"

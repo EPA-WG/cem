@@ -27,6 +27,23 @@ repository-level `AGENTS.md` and `CLAUDE.md` instructions continue to apply.
 - Keep each sample self-contained: place its declaration, instance, payload,
   local data, and supporting resource elements in that sample's inert
   `<template>` whenever practical.
+- For external-file previews, use a direct `cem-demo-element` with a relative
+  `src`, the appropriate `type` (`json`, `xml`, or `cem-ml`), `demo=false`,
+  a filename legend, and a useful description. Add an `id` when the page links
+  to the preview. Follow this user-preferred pattern:
+
+  ```html
+  <cem-demo-element id="stock-cells.xml"
+      src="./stock-cells.xml"
+      type=xml
+      demo=false
+      legend="stock-cells.xml"
+      description="Five product rows and a reference branch: only a product's zero stock receives the warning"></cem-demo-element>
+  ```
+
+  Do not wrap static file previews in `cem-element`, an embedded template,
+  `cem-module-url`, or `cem:if`. Keep relative-URL resolution in the shared
+  loading/runtime behavior so this pattern works standalone and source-loaded.
 - Prefer an anonymous `<cem-element>` without `tag` when the declaration is
   rendered only in place. Add a tag and an explicit instance only when the case
   requires reuse, attributes or payload on an instance, composition by another

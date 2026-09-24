@@ -928,8 +928,10 @@ The simple helpers are inspired by [JavaScript String methods](https://tc39.es/e
 but keep CEM's Unicode-codepoint indexing, snake_case names, and sequence
 results. `split` requires a literal separator and retains adjacent, leading,
 and trailing empty fields; `split("", ",")` yields one empty string, while
-`split("", "")` is empty. Splitting on `""` emits codepoints, not surrogate halves
-or grapheme clusters. `char_at` returns `""` out of bounds and rejects negative
+`split("", "")` yields two empty strings. Splitting on `""` follows Rust:
+codepoints with an empty segment at each end, not surrogate halves or grapheme
+clusters. String receivers also support `.split(separator).nth(index)` with
+zero-based selection; `seq:nth` uses the same indexing. `char_at` returns `""` out of bounds and rejects negative
 indices by returning `""`; `at` supports indices from the end and yields an
 empty sequence out of bounds (so `??` works). Search methods return `-1` when
 absent; their optional inclusive start position clamps to `[0, length]`, with

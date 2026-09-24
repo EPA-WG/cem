@@ -5,6 +5,28 @@ use cem_ql::render::{render_template, TemplateData};
 const VIEW: &str = include_str!("../../cem-elements/demo/data-table-view.cemt");
 
 #[test]
+fn authored_view_accepts_a_retained_document_without_source_editor() {
+    let template = VIEW.replace(
+        "{call @template=viewer}",
+        r#"{cem-data @name=external @select=datadom.payload.nodes.text @type=xml}
+        {call @template=inspect @with:root="{$external.root}"}"#,
+    );
+    let result = render_template(
+        &template,
+        &data(
+            "<r><row qty='10'>Cherry</row><row qty='2'>Lemon</row></r>",
+            "xml", "@qty",
+        ),
+    );
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(!result.rendered.contains("<textarea"));
+    assert!(!result.rendered.contains("Reset source"));
+    assert!(result.rendered.contains("Sort column"));
+    let table = result.rendered.split("<tbody>").nth(1).expect("table rows");
+    assert!(table.find("Lemon") < table.find("Cherry"), "{table}");
+}
+
+#[test]
 fn authored_view_keeps_processing_instruction_target_and_data() {
     let result = render_template(VIEW, &data("<r><!--note--><?keep inert?></r>", "xml", ""));
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);

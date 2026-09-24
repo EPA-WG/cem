@@ -1,3 +1,4 @@
+import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
@@ -76,6 +77,8 @@ export const AnonymousSourcesAndFallbacks: Story = {
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('story-external-template-document') as HTMLElement;
         await waitFor(() => expect(host.querySelectorAll('cem-demo-element')).toHaveLength(23), { timeout: 15000 });
+        await verifyExternalFilePreviews(host, new URL('../../demo/external-template.html', import.meta.url),
+            ['embed-1.html', 'embed-lib.html']);
         const anonymous = host.querySelector('cem-demo-element[legend^="2."]') as HTMLElement;
         await waitFor(() => {
             const declarations = anonymous.querySelectorAll('cem-element[src="#template2"]');

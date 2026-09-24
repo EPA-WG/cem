@@ -1,3 +1,4 @@
+import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 
 const SOURCE_TAG = 'story-for-each-document';
@@ -13,6 +14,7 @@ const EXPECTED_LEGENDS = [
     '8. for-each over location data',
     '9. for-each over HTTP JSON/XML data',
 ] as const;
+const PREVIEW_FILES = ['http-data.json', 'http-data.xml'] as const;
 
 const meta: Meta = {
     title: 'CEM Elements/For Each Demo',
@@ -39,16 +41,18 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
+            () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length + PREVIEW_FILES.length,
             'all for-each samples render from the HTML source'
         );
         assertDeepEqual(
             Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
                 normalize(sample.getAttribute('legend') ?? '')
             ),
-            [...EXPECTED_LEGENDS],
+            [...EXPECTED_LEGENDS, ...PREVIEW_FILES],
             'for-each sample inventory'
         );
+
+        await verifyExternalFilePreviews(host, DEMO_URL, PREVIEW_FILES);
 
         const simple = sampleByLegend(host, EXPECTED_LEGENDS[0]);
         await waitForCondition(

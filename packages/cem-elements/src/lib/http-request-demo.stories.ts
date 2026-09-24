@@ -1,3 +1,4 @@
+import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { traceCemReadiness } from '../../.storybook/preview.js';
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
@@ -9,6 +10,7 @@ const EXPECTED_LEGENDS = [
     '1. Simplest http-request',
     '2. http-request response and headers',
 ] as const;
+const PREVIEW_FILES = ['http-data.json', 'http-data-compact.json', 'http-data-invalid.json', 'http-pokemon.json'] as const;
 
 const meta: Meta = {
     title: 'CEM Elements/HTTP Request Demo',
@@ -53,10 +55,11 @@ export const EveryAuthoredSample: Story = {
             Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
                 normalize(sample.getAttribute('legend') ?? '')
             ),
-            [...EXPECTED_LEGENDS],
+            [...EXPECTED_LEGENDS, ...PREVIEW_FILES],
             'HTTP request sample inventory'
         );
 
+        await verifyExternalFilePreviews(host, DEMO_URL, PREVIEW_FILES);
         await verifyRuntimeUrlSelection(sampleByLegend(host, EXPECTED_LEGENDS[0]));
         await verifySimplestRequest(sampleByLegend(host, EXPECTED_LEGENDS[1]));
         await verifyRequestEnvelope(sampleByLegend(host, EXPECTED_LEGENDS[2]));

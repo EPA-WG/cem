@@ -7,6 +7,62 @@ history is preserved under [`archive/`](archive/).
 
 ## Immediate Goal
 
+- [x] Fixture: adopt direct external-file source previews in the cell overrides,
+  HTTP, loops, tree viewer and version-picker demos and their compatibility
+  pages. Use explicit syntax types and `demo=false`, remove preview wrappers,
+  and keep relative URLs working in standalone and source-loaded documents.
+  Update source/interaction inventories and verify highlighting, layout,
+  request behavior, native URL handling where applicable, lint and typecheck.
+  Validation: 453 unit tests, 20 focused cem-elements Storybook tests and
+  12 cem-demo-element tests pass, as do all 31 standalone / 37 source-loaded
+  gallery documents. Build, lint and typecheck pass (two existing warnings).
+  All nine affected pages preserve highlighting, source-only output and
+  two-card desktop rows without overflow at 390px. The compatibility archive
+  includes the preview runtime and formatter; its JavaScript, type and browser
+  checks pass. Its file lock also accounts for the previously added native-value
+  and declaration-style runtime modules.
+
+- [x] Fixture: preview `stock-cell.cemt` immediately after `stock-cells.xml`
+  in the cell-overrides gallery. Verify source text, card order, standalone
+  and source-loaded rendering, responsive layout, lint and typecheck.
+  Simplify the displayed stock template with an implicit module and direct
+  parent navigation, preserving path, namespace and request-state behavior.
+  Use JSON, XML and CEM-ML highlighting for the file previews; support
+  `demo="false"` in `cem-demo-element` to keep highlighted previews source-only.
+  Validation: 10 native Rust tests, 444 unit tests, 20 focused Storybook tests,
+  and all 29 standalone / 35 source-loaded gallery documents pass. Build,
+  lint and typecheck pass (two existing lint warnings). All three previews
+  have colored syntax and no live output; desktop rows and 390px layout pass.
+
+- [x] Align CEM-QL chain selection and string splitting with Rust: zero-based
+  `nth`, `next`, `rev`, reverse short-circuiting `rfind`, and native `.split()`.
+  Fixture: add an interactive URL-to-ID string-chain example and zero-based
+  selection to the DOM samples. Migrate examples and verify native parity,
+  diagnostics and browser behavior.
+
+- [x] Fixture: use the supplied PokéAPI JSON snapshot for the Pokémon cell
+  override, externalize five stock product rows, and preview both files in
+  separate demo cards. Verify native matching, sorting, retained source,
+  standalone/source-loaded previews, gallery layout, lint and typecheck.
+  Use the user-requested pinned unpkg Dream World URL as `imgUrlRoot`, appending
+  each URL-derived Pokémon ID and `.svg`. Handle absent initial request state.
+
+Validation: 196 native Rust tests, 444 unit tests, 15 focused Storybook tests,
+and all 29 standalone / 35 source-loaded gallery documents pass. Build,
+typecheck and lint pass (two existing lint warnings). All ten remote images
+load. The cell, DOM and string sample pages have two-card desktop rows and no
+horizontal overflow at 390px; file-preview wrappers shrink with the gallery.
+
+- [x] Fixture: load Pokémon cell-override data from a local XML file, show its
+  source in a separate demo card, and omit the case's source editor. Verify
+  retained-document rendering, sorting, source-loaded/standalone previews,
+  fixture inventory, lint and typecheck. Route module-URL controls through the
+  retained processing host so they can compose with HTTP document bindings.
+  Validation: 23 focused Rust tests, 442 unit tests, 11 cell/module-URL/hex-grid
+  Storybook tests, and all 29 standalone / 35 source-loaded gallery documents
+  pass. Build, typecheck and lint pass (two existing lint warnings). The table
+  and file preview share a desktop row; the page has no overflow at 390px.
+
 ### Native CEM-QL chain API (user-directed)
 
 - [x] Implement typed native chains, Rust paths/closures, navigation, selection,

@@ -22,6 +22,7 @@ const RESULTS: Record<string, string> = {
     "Filter": "a, a",
     "First value": "a",
     "Last value": "b",
+    "Zero-based selection": "b",
     "Take a prefix": "a, b",
     "Skip a prefix": "b, c",
     "Map values": "a!, b!",

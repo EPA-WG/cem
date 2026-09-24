@@ -33,6 +33,10 @@ await cp(
     { recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo') },
 );
 await cp(join(workspaceRoot, 'packages/cem_ql/dist/wasm'), join(vendorRoot, 'cem_ql/dist/wasm'), { recursive: true });
+await cp(join(workspaceRoot, 'packages/cem-demo-element/dist'), join(vendorRoot, 'cem-demo-element/dist'), {
+    recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo'),
+});
+await cp(join(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser'), join(vendorRoot, 'cem-ml/wasm'), { recursive: true });
 
 const customElementPath = join(distRoot, 'custom-element.js');
 const customElementSource = await readFile(customElementPath, 'utf8');
@@ -51,6 +55,10 @@ for (const name of ['http-request.html', 'npm-versions-demo.html']) {
     await writeFile(path, source.replace(
         "from '../../cem-elements/dist/index.js'",
         "from '../vendor/@epa-wg/cem-elements/dist/index.js'",
+    ).replace(
+        '../../cem-demo-element/dist/index.js', '../vendor/@epa-wg/cem-demo-element/dist/index.js',
+    ).replace(
+        '../../cem-ml-npm/dist/wasm/browser/cem_ml.js', '../vendor/@epa-wg/cem-ml/wasm/cem_ml.js',
     ));
 }
 

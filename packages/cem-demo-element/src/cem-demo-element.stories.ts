@@ -267,6 +267,53 @@ export const ExternalHtmlSource: Story = {
     },
 };
 
+export const HighlightedSourceOnly: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        for (const [type, mediaType, source, token, liveTag] of [
+            ['json', 'application/json', '{"stock": 0}', 'i', ''],
+            ['xml', 'application/xml', '<stock>0</stock>', 'b', 'stock'],
+            ['cem-ml', 'application/cem', '{strong | Out of stock (0)}', 'b', 'strong'],
+        ]) {
+            const demo = document.createElement('cem-demo-element') as CemDemoElement;
+            demo.type = type;
+            demo.setAttribute('demo', 'false');
+            demo.src = `data:${mediaType},${encodeURIComponent(source)}`;
+            canvasElement.append(demo);
+            await demo.updateComplete;
+            expect(demo.state).toBe('ready');
+            const code = requiredRegion(demo, 'text').querySelector('code');
+            expect(code?.textContent).toBe(source);
+            expect(code?.querySelector(token)).not.toBeNull();
+            expect(requiredRegion(demo, 'demo')).toBeEmptyDOMElement();
+            expect(demo.lastResult).toBeUndefined();
+            if (liveTag) {
+                demo.removeAttribute('demo');
+                await demo.updateComplete;
+                expect(requiredRegion(demo, 'demo').querySelector(liveTag)).not.toBeNull();
+                demo.setAttribute('demo', 'false');
+                await demo.updateComplete;
+                expect(requiredRegion(demo, 'demo')).toBeEmptyDOMElement();
+                expect(demo.lastResult).toBeUndefined();
+            }
+        }
+        let connections = 0;
+        const tag = `story-preview-probe-${crypto.randomUUID()}`;
+        customElements.define(tag, class extends HTMLElement {
+            connectedCallback(): void { connections += 1; }
+        });
+        const inline = document.createElement('cem-demo-element') as CemDemoElement;
+        inline.setAttribute('demo', 'false');
+        inline.innerHTML = `<template><${tag}></${tag}></template>`;
+        canvasElement.append(inline);
+        await inline.updateComplete;
+        expect(connections).toBe(0);
+        inline.removeAttribute('demo');
+        await inline.updateComplete;
+        expect(connections).toBe(1);
+    },
+};
+
 export const CemMlWasmRender: Story = {
     render: () => `
         <cem-demo-element legend="CEM-ML to HTML" type="cem-ml">

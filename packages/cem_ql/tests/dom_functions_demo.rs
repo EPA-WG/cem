@@ -6,7 +6,7 @@ fn every_authored_dom_sample_renders_natively() {
     let source = include_str!("../../cem-elements/demo/functions/dom.html");
     let expected = [
         "a, b, a", "row", "a, b", "4", "section, row", "section", "fruit",
-        "ivysaur", "2", "other", "2", "b", "a, a", "a", "b", "a, b", "b, c",
+        "ivysaur", "2", "other", "2", "b", "a, a", "a", "b", "b", "a, b", "b, c",
         "a!, b!", "a, a, b, b", "true", "false", "true", "3", "a, b, b",
         "second, first, third", "c, b, a",
     ];
