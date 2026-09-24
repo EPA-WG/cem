@@ -19,6 +19,7 @@
             "inputs": [
                 "default",
                 "^default",
+                "{workspaceRoot}/packages/cem-elements/index.html",
                 "{workspaceRoot}/packages/cem-elements/demo/data-island-tree.xsl",
                 "{workspaceRoot}/packages/cem-elements/demo/http-data.cemt",
                 "{workspaceRoot}/packages/cem-elements/demo/npm-versions-demo.html",

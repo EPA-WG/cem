@@ -5655,7 +5655,13 @@ production inputs (`/tmp/cem-readiness-location-{lint,typecheck}.log`). The
 whitespace check passes. Only the location story and investigation/checklist
 documentation change. Passing controls leave historical attribution open.
 
-### Pending decision: coverage inventory while timeout attribution remains open
+### Accepted decision: coverage inventory while timeout attribution remains open
+
+Accepted 2026-09-23: the user selected the recommended sequence. Begin the
+authored page-and-legend inventory while retaining HTTP, location and historical
+stock timeout attribution as open follow-ups on a traced recurrence. The passing
+controls do not complete stabilization. The original recommendation and its
+reasoning are preserved below.
 
 **Recommendation:** keep the unattributed HTTP, location and historical stock
 timeouts open as follow-ups to investigate when a traced failure recurs, and

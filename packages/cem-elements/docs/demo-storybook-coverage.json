@@ -1,0 +1,535 @@
+[
+  {
+    "page": "index.html",
+    "source": "index.html",
+    "storyFile": "src/lib/index-demo.stories.ts",
+    "title": "CEM Elements/Root Gallery",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. simple payload",
+      "2. payload with slot definition and slot value",
+      "2a. payload with slot definition and slot value",
+      "2b. named default slot",
+      "2c. named default slot",
+      "2d. default slot",
+      "3. 💪 DCE template"
+    ]
+  },
+  {
+    "page": "demo/attributes.html",
+    "source": "demo/attributes.html",
+    "storyFile": "src/lib/attributes-demo.stories.ts",
+    "title": "CEM Elements/Attributes Demo",
+    "exportName": "ExternalChangesAndInputPrecedence",
+    "legends": [
+      "1. attributes definition",
+      "1a. External attribute changes",
+      "1b. Container attribute values",
+      "2. attribute from slice",
+      "3. V attribute matches input value",
+      "3a. Container value before input",
+      "4. attribute defaults, from container, and from slice",
+      "4a. External changes versus user input"
+    ]
+  },
+  {
+    "page": "demo/cell-overrides.html",
+    "source": "demo/cell-overrides.html",
+    "storyFile": "src/lib/cell-overrides-demo.stories.ts",
+    "title": "CEM Elements/Cell Template Overrides",
+    "exportName": "AuthoredSourcePreviews",
+    "legends": [
+      "1. Name cells become Pokémon pictures",
+      "pokemon-cells.json",
+      "2. Zero-stock cells get a warning",
+      "stock-cells.xml",
+      "stock-cell.cemt",
+      "3. Native values pass into another component"
+    ]
+  },
+  {
+    "page": "demo/data-slices.html",
+    "source": "demo/data-slices.html",
+    "storyFile": "src/lib/data-slices-demo.stories.ts",
+    "title": "CEM Elements/Data Slices Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "A1. inline slice initialization, change on event",
+      "A2. slice initialization, change on event",
+      "B. slice event data.",
+      "1. slice change on event. 1:1 slice⮂value",
+      "2. initial slice value, slice change on event. slice⮂value",
+      "3. on input event. slice⮂value",
+      "4. initial slice value from attribute",
+      "5. slice value computed from event",
+      "6. button ignored till change on click.",
+      "7. initial slice value from SLICE element",
+      "8. multiple slices by SLICE element",
+      "9. slice in attribute",
+      "10. multiple slices by same field",
+      "11. slices and attribute",
+      "12. checkbox use",
+      "13. Radio group"
+    ]
+  },
+  {
+    "page": "demo/data-table.html",
+    "source": "demo/data-table.html",
+    "storyFile": "src/lib/data-table-demo.stories.ts",
+    "title": "CEM Elements/Multi-format Data Tables",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. XML table: attributes and text",
+      "2. CSV table: quoted fields",
+      "3. YAML table: nested collections",
+      "4. JSON table: empty and missing",
+      "5. Presentation aspects: tree and IP-filter form",
+      "6. XSLT table: native sorting and selection",
+      "7. XSLT aspects: tree and IP-filter form",
+      "./data-table-view.cemt",
+      "./data-table-view.xslt",
+      "./data-table-aspects.xslt"
+    ]
+  },
+  {
+    "page": "demo/data-tree.html",
+    "source": "demo/data-tree.html",
+    "storyFile": "src/lib/data-tree-demo.stories.ts",
+    "title": "CEM Elements/Retained Data Trees",
+    "exportName": "EditingSelectionAndDisclosure",
+    "legends": [
+      "1. XML branches: independent selection",
+      "2. JSON through the same CEM tree",
+      "3. Malformed source and repair",
+      "4. Load and release a local document",
+      "tree-source.xml",
+      "tree-source.json"
+    ]
+  },
+  {
+    "page": "demo/dom-merge.html",
+    "source": "demo/dom-merge.html",
+    "storyFile": "src/lib/dom-merge-demo.stories.ts",
+    "title": "CEM Elements/DOM Merge Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Textarea word count",
+      "2. Input word and character count",
+      "3. XPath word and character count"
+    ]
+  },
+  {
+    "page": "demo/embed-1.html",
+    "source": "demo/embed-1.html",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "EmbeddedDocument",
+    "legends": []
+  },
+  {
+    "page": "demo/embed-lib.html",
+    "source": "demo/embed-lib.html#embed-lib-component",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "EmbeddedLibrary",
+    "legends": []
+  },
+  {
+    "page": "demo/external-template-document.html",
+    "source": "demo/external-template-document.html",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "ExternalDocument",
+    "legends": []
+  },
+  {
+    "page": "demo/external-template-templates.html",
+    "source": "demo/external-template-templates.html#external-card-template",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "ExternalTemplateLibrary",
+    "legends": []
+  },
+  {
+    "page": "demo/external-template.html",
+    "source": "demo/external-template.html",
+    "storyFile": "src/lib/external-template-demo.stories.ts",
+    "title": "CEM Elements/External Template Demo",
+    "exportName": "AnonymousSourcesAndFallbacks",
+    "legends": [
+      "1. reference the template in page DOM",
+      "2. without TAG, inline instantiation",
+      "3. external SVG file",
+      "3a. Anonymous external SVG",
+      "3b. Missing source fallback",
+      "4. external CEM-ML template file",
+      "4a. Live HTML payload capture",
+      "4b. CEM-ML source payload",
+      "5. external HTML template",
+      "5a. Anonymous external HTML",
+      "6. HTML, SVG by ID within external file",
+      "6a. SVG fragment by ID",
+      "6b. MathML fragment by ID",
+      "7a. external CEM-ML data-island tree template",
+      "7b. External XSLT XML payload tree",
+      "7c. Missing fragment fallback",
+      "7d. Anonymous external XSLT",
+      "7e. Embedded XSLT fragment",
+      "8. external file with embedding of another external DCE",
+      "9. external file with invoking of relative template as hash by enclosed custom-element",
+      "10. external file with invoking of template in another relative path file by enclosed custom-element",
+      "embed-1.html external file",
+      "embed-lib.html with multiple templates"
+    ]
+  },
+  {
+    "page": "demo/for-each.html",
+    "source": "demo/for-each.html",
+    "storyFile": "src/lib/for-each-demo.stories.ts",
+    "title": "CEM Elements/For Each Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Simple for-each",
+      "2. for-each with position()",
+      "3. Conditional for-each",
+      "4. Nested for-each table",
+      "5. for-each with attributes",
+      "6. Dynamic table with toggle",
+      "7. for-each over payload data",
+      "8. for-each over location data",
+      "9. for-each over HTTP JSON/XML data",
+      "http-data.json",
+      "http-data.xml"
+    ]
+  },
+  {
+    "page": "demo/form.html",
+    "source": "demo/form.html",
+    "storyFile": "src/lib/form-demo.stories.ts",
+    "title": "CEM Elements/Form Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Simple validation",
+      "2. Form lifecycle",
+      "3. Native control validity message",
+      "4. Form custom validity message",
+      "5. DCE as a form input"
+    ]
+  },
+  {
+    "page": "demo/functions/dom.html",
+    "source": "demo/functions/dom.html",
+    "storyFile": "src/lib/dom-functions-demo.stories.ts",
+    "title": "CEM Elements/CEM-QL DOM Functions",
+    "exportName": "AuthoredSamples",
+    "legends": [
+      "Wrap values",
+      "Parent",
+      "Element children",
+      "All child nodes",
+      "Ancestors",
+      "Closest ancestor",
+      "Local names",
+      "Node text",
+      "Unqualified attribute",
+      "Qualified attribute",
+      "First match",
+      "Last match",
+      "Filter",
+      "First value",
+      "Last value",
+      "Zero-based selection",
+      "Take a prefix",
+      "Skip a prefix",
+      "Map values",
+      "Flatten mapped values",
+      "Any match",
+      "All match",
+      "Empty chain",
+      "Count values",
+      "Sort values",
+      "Sort native nodes",
+      "Reverse order"
+    ]
+  },
+  {
+    "page": "demo/functions/str.html",
+    "source": "demo/functions/str.html",
+    "storyFile": "src/lib/str-functions-demo.stories.ts",
+    "title": "CEM Elements/CEM-QL String Functions Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "str:shorten query/result matrix",
+      "URL ID with a string chain",
+      "str:split",
+      "str:trim",
+      "str:trim_start",
+      "str:trim_end",
+      "str:char_at",
+      "str:at",
+      "str:index_of",
+      "str:last_index_of",
+      "XPath normalize-space",
+      "XPath tokenize and string-join"
+    ]
+  },
+  {
+    "page": "demo/hex-grid.html",
+    "source": "demo/hex-grid.html",
+    "storyFile": "src/lib/hex-grid-demo.stories.ts",
+    "title": "CEM Elements/Hex Grid Demo",
+    "exportName": "ResponsiveFrameworkLinks",
+    "legends": [
+      "1. Responsive framework link honeycomb",
+      "2. Compact percentage links",
+      "3. Fixed-length links",
+      "4. Alternating backgrounds",
+      "5. Wrapping long label",
+      "6. Missing-image fallback",
+      "7. Wrapper DCE theme",
+      "8. Image-button presentation",
+      "9. Horizontal row with a current page"
+    ]
+  },
+  {
+    "page": "demo/html-template.html",
+    "source": "demo/html-template.html",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "HtmlFragmentLibrary",
+    "legends": []
+  },
+  {
+    "page": "demo/http-request.html",
+    "source": "demo/http-request.html",
+    "storyFile": "src/lib/http-request-demo.stories.ts",
+    "title": "CEM Elements/HTTP Request Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "0. URL from text to http-request",
+      "1. Simplest http-request",
+      "2. http-request response and headers",
+      "http-data.json",
+      "http-data-compact.json",
+      "http-data-invalid.json",
+      "http-pokemon.json"
+    ]
+  },
+  {
+    "page": "demo/lib-dir/embed-lib.html",
+    "source": "demo/lib-dir/embed-lib.html#embed-lib-component",
+    "storyFile": "src/lib/supporting-html-demo.stories.ts",
+    "title": "CEM Elements/Supporting HTML Documents",
+    "exportName": "RelativeLibrary",
+    "legends": []
+  },
+  {
+    "page": "demo/local-storage.html",
+    "source": "demo/local-storage.html",
+    "storyFile": "src/lib/local-storage-demo.stories.ts",
+    "title": "CEM Elements/Local Storage Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "0. Read a live text value",
+      "1. Always override a stored value",
+      "2. Stored value with a default",
+      "3a. Date validation",
+      "3b. Time validation",
+      "3c. Local date and time validation",
+      "3d. Number validation",
+      "3e. JSON validation",
+      "4. Simplest initial read",
+      "5. Live JSON basket",
+      "6. Fruit buttons and a storage watcher",
+      "7. Write a slice back to storage"
+    ]
+  },
+  {
+    "page": "demo/location-element.html",
+    "source": "demo/location-element.html",
+    "storyFile": "src/lib/location-element-demo.stories.ts",
+    "title": "CEM Elements/Location Element Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Window location live update",
+      "2. Window location initial read",
+      "3. External URL from href"
+    ]
+  },
+  {
+    "page": "demo/module-url-referrer.html",
+    "source": "demo/module-url-referrer.html",
+    "storyFile": "src/lib/module-url-referrer-demo.stories.ts",
+    "title": "CEM Elements/Module URL Referrer Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "src by scalar referrer matrix"
+    ]
+  },
+  {
+    "page": "demo/module-url.html",
+    "source": "demo/module-url.html",
+    "storyFile": "src/lib/module-url-demo.stories.ts",
+    "title": "CEM Elements/Module URL Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "this page import maps",
+      "1. module path by symbolic name",
+      "2. src forms: relative URL",
+      "3. src forms: absolute URL",
+      "4. Relative declaration source",
+      "4a. Mapped declaration source",
+      "4b. Missing import-map entry",
+      "4c. Mapped fragment with a relative dependency",
+      "4d. Mapped image and same-library fragment",
+      "5. component-local map: naked",
+      "6. component-local map: wrapper override",
+      "7. component-local map: node referrer",
+      "image-link"
+    ]
+  },
+  {
+    "page": "demo/npm-versions-demo.html",
+    "source": "demo/npm-versions-demo.html",
+    "storyFile": "src/lib/npm-versions-demo.stories.ts",
+    "title": "CEM Elements/NPM Versions Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Default to the latest version",
+      "2. Preselect a version and show dates",
+      "3. Propagate the selected value",
+      "4. Override the label slot",
+      "5. Synchronize the selected version with the URL",
+      "npm-versions.json"
+    ]
+  },
+  {
+    "page": "demo/scoped-css.html",
+    "source": "demo/scoped-css.html",
+    "storyFile": "src/lib/scoped-css-demo.stories.ts",
+    "title": "CEM Elements/Scoped CSS Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Private declaration CSS and ordinary outer cascade",
+      "2. Component in a named scope shares default declaration styles with peers in the same scope",
+      "3. Style can be scoped explicitly",
+      "4. Mixed private and shared styles",
+      "5. Invalid and mismatched scopes fail closed",
+      "6. Payload style belongs to one instance",
+      "7. Declaration styles must be static",
+      "8. Fragment template CSS uses the effective produced tag",
+      "9. Anonymous declaration CSS uses its generated tag",
+      "10. uid-seed stabilizes keyframe names",
+      "11. Descendant selectors stay inside the component",
+      "12. CSS from an external template fragment"
+    ]
+  },
+  {
+    "page": "demo/set-url.html",
+    "source": "demo/set-url.html",
+    "storyFile": "src/lib/set-url-demo.stories.ts",
+    "title": "CEM Elements/Set URL Demo",
+    "exportName": "EveryAuthoredSample",
+    "legends": [
+      "1. Set the page hash",
+      "2. Select the URL write method",
+      "3. Conditionally inject a URL writer",
+      "4. Set URL from form controls"
+    ]
+  },
+  {
+    "page": "demo/table-inspector.html",
+    "source": "demo/table-inspector.html",
+    "storyFile": "src/lib/table-inspector-demo.stories.ts",
+    "title": "CEM Elements/Table Inspector",
+    "exportName": "ColumnsAndText",
+    "legends": [
+      "1. Columns from every row",
+      "2. Text-only rows stay visible",
+      "3. Nested tables keep their own state",
+      "4. Multiple selections survive sorting"
+    ]
+  },
+  {
+    "page": "demo/xpath-aggregates.html",
+    "source": "demo/xpath-aggregates.html",
+    "storyFile": "src/lib/xpath-aggregates-demo.stories.ts",
+    "title": "CEM Elements/XPath Aggregates",
+    "exportName": "DecimalStatisticsAndBasket",
+    "legends": [
+      "1. Decimal sequence statistics",
+      "2. A basket that accepts new fruits"
+    ]
+  },
+  {
+    "page": "demo/xpath-functions.html",
+    "source": "demo/xpath-functions.html",
+    "storyFile": "src/lib/xpath-functions-demo.stories.ts",
+    "title": "CEM Elements/XPath Function Libraries",
+    "exportName": "SeparateLibraryAndLiveSlices",
+    "legends": [
+      "1. Named XPath function",
+      "1a. CEM-QL string pair",
+      "2. Shared XPath predicate",
+      "2a. CEM-QL predicate pair",
+      "3. XML nodes and matching",
+      "3a. CEM-QL native node pair"
+    ]
+  },
+  {
+    "page": "demo/xpath-maps-arrays.html",
+    "source": "demo/xpath-maps-arrays.html",
+    "storyFile": "src/lib/xpath-maps-arrays-demo.stories.ts",
+    "title": "CEM Elements/XPath Maps and Arrays",
+    "exportName": "OptionalEntriesAndRetainedMembers",
+    "legends": [
+      "1. An IP-filter map with an optional note",
+      "2. Select a retained fruit by array position",
+      "3. Query an imported JSON tree"
+    ]
+  },
+  {
+    "page": "demo/xpath-nodes.html",
+    "source": "demo/xpath-nodes.html",
+    "storyFile": "src/lib/xpath-nodes-demo.stories.ts",
+    "title": "CEM Elements/XPath XML Nodes",
+    "exportName": "TablesAndTrees",
+    "legends": [
+      "1. XML table with native navigation",
+      "2. XML tree with attributes and mixed text"
+    ]
+  },
+  {
+    "page": "demo/xpath-sequences.html",
+    "source": "demo/xpath-sequences.html",
+    "storyFile": "src/lib/xpath-sequences-demo.stories.ts",
+    "title": "CEM Elements/XPath Sequences",
+    "exportName": "WindowsAndColumns",
+    "legends": [
+      "1. A window into a word sequence",
+      "2. First-seen XML columns"
+    ]
+  },
+  {
+    "page": "demo/xpath-sort.html",
+    "source": "demo/xpath-sort.html",
+    "storyFile": "src/lib/xpath-sort-demo.stories.ts",
+    "title": "CEM Elements/XPath Sorting",
+    "exportName": "TypedKeysAndSourceSelection",
+    "legends": [
+      "1. Text and numeric keys",
+      "2. Multiple keys and source selection"
+    ]
+  },
+  {
+    "page": "demo/xpath-validation.html",
+    "source": "demo/xpath-validation.html",
+    "storyFile": "src/lib/xpath-validation-demo.stories.ts",
+    "title": "CEM Elements/XPath Validation",
+    "exportName": "FormAndPrefixRules",
+    "legends": [
+      "1. Form validation preview",
+      "2. IPv4 prefix-rule preview"
+    ]
+  }
+]

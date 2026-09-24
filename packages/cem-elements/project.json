@@ -142,6 +142,10 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/docs/demo-storybook-coverage.json",
+                "{projectRoot}/.storybook/demo-coverage.ts",
+                "{projectRoot}/index.html",
+                "{projectRoot}/demo/**/*.html",
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
                 "{workspaceRoot}/packages/custom-element/demo/http-request.html",
@@ -230,6 +234,8 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/docs/demo-storybook-coverage.json",
+                "{projectRoot}/.storybook/demo-coverage.ts",
                 "{projectRoot}/src/**/*.ts",
                 "{workspaceRoot}/packages/cem-demo-element/demo/index.html",
                 "{workspaceRoot}/packages/cem-demo-element/demo/dwarfs.json",
@@ -364,6 +370,15 @@
                 "{projectRoot}/tests/parity/material/**/*",
                 "{projectRoot}/docs/material-parity-inventory.md"
             ],
+            "outputs": []
+        },
+        "verify-demo-coverage": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["test:unit", "test", "verify-demo-fixtures"],
+            "options": {
+                "command": "echo \"Authored demo unit contracts, Storybook inventory and interactions, and independent gallery fixtures passed.\"",
+                "cwd": "{workspaceRoot}"
+            },
             "outputs": []
         },
         "verify-demo-fixtures": {
@@ -528,7 +543,7 @@
                 "verify-substrate",
                 "verify-legacy-fixtures",
                 "verify-material-fixtures",
-                "verify-demo-fixtures",
+                "verify-demo-coverage",
                 "verify-cemt-pipeline-story",
                 "verify-package"
             ],

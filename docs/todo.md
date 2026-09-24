@@ -2102,6 +2102,19 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       release schedules) pass. No lost markers, missing mounts or diagnostics
       reproduce. The user selected [continued investigation](browser-stabilization-review.tmp.md#startup-follow-up-decision-continue-investigation);
       keep this item active before the authored-sample coverage inventory.
+      Sequencing update 2026-09-23: the user approved beginning that inventory
+      while historical timeout attribution remains open on traced recurrence.
+      This supersedes the earlier stabilization-first order, not its open
+      investigations. The inventory follow-up below records the accepted work.
+  - [ ] Fixture: capture output-specific lifecycle state for the null inline
+        resource `href` in `NestedExternalSrcUsesLoadedDocumentBase` and null
+        logo `src` in `MaterialIconLinkParity`, observed during the authored
+        coverage gate. Both repeat in the three-file control with the original
+        HEAD preview as well as the inventory preview. Determine whether the
+        required URL publication is pending before changing assertions, waits
+        or shared behavior. Keep the referrer matrix's traced frame timeout
+        separate; that story passes the focused control. Evidence is recorded
+        in `packages/cem-elements/docs/demo-storybook-coverage.md`.
   - [x] Investigate failed source acquisition and recovery: HTTP 503 and
         interrupted response bodies both remain cached as rejected promises;
         original and replacement declarations make no new request after the
@@ -2367,14 +2380,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           probes pass. Lint/typecheck and whitespace checks pass. Location's
           historical failure remains unattributed; see
           [reader observations](browser-stabilization-review.tmp.md#location-reader-startup-and-snapshot-timing).
-    - [ ] Sequencing decision: keep unattributed HTTP/location/stock timeouts
+    - [x] Sequencing decision: keep unattributed HTTP/location/stock timeouts
           open for investigation when they recur, while beginning the authored
           page-and-legend coverage inventory. Recommended after the latest
-          passing controls; the earlier instruction keeps stabilization ahead
-          of that inventory, so obtain a decision before changing that order.
-          See "Pending decision: coverage inventory while timeout attribution
+          passing controls, superseding the earlier stabilization-first order.
+          See "Accepted decision: coverage inventory while timeout attribution
           remains open" in docs/browser-stabilization-review.tmp.md. Passing
           controls do not establish a historical cause or complete stabilization.
+          Accepted 2026-09-23: the user approved the recommended order. Begin
+          the authored coverage inventory and retain timeout attribution as open
+          recurrence-driven follow-up; do not mark stabilization complete.
     - [x] Fixture: run focused NPM/location stories during synchronized stock
           load, retaining the authored samples, predicates, frame budgets and
           concurrency. Verify actual overlap from timestamps and capture
@@ -3799,19 +3814,56 @@ registration identities may reuse an inherited or existing definition.
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and
       module-url pattern.
-    - [ ] Add a machine-checked page-and-legend inventory that fails when an
+    - [x] Fixture: inventory every HTML page and normalized sample legend,
+          reject missing/stale/duplicate mappings and missing asynchronous story
+          exports, and verify the mapped source declaration and rendered legends
+          after each owning story. Add source-loaded root-gallery and supporting
+          HTML-document stories without copying authored declarations. Run unit,
+          Storybook, independent demo-fixture, lint and typecheck gates.
+          The inventory accounts for 35 documents and 224 normalized legends.
+          Its 55 unit checks and nine new browser cases pass. Full gate results
+          and the scope of the remaining behavior audit are recorded in
+          `packages/cem-elements/docs/demo-storybook-coverage.md`.
+    - [x] Decision: correct the root gallery's Pokémon loop to use
+          `datadom.payload.elementsByAttribute.pokemon-id` (recommended) instead
+          of the host-inclusive `datadom.elementsByAttribute.pokemon-id`.
+          The initial source-loaded story observed `ivysaur`, `venusaur`, then an
+          unlabeled host button for Bulbasaur, and `vulpix` then an unlabeled
+          host button for Ninetales. `dataDocumentElementsByAttribute` explicitly
+          appends the host, so this is an authored selection question, not a
+          readiness timeout. Preserve the shared lookup contract and tighten
+          exact button counts and image alternatives in both Storybook and the
+          independent gallery.
+          Accepted 2026-09-23: the user chose the demo-only correction.
+    - [x] Fixture: render the authored Pokémon template natively with two,
+          one and zero payload entries while retaining the host-inclusive
+          lookup as a control. Change only the root demo to the payload lookup;
+          assert exact per-host button counts, labels and image alternatives in
+          source-loaded Storybook and both independent gallery modes. Check the
+          root page's desktop/mobile layout and rerun affected verification.
+          The native regression fails before the one-line correction and passes
+          afterward. All 31 standalone / 37 source-loaded gallery documents
+          pass. At 1280px and 390px the root page has exact payload button
+          counts and labels, no horizontal overflow, and no browser errors.
+          Final verification passes 508 unit tests and 215/217 Storybook tests;
+          the two existing URL-attribute failures remain open above, so the
+          combined coverage gate is not yet green.
+    - [x] Add a machine-checked page-and-legend inventory that fails when an
           authored demo page or `cem-demo-element[legend]` lacks a corresponding
           Storybook contract, or when a contract names a removed page or legend.
-    - [ ] Load each authored HTML file through `<cem-element src="…">`; do not
+    - [x] Load each authored HTML file through `<cem-element src="…">`; do not
           copy its CEM-ML declarations into the story or replace host-owned
           resource/import-map behavior with per-example resolver callbacks.
     - [ ] Exercise every sample's observable rendered outcome in an asynchronous
           Storybook `play` test, while retaining exact source-shape assertions in
           `test:unit` and avoiding test-only IDs, roles, or data attributes in the
           demo HTML.
-    - [ ] Keep `verify-demo-fixtures` as the independent standalone-page and
+    - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
+          `verify-demo-coverage` now requires all three gates and is included in
+          Phase 3A verification. A passing inventory does not close the parent
+          per-sample behavior audit or the separate startup investigations.
 - [x] Fix sample B dynamic inline-style interpolation so mouse-event `offsetX`
       and `offsetY` values produce valid pixel lengths in `box-shadow`, with a
       native render regression and a computed-style browser assertion.

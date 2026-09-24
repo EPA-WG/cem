@@ -6,6 +6,7 @@ import '@epa-wg/cem-theme/styles.css';
 import { definePreview } from '@storybook/web-components-vite';
 import { treeProcessingTimingOptions } from './tree-processing-timing.js';
 import { startReadinessTiming } from './readiness-timing.js';
+import { assertSourceLoadedCoverage } from './demo-coverage.js';
 
 let runtime: CemElementRuntime | undefined;
 const declarationLoads = new Map<string, Promise<void>>();
@@ -64,6 +65,9 @@ const preview = definePreview({
     },
     beforeAll: async () => {
         runtime = installStorybookRuntime();
+    },
+    afterEach: ({ id, canvasElement }) => {
+        assertSourceLoadedCoverage(id, canvasElement);
     },
 });
 

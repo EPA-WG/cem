@@ -753,7 +753,9 @@ const fixtureSpecs = [
                 'src',
                 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/2.svg',
             ),
-            countAtLeast('pokemon-tile button', 3),
+            countExactly('pokemon-tile[title="bulbasaur"] button', 2),
+            countExactly('pokemon-tile[title="ninetales"] button', 1),
+            countExactly('pokemon-tile button img:not([alt]), pokemon-tile button img[alt=""]', 0),
             text('pokemon-tile button', 'ivysaur'),
             text('pokemon-tile button', 'venusaur'),
             text('pokemon-tile button', 'vulpix'),
@@ -1719,6 +1721,9 @@ const sourceDocumentSpecs = [
                 normalizedText('greet-element:last-of-type', '👋 World!'),
             ]),
             sampleContract('3. 💪 DCE template', [
+                countExactly('pokemon-tile[title="bulbasaur"] button', 2),
+                countExactly('pokemon-tile[title="ninetales"] button', 1),
+                countExactly('pokemon-tile button img:not([alt]), pokemon-tile button img[alt=""]', 0),
                 text('pokemon-tile[title="bulbasaur"] h3', 'bulbasaur'),
                 text('pokemon-tile[title="bulbasaur"]', 'Smile as: 👼'),
                 attributeEquals(

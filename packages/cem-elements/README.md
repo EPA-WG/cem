@@ -298,6 +298,21 @@ real npm archive and clean-consumer import.
 
 Run `yarn nx run cem-elements:test` to execute the runtime stories through Storybook Test.
 
+Run `yarn nx run cem-elements:verify-demo-coverage` to require the unit contracts,
+Storybook Chromium suite, and independent standalone/source-document demo verifier
+together. The [authored page-and-legend inventory](docs/demo-storybook-coverage.json)
+names one inventory-owning story for every HTML document, including supporting
+libraries. Browser parsing checks its exact sample legends; after the owning
+story's `play`, the preview verifies the real `<cem-element src>` declaration and
+produced legends without adding a readiness wait. Unit checks reject missing
+pages, stale story exports, and non-asynchronous or excluded owners.
+
+When adding or changing a demo, update that inventory and its owning story along
+with the source-contract and independent gallery checks. Inventory ownership
+proves source loading and sample presence; each sample's rendered outcome and
+interactions still need explicit `play` assertions. A library without sample
+cards uses an explicit document or fragment story, not an inventory exclusion.
+
 Run `yarn nx run cem-elements:verify-cemt-pipeline-story` to build Storybook and visually verify the CEMT output
 pipeline story's formatted CEM tree, colored CEM tree, and writer output stages.
 
