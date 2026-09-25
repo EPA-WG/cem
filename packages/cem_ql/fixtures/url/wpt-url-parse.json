@@ -1,0 +1,842 @@
+[
+  {
+    "upstream_index": 1,
+    "case": {
+      "input": "http://example\t.\norg",
+      "base": "http://example.org/foo/bar",
+      "href": "http://example.org/",
+      "origin": "http://example.org",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.org",
+      "hostname": "example.org",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 2,
+    "case": {
+      "input": "http://user:pass@foo:21/bar;par?b#c",
+      "base": "http://example.org/foo/bar",
+      "href": "http://user:pass@foo:21/bar;par?b#c",
+      "origin": "http://foo:21",
+      "protocol": "http:",
+      "username": "user",
+      "password": "pass",
+      "host": "foo:21",
+      "hostname": "foo",
+      "port": "21",
+      "pathname": "/bar;par",
+      "search": "?b",
+      "hash": "#c"
+    }
+  },
+  {
+    "upstream_index": 3,
+    "case": {
+      "input": "https://test:@test",
+      "base": null,
+      "href": "https://test@test/",
+      "origin": "https://test",
+      "protocol": "https:",
+      "username": "test",
+      "password": "",
+      "host": "test",
+      "hostname": "test",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 5,
+    "case": {
+      "input": "non-special://test:@test/x",
+      "base": null,
+      "href": "non-special://test@test/x",
+      "origin": "null",
+      "protocol": "non-special:",
+      "username": "test",
+      "password": "",
+      "host": "test",
+      "hostname": "test",
+      "port": "",
+      "pathname": "/x",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 7,
+    "case": {
+      "input": "http:foo.com",
+      "base": "http://example.org/foo/bar",
+      "href": "http://example.org/foo/foo.com",
+      "origin": "http://example.org",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.org",
+      "hostname": "example.org",
+      "port": "",
+      "pathname": "/foo/foo.com",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 11,
+    "case": {
+      "input": "http://f:21/ b ? d # e ",
+      "base": "http://example.org/foo/bar",
+      "href": "http://f:21/%20b%20?%20d%20#%20e",
+      "origin": "http://f:21",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "f:21",
+      "hostname": "f",
+      "port": "21",
+      "pathname": "/%20b%20",
+      "search": "?%20d%20",
+      "hash": "#%20e"
+    }
+  },
+  {
+    "upstream_index": 16,
+    "case": {
+      "input": "http://f:00000000000000000000080/c",
+      "base": "http://example.org/foo/bar",
+      "href": "http://f/c",
+      "origin": "http://f",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "f",
+      "hostname": "f",
+      "port": "",
+      "pathname": "/c",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 17,
+    "case": {
+      "input": "http://f:b/c",
+      "base": "http://example.org/foo/bar",
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 21,
+    "case": {
+      "input": "http://f:999999/c",
+      "base": "http://example.org/foo/bar",
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 24,
+    "case": {
+      "input": "",
+      "base": "http://example.org/foo/bar",
+      "href": "http://example.org/foo/bar",
+      "origin": "http://example.org",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.org",
+      "hostname": "example.org",
+      "port": "",
+      "pathname": "/foo/bar",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 33,
+    "case": {
+      "input": "#",
+      "base": "http://example.org/foo/bar",
+      "href": "http://example.org/foo/bar#",
+      "origin": "http://example.org",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.org",
+      "hostname": "example.org",
+      "port": "",
+      "pathname": "/foo/bar",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 47,
+    "case": {
+      "input": "http://é@é",
+      "base": null,
+      "href": "http://%C3%A9@xn--9ca/",
+      "origin": "http://xn--9ca",
+      "protocol": "http:",
+      "username": "%C3%A9",
+      "password": "",
+      "host": "xn--9ca",
+      "hostname": "xn--9ca",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 70,
+    "case": {
+      "input": "http://[1::2]:3:4",
+      "base": "http://example.org/foo/bar",
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 74,
+    "case": {
+      "input": "http://[2001::1]",
+      "base": "http://example.org/foo/bar",
+      "href": "http://[2001::1]/",
+      "origin": "http://[2001::1]",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "[2001::1]",
+      "hostname": "[2001::1]",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 75,
+    "case": {
+      "input": "http://[::127.0.0.1]",
+      "base": "http://example.org/foo/bar",
+      "href": "http://[::7f00:1]/",
+      "origin": "http://[::7f00:1]",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "[::7f00:1]",
+      "hostname": "[::7f00:1]",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 78,
+    "case": {
+      "input": "http://[2001::1]:80",
+      "base": "http://example.org/foo/bar",
+      "href": "http://[2001::1]/",
+      "origin": "http://[2001::1]",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "[2001::1]",
+      "hostname": "[2001::1]",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 84,
+    "case": {
+      "input": "file:/example.com/",
+      "base": "http://example.org/foo/bar",
+      "href": "file:///example.com/",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "/example.com/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 85,
+    "case": {
+      "input": "file://example:1/",
+      "base": null,
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 117,
+    "case": {
+      "input": "file:c:\\foo\\bar.html",
+      "base": "file:///tmp/mock/path",
+      "href": "file:///c:/foo/bar.html",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "/c:/foo/bar.html",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 131,
+    "case": {
+      "input": "file://localhost",
+      "base": "file:///tmp/mock/path",
+      "href": "file:///",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 138,
+    "case": {
+      "input": "file:///w|/m",
+      "base": null,
+      "href": "file:///w:/m",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "/w:/m",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 155,
+    "case": {
+      "input": "http://example.com/foo/%2e./%2e%2e/.%2e/%2e.bar",
+      "base": null,
+      "href": "http://example.com/%2e.bar",
+      "origin": "http://example.com",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.com",
+      "hostname": "example.com",
+      "port": "",
+      "pathname": "/%2e.bar",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 174,
+    "case": {
+      "input": "http://example.com/你好你好",
+      "base": null,
+      "href": "http://example.com/%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD",
+      "origin": "http://example.com",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "example.com",
+      "hostname": "example.com",
+      "port": "",
+      "pathname": "/%E4%BD%A0%E5%A5%BD%E4%BD%A0%E5%A5%BD",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 230,
+    "case": {
+      "input": "https://example.com/aaa/bbb/%2e%2e?query",
+      "base": null,
+      "href": "https://example.com/aaa/?query",
+      "origin": "https://example.com",
+      "protocol": "https:",
+      "username": "",
+      "password": "",
+      "host": "example.com",
+      "hostname": "example.com",
+      "port": "",
+      "pathname": "/aaa/",
+      "search": "?query",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 286,
+    "case": {
+      "input": "http://GOO 　goo.com",
+      "base": "http://other.com/",
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 300,
+    "case": {
+      "input": "http://www.foo。bar.com",
+      "base": "http://other.com/",
+      "href": "http://www.foo.bar.com/",
+      "origin": "http://www.foo.bar.com",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "www.foo.bar.com",
+      "hostname": "www.foo.bar.com",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 306,
+    "case": {
+      "input": "https://�",
+      "base": null,
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 318,
+    "case": {
+      "input": "http://Ｇｏ.com",
+      "base": "http://other.com/",
+      "href": "http://go.com/",
+      "origin": "http://go.com",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "go.com",
+      "hostname": "go.com",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 326,
+    "case": {
+      "input": "http://你好你好",
+      "base": "http://other.com/",
+      "href": "http://xn--6qqa088eba/",
+      "origin": "http://xn--6qqa088eba",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "xn--6qqa088eba",
+      "hostname": "xn--6qqa088eba",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 327,
+    "case": {
+      "input": "https://faß.ExAmPlE/",
+      "base": null,
+      "href": "https://xn--fa-hia.example/",
+      "origin": "https://xn--fa-hia.example",
+      "protocol": "https:",
+      "username": "",
+      "password": "",
+      "host": "xn--fa-hia.example",
+      "hostname": "xn--fa-hia.example",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 328,
+    "case": {
+      "input": "sc://faß.ExAmPlE/",
+      "base": null,
+      "href": "sc://fa%C3%9F.ExAmPlE/",
+      "origin": "null",
+      "protocol": "sc:",
+      "username": "",
+      "password": "",
+      "host": "fa%C3%9F.ExAmPlE",
+      "hostname": "fa%C3%9F.ExAmPlE",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 344,
+    "case": {
+      "input": "http://０Ｘｃ０．０２５０．０１",
+      "base": "http://other.com/",
+      "href": "http://192.168.0.1/",
+      "origin": "http://192.168.0.1",
+      "protocol": "http:",
+      "username": "",
+      "password": "",
+      "host": "192.168.0.1",
+      "hostname": "192.168.0.1",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 353,
+    "case": {
+      "input": "http://[::1.2.3.4x]",
+      "base": "http://other.com/",
+      "failure": true
+    }
+  },
+  {
+    "upstream_index": 367,
+    "case": {
+      "input": "https://localhost?q=🔥",
+      "base": null,
+      "href": "https://localhost/?q=%F0%9F%94%A5",
+      "origin": "https://localhost",
+      "protocol": "https:",
+      "username": "",
+      "password": "",
+      "host": "localhost",
+      "hostname": "localhost",
+      "port": "",
+      "pathname": "/",
+      "search": "?q=%F0%9F%94%A5",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 368,
+    "case": {
+      "input": "https://localhost#🔥",
+      "base": null,
+      "href": "https://localhost/#%F0%9F%94%A5",
+      "origin": "https://localhost",
+      "protocol": "https:",
+      "username": "",
+      "password": "",
+      "host": "localhost",
+      "hostname": "localhost",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": "#%F0%9F%94%A5"
+    }
+  },
+  {
+    "upstream_index": 664,
+    "case": {
+      "input": "file://[1::8]/C:/",
+      "base": null,
+      "href": "file://[1::8]/C:/",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "[1::8]",
+      "hostname": "[1::8]",
+      "port": "",
+      "pathname": "/C:/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 774,
+    "case": {
+      "input": "non-special://[1:2::3]:80/",
+      "base": null,
+      "href": "non-special://[1:2::3]:80/",
+      "protocol": "non-special:",
+      "username": "",
+      "password": "",
+      "host": "[1:2::3]:80",
+      "hostname": "[1:2::3]",
+      "port": "80",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 776,
+    "case": {
+      "input": "blob:https://example.com:443/",
+      "base": null,
+      "href": "blob:https://example.com:443/",
+      "origin": "https://example.com",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "https://example.com:443/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 777,
+    "case": {
+      "input": "blob:http://example.org:88/",
+      "base": null,
+      "href": "blob:http://example.org:88/",
+      "origin": "http://example.org:88",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "http://example.org:88/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 778,
+    "case": {
+      "input": "blob:d3958f5c-0777-0845-9dcf-2cb28783acaf",
+      "base": null,
+      "href": "blob:d3958f5c-0777-0845-9dcf-2cb28783acaf",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "d3958f5c-0777-0845-9dcf-2cb28783acaf",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 779,
+    "case": {
+      "input": "blob:",
+      "base": null,
+      "href": "blob:",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 781,
+    "case": {
+      "input": "blob:blob:",
+      "base": null,
+      "href": "blob:blob:",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "blob:",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 782,
+    "case": {
+      "input": "blob:blob:https://example.org/",
+      "base": null,
+      "href": "blob:blob:https://example.org/",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "blob:https://example.org/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 784,
+    "case": {
+      "input": "blob:about:blank",
+      "base": null,
+      "href": "blob:about:blank",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "about:blank",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 785,
+    "case": {
+      "input": "blob:file://host/path",
+      "base": null,
+      "href": "blob:file://host/path",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "file://host/path",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 786,
+    "case": {
+      "input": "blob:ftp://host/path",
+      "base": null,
+      "href": "blob:ftp://host/path",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "ftp://host/path",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 787,
+    "case": {
+      "input": "blob:ws://example.org/",
+      "base": null,
+      "href": "blob:ws://example.org/",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "ws://example.org/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 788,
+    "case": {
+      "input": "blob:wss://example.org/",
+      "base": null,
+      "href": "blob:wss://example.org/",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "wss://example.org/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 790,
+    "case": {
+      "input": "blob:http%3a//example.org/",
+      "base": null,
+      "href": "blob:http%3a//example.org/",
+      "origin": "null",
+      "protocol": "blob:",
+      "username": "",
+      "password": "",
+      "host": "",
+      "hostname": "",
+      "port": "",
+      "pathname": "http%3a//example.org/",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 839,
+    "case": {
+      "input": "file://xn--/p",
+      "base": null,
+      "href": "file://xn--/p",
+      "protocol": "file:",
+      "username": "",
+      "password": "",
+      "host": "xn--",
+      "hostname": "xn--",
+      "port": "",
+      "pathname": "/p",
+      "search": "",
+      "hash": ""
+    }
+  },
+  {
+    "upstream_index": 921,
+    "case": {
+      "input": "https://xn--/",
+      "base": null,
+      "href": "https://xn--/",
+      "origin": "https://xn--",
+      "protocol": "https:",
+      "username": "",
+      "password": "",
+      "host": "xn--",
+      "hostname": "xn--",
+      "port": "",
+      "pathname": "/",
+      "search": "",
+      "hash": ""
+    }
+  }
+]

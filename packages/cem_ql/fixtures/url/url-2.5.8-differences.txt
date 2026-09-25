@@ -1,0 +1,11 @@
+138: href: expected "file:///w:/m", received "file:///w|/m"
+138: pathname: expected "/w:/m", received "/w|/m"
+664: href: expected "file://[1::8]/C:/", received "file:///C:/"
+664: host: expected "[1::8]", received ""
+664: hostname: expected "[1::8]", received ""
+782: origin: expected "null", received "https://example.org"
+786: origin: expected "null", received "ftp://host"
+787: origin: expected "null", received "ws://example.org"
+788: origin: expected "null", received "wss://example.org"
+839: unexpectedly rejected
+921: unexpectedly rejected

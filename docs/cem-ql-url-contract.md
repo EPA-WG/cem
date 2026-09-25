@@ -381,3 +381,34 @@ notes/checklist changed. Whitespace and local-link checks pass. No common
 module changed, so no full native, browser or workspace-wide suite was run.
 This closes the attributed failure, not a claim that the previously interrupted
 package suite has completed. Next is URL-PARSE with native tests first.
+
+
+## URL-PARSE candidate gate — decision pending
+
+On 2026-09-25, the native `url` 2.5.8 candidate was tested against
+[51 selected WPT vectors](../packages/cem_ql/fixtures/url/README.md), pinned to
+revision `c48d58747e1f211527fb695fd60548a997fae617` with source SHA-256 and
+unchanged BSD license. All selected objects were compared with the pinned source.
+The dependency is dev-only; no production module, registry or evaluator changed.
+
+The initial conformance test fails: eight cases have 11 differences. These cover
+file drive normalization and IPv6-host preservation, nested/non-HTTP blob origins,
+and empty punycode labels. Forty-three cases match all supplied expectations.
+The final three focused tests characterize the exact candidate gaps and cover
+additional explicit-base, delimiter, query and pure-origin behavior. Their
+passing result **does not mean the candidate conforms**. Upstream expectations
+are unchanged; a separate difference file retains the adoption blockers.
+
+Evidence logs: `/tmp/cem-url-parse-candidate.log` (initial failure) and
+`/tmp/cem-url-parse-characterization.log` (three passing characterization tests).
+Only tests, pinned data/license, a dev dependency and documentation changed.
+Formatting, whitespace and pinned-source integrity checks pass. No full package,
+workspace or browser tests were invoked.
+
+Decision: investigate maintained upstream fixes or a replacement native parser
+before adoption (recommended), or maintain a patched `url` dependency. The
+accepted contract is unchanged. Four origin cases need the already specified
+pure-profile handling, but drive/host and IDNA differences require parser-level
+evidence; do not assume post-serialization rewriting can recover lost host
+information or rejected input. URL-PARSE remains open until that strategy and
+its conformance evidence are complete. No compatibility fix is included here.

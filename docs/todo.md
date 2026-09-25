@@ -5258,6 +5258,21 @@ registration identities may reuse an inherited or existing definition.
     - [ ] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
           test native parsing, explicit bases, serialization, encoding and the
           pure origin profile before choosing dependency adapters.
+        - [x] Pin candidate evidence: retain 51 unmodified WPT cases, source
+              revision/hash and BSD license; test url 2.5.8 natively as a dev
+              dependency with explicit bases, getters and href idempotence.
+              Completed 2026-09-25: 43 cases match; eight expose 11 differences
+              in file drive/host handling, blob origins and empty punycode labels.
+              The original conformance probe fails; three final characterization
+              tests pass while asserting the exact unresolved differences.
+              See [candidate evidence](../packages/cem_ql/fixtures/url/README.md).
+              No production parser adopted; no common modules changed and no
+              full suite ran. Source/license integrity and formatting pass.
+        - [ ] Decide native parser strategy before production adoption:
+              investigate maintained upstream fixes/replacements (recommended),
+              or authorize maintaining a patched url dependency. Preserve the
+              accepted WHATWG/pure profile and unchanged WPT expectations;
+              do not treat the characterization baseline as a conformance waiver.
     - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped
           diagnostics before implementing the immutable update adapter.
