@@ -36,6 +36,7 @@ import initCemQlWasm, {
     disposeCemDocument,
     renderTemplateSource,
     resolveModuleUrl as resolveModuleUrlWasm,
+    resolveNavigationLinks as resolveNavigationLinksWasm,
     templateArtifactPayloadKey,
     templateModuleImports,
     retainXsltComponent,
@@ -260,6 +261,8 @@ export interface CemMlTemplateProcessingIdentity {
 }
 
 export interface CemMlTemplateProcessingInput {
+    /** Opt-in ordinary HTML navigation base, captured from the owning declaration. */
+    linkBaseUrl?: string;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
@@ -300,6 +303,38 @@ export interface CemMlTemplateProcessingResult {
 
 let initPromise: Promise<void> | undefined;
 let ready = false;
+
+/** Resolve authored navigation attributes before slot insertion and patch comparison. */
+export async function resolveRenderPlanLinks(nodes: RenderPlanNode[], sourceUrl?: string | null): Promise<RenderPlanNode[]> {
+    if (sourceUrl == null) return nodes;
+    const hrefs: string[] = [];
+    const collect = (nodes: RenderPlanNode[]): void => {
+        for (const node of nodes) {
+            if (node.kind !== 'element' || node.renderNodeId.startsWith('payload-')) continue;
+            const html = node.namespace === null || node.namespace === 'http://www.w3.org/1999/xhtml';
+            if (html && node.tag === 'template') continue;
+            if (html && (node.tag === 'a' || node.tag === 'area')) {
+                for (const attribute of node.attributes) if (attribute.name === 'href') hrefs.push(attribute.value);
+            }
+            collect(node.children);
+        }
+    };
+    collect(nodes);
+    if (!hrefs.length) return nodes;
+    await ensureRuntimeReady();
+    const resolved = JSON.parse(resolveNavigationLinksWasm(sourceUrl, JSON.stringify(hrefs))) as string[];
+    let index = 0;
+    const rewrite = (nodes: RenderPlanNode[]): RenderPlanNode[] => nodes.map(node => {
+        if (node.kind !== 'element' || node.renderNodeId.startsWith('payload-')) return node;
+        const html = node.namespace === null || node.namespace === 'http://www.w3.org/1999/xhtml';
+        if (html && node.tag === 'template') return node;
+        const attributes = html && (node.tag === 'a' || node.tag === 'area')
+            ? node.attributes.map(attribute => attribute.name === 'href'
+                ? { ...attribute, value: resolved[index++] } : attribute) : node.attributes;
+        return { ...node, attributes, children: rewrite(node.children) };
+    });
+    return rewrite(nodes);
+}
 
 /**
  * Lazily instantiate the `cem_ql` WASM module once per host. Safe to call
@@ -774,7 +809,7 @@ export async function processCemMlTemplate(
     const renderPlan = projectSlotsInRenderPlan(
         {
             ...input.identity,
-            nodes: rendered.nodes,
+            nodes: await resolveRenderPlanLinks(rendered.nodes, input.linkBaseUrl),
         },
         input.payload
     );
@@ -818,7 +853,7 @@ export async function processRetainedCemMlTemplate(
     const renderPlan = projectSlotsInRenderPlan(
         {
             ...input.identity,
-            nodes: rendered.nodes,
+            nodes: await resolveRenderPlanLinks(rendered.nodes, input.linkBaseUrl),
         },
         input.payload
     );

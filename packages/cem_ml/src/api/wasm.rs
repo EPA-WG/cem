@@ -140,6 +140,17 @@ enum WasmModuleUrlReferrer {
     Context { context: CemResolutionContextHandle },
 }
 
+/// Scalar navigation URL transport, with no AST/DOM or module-map handoff.
+#[wasm_bindgen(js_name = "resolveNavigationLinks")]
+pub fn resolve_navigation_links_json(source_url: &str, hrefs_json: &str) -> Result<String, JsValue> {
+    let hrefs: Vec<String> = serde_json::from_str(hrefs_json)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let resolved = crate::navigation_links::resolve_navigation_links(
+        crate::navigation_links::NavigationLinkBase::Source, source_url, &hrefs,
+    ).map_err(|error| JsValue::from_str(&error))?;
+    serde_json::to_string(&resolved).map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
 /// Resolve a module URL through the same scoped resolver used by native CEM-QL
 /// and XPath. Context construction remains host-owned; this boundary only
 /// transports immutable, already-normalized frame stacks into browser/Node

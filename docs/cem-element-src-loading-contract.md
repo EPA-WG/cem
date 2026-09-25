@@ -93,6 +93,35 @@ Template-visible resource state MUST follow the portable lifecycle names and tra
 [CEM-ML Resource And AST Stream Lifecycle](./cem-ml-resource-lifecycle.md). Hosts MAY expose additional internal states,
 but they MUST map to the CEM-ML lifecycle before templates observe them.
 
+## Ordinary Navigation Links
+
+`<cem-element link-base="source" src="./docs/page.html">` opts the declaration's
+rendered HTML `a[href]` and `area[href]` into source-relative navigation. The
+default, also expressible as `link-base="document"`, retains authored attributes
+and the browser document's normal base-URL behavior. Any other value is a
+declaration error (`cem-element.link_base_invalid`); no element is registered.
+
+Source mode uses the retained final declaration URL, including a loader's
+redirect result. Inline declarations use their inherited resource base. Relative
+paths, root-relative paths, protocol-relative links and query-only links resolve
+against that URL. Empty and fragment-only links retain current-document
+navigation. Explicit schemes remain authored; this policy does not change URL
+security policy, invoke import maps or fetch link targets.
+
+Resolution runs after bindings evaluate and before render-plan comparison, so
+dynamic href updates use the same policy as initial rendering. It applies only
+to the declaration's rendered navigation links. Inert template contents and
+projected consumer payload retain their own ownership. Nested declarations opt
+in independently. SVG links, form actions, images, stylesheets and other URL
+attributes keep their existing behavior. Source text is not rewritten.
+
+The declaration policy and effective source base participate in registration
+and retained-processing identities. The same native URL resolver serves DOM
+templates, direct WASM rendering and retained processing, including worker and
+fallback execution. Invalid source-relative resolution fails the render without
+publishing a host-relative fallback. The renderer version for this optional
+behavior is `1.6.0`.
+
 ## CEM-ML Resource Lifecycle Binding
 
 This contract binds the shared CEM-ML lifecycle to two resource kinds:

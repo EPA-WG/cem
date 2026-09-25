@@ -24,6 +24,7 @@ export const EveryAuthoredSample: Story = {
         declaration.hidden = true;
         declaration.setAttribute('tag', SOURCE_TAG);
         declaration.setAttribute('src', DEMO_URL.href);
+        declaration.setAttribute('link-base', 'source');
 
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
@@ -98,10 +99,10 @@ export const EveryAuthoredSample: Story = {
             expect(sample.querySelector('[slot="status"]')?.textContent?.trim() ?? '').toBe('');
         });
         expect(location.href).toBe(originalUrl);
-        // Ordinary source-document navigation resolution is a separate pending
-        // decision; the matrix's CEM module URLs are checked above in full.
-        const related = requiredElement(host, 'main section a[href$="module-url.html"]');
-        expect(related.getAttribute('href')).toBe('./module-url.html');
+        const related = requiredElement(host, 'main section a[href$="module-url.html"]') as HTMLAnchorElement;
+        expect(related.href).toBe(new URL('./module-url.html', DEMO_URL).href);
+        const index = requiredElement(host, 'nav a') as HTMLAnchorElement;
+        expect(index.href).toBe(new URL('../index.html', DEMO_URL).href);
         expect(host.querySelectorAll('cem-module-url')).toHaveLength(0);
         expect(cemDiagnosticCodes(declaration)).toEqual([]);
         expect(cemDiagnosticCodes(instance)).toEqual([]);

@@ -1121,15 +1121,43 @@ nine CEM module URLs remain source-relative and correct. The user approved
 investigating shared source-link resolution. The loader retains the final
 source URL as `resourceBaseUrl`, but `templateFromDocument`/`templateFromTarget`
 import ordinary attributes unchanged. The existing loading contract governs
-CEM resource controls and supplies no ordinary-link rebasing policy. A decision
-between an explicit per-declaration opt-in and a default for external
-declarations is pending. Both proposed modes preserve current-page fragments
-and allow explicit host-document resolution. No shared implementation, fixture
-or harness rebasing has been added; tests do not assert the host-relative
-destination as desired.
+CEM resource controls and supplied no ordinary-link rebasing policy.
 
 The focused story and both gallery modes pass after the approved presentation
 correction. The full aggregate gate passes all 237 Storybook tests, 513 unit
 tests and 31 standalone / 37 source-loaded documents. Lint and typecheck pass
-with the two existing lint warnings. The broader matrix audit remains open for
-the navigation policy decision; the next demo after it is `module-url.html`.
+with the two existing lint warnings. The navigation follow-up below closes the
+remaining matrix audit; the next demo is `module-url.html`.
+
+### Opt-in source navigation policy
+
+The user approved an explicit per-declaration opt-in. Shared
+`link-base="source"` resolves rendered HTML anchor and area hrefs against the
+declaration's retained final source URL. Omitted policy and explicit
+`link-base="document"` preserve the browser document's ordinary resolution.
+Empty and fragment-only links retain current-page behavior. Inert template
+contents, consumer payload and other URL attributes keep their existing
+ownership and behavior; nested declarations opt in independently.
+
+The native resolver runs after bindings evaluate and before patch comparison,
+preserving node identity through dynamic href changes. DOM templates, direct
+WASM, retained workers and main-thread fallback use the same resolver. Policy
+and final source base participate in registration and processing identities;
+renderer version 1.6.0 identifies the optional behavior. Invalid policy values
+prevent registration, and URL-resolution errors fail the render without a
+host-relative fallback. Neither import maps nor target fetches participate.
+
+The matrix's Storybook and independent loading declarations enable source mode.
+Both now require the existing index link and related module-URL link to resolve
+inside the authored package/demo directories. No fixture href or harness URL
+rewriting is used. Five browser stories cover default and explicit modes,
+redirect bases, dynamic changes with stable anchors, consumer/inert ownership,
+literal empty hrefs, native fragment clicks, processing fallback and invalid
+policy. Four focused native regressions cover URL forms, escaping, preservation
+and resolution failures. A unit regression checks retained artifact identities.
+The focused location/matrix gallery passes in both modes, retaining the location
+demo's native fragment behavior. Final aggregate validation passes all 242
+Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded documents.
+Build, lint and typecheck pass with the two existing lint warnings. The matrix
+audit is complete; the broader per-sample audit and separate startup
+investigations remain open.

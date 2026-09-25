@@ -33,6 +33,15 @@ resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resourc
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements
 binding for resource role, acquisition policy, metadata, and expected content-type context.
 
+Ordinary HTML navigation keeps the host document's base by default. Set
+`link-base="source"` on a declaration to resolve its rendered `a[href]` and
+`area[href]` against the declaration's final source URL; `link-base="document"`
+explicitly selects the default. Dynamic href bindings use the same policy.
+Empty and fragment-only links still target the current document. Inert templates,
+consumer payload, nested declarations and other URL attributes keep their own
+behavior. This policy does not fetch targets or use import maps. See the
+[navigation contract](../../docs/cem-element-src-loading-contract.md#ordinary-navigation-links).
+
 HTML projection preserves the contents of nested HTML `<template>` elements
 for their eventual consumer. Outer bindings and payload slots do not evaluate
 text, attributes or slots inside those inert contents. This keeps embedded

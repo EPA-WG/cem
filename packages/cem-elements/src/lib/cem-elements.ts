@@ -30,6 +30,7 @@ import {
     compileCemMlTemplate,
     convertLegacyTemplate,
     processCemMlTemplate,
+    resolveRenderPlanLinks,
     preflightCemMlTemplateModules,
     preflightXsltModules,
     type CemXsltComponentOptions,
@@ -727,6 +728,7 @@ interface SliceDeclaration {
 }
 
 interface CompiledDeclaration {
+    linkBaseUrl: string | null;
     declarationElement: HTMLElement;
     declarationTag: string;
     declarationVersion: string | null;
@@ -1098,6 +1100,7 @@ const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
     'class',
     'hidden',
     'id',
+    'link-base',
     'scope',
     'src',
     'style',
@@ -1965,7 +1968,8 @@ export class CemElementRuntime {
             behaviorIdentity: capability?.behaviorIdentity ?? registrationOptions?.behaviorIdentity,
         });
         this.recordDiagnostics(declarationElement, [...shapeDiagnostics, ...compiled.diagnostics]);
-        if (!compiled.registrationIdentity || (compiled.mode === 'xslt' && compiled.diagnostics.some((d) => d.severity === 'error' || d.severity === 'fatal'))) {
+        if (!compiled.registrationIdentity || compiled.diagnostics.some(d => d.code === 'cem-element.link_base_invalid')
+            || (compiled.mode === 'xslt' && compiled.diagnostics.some((d) => d.severity === 'error' || d.severity === 'fatal'))) {
             return Promise.resolve();
         }
 
@@ -2628,15 +2632,25 @@ export class CemElementRuntime {
             return;
         }
 
-        // DOM parity and legacy bridge templates render synchronously through the
-        // projection path.
+        // DOM parity templates keep their synchronous projection path. Opt-in
+        // source links cross the native resolver before the plan is committed.
         const renderPlan = this.renderFromDeclaration(instance, compiled, snapshot);
+        const commit = async () => {
+            if (!renderPlan) return;
+            try {
+                const nodes = await resolveRenderPlanLinks(renderPlan.nodes, compiled.linkBaseUrl);
+                if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
+                await this.commitRenderPlan(instance, compiled, island, { ...renderPlan, nodes }, token);
+            } catch (error) {
+                if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
+                this.recordDiagnostics(instance, [renderDiagnostic('cem-element.link_resolution_failed',
+                    error instanceof Error ? error.message : String(error), compiled.producedTag)]);
+            }
+        };
         this.renderSettled.set(
             instance,
-            (renderPlan
-                ? this.commitRenderPlan(instance, compiled, island, renderPlan, token)
-                : Promise.resolve()
-            ).then(() => {
+            (compiled.linkBaseUrl !== null ? commit() : renderPlan
+                ? this.commitRenderPlan(instance, compiled, island, renderPlan, token) : Promise.resolve()).then(() => {
                 this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
             }),
         );
@@ -2739,6 +2753,7 @@ export class CemElementRuntime {
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const moduleClosure = await this.preflightDeclarationModules(compiled, Object.keys(data));
             const result = await processCemMlTemplate({
+                linkBaseUrl: compiled.linkBaseUrl ?? undefined,
                 source,
                 data,
                 ...(moduleClosure === undefined ? {} : { moduleClosure }),
@@ -2847,6 +2862,7 @@ export class CemElementRuntime {
         if (compiled.xsltSource !== null && compiled.xsltOptions !== null) {
             const modules = await preflightXsltModules(compiled.xsltSource, this.declarationModuleLoader(compiled));
             const result = await this.processingHost(compiled).compile({
+                linkBaseUrl: compiled.linkBaseUrl ?? undefined,
                 language: 'xslt', producedTag: compiled.producedTag, templateArtifactId: compiled.artifactId,
                 registrationIdentity, source: createCemProcessingTextSource(compiled.xsltSource),
                 sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity,
@@ -2882,6 +2898,7 @@ export class CemElementRuntime {
             }
         }
         const result = await this.processingHost(compiled).compile({
+            linkBaseUrl: compiled.linkBaseUrl ?? undefined,
             language: 'cem-ml',
             producedTag: compiled.producedTag,
             templateArtifactId: compiled.artifactId,
@@ -6243,6 +6260,12 @@ function compileInlineDeclaration(
 ): CompiledDeclaration {
     const mode = options.source.templateLanguage ?? templateMode(template);
     const diagnostics: CemElementDiagnostic[] = [];
+    const linkBase = declarationElement.getAttribute('link-base')?.trim() ?? 'document';
+    if (linkBase !== 'source' && linkBase !== 'document') {
+        diagnostics.push(declarationDiagnostic('cem-element.link_base_invalid',
+            'link-base requires source or document', producedTag));
+    }
+    const linkBaseUrl = linkBase === 'source' ? options.source.resourceBaseUrl : null;
 
     const rawTemplateSource = readInlineTemplateSource(template, mode);
     const domStyles =
@@ -6286,9 +6309,11 @@ function compileInlineDeclaration(
         diagnostics.push(declarationDiagnostic('cem-element.xpath_functions_invalid',
             'xpath-functions requires a nonempty reference on a CEM-ML template', producedTag));
     }
-    const registrationSource = xsltOptions !== null ? JSON.stringify([sourceText, xsltOptions, options.source.resourceBaseUrl, options.source.resolverIdentity])
+    const languageRegistrationSource = xsltOptions !== null ? JSON.stringify([sourceText, xsltOptions, options.source.resourceBaseUrl, options.source.resolverIdentity])
         : xpathFunctionsRef === null ? sourceText
         : JSON.stringify([sourceText, xpathFunctionsRef, options.source.resourceBaseUrl, options.source.resolverIdentity]);
+    const registrationSource = linkBaseUrl === null ? languageRegistrationSource
+        : JSON.stringify([languageRegistrationSource, { linkBase: 'source', sourceUrl: linkBaseUrl }]);
     const sourceHash = sourceHashSeedDigest({
         declarationTag: options.declarationTag,
         producedTag,
@@ -6321,6 +6346,7 @@ function compileInlineDeclaration(
     );
     return {
         declarationElement,
+        linkBaseUrl,
         declarationTag: options.declarationTag,
         declarationVersion: options.declarationVersion,
         producedTag,
@@ -6619,6 +6645,7 @@ export function deterministicAnonymousTag(element: HTMLElement, scopePolicyStamp
         uidSeed: element.getAttribute(UID_SEED_ATTR) ?? '',
         occurrencePath: declarationOccurrencePath(element),
         src: element.getAttribute('src') ?? '',
+        ...(element.getAttribute('link-base')?.trim() === 'source' ? { linkBase: 'source' } : {}),
         source: template ? template.innerHTML || templateSourceText(template) : '',
     };
     const hex = [0, 1]

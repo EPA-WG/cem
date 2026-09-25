@@ -108,6 +108,8 @@ export function createCemProcessingTextSource(
 }
 
 export interface CemProcessingCompileInput {
+    /** Source URL for opt-in ordinary HTML navigation. Omitted means host-document links. */
+    linkBaseUrl?: string;
     language: 'cem-ml' | 'xslt';
     producedTag: string;
     templateArtifactId: string;

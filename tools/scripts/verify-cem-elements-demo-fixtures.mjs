@@ -2607,6 +2607,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/module-url-referrer.html',
         samples: [scalarReferrerSample],
+        declarationAttributes: { 'link-base': 'source' },
     },
     { path: '/packages/cem-elements/demo/functions/dom.html', samples: domChainSamples },
     {
@@ -3215,12 +3216,15 @@ async function demoHtmlPaths(directory, relativeDirectory = '') {
 
 async function mountSourceDocument(page, fixture, tag) {
     await page.evaluate(
-        async ({ path, producedTag, attributes, content }) => {
+        async ({ path, producedTag, attributes, declarationAttributes, content }) => {
             await customElements.whenDefined('cem-element');
             const declaration = document.createElement('cem-element');
             declaration.hidden = true;
             declaration.setAttribute('tag', producedTag);
             declaration.setAttribute('src', path);
+            for (const [name, value] of Object.entries(declarationAttributes ?? {})) {
+                declaration.setAttribute(name, value);
+            }
             const instance = document.createElement(producedTag);
             for (const [name, value] of Object.entries(attributes ?? {})) {
                 instance.setAttribute(name, value);
@@ -3228,7 +3232,8 @@ async function mountSourceDocument(page, fixture, tag) {
             if (content) instance.textContent = content;
             document.body.append(declaration, instance);
         },
-        { path: fixture.path, producedTag: tag, attributes: fixture.attributes, content: fixture.content },
+        { path: fixture.path, producedTag: tag, attributes: fixture.attributes,
+            declarationAttributes: fixture.declarationAttributes, content: fixture.content },
     );
 }
 
@@ -3460,12 +3465,9 @@ async function verifyScalarReferrerPresentation(page, requests, originalUrl) {
             && expectedControls.every(control => source.includes(`{$datadom.slices.${control.split(' ')[0].slice(7)}}`))
             && !(sample?.querySelector('[slot="status"]')?.textContent ?? '').trim();
     }, { selector, expectedControls });
-    // Source-loaded ordinary navigation resolution is tracked separately. Do not
-    // turn its host-relative link into an expected successful demo-file link.
-    if (new URL(originalUrl).pathname !== '/__cem-source-harness.html') {
-        await runCheck(page, urlEquals('main section a[href$="module-url.html"]', 'href',
-            '/packages/cem-elements/demo/module-url.html'));
-    }
+    await runCheck(page, urlEquals('main section a[href$="module-url.html"]', 'href',
+        '/packages/cem-elements/demo/module-url.html'));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
     // A dedicated wide matrix has one card. Verify the output itself, since the
     // shared card's overflow:hidden can hide a table without widening the page.
     for (const width of [1280, 390]) {

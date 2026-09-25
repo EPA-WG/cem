@@ -161,6 +161,24 @@ import {
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
+    it('separates source-link policy and final bases in retained artifact identity', async () => {
+        const engine = new CemProcessingEngine();
+        const input = {
+            language: 'cem-ml' as const, producedTag: 'cem-navigation',
+            templateArtifactId: 'navigation-document', registrationIdentity: 'registration-navigation',
+            source: createCemProcessingTextSource('{a @href="./next.html" | Next}'),
+            sourceRef: { kind: 'url' as const, value: 'https://source.test/request.html' },
+            resolverIdentity: 'test', scopePolicyStamp: 'test', sourceMapMode: 'dev' as const,
+        };
+        const document = await engine.compile(input);
+        const source = { ...input, linkBaseUrl: 'https://source.test/final/links.html' };
+        await expect(engine.compile(source)).rejects.toThrow('another identity');
+        const first = await engine.compile({ ...source, templateArtifactId: 'navigation-source' });
+        const second = await engine.compile({ ...source, templateArtifactId: 'navigation-other-source',
+            linkBaseUrl: 'https://other.test/final/links.html' });
+        expect(new Set([document.artifact.cacheKey, first.artifact.cacheKey, second.artifact.cacheKey]).size).toBe(3);
+        engine.dispose();
+    });
     it('keys dependency closures separately and returns imported styles without source-only binary export', async () => {
         const engine = new CemProcessingEngine();
         const input = {

@@ -168,6 +168,7 @@ export class CemProcessingEngine {
                 moduleClosure: input.moduleClosure ?? null,
                 xpathFunctionLibrary: input.xpathFunctionLibrary ?? null,
                 xslt: input.xslt ?? null,
+                linkBaseUrl: input.linkBaseUrl ?? null,
             }).key,
             registrationIdentity: input.registrationIdentity,
             scopePolicyStamp: input.scopePolicyStamp,
@@ -233,6 +234,7 @@ export class CemProcessingEngine {
         assertRenderRevision(input);
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
         const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
+            linkBaseUrl: artifact.input.linkBaseUrl,
             xslt: artifact.compilation.xslt,
             xpathCompanionId: artifact.compilation.xpathLibrary?.companionId,
             documents: (input.documents ?? []).map(({ slice, handle }) => {
@@ -432,6 +434,7 @@ function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompile
 
 function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessingCompileInput): boolean {
     return left.language === right.language
+        && left.linkBaseUrl === right.linkBaseUrl
         && left.registrationIdentity === right.registrationIdentity
         && left.scopePolicyStamp === right.scopePolicyStamp
         && left.sourceMapMode === right.sourceMapMode

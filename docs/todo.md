@@ -4469,7 +4469,7 @@ registration identities may reuse an inherited or existing definition.
           typecheck (two existing warnings). The authored demo and shared
           runtime are unchanged; no new behavior decision was needed. The
           separately tracked startup-timeout investigation remains open.
-    - [ ] Fixture: audit every cell of the scalar-referrer matrix in
+    - [x] Fixture: audit every cell of the scalar-referrer matrix in
           `demo/module-url-referrer.html` against its source-loaded Storybook
           and independent gallery contracts. Check each src/referrer pairing,
           resolved resources, visible outcomes and source presentation. Preserve
@@ -4507,11 +4507,29 @@ registration identities may reuse an inherited or existing definition.
               consume that source context; ordinary anchor attributes do not.
               The resource-loading contract covers CEM controls and does not
               define ordinary-link rebasing. No shared implementation changed.
-        - [ ] Decision: make source-relative ordinary links an explicit
+        - [x] Decision: make source-relative ordinary links an explicit
               per-declaration opt-in (recommended), or the default for external
               declarations. Preserve current-page fragment links and provide an
               explicit host-document mode. A global default changes existing
               reusable components that currently rely on host-relative links.
+              Accepted 2026-09-24: explicit opt-in policy.
+        - [x] Fixture: add shared `link-base="source|document"` declaration
+              handling, defaulting to document. Test native URL resolution,
+              default/explicit modes, redirects, dynamic links, payload and
+              inert-template ownership, processing patches and fragment links.
+              Enable source mode for the matrix's loading declarations, verify
+              both navigation destinations and close the remaining audit.
+              Completed 2026-09-24: one native resolver serves DOM, direct WASM,
+              retained worker and fallback rendering. Source mode uses the
+              final declaration URL; default/explicit document mode preserves
+              existing links. Dynamic patches retain anchor identity, and
+              policy/base identities remain distinct. Five browser stories,
+              four native regressions and a retained-identity unit regression
+              pass. Both matrix destinations now pass in both gallery modes.
+              The full gate passes 242 Storybook tests, 514 unit tests and 31
+              standalone / 37 source-loaded documents, plus build, lint and
+              typecheck (two existing warnings). The matrix audit is complete;
+              the broader audit and separate startup investigations remain open.
     - [ ] Fixture: audit every `demo/module-url.html` sample against its
           source-loaded Storybook and independent gallery contracts. Check
           mapped and relative declarations, fragments, image/link outcomes,
