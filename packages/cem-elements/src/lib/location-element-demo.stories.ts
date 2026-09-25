@@ -1,6 +1,7 @@
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
-import { traceCemReadiness } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemRendered } from '../../.storybook/preview.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { expect, userEvent } from 'storybook/test';
 
 const SOURCE_TAG = 'story-location-element-demo-document';
 const DEMO_URL = new URL('../../demo/location-element.html', import.meta.url);
@@ -20,8 +21,9 @@ type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => sourceLoadedDemo(SOURCE_TAG, DEMO_URL),
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const originalUrl = location.href;
+        const originalState = history.state;
         const host = requiredElement(canvasElement, SOURCE_TAG);
         // Only counts and readiness booleans enter the trace, never URL values.
         const readers = () => Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample => {
@@ -50,46 +52,95 @@ export const EveryAuthoredSample: Story = {
                 throw error;
             }
             readinessCheckpoint('initial-readers-ready', { readers: readers() });
-            const initialValues = normalize(initial.querySelector('dl')?.textContent ?? '');
+            const initialValues = definitionEntries(initial);
             readinessCheckpoint('initial-values-captured', { readers: readers() });
-            buttonByName(live, 'history.pushState').click();
-            await waitForCondition(
-                () => definitionValue(live, 'hash') === '#checked'
-                    && normalize(live.querySelector('ul')?.textContent ?? '').includes('mode = history.pushState')
-                    && normalize(live.querySelector('ul')?.textContent ?? '').includes('tag = one,two'),
-                'the live reader observes the history write and repeated parameters'
-            );
+            const initialUrl = new URL(originalUrl);
+            expect(initialValues).toEqual([
+                ['source', 'window'], ['origin', initialUrl.origin], ['pathname', initialUrl.pathname],
+                ['search', initialUrl.search], ['hash', initialUrl.hash],
+            ]);
+            const liveArticle = requiredElement(live, 'article');
+            const initialArticle = requiredElement(initial, 'article');
+            const input = requiredElement(live, 'input') as HTMLInputElement;
+            const form = requiredElement(live, 'form') as HTMLFormElement;
+            const liveState = async (url: URL) => {
+                const expected = [['href', url.href], ['pathname', url.pathname], ['hash', url.hash]];
+                await waitForCondition(() => location.href === url.href
+                    && JSON.stringify(definitionEntries(live)) === JSON.stringify(expected)
+                    && JSON.stringify(textList(live, 'li')) === JSON.stringify(parameterRows(url)),
+                'live URL fields and parameters match the browser');
+                await whenCemRendered(liveArticle.parentElement as HTMLElement);
+                expect(requiredElement(live, 'article')).toBe(liveArticle);
+                expect(requiredElement(live, 'input')).toBe(input);
+                expect(requiredElement(initial, 'article')).toBe(initialArticle);
+                expect(definitionEntries(initial)).toEqual(initialValues);
+            };
+            await step(EXPECTED_LEGENDS[0], async () => {
+                await liveState(initialUrl);
+                expect(input.value).toBe('hello world');
+                expect(input.labels?.[0]?.textContent?.trim()).toBe('Query');
+                expect(form.method).toBe('get');
+                expect(form.action).toBe(location.href);
+                const historyLength = history.length;
+                const pushed = new URL('?mode=history.pushState&tag=one&tag=two#checked', originalUrl);
+                const replaced = new URL('?mode=history.replaceState&tag=one&tag=two#checked', originalUrl);
+                await userEvent.click(buttonByName(live, 'history.pushState'));
+                await liveState(pushed);
+                expect(history.length).toBe(historyLength + 1);
+                await userEvent.click(buttonByName(live, 'history.replaceState'));
+                await liveState(replaced);
+                expect(history.length).toBe(historyLength + 1);
 
-            await waitForCondition(
-                () => definitionValue(initial, 'source') === 'window'
-                    && definitionValue(initial, 'origin') === location.origin,
-                'the initial reader publishes current URL fields'
-            );
-            buttonByName(live, 'history.replaceState').click();
-            await waitForCondition(
-                () => normalize(live.querySelector('ul')?.textContent ?? '').includes('mode = history.replaceState'),
-                'replaceState is observed independently'
-            );
-            buttonByName(initial, 'Change hash after initial read').click();
-            await waitForCondition(() => definitionValue(live, 'hash') === '#after-initial-read', 'native hash change reaches the live reader');
-            if (normalize(initial.querySelector('dl')?.textContent ?? '') !== initialValues) {
-                throw new Error('the initial-only reader changed after navigation');
+                const link = requiredElement(live, 'a') as HTMLAnchorElement;
+                const linked = new URL('#native-link', replaced);
+                expect(link.href).toBe(linked.href);
+                // Vitest installs <base target="_parent">. Actual link navigation,
+                // Back/Forward and GET run in both independent gallery modes.
+
+                // Typing is only a draft until native GET submission (tested in the gallery).
+                await userEvent.clear(input);
+                await userEvent.type(input, 'pear & cherry');
+                await liveState(replaced);
+                expect(document.activeElement).toBe(input);
+                expect(input.selectionStart).toBe(input.value.length);
+                expect(Array.from(new FormData(form))).toEqual([['query', 'pear & cherry']]);
+                const submit = buttonByName(live, 'Navigate with GET (reloads)');
+                expect(submit.type).toBe('submit');
+                expect(submit.title).toBe('Navigate with GET (reloads)');
+                expect(normalize(submit.textContent ?? '')).toBe('→ GET ↻');
+            });
+
+            await step(EXPECTED_LEGENDS[1], async () => {
+                const changed = new URL('#after-initial-read', location.href);
+                await userEvent.click(buttonByName(initial, 'Change hash after initial read'));
+                await liveState(changed);
+                await whenCemRendered(initialArticle.parentElement as HTMLElement);
+                expect(definitionEntries(initial)).toEqual(initialValues);
+            });
+
+            await step(EXPECTED_LEGENDS[2], async () => {
+                const external = sampleByLegend(host, EXPECTED_LEGENDS[2]);
+                const url = new URL('https://my.example/docs?a=1&b=2&b=3#details');
+                const expected = [['href', url.href], ['hostname', url.hostname], ['pathname', url.pathname], ['hash', url.hash]];
+                const current = location.href;
+                await waitForCondition(() => JSON.stringify(definitionEntries(external)) === JSON.stringify(expected)
+                    && JSON.stringify(textList(external, 'li')) === JSON.stringify(['a = 1', 'b = 2,3']),
+                'the external href retains every URL field and repeated parameter');
+                expect(location.href).toBe(current);
+                expect(external.querySelectorAll('li')).toHaveLength(2);
+            });
+            for (const legend of EXPECTED_LEGENDS) {
+                const owner = requiredElement(sampleByLegend(host, legend), 'article').parentElement as HTMLElement;
+                await whenCemRendered(owner);
+                expect(cemDiagnosticCodes(owner), legend).toEqual([]);
             }
-
-            const external = sampleByLegend(host, EXPECTED_LEGENDS[2]);
-            await waitForCondition(
-                () => definitionValue(external, 'hostname') === 'my.example'
-                    && definitionValue(external, 'pathname') === '/docs'
-                    && definitionValue(external, 'hash') === '#details'
-                    && normalize(external.querySelector('ul')?.textContent ?? '').includes('b = 2,3'),
-                'the href reader parses an external URL and repeated parameters'
-            );
+            expect(cemDiagnosticCodes(host)).toEqual([]);
             readinessCheckpoint('location-journey-verified', { readers: readers() });
         } catch (error) {
             readinessCheckpoint('location-assertion-failed', { readers: readers() });
             throw error;
         } finally {
-            history.replaceState({}, '', originalUrl);
+            history.replaceState(originalState, '', originalUrl);
         }
     },
 };
@@ -129,13 +180,17 @@ function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     return button;
 }
 
-function definitionValue(root: ParentNode, term: string): string {
-    const dt = Array.from(root.querySelectorAll('dt')).find(
-        (candidate) => normalize(candidate.textContent ?? '') === term
-    );
-    const dd = dt?.nextElementSibling;
-    if (!(dd instanceof HTMLElement) || dd.localName !== 'dd') throw new Error(`expected ${term} value`);
-    return normalize(dd.textContent ?? '');
+function definitionEntries(root: ParentNode): string[][] {
+    return Array.from(root.querySelectorAll('dt'), term => [normalize(term.textContent ?? ''),
+        normalize(term.nextElementSibling?.textContent ?? '')]);
+}
+
+function textList(root: ParentNode, selector: string): string[] {
+    return Array.from(root.querySelectorAll(selector), element => normalize(element.textContent ?? ''));
+}
+
+function parameterRows(url: URL): string[] {
+    return [...new Set(url.searchParams.keys())].map(name => normalize(`${name} = ${url.searchParams.getAll(name).join(',')}`));
 }
 
 function requiredElement(root: ParentNode, selector: string): HTMLElement {

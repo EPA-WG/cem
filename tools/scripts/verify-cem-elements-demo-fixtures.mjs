@@ -350,6 +350,41 @@ const xpathNodeSamples = [
     ]),
 ];
 
+function locationReader(selector, mode) {
+    return { kind: 'locationReader', selector, mode };
+}
+const locationSamples = [
+    sampleContract('1. Window location live update', [
+        { kind: 'locationSnapshot' },
+        locationReader(':scope', 'live'),
+        elementIdentity('article', 'remember'),
+        elementIdentity('input', 'remember'),
+        propertyEquals('input', 'value', 'hello world'),
+        propertyEquals('form', 'method', 'get'),
+        attributeEquals('input', 'name', 'query'),
+        clickThenText('button:text-is("history.pushState")', 'dl', '#checked'),
+        locationReader(':scope', 'live'),
+        nodeTexts('li', ['mode = history.pushState', 'tag = one,two']),
+        clickThenText('button:text-is("history.replaceState")', 'dl', '#checked'),
+        locationReader(':scope', 'live'),
+        nodeTexts('li', ['mode = history.replaceState', 'tag = one,two']),
+        urlEquals('a', 'href', '#native-link'),
+        elementIdentity('article', 'same'),
+        elementIdentity('input', 'same'),
+    ]),
+    sampleContract('2. Window location initial read', [
+        locationReader(':scope', 'initial'),
+        elementIdentity('article', 'remember'),
+        clickThenText('button[aria-label="Change hash after initial read"]', 'dl', 'source window'),
+        locationReader(':scope', 'initial'),
+        elementIdentity('article', 'same'),
+    ]),
+    sampleContract('3. External URL from href', [
+        locationReader(':scope', 'external'),
+        nodeTexts('li', ['a = 1', 'b = 2,3']),
+    ]),
+];
+
 function storageValue(key, expected) {
     return { kind: 'storageValue', key, expected };
 }
@@ -1882,21 +1917,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/location-element.html',
-        checks: [
-            text('cem-demo-element[legend="2. Window location initial read"] dl', 'source window'),
-            text('cem-demo-element[legend="3. External URL from href"] dl', 'hostname my.example'),
-            text('cem-demo-element[legend="3. External URL from href"] dl', 'pathname /docs'),
-            text('cem-demo-element[legend="3. External URL from href"] dl', 'hash #details'),
-            text('cem-demo-element[legend="3. External URL from href"] ul', 'a = 1'),
-            text('cem-demo-element[legend="3. External URL from href"] ul', 'b = 2,3'),
-            clickThenText(
-                'cem-demo-element[legend="1. Window location live update"] button:has-text("history.pushState")',
-                'cem-demo-element[legend="1. Window location live update"] dl',
-                '#checked',
-            ),
-            text('cem-demo-element[legend="1. Window location live update"] ul', 'mode = history.pushState'),
-            text('cem-demo-element[legend="1. Window location live update"] ul', 'tag = one,two'),
-        ],
+        checks: locationSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/module-url.html',
@@ -2511,21 +2533,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/location-element.html',
-        samples: [
-            sampleContract('1. Window location live update', [
-                clickThenText('button:has-text("history.pushState")', 'dl', '#checked'),
-                text('ul', 'mode = history.pushState'),
-                text('ul', 'tag = one,two'),
-            ]),
-            sampleContract('2. Window location initial read', [text('dl', 'source window')]),
-            sampleContract('3. External URL from href', [
-                text('dl', 'hostname my.example'),
-                text('dl', 'pathname /docs'),
-                text('dl', 'hash #details'),
-                text('ul', 'a = 1'),
-                text('ul', 'b = 2,3'),
-            ]),
-        ],
+        samples: locationSamples,
     },
     {
         path: '/packages/cem-elements/demo/module-url.html',
@@ -2869,6 +2877,7 @@ try {
                 await verifyLocalStorageLifecycle(page);
             }
             if (fixture.path === '/packages/cem-elements/demo/location-element.html') {
+                await verifyDemoLayout(page, 3);
                 await verifyLocationLifecycle(page);
             }
         } catch (error) {
@@ -2923,6 +2932,12 @@ try {
                 await runCheck(page, scopeCheck(check, tag));
             }
             await verifySymbolicControls(page, fixture.path);
+            if (fixture.path === '/packages/cem-elements/demo/location-element.html') {
+                await verifyLocationLifecycle(page, async () => {
+                    await mountSourceDocument(page, fixture, tag);
+                    await verifySampleContractInventory(page, tag, fixture);
+                });
+            }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
                 await verifyHexSamples(page);
                 await verifyHexRowNavigation(page);
@@ -3068,22 +3083,54 @@ async function verifySymbolicControls(page, path) {
     }
 }
 
-async function verifyLocationLifecycle(page) {
+async function verifyLocationLifecycle(page, remountSource) {
     const live = 'cem-demo-element[legend="1. Window location live update"]';
     const initial = 'cem-demo-element[legend="2. Window location initial read"]';
-    const captured = await page.locator(`${initial} dl`).textContent();
-    await page.locator(initial).getByRole('button', { name: 'Change hash after initial read' }).click();
-    await waitForText(page, `${live} dl`, '#after-initial-read');
+    const external = 'cem-demo-element[legend="3. External URL from href"]';
+    const readers = async () => {
+        for (const [selector, mode] of [[live, 'live'], [initial, 'initial'], [external, 'external']]) {
+            await runCheck(page, locationReader(selector, mode));
+        }
+    };
+    await page.waitForURL(url => url.hash === '#after-initial-read');
+    await readers();
+    const beforeLink = page.url();
+    const linked = new URL('#native-link', beforeLink).href;
+    await page.locator(live).getByRole('link', { name: 'Native hash link', exact: true }).click();
+    await page.waitForURL(linked);
+    await readers();
     await page.goBack();
-    await waitForText(page, `${live} dl`, '#checked');
+    await page.waitForURL(beforeLink);
+    await readers();
     await page.goForward();
-    await waitForText(page, `${live} dl`, '#after-initial-read');
-    if (await page.locator(`${initial} dl`).textContent() !== captured) {
-        throw new Error('initial-only location reader changed during history navigation');
+    await page.waitForURL(linked);
+    await readers();
+
+    const input = page.locator(`${live} input`);
+    for (const [value, keyboard] of [['pear & cherry', false], ['', true]]) {
+        const beforeDraft = page.url();
+        await input.fill(value);
+        await readers();
+        if (page.url() !== beforeDraft) throw new Error('Typing a GET query navigated before submission');
+        const expected = new URL(await page.locator(`${live} form`).evaluate(form => form.action));
+        expected.search = new URLSearchParams({ query: value }).toString();
+        await page.evaluate(() => { globalThis.__cemFixtureNavigationDocument = true; });
+        await Promise.all([
+            page.waitForURL(expected.href),
+            keyboard ? input.press('Enter')
+                : page.locator(live).getByRole('button', { name: 'Navigate with GET (reloads)', exact: true }).click(),
+        ]);
+        await page.waitForLoadState('networkidle');
+        if (await page.evaluate(() => globalThis.__cemFixtureNavigationDocument === true)) {
+            throw new Error('Native GET did not replace the document');
+        }
+        if (remountSource) await remountSource();
+        await runCheck(page, { kind: 'locationSnapshot' });
+        await readers();
+        await runCheck(page, nodeTexts(`${live} li`, [`query = ${value}`.trim()]));
+        // Reload restores the authored form default, while both readers capture the submitted URL.
+        await runCheck(page, propertyEquals(`${live} input`, 'value', 'hello world'));
     }
-    await page.locator(live).getByRole('button', { name: 'Navigate with GET (reloads)' }).click();
-    await waitForText(page, `${live} ul`, 'query = hello world');
-    await waitForText(page, `${initial} dl`, '?query=hello+world');
 }
 
 async function verifySourceDocumentInventory() {
@@ -3419,6 +3466,27 @@ async function installTextHelpers(page) {
 async function runCheck(page, check) {
     try {
         switch (check.kind) {
+            case 'locationSnapshot':
+                await page.evaluate(() => { globalThis.__cemFixtureInitialLocationHref = location.href; });
+                return;
+            case 'locationReader':
+                await poll(page, ({ selector, mode }) => {
+                    const root = document.querySelector(selector);
+                    if (!root) return false;
+                    const url = new URL(mode === 'external' ? 'https://my.example/docs?a=1&b=2&b=3#details'
+                        : mode === 'initial' ? globalThis.__cemFixtureInitialLocationHref : location.href);
+                    const expected = mode === 'initial'
+                        ? [['source', 'window'], ['origin', url.origin], ['pathname', url.pathname], ['search', url.search], ['hash', url.hash]]
+                        : mode === 'external' ? [['href', url.href], ['hostname', url.hostname], ['pathname', url.pathname], ['hash', url.hash]]
+                            : [['href', url.href], ['pathname', url.pathname], ['hash', url.hash]];
+                    const normalize = value => (value ?? '').replace(/\s+/gu, ' ').trim();
+                    const entries = Array.from(root.querySelectorAll('dt'), dt => [normalize(dt.textContent), normalize(dt.nextElementSibling?.textContent)]);
+                    const rows = Array.from(root.querySelectorAll('li'), li => normalize(li.textContent));
+                    const params = mode === 'initial' ? [] : [...new Set(url.searchParams.keys())]
+                        .map(name => normalize(`${name} = ${url.searchParams.getAll(name).join(',')}`));
+                    return JSON.stringify(entries) === JSON.stringify(expected) && JSON.stringify(rows) === JSON.stringify(params);
+                }, check);
+                return;
             case 'storageValue':
                 await poll(page, ({ key, expected }) => localStorage.getItem(key) === expected, check);
                 return;
@@ -4245,6 +4313,10 @@ async function poll(page, predicate, arg) {
 function describeCheck(check) {
     if (!check) return 'unknown check';
     switch (check.kind) {
+        case 'locationSnapshot':
+            return 'capture the initial window URL';
+        case 'locationReader':
+            return `locationReader(${check.selector}, ${check.mode})`;
         case 'storageValue':
             return `storageValue(${check.key}, ${JSON.stringify(check.expected)})`;
         case 'text':

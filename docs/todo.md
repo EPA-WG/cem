@@ -4453,12 +4453,28 @@ registration identities may reuse an inherited or existing definition.
           on hex-grid after local modules received ERR_NETWORK_CHANGED; the
           unchanged rerun passes. The authored demo and shared runtime are
           unchanged, and no new behavior decision was needed.
-    - [ ] Fixture: audit all three `demo/location-element.html` samples against
+    - [x] Fixture: audit all three `demo/location-element.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Check live URL/hash changes, initial-only capture, external href
           parsing, navigation semantics and resolved links. Preserve authored
           examples, verify desktop/mobile layout and stop for any new behavior
           decision.
+          Completed 2026-09-24: three named Storybook steps check exact URL
+          fields, repeated query parameters, history writes, initial capture,
+          identity, form drafts and diagnostics. Both gallery modes verify
+          native hash links, Back/Forward and actual GET reloads with encoded
+          and empty queries. Desktop two-card layout and 1280px/390px overflow
+          pass. All 237 Storybook tests, 513 unit tests and 31 standalone / 37
+          source-loaded documents pass, with aggregate coverage, lint and
+          typecheck (two existing warnings). The authored demo and shared
+          runtime are unchanged; no new behavior decision was needed. The
+          separately tracked startup-timeout investigation remains open.
+    - [ ] Fixture: audit every cell of the scalar-referrer matrix in
+          `demo/module-url-referrer.html` against its source-loaded Storybook
+          and independent gallery contracts. Check each src/referrer pairing,
+          resolved resources, visible outcomes and source presentation. Preserve
+          authored examples, verify desktop/mobile layout and stop for any new
+          behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -1049,3 +1049,44 @@ typecheck pass with the two existing lint warnings. All twelve local-storage
 samples are audited, with no new behavior decision needed. The next fixture
 covers the three `location-element.html` samples. The broader per-sample audit
 and separately tracked startup investigations remain open.
+
+## Location-element behavior audit, 2026-09-24
+
+Three named Storybook steps now check the complete ordered URL fields and query
+rows. The live reader starts from the actual window URL, observes pushState and
+replaceState, retains repeated parameters and preserves its article/input
+identity. History length distinguishes adding an entry from replacing one.
+The initial reader's five fields remain equal to its original capture after
+history and hash changes. The external reader publishes the complete authored
+URL and both parameter rows without changing the page location. All three
+instances and the source document have empty diagnostic histories.
+
+The story checks the native hash link's resolved URL and the GET form's method,
+action, label, submit semantics and draft FormData. Typing keeps focus/caret and
+does not navigate. Its cleanup restores the original URL and history state.
+The original 180-frame startup predicates and read-only checkpoints remain;
+this audit does not attribute or close the historical startup timeout.
+
+The first expanded story attempted to click the hash link. A temporary probe
+showed that Vitest installs `<base target="_parent">`, so the native link
+navigated the parent test runner and closed its browser connection. The probe
+is removed. Storybook checks resolution; both independent gallery modes execute
+actual link navigation, Back/Forward and native GET without modifying the
+authored link or the harness's base target.
+
+Standalone and source-loaded checks now share all three sample contracts and
+the navigation journey. Exact fields and parameter rows are checked after each
+history movement. A query containing spaces and `&` is submitted by button,
+then an empty query is submitted with Enter. Each GET must replace the document,
+update both window readers, preserve the external reader and reset the form to
+its authored default. The source harness remounts the authored document after
+each real reload. Focused desktop two-card layout and 1280px/390px overflow
+checks pass. The authored demo and shared runtime are unchanged.
+
+Validation: the focused story and both focused gallery modes pass. The full
+aggregate gate passes all 237 Storybook tests, 513 unit tests and 31 standalone /
+37 source-loaded documents. Lint and typecheck pass with the two existing lint
+warnings. All three location samples are audited without a new behavior
+decision. The next fixture is the nine-cell scalar-referrer matrix in
+`module-url-referrer.html`; the broader per-sample audit and separate startup
+investigations remain open.
