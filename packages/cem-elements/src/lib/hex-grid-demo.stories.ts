@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { userEvent, waitFor } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-hex-grid-demo-document';
 const DEMO_URL = new URL('../../demo/hex-grid.html', import.meta.url);
@@ -30,6 +31,18 @@ const EXPECTED_LABELS = [
     'SolidJS',
     'Next.js',
 ] as const;
+const COMPACT_LABELS = ['DCE', 'React', 'Lit', 'AngularJS', 'Open WC', 'Flutter'];
+const SAMPLE_LABELS: readonly [string, readonly string[]][] = [
+    [LEGEND, EXPECTED_LABELS],
+    [COMPACT_LEGEND, COMPACT_LABELS],
+    [FIXED_LEGEND, COMPACT_LABELS],
+    [ALTERNATE_LEGEND, ['DCE', 'React', 'Lit']],
+    [WRAPPING_LEGEND, ['Declarative Custom Element Framework With A Long Name']],
+    [FALLBACK_LEGEND, ['Unavailable logo']],
+    [WRAPPER_LEGEND, ['DCE', 'React', 'Lit']],
+    [IMAGE_BUTTON_LEGEND, ['DCE']],
+    [ROW_LEGEND, ['Loops', 'Hex grid', 'CSS']],
+];
 
 const meta: Meta = {
     title: 'CEM Elements/Hex Grid Demo',
@@ -41,8 +54,17 @@ type Story = StoryObj;
 
 export const ResponsiveFrameworkLinks: Story = {
     render: () => sourceLoadedDemo(SOURCE_TAG),
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
+        await whenCemSourceRendered(host);
+        for (const [legend, labels] of SAMPLE_LABELS) {
+            await step(legend, async () => {
+                await waitForCondition(() => host.querySelectorAll(
+                    `cem-demo-element[legend="${legend}"] .hex-link`,
+                ).length === labels.length, `${legend} links render`);
+                await assertSampleLinks(requiredElement(host, `cem-demo-element[legend="${legend}"]`), labels);
+            });
+        }
         await waitForCondition(
             () =>
                 host.querySelectorAll(`cem-demo-element[legend="${LEGEND}"] .hex-link`).length === 14 &&
@@ -141,16 +163,66 @@ export const ResponsiveFrameworkLinks: Story = {
         assertIncludes(focusRing.backgroundImage, 'repeating-linear-gradient', 'focus ring uses zebra stripes');
 
         const gridHost = requiredElement(sample, 'cem-hex-grid');
-        gridHost.style.inlineSize = '420px';
-        gridHost.style.maxInlineSize = '100%';
-        await waitForCondition(
-            () => rowCounts(sample, '.hex').slice(0, 3).join('|') === '2|1|2',
-            () => `narrow component uses 2–1 staggered rows; rows=${JSON.stringify(rowCounts(sample, '.hex'))}`,
-        );
+        firstLink.blur();
+        try {
+            for (const [width, columns] of [[65, 5], [50, 4], [35, 3], [25, 2]]) {
+                gridHost.style.inlineSize = `${width}rem`;
+                gridHost.style.maxInlineSize = 'none';
+                await waitForCondition(
+                    () => rowCounts(sample, '.hex').slice(0, 2).join('|') === `${columns}|${columns - 1}`,
+                    () => `${width}rem honeycomb rows=${JSON.stringify(rowCounts(sample, '.hex'))}`,
+                );
+                assertHoneycombGeometry(sample, `${width}rem honeycomb`);
+            }
+        } finally {
+            gridHost.style.removeProperty('inline-size');
+            gridHost.style.removeProperty('max-inline-size');
+        }
         await assertPresentationModes(host);
         await assertCurrentPageRow(host);
     },
 };
+
+async function assertSampleLinks(sample: HTMLElement, labels: readonly string[]): Promise<void> {
+    const instances = Array.from(sample.querySelectorAll<HTMLElement>(
+        'cem-hex-grid, cem-hex-image-link, cem-themed-framework-grid, cem-image-button-grid',
+    ));
+    await Promise.all(instances.map(whenCemRendered));
+    const links = Array.from(sample.querySelectorAll<HTMLAnchorElement>('.hex-link'));
+    const images = Array.from(sample.querySelectorAll<HTMLImageElement>('.hex-logo'));
+    const helpers = Array.from(sample.querySelectorAll<HTMLElement>('cem-hex-image-link'));
+    assertDeepEqual(links.map(link => link.getAttribute('aria-label') ?? ''), labels, 'accessible link names');
+    assertDeepEqual(links.map(link => link.title), labels, 'link titles');
+    assertDeepEqual(images.map(image => image.alt), labels, 'image alternatives');
+    for (const [index, helper] of helpers.entries()) {
+        assertEqual(links[index].href, new URL(helper.getAttribute('href') ?? '', DEMO_URL).href, 'resolved destination');
+        assertEqual(images[index].src, new URL(helper.getAttribute('src') ?? '', DEMO_URL).href, 'resolved image URL');
+        assertEqual(links[index].getAttribute('aria-current'),
+            sample.getAttribute('legend') === ROW_LEGEND && index === 1 ? 'page' : 'false', 'current-page state');
+        if (images[index].src === REACT_LOGO_URL) continue;
+        const missing = sample.getAttribute('legend') === FALLBACK_LEGEND;
+        await waitForCondition(() => images[index].complete
+            && (missing ? images[index].naturalWidth === 0 : images[index].naturalWidth > 0)
+            && images[index].classList.contains(missing ? 'hex-logo-error' : 'hex-logo-load')
+            && getComputedStyle(requiredElement(helper, '.image-fallback')).visibility === (missing ? 'visible' : 'hidden'),
+        `${labels[index]} image state and fallback`);
+    }
+    const first = links[0];
+    first.focus();
+    await waitForCondition(() => document.activeElement === first
+        && labelFitsRaisedInsideLink(requiredElement(first, '.hex-label'), first), 'focused label fits inside its link');
+    first.blur();
+    const raisedAtRest = sample.getAttribute('legend') === IMAGE_BUTTON_LEGEND;
+    await waitForCondition(() => raisedAtRest
+        ? labelFitsRaisedInsideLink(requiredElement(first, '.hex-label'), first)
+        : requiredElement(first, '.hex-label').getBoundingClientRect().top >= first.getBoundingClientRect().bottom,
+    'label returns to its authored resting state');
+    assertDeepEqual(Array.from(sample.querySelectorAll('.hex-label'), label => normalize(label.textContent ?? '')),
+        labels.map((label, index) => sample.getAttribute('legend') === ROW_LEGEND && index === 1 ? `✓ ${label}` : label),
+        'visible label text');
+    links.forEach((link, index) => assertEqual(sample.querySelectorAll('.hex-link')[index], link, 'live link identity'));
+    for (const instance of instances) assertDeepEqual(cemDiagnosticCodes(instance), [], 'clean instance diagnostics');
+}
 
 async function assertCurrentPageRow(host: HTMLElement): Promise<void> {
     await waitForCondition(
@@ -412,6 +484,7 @@ function labelFitsRaisedInsideLink(label: HTMLElement, link: HTMLElement): boole
         label.scrollWidth <= label.clientWidth + 1 &&
         labelRect.left >= linkRect.left &&
         labelRect.right <= linkRect.right &&
+        labelRect.top >= linkRect.top &&
         labelRect.bottom <= linkRect.bottom - linkRect.height * 0.1
     );
 }

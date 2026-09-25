@@ -4357,12 +4357,28 @@ registration identities may reuse an inherited or existing definition.
           the form page passes desktop two-card and desktop/mobile overflow
           checks. The authored demo is unchanged and the five-sample audit is
           complete.
-    - [ ] Fixture: audit all nine `demo/hex-grid.html` samples against their
+    - [x] Fixture: audit all nine `demo/hex-grid.html` samples against their
           source-loaded Storybook and independent gallery contracts. Check
           responsive geometry, link/image resolution, labels and image fallback,
           wrapper themes, hover/keyboard focus and the current-page row. Verify
           desktop/mobile layout, preserve authored examples and stop for any
           new behavior decision.
+          Completed 2026-09-24: nine named Storybook steps check exact labels,
+          resolved URLs, image load/error states, current-page semantics, live
+          identity and diagnostics. Geometry covers all four honeycomb
+          breakpoints. Both gallery modes exercise real hover, keyboard focus,
+          presentation recovery, wrapper isolation and native row navigation.
+          Desktop two-card layout and 1280px/390px overflow checks pass.
+          All 232 Storybook tests, 513 unit tests and 31 standalone / 37
+          source-loaded documents pass, as do aggregate coverage, lint and
+          typecheck with the two existing lint warnings. The authored demo is
+          unchanged and no new behavior decision was needed.
+    - [ ] Fixture: audit all seven `demo/http-request.html` samples, including
+          its four external-file previews, against source-loaded Storybook and
+          independent gallery contracts. Check request lifecycle transitions,
+          response/header projections, invalid-response recovery and exact
+          source previews. Preserve authored examples, verify desktop/mobile
+          layout and stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

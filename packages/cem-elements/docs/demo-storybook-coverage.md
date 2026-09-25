@@ -881,3 +881,37 @@ The form page passes desktop two-card layout and 1280px/390px overflow checks.
 All five form samples are now audited. The next fixture covers the nine
 `hex-grid.html` samples; the overall per-sample audit and separate browser-startup
 investigations remain open.
+
+## Hex-grid behavior audit, 2026-09-24
+
+The source-loaded story now has nine named sample steps. Each checks exact link
+names, titles, image alternatives, label text, resolved link/image URLs and
+current-page state. Local images must finish in their expected load/error state
+with the matching fallback visibility. Keyboard focus raises the label inside
+its link, blur restores the authored presentation, live link identity survives
+the interaction and produced instances have no diagnostics. The full external
+React image URL remains an explicit URL-resolution case; local images provide
+the deterministic successful-load checks.
+
+The existing geometry and presentation checks remain in place. Responsive
+coverage now exercises all four 5–4, 4–3, 3–2 and 2–1 honeycomb breakpoints,
+including adjacent cells, staggered rows and helpers staying inside their cells.
+Raised labels must also fit below the link's top edge. Percentage/fixed sizing,
+alternating backgrounds, long labels, wrapper colors, image-button filters and
+the current-page row retain their focused checks.
+
+Both independent gallery modes now exercise real pointer hover, keyboard focus
+and return to rest for every sample. They verify exact names and image states,
+uniform/alternating backgrounds, isolated wrapper hover colors, stronger
+image-button filters and wrapped text. Existing row checks retain native
+Tab/Shift+Tab and Enter navigation. The standalone page additionally checks
+desktop two-card layout and 1280px/390px overflow.
+
+Validation passes all 232 Storybook tests, 513 unit tests and 31 standalone /
+37 source-loaded documents. Aggregate coverage, lint and typecheck pass with
+the two existing lint warnings. Desktop/mobile inspection confirms the expected
+card layout and no page overflow. All nine samples are audited; the authored
+demo is unchanged and no new behavior decision was needed. The next fixture
+covers the seven `http-request.html` samples, including its four external-file
+previews. The broader per-sample audit and separate startup investigations remain
+open.

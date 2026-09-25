@@ -2826,6 +2826,9 @@ try {
                 await verifyDemoLayout(page, 5);
             }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
+                await verifyHexSamples(page);
+                await verifyDemoLayout(page, 9);
+                await page.setViewportSize({ width: 1280, height: 900 });
                 await verifyHexRowNavigation(page);
             }
             if (fixture.path === '/packages/cem-elements/demo/local-storage.html') {
@@ -2887,6 +2890,7 @@ try {
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
+                await verifyHexSamples(page);
                 await verifyHexRowNavigation(page);
             }
         } catch (error) {
@@ -3186,6 +3190,101 @@ function scopeCheck(check, rootSelector) {
 function unexpectedPageErrors(fixture, pageErrors) {
     const allowed = fixture.allowedPageErrors ?? [];
     return pageErrors.filter((error) => !allowed.some((allowedError) => error.includes(allowedError)));
+}
+
+async function verifyHexSamples(page) {
+    const samples = [
+        ['1. Responsive framework link honeycomb', ['DCE', 'React', 'AngularJS', 'Semantic UI', 'Open WC', 'Flutter',
+            'Refine', 'Bootstrap', 'Vue.js', 'Lit', 'Redux', 'Svelte', 'SolidJS', 'Next.js']],
+        ['2. Compact percentage links', ['DCE', 'React', 'Lit', 'AngularJS', 'Open WC', 'Flutter']],
+        ['3. Fixed-length links', ['DCE', 'React', 'Lit', 'AngularJS', 'Open WC', 'Flutter']],
+        ['4. Alternating backgrounds', ['DCE', 'React', 'Lit']],
+        ['5. Wrapping long label', ['Declarative Custom Element Framework With A Long Name']],
+        ['6. Missing-image fallback', ['Unavailable logo']],
+        ['7. Wrapper DCE theme', ['DCE', 'React', 'Lit']],
+        ['8. Image-button presentation', ['DCE']],
+        [hexRowSample.legend, ['Loops', 'Hex grid', 'CSS']],
+    ];
+    for (const [index, [legend, labels]] of samples.entries()) {
+        const selector = `cem-demo-element[legend="${legend}"]`;
+        try {
+            await poll(page, ({ selector, labels, index }) => {
+                const sample = document.querySelector(selector);
+                const links = Array.from(sample.querySelectorAll('.hex-link'));
+                const images = Array.from(sample.querySelectorAll('.hex-logo'));
+                return links.length === labels.length && images.length === labels.length
+                    && links.every((link, i) => link.getAttribute('aria-label') === labels[i] && link.title === labels[i]
+                        && link.textContent.replace(/\s+/gu, ' ').trim() === (index === 8 && i === 1 ? `✓ ${labels[i]}` : labels[i]))
+                    && images.every((image, i) => image.alt === labels[i] && (image.src.startsWith('https://upload.wikimedia.org/')
+                        || (image.complete && (index === 5 ? image.naturalWidth === 0 : image.naturalWidth > 0)
+                            && image.classList.contains(index === 5 ? 'hex-logo-error' : 'hex-logo-load')
+                            && getComputedStyle(image.previousElementSibling).visibility === (index === 5 ? 'visible' : 'hidden'))));
+            }, { selector, labels, index });
+            const sample = page.locator(selector);
+            const links = sample.locator('.hex-link');
+            const first = links.first();
+            await page.mouse.move(0, 0);
+            await page.evaluate(() => document.activeElement?.blur());
+            await waitForHexLabel(page, `${selector} .hex-link`, index === 7);
+            const resting = await first.evaluate(link => ({
+                background: getComputedStyle(link).backgroundImage,
+                filter: getComputedStyle(link).filter,
+            }));
+            const backgrounds = await links.evaluateAll(links => links.map(link => getComputedStyle(link).backgroundImage));
+            if ((index === 0 && new Set(backgrounds).size !== 1) || (index === 3 && new Set(backgrounds).size !== 3)) {
+                throw new Error(`unexpected background cycle: ${JSON.stringify(backgrounds)}`);
+            }
+            // Real pointer input exercises :hover independently of keyboard focus.
+            await first.hover();
+            await waitForHexLabel(page, `${selector} .hex-link`, true);
+            await poll(page, ({ selector, index, resting }) => {
+                const link = document.querySelector(`${selector} .hex-link`);
+                const style = getComputedStyle(link);
+                return link.matches(':hover') && style.filter !== resting.filter
+                    && (index !== 6 || (style.backgroundImage.includes('rgb(0, 128, 0)')
+                        && style.backgroundImage.includes('rgb(255, 255, 0)')))
+                    && (index !== 7 || (style.filter.includes('drop-shadow') && style.filter.includes('saturate(1.15)')));
+            }, { selector, index, resting });
+            if (index === 6 && await links.nth(1).evaluate(link => getComputedStyle(link).backgroundImage) !== backgrounds[1]) {
+                throw new Error('wrapper hover changed its sibling background');
+            }
+            await page.mouse.move(0, 0);
+            await waitForHexLabel(page, `${selector} .hex-link`, index === 7);
+            await first.focus();
+            await page.keyboard.press('Tab');
+            await page.keyboard.press('Shift+Tab');
+            await waitForHexLabel(page, `${selector} .hex-link`, true);
+            await poll(page, selector => {
+                const link = document.querySelector(`${selector} .hex-link`);
+                return document.activeElement === link && getComputedStyle(link, '::after').opacity === '1';
+            }, selector);
+            if (index === 4 && !await first.locator('.hex-label').evaluate(label => {
+                const range = document.createRange();
+                range.selectNodeContents(label);
+                return range.getClientRects().length > 1;
+            })) throw new Error('long label does not wrap');
+            await first.evaluate(link => link.blur());
+            await waitForHexLabel(page, `${selector} .hex-link`, index === 7);
+            await poll(page, ({ selector, resting }) => {
+                const style = getComputedStyle(document.querySelector(`${selector} .hex-link`));
+                return style.backgroundImage === resting.background && style.filter === resting.filter;
+            }, { selector, resting });
+        } catch (error) {
+            throw new Error(`${legend}: ${error.message}`, { cause: error });
+        }
+    }
+}
+
+async function waitForHexLabel(page, selector, raised) {
+    await poll(page, ({ selector, raised }) => {
+        const link = document.querySelector(selector);
+        const label = link.querySelector('.hex-label');
+        const box = link.getBoundingClientRect();
+        const text = label.getBoundingClientRect();
+        return raised ? label.scrollWidth <= label.clientWidth + 1 && text.left >= box.left
+            && text.right <= box.right && text.top >= box.top && text.bottom <= box.bottom - box.height * 0.1
+            : text.top >= box.bottom;
+    }, { selector, raised });
 }
 
 async function verifyHexRowNavigation(page) {
