@@ -1685,3 +1685,42 @@ HTML and shared runtime are unchanged; no new behavior decision was needed.
 
 This audit is complete. Next is `functions/str.html` (12 samples). Broader
 per-sample coverage and historical startup investigations remain open.
+
+## String-function behavior audit, 2026-09-25
+
+All 12 samples now have named owner-story steps. Storybook and both independent
+browser modes check all seven shortening queries/results and 139 committed
+edits across the other 11 samples. Coverage includes literal split separators
+and empty fields, Unicode codepoints and combining marks, trimming boundaries,
+negative/out-of-range indexing, overlapping matches, empty search/input,
+recovery, URL-chain segments and XPath XML-whitespace/tokenization/join rules.
+Empty, fractional and exponent-form numeric input remain lexical strings and
+use the existing integer-parser fallback behavior.
+
+Every edit waits for the reflected value, including when its output matches
+the previous result. Controls retain identity, live value, focus and text
+caret; Storybook also checks interior caret positions. All samples retain their
+final output and control state after later interactions. All 12 source previews
+still match the authored templates. Diagnostic histories are empty, and both
+source-loading declarations use the approved source-link policy for all eight
+navigation destinations.
+
+The shortening matrix initially measured roughly 605px inside a 372px mobile
+output area. The approved fixture-only correction adds scoped fixed table
+layout and code wrapping. Both independent modes now pass complete matrix/card
+containment at 1280px and 390px, source scrolling and the standalone desktop
+row with at least two cards. The only authored HTML change is that scoped CSS.
+
+An apparent exponent-input discrepancy came from Storybook's user-event
+interceptor: assigning `1e2` converted it to `100` before CEM received the event.
+The story uses the native browser value setter for numeric inputs, matching the
+independent Playwright fill behavior. No shared runtime correction was needed.
+
+Focused validation passes one Storybook test, 14 source-contract unit tests,
+both independent browser modes, changed-story lint and verifier syntax checks.
+Eight native string-method tests, the shortening regression and a temporary
+123-case native probe also pass. No full suite ran; shared modules are unchanged.
+
+This audit is complete. Next are the six supporting HTML documents owned by
+`supporting-html-demo.stories.ts`. Broader per-sample coverage and historical
+startup investigations remain open.

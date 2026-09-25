@@ -4966,13 +4966,56 @@ registration identities may reuse an inherited or existing definition.
           tie, provenance and owner checks. No full suite ran; authored HTML
           and shared runtime are unchanged. Next: `demo/functions/str.html`
           (12 samples). Broader coverage and startup investigations stay open.
-    - [ ] Fixture: audit all 12 `demo/functions/str.html` samples against
+    - [x] Fixture: audit all 12 `demo/functions/str.html` samples against
           source-loaded Storybook and independent gallery contracts. Verify the
           shortening matrix, URL-chain selection, string-method boundaries,
           Unicode indexing and XPath whitespace/tokenization/join behavior.
           Check empty input, recovery, retained controls, diagnostics, navigation
           and desktop/mobile presentation; stop for new behavior decisions and
           keep validation focused unless shared modules change.
+        - [x] Assert every shortening query/result and live string result,
+              including literal split empties, Unicode trimming/indexing,
+              overlapping search, empty input and recovery.
+        - [x] Check URL-chain segments and XPath XML-whitespace normalization,
+              tokenization and literal separators. Verify control retention,
+              independent sample state and diagnostic histories.
+        - [x] Check source previews, source-relative navigation and
+              desktop/mobile containment/source scrolling. Run focused gates
+              and record any decisions before closing the audit.
+        - [x] Apply the approved fixture-only shortening-matrix layout fix:
+              use scoped table sizing and wrapping so both columns remain
+              visible at 1280px and 390px. Require full matrix containment in
+              both independent modes before closing the audit.
+              Accepted 2026-09-25: correct the fixture layout. The initial
+              browser probe found a roughly 605px table overflowing its output
+              in both modes, including a 372px mobile output area.
+          Completed 2026-09-25: all 12 samples have named Storybook steps,
+          with seven exact matrix rows and 139 committed edits checked in
+          Storybook and both independent browser modes. Coverage includes
+          literal split empties, Unicode codepoints/combining marks, trimming,
+          overlapping search, lexical numeric inputs, URL segments and XPath
+          XML-whitespace/tokenization/join behavior. Controls retain identity,
+          value, focus and text caret; later edits preserve other sample state.
+          Diagnostic histories are empty, all 12 source previews remain exact,
+          and both loaders use the approved source base for all eight links.
+          The approved table sizing/wrapping fix passes full containment at
+          1280px/390px, source scrolling and a standalone two-card desktop row.
+          Storybook's user-event interceptor normalized `1e2` before dispatch;
+          using the native input setter aligns the test with real browser input.
+          No shared runtime change was needed. Focused checks pass one Storybook
+          test, 14 source-contract units, both independent browser modes,
+          changed-story lint and verifier syntax. Eight native string tests,
+          the shortening regression and a temporary 123-case native probe pass.
+          No full suite ran. Next: the six supporting HTML documents; broader
+          per-sample coverage and startup investigations remain open.
+    - [ ] Fixture: audit the six supporting HTML documents owned by
+          `supporting-html-demo.stories.ts`: `embed-1.html`, `embed-lib.html`,
+          `lib-dir/embed-lib.html`, `external-template-document.html`,
+          `external-template-templates.html` and `html-template.html`. Verify
+          exact source-loaded outcomes, fragment selection, fallback/override
+          attributes and projected payload, namespace/script handling, links,
+          diagnostics and presentation in the applicable browser harnesses.
+          Keep checks focused and stop for new behavior or policy decisions.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -1103,74 +1103,300 @@ const domMergeSamples = [
     ]),
 ];
 
-const stringMethodSamples = [
-    sampleContract('URL ID with a string chain', [
-        normalizedText('output', '1'),
-        fillThenText('input', 'https://pokeapi.co/api/v2/pokemon/10/', 'output', '10'),
-        fillThenText('input', '/short/', 'output', 'No ID'),
-    ]),
-    sampleContract('str:split', [
-        normalizedText('output', '4'),
-        ...splitPartChecks('🍒', '🍋', '', '🍌'),
-        fillThenText('label:nth-of-type(2) input', '', 'output', '8'),
-        fillThenText('label:first-of-type input', '🍒🍋', 'output', '4'),
-        ...splitPartChecks('', '🍒', '🍋', ''),
-        fillThenText('label:first-of-type input', '', 'output', '2'),
-        fillThenText('label:nth-of-type(2) input', ',', 'output', '1'),
-        ...splitPartChecks(''),
-        fillThenText('label:first-of-type input', 'a::b::::', 'ol', 'a::b::::'),
-        ...splitPartChecks('a::b::::'),
-        fillThenText('label:nth-of-type(2) input', '::', 'output', '4'),
-        ...splitPartChecks('a', 'b', '', ''),
-    ]),
-    ...[
-        ['trim', '🍒  🍋', '🍌'],
-        ['trim_start', '🍒  🍋  ', '🍌  '],
-        ['trim_end', '  🍒  🍋', '  🍌'],
-    ].map(([method, initial, edited]) => sampleContract(`str:${method}`, [
-        propertyEquals('output', 'textContent', initial),
-        fillThenText('input', '  🍌  ', 'output', '🍌'),
-        propertyEquals('output', 'textContent', edited),
-        fillThenText('input', '', 'output', ''),
-        propertyEquals('output', 'textContent', ''),
-    ])),
-    ...['char_at', 'at'].map((method) => sampleContract(`str:${method}`, [
-        normalizedText('output', method === 'at' ? '🍌' : '🍋'),
-        fillThenText('input[type="number"]', '99', 'output', method === 'at' ? '∅' : ''),
-        normalizedText('output', method === 'at' ? '∅' : ''),
-        fillThenText('input[type="number"]', '-1', 'output', method === 'at' ? '🍌' : ''),
-        normalizedText('output', method === 'at' ? '🍌' : ''),
-        fillThenText('input[type="number"]', '0', 'output', '🍒'),
-    ])),
-    ...['index_of', 'last_index_of'].map((method) => sampleContract(`str:${method}`, [
-        normalizedText('output', method === 'index_of' ? '0' : '2'),
-        fillThenText('input[type="number"]', '1', 'output', method === 'index_of' ? '2' : '0'),
-        fillThenText('label:nth-of-type(2) input', '🍋', 'output', '1'),
-        fillThenText('label:nth-of-type(2) input', '🥦', 'output', '-1'),
-        fillThenText('label:nth-of-type(2) input', '', 'output', '1'),
-        normalizedText('output', '1'),
-        fillThenText('input[type="number"]', '99', 'output', '3'),
-        fillThenText('label:first-of-type input', 'aaaa', 'output', '4'),
-        fillThenText('label:nth-of-type(2) input', 'aa', 'output', method === 'index_of' ? '-1' : '2'),
-        fillThenText('input[type="number"]', '1', 'output', '1'),
-        normalizedText('output', '1'),
-    ])),
-    sampleContract('XPath normalize-space', [
-        propertyEquals('output', 'textContent', '🍒 🍋'),
-        fillThenText('textarea', ' a\ta\n🍒  ', 'output', 'a a 🍒'),
-        fillThenText('textarea', ' a\u00a0\u2003b ', 'output', 'a b'),
-        propertyEquals('output', 'textContent', 'a\u00a0\u2003b'),
-        fillThenText('textarea', ' \t\n', 'output', ''),
-    ]),
-    sampleContract('XPath tokenize and string-join', [
-        propertyEquals('output', 'textContent', '🍒/🍒/🍋'),
-        fillThenText('textarea', 'a\ta\nb', 'output', 'a/a/b'),
-        fillThenText('input', '🍒', 'output', 'a🍒a🍒b'),
-        fillThenText('textarea', 'a\u00a0b', 'output', 'a b'),
-        propertyEquals('output', 'textContent', 'a\u00a0b'),
-        fillThenText('textarea', '', 'output', ''),
-    ]),
+const shortenRows = [
+    ['str:shorten("short", 8)', 'short'],
+    ['str:shorten("abcdefghij", 7)', 'abc…hij'],
+    ['str:shorten("abcdefghij", 8)', 'abc…ghij'],
+    ['str:shorten("abcdefghij", 8, "...")', 'ab...hij'],
+    ['str:shorten("abcdefghij", 6, "")', 'abchij'],
+    ['str:shorten("αβ😀δεζη", 5, "💠")', 'αβ💠ζη'],
+    ['str:shorten( "https://example.test/lib/semantic-card.cem" , 32)', 'https://example…emantic-card.cem'],
 ];
+const stringCases = [
+    {
+        legend: 'URL ID with a string chain',
+        fields: [
+            ['Pokémon URL', 'article label:nth-of-type(1) input', 'https://pokeapi.co/api/v2/pokemon/1/'],
+        ],
+        initial: '1',
+        edits: [
+            [0, 'https://pokeapi.co/api/v2/pokemon/10/', '10'],
+            [0, '/short/', 'No ID'],
+            [0, '', 'No ID'],
+            [0, 'https://pokeapi.co/api/v2/pokemon/', ''],
+            [0, 'https://pokeapi.co/api/v2/pokemon', 'No ID'],
+            [0, 'a/b/c/d/e/f/🍒', '🍒'],
+            [0, 'a/b/c/d/e/f/  ivy  /more', '  ivy  '],
+            [0, 'https://pokeapi.co/api/v2/pokemon/25/', '25'],
+        ],
+    },
+    {
+        legend: 'str:split',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '🍒,🍋,,🍌'],
+            ['Separator', 'article label:nth-of-type(2) input', ','],
+        ],
+        initial: '4',
+        initialParts: ['🍒', '🍋', '', '🍌'],
+        edits: [
+            [0, 'a::b::::', '1', ['a::b::::']],
+            [1, '::', '4', ['a', 'b', '', '']],
+            [0, 'aaa', '1', ['aaa']],
+            [1, 'aa', '2', ['', 'a']],
+            [0, 'a.b.*c', '1', ['a.b.*c']],
+            [1, '.', '3', ['a', 'b', '*c']],
+            [0, '🍒🍋🍒', '1', ['🍒🍋🍒']],
+            [1, '🍒', '3', ['', '🍋', '']],
+            [0, 'a🍒e\u0301', '2', ['a', 'e\u0301']],
+            [1, '', '6', ['', 'a', '🍒', 'e', '\u0301', '']],
+            [0, '', '2', ['', '']],
+            [1, ',', '1', ['']],
+            [0, '🍒,🍋,,🍌,', '5', ['🍒', '🍋', '', '🍌', '']],
+        ],
+    },
+    {
+        legend: 'str:trim',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '  🍒  🍋  '],
+        ],
+        initial: '🍒  🍋',
+        edits: [
+            [0, ' \u00a0🍌  🍒 \uFEFF', '🍌  🍒'],
+            [0, '\u0085🍒\u0085', '\u0085🍒\u0085'],
+            [0, '\u200b🍒\u200b', '\u200b🍒\u200b'],
+            [0, '\t \u00a0\u2003\uFEFF', ''],
+            [0, '', ''],
+            [0, '  🍒  🍋  ', '🍒  🍋'],
+        ],
+    },
+    {
+        legend: 'str:trim_start',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '  🍒  🍋  '],
+        ],
+        initial: '🍒  🍋  ',
+        edits: [
+            [0, ' \u00a0🍌  🍒 \uFEFF', '🍌  🍒 \uFEFF'],
+            [0, '\u0085🍒\u0085', '\u0085🍒\u0085'],
+            [0, '\u200b🍒\u200b', '\u200b🍒\u200b'],
+            [0, '\t \u00a0\u2003\uFEFF', ''],
+            [0, '', ''],
+            [0, '  🍒  🍋  ', '🍒  🍋  '],
+        ],
+    },
+    {
+        legend: 'str:trim_end',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '  🍒  🍋  '],
+        ],
+        initial: '  🍒  🍋',
+        edits: [
+            [0, ' \u00a0🍌  🍒 \uFEFF', ' \u00a0🍌  🍒'],
+            [0, '\u0085🍒\u0085', '\u0085🍒\u0085'],
+            [0, '\u200b🍒\u200b', '\u200b🍒\u200b'],
+            [0, '\t \u00a0\u2003\uFEFF', ''],
+            [0, '', ''],
+            [0, '  🍒  🍋  ', '  🍒  🍋'],
+        ],
+    },
+    {
+        legend: 'str:char_at',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '🍒🍋🍌'],
+            ['Index', 'article label:nth-of-type(2) input', '1'],
+        ],
+        initial: '🍋',
+        edits: [
+            [1, '99', ''],
+            [1, '-1', ''],
+            [1, '-3', ''],
+            [1, '-4', ''],
+            [1, '0', '🍒'],
+            [1, '2', '🍌'],
+            [1, '3', ''],
+            [1, '', '🍒'],
+            [1, '1.5', '🍒'],
+            [1, '1e2', '🍒'],
+            [0, 'a🍒e\u0301', 'a'],
+            [1, '1', '🍒'],
+            [1, '2', 'e'],
+            [1, '3', '\u0301'],
+            [1, '-1', ''],
+            [0, '', ''],
+            [1, '0', ''],
+            [0, 'a🍒b', 'a'],
+            [1, '1', '🍒'],
+        ],
+    },
+    {
+        legend: 'str:at',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '🍒🍋🍌'],
+            ['Index', 'article label:nth-of-type(2) input', '-1'],
+        ],
+        initial: '🍌',
+        edits: [
+            [1, '99', '∅'],
+            [1, '-1', '🍌'],
+            [1, '-3', '🍒'],
+            [1, '-4', '∅'],
+            [1, '0', '🍒'],
+            [1, '2', '🍌'],
+            [1, '3', '∅'],
+            [1, '', '🍒'],
+            [1, '1.5', '🍒'],
+            [1, '1e2', '🍒'],
+            [0, 'a🍒e\u0301', 'a'],
+            [1, '1', '🍒'],
+            [1, '2', 'e'],
+            [1, '3', '\u0301'],
+            [1, '-1', '\u0301'],
+            [0, '', '∅'],
+            [1, '0', '∅'],
+            [0, 'a🍒b', 'a'],
+            [1, '1', '🍒'],
+        ],
+    },
+    {
+        legend: 'str:index_of',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '🍒🍋🍒'],
+            ['Find', 'article label:nth-of-type(2) input', '🍒'],
+            ['Position', 'article label:nth-of-type(3) input', '0'],
+        ],
+        initial: '0',
+        edits: [
+            [2, '1', '2'],
+            [1, '🍋', '1'],
+            [1, '🥦', '-1'],
+            [1, '', '1'],
+            [2, '99', '3'],
+            [0, 'aaaa', '4'],
+            [1, 'aa', '-1'],
+            [2, '1', '1'],
+            [2, '-9', '0'],
+            [2, '', '0'],
+            [2, '1.5', '0'],
+            [2, '1e2', '0'],
+            [0, 'a🍒e\u0301🍒', '-1'],
+            [1, '🍒', '1'],
+            [2, '2', '4'],
+            [1, 'e\u0301', '2'],
+            [1, 'é', '-1'],
+            [0, '', '-1'],
+            [1, '', '0'],
+            [2, '99', '0'],
+            [0, 'a🍒a', '3'],
+            [1, 'a', '-1'],
+            [2, '0', '0'],
+        ],
+    },
+    {
+        legend: 'str:last_index_of',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) input', '🍒🍋🍒'],
+            ['Find', 'article label:nth-of-type(2) input', '🍒'],
+            ['Position', 'article label:nth-of-type(3) input', '3'],
+        ],
+        initial: '2',
+        edits: [
+            [2, '1', '0'],
+            [1, '🍋', '1'],
+            [1, '🥦', '-1'],
+            [1, '', '1'],
+            [2, '99', '3'],
+            [0, 'aaaa', '4'],
+            [1, 'aa', '2'],
+            [2, '1', '1'],
+            [2, '-9', '0'],
+            [2, '', '2'],
+            [2, '1.5', '2'],
+            [2, '1e2', '2'],
+            [0, 'a🍒e\u0301🍒', '-1'],
+            [1, '🍒', '4'],
+            [2, '2', '1'],
+            [1, 'e\u0301', '2'],
+            [1, 'é', '-1'],
+            [0, '', '-1'],
+            [1, '', '0'],
+            [2, '99', '0'],
+            [0, 'a🍒a', '3'],
+            [1, 'a', '2'],
+            [2, '0', '0'],
+        ],
+    },
+    {
+        legend: 'XPath normalize-space',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) textarea', '  🍒  🍋  '],
+        ],
+        initial: '🍒 🍋',
+        edits: [
+            [0, ' a\ta\n🍒  ', 'a a 🍒'],
+            [0, ' a\u00a0\u2003b ', 'a\u00a0\u2003b'],
+            [0, ' \t\n', ''],
+            [0, '', ''],
+            [0, ' \uFEFFa\u0085b\u200bc ', '\uFEFFa\u0085b\u200bc'],
+            [0, '  a a  🍒 \n', 'a a 🍒'],
+        ],
+    },
+    {
+        legend: 'XPath tokenize and string-join',
+        fields: [
+            ['Text', 'article label:nth-of-type(1) textarea', '🍒 🍒 🍋'],
+            ['Separator', 'article label:nth-of-type(2) input', '/'],
+        ],
+        initial: '🍒/🍒/🍋',
+        edits: [
+            [0, 'a\ta\nb', 'a/a/b'],
+            [1, '🍒', 'a🍒a🍒b'],
+            [1, '', 'aab'],
+            [1, ' <&> ', 'a <&> a <&> b'],
+            [0, 'a\u00a0b', 'a\u00a0b'],
+            [0, ' a\u00a0\u2003b a ', 'a\u00a0\u2003b <&> a'],
+            [0, ' \t\n', ''],
+            [0, '', ''],
+            [1, '|', ''],
+            [0, ' 🍒 🍒 🍋 ', '🍒|🍒|🍋'],
+        ],
+    },
+];
+
+const shortenMatrixSample = sampleContract('str:shorten query/result matrix', [
+    countExactly('table', 1), nodeTexts('thead th', ['Query', 'Result']),
+    countExactly('tbody tr', 7), countExactly('tbody td', 14), countExactly('tbody code', 14),
+    ...shortenRows.flatMap((row, index) => row.map((value, column) =>
+        normalizedText(`tbody tr:nth-child(${index + 1}) td:nth-child(${column + 1})`, value))),
+]);
+const stringMethodSamples = stringCases.map(entry => {
+    const values = entry.fields.map(([, , value]) => value);
+    return sampleContract(entry.legend, [
+        countExactly('article', 1), countExactly('article output', 1),
+        propertyEquals('article output', 'textContent', entry.initial),
+        ...entry.fields.flatMap(([, selector, value]) => [
+            elementIdentity(selector, 'remember'), propertyEquals(selector, 'value', value),
+        ]),
+        ...(entry.initialParts ? splitPartChecks(...entry.initialParts) : []),
+        ...entry.edits.flatMap(([index, value, output, parts]) => {
+            const [label, selector] = entry.fields[index];
+            values[index] = value;
+            return [
+                fillThenText(selector, value, 'article output', output.replace(/\s+/gu, ' ').trim()),
+                propertyEquals(selector, 'defaultValue', value),
+                propertyEquals('article output', 'textContent', output),
+                focusedElement(selector),
+                ...entry.fields.flatMap(([, field], fieldIndex) => [
+                    elementIdentity(field, 'same'), propertyEquals(field, 'value', values[fieldIndex]),
+                ]),
+                ...(['Index', 'Position'].includes(label) ? [] : [
+                    propertyEquals(selector, 'selectionStart', value.length), propertyEquals(selector, 'selectionEnd', value.length),
+                ]),
+                ...(parts ? splitPartChecks(...parts) : []),
+            ];
+        }),
+    ]);
+});
+const stringSamples = [shortenMatrixSample, ...stringMethodSamples];
 
 const dataTablePage = await readFile(join(repoRoot, 'packages/cem-elements/demo/data-table.html'), 'utf8');
 const tableSources = Object.fromEntries(['xml', 'csv', 'yaml', 'json'].map(format => [format,
@@ -2817,18 +3043,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/functions/str.html',
-        checks: [
-            ...stringMethodSamples.flatMap((sample) => sample.checks.map(
-                (check) => scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`),
-            )),
-            normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
-            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
-            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
-            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(4) td:nth-of-type(2)', 'ab...hij'),
-            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(5) td:nth-of-type(2)', 'abchij'),
-            normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
-            normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
-        ],
+        checks: stringSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/npm-versions-demo.html',
@@ -3133,18 +3349,8 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/functions/str.html',
-        samples: [
-            sampleContract('str:shorten query/result matrix', [
-                normalizedText('cem-str-shorten-matrix tbody tr:first-of-type td:nth-of-type(2)', 'short'),
-                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(2) td:nth-of-type(2)', 'abc…hij'),
-                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(3) td:nth-of-type(2)', 'abc…ghij'),
-                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(4) td:nth-of-type(2)', 'ab...hij'),
-                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(5) td:nth-of-type(2)', 'abchij'),
-                normalizedText('cem-str-shorten-matrix tbody tr:nth-of-type(6) td:nth-of-type(2)', 'αβ💠ζη'),
-                normalizedText('cem-str-shorten-matrix tbody tr:last-of-type td:nth-of-type(2)', 'https://example…emantic-card.cem'),
-            ]),
-            ...stringMethodSamples,
-        ],
+        samples: stringSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/npm-versions-demo.html',
@@ -3351,6 +3557,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/functions/str.html') {
+                await verifyStringFunctionsPresentation(page);
+            }
             if (fixture.path === '/packages/cem-elements/demo/functions/dom.html') {
                 await verifyDomChainsPresentation(page);
             }
@@ -3489,6 +3698,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/functions/str.html') {
+                await verifyStringFunctionsPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             if (fixture.path === '/packages/cem-elements/demo/functions/dom.html') {
@@ -5789,4 +6002,60 @@ async function verifyDomChainsPresentation(page) {
         if (!reachable) throw new Error('DOM chain source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 27);
+}
+
+async function verifyStringFunctionsPresentation(page) {
+    for (const entry of stringCases) {
+        const selector = `cem-demo-element[legend="${entry.legend}"]`;
+        await runCheck(page, propertyEquals(`${selector} output`, 'textContent', entry.edits.at(-1)[2]));
+        const values = entry.fields.map(([, , value]) => value);
+        for (const [index, value] of entry.edits) values[index] = value;
+        for (const [index, [, field]] of entry.fields.entries()) {
+            await runCheck(page, propertyEquals(`${selector} ${field}`, 'value', values[index]));
+        }
+    }
+    const source = await readFile(join(repoRoot, 'packages/cem-elements/demo/functions/str.html'), 'utf8');
+    await poll(page, source => {
+        const inert = document.createElement('template');
+        inert.innerHTML = source;
+        const expected = Array.from(inert.content.querySelectorAll('cem-demo-element'), card => ({
+            legend: card.getAttribute('legend'), source: card.querySelector('template').innerHTML,
+        }));
+        const actual = Array.from(document.querySelectorAll('cem-demo-element[legend]'), card => ({
+            legend: card.getAttribute('legend'), source: card.querySelector('[slot="text"] code')?.textContent,
+        }));
+        return JSON.stringify(actual) === JSON.stringify(expected);
+    }, source);
+    await runCheck(page, countExactly('nav a, main > section a', 8));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    await runCheck(page, urlEquals('main > section a[href$="/dom.html"]', 'href', '/packages/cem-elements/demo/functions/dom.html'));
+    for (const target of ['xpath-text.cemt', 'xpath-functions.html', 'xpath-sequences.html', 'dom-merge.html', 'data-slices.html', 'module-url.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 12 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    if (box.left < 0 || box.right > width) return false;
+                    return Array.from(card.querySelectorAll('[slot="demo"], article, table, th, td, p, ol, li, [slot="demo"] pre, input, textarea')).every(node => {
+                        const rect = node.getBoundingClientRect();
+                        return rect.left >= box.left && rect.right <= box.right
+                            && (node.matches('input,textarea') || node.scrollWidth <= node.clientWidth + 1);
+                    });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 12 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('String-function source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 12);
 }

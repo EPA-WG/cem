@@ -58,6 +58,11 @@
         <template>
 <cem-element tag="cem-str-shorten-matrix">
     <template type="text/cem-ml">
+{style | ```
+    table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    th, td { padding: .35rem; text-align: left; vertical-align: top; }
+    code { white-space: normal; text-wrap: wrap; overflow-wrap: anywhere; }
+```}
 {table @class="demo-card str-shorten-matrix" |
     {thead | {tr | {th | Query} {th | Result}}}
     {tbody |
