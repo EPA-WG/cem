@@ -5221,10 +5221,25 @@ registration identities may reuse an inherited or existing definition.
           origins and standard-based encoding. Partial host updates retain their
           accepted hostname when the supplied port is ignored. Native behavior
           and dependency conformance remain to be proven.
-    - [ ] Fixture URL-PARAMS: add focused native tests first for typed mapping,
+    - [x] Fixture URL-PARAMS: add focused native tests first for typed mapping,
           pair and entry inputs, immutable query operations, duplicates, form
           encoding, malformed input and stable UTF-16 sorting; implement the
           parameter core and keep common record/value representations intact.
+          Completed 2026-09-25: nine focused tests pass after the initial
+          missing-core failure. The native UrlParams core preserves duplicate
+          order, validates owned/native typed values, rejects node atomization,
+          handles form decoding and immutable edits, and sorts by stable UTF-16
+          units. No query functions are registered; URL-INTEGRATION owns wiring.
+          Formatting/whitespace and local links pass. The native package target
+          passes 116 unit tests (4 ignored) and two attribute tests, then stops
+          on the pre-existing select/group failure reproduced at baseline
+          093fcb40. The full native gate is not green; evidence is in the contract.
+    - [ ] Investigate the baseline native select fixture failure in
+          attribute_strings::select_boolean_attributes_use_presence_with_exact_dom_strings:
+          group.label/group.options report unknown pipeline steps on clean
+          093fcb40 and during URL-PARAMS validation. Attribute fixture versus
+          shared runtime behavior before choosing a correction; stop for a
+          shared semantic decision. Keep this separate from the passing core.
     - [ ] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
           test native parsing, explicit bases, serialization, encoding and the
           pure origin profile before choosing dependency adapters.

@@ -1,6 +1,7 @@
 # Pure CEM-QL URL family — accepted implementation contract
 
-Status: **accepted target, not implemented** (2026-09-25). The user's
+Status: **accepted target; native parameter core implemented, query API pending**
+(2026-09-25). The user's
 “continue recommended” accepts D1–D3: deterministic mapping order, compatible
 setter results with warnings, and seed-based assembly. This document completes
 those choices into the implementation contract referenced by [todo.md](todo.md).
@@ -37,7 +38,7 @@ revision during implementation, with their license and provenance.
 - [record:entries](../packages/cem_ql/src/eval/pipeline.rs) enumerates those
   fields. It does not restore the lost authored ordering.
 - [The registry](../packages/cem_ql/src/stdlib.rs) has no URL module.
-  `cem-ql` has no direct URL dependency. The workspace lock contains `url`
+  `cem-ql` has no direct `url` crate dependency. The workspace lock contains `url`
   2.5.8, but that is a candidate dependency, not evidence of conformance.
   Its typed setters alone cannot establish JavaScript setter parity.
 
@@ -295,10 +296,55 @@ Required regression cases include:
 - IDNA, host IP forms, credentials, default ports, dot segments, opaque origins,
   file and blob behavior, and no dependency on ambient location or module maps.
 
-## Validation of this contract change
+## Validation of the contract-only milestone
 
-Documentation only: validate local links and whitespace, review every declared
-function/arity against the checklist, and keep registry/implementation items
-open. Illustrative Node probes confirmed the partial-host and form-decoding
-examples; they are not native CEM-QL conformance tests. No runtime, dependency,
-fixture or generated artifact changes are included.
+The contract-only milestone validated local links, whitespace and every
+function/arity against the checklist while keeping implementation items open.
+Illustrative Node probes confirmed the partial-host and form-decoding examples;
+they were not native CEM-QL conformance tests. That milestone changed no runtime,
+dependency, fixture or generated artifact. Native implementation evidence follows.
+
+
+## URL-PARAMS implementation evidence
+
+Completed 2026-09-25: the native
+[`UrlParams` core](../packages/cem_ql/src/stdlib/url_params.rs) and its
+[typed-input fixtures](../packages/cem_ql/tests/url_params.rs) implement stage 1.
+The initial focused test build fails on the missing core import; after
+implementation all nine focused tests pass. Tests cover constructors, native
+views, malformed cardinality/shape, duplicate handling, form decoding and
+encoding, immutable edits, query versus mapping sort order, and typed entry
+round trips. Node-like values are not atomized. Errors contain shape information
+without copying argument payloads; evaluator source/diagnostic attachment stays
+in URL-INTEGRATION.
+
+The core uses `form_urlencoded` 1.2.2, already present in the workspace lock,
+through a direct cem-ql dependency. No common record/value representation,
+query registry or evaluator behavior changes. Whole-URL parsing, setter behavior,
+WPT provenance and cross-runtime entry-point parity remain unimplemented stages;
+the passing parameter tests do not claim those capabilities.
+
+Reproduce focused coverage with:
+
+```sh
+cargo test -p cem-ql --test url_params --target-dir dist/target/cem_ql
+```
+
+The package-native regression target `yarn nx run cem_ql:test` reaches
+**116 passing unit tests (4 ignored)** and **2 passing attribute tests**, then
+stops at `select_boolean_attributes_use_presence_with_exact_dom_strings`.
+Its `group.label` and `group.options` queries report unknown pipeline steps.
+A clean detached worktree at baseline commit `093fcb40` reproduces the same
+failure with the single-test command below. This is a pre-existing package-gate
+failure, not a passing full suite. No select/runtime correction is included.
+
+```sh
+cargo test -p cem-ql --test attribute_strings select_boolean_attributes_use_presence_with_exact_dom_strings --target-dir /home/suns/cem/dist/target/cem_ql
+```
+
+Evidence logs: `/tmp/cem-url-params-{red,green,final,native,baseline}.log`.
+The nine focused parameter tests, formatting and whitespace checks pass.
+README/contract local links resolve. No browser or workspace-wide suite ran:
+this core has no evaluator or browser entry-point wiring yet. Investigate the
+baseline select fixture separately before treating the native package gate as
+green; URL-PARSE remains the next URL-family implementation stage.

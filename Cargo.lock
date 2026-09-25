@@ -332,6 +332,7 @@ name = "cem-ql"
 version = "0.1.0"
 dependencies = [
  "cem-ml",
+ "form_urlencoded",
  "rmp-serde",
  "serde",
  "serde_json",
