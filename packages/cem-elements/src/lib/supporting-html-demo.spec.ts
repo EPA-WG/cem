@@ -25,7 +25,9 @@ describe('supporting HTML source contracts', () => {
             expect(html).toContain(`@src="${library}#embed-lib-component"`);
             expect(html).toContain(`@slice=full-url @src="${library}"`);
             expect(html).toContain(`@slice=smiley-url @src="${smiley}"`);
+            expect(html).toContain('@alt="Library Smiley"');
             expect(html).toContain(`@slice=up-url @src="${document}"`);
+            if (!directory) expect(html).toContain('{a @href="{$datadom.slices.up-url}" | ./embed-1.html}:');
             expect(html).toContain(`@tag=dce-embed-lib-file @src="${document}"`);
         });
     }

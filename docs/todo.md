@@ -5023,18 +5023,15 @@ registration identities may reuse an inherited or existing definition.
               values, retained output nodes and independent instances.
         - [x] Check diagnostics, script exclusion, source-relative links and
               1280px/390px presentation; run focused checks and record next work.
-        - [ ] Decision: correct root `demo/embed-lib.html` presentation:
-              add the missing image alternative and align its file-link label
-              with the actual `./embed-1.html` target. Browser probes confirm
-              the image loads and both URLs resolve; these authored labels
-              remain pending the user's fixture-only decision.
-        - [ ] Decision: fix shared Storybook fixture serving to return authored
-              HTML unchanged. A direct fetch of `/demo/embed-1.html` includes
-              Storybook's “No Preview” markup before the authored h4; native
-              source loading therefore renders extra headings/links without a
-              CEM diagnostic. The independent server returns the correct body.
-              Keep full-document purity and audit closure pending; do not add
-              a per-fixture filtering workaround or broaden startup waits.
+        - [x] Correct root `demo/embed-lib.html` presentation: add the missing
+              image alternative and align its file-link label with the actual
+              `./embed-1.html` target. Browser probes confirmed the image loads
+              and both URLs resolve. Accepted 2026-09-25: correct the fixture.
+        - [x] Fix shared Storybook fixture serving to return authored HTML
+              unchanged. A direct fetch of `/demo/embed-1.html` previously
+              included Storybook's “No Preview” markup before the authored h4;
+              the shared Storybook middleware now serves demo HTML from disk.
+              Accepted 2026-09-25: fix shared Storybook fixture serving.
           Coverage added 2026-09-25: six owner stories and the independent
           harness cover the six mapped sources plus ten other fragment loads.
           Four additional instances verify slot fallback/projection; four title
@@ -5048,11 +5045,11 @@ registration identities may reuse an inherited or existing definition.
           Focused checks pass six Storybook tests, 61 source/inventory units,
           two standalone pages, six source documents with their extra variants,
           changed-file lint and verifier syntax. No global suite ran; authored
-          HTML, shared runtime and shared Storybook server remain unchanged.
-          The audit stays open for the two decisions above. Storybook checks
-          authored subtrees while strict whole-document purity remains pending.
-          Next: resolve the fixture presentation and shared server decisions,
-          then reconcile all completed page audits against the coverage inventory.
+          HTML and shared runtime are unchanged, while Storybook serving now
+          returns the authored demo files directly.
+          The two findings are resolved. Next: reconcile all completed page
+          audits against the coverage inventory and continue the remaining
+          startup investigations.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

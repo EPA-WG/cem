@@ -6127,7 +6127,7 @@ async function verifySupportingHtmlSource(page, fixture, tag) {
             normalizedText('dce-embed-lib-component', '👋 from embed-lib-component'),
             countExactly('img', 1), urlEquals('img', 'src', `${base}lib-dir/Smiley.svg`), imageLoaded('img'),
             countExactly(':is(h1,h4,article,script)', 0),
-            ...(file.startsWith('lib-dir/') ? [attributeEquals('img', 'alt', 'Library Smiley')] : []),
+            attributeEquals('img', 'alt', 'Library Smiley'),
         ]);
         await source(`${file}#embed-relative-file`, [countExactly('a', 1), urlEquals('a', 'href', `${base}embed-1.html`),
             ...supportEmbeddedDocumentChecks().map(check => scopeCheck(check, 'dce-embed-lib-file'))]);

@@ -76,7 +76,7 @@ async function embeddedLibrary(canvas: HTMLElement, tag: string, path: string): 
     const image = required(hash, 'img') as HTMLImageElement;
     expect(image.src).toBe(new URL('lib-dir/Smiley.svg', demoUrl).href);
     await waitFor(() => expect(image.complete && image.naturalWidth > 0).toBe(true));
-    if (path.startsWith('lib-dir/')) expect(image.alt).toBe('Library Smiley');
+    expect(image.alt).toBe('Library Smiley');
     expect(hash.querySelectorAll('h1, h4, article, script')).toHaveLength(0);
     const file = await additionalSource(canvas, `${path}#embed-relative-file`, `${tag}-file`);
     expect(file.querySelectorAll(':scope > a')).toHaveLength(1);

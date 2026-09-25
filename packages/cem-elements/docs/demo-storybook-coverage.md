@@ -1725,7 +1725,7 @@ This audit is complete. Next are the six supporting HTML documents owned by
 `supporting-html-demo.stories.ts`. Broader per-sample coverage and historical
 startup investigations remain open.
 
-## Supporting HTML audit and pending decisions, 2026-09-25
+## Supporting HTML audit, 2026-09-25
 
 The six owning stories and independent source-document harness now cover the
 six mapped sources plus ten additional fragment loads: both embedded libraries'
@@ -1743,30 +1743,22 @@ reuse the previously approved `link-base="source"` policy. The independent
 harness requires empty diagnostic histories and 1280px/390px containment across
 the mapped sources and added variants.
 
-Two findings require user decisions, so this audit remains open:
-
-- Root `demo/embed-lib.html` renders a loaded image without an alternative, and
-  its file-link label says `../embed-1.html` although the correctly resolved
-  target is `./embed-1.html`. A fixture-only presentation correction is proposed;
-  the authored file remains unchanged pending the answer.
-- Storybook transforms fetched HTML fixtures by injecting its preview UI. A
-  direct fetch of `/demo/embed-1.html` contains “No Preview” and its explanatory
-  paragraphs/links before the authored h4. CEM renders that received body without
-  a diagnostic. The independent static server returns the authored body and
-  passes strict output-exclusion checks. Earlier narrowly scoped assertions
-  missed this extra content. Shared Storybook fixture serving should return the
-  unchanged authored HTML; that correction is pending approval. Current stories
-  verify authored subtrees and fragment selection, while whole-document purity
-  remains an explicit gap. No per-fixture filtering workaround was added.
+The root `embed-lib.html` fixture now supplies `alt="Library Smiley"` and labels
+the resolved file link `./embed-1.html`. Storybook previously transformed
+fetched HTML fixtures by injecting its “No Preview” UI before the authored h4.
+The shared Storybook middleware now serves demo HTML directly from disk, so the
+source-loaded document and independent static server receive the same authored
+body. The browser checks retain whole-document exclusion assertions; no
+per-fixture filtering workaround or extra startup wait was added.
 
 Focused validation passes six Storybook tests, 61 source-contract/inventory unit
 tests, two existing standalone consumer pages (`external-template.html` and
 `scoped-css.html`), and all six independent source documents with the additional
 variants. Changed-file lint and verifier syntax checks pass. No global suite ran;
-authored HTML, shared runtime and shared Storybook server are unchanged. Nested
-readiness checks await the actual embedded document instance; no frame limits
-or startup timeouts were increased.
+the authored fixture and shared Storybook server are now covered by the focused
+checks. Nested readiness checks await the actual embedded document instance; no
+frame limits or startup timeouts were increased.
 
-Next: resolve these two decisions, finish the supporting-document audit, then
-reconcile the completed page audits against the inventory before closing the
-broader coverage item. Historical startup investigations remain separate.
+This audit is complete. Next: reconcile the completed page audits against the
+inventory before closing the broader coverage item. Historical startup
+investigations remain separate.

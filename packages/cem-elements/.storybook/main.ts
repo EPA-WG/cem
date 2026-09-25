@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { defineMain } from '@storybook/web-components-vite/node';
 import { mergeConfig } from 'vite';
 
@@ -18,8 +19,27 @@ const config = defineMain({
     },
     viteFinal: async (config) => mergeConfig(config, {
         plugins: [{
-            name: 'cem-demo-missing-resource',
+            name: 'cem-demo-static-resources',
             configureServer(server) {
+                const demoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../demo');
+                server.middlewares.use((request, response, next) => {
+                    const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+                    const relativePath = pathname.startsWith('/packages/cem-elements/demo/')
+                        ? pathname.slice('/packages/cem-elements/demo/'.length)
+                        : pathname.startsWith('/demo/') ? pathname.slice('/demo/'.length) : undefined;
+                    if (!relativePath || !relativePath.endsWith('.html')) return next();
+                    const filePath = resolve(demoRoot, relativePath);
+                    if (!filePath.startsWith(`${demoRoot}/`)) return next();
+                    try {
+                        response.statusCode = 200;
+                        response.setHeader('Content-Type', 'text/html; charset=utf-8');
+                        response.setHeader('Cache-Control', 'no-store');
+                        response.end(readFileSync(filePath));
+                    } catch {
+                        next();
+                    }
+                });
+
                 // The external-template demo deliberately requests no.svg.
                 // Preserve static-server 404 behavior, including fallback
                 // resolution from the host URL, instead of serving SPA HTML.
