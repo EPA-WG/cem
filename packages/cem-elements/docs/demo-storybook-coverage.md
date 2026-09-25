@@ -1003,3 +1003,49 @@ pass with the two existing lint warnings. The HTTP page passes desktop two-card 
 1280px/390px overflow checks. All seven HTTP samples are now audited. Next are
 the twelve `local-storage.html` samples; the broader per-sample audit and
 separate startup investigations remain open.
+
+## Local-storage behavior audit, 2026-09-24
+
+The source-loaded story now has twelve named steps. Every step checks that the
+other samples' storage keys retain their prior values, then settles its owning
+instances and checks diagnostic history. Only the JSON validation sample has
+diagnostics: the deliberate invalid import and the previously accepted
+whole-scope replacement on JSON root transitions. All other samples and the
+source document retain empty histories.
+
+Typed date/time forms now exercise recovery, empty input and return to their
+initial value while retaining the same input. Date normalization preserves the
+original timestamp in storage. Number checks distinguish raw strings from
+coerced values. JSON checks cover object/array/scalar transitions, false, zero,
+null, empty strings and empty containers, remove obsolete list rows, preserve
+exact stored text and recover from invalid input. The initial-only reader keeps
+its original output after writes while a fresh instance reads the new count.
+
+The JSON basket checks every field, total and exact exported JSON, keyboard
+activation, reset and an external zero-count update. The fruit watcher checks
+all five counts after each button. Both text editors now require matching live
+input values, slice outputs and storage after edits from either instance,
+clearing, Unicode paste and an external write. Their input identities, focus
+and selection remain stable. A diagnostic probe found that the test keyboard
+helper splits an emoji into lone surrogates; the Unicode case uses paste to
+insert the complete string, while ordinary edits still use keyboard typing.
+
+Both independent gallery modes share the expanded exact-storage and output
+contracts. The standalone lifecycle checks retain reload persistence for stored,
+empty and missing values, and now also verify text edits in both directions
+between two real tabs, including clearing. The twelve-card page passes desktop
+two-card layout and 1280px/390px overflow checks in the focused gallery run.
+The authored demo and shared runtime are unchanged.
+
+The first full gate passed all 237 Storybook tests and 513 unit tests, but its
+gallery stopped on hex-grid after Chromium reported `ERR_NETWORK_CHANGED` for
+three local JavaScript modules. The source highlighter never mounted, so its
+existing token-count check expired. This was separate from the focused
+local-storage checks; no retry behavior, assertion or timeout was changed.
+
+The unchanged full rerun passes all 31 standalone pages and 37 source-loaded
+documents. Aggregate coverage, all 237 Storybook tests, 513 unit tests, lint and
+typecheck pass with the two existing lint warnings. All twelve local-storage
+samples are audited, with no new behavior decision needed. The next fixture
+covers the three `location-element.html` samples. The broader per-sample audit
+and separately tracked startup investigations remain open.

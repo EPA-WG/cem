@@ -4436,12 +4436,29 @@ registration identities may reuse an inherited or existing definition.
           two-card layout and 1280px/390px overflow checks pass. The authored
           demo and shared runtime are unchanged. The seven-sample audit and
           separate startup-timeout investigation remain open.
-    - [ ] Fixture: audit all twelve `demo/local-storage.html` samples against
+    - [x] Fixture: audit all twelve `demo/local-storage.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Check initial/default/override reads, typed validation and recovery,
           external writes/watchers, JSON basket updates and slice write-back.
           Verify storage isolation and desktop/mobile layout, preserve authored
           examples and stop for any new behavior decision.
+          Completed 2026-09-24: twelve named Storybook steps check exact stored
+          values, typed/JSON transitions, key isolation, diagnostics and live
+          editor identity/focus/selection. Both gallery modes share stronger
+          contracts; standalone checks cover reloads, two-way cross-tab edits
+          and clearing. Desktop two-card layout and 1280px/390px overflow pass.
+          All 237 Storybook tests, 513 unit tests and 31 standalone / 37
+          source-loaded documents pass, with aggregate coverage, lint and
+          typecheck (two existing warnings). The first gallery attempt failed
+          on hex-grid after local modules received ERR_NETWORK_CHANGED; the
+          unchanged rerun passes. The authored demo and shared runtime are
+          unchanged, and no new behavior decision was needed.
+    - [ ] Fixture: audit all three `demo/location-element.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Check live URL/hash changes, initial-only capture, external href
+          parsing, navigation semantics and resolved links. Preserve authored
+          examples, verify desktop/mobile layout and stop for any new behavior
+          decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

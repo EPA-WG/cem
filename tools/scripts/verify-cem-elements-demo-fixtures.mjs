@@ -350,90 +350,129 @@ const xpathNodeSamples = [
     ]),
 ];
 
+function storageValue(key, expected) {
+    return { kind: 'storageValue', key, expected };
+}
+function storageOutputs(key, raw, outputs) {
+    return [storageValue(key, raw), nodeTexts('output', outputs)];
+}
+function submitStorageRaw(key, raw, outputs) {
+    return [fillThenText('input[name="raw"]', raw, 'form button', 'Write'),
+        clickThenText('form button', 'output:last-of-type', outputs.at(-1)),
+        ...storageOutputs(key, raw, outputs), propertyEquals('input[name="raw"]', 'value', raw)];
+}
+function storageEditorState(value) {
+    return [storageValue('cemDemoSliceEditor', value), formState({ inputs: [value, value], outputs: [value, value] }),
+        elementIdentity('cem-storage-editor:first-of-type input', 'same'),
+        elementIdentity('cem-storage-editor:last-of-type input', 'same')];
+}
+function storageBasketState(cherries, lemons) {
+    return [nodeTexts('dd', [String(cherries), String(lemons), String(cherries + lemons)]),
+        storageValue('cemDemoBasket', `{"cherries":${cherries},"lemons":${lemons}}`)];
+}
+function storageDateChecks(key, initial, invalid, recovery) {
+    return [
+        elementIdentity('input[name="raw"]', 'remember'),
+        ...storageOutputs(key, initial, [initial]),
+        clickThenText('button:has-text("invalid")', 'output', 'null'),
+        ...storageOutputs(key, invalid, ['null']),
+        ...[recovery, '', initial].flatMap(raw => submitStorageRaw(key, raw, [raw || 'null'])),
+        elementIdentity('input[name="raw"]', 'same'),
+        ...(key === 'cemDemoDate' ? [clickThenText('button:text-is("ISO timestamp")', 'output', '2024-04-21'),
+            ...storageOutputs(key, '2024-04-21T03:58:42.131Z', ['2024-04-21'])] : []),
+    ];
+}
 const localStorageSamples = [
     sampleContract('0. Read a live text value', [
-        normalizedText('output', 'stored initial'),
-        clickThenText('button:first-of-type', 'output', 'text value'),
-        clickThenText('button:nth-of-type(2)', 'output', 'another value'),
-        clickThenText('button:nth-of-type(3)', 'p', 'liveText slice:'),
-        normalizedText('output', ''),
-        clickThenText('button:nth-of-type(4)', 'output', 'null'),
-        clickThenText('button:first-of-type', 'output', 'text value'),
+        ...storageOutputs('cemDemoLiveText', 'stored initial', ['stored initial']),
+        ...[['text value', 'text value'], ['another value', 'another value'], ['Empty string', ''],
+            ['Clear key', null], ['text value', 'text value']].flatMap(([button, raw]) => [
+            clickThenText(`button:text-is("${button}")`, 'output', raw ?? 'null'),
+            ...storageOutputs('cemDemoLiveText', raw, [raw ?? 'null']),
+        ]),
     ]),
     sampleContract('1. Always override a stored value', [
-        normalizedText('output', 'ABC'),
-        clickThenText('button:first-of-type', 'output', 'ABC'),
-        clickThenText('button:nth-of-type(2)', 'output', 'ABC'),
+        ...storageOutputs('cemDemoOverride', 'ABC', ['ABC']),
+        ...['Try text value', 'Clear key'].flatMap(button => [
+            clickThenText(`button:text-is("${button}")`, 'output', 'ABC'),
+            ...storageOutputs('cemDemoOverride', 'ABC', ['ABC']),
+        ]),
     ]),
     sampleContract('2. Stored value with a default', [
-        normalizedText('output', 'DEF'),
-        clickThenText('button:first-of-type', 'output', 'remember me'),
-        clickThenText('button:nth-of-type(3)', 'output', 'null'),
-        clickThenText('button:first-of-type', 'output', 'remember me'),
+        ...storageOutputs('cemDemoPersistedDefault', 'DEF', ['DEF']),
+        ...[['remember me', 'remember me'], ['Empty string', ''], ['Clear key', null],
+            ['remember me', 'remember me']].flatMap(([button, raw]) => [
+            clickThenText(`button:text-is("${button}")`, 'output', raw ?? 'null'),
+            ...storageOutputs('cemDemoPersistedDefault', raw, [raw ?? 'null']),
+        ]),
     ]),
-    sampleContract('3a. Date validation', [
-        normalizedText('output', '2024-04-20'),
-        clickThenText('button:nth-of-type(3)', 'output', 'null'),
-        clickThenText('form button', 'output', '2024-02-29'),
-        clickThenText('button:nth-of-type(2)', 'output', '2024-04-21'),
-    ]),
-    sampleContract('3b. Time validation', [
-        normalizedText('output', '13:30'),
-        clickThenText('button:nth-of-type(2)', 'output', 'null'),
-        clickThenText('form button', 'output', '09:15'),
-    ]),
-    sampleContract('3c. Local date and time validation', [
-        normalizedText('output', '1977-04-01T14:00:30'),
-        clickThenText('button:nth-of-type(2)', 'output', 'null'),
-        clickThenText('form button', 'output', '2024-04-20T09:15'),
-    ]),
+    sampleContract('3a. Date validation', storageDateChecks('cemDemoDate', '2024-04-20', 'ABC', '2024-02-29')),
+    sampleContract('3b. Time validation', storageDateChecks('cemDemoTime', '13:30', '25:00', '09:15')),
+    sampleContract('3c. Local date and time validation',
+        storageDateChecks('cemDemoLocalDateTime', '1977-04-01T14:00:30', 'ABC', '2024-04-20T09:15')),
     sampleContract('3d. Number validation', [
-        normalizedText('p:nth-of-type(2) output', '123456'),
-        clickThenText('button:nth-of-type(2)', 'p:nth-of-type(2) output', '1'),
-        normalizedText('p:first-of-type output', '0001'),
-        clickThenText('button:nth-of-type(3)', 'p:nth-of-type(2) output', '0'),
-        normalizedText('p:nth-of-type(2) output', '0'),
-        clickThenText('button:nth-of-type(4)', 'p:nth-of-type(2) output', 'null'),
-        normalizedText('p:first-of-type output', 'ABC'),
-        clickThenText('form button', 'p:nth-of-type(2) output', '24'),
+        ...storageOutputs('cemDemoNumber', '1.23456e+5', ['1.23456e+5', '123456']),
+        ...[['0001', '0001', '1'], ['0', '0', '0'], ['ABC — invalid', 'ABC', 'null'],
+            ['1.23456e+5', '1.23456e+5', '123456']].flatMap(([button, raw, parsed]) => [
+            clickThenText(`button:text-is("${button}")`, 'p:nth-of-type(2) output', parsed),
+            ...storageOutputs('cemDemoNumber', raw, [raw, parsed]),
+        ]),
+        ...submitStorageRaw('cemDemoNumber', '-2.5', ['-2.5', '-2.5']),
+        ...submitStorageRaw('cemDemoNumber', '', ['', 'null']),
     ]),
     sampleContract('3e. JSON validation', [
-        text('ul', 'b : B'),
-        clickThenText('button:nth-of-type(2)', 'p:nth-of-type(2) output', 'ABC'),
-        clickThenText('button:nth-of-type(3)', 'p:nth-of-type(2) output', '12.345'),
-        clickThenText('button:nth-of-type(4)', 'p:nth-of-type(2) output', 'false'),
-        clickThenText('button:nth-of-type(5)', 'p:nth-of-type(2) output', 'null'),
-        normalizedText('p:first-of-type output', 'ABC'),
-        clickThenText('form button', 'p:nth-of-type(2) output', 'array'),
-        normalizedText('ol', '1 2 3'),
-        clickThenText('button:first-of-type', 'ul', 'b : B'),
+        ...storageOutputs('cemDemoJson', '{"a":1,"b":"B"}', ['{"a":1,"b":"B"}', 'object']),
+        nodeTexts('ul li', ['a: 1', 'b: B']),
+        ...[['JSON string', '"ABC"', 'ABC'], ['JSON number', '12.345', '12.345'], ['JSON false', 'false', 'false'],
+            ['ABC — invalid', 'ABC', 'null']].flatMap(([button, raw, parsed]) => [
+            clickThenText(`button:text-is("${button}")`, 'p:nth-of-type(2) output', parsed),
+            ...storageOutputs('cemDemoJson', raw, [raw, parsed]), countExactly('li', 0),
+        ]),
+        ...[['0', '0'], ['true', 'true'], ['null', 'null'], ['""', ''], ['{}', 'object'], ['[]', 'array']]
+            .flatMap(([raw, parsed]) => [...submitStorageRaw('cemDemoJson', raw, [raw, parsed]), countExactly('li', 0)]),
+        ...submitStorageRaw('cemDemoJson', '[1,2,3]', ['[1,2,3]', 'array']),
+        nodeTexts('ol li', ['1', '2', '3']), countExactly('ul', 0),
+        ...submitStorageRaw('cemDemoJson', '{"fruit":"cherry","count":0}', ['{"fruit":"cherry","count":0}', 'object']),
+        nodeTexts('ul li', ['fruit: cherry', 'count: 0']), countExactly('ol', 0),
+        clickThenText('button:text-is("Object")', 'ul', 'b : B'),
+        ...storageOutputs('cemDemoJson', '{"a":1,"b":"B"}', ['{"a":1,"b":"B"}', 'object']),
+        nodeTexts('ul li', ['a: 1', 'b: B']),
     ]),
     sampleContract('4. Simplest initial read', [
+        elementIdentity('output', 'remember'),
         normalizedText('cem-storage-cherries', '12 🍒'),
-        clickThenText('button:first-of-type', 'output', '12'),
+        ...['24', '12', '24'].flatMap(value => [
+            clickThenText(`button[aria-label="Store ${value} cherries"]`, 'output', '12'),
+            storageValue('cemDemoCherries', value), nodeTexts('output', ['12']), elementIdentity('output', 'same'),
+        ]),
     ]),
     sampleContract('5. Live JSON basket', [
-        text('dl', '🛒 13'),
-        clickThenText('button:first-of-type', 'dl', '🛒 14'),
-        clickThenText('button:nth-of-type(2)', 'dl', '🛒 15'),
-        clickThenText('button:nth-of-type(3)', 'dl', '🛒 13'),
+        ...storageBasketState(12, 1),
+        clickThenText('button[aria-label="Add cherry"]', 'dl', '🛒 14'), ...storageBasketState(13, 1),
+        clickThenText('button[aria-label="Add lemon"]', 'dl', '🛒 15'), ...storageBasketState(13, 2),
+        clickThenText('button[aria-label="Reset basket"]', 'dl', '🛒 13'), ...storageBasketState(12, 1),
     ]),
     sampleContract('6. Fruit buttons and a storage watcher', [
-        text('dl', '🛒 13'),
-        clickThenText('button[aria-label="Add lemon"]', 'dl', '🍋 2'),
-        clickThenText('button[aria-label="Add cherry"]', 'dl', '🍒 13'),
-        clickThenText('button[aria-label="Add apple"]', 'dl', '🍏 1'),
-        clickThenText('button[aria-label="Add banana"]', 'dl', '🍌 1'),
-        text('dl', '🛒 17'),
+        nodeTexts('dd', ['1', '12', '0', '0', '13']),
+        ...[
+            ['Add lemon', 'cemDemoFruitLemons', '2', ['2', '12', '0', '0', '14']],
+            ['Add cherry', 'cemDemoFruitCherries', '13', ['2', '13', '0', '0', '15']],
+            ['Add apple', 'cemDemoFruitApples', '1', ['2', '13', '1', '0', '16']],
+            ['Add banana', 'cemDemoFruitBananas', '1', ['2', '13', '1', '1', '17']],
+        ].flatMap(([button, key, value, counts]) => [
+            clickThenText(`button[aria-label="${button}"]`, 'dl', `🛒 ${counts.at(-1)}`),
+            storageValue(key, value), nodeTexts('dd', counts),
+        ]),
     ]),
     sampleContract('7. Write a slice back to storage', [
-        text('cem-storage-editor:first-of-type output', 'shared initial'),
-        fillThenText(
-            'cem-storage-editor:first-of-type input',
-            'shared edit',
-            'cem-storage-editor:last-of-type output',
-            'shared edit',
-        ),
+        elementIdentity('cem-storage-editor:first-of-type input', 'remember'),
+        elementIdentity('cem-storage-editor:last-of-type input', 'remember'),
+        ...storageEditorState('shared initial'),
+        ...[['first', 'from A'], ['last', 'from B'], ['first', ''], ['last', '🍒 B']].flatMap(([position, value]) => [
+            fillThenText(`cem-storage-editor:${position}-of-type input`, value, 'cem-storage-editor output', value),
+            ...storageEditorState(value), focusedElement(`cem-storage-editor:${position}-of-type input`),
+            propertyEquals(`cem-storage-editor:${position}-of-type input`, 'selectionStart', value.length),
+        ]),
     ]),
 ];
 
@@ -2826,6 +2865,7 @@ try {
                 await verifyHexRowNavigation(page);
             }
             if (fixture.path === '/packages/cem-elements/demo/local-storage.html') {
+                await verifyDemoLayout(page, 12);
                 await verifyLocalStorageLifecycle(page);
             }
             if (fixture.path === '/packages/cem-elements/demo/location-element.html') {
@@ -2954,6 +2994,14 @@ async function verifyLocalStorageLifecycle(page) {
         await otherTab.locator(live).getByRole('button', { name: 'Clear key', exact: true }).click();
         await waitForNormalizedText(otherTab, `${live} output`, 'null');
         await waitForNormalizedText(page, `${live} output`, 'null');
+        const editors = 'cem-demo-element[legend="7. Write a slice back to storage"]';
+        for (const [writer, value] of [[otherTab, 'other tab'], [page, 'original tab'], [otherTab, '']]) {
+            await writer.locator(`${editors} cem-storage-editor:first-of-type input`).fill(value);
+            for (const reader of [page, otherTab]) {
+                await runCheck(reader, scopeCheck(formState({ inputs: [value, value], outputs: [value, value] }), editors));
+                await runCheck(reader, storageValue('cemDemoSliceEditor', value));
+            }
+        }
         if (errors.length > 0) throw new Error(`storage tab errors: ${errors.join(', ')}`);
     } finally {
         await otherTab.close();
@@ -3371,6 +3419,9 @@ async function installTextHelpers(page) {
 async function runCheck(page, check) {
     try {
         switch (check.kind) {
+            case 'storageValue':
+                await poll(page, ({ key, expected }) => localStorage.getItem(key) === expected, check);
+                return;
             case 'text':
                 await waitForText(page, check.selector, check.expected);
                 return;
@@ -4194,6 +4245,8 @@ async function poll(page, predicate, arg) {
 function describeCheck(check) {
     if (!check) return 'unknown check';
     switch (check.kind) {
+        case 'storageValue':
+            return `storageValue(${check.key}, ${JSON.stringify(check.expected)})`;
         case 'text':
         case 'normalizedText':
         case 'nodeTexts':
