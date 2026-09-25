@@ -209,6 +209,62 @@ const domChainSamples = [
     sampleContract("Reverse order", [normalizedText('output', "c, b, a")]),
 ];
 
+const functionEditor = (selector, value) => [
+    elementIdentity(selector, 'same'), focusedElement(selector),
+    propertyEquals(selector, 'value', value),
+    propertyEquals(selector, 'selectionStart', value.length),
+    propertyEquals(selector, 'selectionEnd', value.length),
+];
+const functionStringEdit = (value, expected) => [
+    fillThenText('input', value, 'output', expected.replace(/\s+/gu, ' ').trim()),
+    propertyEquals('output', 'textContent', expected), ...functionEditor('input', value),
+];
+const functionXmlItems = expected => [
+    countExactly('li', expected.length),
+    ...expected.map((value, index) => propertyEquals(`li:nth-child(${index + 1})`, 'textContent', value)),
+];
+const functionXmlEdit = (value, expected) => [
+    fillThenText('textarea', value, 'ul', ''), ...functionXmlItems(expected), countExactly('[role="alert"]', 0),
+    countExactly('ul', 1), ...functionEditor('textarea', value),
+];
+const xpathFunctionSamples = [
+    ...['1. Named XPath function', '1a. CEM-QL string pair'].map((legend, index) => sampleContract(legend, [
+        propertyEquals('output', 'textContent', 'Hello 🍒'), propertyEquals('input', 'value', 'Hello'),
+        elementIdentity('input', 'remember'),
+        ...['Changed 🍋', '  🍋 & <é>  ', '', index === 0 ? 'First' : 'Second']
+            .flatMap(value => functionStringEdit(value, `${value} 🍒`)),
+    ])),
+    ...['2. Shared XPath predicate', '2a. CEM-QL predicate pair'].map((legend, index) => sampleContract(legend, [
+        propertyEquals('output', 'textContent', 'cherry 🍒'), propertyEquals('input', 'value', 'cherry'),
+        elementIdentity('input', 'remember'),
+        ...['lemon', 'Cherry', ' cherry ', ''].flatMap(value => [
+            ...functionStringEdit(value, 'Try cherry'), ...functionStringEdit('cherry', 'cherry 🍒'),
+        ]),
+        ...(index === 1 ? functionStringEdit('lemon', 'Try cherry') : []),
+    ])),
+    ...['3. XML nodes and matching', '3a. CEM-QL native node pair'].map((legend, index) => {
+        const recovered = index === 0 ? 'Recovered XPath' : 'Recovered CEM-QL';
+        const recover = () => functionXmlEdit(`<r><item qty="2">${recovered}</item></r>`, [`${recovered}: stocked`]);
+        return sampleContract(legend, [
+            ...functionXmlItems(['Cherry: stocked']),
+            propertyEquals('textarea', 'value', '<r><item qty="2">Cherry</item></r>'),
+            elementIdentity('textarea', 'remember'),
+            ...functionXmlEdit('<r><item qty="1.999">Below</item><item qty="2">At</item><item qty=" 2.5 ">Above</item><item qty="-1">Negative</item><item>Missing</item></r>',
+                ['Below: low stock', 'At: stocked', 'Above: stocked', 'Negative: low stock', 'Missing: low stock']),
+            ...functionXmlEdit('<r xmlns:p="urn:fruit"><!--skip--><?skip it?><p:item qty="9">Qualified</p:item><group><item qty="9">Nested</item></group><item p:qty="9">Qualified qty</item><item qty="2"> A<b>B</b><![CDATA[C]]><!--skip--><?skip it?> D </item></r>',
+                ['Qualified qty: low stock', ' ABC D : stocked']),
+            ...['<r/>', '<r xmlns="urn:fruit"><item qty="2">Qualified root</item></r>',
+                '<other><r><item qty="2">Nested root</item></r></other>'].flatMap(value => [
+                ...functionXmlEdit(value, []), ...recover(),
+            ]),
+            ...['<r>', '<r><item></r>'].flatMap(value => [
+                fillThenText('textarea', value, '[role="alert"]', 'XML'),
+                countExactly('li', 0), countExactly('ul', 0), ...functionEditor('textarea', value), ...recover(),
+            ]),
+        ]);
+    }),
+];
+
 const xpathMapArraySamples = [
     sampleContract('1. An IP-filter map with an optional note', [
         normalizedText('article p:first-of-type output', 'allow: 192.0.2.0/24'),
@@ -2190,38 +2246,7 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/xpath-functions.html',
-        checks: [
-            sampleContract('1. Named XPath function', [
-                normalizedText('output', 'Hello 🍒'),
-                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
-                fillThenText('input', '', 'output', '🍒'),
-            ]),
-            sampleContract('1a. CEM-QL string pair', [
-                normalizedText('output', 'Hello 🍒'),
-                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
-                fillThenText('input', '', 'output', '🍒'),
-            ]),
-            sampleContract('2. Shared XPath predicate', [
-                normalizedText('output', 'cherry 🍒'),
-                fillThenText('input', 'lemon', 'output', 'Try cherry'),
-                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
-            ]),
-            sampleContract('2a. CEM-QL predicate pair', [
-                normalizedText('output', 'cherry 🍒'),
-                fillThenText('input', 'lemon', 'output', 'Try cherry'),
-                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
-            ]),
-            sampleContract('3. XML nodes and matching', [
-                normalizedText('li', 'Cherry : stocked'),
-                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
-                fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
-            ]),
-            sampleContract('3a. CEM-QL native node pair', [
-                normalizedText('li', 'Cherry : stocked'),
-                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
-                fillThenText('textarea', '<r><item qty=" 2.5 ">Grape</item></r>', 'li', 'Grape : stocked'),
-            ]),
-        ].flatMap((sample) => sample.checks.map((check) =>
+        checks: xpathFunctionSamples.flatMap(sample => sample.checks.map(check =>
             scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
@@ -2559,38 +2584,8 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/xpath-functions.html',
-        samples: [
-            sampleContract('1. Named XPath function', [
-                normalizedText('output', 'Hello 🍒'),
-                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
-                fillThenText('input', '', 'output', '🍒'),
-            ]),
-            sampleContract('1a. CEM-QL string pair', [
-                normalizedText('output', 'Hello 🍒'),
-                fillThenText('input', 'Changed', 'output', 'Changed 🍒'),
-                fillThenText('input', '', 'output', '🍒'),
-            ]),
-            sampleContract('2. Shared XPath predicate', [
-                normalizedText('output', 'cherry 🍒'),
-                fillThenText('input', 'lemon', 'output', 'Try cherry'),
-                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
-            ]),
-            sampleContract('2a. CEM-QL predicate pair', [
-                normalizedText('output', 'cherry 🍒'),
-                fillThenText('input', 'lemon', 'output', 'Try cherry'),
-                fillThenText('input', 'cherry', 'output', 'cherry 🍒'),
-            ]),
-            sampleContract('3. XML nodes and matching', [
-                normalizedText('li', 'Cherry : stocked'),
-                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
-                fillThenText('textarea', '<r><item qty="3">Grape</item></r>', 'li', 'Grape : stocked'),
-            ]),
-            sampleContract('3a. CEM-QL native node pair', [
-                normalizedText('li', 'Cherry : stocked'),
-                fillThenText('textarea', '<r><item qty="1">Lemon</item></r>', 'li', 'Lemon : low stock'),
-                fillThenText('textarea', '<r><item qty=" 2.5 ">Grape</item></r>', 'li', 'Grape : stocked'),
-            ]),
-        ],
+        samples: xpathFunctionSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/dom-merge.html',
@@ -2922,6 +2917,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-aggregates.html') {
                 await verifyXPathAggregatesPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-functions.html') {
+                await verifyXPathFunctionsPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -3035,6 +3033,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-aggregates.html') {
                 await verifyXPathAggregatesPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-functions.html') {
+                await verifyXPathFunctionsPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -5016,4 +5018,54 @@ async function verifyXPathAggregatesPresentation(page) {
         if (!reachable) throw new Error('XPath aggregate source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
+}
+
+async function verifyXPathFunctionsPresentation(page) {
+    await runCheck(page, nodeTexts('cem-demo-element output', ['First 🍒', 'Second 🍒', 'cherry 🍒', 'Try cherry']));
+    await runCheck(page, nodeTexts('cem-demo-element li', ['Recovered XPath: stocked', 'Recovered CEM-QL: stocked']));
+    const targets = ['../index.html', './xpath-functions.cemt', '#cem-ql-use-cases', '#cem-ql-label',
+        '#cem-ql-predicate', '#cem-ql-nodes', '#cem-ql-import', './xpath-nodes.html', './dom-merge.html',
+        './functions/str.html', './functions/str.html', './cell-overrides.html', './functions/dom.html'];
+    await poll(page, targets => {
+        const links = Array.from(document.querySelectorAll('nav a, main > section a'));
+        const source = new URL('/packages/cem-elements/demo/xpath-functions.html', location.href);
+        return links.length === targets.length && links.every((link, index) => {
+            const target = targets[index];
+            return link.href === new URL(target, target.startsWith('#') ? location.href : source).href
+                && (!target.startsWith('#') || (link.getAttribute('href') === target && document.querySelector(target)));
+        });
+    }, targets);
+    const originalUrl = page.url();
+    for (const fragment of targets.filter(target => target.startsWith('#'))) {
+        await page.locator(`a[href="${fragment}"]`).click();
+        await poll(page, fragment => location.hash === fragment, fragment);
+        await runCheck(page, nodeTexts('cem-demo-element output', ['First 🍒', 'Second 🍒', 'cherry 🍒', 'Try cherry']));
+    }
+    await page.evaluate(url => history.replaceState(null, '', url), originalUrl);
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 6 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, input, textarea')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 6 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath function source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 6);
 }

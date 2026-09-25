@@ -1453,3 +1453,33 @@ passes 256 Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
 documents, plus build, typecheck and lint (two existing warnings). This fixture
 audit is complete. Next is `xpath-functions.html` (six samples); broader
 per-sample coverage and historical startup investigations remain open.
+
+## XPath function behavior audit, 2026-09-25
+
+All six samples now have named Storybook steps and shared independent contracts
+for standalone and source-loaded pages. String pairs assert exact whitespace,
+Unicode and literal markup characters, including the leading space before the
+cherry when input is empty. Predicate pairs check case-sensitive matching,
+surrounding spaces and empty input, returning to a match between fallback cases.
+
+XML pairs assert every list item across quantity thresholds, negative and
+missing quantities, qualified attributes, unqualified root/item selection and
+descendant text with CDATA, comments and processing instructions. Empty matches
+retain the list; malformed XML replaces it with the reader error. Recovery
+between cases prevents stale results from passing. Editors retain identity,
+focus, value and selection, including interior carets in Storybook. Each pair
+also preserves its independently edited state. Diagnostic histories stay empty.
+
+Both loading declarations now use the approved `link-base="source"` policy for
+the eight navigation links that otherwise resolved against the host. All 13
+link destinations are asserted; clicking each of the five current-page fragment
+links preserves edited state. At 1280px and 390px, cards and controls remain
+contained and all six source panels scroll to their horizontal end. Standalone
+retains the two-card desktop row.
+
+Focused validation passes two Storybook tests, three source-contract unit tests,
+both independent browser modes, changed-story lint and verifier syntax checks.
+No full suite was run, per the user's validation scope. Authored HTML, XPath
+library and shared runtime are unchanged. This fixture audit is complete; next
+is `xpath-maps-arrays.html` (three samples). Broader per-sample coverage and
+historical startup investigations remain open.

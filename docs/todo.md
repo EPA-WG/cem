@@ -4745,12 +4745,40 @@ registration identities may reuse an inherited or existing definition.
           lint (two existing warnings). Authored HTML, XPath companion and
           shared runtime are unchanged. This fixture audit is complete;
           broader coverage and historical startup investigations remain open.
-    - [ ] Fixture: audit all six `demo/xpath-functions.html` samples against
+    - [x] Fixture: audit all six `demo/xpath-functions.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Verify each XPath/CEM-QL pair's string result, predicate selection,
           XML node matching, input identity/focus and invalid-source recovery.
           Check diagnostics, desktop/mobile presentation and navigation; stop
           for any new behavior decision.
+        - [x] Check exact string whitespace/Unicode, case-sensitive predicates,
+              numeric quantity boundaries, unqualified XML matching and
+              descendant text. Verify empty results, malformed-source recovery,
+              editor identity/focus/selection and independent sample state.
+        - [x] Check all navigation/fragment targets, diagnostics, desktop/mobile
+              containment and complete source scrolling. Apply the existing
+              source-link opt-in policy to this page's loading declarations.
+        - [x] Run only the focused Storybook, unit and independent browser
+              checks unless the audit requires changes to shared modules.
+          Completed 2026-09-25: six named Storybook steps and shared independent
+          contracts cover exact paired results, XML namespaces/descendant text,
+          quantity boundaries, empty matches, invalid-source recovery and
+          editor retention. Eight navigation links now use the approved source
+          base; five current-page fragment links retain all edited state.
+          Both independent modes pass 1280px/390px containment and complete
+          source scrolling, with a standalone two-card desktop row and empty
+          source-loaded diagnostic histories. Focused validation passes two
+          Storybook tests, three source-contract unit tests, both independent
+          browser modes, changed-story lint and verifier syntax checks. No full
+          suite was run; authored HTML, XPath library and shared runtime are
+          unchanged. Broader coverage and startup investigations remain open.
+    - [ ] Fixture: audit all three `demo/xpath-maps-arrays.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Verify absent/empty/value map entries, retained XML array members,
+          imported JSON queries, invalid-source recovery and input retention.
+          Check diagnostics, desktop/mobile presentation and navigation; stop
+          for any new behavior decision. Keep validation focused unless shared
+          modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
