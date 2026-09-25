@@ -4831,13 +4831,43 @@ registration identities may reuse an inherited or existing definition.
           unit tests, both browser modes, changed-story lint and verifier syntax
           checks. No full suite was run; shared runtime and XPath library are
           unchanged. Broader coverage and startup investigations remain open.
-    - [ ] Fixture: audit both `demo/xpath-sequences.html` samples against their
+    - [x] Fixture: audit both `demo/xpath-sequences.html` samples against their
           source-loaded Storybook and independent gallery contracts. Verify
           word windows, reversal and sequence outputs, discovered XML columns,
           namespace-aware cells, invalid-source recovery and control retention.
           Check diagnostics, desktop/mobile presentation and navigation; stop
           for any new behavior decision. Keep validation focused unless shared
           modules change.
+        - [x] Assert all word outputs across rounded/zero/negative bounds,
+              reversal, empty input, XML whitespace and Unicode duplicates.
+              Verify invalid-bound recovery and retained controls.
+        - [x] Assert first-seen headings and every XML cell across namespaces,
+              attribute/element kinds, repeated/empty/missing cells and source
+              edits. Check invalid XML recovery and independent sample state.
+        - [x] Check diagnostics, navigation and desktop/mobile containment and
+              scrolling; run only focused checks unless shared modules change.
+          Completed 2026-09-25: two named Storybook steps and shared independent
+          contracts assert all four word outputs, rounded/negative/nonfinite
+          double bounds, invalid-bound recovery, XML whitespace and exact
+          Unicode duplicate handling. Table checks cover every heading/cell,
+          namespace aliases, attribute/element distinctions, repeated values,
+          empty rows/documents and malformed-source recovery. Controls retain
+          identity, focus and selection; samples remain independent and
+          source-loaded diagnostic histories are empty. Eight links use the
+          approved source base. Both independent modes pass 1280px/390px
+          containment and complete source scrolling with namespace columns
+          visible, plus a standalone two-card desktop row. Focused validation
+          passes one Storybook test, two source-contract unit tests, both browser
+          modes, changed-story lint and verifier syntax checks. No full suite
+          was run; authored HTML, XPath library and shared runtime are unchanged.
+          Broader coverage and historical startup investigations remain open.
+    - [ ] Fixture: audit both `demo/xpath-sort.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Verify
+          text/numeric ordering, direction, stable and multiple keys, missing/
+          invalid values, retained source selection and invalid-XML recovery.
+          Check control retention, diagnostics, desktop/mobile presentation
+          and navigation; stop for any new behavior decision. Keep validation
+          focused unless shared modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -1547,3 +1547,36 @@ both independent browser modes, changed-story lint and verifier syntax checks.
 No full suite was run. Shared runtime and XPath library are unchanged. This
 audit is complete; next is `xpath-sequences.html` (two samples). Broader
 per-sample coverage and historical startup investigations remain open.
+
+## XPath sequence behavior audit, 2026-09-25
+
+Both samples now have named Storybook steps and shared independent contracts.
+The word sample asserts distinct count, window, first item and remaining items
+together. Checks cover reversal, positive/negative rounding ties, zero/negative
+lengths, out-of-range positions and XPath double NaN/infinity bounds. Invalid
+or empty bounds retain only the source's distinct count and show the numeric
+input message; recovery between cases prevents stale alerts from passing.
+Empty/XML-whitespace-only text yields four empty/zero results. Exact checks
+preserve non-breaking spaces inside words and distinguish case and composed/
+decomposed Unicode spellings without normalizing their output.
+
+The table asserts its caption, column headings, complete row counts and every
+cell's raw text. Checks cover first appearance across rows, attributes before
+elements, equal names with different node kinds/namespaces, and different
+prefixes for the same namespace. Repeated values retain separators and text
+whitespace, including empty members; missing cells remain distinct from empty
+cells. A row with no cells remains a row, while an empty document root has no
+rows. Malformed XML removes the table; recovery restores it between errors.
+Editors retain identity, focus, value and selection, with interior carets in
+Storybook. Checkbox state and the other sample's edits persist. Source-loaded
+diagnostic histories remain empty.
+
+Both loaders use the approved source-link policy for all eight destinations.
+Both independent modes pass 1280px/390px containment with namespace columns
+visible, and both source panels scroll to their end. Standalone retains the
+two-card desktop row. Focused validation passes one Storybook test, two
+source-contract unit tests, both independent browser modes, changed-story lint
+and verifier syntax checks. No full suite was run. Authored HTML, XPath library
+and shared runtime are unchanged. This audit is complete; next is
+`xpath-sort.html` (two samples). Broader per-sample coverage and historical
+startup investigations remain open.

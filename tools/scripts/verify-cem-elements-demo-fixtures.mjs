@@ -465,28 +465,99 @@ const xpathAggregateSamples = [
     ]),
 ];
 
+const sequenceStart = 'article label:nth-child(1) input[type="text"]';
+const sequenceLength = 'article label:nth-child(2) input[type="text"]';
+const sequenceOutputs = expected => [
+    countExactly('article output', expected.length), countExactly('article [role="alert"]', 0),
+    ...expected.map((value, index) => propertyEquals(`article p:nth-of-type(${index + 2}) output`, 'textContent', value)),
+];
+const sequenceEditor = (selector, value) => [
+    elementIdentity(selector, 'same'), focusedElement(selector), propertyEquals(selector, 'value', value),
+    propertyEquals(selector, 'selectionStart', value.length), propertyEquals(selector, 'selectionEnd', value.length),
+];
+const sequenceEdit = (selector, value, expected) => [
+    fillThenText(selector, value, 'article output', ''), ...sequenceOutputs(expected), ...sequenceEditor(selector, value),
+];
+const sequenceBounds = (start, length, expected) => [
+    fillThenText(sequenceStart, start, 'article output', '5'), ...sequenceEditor(sequenceStart, start),
+    ...sequenceEdit(sequenceLength, length, expected), propertyEquals(sequenceStart, 'value', start),
+    propertyEquals('article input[type="checkbox"]', 'checked', false),
+];
+const sequenceInitialHeadings = ['@id', 'fruit', '@qty', 'note'];
+const sequenceInitialRows = [['2', 'Apple', '∅', '∅'], ['1', 'Cherry', '3', '""']];
+const sequenceKindsXml = '<r xmlns:x="urn:x" xmlns:y="urn:x"><row fruit="attr" x:fruit="ns"><fruit/><y:fruit>B</y:fruit></row><row><fruit>C</fruit><fruit>D</fruit><x:fruit/></row></r>';
+const sequenceKindsHeadings = ['@fruit', '@fruit [urn:x]', 'fruit', 'fruit [urn:x]'];
+const sequenceKindsRows = [['attr', 'ns', '""', 'B'], ['∅', '∅', 'C / D', '""']];
+const sequenceTable = (headings, rows) => [
+    normalizedText('caption', 'Columns in first-seen order'), nodeTexts('th[scope="col"]', headings),
+    countExactly('th', headings.length), countExactly('tbody tr', rows.length),
+    ...rows.flatMap((row, i) => [
+        countExactly(`tbody tr:nth-child(${i + 1}) td`, row.length),
+        ...row.map((value, j) => propertyEquals(`tbody tr:nth-child(${i + 1}) td:nth-child(${j + 1})`, 'textContent', value)),
+    ]),
+    countExactly('[role="alert"]', 0),
+];
+const sequenceXmlEdit = (value, headings, rows) => [
+    fillThenText('article textarea', value, 'caption', 'Columns in first-seen order'),
+    ...sequenceTable(headings, rows), ...sequenceEditor('article textarea', value),
+];
+const sequenceRecover = () => sequenceXmlEdit('<r><row><fruit>Recovered</fruit></row></r>', ['fruit'], [['Recovered']]);
 const xpathSequenceSamples = [
     sampleContract('1. A window into a word sequence', [
-        normalizedText('article p:nth-of-type(2) output', '3'),
-        normalizedText('article p:nth-of-type(3) output', 'apple | cherry'),
+        ...sequenceOutputs(['3', 'apple | cherry', 'apple', 'cherry']),
+        propertyEquals('article textarea', 'value', 'cherry apple cherry pear'),
+        propertyEquals(sequenceStart, 'value', '2'), propertyEquals(sequenceLength, 'value', '2'),
+        propertyEquals('article input[type="checkbox"]', 'checked', false),
+        ...['article textarea', sequenceStart, sequenceLength, 'article input[type="checkbox"]']
+            .map(selector => elementIdentity(selector, 'remember')),
         checkThenText('article input[type="checkbox"]', 'article p:nth-of-type(3) output', 'cherry | apple'),
-        fillThenText('article textarea', 'a b c d', 'article p:nth-of-type(3) output', 'c | b'),
-        normalizedText('article p:nth-of-type(4) output', 'c'),
-        normalizedText('article p:nth-of-type(5) output', 'b'),
-        fillThenText('article textarea', '', 'article p:nth-of-type(2) output', '0'),
+        ...sequenceOutputs(['3', 'cherry | apple', 'cherry', 'apple']),
+        elementIdentity('article input[type="checkbox"]', 'same'), focusedElement('article input[type="checkbox"]'),
+        propertyEquals('article input[type="checkbox"]', 'checked', true),
+        ...sequenceEdit('article textarea', '🍒 a a b', ['3', 'a | a', 'a', 'a']),
+        propertyEquals('article input[type="checkbox"]', 'checked', true),
+        uncheckThenNormalizedText('article input[type="checkbox"]', 'article p:nth-of-type(3) output', 'a | a'),
+        ...sequenceOutputs(['3', 'a | a', 'a', 'a']),
+        elementIdentity('article input[type="checkbox"]', 'same'), focusedElement('article input[type="checkbox"]'),
+        propertyEquals('article input[type="checkbox"]', 'checked', false),
+        ...sequenceEdit('article textarea', 'a b c d e', ['5', 'b | c', 'b', 'c']),
+        ...[
+            ['2.5', '1.5', ['5', 'c | d', 'c', 'd']], ['0', '3', ['5', 'a | b', 'a', 'b']],
+            ['-1', '3', ['5', 'a', 'a', '']], ['-1.5', '3', ['5', 'a', 'a', '']],
+            ['-0.5', '2', ['5', 'a', 'a', '']], ['1', '0', ['5', '', '', '']],
+            ['1', '-2', ['5', '', '', '']], ['6', '2', ['5', '', '', '']], ['NaN', '2', ['5', '', '', '']],
+            ['1', 'INF', ['5', 'a | b | c | d | e', 'a', 'b | c | d | e']], ['-INF', 'INF', ['5', '', '', '']],
+        ].flatMap(([start, length, expected]) => sequenceBounds(start, length, expected)),
+        ...sequenceBounds('1', '2', ['5', 'a | b', 'a', 'b']),
+        ...[sequenceStart, sequenceLength].flatMap((selector, index) => ['oops', ''].flatMap(value => [
+            fillThenText(selector, value, 'article [role="alert"]', 'Enter numeric start and length values.'),
+            countExactly('article output', 1), propertyEquals('article output', 'textContent', '5'),
+            ...sequenceEditor(selector, value), ...sequenceEdit(selector, index === 0 ? '1' : '2', ['5', 'a | b', 'a', 'b']),
+        ])),
+        ...sequenceBounds('1', '10', ['5', 'a | b | c | d | e', 'a', 'b | c | d | e']),
+        ...[
+            ['', ['0', '', '', '']], [' \t\n', ['0', '', '', '']],
+            ['é e\u0301 É é', ['3', 'é | e\u0301 | É | é', 'é', 'e\u0301 | É | é']],
+            ['a\u00a0b a\u00a0b', ['1', 'a\u00a0b | a\u00a0b', 'a\u00a0b', 'a\u00a0b']],
+            ['\tapple\ncherry\tapple\n', ['2', 'apple | cherry | apple', 'apple', 'cherry | apple']],
+        ].flatMap(([value, expected]) => sequenceEdit('article textarea', value, expected)),
+        propertyEquals('article input[type="checkbox"]', 'checked', false),
     ]),
     sampleContract('2. First-seen XML columns', [
-        ...['@id', 'fruit', '@qty', 'note'].map((value, index) =>
-            normalizedText(`article th:nth-child(${index + 1})`, value)),
-        ...['2', 'Apple', '∅', '∅'].map((value, index) =>
-            normalizedText(`article tbody tr:first-child td:nth-child(${index + 1})`, value)),
-        normalizedText('article tbody tr:nth-child(2) td:last-child', '""'),
-        fillThenText('article textarea', '<r><row><fruit>A</fruit></row><row new="yes"><fruit>B</fruit></row></r>', 'article th:nth-child(2)', '@new'),
-        normalizedText('article th:first-child', 'fruit'),
-        normalizedText('article tbody tr:nth-child(2) td:last-child', 'yes'),
-        fillThenText('article textarea', '<r/>', 'article thead', ''),
-        countExactly('article th', 0),
-        countExactly('article td', 0),
+        ...sequenceTable(sequenceInitialHeadings, sequenceInitialRows), elementIdentity('article textarea', 'remember'),
+        ...sequenceXmlEdit('<r xmlns:x="urn:x"><row id="1"><fruit>A</fruit><x:fruit>B</x:fruit><fruit>C</fruit></row><row extra="new"><fruit>D</fruit></row></r>',
+            ['@id', 'fruit', 'fruit [urn:x]', '@extra'], [['1', 'A / C', 'B', '∅'], ['∅', 'D', '∅', 'new']]),
+        ...sequenceXmlEdit(sequenceKindsXml, sequenceKindsHeadings, sequenceKindsRows),
+        ...sequenceXmlEdit('<r><row><fruit> A<b>B</b><![CDATA[C]]><!--skip--><?skip it?> D </fruit><fruit/></row><row flag=""><fruit/><fruit/></row><row/></r>',
+            ['fruit', '@flag'], [[' ABC D  / ', '∅'], [' / ', '""'], ['∅', '∅']]),
+        ...sequenceXmlEdit('<r><row b="2" a="1"><z>Z</z><a>A</a></row><row c="3"><z/></row></r>',
+            ['@b', '@a', 'z', 'a', '@c'], [['2', '1', 'Z', 'A', '∅'], ['∅', '∅', '""', '∅', '3']]),
+        ...sequenceXmlEdit('<r><row/></r>', [], [[]]), ...sequenceXmlEdit('<r/>', [], []), ...sequenceRecover(),
+        ...['<r>', '<r><row></r>'].flatMap(value => [
+            fillThenText('article textarea', value, '[role="alert"]', 'XML'), countExactly('table', 0),
+            ...sequenceEditor('article textarea', value), ...sequenceRecover(),
+        ]),
+        ...sequenceXmlEdit(sequenceKindsXml, sequenceKindsHeadings, sequenceKindsRows),
     ]),
 ];
 
@@ -2706,6 +2777,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-sequences.html',
         samples: xpathSequenceSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
@@ -3069,6 +3141,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-nodes.html') {
                 await verifyXPathNodesPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
+                await verifyXPathSequencesPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -3194,6 +3269,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-nodes.html') {
                 await verifyXPathNodesPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
+                await verifyXPathSequencesPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -5300,6 +5379,43 @@ async function verifyXPathNodesPresentation(page) {
                 return reached;
             }));
         if (!reachable) throw new Error('XPath node source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
+}
+
+async function verifyXPathSequencesPresentation(page) {
+    for (const check of sequenceOutputs(['2', 'apple | cherry | apple', 'apple', 'cherry | apple'])) {
+        await runCheck(page, scopeCheck(check, 'cem-demo-element[legend="1. A window into a word sequence"]'));
+    }
+    await runCheck(page, countExactly('nav a, main > section a', 8));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['xpath-sequences.cemt', 'xpath-sort.html', 'xpath-maps-arrays.html', 'xpath-aggregates.html', 'xpath-nodes.html', 'functions/str.html', 'data-table.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 2 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, textarea, input, table, th, td')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 2 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath sequence source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
 }
