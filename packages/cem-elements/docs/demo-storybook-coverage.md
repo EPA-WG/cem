@@ -1580,3 +1580,41 @@ and verifier syntax checks. No full suite was run. Authored HTML, XPath library
 and shared runtime are unchanged. This audit is complete; next is
 `xpath-sort.html` (two samples). Broader per-sample coverage and historical
 startup investigations remain open.
+
+## XPath sort behavior coverage, 2026-09-25 — diagnostic correction pending
+
+Both samples now have named Storybook steps and shared independent contracts.
+Word checks cover all text/numeric and ascending/descending combinations,
+positive/negative decimals, stable equal numeric keys, invalid-last ordering,
+empty input, Unicode case and non-breaking spaces. Invalid numeric words retain
+their source order in both directions.
+
+The table asserts every row and cell, heading semantics, selection state and
+stable group/quantity ordering. Missing, empty and invalid quantities remain
+last in source order. Selected IDs survive sorting, label changes and temporary
+removal from the source; previous-sibling output follows source order. Empty or
+qualified roots and malformed XML clear the relevant view, with recovery
+between cases. Editors retain identity, focus, value and selection, including
+interior carets in Storybook, and checkbox state and the other sample's edits
+persist.
+
+Both loaders use the approved source-link policy for all six destinations.
+Both independent modes pass 1280px/390px containment and complete source
+scrolling with ten rows visible; standalone retains a two-card desktop row.
+Focused validation passes one Storybook test, two source-contract unit tests,
+both independent browser modes, changed-story lint and verifier syntax checks.
+No full suite was run. Authored HTML, XPath library and shared runtime are
+unchanged.
+
+The audit remains open because the table sample passes its initial empty
+selection to the required string `id` parameter of `sort.selected`. Its produced
+instance retains `cem.ql.xpath_function_argument` and
+`cem.ql.render.for_each_failed`. Both harnesses temporarily expect exactly these
+two codes for that instance; page, declaration and word-instance histories must
+remain empty. A temporary focused native probe reproduced the argument error
+and confirmed that `datadom.slices.selected ?? ""` avoids it while preserving
+later selection. The fixture-only correction is recommended and awaits the
+user's fixture-versus-runtime decision. After correction, remove the temporary
+expectations and require empty histories before closing the audit. Next after
+sort is `xpath-validation.html` (two samples). Broader per-sample coverage and
+historical startup investigations remain open.

@@ -4868,6 +4868,40 @@ registration identities may reuse an inherited or existing definition.
           Check control retention, diagnostics, desktop/mobile presentation
           and navigation; stop for any new behavior decision. Keep validation
           focused unless shared modules change.
+        - [x] Check all four text/numeric-direction combinations, decimal
+              ties, invalid-last ordering, Unicode words and empty input.
+              Verify checkbox state and editor identity/focus/selection.
+        - [x] Assert complete rows, group/quantity keys, stable ties, missing/
+              empty/invalid quantities and source selection through sorting,
+              edits, empty results and malformed-XML recovery.
+        - [x] Check navigation and desktop/mobile containment and scrolling;
+              run focused checks and record the remaining diagnostic decision.
+        - [ ] Resolve sample 2's initial empty-selection argument error after
+              the fixture-versus-runtime decision. Recommended: pass
+              `datadom.slices.selected ?? ""` to `sort.selected`, then remove
+              the temporary diagnostic expectations from both browser harnesses
+              and require empty diagnostic histories before closing this audit.
+          Coverage completed 2026-09-25; audit remains open: both named
+          Storybook steps and independent modes verify word ordering, decimal
+          ties, invalid-last ordering, Unicode and empty input, every row/cell,
+          group/quantity keys, source selection and malformed-XML recovery.
+          Controls retain identity, focus and selection; sample edits remain
+          independent. All six navigation links use the approved source base.
+          Both independent modes pass 1280px/390px containment and complete
+          source scrolling, with a standalone two-card desktop row. Focused
+          validation passes one Storybook test, two source-contract unit tests,
+          both browser modes, changed-story lint and verifier syntax checks.
+          The produced table instance retains two startup diagnostics:
+          `cem.ql.xpath_function_argument` and `cem.ql.render.for_each_failed`.
+          Its empty selected slice reaches the required string `id` parameter.
+          A temporary focused native probe reproduced the argument failure and
+          confirmed an empty-string fallback yields no rows or diagnostics while
+          preserving later selection. Only those two codes are temporarily
+          expected for this sample; other diagnostic histories must stay empty.
+          No authored fixture, XPath library or shared runtime changed, and no
+          full suite ran. Next: resolve this decision and finish the sort audit;
+          then audit `xpath-validation.html` (two samples). Broader coverage and
+          historical startup investigations remain open.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
