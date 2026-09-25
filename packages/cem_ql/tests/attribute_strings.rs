@@ -156,6 +156,7 @@ fn select_boolean_attributes_use_presence_with_exact_dom_strings() {
             let slices = Item::Record(
                 [
                     ("mode".into(), vec![mode_value.clone()]),
+                    ("groups".into(), vec![]),
                     (
                         "behaviorDisabled".into(),
                         vec![Item::Atomic(AtomValue::Boolean(false))],
@@ -164,6 +165,8 @@ fn select_boolean_attributes_use_presence_with_exact_dom_strings() {
                 .into(),
             );
             let data = TemplateData::default()
+                // The choice capability supplies a collection, including when empty.
+                .with_binding("groups", ItemStream::empty())
                 .with_binding(
                     "label",
                     ItemStream::once(Item::Atomic(AtomValue::String("Role".into()))),
@@ -213,5 +216,81 @@ fn select_boolean_attributes_use_presence_with_exact_dom_strings() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn select_group_template_receives_explicit_empty_and_populated_collections() {
+    let source = r#"{module |
+        {slice @name=groups}
+        {template @name=options |
+            {param @name=groups}
+            {body | {cem:for-each @select="groups" @as=group |
+                {cem:choose |
+                    {cem:when @test="group.label" | {b | {$group.label}}}
+                    {cem:otherwise | {i | empty}}
+                }
+                {cem:for-each @select="group.options" @as=option |
+                    {span | {$option.label}}
+                }
+            }}
+        }
+        {body | {call @template=options @with:groups="{$datadom.slices.groups}"}}
+    }"#
+    .lines()
+    .map(str::trim)
+    .collect::<String>();
+    let artifact = compile_template(&source, &CompileTemplateOptions::default());
+    assert!(
+        artifact.diagnostics.is_empty(),
+        "{:?}",
+        artifact.diagnostics
+    );
+    // The host binding prevents declaration defaults from replacing the slice;
+    // the data-document field supplies the collection passed to the template.
+    for (groups, expected) in [
+        (vec![], ""),
+        (
+            vec![Item::Record(
+                [
+                    (
+                        "label".into(),
+                        vec![Item::Atomic(AtomValue::String("Group".into()))],
+                    ),
+                    (
+                        "options".into(),
+                        vec![Item::Record(
+                            [(
+                                "label".into(),
+                                vec![Item::Atomic(AtomValue::String("One".into()))],
+                            )]
+                            .into(),
+                        )],
+                    ),
+                ]
+                .into(),
+            )],
+            "<b>Group</b><span>One</span>",
+        ),
+    ] {
+        let data = TemplateData::default()
+            .with_binding("groups", ItemStream::from_items(groups.clone()))
+            .with_binding(
+                "datadom",
+                ItemStream::once(Item::Record(
+                    [(
+                        "slices".into(),
+                        vec![Item::Record([("groups".into(), groups)].into())],
+                    )]
+                    .into(),
+                )),
+            );
+        let rendered = render_compiled_template(&artifact, &data);
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "expected {expected:?}: {:?}",
+            rendered.diagnostics
+        );
+        assert_eq!(render_plan_to_html(&rendered).trim(), expected);
     }
 }

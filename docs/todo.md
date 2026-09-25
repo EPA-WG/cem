@@ -5234,12 +5234,27 @@ registration identities may reuse an inherited or existing definition.
           passes 116 unit tests (4 ignored) and two attribute tests, then stops
           on the pre-existing select/group failure reproduced at baseline
           093fcb40. The full native gate is not green; evidence is in the contract.
-    - [ ] Investigate the baseline native select fixture failure in
+    - [x] Fixture SELECT-GROUP-ATTRIBUTION: isolate the select declaration's
+          named-template/group loop in native rendering, comparing empty and
+          populated groups before changing fixture input or shared semantics.
+          Completed 2026-09-25: the minimal named-template loop reproduces
+          the missing-host-binding failure. Explicit host and data-document
+          collections render both empty and populated group/options cases with
+          no diagnostics; retain this regression beside the attribute fixtures.
+    - [x] Investigate the baseline native select fixture failure in
           attribute_strings::select_boolean_attributes_use_presence_with_exact_dom_strings:
           group.label/group.options report unknown pipeline steps on clean
           093fcb40 and during URL-PARAMS validation. Attribute fixture versus
           shared runtime behavior before choosing a correction; stop for a
           shared semantic decision. Keep this separate from the passing core.
+          Completed 2026-09-25: the fixture omitted the choice capability's
+          groups collection. Declaration-default seeding supplied scalar null,
+          causing group field reads on a non-record. Supply explicit empty
+          groups in the host binding and data-document slices. All four focused
+          attribute tests pass, preserving both modes and every presence/string
+          assertion. No common module or authored component changed; no full
+          test, browser or workspace-wide gate ran. Full package status remains
+          unverified beyond this corrected failure until its next required run.
     - [ ] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
           test native parsing, explicit bases, serialization, encoding and the
           pure origin profile before choosing dependency adapters.

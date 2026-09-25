@@ -348,3 +348,36 @@ README/contract local links resolve. No browser or workspace-wide suite ran:
 this core has no evaluator or browser entry-point wiring yet. Investigate the
 baseline select fixture separately before treating the native package gate as
 green; URL-PARSE remains the next URL-family implementation stage.
+
+
+### Select fixture attribution and correction
+
+Resolved 2026-09-25 with fixture-only changes. The choice capability's
+[`renderSlices`](../packages/cem-elements/src/lib/choice-select-capability.ts)
+always supplies `groups` as a collection. The native boolean-attribute fixture
+supplied mode and behavior flags but omitted that collection's host binding.
+`seed_declaration_defaults` in the native renderer therefore seeded the empty
+`groups` declaration as one scalar null item and projected it into the slice.
+The loop then attempted record-field reads on that item. No change to loop,
+field-read, declaration-default or component semantics is needed.
+
+A minimal named-template/group loop reproduces the missing-binding failure.
+Supplying matching host and data-document collections renders empty groups and
+a populated group with a nested option without diagnostics. The original
+select fixture now supplies explicit empty `groups` in both locations. Its
+existing dropdown/listbox and missing/empty/false/present-string assertions
+remain intact. Both tests live in
+[`attribute_strings.rs`](../packages/cem_ql/tests/attribute_strings.rs).
+
+All **4 focused attribute tests pass** with:
+
+```sh
+cargo test -p cem-ql --test attribute_strings --target-dir dist/target/cem_ql
+```
+
+Evidence: `/tmp/cem-select-attribution.log` (reproduction) and
+`/tmp/cem-select-final.log` (passing correction). Only the fixture and these
+notes/checklist changed. Whitespace and local-link checks pass. No common
+module changed, so no full native, browser or workspace-wide suite was run.
+This closes the attributed failure, not a claim that the previously interrupted
+package suite has completed. Next is URL-PARSE with native tests first.
