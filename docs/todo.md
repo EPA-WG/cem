@@ -5141,6 +5141,17 @@ registration identities may reuse an inherited or existing definition.
       normalizing, assembling, and disassembling URLs according to the
       [WHATWG URL Standard](https://url.spec.whatwg.org/) and the browser
       [URL API](https://developer.mozilla.org/en-US/docs/Web/API/URL).
+    - [x] Research the existing CEM-QL value/record model and WHATWG URL
+          contract; prepare a reviewable URL-family draft with explicit open
+          decisions before changing runtime or registry code.
+          Completed 2026-09-25: [contract draft](cem-ql-url-contract.md) records
+          typed values, function arities, immutable query operations and the
+          native implementation boundary. Local link and whitespace checks pass;
+          illustrative Node URL probes are not native conformance tests.
+    - [ ] Decide draft D1–D3: deterministic mapping-record parameter order,
+          compatible setter results with warnings versus strict failure, and
+          seed-based versus full parts-only assembly. These are proposals,
+          not accepted behavior; leave specification/implementation items open.
     - [ ] Specify the non-mutating CEM-QL surface and exact types:
         - `url:can_parse(input, base?) -> boolean` mirrors `URL.canParse()`;
         - `url:href(input, base?) -> anyURI` mirrors construction plus canonical
