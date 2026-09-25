@@ -4932,13 +4932,47 @@ registration identities may reuse an inherited or existing definition.
           authored HTML, XPath library and shared runtime are unchanged.
           Next: `demo/functions/dom.html` (27 samples). Broader per-sample
           coverage and historical startup investigations remain open.
-    - [ ] Fixture: audit all 27 `demo/functions/dom.html` samples against
+    - [x] Fixture: audit all 27 `demo/functions/dom.html` samples against
           source-loaded Storybook and independent gallery contracts. Verify
           native-node navigation, names/text/attributes, qualified attributes,
           filtering, selection and sequence operations, including empty results
           and stable ordering. Check diagnostics, navigation and desktop/mobile
           presentation; stop for new behavior decisions and keep validation
           focused unless shared modules change.
+        - [x] Assert exact output and source previews for all 27 samples,
+              including native navigation, namespaces, scalar questions,
+              duplicate-preserving selection/mapping and ordering.
+        - [x] Exercise local-name matches, empty/missing/case-sensitive names
+              and recovery, plus repeated sort-direction changes and stable
+              ties. Check live control identity/focus/caret and sample isolation.
+        - [x] Verify diagnostic histories, source-relative navigation and
+              desktop/mobile containment/source scrolling. Run focused gates
+              and record the next fixture audit.
+          Completed 2026-09-25: all 27 samples have named owner-story steps,
+          exact output/count assertions and unchanged source-preview checks in
+          Storybook and both independent modes. Local-name edits cover matches,
+          missing/empty names, case, whitespace, paths and Unicode, recovering
+          between cases. Five sort-direction changes preserve tied-node order,
+          live control identity/value/focus and the selected option. The lookup
+          retains its caret and later sorting preserves its edit; all other
+          outputs stay unchanged. Source-loaded diagnostic histories are empty.
+          Both loaders use the approved source base for all five links. Both
+          independent modes pass 1280px/390px containment and full source
+          scrolling, plus a standalone desktop row with at least two cards.
+          Focused checks pass five Storybook tests, 29 source-contract units,
+          both browser modes, changed-story lint and verifier syntax checks.
+          The existing native authored-template test passes all 27 outputs,
+          and the retained-node sorting regression passes source-tree, stable
+          tie, provenance and owner checks. No full suite ran; authored HTML
+          and shared runtime are unchanged. Next: `demo/functions/str.html`
+          (12 samples). Broader coverage and startup investigations stay open.
+    - [ ] Fixture: audit all 12 `demo/functions/str.html` samples against
+          source-loaded Storybook and independent gallery contracts. Verify the
+          shortening matrix, URL-chain selection, string-method boundaries,
+          Unicode indexing and XPath whitespace/tokenization/join behavior.
+          Check empty input, recovery, retained controls, diagnostics, navigation
+          and desktop/mobile presentation; stop for new behavior decisions and
+          keep validation focused unless shared modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

@@ -1652,3 +1652,36 @@ unchanged; no new behavior decision was needed.
 
 This audit is complete. Next is `functions/dom.html` (27 samples). Broader
 per-sample coverage and historical startup investigations remain open.
+
+## DOM-chain behavior audit, 2026-09-25
+
+All 27 samples now have named steps in the owning story. Storybook and both
+independent modes require exact output text and counts, including duplicates,
+native navigation, local versus qualified names/attributes, scalar questions,
+selection, mapping and ordering. All 27 source previews must still match the
+authored inert templates after interaction.
+
+Local-name lookup covers both matches, empty/missing names, case sensitivity,
+leading/trailing whitespace, path-like text, markup-like text and Unicode.
+Recovery between cases prevents a stale empty result from passing. The input
+retains identity, value, focus and caret, with interior caret positions in
+Storybook. Five direction changes preserve the sort picker, selected option,
+focus and tied-node ordering in both directions. Later sorting retains the
+lookup edit; every other sample's final output remains unchanged.
+
+The five Storybook stories and independent source-loaded harness require empty
+page, declaration and produced-instance diagnostic histories. Both loaders use
+the approved source-link policy for all five destinations, including the
+fragment link to the XPath node example. Both independent modes pass
+1280px/390px containment and complete source scrolling for all cards, with at
+least two cards sharing a desktop row in the standalone page.
+
+Focused validation passes five Storybook tests, 29 source-contract unit tests,
+both independent browser modes, changed-story lint and verifier syntax checks.
+The existing native authored-template regression passes all 27 outputs. The
+retained-node sorter regression also passes stable ties, original source-tree
+preservation, provenance and owner retention. No full suite was run. Authored
+HTML and shared runtime are unchanged; no new behavior decision was needed.
+
+This audit is complete. Next is `functions/str.html` (12 samples). Broader
+per-sample coverage and historical startup investigations remain open.

@@ -179,35 +179,72 @@ const dataSliceSamples = [
     ]),
 ];
 
-const domChainSamples = [
-    sampleContract("Wrap values", [normalizedText('output', "a, b, a")]),
-    sampleContract("Parent", [normalizedText('output', "row")]),
-    sampleContract("Element children", [normalizedText('output', "a, b")]),
-    sampleContract("All child nodes", [normalizedText('output', "4")]),
-    sampleContract("Ancestors", [normalizedText('output', "section, row")]),
-    sampleContract("Closest ancestor", [normalizedText('output', "section")]),
-    sampleContract("Local names", [normalizedText('output', "fruit")]),
-    sampleContract("Node text", [normalizedText('output', "ivysaur")]),
-    sampleContract("Unqualified attribute", [normalizedText('output', "2")]),
-    sampleContract("Qualified attribute", [normalizedText('output', "other")]),
-    sampleContract("First match", [normalizedText('output', "2")]),
-    sampleContract("Last match", [normalizedText('output', "b")]),
-    sampleContract("Filter", [normalizedText('output', "a, a")]),
-    sampleContract("First value", [normalizedText('output', "a")]),
-    sampleContract("Last value", [normalizedText('output', "b")]),
-    sampleContract("Zero-based selection", [normalizedText('output', "b")]),
-    sampleContract("Take a prefix", [normalizedText('output', "a, b")]),
-    sampleContract("Skip a prefix", [normalizedText('output', "b, c")]),
-    sampleContract("Map values", [normalizedText('output', "a!, b!")]),
-    sampleContract("Flatten mapped values", [normalizedText('output', "a, a, b, b")]),
-    sampleContract("Any match", [normalizedText('output', "true")]),
-    sampleContract("All match", [normalizedText('output', "false")]),
-    sampleContract("Empty chain", [normalizedText('output', "true")]),
-    sampleContract("Count values", [normalizedText('output', "3")]),
-    sampleContract("Sort values", [normalizedText('output', "a, b, b")]),
-    sampleContract("Sort native nodes", [normalizedText('output', "second, first, third")]),
-    sampleContract("Reverse order", [normalizedText('output', "c, b, a")]),
+const domChainResults = [
+    ['Wrap values', 'a, b, a'],
+    ['Parent', 'row'],
+    ['Element children', 'a, b'],
+    ['All child nodes', '4'],
+    ['Ancestors', 'section, row'],
+    ['Closest ancestor', 'section'],
+    ['Local names', 'fruit'],
+    ['Node text', 'ivysaur'],
+    ['Unqualified attribute', '2'],
+    ['Qualified attribute', 'other'],
+    ['First match', '2'],
+    ['Last match', 'b'],
+    ['Filter', 'a, a'],
+    ['First value', 'a'],
+    ['Last value', 'b'],
+    ['Zero-based selection', 'b'],
+    ['Take a prefix', 'a, b'],
+    ['Skip a prefix', 'b, c'],
+    ['Map values', 'a!, b!'],
+    ['Flatten mapped values', 'a, a, b, b'],
+    ['Any match', 'true'],
+    ['All match', 'false'],
+    ['Empty chain', 'true'],
+    ['Count values', '3'],
+    ['Sort values', 'a, b, b'],
+    ['Sort native nodes', 'second, first, third'],
+    ['Reverse order', 'c, b, a'],
 ];
+const domChainEdit = (value, expected) => [
+    fillThenText('article input', value, 'article output', expected),
+    propertyEquals('article output', 'textContent', expected),
+    elementIdentity('article input', 'same'), focusedElement('article input'),
+    propertyEquals('article input', 'value', value),
+    propertyEquals('article input', 'selectionStart', value.length),
+    propertyEquals('article input', 'selectionEnd', value.length),
+];
+const domChainSamples = domChainResults.map(([legend, expected]) => sampleContract(legend, [
+    countExactly('article', 1), countExactly('article output', 1),
+    propertyEquals('article output', 'textContent', expected),
+    ...(legend === 'First match' ? [
+        countExactly('article input', 1), propertyEquals('article input', 'value', 'id'),
+        elementIdentity('article input', 'remember'),
+        ...[['name', 'ivy'], ['missing', ''], ['', ''], ['Name', ''], [' id ', ''],
+            ['row', ''], ['name/id', ''], ['<id>', ''], ['名', '']]
+            .flatMap(([value, result]) => [...domChainEdit(value, result), ...domChainEdit('id', '2')]),
+        ...domChainEdit('name', 'ivy'),
+    ] : []),
+    ...(legend === 'Sort native nodes' ? [
+        countExactly('article select', 1), propertyEquals('article select', 'value', 'ascending'),
+        nodeTexts('article option', ['Ascending', 'Descending']),
+        propertyEquals('article option:first-child', 'value', 'ascending'),
+        propertyEquals('article option:last-child', 'value', 'descending'),
+        elementIdentity('article select', 'remember'),
+        ...['descending', 'ascending', 'descending', 'ascending', 'descending'].flatMap(direction => [
+            focusThenText('article select', 'article label', 'Direction'),
+            selectThenText('article select', direction, 'article output',
+                direction === 'ascending' ? 'second, first, third' : 'first, third, second'),
+            propertyEquals('article output', 'textContent',
+                direction === 'ascending' ? 'second, first, third' : 'first, third, second'),
+            elementIdentity('article select', 'same'), focusedElement('article select'),
+            propertyEquals('article select', 'value', direction),
+            propertyEquals('article select', 'selectedIndex', direction === 'ascending' ? 0 : 1),
+        ]),
+    ] : []),
+]));
 
 const functionEditor = (selector, value) => [
     elementIdentity(selector, 'same'), focusedElement(selector),
@@ -3089,7 +3126,11 @@ const sourceDocumentSpecs = [
         samples: [scalarReferrerSample],
         declarationAttributes: { 'link-base': 'source' },
     },
-    { path: '/packages/cem-elements/demo/functions/dom.html', samples: domChainSamples },
+    {
+        path: '/packages/cem-elements/demo/functions/dom.html',
+        samples: domChainSamples,
+        declarationAttributes: { 'link-base': 'source' },
+    },
     {
         path: '/packages/cem-elements/demo/functions/str.html',
         samples: [
@@ -3310,6 +3351,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/functions/dom.html') {
+                await verifyDomChainsPresentation(page);
+            }
             if (fixture.path === '/packages/cem-elements/demo/xpath-validation.html') {
                 await verifyXPathValidationPresentation(page);
             }
@@ -3445,6 +3489,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/functions/dom.html') {
+                await verifyDomChainsPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-validation.html') {
@@ -5684,4 +5732,61 @@ async function verifyXPathValidationPresentation(page) {
         if (!reachable) throw new Error('XPath validation source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
+}
+
+async function verifyDomChainsPresentation(page) {
+    for (const [legend, expected] of domChainResults) {
+        const final = legend === 'First match' ? 'ivy'
+            : legend === 'Sort native nodes' ? 'first, third, second' : expected;
+        await runCheck(page, propertyEquals(`cem-demo-element[legend="${legend}"] article output`, 'textContent', final));
+    }
+    await runCheck(page, propertyEquals('cem-demo-element[legend="First match"] input', 'value', 'name'));
+    const source = await readFile(join(repoRoot, 'packages/cem-elements/demo/functions/dom.html'), 'utf8');
+    await poll(page, source => {
+        const inert = document.createElement('template');
+        inert.innerHTML = source;
+        const expected = Array.from(inert.content.querySelectorAll('cem-demo-element'), card => ({
+            legend: card.getAttribute('legend'), source: card.querySelector('template').innerHTML,
+        }));
+        const actual = Array.from(document.querySelectorAll('cem-demo-element[legend]'), card => ({
+            legend: card.getAttribute('legend'), source: card.querySelector('[slot="text"] code')?.textContent,
+        }));
+        return JSON.stringify(actual) === JSON.stringify(expected);
+    }, source);
+    await runCheck(page, countExactly('nav a, main > section a', 5));
+    for (const [selector, path] of [
+        ['nav a', '/packages/cem-elements/index.html'],
+        ['main > section a[href$="cem-ql-chains.md"]', '/docs/cem-ql-chains.md'],
+        ['main > section a[href$="cell-overrides.html"]', '/packages/cem-elements/demo/cell-overrides.html'],
+        ['main > section a[href$="xpath-functions.html#cem-ql-nodes"]', '/packages/cem-elements/demo/xpath-functions.html#cem-ql-nodes'],
+        ['main > section a[href$="str.html"]', '/packages/cem-elements/demo/functions/str.html'],
+    ]) {
+        await runCheck(page, urlEquals(selector, 'href', path));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 27 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, input, select')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 27 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('DOM chain source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 27);
 }
