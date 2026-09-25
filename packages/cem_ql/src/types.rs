@@ -233,6 +233,7 @@ pub struct TypeChecker {
     pub config: TyConfig,
     pub schemas: SchemaTypeRegistry,
     pub functions: HashMap<FunctionSignatureKey, FunctionSignature>,
+    url_functions: HashMap<FunctionSignatureKey, &'static str>,
     imported_prefixes: BTreeSet<String>,
     scopes: Vec<HashMap<QNameKey, Type>>,
     diagnostics: Vec<Diagnostic>,
@@ -244,6 +245,7 @@ impl Default for TypeChecker {
             config: TyConfig::default(),
             schemas: SchemaTypeRegistry::default(),
             functions: HashMap::new(),
+            url_functions: HashMap::new(),
             imported_prefixes: BTreeSet::new(),
             scopes: vec![HashMap::new()],
             diagnostics: Vec::new(),
@@ -268,6 +270,7 @@ impl TypeChecker {
     }
 
     pub fn register_function(&mut self, signature: FunctionSignature) {
+        self.url_functions.remove(&signature.key());
         self.functions.insert(signature.key(), signature);
     }
 
@@ -1039,6 +1042,22 @@ impl TypeChecker {
             }
             return signature.ret;
         }
+        if let Some(function) = self.url_functions.get(&signature.key()).copied() {
+            for (index, actual) in args.iter().enumerate() {
+                let record = (function == "assemble" && index == 0)
+                    || (function == "with_parts" && index == 1);
+                let mut item = actual;
+                while let Type::Stream(inner) = item { item = inner; }
+                let valid = matches!(item, Type::Any | Type::Empty)
+                    || if record { matches!(item, Type::Record(_)) }
+                    else { matches!(item, Type::Atom(AtomType::String | AtomType::AnyUri)) };
+                if !valid {
+                    self.emit(TYPE_ERROR, format!("URL argument {} requires {}",
+                        index + 1, if record { "one record" } else { "one string or anyURI" }), range);
+                }
+            }
+            return signature.ret;
+        }
         self.check_call_args(&signature.params, args, range);
         signature.ret
     }
@@ -1198,6 +1217,7 @@ impl TypeChecker {
             ("item", "cem:stdlib/items"),
             ("module", "cem:stdlib/modules"),
             ("record", "cem:stdlib/records"),
+            ("url", "cem:stdlib/url"),
             ("report", "cem:stdlib/report"),
             ("state", "cem:stdlib/state"),
             ("tpl", "cem:stdlib/template"),
@@ -1242,13 +1262,40 @@ impl TypeChecker {
         }
     }
 
+    fn register_url_function(&mut self, name: QNameKey, function: &crate::stdlib::StdlibFunction) {
+        let ret = match function.name {
+            "can_parse" => boolean_type(),
+            "parse" => {
+                let mut fields = vec![RecordField { name: "href".into(), ty: Type::atom(AtomType::AnyUri) }];
+                for name in ["origin", "protocol", "username", "password", "host", "hostname",
+                             "port", "pathname", "search", "hash"] {
+                    fields.push(RecordField { name: name.into(), ty: Type::atom(AtomType::String) });
+                }
+                fields.push(RecordField { name: "query".into(), ty: Type::stream(Type::Record(
+                    ["name", "value"].into_iter().map(|name| RecordField {
+                        name: name.into(), ty: Type::atom(AtomType::String)
+                    }).collect())) });
+                Type::stream(Type::Record(fields))
+            },
+            _ => Type::atom(AtomType::AnyUri),
+        };
+        for arity in function.min_arity..=function.max_arity {
+            let signature = FunctionSignature { name: name.clone(), params: vec![Type::Any; arity as usize], ret: ret.clone() };
+            let key = signature.key();
+            self.register_function(signature);
+            self.url_functions.insert(key, function.name);
+        }
+    }
+
     fn register_stdlib_module_alias(&mut self, alias: &str, module: &str) {
         for function in crate::stdlib::ModuleRegistry::with_all_known()
             .functions
             .into_iter()
             .filter(|function| function.module == module)
         {
-            if function.module == "cem:stdlib/modules" {
+            if function.module == crate::stdlib::url::MODULE_URI {
+                self.register_url_function(QNameKey::new(Some(alias.to_owned()), function.name), &function);
+            } else if function.module == "cem:stdlib/modules" {
                 for arity in function.min_arity..=function.max_arity {
                     self.register_function(FunctionSignature {
                         name: QNameKey::new(Some(alias.to_owned()), function.name),

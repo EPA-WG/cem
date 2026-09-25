@@ -65,7 +65,7 @@ seq:count(seq:where(
 See the [string-function contracts](../../docs/cem-ql-stack-design-impl.md#112-cemstdlibstrings)
 for signatures, edge cases, and differences from JavaScript.
 
-## URL parameter core
+## URL functions and parameter core
 
 The native Rust `stdlib::url_params::UrlParams` core provides immutable ordered
 query parameters, form parsing/serialization and strict CEM-QL value adapters.
@@ -73,10 +73,35 @@ Mapping records use deterministic key order; pair streams retain order and
 duplicates; parameter sorting is stable by UTF-16 code units. Values remain
 ordinary typed records and arrays, with no JSON handoff or host URL service.
 
-This is the first stage of the [accepted URL contract](../../docs/cem-ql-url-contract.md).
-The `url:` query functions are not registered yet. Parsing whole URLs, immutable
-URL setters, type inference and evaluator wiring remain separate checklist items.
-Focused native coverage: `cargo test -p cem-ql --test url_params`.
+The Tier A `url:` alias (`cem:stdlib/url`) now registers these functions from
+the [accepted URL contract](../../docs/cem-ql-url-contract.md):
+
+| Function | Result |
+| --- | --- |
+| `can_parse(input, base?)` | Boolean; invalid syntax returns false |
+| `parse(input, base?)` | Zero or one parsed record |
+| `href(input, base?)` | Canonical anyURI; invalid syntax raises an error |
+| `assemble(parts, base?)` | anyURI; requires parts.href or explicit base |
+| `with_parts(input, parts)` | anyURI; immutable fixed-order component updates |
+
+Text arguments accept one string or anyURI, without implicit atomization.
+Parts reject unknown/read-only fields and overlapping host/hostname/port or
+search/query assignments. Ignored setters emit source-mapped warnings; partial
+host changes survive an invalid port. No ambient base or host URL service is used.
+
+```cem-ql
+(
+  url:href("../asset.svg", "https://example.test/docs/page"),
+  url:with_parts("https://example.test/a", { pathname: "/b", hash: "details" })
+)
+```
+
+The parameter core is not yet exposed as `url:params*` query functions.
+Known parser/setter compatibility gaps remain tracked and prioritized in
+[the wishlist](../../docs/wishlist.md#rust-url-compatibility-gaps).
+Focused coverage: `cargo test -p cem-ql --test url_query --test url_params`.
+WASM query execution is checked with `node packages/cem_ql/tests/url-query-wasm.mjs`
+after the package WASM build. Browser execution parity is pending.
 
 ## Native data import and presentation dispatch
 

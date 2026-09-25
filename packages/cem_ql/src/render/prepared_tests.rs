@@ -18,7 +18,7 @@ fn prepared_baseline_is_lazy_and_owned_by_each_template() {
             artifact.diagnostics
         );
         assert_eq!(stages["query/type-check"].calls, 3);
-        assert_eq!(stages["stdlib/assemble-registry"].calls, 18);
+        assert_eq!(stages["stdlib/assemble-registry"].calls, 19);
     }
 }
 

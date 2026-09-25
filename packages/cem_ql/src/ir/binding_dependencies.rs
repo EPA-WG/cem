@@ -117,6 +117,7 @@ fn closed_module(module: &ModuleUri) -> bool {
             | "cem:stdlib/strings"
             | "cem:stdlib/numbers"
             | "cem:stdlib/records"
+            | "cem:stdlib/url"
             | "cem:stdlib/dom"
             | "cem:stdlib/datetime"
             | "cem:stdlib/cemml"

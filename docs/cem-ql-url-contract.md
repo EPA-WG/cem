@@ -1,6 +1,6 @@
 # Pure CEM-QL URL family — accepted implementation contract
 
-Status: **accepted target; native parameter core implemented, query API pending**
+Status: **parse/assembly query API implemented; parameter query API pending**
 (2026-09-25). The user's
 “continue recommended” accepts D1–D3: deterministic mapping order, compatible
 setter results with warnings, and seed-based assembly. This document completes
@@ -37,9 +37,9 @@ revision during implementation, with their license and provenance.
   order; choosing whichever happens to occur would undermine portability.
 - [record:entries](../packages/cem_ql/src/eval/pipeline.rs) enumerates those
   fields. It does not restore the lost authored ordering.
-- [The registry](../packages/cem_ql/src/stdlib.rs) has no registered URL query
-  module yet. Native URL cores now use the pinned Rust `url` 2.5.8 dependency.
-  This is not evidence of full conformance; four file/IDNA parser gaps remain.
+- [The registry](../packages/cem_ql/src/stdlib.rs) exposes five URL parse/assembly
+  functions. Native URL cores use the scoped Rust `url` 2.5.8 dependency.
+  This is not evidence of full conformance; three file/IDNA parse cases remain.
   Its typed setters alone cannot establish JavaScript setter parity.
 
 ## Value contract
@@ -615,3 +615,33 @@ URL tests and the CEM-QL Nx WASM build pass. The pinned setter matrix remains
 in the wishlist. No common evaluator/type source or parser dependency changed;
 no full/global suite ran. Next: URL registry/type/evaluation integration and
 source-mapped diagnostic fixtures.
+
+## Parse/assembly query integration
+
+The registry now exposes `can_parse`, `parse`, `href`, `assemble` and
+`with_parts` through default `url:` and imported `cem:stdlib/url` aliases.
+Static checking rejects incompatible argument types, defers stream cardinality
+to the typed core and returns boolean, anyURI or a typed optional parsed-record
+stream. URL-specific checks follow registered signatures; user declarations
+with the same names do not inherit them or dispatch to the builtin.
+
+Evaluation uses the complete call source range and embedding source-map stack.
+Argument failures stop subsequent argument evaluation and cannot be suppressed
+by parse/can_parse. Reports are retained once on the evaluator context, in
+argument/setter order. Invalid URL/base/parts calls return no items, while
+ignored setters retain the resulting anyURI and warning details.
+
+Seven native query tests cover aliases, types, cardinality, user-function
+isolation, full embedding maps, partial host effects and upstream diagnostics.
+The Node WASM fixture `tests/url-query-wasm.mjs` exercises the same registered
+Rust path through the explicit JSON query API boundary. Browser/CLI/SSR parity
+and generated schema reference output remain checklist work.
+Next: register the implemented parameter core as `url:params*`, including
+precise result types, validation, diagnostics and query-level fixtures.
+
+Validation: `yarn nx run cem_ql:test` passes 781 tests (nine ignored),
+`yarn nx run cem_ql:build:wasm` passes, and
+`node packages/cem_ql/tests/url-query-wasm.mjs` passes.
+The package suite was required because this step changes shared registry,
+type-checking, lowering and evaluator dispatch. No workspace-wide task ran.
+The registry setup/function-count assertions now expect 19/81 instead of 18/76.

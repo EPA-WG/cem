@@ -4,7 +4,9 @@ use crate::stdlib::{ModuleRegistry, StdlibFunction};
 use std::{hint::black_box, time::Instant};
 
 fn register(checker: &mut TypeChecker, name: QNameKey, function: &StdlibFunction) {
-    if function.module == "cem:stdlib/modules" {
+    if function.module == crate::stdlib::url::MODULE_URI {
+        checker.register_url_function(name, function);
+    } else if function.module == "cem:stdlib/modules" {
         for arity in function.min_arity..=function.max_arity {
             checker.register_function(FunctionSignature {
                 name: name.clone(),
@@ -46,6 +48,7 @@ fn seed_candidate(checker: &mut TypeChecker, module: &SurfaceModule) {
         ("item", "items"),
         ("module", "modules"),
         ("record", "records"),
+        ("url", "url"),
         ("report", "report"),
         ("state", "state"),
         ("tpl", "template"),

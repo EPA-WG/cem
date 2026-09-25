@@ -123,3 +123,13 @@ fn to_record(url: &Url) -> Item {
     fields.insert("query".into(), query.to_entries());
     Item::Record(fields)
 }
+
+/// The first registered URL surface; parameter query operations follow separately.
+pub const MODULE_URI: &str = "cem:stdlib/url";
+pub const FUNCTIONS: &[super::StdlibFunction] = &[
+    super::StdlibFunction::native_range(MODULE_URI, "can_parse", 1, 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "parse", 1, 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "href", 1, 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "assemble", 1, 2, super::Tier::A),
+    super::StdlibFunction::native(MODULE_URI, "with_parts", 2, super::Tier::A),
+];

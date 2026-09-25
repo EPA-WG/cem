@@ -5308,7 +5308,7 @@ registration identities may reuse an inherited or existing definition.
               and explicitly document deferred parser limitations. The wishlist
               prioritizes file-host preservation,
               legacy drive normalization, then empty-punycode compatibility.
-    - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
+    - [x] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped
           diagnostics before implementing the immutable update adapter.
         - [x] Pin and probe WPT component setter cases against Rust url 2.5.8,
@@ -5393,9 +5393,30 @@ registration identities may reuse an inherited or existing definition.
               All 46 focused URL tests and the package Nx WASM build pass.
               No common evaluator/type modules changed; no global tasks ran.
               Source-mapped warnings and query registration remain pending.
-        - [ ] Integrate assembly/update errors and warnings with query evaluation,
+        - [x] Fixture: register the five URL parse/assembly query functions;
+              prove default/import aliases, types, user-name isolation, call
+              source maps, upstream failures and ordered warnings.
+        - [x] Fixture: execute the registered URL calls through the built WASM
+              query API in Node, asserting typed results and diagnostics.
+        - [x] Integrate assembly/update errors and warnings with query evaluation,
               preserving source ranges, source maps and upstream diagnostics;
               complete URL-PARTS source-mapped diagnostic fixtures.
+              Completed 2026-09-25: five Tier A functions now resolve through
+              default/imported aliases with concrete result inference, strict
+              argument checks and typed native evaluation. Seven query tests
+              prove cardinality, user-function isolation, ordered diagnostics,
+              partial effects and complete embedding source maps. The Node
+              WASM query fixture passes through the same Rust implementation.
+              Validation: package Nx test suite passes (781 tests, nine ignored),
+              package WASM build and Node WASM fixture pass. Shared registry,
+              type-checking and lowering/evaluation changed, so package-wide
+              validation was required; no workspace-wide task ran. Updated
+              registry-count assertions from 18/76 to 19/81 for the new alias
+              and five functions.
+              Browser/CLI/SSR parity and parameter registration remain open.
+        - [ ] Register the native parameter operations as url:params* with
+              precise types and query fixtures; extend cross-runtime coverage
+              and generated implemented reference output.
 
         - [ ] Before CEM-QL crate publication, resolve distribution of the private
               cem-url dependency; Cargo packaging cannot publish this local-only

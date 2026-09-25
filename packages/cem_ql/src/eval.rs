@@ -39,6 +39,7 @@ pub(crate) use data::source_node as imported_source_node;
 pub use data::{imported_cem_tree, DataReaderCache};
 pub(crate) use data::xpath_node as result_native_node;
 pub mod pipeline;
+mod url;
 pub mod set_ops;
 pub mod types_runtime;
 
@@ -882,6 +883,8 @@ impl<'a> EvalCtx<'a> {
             IrNode::StdlibCall { module, name, args } => {
                 if module.0 == crate::stdlib::native::MODULE_URI && name.local == "call" {
                     self.eval_native_call(id, &args)
+                } else if module.0 == crate::stdlib::url::MODULE_URI {
+                    url::apply(&name.local, &args, self, id)
                 } else {
                     pipeline::apply_stdlib_call(&module, &name, &args, self)
                 }

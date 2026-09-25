@@ -777,7 +777,10 @@ impl IrLowerer {
     ) -> IrId {
         let arg_ids: Vec<IrId> = args.iter().map(|arg| self.lower_expr(arg)).collect();
         if let Expression::Name(name, _) = callee {
-            if let Some(module) = self.stdlib_module_for(name) {
+            if let Some(module) = self.stdlib_module_for(name).filter(|module|
+                module.0 != crate::stdlib::url::MODULE_URI
+                    || self.lookup_function_id(name, arg_ids.len()).is_none()
+            ) {
                 let ty = if module.0 == "cem:stdlib/modules" && name.local == "module_url" {
                     Type::atom(AtomType::AnyUri)
                 } else {
@@ -1341,6 +1344,7 @@ fn stdlib_aliases() -> HashMap<String, ModuleUri> {
         ("item", "cem:stdlib/items"),
         ("module", "cem:stdlib/modules"),
         ("record", "cem:stdlib/records"),
+        ("url", "cem:stdlib/url"),
         ("report", "cem:stdlib/report"),
         ("state", "cem:stdlib/state"),
         ("tpl", "cem:stdlib/template"),

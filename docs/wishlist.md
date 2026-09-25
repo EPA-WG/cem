@@ -87,7 +87,9 @@ path dependency with [provenance and maintenance notes](../vendor/url/CEM-PATCH.
 Remaining empty-punycode host updates stay with the deferred IDNA cases.
 Seeded assembly and immutable updates now implement the accepted fixed field
 order in the native core, with ordered warning metadata and strict validation.
-Next: query registration and source-mapped warnings, tracked in
+The five parse/assembly query functions now register source-mapped errors and
+ordered setter warnings. Next: parameter query registration and broader runtime
+parity, tracked in
 [todo.md](todo.md).
 
 ## Distribution and Publication

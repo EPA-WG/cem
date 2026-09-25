@@ -197,6 +197,7 @@ pub fn tier_a_functions() -> Vec<StdlibFunction> {
         items::FUNCTIONS,
         modules::FUNCTIONS,
         records::FUNCTIONS,
+        url::FUNCTIONS,
         report::FUNCTIONS,
         state::FUNCTIONS,
         template::FUNCTIONS,
