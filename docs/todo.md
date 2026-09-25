@@ -2414,6 +2414,32 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         204-test full suites and all 160 stock probes. Location passes under
         focused load; its failure and the broader inventory remain open. See
         [NPM/location evidence](browser-stabilization-review.tmp.md#npm-and-location-readiness-under-overlapping-load).
+    - [x] Fixture: attribute the string-demo missing-input failure observed in
+          the focused readiness inventory. Capture per-card controls and native
+          declaration/render/worker state before and after existing settlement,
+          preserving the original error. Correct only an evidenced fixture race;
+          stop before shared behavior changes and retain original story budgets.
+          Completed 2026-09-25: the focused eight-file run reproduces the
+          missing URL-ID input; tracing shows its native render pending after
+          the sibling matrix settles, then successful settlement and input
+          presence. Await initial source settlement before control access;
+          remove the temporary recovery probe. The same workload passes 9/9;
+          all three changed stories pass untraced. Package lint passes with two
+          existing warnings; typecheck passes from cache and whitespace is clean.
+          All thirteen inventory entries are reconciled; historical HTTP,
+          location and stock causes remain open. See the set-URL/module-URL
+          readiness section in docs/browser-stabilization-review.tmp.md.
+    - [x] Fixture: audit current set-URL and module-URL readiness after the
+          authored coverage migration. Add opt-in lifecycle/frame-wait and
+          per-card checkpoints through the existing tracer, preserving waits,
+          assertions and budgets. Run focused parallel NPM/location/HTTP/viewer
+          controls and the two changed stories without tracing. Attribute any
+          recurrence before changing readiness; keep historical timeouts open.
+          Completed 2026-09-25: 20/20 focused parallel tests pass. All four
+          set-URL control inventories and thirteen module-URL samples pass;
+          29/29 and 13/13 frame waits complete without changing their budgets.
+          The untraced two-story control passes 2/2. No common modules changed;
+          global gates were not run.
     - [x] Fixture: trace location's per-card reader structure and field-hydration
           predicates at startup, initial-value capture and assertion failure.
           Run the original 180-frame waits with HTTP/viewer stories and the

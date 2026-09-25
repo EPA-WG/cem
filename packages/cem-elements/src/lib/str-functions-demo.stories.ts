@@ -1,6 +1,7 @@
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect } from 'storybook/test';
-import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 import authoredPage from '../../demo/functions/str.html?raw';
 
 const SOURCE_TAG = 'story-str-functions-document';
@@ -279,8 +280,12 @@ const stringCases: StringCase[] = [
 export const EveryAuthoredSample: Story = {
     render: () => `<cem-element tag="${SOURCE_TAG}" src="${DEMO_URL.href}" link-base="source" hidden></cem-element><${SOURCE_TAG}></${SOURCE_TAG}>`,
     play: async ({ canvasElement, step }) => {
+        traceCemReadiness(canvasElement, 'str-functions/EveryAuthoredSample');
         const host = requiredElement(canvasElement, SOURCE_TAG);
         const sample = (legend: string) => requiredElement(host, `cem-demo-element[legend="${legend}"]`);
+        // The matrix can finish before sibling declarations produce their controls.
+        await whenCemSourceRendered(host);
+        readinessCheckpoint('string-initial-settled');
         await waitForCondition(() => host.querySelectorAll('cem-demo-element[legend]').length === 12,
             'all string samples render from the authored source');
         expect(Array.from(host.querySelectorAll('cem-demo-element'), card => card.getAttribute('legend')))
@@ -296,6 +301,8 @@ export const EveryAuthoredSample: Story = {
         for (const entry of stringCases) {
             await step(entry.legend, async () => {
                 const card = sample(entry.legend);
+                readinessCheckpoint('string-sample-start', { legend: entry.legend,
+                    fields: entry.fields.map(([, selector]) => !!card.querySelector(selector)) });
                 const fields = entry.fields.map(([, selector]) => requiredElement(card, selector) as HTMLInputElement | HTMLTextAreaElement);
                 const values = entry.fields.map(([, , value]) => value);
                 await waitForOutput(card, entry.initial);
@@ -328,6 +335,10 @@ export const EveryAuthoredSample: Story = {
                     if (!numeric) expect([field.selectionStart, field.selectionEnd]).toEqual([caret, caret]);
                     if (expectedParts) expect(parts(card)).toEqual(expectedParts.map(part => `“${part}”`));
                 }
+            }).catch(error => {
+                readinessCheckpoint('string-sample-failed', { legend: entry.legend,
+                    fields: entry.fields.map(([, selector]) => !!sample(entry.legend).querySelector(selector)) });
+                throw error;
             });
         }
         for (const entry of stringCases) {
@@ -369,10 +380,15 @@ async function waitForOutput(root: HTMLElement, expected: string): Promise<void>
         `${root.getAttribute('legend')} output should be ${JSON.stringify(expected)}`);
 }
 async function waitForCondition(condition: () => boolean, message: string, attempts = 600): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }
 function requiredElement(root: ParentNode, selector: string): HTMLElement {

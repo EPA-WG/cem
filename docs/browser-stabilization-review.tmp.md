@@ -5688,3 +5688,130 @@ The alternative is to continue dedicated timeout reproduction as the blocking
 priority. That keeps the earlier ordering, but the current passing controls do
 not identify a specific runtime correction or justify broader time limits.
 Neither choice establishes a cause for the historical failures.
+
+
+### Set-URL and module-URL readiness after authored coverage migration
+
+Audited 2026-09-25. The earlier thirteen-file inventory predates the completed
+page-and-legend coverage migration. In particular, set-URL now waits for
+`whenCemSourceRendered(host)` before accessing any of its four cards' controls.
+Module-URL uses that source boundary plus explicit child-render and decoded-image
+checks. The source helper settles the declarations collected from the initial
+page and their produced instances; it is not a recursive resource-completion
+signal. Keep the child-render, image and exact-output predicates.
+
+| Story | Current startup and resource boundaries | Audit outcome |
+| --- | --- | --- |
+| `set-url-demo` | Four-card inventory, source/declaration/render settlement, exact initial output arrays, then commands and all-reader hash predicates | All four cards have their expected controls at settlement; the old concern about immediately accessing later cards no longer describes this story |
+| `module-url-demo` | Source settlement, ordered thirteen-card inventory, child instance settlement, exact resolved values, image completion and positive natural width | All thirteen samples complete, including the expected missing-map diagnostic, external declarations and nested library images |
+
+Added calls to the existing opt-in readiness and worker tracer in these two
+stories. Frame waits record their original budgets and success/timeout outcomes;
+set-URL records per-card control counts and rethrows assertion failures after a
+checkpoint. Module-URL records per-card image readiness and step outcomes,
+rethrowing failures. The new per-card details contain counts, authored legends
+and booleans, not URL values or document payloads. No shared tracing helper,
+runtime module, predicate, retry, frame budget or story timeout changes.
+
+The focused parallel run passes **20/20 tests in eight files** in **23.97 s**.
+Set-URL runs from **20:19:18.795 to 20:19:35.097 UTC**, with **29/29** frame
+waits passing. Module-URL runs from **20:19:18.788 to 20:19:25.043 UTC**, with
+**13/13** frame waits and **13/13** sample checkpoints passing. The settled
+set-URL cards contain respectively **2/6/1/1 buttons**, **2/2/1/3 outputs**,
+and **0/0/0/7 inputs**, matching their authored controls.
+
+NPM and HTTP overlap both changed stories. Location starts at
+**20:19:25.985 UTC**, after module-URL finishes but while set-URL remains active;
+do not describe it as overlapping module-URL. All NPM, HTTP and location traced
+waits pass. The workload includes the three viewer story files, uses normal
+parallel scheduling, and contains no separate stock probe. These passing controls
+do not attribute any historical timeout or establish behavior under the earlier
+synchronized stock workload. Evidence: `/tmp/cem-readiness-url-focused.log`.
+
+Reproduce the focused control with:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='set-url-demo.stories.ts module-url-demo.stories.ts npm-versions-demo.stories.ts location-element-demo.stories.ts http-request-demo.stories.ts data-table-demo.stories.ts data-tree-demo.stories.ts table-inspector-demo.stories.ts'
+yarn nx run cem-elements:test --args='set-url-demo.stories.ts module-url-demo.stories.ts'
+yarn nx run cem-elements:lint
+yarn nx run cem-elements:typecheck
+```
+
+The untraced changed-story control passes **2/2** in **15.18 s**. Package lint
+passes with its two existing non-null assertion warnings. The typecheck target
+and its WASM prerequisite pass from cache. Logs are
+`/tmp/cem-readiness-url-{normal,lint,typecheck}.log`. No shared module changed,
+so no global suite, native tests, rebuild or whole-gallery gate was invoked.
+
+#### Reconciliation of the remaining readiness inventory
+
+Reviewed the remaining eleven entries against current story source. These
+findings supersede the older table's startup descriptions; they are a static
+boundary audit, not historical failure attribution.
+
+| Story | Current boundary and retained readiness concern |
+| --- | --- |
+| `cem-components-demo` | Same-origin iframe document, iframe custom-element definition, each wrapper's `updateComplete`/ready state, then specific component selectors. Parent source settlement cannot replace the iframe's own runtime checks. Frame budgets remain unchanged. |
+| `data-slices-demo` | Initial source settlement precedes exact legend and per-card article counts, including both fan-out instances. Later predicates verify committed input and output values. |
+| `dom-merge-demo` | Source settlement and exact legends precede required per-card articles. The old aggregate-only three-article startup description is obsolete; interaction checks retain focus, selection and node identity. |
+| `for-each-demo` | Source settlement precedes exact interactive and source-preview legends. Per-card checks retain rows, branch transitions, payloads and loaded HTTP contents. |
+| `form-demo` | Source settlement precedes the five-article count; each legend then has its own settlement and control/validity checks. The count is an inventory check, not the sole readiness signal. |
+| `http-request-demo` | The original aggregate article predicate and per-card startup checkpoints remain. Loaded/failed/recovered content is checked separately. Attribute the historical startup timeout only on recurrence. |
+| `local-storage-demo` | Card inventory is followed by initial source settlement before native storage hydration and interaction assertions. The earlier live-text startup race has its bounded correction; keep typed hydration and recovery checks. |
+| `location-element-demo` | The original frame checks, per-card field checkpoints and captured initial values remain. Passing structure alone does not prove field hydration; the earlier failure still needs a trace. |
+| `module-url-referrer-demo` | Source settlement now precedes the one-card inventory and all nine exact URL values; the previously attributed scalar-matrix startup correction is already present. |
+| `npm-versions-demo` | Source settlement precedes the existing HTTP/output predicates; all five pickers retain exact selection, propagation and diagnostic assertions. Its startup correction and pending-state guard are already present. |
+| `str-functions-demo` | Twelve cards now replace the old eleven-card description. The matrix waits for all exact rows; each remaining card requires its controls and exact output, including a real output element for empty strings. The initial audit found control lookup preceding that output wait; the reproduced race and correction below add initial source settlement. Source previews are checked against every authored template. |
+
+The inventory exposed one concrete gap: the string story accessed controls
+before its later output and settlement checks could run. The correction below
+addresses that gap. Keep the parent readiness audit and HTTP/location/stock
+attribution open until the remaining recurrence-dependent questions have
+evidence. The iframe's own runtime boundary remains unchanged.
+
+#### Reproduced string-demo sibling-render race
+
+The untraced remaining-inventory control fails **1/9 tests in eight files**
+(`str-functions-demo`, missing `article label:nth-of-type(1) input`); the other
+**8/9** pass. A diagnostic repeat with the same files reproduces that original
+failure. At **20:22:28.064 UTC**, the first function card, **URL ID with a string
+chain**, has no input and its produced instance's initial render is pending.
+The outer page and shorten matrix have settled; all declaration and instance
+diagnostic lists are empty. The host sent the card's native render request
+at **20:22:27.958**, returned success at **20:22:28.080**, and its render settled
+at **20:22:28.099**. A temporary failure-only observation awaited existing source
+settlement and found the input present at **20:22:28.545**, then rethrew the
+original error. This attributes a fixture startup race rather than a missing
+control or failed runtime render. Logs:
+`/tmp/cem-readiness-inventory-current.log` and
+`/tmp/cem-readiness-string-traced.log`. Replayed failure traces are duplicates,
+not additional failures.
+
+The story now awaits existing initial source/declaration/render settlement
+before its inventory and per-card control lookups. It retains every matrix,
+output, control-identity, focus, caret, preview and diagnostic assertion, the
+600-frame predicates and the 30-second story budget. The temporary failure-only
+settlement is removed; committed failure checkpoints rethrow immediately.
+Read-only per-card presence and original frame-loop traces remain opt-in.
+No common module or authored demo changes.
+
+The same traced eight-file workload passes **9/9** in **14.79 s** after the
+correction (`/tmp/cem-readiness-string-fixed.log`). Reproduce with:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 STORYBOOK_CEM_STORY_TIMING=1 yarn nx run cem-elements:test --args='cem-components-demo.stories.ts data-slices-demo.stories.ts dom-merge-demo.stories.ts for-each-demo.stories.ts form-demo.stories.ts local-storage-demo.stories.ts str-functions-demo.stories.ts module-url-referrer-demo.stories.ts'
+yarn nx run cem-elements:test --args='set-url-demo.stories.ts module-url-demo.stories.ts str-functions-demo.stories.ts'
+```
+
+The thirteen-file source audit is reconciled. Historical HTTP/location/stock
+attribution remains unresolved; the string correction does not explain those
+failures. Continue with traced recurrence investigation when one fails. The next
+independent implementation item is the pure Tier A URL function-family contract
+in `docs/todo.md`; specify its types and conflict rules before implementation,
+stopping for unresolved semantic decisions.
+
+Final untraced verification passes **3/3 changed stories** in **13.42 s**
+(`/tmp/cem-readiness-final-normal.log`). Final package lint passes with the
+same two existing warnings (`/tmp/cem-readiness-final-lint.log`); whitespace
+checks pass. Package typecheck passed from cache earlier in this audit. All
+changes are limited to three stories and the investigation/checklist documents.

@@ -1,6 +1,7 @@
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent } from 'storybook/test';
-import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-set-url-demo-document';
 const DEMO_URL = new URL('../../demo/set-url.html', import.meta.url);
@@ -49,6 +50,12 @@ export const EveryAuthoredSample: Story = {
             await whenCemSourceRendered(host);
             const samples = EXPECTED_LEGENDS.map(legend => sampleByLegend(host, legend));
             expect(samples.map(sample => sample.getAttribute('legend'))).toEqual([...EXPECTED_LEGENDS]);
+            readinessCheckpoint('set-url-initial-settled', {
+                samples: samples.map(sample => ({ legend: sample.getAttribute('legend'),
+                    buttons: sample.querySelectorAll('button').length,
+                    outputs: sample.querySelectorAll('output').length,
+                    inputs: sample.querySelectorAll('input').length })),
+            });
             const initialHash = location.hash;
             expect(location.href).toBe(originalUrl);
             expect(outputs(samples[0])).toEqual(['', initialHash]);
@@ -140,6 +147,10 @@ export const EveryAuthoredSample: Story = {
                     expect(cemDiagnosticCodes(instance)).toEqual([]);
                 }
             }
+            readinessCheckpoint('set-url-journey-verified');
+        } catch (error) {
+            readinessCheckpoint('set-url-assertion-failed');
+            throw error;
         } finally {
             history.replaceState(originalState, '', originalUrl);
         }
@@ -155,6 +166,7 @@ function sourceLoadedDemo(): HTMLElement {
     declaration.setAttribute('src', DEMO_URL.href);
     declaration.setAttribute('link-base', 'source');
     root.append(declaration, document.createElement(SOURCE_TAG));
+    traceCemReadiness(root, 'set-url/EveryAuthoredSample');
     return root;
 }
 
@@ -180,9 +192,14 @@ function requiredElement(root: ParentNode, selector: string): HTMLElement {
 }
 
 async function waitForCondition(condition: () => boolean, message: string, attempts = 180): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }

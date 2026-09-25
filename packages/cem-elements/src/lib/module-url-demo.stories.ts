@@ -1,6 +1,7 @@
+import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent } from 'storybook/test';
-import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-module-url-document';
 const MODULE_URL_DEMO_URL = new URL('../../demo/module-url.html', import.meta.url);
@@ -34,12 +35,14 @@ export const EveryAuthoredSample: Story = {
         declaration.setAttribute('src', MODULE_URL_DEMO_URL.href);
         declaration.setAttribute('link-base', 'source');
         root.append(declaration, document.createElement(SOURCE_TAG));
+        traceCemReadiness(root, 'module-url/EveryAuthoredSample');
         return root;
     },
     play: async ({ canvasElement, step }) => {
         const originalUrl = location.href;
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await whenCemSourceRendered(host);
+        readinessCheckpoint('module-url-initial-settled');
         await waitForCondition(() => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
             'all module-url samples render from the HTML source');
         const samples = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]'));
@@ -56,6 +59,10 @@ export const EveryAuthoredSample: Story = {
         };
         for (const [index, sample] of samples.entries()) {
             await step(EXPECTED_LEGENDS[index], async () => {
+                readinessCheckpoint('module-url-sample-start', { index, legend: EXPECTED_LEGENDS[index],
+                    images: Array.from(sample.querySelectorAll('img'), image => ({
+                        complete: image.complete, decoded: image.naturalWidth > 0,
+                    })) });
                 if (index === 0) {
                     const authoredMap = JSON.parse(sourceDocument.querySelector('script[type="importmap"]')?.textContent ?? '');
                     // The displayed map documents example resources, omitting the
@@ -142,6 +149,10 @@ export const EveryAuthoredSample: Story = {
                 const source = requiredElement(sample, '[slot="text"] pre').textContent ?? '';
                 expect(source.replace(/^\r?\n/u, '').startsWith(index === 0 ? '<style>' : '<cem-element')).toBe(true);
                 expect(sample.querySelector('[slot="status"]')?.textContent?.trim() ?? '').toBe('');
+                readinessCheckpoint('module-url-sample-verified', { index });
+            }).catch(error => {
+                readinessCheckpoint('module-url-sample-failed', { index });
+                throw error;
             });
         }
         const navigation = ['../index.html', './set-url.html', './external-template.html',
@@ -174,10 +185,15 @@ function shortenMiddle(input: string, maxLength: number): string {
 }
 
 async function waitForCondition(condition: () => boolean, message: string, attempts = 120): Promise<void> {
+    const mark = readinessWait(message, attempts);
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (condition()) return;
+        if (condition()) {
+            mark('ready', attempt);
+            return;
+        }
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     }
+    mark('timeout', attempts);
     throw new Error(message);
 }
 
