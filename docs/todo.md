@@ -3871,7 +3871,7 @@ registration identities may reuse an inherited or existing definition.
       hydration parity. It also defines exact tag-registered CEMT SSR
       participants so `cem-demo-element` can transform its inert payload before
       the generic lifecycle renders the activated inner DCEs.
-- [ ] Enforce one-to-one source-loaded Storybook coverage for every authored
+- [x] Enforce one-to-one source-loaded Storybook coverage for every authored
       sample in `packages/cem-elements/index.html` and every HTML document under
       `packages/cem-elements/demo/`, following the current data-slices and
       module-url pattern.
@@ -3915,10 +3915,16 @@ registration identities may reuse an inherited or existing definition.
     - [x] Load each authored HTML file through `<cem-element src="…">`; do not
           copy its CEM-ML declarations into the story or replace host-owned
           resource/import-map behavior with per-example resolver callbacks.
-    - [ ] Exercise every sample's observable rendered outcome in an asynchronous
+    - [x] Exercise every sample's observable rendered outcome in an asynchronous
           Storybook `play` test, while retaining exact source-shape assertions in
           `test:unit` and avoiding test-only IDs, roles, or data attributes in the
           demo HTML.
+          Reconciled 2026-09-25: the inventory contains 35 authored documents
+          and 224 normalized legends, and each owner export now has focused
+          behavior coverage recorded in `packages/cem-elements/docs/demo-storybook-coverage.md`.
+          Supporting documents with no demo legends are covered by their six
+          owner stories and fragment/payload variants. The focused inventory
+          unit contract passes; no global suite ran.
     - [x] Fixture: begin the behavior audit with all eight `demo/attributes.html`
           samples. Add explicit rendered default/container-value assertions and
           cover `#precedence-default`, previously absent from the source-loaded
@@ -5008,7 +5014,7 @@ registration identities may reuse an inherited or existing definition.
           the shortening regression and a temporary 123-case native probe pass.
           No full suite ran. Next: the six supporting HTML documents; broader
           per-sample coverage and startup investigations remain open.
-    - [ ] Fixture: audit the six supporting HTML documents owned by
+    - [x] Fixture: audit the six supporting HTML documents owned by
           `supporting-html-demo.stories.ts`: `embed-1.html`, `embed-lib.html`,
           `lib-dir/embed-lib.html`, `external-template-document.html`,
           `external-template-templates.html` and `html-template.html`. Verify
