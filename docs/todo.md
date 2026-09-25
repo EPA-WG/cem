@@ -2523,6 +2523,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             fixture. If startup polling is premature, use existing lifecycle
             settlement before checking each authored instance; preserve the
             resource assertions and 30-second story deadline.
+    - [ ] Fixture: capture the worker/fallback story's 120-frame first-span
+          timeout with observations from its owning declaration and runtime
+          before changing the wait. During input-value validation on 2026-09-24,
+          `ProcessingWorkerAndMainThreadFallback` timed out at its first worker
+          instance (`cem-elements.stories.ts:1254`); 236/237 tests passed and
+          its later update assertions did not run. This initial-render failure
+          is separate from the dirty input-value regressions and remains
+          unattributed. The full rerun with existing readiness tracing enabled
+          passes all 237 tests without code or wait changes. That tracing does
+          not observe this story's owning runtime; capture it on recurrence.
     - [x] Native fixture: attribute local-storage's initial fruit-watcher
           arithmetic diagnostics and the JSON sample's
           `cem.render_plan_apply.replace_scope` warning. Distinguish absent
@@ -4373,7 +4383,7 @@ registration identities may reuse an inherited or existing definition.
           source-loaded documents pass, as do aggregate coverage, lint and
           typecheck with the two existing lint warnings. The authored demo is
           unchanged and no new behavior decision was needed.
-    - [ ] Fixture: audit all seven `demo/http-request.html` samples, including
+    - [x] Fixture: audit all seven `demo/http-request.html` samples, including
           its four external-file previews, against source-loaded Storybook and
           independent gallery contracts. Check request lifecycle transitions,
           response/header projections, invalid-response recovery and exact
@@ -4382,6 +4392,11 @@ registration identities may reuse an inherited or existing definition.
           Checkpoint 2026-09-24: direct URL editing exposes the live-value
           discrepancy below. The audit remains open pending that decision;
           preserve startup tracing and the separate unattributed timeout.
+          Completed 2026-09-24 after the approved shared input-value fix:
+          preset-after-typing now refreshes the same live input before GET in
+          Storybook and both independent gallery modes. All seven samples,
+          exact source previews and desktop/mobile layout checks pass. The
+          authored demo is unchanged; startup investigations remain separate.
     - [x] Fixture: characterize HTTP sample 0's preset change after direct URL
           editing. Type `./http-data-compact.json`, then choose All records.
           Storybook and standalone Chromium show the input's live value still
@@ -4390,11 +4405,24 @@ registration identities may reuse an inherited or existing definition.
           owning render settles and one further second, with no diagnostics.
           GET loads the full response while the field still displays compact.
           No authored fixture or shared runtime change has been made.
-    - [ ] Decision: fix shared input-value refresh after a typed control's
+    - [x] Decision: fix shared input-value refresh after a typed control's
           bound value changes (recommended), or record the limitation and
           leave the corresponding HTTP audit case pending. Preserve native
           editing focus/caret behavior and compare the live value with the
           committed binding, including changes back to the initial value.
+          Accepted 2026-09-24: fix shared input-value refresh.
+    - [x] Fixture: regress dirty input-value refresh through DOM templates,
+          processing-host patches and direct WASM rendering. Cover changed
+          bindings, return to the initial value, clearing/removal, unchanged
+          pending edits, focus/selection and native input value semantics.
+          Restore preset-after-typing checks in the HTTP Storybook and both
+          independent gallery modes, then finish the seven-sample audit.
+          Completed 2026-09-24: five browser regressions fail before and pass
+          after shared value-attribute application/removal refreshes the dirty
+          live value. All 237 Storybook tests pass on rerun, with the initial
+          worker-startup timeout recorded separately. All 513 unit tests and
+          31 standalone / 37 source-loaded documents pass; lint and typecheck
+          pass with the two existing lint warnings.
     - [x] Fixture: strengthen the remaining HTTP request contracts while the
           preset-after-typing decision stays open. Add seven named Storybook
           steps, exact request/draft states, malformed/empty recovery, direct
@@ -4408,6 +4436,12 @@ registration identities may reuse an inherited or existing definition.
           two-card layout and 1280px/390px overflow checks pass. The authored
           demo and shared runtime are unchanged. The seven-sample audit and
           separate startup-timeout investigation remain open.
+    - [ ] Fixture: audit all twelve `demo/local-storage.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Check initial/default/override reads, typed validation and recovery,
+          external writes/watchers, JSON basket updates and slice write-back.
+          Verify storage isolation and desktop/mobile layout, preserve authored
+          examples and stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

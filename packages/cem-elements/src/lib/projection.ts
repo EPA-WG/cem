@@ -2798,8 +2798,20 @@ export function setRenderPlanAttribute(element: Element, name: string, value: st
         return;
     }
     const addedChecked = name === 'checked' && !element.hasAttribute(name);
+    const changedValue = name === 'value' && element.getAttribute(name) !== value;
     element.setAttribute(name, value);
     if (addedChecked) syncRenderedCheckedPresence(element, true);
+    if (changedValue) syncRenderedInputValue(element, value);
+}
+
+// The value attribute sets the default; a dirty input needs its live property
+// refreshed too. Only changed bindings own that update, so unrelated renders
+// preserve pending edits. Reflected-value controls and file inputs stay native.
+function syncRenderedInputValue(element: Element, value: string): void {
+    if (element.namespaceURI !== XHTML_NAMESPACE || element.localName !== 'input') return;
+    const input = element as HTMLInputElement;
+    if (['hidden', 'button', 'submit', 'reset', 'image', 'checkbox', 'radio', 'file'].includes(input.type)) return;
+    if (input.value !== value) input.value = value;
 }
 
 // A changed authored checked presence also controls the dirty live state.
@@ -2844,8 +2856,10 @@ function removeRenderPlanAttribute(element: Element, name: string): void {
         element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
     }
     const removedChecked = name === 'checked' && element.hasAttribute(name);
+    const removedValue = name === 'value' && element.hasAttribute(name);
     element.removeAttribute(name);
     if (removedChecked) syncRenderedCheckedPresence(element, false);
+    if (removedValue) syncRenderedInputValue(element, '');
 }
 
 function xlinkAttributeLocalName(name: string): string | null {

@@ -1146,7 +1146,10 @@ const httpSamples = [
         elementIdentity('input', 'remember'),
         elementIdentity('button[aria-label="GET"]', 'remember'),
         ...httpUrlState('./http-data.json', '', 'idle', []),
-        // Preset-after-typing refresh remains pending in docs/todo.md.
+        ...editHttpUrl('./http-data-compact.json'),
+        ...httpUrlState('./http-data-compact.json', '', 'idle', []),
+        clickThenText('button:has-text("All records")', 'article', 'Selected URL: ./http-data.json'),
+        ...httpUrlState('./http-data.json', '', 'idle', []),
         clickThenText('article > button', 'article', 'Request state: loaded'),
         ...httpUrlState('./http-data.json', './http-data.json', 'loaded', httpFullRows),
         clickThenText('button:has-text("Compact records")', 'article', 'Selected URL: ./http-data-compact.json'),

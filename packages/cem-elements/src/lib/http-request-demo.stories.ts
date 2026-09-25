@@ -106,8 +106,10 @@ async function verifyRuntimeUrlSelection(sample: HTMLElement): Promise<void> {
     const submit = async () => { await userEvent.click(get); };
 
     await state('./http-data.json', '', 'idle', []);
-    // Preset-after-typing refresh is pending the shared-value decision in TODO.
-    // Keep the preset sequence before direct edits while that case is open.
+    await edit('./http-data-compact.json');
+    await state('./http-data-compact.json', '', 'idle', []);
+    await preset('All records');
+    await state('./http-data.json', '', 'idle', []);
     await submit();
     await state('./http-data.json', './http-data.json', 'loaded', full);
     await preset('Compact records');

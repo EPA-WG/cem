@@ -40,6 +40,13 @@ CEM-ML such as `{td | ${$product.price}}` intact when a whole demo or declaratio
 document is loaded through `src`. The template element's own attributes remain
 part of the outer projection.
 
+Changing a rendered input's `value` also refreshes its live value after editing,
+including returning to the initial value or clearing/removing the binding.
+Unchanged bindings preserve pending edits during unrelated renders. Updates keep
+the input node, focus and selection (clamped to the new length); native input
+sanitization and form reset defaults still apply. File inputs and controls whose
+values already reflect their attributes retain native behavior.
+
 The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
 preserved from the local prototype and the standalone/source-loaded checks.
 

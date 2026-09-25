@@ -963,3 +963,43 @@ coverage, lint and typecheck pass with the two existing lint warnings. The HTTP
 page passes desktop two-card layout and 1280px/390px overflow checks. The
 seven-sample audit remains open at the shared input-value refresh decision in
 `docs/todo.md`.
+
+## Shared input-value refresh, 2026-09-24
+
+The user approved fixing the shared renderer. Updating an input's `value`
+attribute changes its default value, but after editing the browser retains a
+separate dirty live value. Shared attribute application and removal now refresh
+that live value when the rendered value changes. Unchanged values leave pending
+edits intact; existing render focus/selection restoration retains the control
+and clamps selection to the new length. Native sanitization and form reset
+defaults remain in effect. File inputs and controls with reflected values keep
+their native behavior.
+
+Five browser regressions failed before the fix. Three cover DOM templates,
+processing-host rendering and direct WASM rendering: a pending change-bound
+edit survives an unrelated render, blur commits it, a preset returns to the
+initial value, focused replacements preserve/clamp selection, and clearing
+works. Input-bound typing also retains the caret during a middle insertion.
+Two more regressions cover direct render plans and patch transactions, checking
+text, number, range, color, date, checkbox, radio, hidden, button and file inputs
+against native values, including removal, unchanged unbound edits and reset.
+All five pass with no unexpected diagnostics.
+
+The HTTP story and both independent gallery contracts again require typing the
+compact URL and choosing All records before GET. The visible input, Selected
+URL and GET value must all return to `./http-data.json`; the request remains
+idle until GET, then loads the full response. The authored demo is unchanged.
+
+The first full Storybook run passed 236/237 tests; the worker/fallback story
+timed out waiting for its first worker instance's span within 120 frames,
+before its update assertions. A full rerun with existing readiness tracing
+enabled passed all 237 tests. Those trace hooks do not observe this story's
+owning runtime, so the startup failure remains unattributed and has its own
+open fixture in TODO. No wait was changed.
+
+Validation passes all 237 Storybook tests on rerun, 513 unit tests and 31
+standalone / 37 source-loaded documents. Aggregate coverage, lint and typecheck
+pass with the two existing lint warnings. The HTTP page passes desktop two-card layout and
+1280px/390px overflow checks. All seven HTTP samples are now audited. Next are
+the twelve `local-storage.html` samples; the broader per-sample audit and
+separate startup investigations remain open.
