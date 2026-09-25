@@ -85,8 +85,9 @@ two of 277 cases (six field differences) remain. Raw registry characterization s
 unchanged. The user accepted the file parser patch; it is now a private CEM-QL
 path dependency with [provenance and maintenance notes](../vendor/url/CEM-PATCH.md).
 Remaining empty-punycode host updates stay with the deferred IDNA cases.
-Next: seeded assembly and immutable updates in the accepted fixed field order.
-Full fixed-order assembly and source-mapped warnings remain active work in
+Seeded assembly and immutable updates now implement the accepted fixed field
+order in the native core, with ordered warning metadata and strict validation.
+Next: query registration and source-mapped warnings, tracked in
 [todo.md](todo.md).
 
 ## Distribution and Publication

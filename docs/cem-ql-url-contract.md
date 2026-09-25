@@ -591,3 +591,27 @@ serialization fixes, with empty-punycode behavior still in the wishlist.
 
 The package Nx WASM build passes; no full/global test suite ran. Shared
 evaluator/type behavior and CEM-ML registry dependency remain unchanged.
+
+
+## Native assembly and immutable updates completed
+
+The typed core in `stdlib/url_parts.rs` implements `assemble` and
+`with_parts` using the accepted D2/D3 validation and setter order. It accepts
+ordinary or native record views, rejects duplicate native field names, requires
+explicit seeds, distinguishes omitted fields from empty values, and validates
+query entry streams through the existing parameter core. Caller items are
+never mutated; results contain an anyURI and ordered warning metadata.
+
+Warnings name the supplied field and any rejected subcomponent, including
+partial host.port rejection without rollback. They carry no credentials or
+input URL values. The evaluator must still attach source ranges/maps and
+preserve existing diagnostics; these APIs are not registered query functions.
+
+Nine new tests cover the 45 component field pairings, seed/base precedence,
+typed values, empty assignments, normalized success, native enumeration order,
+query duplicates, ignored opaque setters and partial effects. All 46 focused
+URL tests and the CEM-QL Nx WASM build pass. The pinned setter matrix remains
+275/277; the two deferred empty-punycode cases and remaining parse gaps stay
+in the wishlist. No common evaluator/type source or parser dependency changed;
+no full/global suite ran. Next: URL registry/type/evaluation integration and
+source-mapped diagnostic fixtures.

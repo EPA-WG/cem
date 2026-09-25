@@ -20,6 +20,7 @@ pub mod user;
 pub mod url;
 pub mod url_origin;
 pub mod url_params;
+pub mod url_parts;
 pub mod url_setters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

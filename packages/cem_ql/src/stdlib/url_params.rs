@@ -185,7 +185,7 @@ fn string(item: &Item) -> Result<String> {
         _ => Err(ParamsTypeError("expected one string atomic value")),
     }
 }
-fn singleton_string(items: &[Item]) -> Result<String> {
+pub(super) fn singleton_string(items: &[Item]) -> Result<String> {
     match items {
         [item] => string(item),
         _ => Err(ParamsTypeError("expected exactly one string item")),
@@ -195,7 +195,7 @@ fn is_record(item: &Item) -> bool {
     matches!(item, Item::Record(_))
         || matches!(item, Item::Native(view) if view.kind() == QueryItemViewKind::Record)
 }
-fn fields(item: &Item) -> Result<BTreeMap<String, Vec<Item>>> {
+pub(super) fn fields(item: &Item) -> Result<BTreeMap<String, Vec<Item>>> {
     match item {
         Item::Record(fields) => Ok(fields.clone()),
         Item::Native(view) if view.kind() == QueryItemViewKind::Record => {

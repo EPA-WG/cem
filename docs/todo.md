@@ -5380,6 +5380,23 @@ registration identities may reuse an inherited or existing definition.
               All 37 focused URL tests, 66 dependency unit tests, the historical
               WPT harness and package Nx WASM build pass. No global tasks ran.
 
+        - [x] Fixture: prove typed seeded assembly and immutable updates, all
+              conflicting/allowed field pairs, validation precedence, fixed order,
+              query streams and ordered native warning details.
+        - [x] Implement the native parts adapter without query registration;
+              preserve caller values and retain source mapping for integration.
+              Completed 2026-09-25: nine new native tests cover all 45 component
+              field pairs, explicit seeds, validation precedence, empty values,
+              query entries, native record ordering/duplicate rejection and
+              ordered warnings preserving partial host effects. The adapter
+              returns anyURI plus warning metadata, with no mutable URL handle.
+              All 46 focused URL tests and the package Nx WASM build pass.
+              No common evaluator/type modules changed; no global tasks ran.
+              Source-mapped warnings and query registration remain pending.
+        - [ ] Integrate assembly/update errors and warnings with query evaluation,
+              preserving source ranges, source maps and upstream diagnostics;
+              complete URL-PARTS source-mapped diagnostic fixtures.
+
         - [ ] Before CEM-QL crate publication, resolve distribution of the private
               cem-url dependency; Cargo packaging cannot publish this local-only
               patch as an ordinary registry dependency.

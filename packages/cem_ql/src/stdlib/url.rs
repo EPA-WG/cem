@@ -77,7 +77,7 @@ fn checked_url(input: &[Item], base: Option<&[Item]>) -> Result<Url, UrlError> {
         .map_err(|_| UrlError::InvalidUrl)
 }
 
-fn text(items: &[Item], argument: &'static str) -> Result<String, UrlError> {
+pub(super) fn text(items: &[Item], argument: &'static str) -> Result<String, UrlError> {
     let atom = match items {
         [Item::Atomic(atom)] => Some(atom.clone()),
         [Item::Native(view)] if view.kind() == QueryItemViewKind::Atomic => view.atom(),
