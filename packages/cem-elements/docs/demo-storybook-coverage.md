@@ -1343,3 +1343,35 @@ passes 256 Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
 documents, plus build, lint and typecheck (two existing warnings). This fixture
 audit is complete. The next audit is `set-url.html` (four samples); broader
 coverage and historical startup investigations remain open.
+
+## Set-URL behavior audit, 2026-09-25
+
+All four samples now have named Storybook steps and shared initial-state
+contracts in the independent standalone/source-loaded verifier. The checks
+require exact live output values and initially inert writers. Both hash buttons,
+all six method buttons and all six form radio choices are exercised. Native
+radio selection and the live text input are checked alongside the pending
+method and URL; typing a draft must not navigate or change history.
+
+Each command checks the appropriate history-length change, then repeats the
+same URL and requires no duplicate entry. All four live readers follow every
+write. External navigation stays in place until a fresh Set event applies the
+unchanged draft. Enter and Space activate the symbolic buttons. Back/Forward
+checks prove that replacing an entry removes that URL from traversal without
+replaying earlier commands or discarding the pending form values. Storybook
+also restores the original URL and history state after the test.
+
+The audit found that all three source-loaded navigation links used the host
+page directory. With user approval, the two page-loading declarations now
+opt in to `link-base="source"`; all three absolute destinations are asserted.
+The authored samples and shared runtime need no changes. Source-loaded
+checks require empty diagnostic histories for the loader, declarations and
+produced instances.
+
+Both independent modes pass at 1280px and 390px, including card/control
+containment and complete source-panel scrolling. Standalone retains a two-card
+desktop row. The full gate passes 256 Storybook tests, 514 unit tests and 31
+standalone / 37 source-loaded documents, plus build, typecheck and lint (two
+existing warnings). This fixture audit is complete. The next fixture audit is
+`table-inspector.html` (four samples). Broader per-sample coverage and the
+historical startup investigations remain open.

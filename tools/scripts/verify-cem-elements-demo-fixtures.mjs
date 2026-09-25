@@ -1947,6 +1947,26 @@ const dataTreeSamples = [
     ]),
 ];
 
+const setUrlMethods = ['location.href', 'location.hash', 'location.assign', 'location.replace',
+    'history.pushState', 'history.replaceState'];
+const setUrlSamples = [
+    sampleContract('1. Set the page hash', [
+        nodeTexts('button', ['#hash-one', '#hash-two']), nodeTexts('output', ['', '']),
+    ]),
+    sampleContract('2. Select the URL write method', [
+        nodeTexts('button', setUrlMethods), nodeTexts('output', ['', '']),
+    ]),
+    sampleContract('3. Conditionally inject a URL writer', [
+        countExactly('button', 1), nodeTexts('output', ['']),
+    ]),
+    sampleContract('4. Set URL from form controls', [
+        countExactly('input[type="radio"]', 6), countExactly('input:checked', 1),
+        propertyEquals('input:checked', 'value', 'history.pushState'),
+        propertyEquals('input[type="text"]', 'value', '#form-driven'),
+        nodeTexts('output', ['history.pushState', '#form-driven', '']),
+    ]),
+];
+
 const fixtureSpecs = [
     {
         path: '/packages/cem-elements/demo/cell-overrides.html',
@@ -2309,34 +2329,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/set-url.html',
-        checks: [
-            clickThenText(
-                'cem-demo-element[legend="1. Set the page hash"] button[value="#hash-two"]',
-                'cem-demo-element[legend="1. Set the page hash"] article',
-                'Current hash: #hash-two',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="2. Select the URL write method"] button:has-text("history.pushState")',
-                'cem-demo-element[legend="2. Select the URL write method"] article',
-                'Selected method: history.pushState',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="3. Conditionally inject a URL writer"] button',
-                'cem-demo-element[legend="3. Conditionally inject a URL writer"] article',
-                'Current hash: #conditional-writer',
-            ),
-            fillThenText(
-                'cem-demo-element[legend="4. Set URL from form controls"] input[type="text"]',
-                '#form-verified',
-                'cem-demo-element[legend="4. Set URL from form controls"] article',
-                'Pending: history.pushState = #form-verified',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="4. Set URL from form controls"] form > button',
-                'cem-demo-element[legend="4. Set URL from form controls"] article',
-                'Current hash: #form-verified',
-            ),
-        ],
+        checks: setUrlSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
 ];
 
@@ -2672,25 +2666,8 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/set-url.html',
-        samples: [
-            sampleContract('1. Set the page hash', [
-                clickThenText('button[value="#hash-two"]', 'article', 'Current hash: #hash-two'),
-            ]),
-            sampleContract('2. Select the URL write method', [
-                countExactly('button', 6),
-                clickThenText('button:has-text("history.pushState")', 'article', 'Selected method: history.pushState'),
-            ]),
-            sampleContract('3. Conditionally inject a URL writer', [
-                clickThenText('button', 'article', 'Current hash: #conditional-writer'),
-            ]),
-            sampleContract('4. Set URL from form controls', [
-                fillThenText('input[type="text"]', '#form-verified', 'article', 'Pending: history.pushState = #form-verified'),
-                clickThenText('form > button', 'article', 'Current hash: #form-verified'),
-                fillThenText('input[type="text"]', '#next-draft', 'article', 'Pending: history.pushState = #next-draft'),
-                text('article', 'Current hash: #form-verified'),
-                clickThenText('form > button', 'article', 'Current hash: #next-draft'),
-            ]),
-        ],
+        samples: setUrlSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
 ];
 
@@ -2858,6 +2835,10 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/scoped-css.html') {
                 await verifyScopedCssPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/set-url.html') {
+                await verifySetUrlLifecycle(page);
+                await verifySetUrlPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -2959,6 +2940,11 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/scoped-css.html') {
                 await verifyScopedCssPresentation(page);
                 await verifyScopedCssDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/set-url.html') {
+                await verifySetUrlLifecycle(page);
+                await verifySetUrlPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
@@ -4741,4 +4727,107 @@ async function verifyScopedCssDiagnostics(page, tag) {
             }
         }
     }, tag);
+}
+
+async function verifySetUrlLifecycle(page) {
+    const sample = index => `cem-demo-element[legend="${setUrlSamples[index].legend}"]`;
+    const hashButton = hash => page.locator(`${sample(0)} button[value="${hash}"]`);
+    const methodButton = method => page.locator(`${sample(1)} button[value="${method}"]`);
+    const form = page.locator(sample(3));
+    const expectHash = async hash => {
+        await poll(page, hash => location.hash === hash
+            && Array.from(document.querySelectorAll('cem-demo-element[legend]')).every(card =>
+                Array.from(card.querySelectorAll('output')).at(-1)?.textContent === hash), hash);
+    };
+    const historyLength = () => page.evaluate(() => history.length);
+    const command = async (button, method, hash) => {
+        const before = await historyLength();
+        await button.click();
+        await expectHash(hash);
+        const expected = before + (['location.replace', 'history.replaceState'].includes(method) ? 0 : 1);
+        if (await historyLength() !== expected) throw new Error(`${method} changed the history length incorrectly`);
+        await button.click();
+        // An unchanged output cannot acknowledge a no-op command. Observe a
+        // quiet interval, then verify the fresh trigger after external navigation.
+        await page.waitForTimeout(250);
+        await expectHash(hash);
+        if (await historyLength() !== expected) throw new Error(`${method} duplicated an equal-URL history entry`);
+    };
+    if (new URL(page.url()).hash !== '') throw new Error('Set-URL writers navigated before an event');
+    for (const hash of ['#hash-one', '#hash-two']) {
+        await command(hashButton(hash), 'location.hash', hash);
+        await runCheck(page, nodeTexts(`${sample(0)} output`, [hash, hash]));
+    }
+    for (const method of setUrlMethods) {
+        await command(methodButton(method), method, `#${method}`);
+        await runCheck(page, nodeTexts(`${sample(1)} output`, [method, `#${method}`]));
+    }
+    await page.locator(`${sample(2)} button`).press('Enter');
+    await expectHash('#conditional-writer');
+    await runCheck(page, elementIdentity(`${sample(3)} input[type="text"]`, 'remember'));
+    for (const method of setUrlMethods) {
+        const previousHash = new URL(page.url()).hash;
+        const previousLength = await historyLength();
+        await form.locator(`input[value="${method}"]`).check();
+        await form.locator('input[type="text"]').fill(`#form-${method}`);
+        await runCheck(page, nodeTexts(`${sample(3)} output`, [method, `#form-${method}`, previousHash]));
+        if (new URL(page.url()).hash !== previousHash || await historyLength() !== previousLength)
+            throw new Error(`${method} applied a pending form draft`);
+        await runCheck(page, countExactly(`${sample(3)} input:checked`, 1));
+        await runCheck(page, propertyEquals(`${sample(3)} input:checked`, 'value', method));
+        await command(form.locator('button'), method, `#form-${method}`);
+        await runCheck(page, elementIdentity(`${sample(3)} input[type="text"]`, 'same'));
+        await runCheck(page, propertyEquals(`${sample(3)} input[type="text"]`, 'value', `#form-${method}`));
+    }
+    await page.evaluate(() => history.replaceState({}, '', '#external-change'));
+    await expectHash('#external-change');
+    await form.locator('button').press('Space');
+    await expectHash('#form-history.replaceState');
+    // Replacing the second hash entry must make Back skip that replaced URL.
+    await hashButton('#hash-one').click();
+    await expectHash('#hash-one');
+    await hashButton('#hash-two').click();
+    await expectHash('#hash-two');
+    await methodButton('history.replaceState').click();
+    await expectHash('#history.replaceState');
+    await page.goBack();
+    await expectHash('#hash-one');
+    await page.goForward();
+    await expectHash('#history.replaceState');
+    await runCheck(page, nodeTexts(`${sample(0)} output`, ['#hash-two', '#history.replaceState']));
+    await runCheck(page, nodeTexts(`${sample(3)} output`, ['history.replaceState', '#form-history.replaceState', '#history.replaceState']));
+}
+
+async function verifySetUrlPresentation(page) {
+    for (const [selector, target] of [
+        ['nav a', '/packages/cem-elements/index.html'],
+        ['main > section a[href$="location-element.html"]', '/packages/cem-elements/demo/location-element.html'],
+        ['main > section a[href$="data-slices.html"]', '/packages/cem-elements/demo/data-slices.html'],
+    ]) await runCheck(page, urlEquals(selector, 'href', target));
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 4 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, form, fieldset, button, input')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && (node.localName === 'input' || node.scrollWidth <= node.clientWidth + 1);
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 4 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('Set-URL source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 4);
 }

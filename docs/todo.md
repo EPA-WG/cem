@@ -4663,11 +4663,40 @@ registration identities may reuse an inherited or existing definition.
               containment and source scrolling; standalone retains a two-card
               desktop row. This fixture audit is complete; broader coverage and
               historical startup investigations remain open.
-    - [ ] Fixture: audit all four `demo/set-url.html` samples against their
+    - [x] Fixture: audit all four `demo/set-url.html` samples against their
           source-loaded Storybook and independent gallery contracts. Verify
           hash writes, method selection, conditional writers, form-driven
           updates, repeated triggers and history behavior. Check desktop/mobile
           layout and navigation; stop for any new behavior decision.
+        - [x] Expand all four named Storybook steps and shared independent
+              contracts: initial inert writers, all six methods, native radio
+              selection, pending drafts, equal-target repeats, external changes,
+              and Back/Forward. Check exact live outputs, diagnostics, desktop
+              and mobile containment, source scrolling and navigation.
+        - [x] Decision: enable existing link-base="source" on this page's
+              loading declarations (recommended), or leave navigation pending.
+              The three ordinary links currently resolve against the source
+              harness URL instead of the authored demo directory.
+              Accepted 2026-09-25: enable the existing source-link policy.
+          Completed 2026-09-25: all six button and form methods pass exact
+          output and history checks, including equal-target repeats, pending
+          drafts, external navigation and Back/Forward without replay. Native
+          controls retain their live state and input identity. All three links
+          resolve against the demo source; no authored sample or shared runtime
+          change was needed. Both independent modes pass 1280px/390px layout
+          and source scrolling, with a standalone two-card desktop row and
+          empty source-loaded diagnostic histories. The full gate passes 256
+          Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
+          documents, plus build, typecheck and lint (two existing warnings).
+          This fixture audit is complete; broader coverage and historical
+          startup investigations remain open.
+    - [ ] Fixture: audit all four `demo/table-inspector.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Verify exact columns and empty/missing values, text sorting, nested
+          table isolation, selection through sorting, and source-error recovery.
+          Check desktop/mobile layout and navigation; stop for any new behavior
+          decision. Keep the broader per-sample audit and historical startup
+          investigations open.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
