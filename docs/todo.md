@@ -4623,13 +4623,51 @@ registration identities may reuse an inherited or existing definition.
               Rapid external URL changes, Back/Forward, clear and deep-link
               reload pass in both gallery modes. This fixture audit is complete;
               broader coverage and historical startup investigations remain open.
-    - [ ] Fixture: audit all 12 `demo/scoped-css.html` samples against their
+    - [x] Fixture: audit all 12 `demo/scoped-css.html` samples against their
           source-loaded Storybook and independent gallery contracts. Verify
           private/named scopes, mixed styles, invalid-scope diagnostics, payload
           ownership, static declaration rules, fragment/anonymous tags, seeded
           keyframes, descendant isolation and external template CSS. Check
           computed styles, desktop/mobile layout and source-relative navigation;
           stop for any new behavior decision.
+        - [x] Share all 12 independent sample contracts between browser modes,
+              add named Storybook steps, exact style ownership and diagnostic
+              checks, checkbox keyboard transitions and presentation checks.
+        - [x] Decision: correct sample 7's incidental module/body wrapper
+              (recommended), or investigate shared module slice defaults.
+              The authored slice inside module is unbound during rendering,
+              adding two unknown-variable errors and a failed condition to the
+              two intended dynamic-style diagnostics. A native probe confirms
+              removing the wrapper retains exactly the two intended errors.
+              Accepted 2026-09-25: investigate shared module slice defaults.
+        - [x] Decision: correct sample 5's fixture layout (recommended), or
+              leave its 396px output in a 372px card at 390px standalone pending.
+              Accepted 2026-09-25: correct the fixture layout.
+        - [x] Decision: enable existing link-base="source" on the page loader
+              and external-fragment declaration (recommended), or leave source
+              navigation pending. The three page links and sample 12 link
+              currently resolve against the source harness URL.
+              Accepted 2026-09-25: enable the existing source-link policy.
+        - [x] Fix shared root-module default initialization with native and
+              browser regressions; retain sample 7 and its intended diagnostics.
+              Correct sample 5 layout and opt in to source-relative navigation.
+              Completed 2026-09-25: shared initialization now seeds the root
+              module prelude while preserving host values and nested declaration
+              isolation. The authored module remains in sample 7 and emits only
+              its two intended style diagnostics. Sample 5 wraps within its card;
+              all four navigation destinations resolve against their sources.
+              All 77 focused native tests and eight focused browser stories pass.
+              The full gate passes 256 Storybook tests, 514 unit tests and 31
+              standalone / 37 source-loaded documents, plus build, lint and
+              typecheck (two existing warnings). Both modes pass 1280px/390px
+              containment and source scrolling; standalone retains a two-card
+              desktop row. This fixture audit is complete; broader coverage and
+              historical startup investigations remain open.
+    - [ ] Fixture: audit all four `demo/set-url.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Verify
+          hash writes, method selection, conditional writers, form-driven
+          updates, repeated triggers and history behavior. Check desktop/mobile
+          layout and navigation; stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

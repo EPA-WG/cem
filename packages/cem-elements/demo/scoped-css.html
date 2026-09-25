@@ -165,6 +165,15 @@
                 description="Unscoped explicit and mismatched styles are omitted; an invalid explicit style does not change a valid bare shorthand."
             >
                 <template>
+<style>
+    cem-demo-element [slot="demo"] > :is(
+        cem-css-unscoped-explicit, cem-css-mismatch,
+        cem-css-mismatch-bare, cem-css-invalid-declaration
+    ) {
+        flex: 1 1 12rem;
+        box-sizing: border-box;
+    }
+</style>
 <cem-element tag="cem-css-unscoped-explicit">
     <template type="text/cem-ml">
         {style @scope="css-samples" |```
@@ -362,6 +371,7 @@
                 <template>
 <cem-element
     tag="cem-css-external-fragment"
+    link-base="source"
     src="./external-template-templates.html#scoped-css-external-template"
 ></cem-element>
 

@@ -1301,3 +1301,45 @@ Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded documents.
 Build, typecheck and lint pass with the two existing warnings. The six-sample
 NPM audit is complete. The next audit is the 12 samples in `scoped-css.html`;
 broader coverage and historical startup investigations remain open.
+
+
+## Scoped CSS behavior audit, 2026-09-25
+
+All 12 authored cases now have named Storybook steps and share the complete
+independent sample contracts between standalone and source-loaded modes. Checks
+cover both private instances and the outside control, ordinary page cascade,
+shared peers, separate private/shared artifacts, invalid and mismatched scopes,
+instance payload styles, fragment and anonymous identities, real seeded
+animations and external template CSS. The descendant checkbox is toggled off
+and on with Space, checking color, text shadow, parent color, focus and identity.
+
+The audit found three issues; the user approved shared module-default
+investigation, fixture-only layout correction and the existing source-link
+opt-in. Sample 7's root module compiled its slice binding but the renderer only
+seeded defaults at the outer template level. It emitted two unknown-variable
+errors and a failed condition in addition to its two intended dynamic-style
+errors. Shared default initialization now opens the root module's declaration
+prelude without descending into body content or named templates. The authored
+sample keeps its module wrapper. Native regressions cover wrapped/unwrapped and
+namespaced forms, empty and boolean values, host precedence, declaration
+isolation, and exactly the two intended source-mapped style diagnostics.
+
+Worker and direct-WASM browser regressions verify initial defaults, reflected
+attribute defaults, later slice and empty-attribute updates, retained output
+identity and sibling isolation. Storybook and the independent source harness
+check exact diagnostic histories for every declaration and produced instance;
+only the documented invalid-scope and dynamic-style cases may diagnose.
+
+Sample 5's four flex items previously shrank to 57px each at a 390px viewport,
+causing a 396px output inside a 372px card. Its sample-local page stylesheet now
+uses a wrapping 12rem basis and border-box sizing. Navigation enables
+`link-base="source"` on the page's loading declarations and sample 12's external
+fragment consumer. All four destinations are checked in both modes.
+
+All 77 focused native tests and eight focused browser stories pass. Both
+independent gallery modes pass at 1280px and 390px, including source-panel
+scroll reachability and the standalone two-card desktop row. The full gate
+passes 256 Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
+documents, plus build, lint and typecheck (two existing warnings). This fixture
+audit is complete. The next audit is `set-url.html` (four samples); broader
+coverage and historical startup investigations remain open.

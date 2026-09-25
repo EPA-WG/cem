@@ -28,6 +28,12 @@ same-scope duplicates and incompatible replacements still fail; remounts cannot
 revive disposed processing scopes. See the
 [registration lifecycle](../../docs/cem-element-design.md).
 
+CEM-ML attribute and slice defaults in a root `{module | ...}` prelude initialize
+the instance just like declarations in an unwrapped template. Slice defaults
+populate both their named bindings and `datadom.slices`. Boolean defaults stay
+boolean, and host-provided values take precedence, including empty strings. Defaults inside body
+content or uncalled named templates do not initialize the outer instance.
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

@@ -1285,6 +1285,174 @@ const moduleUrlSamples = [
     ]),
     sampleContract('image-link', moduleImageChecks(`${moduleDemoPath}confused.svg`)),
 ];
+const scopedCssSamples = [
+    sampleContract('1. Private declaration CSS and ordinary outer cascade', [
+        countExactly('cem-css-private button', 2),
+        text('cem-css-private button', 'First DCE dashed border'),
+        text('cem-css-private button', 'Second DCE dashed border'),
+        text('button', 'Browser default border'),
+        computedStyleByText('button', 'First DCE dashed border', 'borderTopStyle', 'dashed'),
+        computedStyleByText('button', 'First DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
+        computedStyleByText('button', 'First DCE dashed border', 'color', 'rgb(148, 0, 211)'),
+        computedStyleByText('button', 'Second DCE dashed border', 'borderTopStyle', 'dashed'),
+        computedStyleByText('button', 'Second DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
+        computedStyleByText('button', 'Second DCE dashed border', 'color', 'rgb(148, 0, 211)'),
+        computedStyleNotByText('button', 'Browser default border', 'borderTopStyle', 'dashed'),
+        computedStyleNotByText('button', 'Browser default border', 'borderTopColor', 'rgb(0, 128, 0)'),
+        countExactly('cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]', 1),
+        countExactly('cem-css-private style', 0),
+        styleTextContains(
+            'cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]',
+            '@scope (\n    cem-css-private',
+        ),
+        countExactly('cem-css-private[data-cem-render-scope*="cem-scope-"]', 2),
+        countExactly(
+            'cem-css-private[data-cem-scope], cem-css-private[data-cem-instance-scope], cem-css-private[scope]',
+            0,
+        ),
+    ]),
+    sampleContract('2. Component in a named scope shares default declaration styles with peers in the same scope', [
+        computedStyle('cem-css-shared-bare .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
+        computedStyle('cem-css-shared-peer .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
+        attributeEquals('cem-css-shared-bare', 'scope', 'css-samples'),
+        attributeEquals('cem-css-shared-peer', 'scope', 'css-samples'),
+        countExactly('cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]', 1),
+        styleTextContains(
+            'cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]',
+            '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
+        ),
+    ]),
+    sampleContract('3. Style can be scoped explicitly', [
+        computedStyle('cem-css-shared-explicit .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
+        computedStyle('cem-css-explicit-peer .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
+        countExactly('cem-element[tag="cem-css-shared-explicit"] > style[data-cem-declaration-style="shared"]', 1),
+    ]),
+    sampleContract('4. Mixed private and shared styles', [
+        computedStyle('cem-css-mixed .sample-mixed', 'borderTopColor', 'rgb(0, 0, 255)'),
+        computedStyleNot('cem-css-mixed-peer .sample-mixed-shared', 'borderTopColor', 'rgb(0, 0, 255)'),
+        computedStyle('cem-css-mixed .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
+        computedStyle('cem-css-mixed-peer .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
+        countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]', 2),
+        countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]', 1),
+        countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]', 1),
+        styleTextContains(
+            'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]',
+            '@scope (\n    cem-css-mixed',
+        ),
+        styleTextContains(
+            'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]',
+            '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
+        ),
+        styleTextNotContains(
+            'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]',
+            'cem-css-mixed, [scope=',
+        ),
+    ]),
+    sampleContract('5. Invalid and mismatched scopes fail closed', [
+        countExactly('cem-element[tag="cem-css-unscoped-explicit"] > style[data-cem-declaration-style]', 0),
+        countExactly('cem-element[tag="cem-css-mismatch"] > style[data-cem-declaration-style]', 0),
+        computedStyleNot('cem-css-unscoped-explicit .must-not-apply', 'color', 'rgb(255, 0, 0)'),
+        computedStyleNot('cem-css-mismatch .must-not-apply', 'color', 'rgb(255, 0, 0)'),
+        countExactly('cem-element[tag="cem-css-mismatch-bare"] > style[data-cem-declaration-style="shared"]', 1),
+        computedStyle('cem-css-mismatch-bare .sample-valid-bare', 'color', 'rgb(0, 128, 0)'),
+        countExactly(
+            'cem-element[tag="cem-css-invalid-declaration"] > style[data-cem-declaration-style="private"]',
+            1,
+        ),
+        attributeAbsent('cem-css-invalid-declaration', 'scope'),
+        computedStyle('cem-css-invalid-declaration .sample-invalid-declaration', 'color', 'rgb(0, 0, 255)'),
+    ]),
+    sampleContract('6. Payload style belongs to one instance', [
+        computedStyle('cem-css-instance:first-of-type button', 'borderTopColor', 'rgb(0, 0, 255)'),
+        computedStyle('cem-css-instance:last-of-type button', 'borderTopColor', 'rgb(255, 0, 0)'),
+        countExactly('cem-element[tag="cem-css-instance"] > style[data-cem-declaration-style="private"]', 1),
+        countExactly('cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]', 1),
+        countExactly('cem-css-instance:first-of-type style[data-cem-render-node-id^="payload-"]', 0),
+        styleTextContains(
+            'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
+            '@scope to (',
+        ),
+        styleTextNotContains(
+            'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
+            'data-cem-render-scope',
+        ),
+        attributeAbsent('cem-css-instance:last-of-type', 'data-cem-instance-scope'),
+    ]),
+    sampleContract('7. Declaration styles must be static', [
+        countExactly('cem-element[tag="cem-css-dynamic"] > style[data-cem-declaration-style]', 0),
+        countExactly('cem-css-dynamic style', 0),
+        computedStyleNot('cem-css-dynamic .must-not-apply', 'color', 'rgb(255, 0, 0)'),
+        computedStyleNot('cem-css-dynamic .must-not-apply', 'backgroundColor', 'rgb(255, 0, 0)'),
+    ]),
+    sampleContract('8. Fragment template CSS uses the effective produced tag', [
+        computedStyle('cem-css-fragment .sample-fragment', 'backgroundColor', 'rgb(254, 243, 199)'),
+        countExactly('cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]', 1),
+        styleTextContains(
+            'cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]',
+            '@scope (\n    cem-css-fragment',
+        ),
+    ]),
+    sampleContract('9. Anonymous declaration CSS uses its generated tag', [
+        text('.sample-anonymous', 'anonymous'),
+        computedStyle('.sample-anonymous', 'color', 'rgb(238, 130, 238)'),
+        countExactly(
+            'cem-element[uid-seed="demo/css/anonymous"] > style[data-cem-declaration-style="private"]',
+            1,
+        ),
+        attributeContains('cem-element[uid-seed="demo/css/anonymous"]', 'tag', 'cem-'),
+    ]),
+    sampleContract('10. uid-seed stabilizes keyframe names', [
+        attributeEquals('cem-element[tag="cem-css-keyframes"]', 'uid-seed', 'demo/css/keyframes'),
+        keyframeIdentity(
+            'cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]',
+            'cem-css-keyframes',
+            '[part~="indicator"]',
+            'seeded-pulse',
+            'udemoz2fcssz2fkeyframes',
+        ),
+    ]),
+    sampleContract('11. Descendant selectors stay inside the component', [
+        computedStyle(
+            'label',
+            'color',
+            'rgb(0, 128, 0)',
+        ),
+        computedStyle(
+            '[slot="demo"] b',
+            'color',
+            'rgb(0, 0, 139)',
+        ),
+        computedStyleNot('[slot=demo] b', 'textShadow', 'none'),
+        elementIdentity('input', 'remember'),
+        pressThenProperty('input', 'Space', 'input', 'checked', false),
+        computedStyle('[slot=demo] b', 'color', 'rgb(0, 0, 255)'),
+        computedStyle('[slot=demo] b', 'textShadow', 'none'),
+        computedStyle('label', 'color', 'rgb(0, 128, 0)'),
+        pressThenProperty('input', 'Space', 'input', 'checked', true),
+        computedStyle('[slot=demo] b', 'color', 'rgb(0, 0, 139)'),
+        computedStyleNot('[slot=demo] b', 'textShadow', 'none'),
+        elementIdentity('input', 'same'),
+    ]),
+    sampleContract('12. CSS from an external template fragment', [
+        text('cem-css-external-fragment', 'projected external template'),
+        computedStyle(
+            'cem-css-external-fragment .external-scoped-item',
+            'backgroundColor',
+            'rgb(254, 243, 199)',
+        ),
+        computedStyle('.external-scoped-item', 'borderTopColor', 'rgb(180, 83, 9)'),
+        countExactly('cem-element[tag="cem-css-external-fragment"] > style[data-cem-declaration-style="private"]', 1),
+        countExactly('cem-css-external-fragment style', 0),
+    ]),
+];
+
+const scopedCssNavigationChecks = [
+    urlEquals('nav a', 'href', '/packages/cem-elements/index.html'),
+    urlEquals('main > section a[href$="external-template.html"]', 'href', '/packages/cem-elements/demo/external-template.html'),
+    urlEquals('main > section a[href$="hex-grid.html"]', 'href', '/packages/cem-elements/demo/hex-grid.html'),
+    urlEquals('cem-css-external-fragment a', 'href', '/packages/cem-elements/demo/external-template-templates.html'),
+];
+
 const npmReleases = [
     ['0.1.0', '2026-08-01'], ['0.0.25', '2024-05-18'],
     ['0.0.22', '2024-04-20'], ['0.0.21', '2024-03-09'],
@@ -2136,151 +2304,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/scoped-css.html',
-        checks: [
-            // Private declaration CSS: one managed style, native tag scope,
-            // no style cloned into either instance, the classless outside button
-            // keeps browser/global styling, and ordinary outer cascade remains open.
-            countExactly('cem-css-private button', 2),
-            text('cem-css-private button', 'First DCE dashed border'),
-            text('cem-css-private button', 'Second DCE dashed border'),
-            text('button', 'Browser default border'),
-            computedStyleByText('button', 'First DCE dashed border', 'borderTopStyle', 'dashed'),
-            computedStyleByText('button', 'First DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
-            computedStyleByText('button', 'First DCE dashed border', 'color', 'rgb(148, 0, 211)'),
-            computedStyleByText('button', 'Second DCE dashed border', 'borderTopStyle', 'dashed'),
-            computedStyleByText('button', 'Second DCE dashed border', 'borderTopColor', 'rgb(0, 128, 0)'),
-            computedStyleByText('button', 'Second DCE dashed border', 'color', 'rgb(148, 0, 211)'),
-            computedStyleNotByText('button', 'Browser default border', 'borderTopStyle', 'dashed'),
-            computedStyleNotByText('button', 'Browser default border', 'borderTopColor', 'rgb(0, 128, 0)'),
-            countExactly('cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]', 1),
-            countExactly('cem-css-private style', 0),
-            styleTextContains(
-                'cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]',
-                '@scope (\n    cem-css-private',
-            ),
-            countExactly('cem-css-private[data-cem-render-scope*="cem-scope-"]', 2),
-            countExactly(
-                'cem-css-private[data-cem-scope], cem-css-private[data-cem-instance-scope], cem-css-private[scope]',
-                0,
-            ),
-
-            // Bare-only and explicit-only shared declarations both target the public
-            // group boundary and apply to separately declared group peers.
-            computedStyle('cem-css-shared-bare .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
-            computedStyle('cem-css-shared-peer .sample-shared-bare', 'color', 'rgb(0, 128, 0)'),
-            attributeEquals('cem-css-shared-bare', 'scope', 'css-samples'),
-            attributeEquals('cem-css-shared-peer', 'scope', 'css-samples'),
-            countExactly('cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]', 1),
-            styleTextContains(
-                'cem-element[tag="cem-css-shared-bare"] > style[data-cem-declaration-style="shared"]',
-                '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
-            ),
-            computedStyle('cem-css-shared-explicit .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
-            computedStyle('cem-css-explicit-peer .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'),
-            countExactly('cem-element[tag="cem-css-shared-explicit"] > style[data-cem-declaration-style="shared"]', 1),
-
-            // Matching explicit scope separates the mixed declaration into independent
-            // private and shared styles; no combined tag-or-group selector is emitted.
-            computedStyle('cem-css-mixed .sample-mixed', 'borderTopColor', 'rgb(0, 0, 255)'),
-            computedStyleNot('cem-css-mixed-peer .sample-mixed-shared', 'borderTopColor', 'rgb(0, 0, 255)'),
-            computedStyle('cem-css-mixed .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
-            computedStyle('cem-css-mixed-peer .sample-mixed-shared', 'color', 'rgb(255, 0, 0)'),
-            countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]', 2),
-            countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]', 1),
-            countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]', 1),
-            styleTextContains(
-                'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]',
-                '@scope (\n    cem-css-mixed',
-            ),
-            styleTextContains(
-                'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]',
-                '[scope="css-samples"]:has(> template[data-cem-island="instance"])',
-            ),
-            styleTextNotContains(
-                'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style]',
-                'cem-css-mixed, [scope=',
-            ),
-
-            // Invalid explicit scopes fail closed. A mismatch does not suppress a valid
-            // bare shared shorthand; an invalid declaration scope falls back to private.
-            countExactly('cem-element[tag="cem-css-unscoped-explicit"] > style[data-cem-declaration-style]', 0),
-            countExactly('cem-element[tag="cem-css-mismatch"] > style[data-cem-declaration-style]', 0),
-            computedStyleNot('cem-css-unscoped-explicit .must-not-apply', 'color', 'rgb(255, 0, 0)'),
-            computedStyleNot('cem-css-mismatch .must-not-apply', 'color', 'rgb(255, 0, 0)'),
-            countExactly('cem-element[tag="cem-css-mismatch-bare"] > style[data-cem-declaration-style="shared"]', 1),
-            computedStyle('cem-css-mismatch-bare .sample-valid-bare', 'color', 'rgb(0, 128, 0)'),
-            countExactly(
-                'cem-element[tag="cem-css-invalid-declaration"] > style[data-cem-declaration-style="private"]',
-                1,
-            ),
-            attributeAbsent('cem-css-invalid-declaration', 'scope'),
-            computedStyle('cem-css-invalid-declaration .sample-invalid-declaration', 'color', 'rgb(0, 0, 255)'),
-
-            // An inert instance payload style becomes a managed direct child under an
-            // implicit parent-rooted scope; it overrides only that instance.
-            computedStyle('cem-css-instance:first-of-type button', 'borderTopColor', 'rgb(0, 0, 255)'),
-            computedStyle('cem-css-instance:last-of-type button', 'borderTopColor', 'rgb(255, 0, 0)'),
-            countExactly('cem-element[tag="cem-css-instance"] > style[data-cem-declaration-style="private"]', 1),
-            countExactly('cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]', 1),
-            countExactly('cem-css-instance:first-of-type style[data-cem-render-node-id^="payload-"]', 0),
-            styleTextContains(
-                'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
-                '@scope to (',
-            ),
-            styleTextNotContains(
-                'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
-                'data-cem-render-scope',
-            ),
-            attributeAbsent('cem-css-instance:last-of-type', 'data-cem-instance-scope'),
-
-            // Dynamic declaration styles are rejected, while fragment and anonymous
-            // declarations scope static CSS to their effective produced tags.
-            countExactly('cem-element[tag="cem-css-dynamic"] > style[data-cem-declaration-style]', 0),
-            countExactly('cem-css-dynamic style', 0),
-            computedStyleNot('cem-css-dynamic .must-not-apply', 'color', 'rgb(255, 0, 0)'),
-            computedStyle('cem-css-fragment .sample-fragment', 'backgroundColor', 'rgb(254, 243, 199)'),
-            countExactly('cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]', 1),
-            styleTextContains(
-                'cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]',
-                '@scope (\n    cem-css-fragment',
-            ),
-            text('.sample-anonymous', 'anonymous'),
-            computedStyle('.sample-anonymous', 'color', 'rgb(238, 130, 238)'),
-            countExactly(
-                'cem-element[uid-seed="demo/css/anonymous"] > style[data-cem-declaration-style="private"]',
-                1,
-            ),
-            attributeContains('cem-element[uid-seed="demo/css/anonymous"]', 'tag', 'cem-'),
-
-            // uid-seed is absent from ordinary scope samples. The focused keyframe
-            // sample proves its internal identity purpose by matching the host render
-            // identity to both the rewritten declaration and computed animation name.
-            countExactly('cem-element[uid-seed]', 2),
-            attributeEquals('cem-element[tag="cem-css-keyframes"]', 'uid-seed', 'demo/css/keyframes'),
-            keyframeIdentity(
-                'cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]',
-                'cem-css-keyframes',
-                '[part~="indicator"]',
-                'seeded-pulse',
-                'udemoz2fcssz2fkeyframes',
-            ),
-            computedStyle(
-                'cem-demo-element[legend="11. Descendant selectors stay inside the component"] label',
-                'color',
-                'rgb(0, 128, 0)',
-            ),
-            computedStyle(
-                'cem-demo-element[legend="11. Descendant selectors stay inside the component"] [slot="demo"] b',
-                'color',
-                'rgb(0, 0, 139)',
-            ),
-            text('cem-css-external-fragment', 'projected external template'),
-            computedStyle(
-                'cem-css-external-fragment .external-scoped-item',
-                'backgroundColor',
-                'rgb(254, 243, 199)',
-            ),
-        ],
+        checks: [...scopedCssSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))), ...scopedCssNavigationChecks],
     },
     {
         path: '/packages/cem-elements/demo/set-url.html',
@@ -2641,26 +2666,9 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/scoped-css.html',
-        samples: [
-            sampleContract('1. Private declaration CSS and ordinary outer cascade', [countExactly('cem-css-private button', 2), computedStyleByText('cem-css-private button', 'First DCE dashed border', 'borderTopStyle', 'dashed'), computedStyleByText('cem-css-private button', 'First DCE dashed border', 'color', 'rgb(148, 0, 211)'), computedStyleNotByText('button', 'Browser default border', 'borderTopStyle', 'dashed')]),
-            sampleContract('2. Component in a named scope shares default declaration styles with peers in the same scope', [computedStyle('cem-css-shared-bare .sample-shared-bare', 'color', 'rgb(0, 128, 0)'), computedStyle('cem-css-shared-peer .sample-shared-bare', 'color', 'rgb(0, 128, 0)')]),
-            sampleContract('3. Style can be scoped explicitly', [computedStyle('cem-css-shared-explicit .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)'), computedStyle('cem-css-explicit-peer .shared-bg', 'backgroundColor', 'rgb(219, 234, 254)')]),
-            sampleContract('4. Mixed private and shared styles', [computedStyle('cem-css-mixed .sample-mixed', 'borderTopColor', 'rgb(0, 0, 255)'), computedStyle('cem-css-mixed-peer .sample-mixed-shared', 'color', 'rgb(255, 0, 0)')]),
-            sampleContract('5. Invalid and mismatched scopes fail closed', [computedStyleNot('cem-css-unscoped-explicit .must-not-apply', 'color', 'rgb(255, 0, 0)'), computedStyle('cem-css-mismatch-bare .sample-valid-bare', 'color', 'rgb(0, 128, 0)'), computedStyle('cem-css-invalid-declaration .sample-invalid-declaration', 'color', 'rgb(0, 0, 255)')]),
-            sampleContract('6. Payload style belongs to one instance', [computedStyle('cem-css-instance:first-of-type button', 'borderTopColor', 'rgb(0, 0, 255)'), computedStyle('cem-css-instance:last-of-type button', 'borderTopColor', 'rgb(255, 0, 0)')]),
-            sampleContract('7. Declaration styles must be static', [countExactly('cem-css-dynamic style', 0), computedStyleNot('cem-css-dynamic .must-not-apply', 'color', 'rgb(255, 0, 0)')]),
-            sampleContract('8. Fragment template CSS uses the effective produced tag', [computedStyle('cem-css-fragment .sample-fragment', 'backgroundColor', 'rgb(254, 243, 199)')]),
-            sampleContract('9. Anonymous declaration CSS uses its generated tag', [text('.sample-anonymous', 'anonymous violet'), computedStyle('.sample-anonymous', 'color', 'rgb(238, 130, 238)')]),
-            sampleContract('10. uid-seed stabilizes keyframe names', [keyframeIdentity('cem-element[tag="cem-css-keyframes"] > style[data-cem-declaration-style="private"]', 'cem-css-keyframes', '[part~="indicator"]', 'seeded-pulse', 'udemoz2fcssz2fkeyframes')]),
-            sampleContract('11. Descendant selectors stay inside the component', [
-                computedStyle('label', 'color', 'rgb(0, 128, 0)'),
-                computedStyle('[slot=demo] b', 'color', 'rgb(0, 0, 139)'),
-            ]),
-            sampleContract('12. CSS from an external template fragment', [
-                text('cem-css-external-fragment', 'projected external template'),
-                computedStyle('.external-scoped-item', 'backgroundColor', 'rgb(254, 243, 199)'),
-            ]),
-        ],
+        samples: scopedCssSamples,
+        checks: scopedCssNavigationChecks,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/set-url.html',
@@ -2847,6 +2855,9 @@ try {
                 await verifyDemoLayout(page, 6);
                 await verifyNpmVersionsLifecycle(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/scoped-css.html') {
+                await verifyScopedCssPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -2944,6 +2955,10 @@ try {
                     await verifySampleContractInventory(page, tag, fixture);
                 });
                 await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/scoped-css.html') {
+                await verifyScopedCssPresentation(page);
+                await verifyScopedCssDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
@@ -4670,4 +4685,60 @@ function contentType(filePath) {
         default:
             return 'application/octet-stream';
     }
+}
+
+async function verifyScopedCssPresentation(page) {
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 12 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    const output = card.querySelector('[slot="demo"]');
+                    return box.left >= 0 && box.right <= width && output
+                        && output.scrollWidth <= output.clientWidth + 1;
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 12 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('Scoped CSS source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 12);
+}
+
+async function verifyScopedCssDiagnostics(page, tag) {
+    await page.evaluate(async tag => {
+        const runtime = window.__cemFixtureRuntime;
+        const host = document.querySelector(tag);
+        const loader = document.querySelector(`cem-element[tag="${tag}"]`);
+        await runtime.whenRenderSettled(host);
+        const declarations = Array.from(host.querySelectorAll('cem-element'));
+        for (const declaration of declarations) await runtime.whenDeclarationSettled(declaration);
+        const check = (element, expected) => {
+            const actual = runtime.diagnosticsFor(element).map(d => d.code);
+            if (JSON.stringify(actual) !== JSON.stringify(expected))
+                throw new Error(`${element.localName}[${element.getAttribute('tag') ?? ''}]: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+        };
+        check(host, []);
+        check(loader, []);
+        for (const declaration of declarations) {
+            const producedTag = declaration.getAttribute('tag');
+            const expected = producedTag === 'cem-css-invalid-declaration' ? ['cem-element.stylesheet_scope_invalid']
+                : ['cem-css-unscoped-explicit', 'cem-css-mismatch', 'cem-css-mismatch-bare'].includes(producedTag)
+                    ? ['cem-element.stylesheet_scope_mismatch']
+                    : producedTag === 'cem-css-dynamic' ? Array(2).fill('cem.ql.template.stylesheet_dynamic_unsupported') : [];
+            check(declaration, expected);
+            for (const instance of host.querySelectorAll(producedTag)) {
+                await runtime.whenRenderSettled(instance);
+                check(instance, producedTag === 'cem-css-dynamic' ? expected : []);
+            }
+        }
+    }, tag);
 }

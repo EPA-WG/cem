@@ -3950,7 +3950,14 @@ fn seed_declaration_defaults(
     bindings: &mut BTreeMap<String, ItemStream>,
 ) -> Vec<HostAttributeUpdate> {
     let mut host_attribute_updates = Vec::new();
-    for node in nodes {
+    // A root module owns the same declaration prelude as an unwrapped template.
+    // Only open that root boundary; body content and named templates keep their
+    // own bindings and must not seed the produced instance.
+    let declarations = nodes.iter().flat_map(|node| match node {
+        TemplateNode::Element { tag, children, .. } if local_template_name(tag) == "module" => children.as_slice(),
+        _ => std::slice::from_ref(node),
+    });
+    for node in declarations {
         let TemplateNode::Element {
             tag,
             attributes,

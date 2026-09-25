@@ -20,7 +20,7 @@ const SAMPLE_CONTRACTS = [
     ['9. Anonymous declaration CSS uses its generated tag', ['uid-seed="demo/css/anonymous"', 'sample-anonymous']],
     ['10. uid-seed stabilizes keyframe names', ['@keyframes seeded-pulse', 'uid-seed="demo/css/keyframes"']],
     ['11. Descendant selectors stay inside the component', ['input:checked + b', '{input @type=checkbox @checked=true}']],
-    ['12. CSS from an external template fragment', ['./external-template-templates.html#scoped-css-external-template', 'cem-css-external-fragment']],
+    ['12. CSS from an external template fragment', ['./external-template-templates.html#scoped-css-external-template', 'cem-css-external-fragment', 'link-base="source"']],
 ] as const;
 
 const samples = Array.from(
@@ -45,6 +45,7 @@ describe('scoped CSS demo source contracts', () => {
     it.each(SAMPLE_CONTRACTS)('%s', (legend, includes) => {
         const sample = samples.find((candidate) => candidate.legend === legend);
         expect(sample, `missing authored sample ${legend}`).toBeDefined();
+        expect(sample?.source).toMatch(/<template>\n</u);
         const normalized = (sample?.source ?? '').replace(/\s+/gu, ' ');
         for (const required of includes) {
             expect(normalized, `${legend} must include ${required}`).toContain(required.replace(/\s+/gu, ' '));
