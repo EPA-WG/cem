@@ -5148,11 +5148,18 @@ registration identities may reuse an inherited or existing definition.
           typed values, function arities, immutable query operations and the
           native implementation boundary. Local link and whitespace checks pass;
           illustrative Node URL probes are not native conformance tests.
-    - [ ] Decide draft D1–D3: deterministic mapping-record parameter order,
+    - [x] Decide draft D1–D3: deterministic mapping-record parameter order,
           compatible setter results with warnings versus strict failure, and
-          seed-based versus full parts-only assembly. These are proposals,
-          not accepted behavior; leave specification/implementation items open.
-    - [ ] Specify the non-mutating CEM-QL surface and exact types:
+          seed-based versus full parts-only assembly.
+          Accepted 2026-09-25: the user selected the recommendations. Use sorted
+          mapping keys and ordered pair streams, browser-compatible setter
+          results with warnings and fixed-order/conflict rules, and an explicit
+          href/base assembly seed. No shared record-model change is required.
+    - [x] Specify the non-mutating CEM-QL surface and exact types:
+          Completed 2026-09-25: [implementation contract](cem-ql-url-contract.md)
+          defines argument cardinality, exact entry/parts shapes, aliases,
+          conservative optional-result inference and runtime checks. This is
+          the target contract, not a claim that the functions are implemented.
         - `url:can_parse(input, base?) -> boolean` mirrors `URL.canParse()`;
         - `url:href(input, base?) -> anyURI` mirrors construction plus canonical
           `href` serialization and reports invalid input;
@@ -5189,7 +5196,7 @@ registration identities may reuse an inherited or existing definition.
         - `url:params_string(params) -> string` mirrors `toString()` without a
           leading `?`; `forEach()` maps to ordinary `seq:map`/stream iteration
           rather than a redundant callback-specific URL function.
-    - [ ] Specify `URLSearchParams` edge semantics: stable key sorting, duplicate
+    - [x] Specify `URLSearchParams` edge semantics: stable key sorting, duplicate
           insertion order, `set()` retaining the first matching position while
           deleting later matches, optional-value `has()`/`delete()`, empty value
           versus missing `=`, decoded keys and values at the function boundary,
@@ -5198,16 +5205,35 @@ registration identities may reuse an inherited or existing definition.
           percent-encode set. Connect `url:parse(...).query` and
           `url:with_parts(..., { query: params })` without conflating raw search
           strings with complete URLs.
-    - [ ] Keep `url:` distinct from `module_url()`: it never consults import
-          maps, resource policies, node scopes, or an ambient page/template
+    - [x] Specify the boundary keeping `url:` distinct from `module_url()`:
+          it never consults import maps, resource policies, node scopes, or an
+          ambient page/template
           referrer. Relative input requires an explicit base; contextual module
           and resource resolution continues to use `module_url()`.
-    - [ ] Define invalid-input and setter-failure diagnostics, component-specific
+    - [x] Define invalid-input and setter-failure diagnostics, component-specific
           percent-encoding, Unicode/IDNA behavior, default-port elision,
           dot-segment normalization, special and non-special schemes, opaque
           paths/origins, IPv4/IPv6 hosts, credentials, and `file:` URLs. Exclude
           stateful host-only `URL.createObjectURL()` and `URL.revokeObjectURL()`
           from the pure stdlib.
+          Completed 2026-09-25: the contract fixes fatal diagnostic categories,
+          source preservation, ignored/partial setter warnings, pure file/blob
+          origins and standard-based encoding. Partial host updates retain their
+          accepted hostname when the supplied port is ignored. Native behavior
+          and dependency conformance remain to be proven.
+    - [ ] Fixture URL-PARAMS: add focused native tests first for typed mapping,
+          pair and entry inputs, immutable query operations, duplicates, form
+          encoding, malformed input and stable UTF-16 sorting; implement the
+          parameter core and keep common record/value representations intact.
+    - [ ] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
+          test native parsing, explicit bases, serialization, encoding and the
+          pure origin profile before choosing dependency adapters.
+    - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
+          equal/normalized/ignored/partially applied setters and source-mapped
+          diagnostics before implementing the immutable update adapter.
+    - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
+          user-function name isolation, diagnostic propagation and CLI/SSR/WASM
+          parity, then generate implemented reference tables and query examples.
     - [ ] Implement one native semantic path shared by CLI, SSR, WASM, and
           browser execution; do not delegate conformance to the embedding
           platform's JavaScript `URL` implementation.

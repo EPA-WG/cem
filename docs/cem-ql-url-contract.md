@@ -1,9 +1,10 @@
-# Pure CEM-QL URL family — contract draft
+# Pure CEM-QL URL family — accepted implementation contract
 
-Status: **proposed, awaiting decisions D1–D3** (2026-09-25). This is not an
-implemented API or a normative extension. The active checklist remains
-[todo.md](todo.md). Do not register functions or generate public reference
-claims from this draft before the decisions are accepted.
+Status: **accepted target, not implemented** (2026-09-25). The user's
+“continue recommended” accepts D1–D3: deterministic mapping order, compatible
+setter results with warnings, and seed-based assembly. This document completes
+those choices into the implementation contract referenced by [todo.md](todo.md).
+Public schema/reference output must continue to describe only implemented APIs.
 
 ## Scope already requested
 
@@ -40,7 +41,7 @@ revision during implementation, with their license and provenance.
   2.5.8, but that is a candidate dependency, not evidence of conformance.
   Its typed setters alone cannot establish JavaScript setter parity.
 
-## Proposed value contract
+## Value contract
 
 `Text` means exactly one string or `anyURI` atomic item. No implicit node
 atomization, numeric/boolean stringification or JSON conversion. `String`
@@ -60,7 +61,7 @@ and `query: Params`. `T?` below means zero or one result item, not a null item.
 The `query` field can therefore contain zero or many items without flattening
 the surrounding record.
 
-| Function | Arity | Proposed result / argument shape |
+| Function | Arity | Result / argument shape |
 | --- | --- | --- |
 | `can_parse(input, base?)` | 1–2 | `boolean`; `Text` arguments |
 | `href(input, base?)` | 1–2 | `anyURI`; `Text` arguments |
@@ -86,17 +87,17 @@ malformed pairs must not be silently skipped. Invalid URL syntax returns false
 from `can_parse`, no item from `parse`, and a source-mapped error from `href`.
 A supplied invalid base is validated even with absolute input.
 
-The existing TODO's duplicate, first-match, stable-sort, optional-value,
-percent-encoding and empty-value requirements remain part of the proposal.
+The TODO's duplicate, first-match, stable-sort, optional-value,
+percent-encoding and empty-value requirements apply.
 Use UTF-16 code-unit comparison for parameter sorting, independent of the
-record enumeration rule proposed in D1. URL fields use component-specific
+record enumeration rule in D1. URL fields use component-specific
 encoding; `query` uses form encoding. Keep `href` authoritative for lossless
 serialization: exposed empty `search`/`hash` strings alone do not preserve the
 difference between absent and empty delimiters.
 
 ## D1 — parameter constructor and record order
 
-**Recommendation:** accept no argument, one `String`, one mapping record with
+**Accepted:** accept no argument, one `String`, one mapping record with
 singleton string values, or a stream of two-item string arrays. Enumerate mapping
 keys in Rust string order consistently for owned and native records. Preserve
 pair-stream order and duplicates. Do not change the common record model.
@@ -108,21 +109,22 @@ A record `{ name: "a", value: "1" }` means two mapping keys, not one entry.
 `Params` is already the output format; callers pass it directly to query
 operations, without routing it back through the overloaded constructor.
 
-Alternative: require insertion-preserving mapping input, which needs a separate
-representation or common record-model work. That exceeds a URL-only change.
-
-Decision needed: accept the typed, deterministic mapping adaptation, or require
-a representation change before supporting the record constructor?
+An explicitly empty initializer stream is the empty pair stream and produces
+no entries. A singleton two-item array is one pair; an outer array containing
+pair arrays is not implicitly flattened. A mixed stream, a pair of the wrong
+length, or a mapping with empty/multiple/non-string values is a type error.
+Native record views use the same key ordering as owned records. No common
+record representation or insertion-order guarantee changes.
 
 ## D2 — immutable setters and ambiguous parts
 
-**Recommendation:** reproduce browser setter results on a private URL value,
+**Accepted:** reproduce browser setter results on a private URL value,
 including ignored/inapplicable setters, and emit a nonfatal source-mapped
 `cem.ql.url_setter_ignored` warning for a detected invalid/inapplicable setter.
 Do not infer rejection merely from unchanged serialization: equal assignments
 and normalization can be successful. Return no shared mutable URL handle.
 
-Proposed update order: `protocol`, `host` or `hostname`, `port`, `username`,
+Update order: `protocol`, `host` or `hostname`, `port`, `username`,
 `password`, `pathname`, `search` or `query`, then `hash`. Record field order has
 no effect. Reject unknown fields, `origin`, overlapping `host` with `hostname`
 or `port`, and simultaneous `search` and `query`, even when values agree.
@@ -130,10 +132,22 @@ or `port`, and simultaneous `search` and `query`, even when values agree.
 `with_parts` field. Omitted fields preserve the input; supplied empty values
 still invoke their component operation. Empty `query` clears the query.
 
-Alternative: strict transactional updates that return an error and no URL when
-a setter is ignored/inapplicable. This intentionally differs from browser
-assignment behavior. Under either policy, argument/parts conflicts are errors;
-there is no partial result on a type or conflict error.
+Validate all argument shapes and parts conflicts before applying any setter.
+There is no result on a type or conflict error. Component values other than
+`query` require one string; assembly `href` accepts `Text`. After validation,
+apply setters in the fixed order and continue after each warning.
+
+Preserve partial setter effects too. Starting from
+`https://example.test:8443/a`, assigning `host = "other.test:70000"` yields
+`https://other.test:8443/a`: the hostname changes while the invalid port is
+ignored. Emit one `url_setter_ignored` warning naming `host` and the rejected
+port subcomponent; do not roll back the hostname. The diagnostic denotes an
+ignored part of the request, not necessarily an unchanged URL. Valid prefix
+parsing, such as port `"123abc"` producing 123, is successful and does not warn.
+
+A candidate dependency's success/error return alone is insufficient if it
+swallows an ignored subcomponent. Detect the relevant parser/setter outcome in
+the native adapter; never compare only the before/after serialization.
 
 Observed with Node's URL implementation during review (illustrations, not
 native conformance evidence), starting from `https://example.test:8443/a`:
@@ -145,55 +159,146 @@ native conformance evidence), starting from `https://example.test:8443/a`:
 | `protocol = "mailto:"` | unchanged |
 | `host = "other.test"` | `https://other.test:8443/a` |
 
-Decision needed: compatible results plus warnings, or strict failure? Accept
-the fixed order and overlap rejection, or choose explicit override precedence?
 
 ## D3 — assembly seed and round trips
 
-**Recommendation for the first implementation:** require `parts.href` or an
-explicit absolute base. Resolve `href` against the supplied base when present;
-otherwise clone the base. Apply the D2 fields after construction, with no
+**Accepted for the first implementation:** require `parts.href` or an
+explicit absolute base. If `href` is present, parse it with the supplied base, or as an absolute
+URL when no base is supplied. If `href` is absent, clone the explicit base.
+Validate a supplied base even when `href` is absolute. Apply the D2 fields after construction, with no
 ambient seed. This deliberately limits assembly from a parts-only record.
 Opaque URLs can be provided through `href`; no synthetic authority is invented.
 Empty parts with a base return the canonical base; without either seed, fail.
 
-Alternative: require parts-only construction in the first version. That needs
-an explicit contract for authority versus opaque paths, minimum required fields,
-component escaping and delimiter presence before implementation. It must not be
-implemented as ad hoc string concatenation or by selecting an arbitrary URL seed.
+Parts-only construction without either seed is outside this first version.
+It must not be emulated with an arbitrary seed or ad hoc concatenation.
 
 A full `Parsed` record contains overlapping fields plus read-only `origin` and
-is therefore not an accepted update/assembly record under this recommendation.
+is therefore not an accepted update/assembly record under this contract.
 Use `href(parsed.href)` for a faithful serialization round trip; choose fields
 explicitly for updates. Passing `parsed.query` as an update is an intentional
 query reserialization, not a promise to retain the original URL spelling.
 
-Decision needed: accept seed-based assembly first, or specify complete parts-only
-construction before implementing the family?
+## Query operations
 
-## Remaining acceptance work after the decisions
+Follow the [URLSearchParams algorithms](https://url.spec.whatwg.org/#interface-urlsearchparams)
+with immutable results. `entries`, `keys`, and `values` preserve list order;
+`size` counts pairs. `get` selects the first match; `get_all` selects all.
+`has` and `delete` match names, or name/value pairs when a value is supplied.
+`append` adds at the end. `set` replaces the first matching value and removes
+later matches, or appends when absent. Sorting is stable by UTF-16 name units.
+String construction strips one leading `?`, splits form data, and decodes
+`+` as space. Missing `=` means an empty value. Serialize spaces as `+` and
+encode literal percent signs. A complete URL string is still form-data input.
 
-Finalize diagnostics, exact registry/type rules and examples under the selected
-policies, including how the type checker reports optional result cardinality.
-Retain existing error propagation rather than returning a plausible empty value
-for malformed arguments. Proposed error categories are invalid URL/base,
-invalid parts, argument type/cardinality, and the D2 setter outcome; names beyond
-the D2 proposal remain to be assigned in the diagnostic registry.
+No callback function or mutable URLSearchParams object is introduced. Inputs
+already containing `Entry` records go directly to query functions; `params`
+does not guess that a mapping record was intended to represent one entry.
 
-Specify the portable origin policy before claiming whole-API parity: recommend
-`"null"` for file origins and evaluating blob origins without a host object-URL
-store. Treat this as an explicit pure profile and test it across runtimes.
-Cover the TODO's Unicode/IDNA, component encoding, default ports, dot segments,
-special/non-special schemes, opaque paths, credentials, IPv4/IPv6 and file cases.
+## Native types and diagnostics
 
-Add an actionable fixture checklist before native tests. Start with small
-registry/type/evaluation cases and selected pinned WPT vectors. Include query
-sorting across supplementary/BMP characters, malformed percent/UTF-8 input,
-invalid bases, empty delimiters, setter no-ops and conflicts, and immutable
-round trips. Use native tests first; then verify the same semantics through the
-existing CLI/SSR/WASM paths. Generate reference tables and executable CEM-QL
-examples only for implemented, validated functions.
+Register `url` as a default module alias, with identical behavior through an
+explicit import alias. Do not introduce bare helpers that could shadow other
+modules. Type validation must dispatch by resolved module/function identity,
+not by spelling of the author's prefix or a similarly named user function.
 
-Documentation-only validation for this draft: local file links and whitespace.
-The Node probes above inform the decision examples only. No runtime code,
-fixture, dependency or generated artifact changes; no test/build suite required.
+Use existing atomic/record/stream types. `Parsed?` and `string?` are represented
+conservatively as `Stream<Record<...>>` and `Stream<String>` in static inference;
+the evaluator enforces zero-or-one results. The current lattice has no separate
+optional cardinality type. Do not widen that common model for this family.
+Reject provably incompatible static arguments; defer unknown types and stream
+cardinality to runtime validation. This permits feeding a possibly-singleton
+stream into a scalar argument without pretending its cardinality is proven.
+Validate singleton cardinality, exact entry fields, pair lengths and parts
+conflicts in the evaluator before producing output. Return concrete scalar
+result types where the function guarantees one item, and concrete entry/string
+stream types for query operations; do not register every result as `Any`.
+
+| Code | Severity | Outcome |
+| --- | --- | --- |
+| `cem.ql.type_error` | error | Wrong atomic/record/array shape, cardinality, pair length or entry fields; no result |
+| `cem.ql.url_invalid` | error | URL parse failure in `href`, `assemble` or `with_parts`; no result |
+| `cem.ql.url_base_invalid` | error | Supplied base fails absolute parsing for `href` or `assemble`; no result |
+| `cem.ql.url_parts_invalid` | error | Unknown/read-only/conflicting parts, or missing assembly seed; no result |
+| `cem.ql.url_setter_ignored` | warning | Inapplicable/invalid setter or ignored subcomponent; return the resulting URL and continue |
+
+`can_parse` and `parse` suppress only new URL/base syntax failures, returning
+false or no item respectively. They do not suppress argument errors or an
+upstream error. Preserve existing argument diagnostics and errors in evaluation
+order. Static argument rejection prevents evaluation; runtime checks cover
+unknown values, not a second emission of the same static failure.
+
+For newly produced failures, validate argument shapes in argument order,
+then parts keys/conflicts in deterministic key order, then the base, then the
+URL seed/input. Report the first fatal validation failure with no output.
+Emit at most one setter warning per supplied field, in setter order, naming
+all rejected subcomponents of that field. Preserve the query source range and
+source-map context; diagnostic messages name the argument/field and reason,
+without copying credentials or the entire URL.
+
+Nonfatal parser validation conditions that still yield a URL do not become
+`url_invalid`. URL syntax parsing is not a resource-policy check. Query decoding
+uses the referenced form algorithm's malformed-input handling, not strict URL
+validation or a generic decoder that rejects recoverable data.
+
+## Portable origin and encoding profile
+
+The pure profile uses the standard's origin algorithm with no blob-URL store.
+File origins serialize as `"null"`. A blob path can supply an HTTP/HTTPS origin;
+file and other opaque origins serialize as `"null"`. These are origin strings,
+not reusable origin identities. No host environment lookup is permitted.
+See [the origin algorithm](https://url.spec.whatwg.org/#concept-url-origin).
+
+Native strings contain Unicode scalar values. Do not add a JavaScript UTF-16
+object representation; retain the explicit UTF-16 comparison rule for parameter
+sorting. Use the pinned standard's IDNA, IPv4/IPv6, special/non-special scheme,
+opaque-path, credential, default-port, dot-segment and component-encoding
+algorithms. File parsing must be platform independent and must not consult the
+host filesystem. Candidate Rust libraries must be checked against these cases;
+sharing a dependency across platforms does not by itself prove parity.
+
+## Implementation sequence and focused acceptance
+
+1. Add native tests first for the immutable parameter core and its exact typed
+   input boundary. Implement that core without host services or new value types.
+2. Add parse/serialize/base and origin fixtures against a pinned native dependency
+   and selected WPT vectors. Document any discrepancy before choosing a fix;
+   do not silently substitute the embedding platform's URL implementation.
+3. Add assembly/update fixtures, including partial effects and warning detail,
+   using the native setter adapter. Cover every rejected/allowed parts pairing.
+4. Wire registry, aliases, inferred types, diagnostics and evaluation. Test
+   imported aliases and user functions with colliding local names, diagnostic
+   propagation, immutable input values and source locations.
+5. Generate reference tables and the executable CEM-QL query/result matrix;
+   validate that implemented functions match this contract. Verify the same
+   cases through CLI, SSR and WASM/browser entry points.
+
+Each stage needs an actionable fixture checklist before tests are added. Native
+fixture inputs remain typed CEM values, not a JSON-based internal handoff. WPT
+JSON is an explicitly named test-data input boundary with pinned provenance and
+license, not a runtime representation. Keep copied vectors separate from authored
+CEM fixtures. Run focused native tests first; broaden checks only when common
+modules change or failures require it.
+
+Required regression cases include:
+
+- empty constructor and explicit empty pair stream; one pair versus an outer
+  array; mapping order versus pair order; mixed/malformed inputs;
+- duplicate names, missing versus empty values, append/delete/set position,
+  optional-value matching, UTF-16/BMP/supplementary stable sorting;
+- form spaces/pluses, literal percent signs, malformed percent/UTF-8 sequences,
+  and a complete URL supplied as form input;
+- explicit invalid bases even with absolute input, opaque relative bases,
+  `href` idempotence, empty `?`/`#`, and query reserialization;
+- ignored, normalized, equal, prefix-parsed and partially applied setters;
+  fixed update order, conflicting keys and diagnostics before any result;
+- IDNA, host IP forms, credentials, default ports, dot segments, opaque origins,
+  file and blob behavior, and no dependency on ambient location or module maps.
+
+## Validation of this contract change
+
+Documentation only: validate local links and whitespace, review every declared
+function/arity against the checklist, and keep registry/implementation items
+open. Illustrative Node probes confirmed the partial-host and form-decoding
+examples; they are not native CEM-QL conformance tests. No runtime, dependency,
+fixture or generated artifact changes are included.
