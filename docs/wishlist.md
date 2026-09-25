@@ -3,6 +3,54 @@
 This file tracks future capability ideas that are not part of the immediate release queue. Active execution tasks live
 in [`todo.md`](todo.md).
 
+## Rust URL compatibility gaps
+
+User decision, 2026-09-25: keep the Rust parser/toolchain; do not pursue Ada or
+add C++/WASI SDK build requirements. Keep these uncovered cases as future
+compatibility work. Active implementation remains in [todo.md](todo.md).
+The baseline is `url` 2.5.8: eight selected WPT cases have 11 field/outcome
+differences. The pinned upstream Rust revision fixes only case 664; it has not
+been adopted. These are known failing cases, not missing test coverage.
+
+The table evaluates consequence and likely relevance, not measured frequency:
+we have no application-input telemetry. Priorities are engineering judgments.
+All inputs below use no base URL. “Expected” means the unchanged pinned WPT
+expectation, consistent with the accepted pure origin profile.
+
+| Done | WPT case / input | Expected → Rust 2.5.8 result | Importance and follow-up |
+| --- | --- | --- | --- |
+| [ ] | 782: `blob:blob:https://example.org/` | Origin `null` → `https://example.org` | High semantic priority: recursively invents a tuple origin for a nested blob. Fix with the bounded pure-origin adapter before exposing origin results. |
+| [ ] | 786: `blob:ftp://host/path` | Origin `null` → `ftp://host` | High semantic priority: reports a tuple origin outside the allowed blob inner schemes. Same adapter as 782. |
+| [ ] | 787: `blob:ws://example.org/` | Origin `null` → `ws://example.org` | High semantic priority: same origin classification issue. Same adapter as 782. |
+| [ ] | 788: `blob:wss://example.org/` | Origin `null` → `wss://example.org` | High semantic priority: same origin classification issue. Same adapter as 782. |
+| [ ] | 664: `file://[1::8]/C:/` | Href unchanged, host/hostname `[1::8]` → `file:///C:/`, empty host/hostname | High consequence if used for file resolution: silently loses the remote authority. Specialized file/drive combination; prioritize before relying on this class of file URLs. Fixed in the probed upstream Rust revision; prefer a released upstream fix when available. |
+| [ ] | 138: `file:///w\|/m` | Href `file:///w:/m`, pathname `/w:/m` → vertical bar retained in both | Medium for legacy Windows file interoperability; low for ordinary web links. Canonical identity and downstream path handling can differ. Requires parser-level normalization, not an unrestricted string replacement. |
+| [ ] | 839: `file://xn--/p` | Parse succeeds, href unchanged, host `xn--` → rejected | Low practical priority: empty punycode label compatibility. Rejection prevents a result instead of silently changing its destination. Revisit with upstream IDNA work. |
+| [ ] | 921: `https://xn--/` | Parse succeeds, href unchanged, origin `https://xn--` → rejected | Low practical priority: same empty-label issue for HTTPS. Parsing acceptance is separate from DNS resolution or reachability; do not generalize this gap to normal internationalized domains. |
+
+The blob inputs are specialized too, but the error is in a field callers may
+use for grouping or origin comparisons; that makes their semantic consequence
+more important than frequency alone. No demonstrated CEM authorization bypass
+is claimed: the candidate is still dev-only, and this pure API does not itself
+load resources or authorize requests. Fixing the four blob results is bounded
+Rust adapter work and does not require a parser fork. The other four cases
+remain parser compatibility debt; retaining them here does not justify claiming
+full WHATWG conformance or changing their expected results.
+
+Recommended order: implement the accepted pure-origin rules in Rust; track the
+upstream file-host fix; address drive normalization when file interoperability
+requires it; leave empty-punycode compatibility last. Record any remaining
+limitations when the production URL API is introduced. This decision selects
+Rust and defers compatibility work; it does not authorize a maintained fork or
+silently redefine the target contract.
+
+Evidence: [pinned WPT cases and exact differences](../packages/cem_ql/fixtures/url/README.md),
+[upstream comparison](../packages/cem_ql/fixtures/url/parser-probe/README.md), and
+[accepted URL contract](cem-ql-url-contract.md). The relevant standard algorithms
+are [origin](https://url.spec.whatwg.org/#origin),
+[file parsing](https://url.spec.whatwg.org/#file-state), and
+[domain-to-ASCII](https://url.spec.whatwg.org/#concept-domain-to-ascii).
+
 ## Distribution and Publication
 
 - [ ] **CEM web npm family publication.** Publish and remotely verify the fixed

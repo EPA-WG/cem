@@ -383,7 +383,7 @@ This closes the attributed failure, not a claim that the previously interrupted
 package suite has completed. Next is URL-PARSE with native tests first.
 
 
-## URL-PARSE candidate gate — decision pending
+## URL-PARSE candidate evidence
 
 On 2026-09-25, the native `url` 2.5.8 candidate was tested against
 [51 selected WPT vectors](../packages/cem_ql/fixtures/url/README.md), pinned to
@@ -405,8 +405,8 @@ Only tests, pinned data/license, a dev dependency and documentation changed.
 Formatting, whitespace and pinned-source integrity checks pass. No full package,
 workspace or browser tests were invoked.
 
-Decision: investigate maintained upstream fixes or a replacement native parser
-before adoption (recommended), or maintain a patched `url` dependency. The
+Initial investigation decision (superseded by the Rust decision below): compare
+maintained upstream fixes and replacement parsers before adoption. The
 accepted contract is unchanged. Four origin cases need the already specified
 pure-profile handling, but drive/host and IDNA differences require parser-level
 evidence; do not assume post-serialization rewriting can recover lost host
@@ -419,6 +419,19 @@ The [isolated reproducible probe](../packages/cem_ql/fixtures/url/parser-probe/R
 compares current upstream `url` at a pinned revision (44/51 selected cases match)
 with Ada 4.0.0 (51/51 native matches). SDK 34 permits the combined browser-WASM
 build, but residual WASI imports block standalone execution in both debug and
-release. No production dependency changed. The next decision is whether to
-accept Ada's C++/WASI toolchain for further WASM qualification, or own Rust
-parser fixes. Full conformance, setters, and CEM integration remain open.
+release. No production dependency changed. The subsequent user decision below
+closes the toolchain choice. Full conformance, setters, and CEM integration
+remain open.
+
+### Rust decision and deferred compatibility work — 2026-09-25
+
+Keep Rust; do not adopt Ada or introduce C++/WASI SDK build requirements. The
+[eight known gaps and importance assessment](wishlist.md#rust-url-compatibility-gaps)
+remain explicit compatibility debt. The selected `url` version is still dev-only;
+this documentation change does not implement a parser or authorize a fork.
+Proceed with Rust implementation, prioritizing the bounded pure-origin adapter.
+Deferred parser differences retain their original WPT expectations and must be
+reported as limitations rather than presented as full WHATWG conformance.
+The accepted semantics remain the target; moving debt to the wishlist does not
+make the missing behavior implemented. The Ada probe is historical evidence,
+not an active toolchain recommendation or required verification task.

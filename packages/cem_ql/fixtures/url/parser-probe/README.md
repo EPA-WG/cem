@@ -1,5 +1,9 @@
 # Maintained parser investigation (2026-09-25)
 
+Historical evidence: the user subsequently chose to keep Rust. Ada adoption and
+C++/WASI toolchain work are closed; this isolated probe is not a required task.
+See the [gap assessment](../../../../../docs/wishlist.md#rust-url-compatibility-gaps).
+
 This isolated research crate reuses the 51 unchanged, licensed WPT cases in
 `../wpt-url-parse.json`. JSON is explicitly a fixture input boundary. Neither
 candidate is registered with CEM-QL. The nested workspace and lockfile keep
@@ -38,7 +42,7 @@ library. No fake clock, WASI host, JavaScript URL fallback, or local dependency
 patch was added. Browser-WASM semantic parity remains unproven. SDK 33 was not
 probed; SDK selection/link behavior requires follow-up.
 
-## Decision pending
+## Historical recommendation (superseded)
 
 Recommend pursuing Ada with a pinned C++/WASI toolchain **if that additional
 build dependency is acceptable**. First isolate and remove the residual host

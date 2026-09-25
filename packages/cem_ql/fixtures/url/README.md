@@ -21,7 +21,7 @@ runtime CEM document or AST representation. Tests perform native URL operations;
 JavaScript is not an implementation fallback. CEM's additional pure-profile
 constraints are tested separately from unchanged upstream expectations.
 
-## Candidate findings — decision pending
+## Candidate findings — Rust retained
 
 `url` 2.5.8 is pinned as a **dev dependency only**. The first conformance probe
 failed with 11 field/outcome differences across eight cases. The other 43
@@ -40,9 +40,9 @@ All successful parses also retain href through parse/serialize repetition.
 candidate differences, separately from the unchanged WPT data. The test asserts
 that characterization so a dependency or fixture change cannot silently alter
 it. **A passing characterization test is not conformance and this file is not a
-production allowlist.** Production adoption must resolve every selected gap or
-return to an explicit contract decision; do not edit upstream expected values
-to match the dependency.
+production allowlist.** The Rust decision below explicitly tracks deferred gaps; production claims must
+identify remaining limitations. Do not edit upstream expected values to match
+the dependency.
 
 Additional authored tests cover invalid bases even with absolute input, absent
 bases, opaque bases, relative resolution, empty query/fragment delimiters,
@@ -53,12 +53,12 @@ candidate directly, not registered CEM-QL functions or runtime parity.
 cargo test -p cem-ql --test url_parse_candidate --target-dir dist/target/cem_ql
 ```
 
-Recommendation: keep the accepted semantics and investigate a maintained native
-parser fix/replacement before production adoption. The four origin gaps are
-bounded by the pure profile; host/drive preservation and IDNA rejection need
-parser-level evidence. Do not assume a generic serialization wrapper can repair
-information already discarded or input already rejected. Stop before choosing
-between maintaining parser patches and adopting a different native dependency.
+Decision, 2026-09-25: keep Rust. Track all eight known gaps and their practical
+importance in the [wishlist](../../../../docs/wishlist.md#rust-url-compatibility-gaps).
+Prioritize the bounded pure-origin adapter; retain parser differences as explicit
+compatibility debt with unchanged expectations. No production implementation or
+parser fork is introduced by that decision.
 
-Follow-up: [maintained upstream/Ada investigation](parser-probe/README.md),
-including native comparison and the unresolved browser-WASM import gate.
+Historical [maintained upstream/Ada investigation](parser-probe/README.md)
+records native comparison and the unresolved browser-WASM import gate. Ada
+adoption and its extra toolchain are no longer pursued.

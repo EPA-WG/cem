@@ -5278,11 +5278,16 @@ registration identities may reuse an inherited or existing definition.
               See [reproducible investigation](../packages/cem_ql/fixtures/url/parser-probe/README.md).
               Research dependencies are isolated; no common modules changed
               and no global tests ran.
-        - [ ] Decide native parser strategy before production adoption:
-              accept Ada's C++/WASI toolchain for further import-free WASM
-              qualification (recommended), or authorize ownership of patched
-              Rust url semantics. Preserve the accepted contract and unchanged
-              WPT expectations; passing a characterization is not a waiver.
+        - [x] Decide native parser strategy and assess unresolved cases.
+              User decision 2026-09-25: keep Rust; stop Ada/C++/WASI adoption.
+              All eight known gaps and their practical importance are retained
+              in [wishlist.md](wishlist.md#rust-url-compatibility-gaps).
+              No fork or dependency upgrade is introduced in this change.
+        - [ ] Continue URL-PARSE using Rust with native tests first: implement
+              the accepted bounded pure-origin adapter before exposing origins;
+              retain unchanged WPT expectations and explicitly document deferred
+              parser limitations. The wishlist prioritizes file-host preservation,
+              legacy drive normalization, then empty-punycode compatibility.
     - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped
           diagnostics before implementing the immutable update adapter.
