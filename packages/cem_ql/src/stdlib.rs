@@ -17,6 +17,7 @@ pub mod state;
 pub mod strings;
 pub mod template;
 pub mod user;
+pub mod url_origin;
 pub mod url_params;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

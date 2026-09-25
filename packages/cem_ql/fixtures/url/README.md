@@ -23,7 +23,8 @@ constraints are tested separately from unchanged upstream expectations.
 
 ## Candidate findings — Rust retained
 
-`url` 2.5.8 is pinned as a **dev dependency only**. The first conformance probe
+`url` 2.5.8 was initially pinned as a dev dependency. It is now a runtime
+dependency for the native pure-origin adapter. The first conformance probe
 failed with 11 field/outcome differences across eight cases. The other 43
 selected cases match every provided expectation, including expected failures.
 All successful parses also retain href through parse/serialize repetition.
@@ -62,3 +63,9 @@ parser fork is introduced by that decision.
 Historical [maintained upstream/Ada investigation](parser-probe/README.md)
 records native comparison and the unresolved browser-WASM import gate. Ada
 adoption and its extra toolchain are no longer pursued.
+
+The native [origin adapter](../../src/stdlib/url_origin.rs) now passes all 11
+selected blob-origin expectations, including cases 782/786/787/788. Its separate
+[test](../../tests/url_origin.rs) verifies unchanged WPT expectations; the raw
+candidate characterization intentionally still records its original eight gaps.
+Four parser gaps remain; query registration/integration is pending.

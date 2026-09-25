@@ -5283,10 +5283,21 @@ registration identities may reuse an inherited or existing definition.
               All eight known gaps and their practical importance are retained
               in [wishlist.md](wishlist.md#rust-url-compatibility-gaps).
               No fork or dependency upgrade is introduced in this change.
-        - [ ] Continue URL-PARSE using Rust with native tests first: implement
-              the accepted bounded pure-origin adapter before exposing origins;
-              retain unchanged WPT expectations and explicitly document deferred
-              parser limitations. The wishlist prioritizes file-host preservation,
+        - [x] Fixture URL-ORIGIN: cover unchanged WPT blob origins, direct
+              tuple/opaque origins, malformed inner URLs and immutable inputs;
+              implement the pure Rust origin serializer.
+              Completed 2026-09-25: three new tests pass, including all 11
+              selected WPT blob-origin expectations. Two tests fail with raw
+              dependency origins and pass with the adapter. Four origin gaps
+              are resolved at the native core layer; raw characterization stays
+              unchanged. url 2.5.8 is now a runtime dependency; no fork/C++.
+              All 15 focused URL tests and the package Nx WASM build pass.
+              No full test suite ran. Query registration remains pending.
+        - [ ] Continue URL-PARSE using Rust with native tests first: add the
+              explicit-base parse/serialize core and wire the completed origin
+              serializer into parsed results; retain unchanged WPT expectations
+              and explicitly document deferred parser limitations. The wishlist
+              prioritizes file-host preservation,
               legacy drive normalization, then empty-punycode compatibility.
     - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped

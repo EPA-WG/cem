@@ -435,3 +435,28 @@ reported as limitations rather than presented as full WHATWG conformance.
 The accepted semantics remain the target; moving debt to the wishlist does not
 make the missing behavior implemented. The Ada probe is historical evidence,
 not an active toolchain recommendation or required verification task.
+
+### Native origin adapter completed — 2026-09-25
+
+[`serialize_origin`](../packages/cem_ql/src/stdlib/url_origin.rs) implements the
+pure origin profile on a parsed Rust URL. Direct HTTP/HTTPS/FTP/WS/WSS URLs
+retain their normalized tuple origins; file and other opaque origins serialize
+as `null`. Blob origins inspect exactly one parsed inner URL and accept only
+HTTP/HTTPS. Nested blobs, FTP/WS/WSS inner URLs, malformed or relative inner
+URLs and opaque inner schemes return `null`, without host lookup or mutation.
+
+The pinned `url` 2.5.8 dependency moves from dev-only to runtime for this core.
+No parser fork, C++ dependency, query registration or evaluator change is added.
+Three new [native tests](../packages/cem_ql/tests/url_origin.rs) cover the profile,
+input immutability, and all 11 blob-origin expectations in the selected WPT set.
+Two regressions fail with direct dependency-origin delegation and pass with the
+adapter. All 15 focused URL tests pass, including the unchanged raw candidate
+characterization. The four origin gaps are fixed through the adapter; the four
+file/IDNA parser gaps remain documented in the wishlist. Next is the explicit-base
+parse/serialize core; query integration and full conformance remain unproven.
+
+Validation: `cargo test -p cem-ql --test url_origin --test url_params --test
+url_parse_candidate --target-dir dist/target/cem_ql` passes (15 tests), and
+`yarn nx run cem_ql:build:wasm` succeeds. The WASM build verifies compilation,
+not execution parity of the unregistered API. Formatting and whitespace checks
+pass; no full package test suite or workspace-wide task ran.
