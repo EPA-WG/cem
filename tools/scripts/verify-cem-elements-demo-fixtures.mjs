@@ -265,37 +265,94 @@ const xpathFunctionSamples = [
     }),
 ];
 
+const mapArrayOutputs = expected => [
+    countExactly('article output', expected.length), countExactly('article [role="alert"]', 0),
+    ...expected.map((value, index) => propertyEquals(`article p:nth-of-type(${index + 1}) output`, 'textContent', value)),
+];
+const mapArrayEditor = (selector, value) => [
+    elementIdentity(selector, 'same'), focusedElement(selector), propertyEquals(selector, 'value', value),
+    propertyEquals(selector, 'selectionStart', value.length), propertyEquals(selector, 'selectionEnd', value.length),
+];
+const mapArrayEdit = (selector, value, expected) => [
+    fillThenText(selector, value, 'article output', ''), ...mapArrayOutputs(expected), ...mapArrayEditor(selector, value),
+];
+const mapArrayInvalid = (value, message) => [
+    fillThenText('article textarea', value, 'article [role="alert"]', message),
+    countExactly('article output', 0), ...mapArrayEditor('article textarea', value),
+];
+const mapArrayPick = (position, label) => mapArrayEdit('article input', position,
+    ['2', label, 'Empty member (array size 1)']);
+const mapArrayRecover = () => mapArrayEdit('article textarea', '<basket><cherry>5</cherry></basket>',
+    ['1', 'cherry: 5', 'Empty member (array size 1)']);
+const jsonMapRecover = () => mapArrayEdit('article textarea', '{"note":null}', ['1 members; numeric total 0', 'Null value']);
 const xpathMapArraySamples = [
     sampleContract('1. An IP-filter map with an optional note', [
-        normalizedText('article p:first-of-type output', 'allow: 192.0.2.0/24'),
-        normalizedText('article p:nth-of-type(2) output', 'Absent entry'),
-        selectThenText('article select[aria-label="Note entry"]', 'empty', 'article p:nth-of-type(2) output', 'Present, empty sequence'),
-        normalizedText('article p:nth-of-type(3) output', '3'),
-        selectThenText('article select[aria-label="Note entry"]', 'value', 'article p:nth-of-type(2) output', 'Local preview'),
-        fillThenText('article input', '198.51.100.0/24', 'article p:first-of-type output', 'allow: 198.51.100.0/24'),
-        selectThenText('article select[aria-label="Action"]', 'deny', 'article p:first-of-type output', 'deny: 198.51.100.0/24'),
+        ...mapArrayOutputs(['allow: 192.0.2.0/24', 'Absent entry', '2']),
+        propertyEquals('article input', 'value', '192.0.2.0/24'),
+        propertyEquals('article select[aria-label="Action"]', 'value', 'allow'),
+        propertyEquals('article select[aria-label="Note entry"]', 'value', 'absent'),
+        ...['input', 'select[aria-label="Action"]', 'select[aria-label="Note entry"]']
+            .map(selector => elementIdentity(`article ${selector}`, 'remember')),
+        ...['', '  🍒 & <local>  ', '198.51.100.0/24'].flatMap(value =>
+            mapArrayEdit('article input', value, [`allow: ${value}`, 'Absent entry', '2'])),
+        focusThenText('article select[aria-label="Action"]', 'article output', 'allow: 198.51.100.0/24'),
+        selectThenText('article select[aria-label="Action"]', 'deny', 'article output', 'deny: 198.51.100.0/24'),
+        ...mapArrayOutputs(['deny: 198.51.100.0/24', 'Absent entry', '2']),
+        elementIdentity('article select[aria-label="Action"]', 'same'), focusedElement('article select[aria-label="Action"]'),
+        propertyEquals('article select[aria-label="Action"]', 'value', 'deny'),
+        ...[['empty', 'Present, empty sequence', '3'], ['value', 'Local preview', '3'], ['absent', 'Absent entry', '2']]
+            .flatMap(([state, expected, count]) => [
+                focusThenText('article select[aria-label="Note entry"]', 'article output', 'deny: 198.51.100.0/24'),
+                selectThenText('article select[aria-label="Note entry"]', state, 'article p:nth-of-type(2) output', expected),
+                ...mapArrayOutputs(['deny: 198.51.100.0/24', expected, count]),
+                elementIdentity('article select[aria-label="Note entry"]', 'same'),
+                focusedElement('article select[aria-label="Note entry"]'),
+                propertyEquals('article select[aria-label="Note entry"]', 'value', state),
+                propertyEquals('article select[aria-label="Action"]', 'value', 'deny'),
+                propertyEquals('article input', 'value', '198.51.100.0/24'),
+            ]),
     ]),
     sampleContract('2. Select a retained fruit by array position', [
-        normalizedText('article p:nth-of-type(2) output', 'apple: 2'),
-        fillThenText('article input', '2', 'article p:nth-of-type(2) output', 'pear: 3'),
-        fillThenText('article input', '0', 'article p:nth-of-type(2) output', 'No member at this position'),
-        fillThenText('article textarea', '<basket note="Fresh"><plum>4</plum></basket>', 'article p:nth-of-type(3) output', 'Note: Fresh'),
-        fillThenText('article input', '1', 'article p:nth-of-type(2) output', 'plum: 4'),
-        fillThenText('article textarea', '<other/>', 'article [role="alert"]', 'Use a basket root'),
-        fillThenText('article textarea', '<basket/>', 'article p:first-of-type output', '0'),
-        normalizedText('article p:nth-of-type(3) output', 'Empty member (array size 1)'),
+        ...mapArrayOutputs(['2', 'apple: 2', 'Empty member (array size 1)']),
+        propertyEquals('article input', 'value', '1'),
+        propertyEquals('article textarea', 'value', '<basket><apple>2</apple><pear>3</pear></basket>'),
+        elementIdentity('article input', 'remember'), elementIdentity('article textarea', 'remember'),
+        ...mapArrayPick('2', 'pear: 3'),
+        ...['0', '3', '-1', '1.5', '1e0', 'bad', ''].flatMap(position => [
+            ...mapArrayPick(position, 'No member at this position'), ...mapArrayPick('1', 'apple: 2'),
+        ]),
+        ...[[' 02 ', 'pear: 3'], ['+1', 'apple: 2'], ['001', 'apple: 2']].flatMap(([position, label]) => mapArrayPick(position, label)),
+        ...mapArrayPick('3', 'No member at this position'),
+        ...mapArrayEdit('article textarea', '<basket note="Fresh"><apple>2</apple><pear>3</pear><plum>4</plum></basket>',
+            ['3', 'plum: 4', 'Note: Fresh']),
+        propertyEquals('article input', 'value', '3'),
+        ...mapArrayEdit('article input', '1', ['3', 'apple: 2', 'Note: Fresh']),
+        ...mapArrayEdit('article textarea', '<basket xmlns:p="urn:fruit" note=" Fresh &amp; ripe "><!--skip--><?skip it?><p:plum> A<b>B</b><![CDATA[C]]><!--skip--><?skip it?> D </p:plum><pear>3</pear></basket>',
+            ['2', 'plum:  ABC D ', 'Note:  Fresh & ripe ']),
+        ...mapArrayEdit('article textarea', '<basket note=""/>', ['0', 'No member at this position', 'Note: ']),
+        ...mapArrayEdit('article textarea', '<basket/>', ['0', 'No member at this position', 'Empty member (array size 1)']),
+        ...mapArrayRecover(),
+        ...['<basket>', '<other/>', '<basket xmlns="urn:fruit"><apple>2</apple></basket>'].flatMap(value => [
+            ...mapArrayInvalid(value, value === '<basket>' ? 'XML' : 'Use a basket root'), ...mapArrayRecover(),
+        ]),
+        elementIdentity('article input', 'same'), propertyEquals('article input', 'value', '1'),
+    ]),
+    sampleContract('3. Query an imported JSON tree', [
+        ...mapArrayOutputs(['3 members; numeric total 5', 'Null value']), elementIdentity('article textarea', 'remember'),
+        ...[
+            ['{"cherry":4,"note":""}', ['2 members; numeric total 4', 'Empty string']],
+            ['{"plum":1e2}', ['1 members; numeric total 100', 'Absent member']],
+            ['{"cherry":1.25,"pear":2.5,"note":"  Fresh 🍒  "}', ['3 members; numeric total 3.75', '  Fresh 🍒  ']],
+            ['{"plum":-2,"pear":1e2,"note":null}', ['3 members; numeric total 98', 'Null value']],
+            ['{"nested":{"pear":99},"array":[100],"flag":true,"text":"2","plum":4,"note":""}',
+                ['6 members; numeric total 4', 'Empty string']],
+            ['{}', ['0 members; numeric total 0', 'Absent member']],
+        ].flatMap(([value, expected]) => mapArrayEdit('article textarea', value, expected)),
+        ...['{', '[]', 'null', '42', '"fruit"'].flatMap(value => [
+            ...mapArrayInvalid(value, value === '{' ? 'JSON' : 'Use a JSON object'), ...jsonMapRecover(),
+        ]),
     ]),
 ];
-
-xpathMapArraySamples.push(sampleContract('3. Query an imported JSON tree', [
-    normalizedText('article p:first-of-type output', '3 members; numeric total 5'),
-    normalizedText('article p:nth-of-type(2) output', 'Null value'),
-    fillThenText('article textarea', '{"cherry":4,"note":""}', 'article p:nth-of-type(2) output', 'Empty string'),
-    fillThenText('article textarea', '{"plum":1e2}', 'article p:first-of-type output', '1 members; numeric total 100'),
-    normalizedText('article p:nth-of-type(2) output', 'Absent member'),
-    fillThenText('article textarea', '[]', 'article [role="alert"]', 'Use a JSON object'),
-    fillThenText('article textarea', '{"note":null}', 'article p:nth-of-type(2) output', 'Null value'),
-]));
 
 const xpathValidationSamples = [
     sampleContract('1. Form validation preview', [
@@ -2568,6 +2625,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-maps-arrays.html',
         samples: xpathMapArraySamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/xpath-validation.html',
@@ -2920,6 +2978,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-functions.html') {
                 await verifyXPathFunctionsPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-maps-arrays.html') {
+                await verifyXPathMapsArraysPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -3037,6 +3098,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-functions.html') {
                 await verifyXPathFunctionsPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-maps-arrays.html') {
+                await verifyXPathMapsArraysPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -5068,4 +5133,42 @@ async function verifyXPathFunctionsPresentation(page) {
         if (!reachable) throw new Error('XPath function source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 6);
+}
+
+async function verifyXPathMapsArraysPresentation(page) {
+    await runCheck(page, nodeTexts('cem-demo-element output', [
+        'deny: 198.51.100.0/24', 'Absent entry', '2', '1', 'cherry: 5', 'Empty member (array size 1)',
+        '1 members; numeric total 0', 'Null value',
+    ]));
+    await runCheck(page, countExactly('nav a, main > section a', 6));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['xpath-maps-arrays.cemt', 'xpath-validation.html', 'xpath-sequences.html', 'xpath-aggregates.html', 'data-table.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 3 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, input, textarea, select')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 3 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath map/array source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 3);
 }

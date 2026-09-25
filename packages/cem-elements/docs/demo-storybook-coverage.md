@@ -1483,3 +1483,34 @@ No full suite was run, per the user's validation scope. Authored HTML, XPath
 library and shared runtime are unchanged. This fixture audit is complete; next
 is `xpath-maps-arrays.html` (three samples). Broader per-sample coverage and
 historical startup investigations remain open.
+
+## XPath map and array behavior audit, 2026-09-25
+
+All three samples now have named Storybook steps and shared independent
+standalone/source-loaded contracts that assert every output. The map preview
+checks empty and literal-text addresses, action changes, absent/empty/value
+notes and corresponding entry counts, including live select values and focus.
+
+The XML array checks one-based selection, out-of-range and invalid positions,
+accepted integer spellings, and adding a third fruit while position 3 remains
+selected. Retained nodes preserve local names and descendant text through
+namespaced fruits, CDATA, comments and processing instructions. Empty baskets
+distinguish a missing note attribute from a present empty attribute. Malformed
+XML and wrong or qualified roots remove all outputs, followed by recovery.
+
+JSON checks distinguish null, empty, absent and whitespace-preserving text
+notes. Totals include direct numeric members, including decimals and exponents;
+nested numbers, arrays, booleans and numeric strings remain excluded. Empty
+objects yield zero members/total. Malformed JSON and non-object roots remove
+all outputs. Recovery between invalid cases prevents stale alerts from passing.
+Controls retain identity, focus and selection, including interior carets in
+Storybook; later samples preserve earlier edits. Diagnostic histories stay empty.
+
+Both loaders now use the approved source-link policy for all six navigation
+links. Both independent modes pass 1280px/390px containment and complete source
+scrolling, with a standalone two-card desktop row. Focused validation passes
+one Storybook test, two source-contract unit tests, both independent browser
+modes, changed-story lint and verifier syntax checks. No full suite was run.
+Authored HTML, XPath library and shared runtime are unchanged. This audit is
+complete; next is `xpath-nodes.html` (two samples). Broader per-sample coverage
+and historical startup investigations remain open.
