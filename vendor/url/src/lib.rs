@@ -2470,12 +2470,19 @@ impl Url {
             (!new_scheme_type.is_special() && old_scheme_type.is_special()) ||
             // If url includes credentials or has a non-null port, and buffer is "file", then return.
             // If url’s scheme is "file" and its host is an empty host or null, then return.
-            (new_scheme_type.is_file() && self.has_authority())
+            // CEM patch: authority alone does not prevent a file transition;
+            // credentials or an explicit port do. Empty-host file URLs may
+            // retain their scheme but cannot transition to another scheme.
+            (new_scheme_type.is_file()
+                && (!self.username().is_empty() || self.password().is_some() || self.port().is_some()))
+            || (old_scheme_type.is_file() && !self.has_host() && !new_scheme_type.is_file())
         {
             return Err(());
         }
 
-        if !remaining.is_empty() || (!self.has_host() && new_scheme_type.is_special()) {
+        if !remaining.is_empty()
+            || (!self.has_host() && new_scheme_type.is_special() && !new_scheme_type.is_file())
+        {
             return Err(());
         }
         let old_scheme_end = self.scheme_end;

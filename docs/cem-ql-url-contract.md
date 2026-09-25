@@ -565,3 +565,29 @@ open. Publishing CEM-QL requires a deliberate distribution route for private
 The CEM-QL Nx WASM build passes with the private parser dependency. This is
 compilation verification; registered query execution parity remains pending.
 No full workspace/package test suite or global task ran.
+
+### Opaque spaces and setter outcomes completed — 2026-09-25
+
+The private Rust parser now encodes the last opaque-path space before a query
+or fragment delimiter. Clearing either component preserves its path content.
+This fixes search[10–13] and hash[16–19] without changing CEM's pinned WPT data.
+Eight stale bundled dependency cases were refreshed from that pinned source;
+two historical unit assertions now expect preservation. The complete runtime
+diff and fixture provenance are in [CEM-PATCH.md](../vendor/url/CEM-PATCH.md).
+
+The native host adapter strips only the standard ASCII tabs/newlines, respects
+IPv6 brackets and authority terminators, and detects rejected nonempty port
+subcomponents on a private probe. Accepted hostname changes survive a
+`Ignored("host.port")` outcome; valid prefixes, omitted/empty ports and equal
+assignments do not produce false warnings. Scheme guards now permit eligible
+file conversions and equal file assignments while retaining invalid transition
+rejection. These are native outcomes, not yet source-mapped query warnings.
+
+All 34 focused CEM URL tests, 66 dependency unit tests and the refreshed
+historical WPT harness pass. The selected matrix matches 271/277 setter cases;
+six cases retain exactly 12 differences. Parse coverage stays 48/51. Raw
+registry characterization remains unchanged. Next: remaining hostname/path
+serialization fixes, with empty-punycode behavior still in the wishlist.
+
+The package Nx WASM build passes; no full/global test suite ran. Shared
+evaluator/type behavior and CEM-ML registry dependency remain unchanged.

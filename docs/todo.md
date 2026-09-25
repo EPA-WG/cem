@@ -5349,9 +5349,26 @@ registration identities may reuse an inherited or existing definition.
               The package Nx WASM build and cache-input checks pass. No global
               tasks ran. The registry crate still serves CEM-ML and raw candidate tests;
               no global Cargo override or common-module source change was made.
-        - [ ] Continue bounded Rust setter repairs: preserve opaque trailing
+        - [x] Fixture: cover opaque-space boundary encoding and partial-host/
+              protocol outcome classification with pinned WPT and native cases.
+              Completed 2026-09-25: three regressions fail before repair and pass
+              after. Eight opaque-space WPT cases now match; the matrix reaches
+              271/277, with six cases/12 differences remaining. Historical vendor
+              expectations for those eight cases were refreshed from unchanged
+              pinned WPT; the two obsolete unit assertions were updated explicitly.
+        - [x] Continue bounded Rust setter repairs: preserve opaque trailing
               spaces when clearing search/hash, then classify partial host and
               protocol outcomes; retain unchanged WPT and raw baseline evidence.
+              Partial host effects report host.port without rollback; valid
+              equal/normalized protocol assignments avoid false warnings and
+              eligible file transitions succeed. All 34 focused CEM URL tests,
+              66 dependency unit tests and the refreshed historical WPT harness
+              pass, as does the package Nx WASM build. No global tasks ran.
+              Query/source-mapped diagnostics remain unregistered.
+        - [ ] Repair remaining hostname/path serialization gaps (hostname[34–35],
+              pathname[5] and [13]); keep empty-punycode host updates tracked with
+              the existing deferred IDNA compatibility cases.
+
         - [ ] Before CEM-QL crate publication, resolve distribution of the private
               cem-url dependency; Cargo packaging cannot publish this local-only
               patch as an ordinary registry dependency.

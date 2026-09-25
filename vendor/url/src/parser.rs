@@ -1422,8 +1422,17 @@ impl Parser<'_> {
                 }
                 Some((c, utf8_c)) => {
                     self.check_url_code_point(c, &input);
-                    self.serialization
-                        .extend(utf8_percent_encode(utf8_c, CONTROLS));
+                    // CEM patch: protect the final opaque-path space before a
+                    // query/fragment boundary so later clearing cannot erase it.
+                    if c == ' '
+                        && self.context == Context::UrlParser
+                        && (input.starts_with('?') || input.starts_with('#'))
+                    {
+                        self.serialization.push_str("%20");
+                    } else {
+                        self.serialization
+                            .extend(utf8_percent_encode(utf8_c, CONTROLS));
+                    }
                 }
                 None => return input,
             }

@@ -135,3 +135,22 @@ partial-host/protocol outcome work. No full/global tests ran.
 The CEM-QL Nx WASM build passes with the private parser dependency. This is
 compilation verification; registered query execution parity remains pending.
 No full workspace/package test suite or global task ran.
+
+## Opaque spaces and host/protocol outcomes completed
+
+Opaque boundary encoding now fixes search[10–13] and hash[16–19]. The adapted
+matrix matches 271/277; six cases retain 12 differences. CEM-pinned expectations
+and raw-registry evidence remain unchanged. The eight stale historical vendor
+setter cases were refreshed from these exact pinned cases; see the expanded
+[patch provenance](../../../../vendor/url/CEM-PATCH.md).
+
+Additional authored regressions prove partial host.port rejection preserves
+hostname effects, IPv6 colons are not mistaken for port delimiters, normalized
+and prefix assignments succeed, and equal/eligible file protocol updates avoid
+false rejection. All 34 focused URL tests and dependency tests pass. Source-
+mapped warnings and assembly/update query registration remain pending. Next
+are hostname[34–35], pathname[5] and pathname[13]; empty-punycode setter cases
+remain linked to deferred IDNA compatibility in the wishlist.
+
+The package Nx WASM build passes; no full/global test suite ran. Shared
+evaluator/type behavior and CEM-ML registry dependency remain unchanged.

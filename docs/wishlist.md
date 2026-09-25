@@ -70,21 +70,22 @@ engineering judgments about consequences, not measured input frequency.
 | [x] | port[26] | Fixed in the native adapter: whitespace-only assignment preserves the existing port and reports an ignored port; truly empty input still clears it. All 27 pinned port cases pass. Query exposure pending. |
 | [x] | pathname[24], [25], [26] | Fixed in the native adapter: serialize the normalized hostless components with the required `/.` guard. Reparse preserves the absent authority, path, query and fragment. Query exposure pending. |
 | [x] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Fixed by the scoped Rust parser patch: expected slash segments now survive parsing, setters and round trips. Query exposure pending. |
-| [ ] | search[10], [11], [12], [13]; hash[16], [17], [18], [19] | High consequence for opaque payloads, specialized inputs: trailing spaces are lost or not encoded as expected. Distinguish initial parse loss from setter loss; preserve opaque content through clearing query/hash. |
+| [x] | search[10], [11], [12], [13]; hash[16], [17], [18], [19] | High consequence for opaque payloads, specialized inputs: trailing spaces are lost or not encoded as expected. Fixed at the opaque parsing boundary: encode the final space before query/fragment so later clearing preserves it. Query exposure pending. |
 | [ ] | hostname[34], [35] | Medium: adding/changing an authority retains extra dot segments in serialization. Still requires an adapter; the pathname fix alone does not fix host updates. |
 | [x] | pathname[27] | Fixed in the native adapter: remove the stale hostless `/.` guard when the replacement path no longer starts with `//`. Query exposure pending. |
 | [ ] | pathname[5] | Medium for custom schemes: empty path becomes `/`, changing the serialized identifier. Cover empty-host/empty-path distinction. |
 | [ ] | pathname[13] | Lower priority: caret encoding differs. Usually interoperability/canonicalization debt; still affects exact href comparisons. |
 | [ ] | host[59]; hostname[41] | Low: empty-punycode compatibility already affects parsing; setters preserve the old host instead of accepting `xn--`. Track together with parse cases 839/921. |
-| [ ] | Authored: equal `file:` and HTTPS-to-file protocol assignments | Medium: raw setter rejects an equal valid request (false warning risk) and ignores an eligible conversion. Check standard transition preconditions explicitly. Outside the 277-case count. |
-| [ ] | Authored: partial host-port and opaque pathname outcomes | High for the accepted diagnostics: a successful host return hides an ignored port; a void pathname setter hides inapplicability. Detect outcomes without relying on return value or href equality alone. Outside the 277-case count. |
+| [x] | Authored: equal `file:` and HTTPS-to-file protocol assignments | Medium: raw setter rejects an equal valid request (false warning risk) and ignores an eligible conversion. Fixed scheme preconditions now accept equal file assignments and eligible conversions; invalid transitions still report ignored protocol. Query exposure pending. Outside the 277-case count. |
+| [x] | Authored: partial host-port and opaque pathname outcomes | High for the accepted diagnostics: a successful host return hides an ignored port; a void pathname setter hides inapplicability. Native outcomes now report ignored host.port while preserving hostname effects, and report opaque pathname inapplicability. Source-mapped warning integration remains pending. Outside the 277-case count. |
 
 The user chose to fix the Rust setter path before exposing assembly/updates.
-The bounded port/path adapters and scoped file parser patch fix eight cases;
-14/277 cases (24 field differences) remain. Raw registry characterization stays
+The bounded adapters and compatibility patch fix 16 cases;
+six of 277 cases (12 field differences) remain. Raw registry characterization stays
 unchanged. The user accepted the file parser patch; it is now a private CEM-QL
 path dependency with [provenance and maintenance notes](../vendor/url/CEM-PATCH.md).
-Next: opaque trailing-space preservation and partial-host/protocol outcomes.
+Next: hostname guard cleanup, empty-path handling and caret encoding; retain
+empty-punycode host updates with the deferred IDNA cases.
 Full fixed-order assembly and source-mapped warnings remain active work in
 [todo.md](todo.md).
 

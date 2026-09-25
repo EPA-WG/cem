@@ -39,3 +39,32 @@
 -        }
 +        // CEM patch: preserve leading empty file path segments. They are
 +        // meaningful path components under the current WHATWG URL algorithm.
+@@ -1436,2 +1425,11 @@
+-                    self.serialization
+-                        .extend(utf8_percent_encode(utf8_c, CONTROLS));
++                    // CEM patch: protect the final opaque-path space before a
++                    // query/fragment boundary so later clearing cannot erase it.
++                    if c == ' '
++                        && self.context == Context::UrlParser
++                        && (input.starts_with('?') || input.starts_with('#'))
++                    {
++                        self.serialization.push_str("%20");
++                    } else {
++                        self.serialization
++                            .extend(utf8_percent_encode(utf8_c, CONTROLS));
++                    }
+--- url-2.5.8/src/lib.rs
++++ cem-url-2.5.8/src/lib.rs
+@@ -2473 +2473,6 @@
+-            (new_scheme_type.is_file() && self.has_authority())
++            // CEM patch: authority alone does not prevent a file transition;
++            // credentials or an explicit port do. Empty-host file URLs may
++            // retain their scheme but cannot transition to another scheme.
++            (new_scheme_type.is_file()
++                && (!self.username().is_empty() || self.password().is_some() || self.port().is_some()))
++            || (old_scheme_type.is_file() && !self.has_host() && !new_scheme_type.is_file())
+@@ -2478 +2483,3 @@
+-        if !remaining.is_empty() || (!self.has_host() && new_scheme_type.is_special()) {
++        if !remaining.is_empty()
++            || (!self.has_host() && new_scheme_type.is_special() && !new_scheme_type.is_file())
++        {

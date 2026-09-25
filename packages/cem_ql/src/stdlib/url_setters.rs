@@ -48,3 +48,47 @@ pub fn set_pathname(url: &mut Url, value: &str) -> SetterOutcome {
     }
     SetterOutcome::Applied
 }
+
+pub fn set_host(url: &mut Url, value: &str) -> SetterOutcome {
+    // WHATWG preprocessing removes ASCII tabs/newlines, not arbitrary whitespace.
+    let value: String = value
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .collect();
+    if quirks::set_host(url, &value).is_err() {
+        return SetterOutcome::Ignored("host");
+    }
+    let special = matches!(
+        url.scheme(),
+        "http" | "https" | "ftp" | "ws" | "wss" | "file"
+    );
+    let authority = value
+        .split(|c| matches!(c, '/' | '?' | '#') || (special && c == '\\'))
+        .next()
+        .unwrap();
+    // A colon inside an IPv6 literal is not a port separator.
+    let port = if authority.starts_with('[') {
+        authority
+            .split_once(']')
+            .and_then(|(_, tail)| tail.strip_prefix(':'))
+    } else {
+        authority.split_once(':').map(|(_, port)| port)
+    };
+    if let Some(port) = port.filter(|port| !port.is_empty()) {
+        // Preserve the already-applied hostname. Probe the same setter grammar
+        // on a private copy so invalid/overflow ports are classified even when
+        // the dependency's composite host setter swallowed their failure.
+        let mut probe = url.clone();
+        if quirks::set_port(&mut probe, port).is_err() {
+            return SetterOutcome::Ignored("host.port");
+        }
+    }
+    SetterOutcome::Applied
+}
+
+pub fn set_protocol(url: &mut Url, value: &str) -> SetterOutcome {
+    match quirks::set_protocol(url, value) {
+        Ok(()) => SetterOutcome::Applied,
+        Err(()) => SetterOutcome::Ignored("protocol"),
+    }
+}

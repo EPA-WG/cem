@@ -175,6 +175,10 @@ fn adapted_differences() -> (usize, usize, Vec<String>) {
                 cem_ql::stdlib::url_setters::set_port(&mut url, &case.new_value);
             } else if setter == "pathname" {
                 cem_ql::stdlib::url_setters::set_pathname(&mut url, &case.new_value);
+            } else if setter == "host" {
+                cem_ql::stdlib::url_setters::set_host(&mut url, &case.new_value);
+            } else if setter == "protocol" {
+                cem_ql::stdlib::url_setters::set_protocol(&mut url, &case.new_value);
             } else {
                 let _outcome = apply(&mut url, setter, &case.new_value);
             }
@@ -198,12 +202,20 @@ fn adapted_differences() -> (usize, usize, Vec<String>) {
 #[test]
 fn patched_parser_and_adapters_leave_only_recorded_remaining_gaps() {
     let (count, failed, differences) = adapted_differences();
-    assert_eq!((count, failed), (277, 14));
+    assert_eq!((count, failed), (277, 6));
     let remaining = include_str!("../fixtures/url/url-2.5.8-setter-differences.txt")
         .lines()
         .filter(|line| {
             ![
                 "port[26]",
+                "search[10]",
+                "search[11]",
+                "search[12]",
+                "search[13]",
+                "hash[16]",
+                "hash[17]",
+                "hash[18]",
+                "hash[19]",
                 "pathname[21]",
                 "pathname[22]",
                 "pathname[23]",
@@ -216,6 +228,158 @@ fn patched_parser_and_adapters_leave_only_recorded_remaining_gaps() {
             .any(|id| line.starts_with(id))
         })
         .collect::<Vec<_>>();
-    assert_eq!(remaining.len(), 24);
+    assert_eq!(remaining.len(), 12);
     assert_eq!(differences, remaining);
+}
+
+#[test]
+fn opaque_boundary_space_is_encoded_before_clearing_query_or_fragment() {
+    for seed in [
+        "data:space  ?q#f",
+        "custom:space  ?q",
+        "custom:space  #f",
+        "data:space \t\r\n?q",
+    ] {
+        let mut url = Url::parse(seed).unwrap();
+        let expected_path = if seed.contains("\t") {
+            "space%20"
+        } else {
+            "space %20"
+        };
+        assert_eq!(url.path(), expected_path, "{seed:?}");
+        quirks::set_search(&mut url, "");
+        quirks::set_hash(&mut url, "");
+        assert_eq!(url.path(), expected_path);
+        assert_eq!(Url::parse(url.as_str()).unwrap(), url);
+    }
+    for (input, path) in [
+        ("data:inner space", "inner space"),
+        ("data:trailing  ", "trailing"),
+        ("data:already%20?q", "already%20"),
+        ("data:space %3F", "space %3F"),
+    ] {
+        assert_eq!(Url::parse(input).unwrap().path(), path);
+    }
+}
+
+#[test]
+fn partial_host_outcome_preserves_effects_and_distinguishes_port_rejection() {
+    use cem_ql::stdlib::url_setters::set_host;
+    for (value, expected, outcome) in [
+        (
+            "other.test:70000",
+            "https://other.test:8443/a",
+            SetterOutcome::Ignored("host.port"),
+        ),
+        (
+            "[::1]:70000",
+            "https://[::1]:8443/a",
+            SetterOutcome::Ignored("host.port"),
+        ),
+        (
+            "other.test:abc",
+            "https://other.test:8443/a",
+            SetterOutcome::Ignored("host.port"),
+        ),
+        (
+            "other.test:123abc",
+            "https://other.test:123/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "other.test:",
+            "https://other.test:8443/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "OTHER.test:8443",
+            "https://other.test:8443/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "other.test/ignored:70000",
+            "https://other.test:8443/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "other.test:\t\n",
+            "https://other.test:8443/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "[bad]",
+            "https://example.test:8443/a",
+            SetterOutcome::Ignored("host"),
+        ),
+    ] {
+        let mut url = Url::parse("https://example.test:8443/a").unwrap();
+        assert_eq!(set_host(&mut url, value), outcome, "{value:?}");
+        assert_eq!(url.as_str(), expected);
+    }
+}
+
+#[test]
+fn protocol_outcome_covers_equal_normalized_and_file_transitions() {
+    use cem_ql::stdlib::url_setters::set_protocol;
+    for (seed, value, expected, outcome) in [
+        ("file:///a", "FILE:", "file:///a", SetterOutcome::Applied),
+        (
+            "file://host/a",
+            "file:",
+            "file://host/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "https://host/a",
+            "file:",
+            "file://host/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "file://host/a",
+            "https:",
+            "https://host/a",
+            SetterOutcome::Applied,
+        ),
+        (
+            "file:///a",
+            "https:",
+            "file:///a",
+            SetterOutcome::Ignored("protocol"),
+        ),
+        (
+            "https://user@host/a",
+            "file:",
+            "https://user@host/a",
+            SetterOutcome::Ignored("protocol"),
+        ),
+        (
+            "https://host:8443/a",
+            "file:",
+            "https://host:8443/a",
+            SetterOutcome::Ignored("protocol"),
+        ),
+        (
+            "https://host/a",
+            "mailto:",
+            "https://host/a",
+            SetterOutcome::Ignored("protocol"),
+        ),
+        (
+            "https://host/a",
+            "1http:",
+            "https://host/a",
+            SetterOutcome::Ignored("protocol"),
+        ),
+        (
+            "https://host/a",
+            "HTTPS:ignored",
+            "https://host/a",
+            SetterOutcome::Applied,
+        ),
+    ] {
+        let mut url = Url::parse(seed).unwrap();
+        assert_eq!(set_protocol(&mut url, value), outcome, "{seed} -> {value}");
+        assert_eq!(url.as_str(), expected);
+    }
 }
