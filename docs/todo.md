@@ -4898,7 +4898,7 @@ registration identities may reuse an inherited or existing definition.
           XPath library and shared runtime are unchanged; no full suite ran.
           Next: `xpath-validation.html` (two samples). Broader coverage and
           historical startup investigations remain open.
-    - [ ] Fixture: audit both `demo/xpath-validation.html` samples against
+    - [x] Fixture: audit both `demo/xpath-validation.html` samples against
           source-loaded Storybook and independent gallery contracts. Verify
           user-name boundaries, integer age ranges, tag validation/formatting,
           IPv4 octets and optional CIDR prefixes, local allow-list rules,
@@ -4906,6 +4906,39 @@ registration identities may reuse an inherited or existing definition.
           sample state, diagnostics, navigation and desktop/mobile presentation;
           stop for any new behavior decision and keep validation focused unless
           shared modules change.
+        - [x] Check user-name length/character boundaries, integer age syntax
+              and ranges, tag length/separators/whitespace and invalid recovery.
+              Assert all form outputs together and retained input state.
+        - [x] Check IPv4 shape, octet/prefix boundaries, implicit /32,
+              allow-list validation and membership, normalization and recovery.
+              Verify independent sample state and editor identity/focus/caret.
+        - [x] Check diagnostic histories, source-relative navigation and
+              desktop/mobile containment/source scrolling. Run focused gates
+              and record the next fixture audit.
+          Completed 2026-09-25: two named Storybook steps and shared
+          independent contracts cover 85 boundary cases, with recovery between
+          edits. Form checks assert every output together across ASCII name
+          length/character rules, age syntax/ranges and tag length, separators
+          and whitespace. IPv4 checks cover shape, octet/prefix bounds, implicit
+          /32, allow-list syntax/membership and error precedence. Controls retain
+          identity, value, focus and caret; edits preserve the other sample.
+          Source-loaded diagnostic histories stay empty. Both loaders use the
+          approved source base for all six links. Both independent modes pass
+          1280px/390px containment with long errors visible and complete source
+          scrolling, plus a standalone two-card desktop row. A temporary native
+          probe passes all 85 boundary cases. Focused validation passes one
+          Storybook test, two source-contract unit tests, both browser modes,
+          changed-story lint and verifier syntax checks. No full suite ran;
+          authored HTML, XPath library and shared runtime are unchanged.
+          Next: `demo/functions/dom.html` (27 samples). Broader per-sample
+          coverage and historical startup investigations remain open.
+    - [ ] Fixture: audit all 27 `demo/functions/dom.html` samples against
+          source-loaded Storybook and independent gallery contracts. Verify
+          native-node navigation, names/text/attributes, qualified attributes,
+          filtering, selection and sequence operations, including empty results
+          and stable ordering. Check diagnostics, navigation and desktop/mobile
+          presentation; stop for new behavior decisions and keep validation
+          focused unless shared modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

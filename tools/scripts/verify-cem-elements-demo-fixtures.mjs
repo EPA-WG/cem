@@ -354,30 +354,117 @@ const xpathMapArraySamples = [
     ]),
 ];
 
+const userCases = [
+    ...['Ada', 'A123456789012345', 'a_9']
+        .map(value => [value, 'Valid user name']),
+    ...['', '  ', 'Ab', 'A1234567890123456', '7Ada', '_Ada', 'Ada-', 'Äda', 'Ada ', 'Ada\u00a0']
+        .map(value => [value, 'Use 3–16 ASCII letters, digits or underscores; start with a letter']),
+    ['Grace_2', 'Valid user name'],
+];
+const ageCases = [
+    ...['18', '120', '018']
+        .map(value => [value, 'Age in range']),
+    ...['0', '17', '121', '999']
+        .map(value => [value, 'Use an age from 18 to 120']),
+    ...['', '  ', '1000', '18.0', '1e2', '+18', '-18', ' 18 ', '１８']
+        .map(value => [value, 'Enter an integer age']),
+    ['120', 'Age in range'],
+];
+const tagsCases = [
+    ['A', 'A'],
+    ['ABCDEFGHIJKL', 'ABCDEFGHIJKL'],
+    ['  Red\t, GOLD ; blue  ', 'Red / GOLD / blue'],
+    ...[
+        '', '  ', 'ABCDEFGHIJKLM', 'red,,blue', ',red', 'red;', 'red, ;blue', 'red blue', 'blué', 'red1',
+        'red\u00a0,blue',
+    ]
+        .map(value => [value, 'Use 1–12 ASCII letters per tag, separated by commas or semicolons']),
+    ['Red; GOLD', 'Red / GOLD'],
+];
+const addressCases = [
+    ...['255.255.255.255', '0.0.0.0', ' 192.0.2.10/24 ', '192.0.2.10/32']
+        .map(value => [value, 'Allowed by the local prefix rule']),
+    ['192.0.2.10/16', 'Blocked by the local prefix rule'],
+    ...['256.0.2.10/24', '192.0.2.256', '192.0.2.10/33', '192.0.2.10/99']
+        .map(value => [value, 'Octets must be 0–255 and prefix length 0–32']),
+    ...[
+        '', ' ', '192.00.2.10/24', '192.0.2.10/024', '192.0.2.10/00', '::1', '192.0.2', '192.0.2.10.1',
+        '192.0.2.10/', '192.0.2.10/-1', '192.0.2.10/100', '192.0. 2.10', '192.0.2.10\u00a0',
+    ]
+        .map(value => [value, 'Enter IPv4 with an optional /prefix; no leading zeros']),
+    ['192.0.2.10/24', 'Allowed by the local prefix rule'],
+];
+const prefixesCases = [
+    ...['24', ' 24\t32 24 ', '+24 032', '024']
+        .map(value => [value, 'Allowed by the local prefix rule']),
+    ...['0', '32']
+        .map(value => [value, 'Blocked by the local prefix rule']),
+    ...['', ' ', '24 bad', '24 33', '24 -1', '24 1.0', '24 1e1', '24,32', '24\u00a032']
+        .map(value => [value, 'Enter allowed prefix lengths from 0 to 32']),
+    ['24 32', 'Allowed by the local prefix rule'],
+];
+
+const validationOutputs = expected => [
+    countExactly('article output', expected.length),
+    ...expected.map((value, index) => propertyEquals(`article p:nth-of-type(${index + 1}) output`, 'textContent', value)),
+];
+const validationEdit = (index, value, expected, outputIndex = index) => {
+    const selector = `article label:nth-of-type(${index + 1}) input`;
+    return [
+        fillThenText(selector, value, `article p:nth-of-type(${outputIndex + 1}) output`, expected[outputIndex]),
+        ...validationOutputs(expected), elementIdentity(selector, 'same'), focusedElement(selector),
+        propertyEquals(selector, 'value', value), propertyEquals(selector, 'selectionStart', value.length),
+        propertyEquals(selector, 'selectionEnd', value.length),
+    ];
+};
+const validationFormChecks = () => {
+    const expected = ['Valid user name', 'Age in range', 'Blue / green / RED'];
+    const recovered = ['Valid user name', 'Age in range', 'Red / GOLD'];
+    const recover = ['Grace_2', '120', 'Red; GOLD'];
+    return [userCases, ageCases, tagsCases].flatMap((cases, index) => cases.flatMap(([value, result]) => {
+        expected[index] = result;
+        const checks = validationEdit(index, value, [...expected]);
+        expected[index] = recovered[index];
+        return [...checks, ...validationEdit(index, recover[index], [...expected])];
+    }));
+};
+const validationIpEdit = (index, value, expected) => validationEdit(index, value, [expected], 0);
 const xpathValidationSamples = [
     sampleContract('1. Form validation preview', [
-        normalizedText('article p:nth-of-type(1) output', 'Valid user name'),
-        normalizedText('article p:nth-of-type(2) output', 'Age in range'),
-        normalizedText('article p:nth-of-type(3) output', 'Blue / green / RED'),
-        fillThenText('article label:nth-of-type(1) input', '7Ada', 'article p:nth-of-type(1) output', 'start with a letter'),
-        fillThenText('article label:nth-of-type(2) input', '17', 'article p:nth-of-type(2) output', '18 to 120'),
-        fillThenText('article label:nth-of-type(2) input', '1e2', 'article p:nth-of-type(2) output', 'Enter an integer age'),
-        fillThenText('article label:nth-of-type(3) input', 'red,,blue', 'article p:nth-of-type(3) output', 'per tag'),
-        fillThenText('article label:nth-of-type(1) input', 'Grace_2', 'article p:nth-of-type(1) output', 'Valid user name'),
-        fillThenText('article label:nth-of-type(2) input', '120', 'article p:nth-of-type(2) output', 'Age in range'),
-        fillThenText('article label:nth-of-type(3) input', 'Red; GOLD', 'article p:nth-of-type(3) output', 'Red / GOLD'),
+        ...validationOutputs(['Valid user name', 'Age in range', 'Blue / green / RED']),
+        ...['Ada_7', '21', 'Blue, green; RED'].flatMap((value, index) => [
+            elementIdentity(`article label:nth-of-type(${index + 1}) input`, 'remember'),
+            propertyEquals(`article label:nth-of-type(${index + 1}) input`, 'value', value),
+        ]),
+        ...validationFormChecks(),
+        ...['Grace_2', '120', 'Red; GOLD'].map((value, index) =>
+            propertyEquals(`article label:nth-of-type(${index + 1}) input`, 'value', value)),
     ]),
     sampleContract('2. IPv4 prefix-rule preview', [
-        normalizedText('article output', 'Allowed by the local prefix rule'),
-        fillThenText('article label:first-of-type input', '192.0.2.10/16', 'article output', 'Blocked by the local prefix rule'),
-        fillThenText('article label:first-of-type input', '256.0.2.10/24', 'article output', 'Octets must be 0–255'),
-        fillThenText('article label:first-of-type input', '192.0.2.10/33', 'article output', 'prefix length 0–32'),
-        fillThenText('article label:first-of-type input', '192.00.2.10/24', 'article output', 'no leading zeros'),
-        fillThenText('article label:first-of-type input', '::1', 'article output', 'Enter IPv4'),
-        fillThenText('article label:first-of-type input', '255.255.255.255', 'article output', 'Allowed by the local prefix rule'),
-        fillThenText('article label:last-of-type input', 'bad', 'article output', 'Enter allowed prefix lengths'),
-        fillThenText('article label:last-of-type input', '24', 'article output', 'Blocked by the local prefix rule'),
-        fillThenText('article label:first-of-type input', '192.0.2.10/24', 'article output', 'Allowed by the local prefix rule'),
+        ...validationOutputs(['Allowed by the local prefix rule']),
+        ...['192.0.2.10/24', '24 32'].flatMap((value, index) => [
+            elementIdentity(`article label:nth-of-type(${index + 1}) input`, 'remember'),
+            propertyEquals(`article label:nth-of-type(${index + 1}) input`, 'value', value),
+        ]),
+        ...addressCases.flatMap(([value, expected]) => [
+            ...validationIpEdit(0, value, expected),
+            propertyEquals('article label:last-of-type input', 'value', '24 32'),
+            ...validationIpEdit(0, '192.0.2.10/24', 'Allowed by the local prefix rule'),
+        ]),
+        ...prefixesCases.flatMap(([value, expected]) => [
+            ...validationIpEdit(1, value, expected),
+            propertyEquals('article label:first-of-type input', 'value', '192.0.2.10/24'),
+            ...validationIpEdit(1, '24 32', 'Allowed by the local prefix rule'),
+        ]),
+        ...validationIpEdit(1, '0 32', 'Blocked by the local prefix rule'),
+        ...validationIpEdit(0, '0.0.0.0/0', 'Allowed by the local prefix rule'),
+        ...validationIpEdit(1, '32', 'Blocked by the local prefix rule'),
+        ...validationIpEdit(0, '0.0.0.0', 'Allowed by the local prefix rule'),
+        ...validationIpEdit(1, 'bad', 'Enter allowed prefix lengths from 0 to 32'),
+        ...validationIpEdit(0, '999.0.0.0', 'Octets must be 0–255 and prefix length 0–32'),
+        ...validationIpEdit(0, '::1', 'Enter IPv4 with an optional /prefix; no leading zeros'),
+        ...validationIpEdit(0, '192.0.2.10/24', 'Enter allowed prefix lengths from 0 to 32'),
+        ...validationIpEdit(1, '24 32', 'Allowed by the local prefix rule'),
     ]),
 ];
 
@@ -2864,6 +2951,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-validation.html',
         samples: xpathValidationSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/xpath-sort.html',
@@ -3222,6 +3310,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-validation.html') {
+                await verifyXPathValidationPresentation(page);
+            }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sort.html') {
                 await verifyXPathSortPresentation(page);
             }
@@ -3354,6 +3445,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sequences.html') {
                 await verifyXPathSequencesPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-validation.html') {
+                await verifyXPathValidationPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sort.html') {
@@ -5536,6 +5631,57 @@ async function verifyXPathSortPresentation(page) {
                 return reached;
             }));
         if (!reachable) throw new Error('XPath sorting source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
+}
+
+async function verifyXPathValidationPresentation(page) {
+    const form = 'cem-demo-element[legend="1. Form validation preview"]';
+    const ip = 'cem-demo-element[legend="2. IPv4 prefix-rule preview"]';
+    for (const check of validationOutputs(['Valid user name', 'Age in range', 'Red / GOLD'])) {
+        await runCheck(page, scopeCheck(check, form));
+    }
+    await runCheck(page, countExactly('nav a, main > section a', 6));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['xpath-validation.cemt', 'dom-merge.html', 'xpath-maps-arrays.html', 'xpath-sort.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    await runCheck(page, urlEquals('main > section a[href$="README.md"]', 'href', '/packages/cem_ml/schema-packages/xpath/v1/README.md'));
+    // Exercise wrapping with the longest validation messages visible together.
+    for (const [index, value, expected] of [
+        [0, '7Ada', 'Use 3–16 ASCII letters, digits or underscores; start with a letter'],
+        [1, '1e2', 'Enter an integer age'],
+        [2, 'red,,blue', 'Use 1–12 ASCII letters per tag, separated by commas or semicolons'],
+    ]) {
+        await runCheck(page, scopeCheck(fillThenText(`article label:nth-of-type(${index + 1}) input`, value,
+            `article p:nth-of-type(${index + 1}) output`, expected), form));
+    }
+    await runCheck(page, scopeCheck(fillThenText('article label:first-of-type input', '::1', 'article output',
+        'Enter IPv4 with an optional /prefix; no leading zeros'), ip));
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 2 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, label, input, p')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 2 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath validation source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
 }

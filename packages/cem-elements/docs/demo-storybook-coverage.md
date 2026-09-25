@@ -1617,3 +1617,38 @@ checks now confirm it in the authored sample.
 
 This audit is complete. Next is `xpath-validation.html` (two samples). Broader
 per-sample coverage and historical startup investigations remain open.
+
+## XPath validation behavior audit, 2026-09-25
+
+Both samples now have named Storybook steps and shared independent browser
+contracts. The 85 boundary cases cover ASCII user-name lengths and characters,
+integer age syntax and inclusive ranges, and tag length, separators, case and
+whitespace. All three form outputs are asserted together. Empty, malformed and
+out-of-range values recover between edits, so stale error messages cannot pass
+as fresh results. Tabs and ordinary spaces normalize where authored, while
+non-breaking spaces remain distinct.
+
+IPv4 checks cover zero and maximum octets, out-of-range octets, missing/extra
+parts, leading zeros, IPv6 rejection, prefix bounds and implicit /32. Allow-list
+checks cover duplicates, integer lexical forms, whitespace, invalid members,
+empty lists and changing membership. Address shape, numeric range and list
+validation retain their authored error precedence. The checks verify both /0
+and /32 without implying subnet membership or installing network rules.
+
+Every edited input retains identity, value, focus and caret; Storybook uses
+interior caret positions. Associated label text is asserted, controls retain
+the other field's value, and later interactions preserve the other sample's
+state. Page, declaration and produced-instance diagnostic histories stay empty
+in both source-loaded harnesses.
+
+Both loaders use the approved source-link policy for all six destinations.
+Both independent modes pass 1280px/390px containment with the long validation
+messages visible, plus complete source scrolling and a standalone two-card
+desktop row. A temporary native probe passes all 85 boundary cases. Focused
+validation passes one Storybook test, two source-contract unit tests, both
+independent browser modes, changed-story lint and verifier syntax checks.
+No full suite was run. Authored HTML, XPath library and shared runtime are
+unchanged; no new behavior decision was needed.
+
+This audit is complete. Next is `functions/dom.html` (27 samples). Broader
+per-sample coverage and historical startup investigations remain open.
