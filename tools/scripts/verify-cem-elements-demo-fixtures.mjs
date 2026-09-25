@@ -490,17 +490,101 @@ const xpathSequenceSamples = [
     ]),
 ];
 
+const nodeTableInitialRows = [['1', 'item urn:b', 'Apple', '2'], ['2', 'item urn:a', 'Zest', '10']];
+const nodeTableMixedXml = '<crate xmlns:p="urn:fruit"><p:item id="a" qty="02">Pear</p:item>gap<!--skip--><?skip it?><item id="b"> A<b>B</b><![CDATA[C]]> </item><item id="c" qty="3">Pear</item></crate>';
+const nodeTableMixedRows = [['b', 'item', 'ABC', ''], ['a', 'item urn:fruit', 'Pear', '02'], ['c', 'item', 'Pear', '3']];
+const nodeTableDescendingRows = [nodeTableMixedRows[1], nodeTableMixedRows[2], nodeTableMixedRows[0]];
+const nodeTreeMixedXml = '<r xmlns:p="urn:new" p:mood="calm">Hi<![CDATA[ there]]><!--remark--><?say yes?><p:em>🍒</p:em>!</r>';
+const nodeTreeUpdatedXml = nodeTreeMixedXml.replace('Hi<![CDATA[ there]]>', 'Updated<![CDATA[ text]]>');
+const nodeTreeUpdatedCodes = ['calm', 'Updated text', 'remark', 'yes', '🍒', '!'];
+const nodeTreeRoot = 'article > ul > li > details';
+const nodeTable = (rows, selected, navigation) => [
+    normalizedText('caption', 'Basket nodes'), nodeTexts('thead th[scope="col"]', ['Select', 'Node', 'Value', 'Qty']),
+    countExactly('tbody tr', rows.length), nodeTexts('tbody td', rows.flat()),
+    ...rows.flatMap(([id], index) => [
+        attributeEquals(`tbody tr:nth-child(${index + 1})`, 'aria-selected', String(id === selected)),
+        attributeEquals(`tbody tr:nth-child(${index + 1}) button`, 'aria-pressed', String(id === selected)),
+        attributeEquals(`tbody tr:nth-child(${index + 1}) button`, 'aria-label', `Select row ${id}`),
+        propertyEquals(`tbody tr:nth-child(${index + 1}) button`, 'value', id),
+    ]),
+    countExactly('output', navigation.length),
+    ...navigation.map((value, index) => propertyEquals(`output:nth-of-type(${index + 1})`, 'textContent', value)),
+    countExactly('[role="alert"]', 0),
+];
+const nodeEditor = value => [
+    elementIdentity('textarea', 'same'), focusedElement('textarea'), propertyEquals('textarea', 'value', value),
+    propertyEquals('textarea', 'selectionStart', value.length), propertyEquals('textarea', 'selectionEnd', value.length),
+];
+const nodeTableEdit = (value, rows, selected, navigation) => [
+    fillThenText('textarea', value, 'caption', 'Basket nodes'), ...nodeTable(rows, selected, navigation), ...nodeEditor(value),
+    elementIdentity('select', 'same'),
+];
+// Code leaves occur at different depths, so compare their complete document order.
+const nodeTreeEdit = (value, codes) => [
+    fillThenText('textarea', value, 'article summary', ''), nodeTexts('article code', codes),
+    countExactly('[role="alert"]', 0), ...nodeEditor(value),
+];
+const nodeInvalid = value => [
+    fillThenText('textarea', value, '[role="alert"]', 'XML'), countExactly('article :is(table, ul, output)', 0), ...nodeEditor(value),
+];
+const nodeTableRecover = () => nodeTableEdit('<crate><item id="c" qty="4">Recovered</item></crate>',
+    [['c', 'item', 'Recovered', '4']], 'c', ['crate', '']);
 const xpathNodeSamples = [
     sampleContract('1. XML table with native navigation', [
-        normalizedText('tbody tr:first-child td:nth-child(3)', 'Apple'),
-        normalizedText('tbody tr:first-child small', 'urn:b'),
-        clickThenText('button[aria-label="Select row 1"]', 'output:last-child', 'Zest'),
-        fillThenText('textarea', '<basket><item id="1" qty="4">Cherry</item></basket>', 'tbody td:nth-child(3)', 'Cherry'),
+        ...nodeTable(nodeTableInitialRows, '', []), propertyEquals('select', 'value', 'ascending'),
+        elementIdentity('textarea', 'remember'), elementIdentity('select', 'remember'),
+        clickThenText('button[value="1"]', 'output:last-child', 'Zest'),
+        ...nodeTable(nodeTableInitialRows, '1', ['basket', 'Zest']),
+        focusThenText('select', 'caption', 'Basket nodes'),
+        selectThenText('select', 'descending', 'tbody tr:first-child td:nth-child(3)', 'Zest'),
+        ...nodeTable([...nodeTableInitialRows].reverse(), '1', ['basket', 'Zest']),
+        elementIdentity('select', 'same'), focusedElement('select'), propertyEquals('select', 'value', 'descending'),
+        clickThenText('button[value="2"]', 'output:first-of-type', 'basket'),
+        ...nodeTable([...nodeTableInitialRows].reverse(), '2', ['basket', '']),
+        ...nodeTableEdit(nodeTableMixedXml, nodeTableDescendingRows, '', []),
+        propertyEquals('select', 'value', 'descending'),
+        clickThenText('button[value="c"]', 'output:first-of-type', 'crate'),
+        ...nodeTable(nodeTableDescendingRows, 'c', ['crate', ' ABC ']),
+        focusThenText('select', 'caption', 'Basket nodes'),
+        selectThenText('select', 'ascending', 'tbody tr:first-child td:nth-child(3)', 'ABC'),
+        ...nodeTable(nodeTableMixedRows, 'c', ['crate', ' ABC ']),
+        propertyEquals('tbody tr:first-child td:nth-child(3)', 'textContent', ' ABC '),
+        elementIdentity('select', 'same'), focusedElement('select'), propertyEquals('select', 'value', 'ascending'),
+        clickThenText('button[value="b"]', 'output:last-child', 'Pear'),
+        ...nodeTable(nodeTableMixedRows, 'b', ['crate', 'Pear']),
+        clickThenText('button[value="c"]', 'output:last-child', 'ABC'),
+        ...nodeTable(nodeTableMixedRows, 'c', ['crate', ' ABC ']),
+        ...nodeTableEdit('<crate/>', [], '', []), ...nodeTableRecover(),
+        ...['<crate>', '<crate><item></crate>'].flatMap(value => [...nodeInvalid(value), ...nodeTableRecover()]),
+        ...nodeTableEdit(nodeTableMixedXml, nodeTableMixedRows, 'c', ['crate', ' ABC ']),
     ]),
     sampleContract('2. XML tree with attributes and mixed text', [
-        normalizedText('article code', 'bright'),
-        normalizedText('article li:nth-child(2) > code', 'Hello & welcome'),
-        fillThenText('textarea', '<r>Recovered</r>', 'article code', 'Recovered'),
+        nodeTexts('summary strong', ['note', 'em']), nodeTexts('summary small', ['[urn:notes]', '[urn:marks]']),
+        nodeTexts('article code', ['bright', 'Hello & welcome', 'friend', '!']),
+        propertyEquals(nodeTreeRoot, 'open', true), propertyEquals(`${nodeTreeRoot} details`, 'open', true),
+        elementIdentity('textarea', 'remember'),
+        ...[`${nodeTreeRoot} details`, nodeTreeRoot].flatMap(selector => [
+            elementIdentity(selector, 'remember'),
+            pressThenProperty(`${selector} > summary`, 'Enter', selector, 'open', false),
+            elementIdentity(selector, 'same'), focusedElement(`${selector} > summary`),
+            pressThenProperty(`${selector} > summary`, 'Space', selector, 'open', true),
+            elementIdentity(selector, 'same'), focusedElement(`${selector} > summary`),
+        ]),
+        ...nodeTreeEdit(nodeTreeMixedXml, ['calm', 'Hi there', 'remark', 'yes', '🍒', '!']),
+        nodeTexts('summary strong', ['r', 'em']), nodeTexts('summary small', ['[]', '[urn:new]']),
+        nodeTexts('article li:not(:has(details))', [
+            '@mood [urn:new] = calm', 'text: Hi there', 'comment: remark', 'processing instruction: yes', 'text: 🍒', 'text: !',
+        ]),
+        elementIdentity(nodeTreeRoot, 'remember'),
+        pressThenProperty(`${nodeTreeRoot} > summary`, 'Enter', nodeTreeRoot, 'open', false),
+        ...nodeTreeEdit(nodeTreeUpdatedXml, nodeTreeUpdatedCodes),
+        elementIdentity(nodeTreeRoot, 'same'), propertyEquals(nodeTreeRoot, 'open', false),
+        pressThenProperty(`${nodeTreeRoot} > summary`, 'Space', nodeTreeRoot, 'open', true),
+        focusedElement(`${nodeTreeRoot} > summary`),
+        ...nodeTreeEdit('<r/>', []), nodeTexts('summary strong', ['r']), nodeTexts('summary small', ['[]']),
+        ...nodeTreeEdit('<r>Recovered</r>', ['Recovered']),
+        ...['<broken>', '<r><em></r>'].flatMap(value => [...nodeInvalid(value), ...nodeTreeEdit('<r>Recovered</r>', ['Recovered'])]),
+        ...nodeTreeEdit(nodeTreeUpdatedXml, nodeTreeUpdatedCodes),
     ]),
 ];
 
@@ -2617,6 +2701,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-nodes.html',
         samples: xpathNodeSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/xpath-sequences.html',
@@ -2981,6 +3066,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/xpath-maps-arrays.html') {
                 await verifyXPathMapsArraysPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-nodes.html') {
+                await verifyXPathNodesPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -3102,6 +3190,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-maps-arrays.html') {
                 await verifyXPathMapsArraysPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-nodes.html') {
+                await verifyXPathNodesPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -5171,4 +5263,43 @@ async function verifyXPathMapsArraysPresentation(page) {
         if (!reachable) throw new Error('XPath map/array source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 3);
+}
+
+async function verifyXPathNodesPresentation(page) {
+    const table = 'cem-demo-element[legend="1. XML table with native navigation"]';
+    for (const check of nodeTable(nodeTableMixedRows, 'c', ['crate', ' ABC '])) {
+        await runCheck(page, scopeCheck(check, table));
+    }
+    await runCheck(page, nodeTexts('cem-demo-element[legend="2. XML tree with attributes and mixed text"] article code', nodeTreeUpdatedCodes));
+    await runCheck(page, countExactly('nav a, main > section a', 7));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['xpath-nodes.cemt', 'xpath-sort.html', 'xpath-aggregates.html', 'xpath-sequences.html', 'xpath-functions.html', 'data-table.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 2 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, textarea, select, table, th, td, details, summary')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 2 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath node source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
 }

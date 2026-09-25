@@ -4800,12 +4800,44 @@ registration identities may reuse an inherited or existing definition.
           changed-story lint and verifier syntax checks. No full suite was run;
           authored HTML, XPath library and shared runtime are unchanged.
           Broader coverage and historical startup investigations remain open.
-    - [ ] Fixture: audit both `demo/xpath-nodes.html` samples against their
+    - [x] Fixture: audit both `demo/xpath-nodes.html` samples against their
           source-loaded Storybook and independent gallery contracts. Verify
           XML table navigation, tree attributes/mixed text, invalid-source
           recovery and editor retention. Check diagnostics, desktop/mobile
           presentation and navigation; stop for any new behavior decision.
           Keep validation focused unless shared modules change.
+        - [x] Assert complete table rows, selection through sorting/source
+              changes, parent/previous-sibling navigation and empty results.
+              Check tree namespaces, attributes, mixed text, comments,
+              processing instructions and disclosure interaction.
+        - [x] Recover between invalid XML cases; verify editor retention,
+              independent sample state, diagnostics, navigation and desktop/
+              mobile containment and scrolling in both browser modes.
+              Apply the approved source-link policy and correct the stale
+              HTTP XML/standard XPath sorting capability note against the README.
+        - [x] Run focused Storybook, source-contract unit, independent browser
+              and changed-file lint checks; record the next fixture audit.
+          Completed 2026-09-25: both named Storybook steps and shared independent
+          contracts verify full rows, ARIA selection through stable sorting and
+          source changes, parent/previous-sibling navigation, tree node kinds,
+          mixed text and empty views. Both editors survive invalid XML/recovery;
+          a connected, collapsed tree branch stays closed during a text edit.
+          Independent checks exercise Enter/Space disclosure controls. Both
+          modes pass 1280px/390px containment and source scrolling with mixed
+          content visible, a standalone two-card row and empty source-loaded
+          diagnostic histories. Seven links use the approved source base; prose
+          no longer describes supported HTTP XML/standard sorting as later work.
+          Focused validation passes one Storybook test, two source-contract
+          unit tests, both browser modes, changed-story lint and verifier syntax
+          checks. No full suite was run; shared runtime and XPath library are
+          unchanged. Broader coverage and startup investigations remain open.
+    - [ ] Fixture: audit both `demo/xpath-sequences.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Verify
+          word windows, reversal and sequence outputs, discovered XML columns,
+          namespace-aware cells, invalid-source recovery and control retention.
+          Check diagnostics, desktop/mobile presentation and navigation; stop
+          for any new behavior decision. Keep validation focused unless shared
+          modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

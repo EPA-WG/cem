@@ -1514,3 +1514,36 @@ modes, changed-story lint and verifier syntax checks. No full suite was run.
 Authored HTML, XPath library and shared runtime are unchanged. This audit is
 complete; next is `xpath-nodes.html` (two samples). Broader per-sample coverage
 and historical startup investigations remain open.
+
+## XPath node behavior audit, 2026-09-25
+
+Both samples now have named Storybook steps and shared independent contracts.
+The table checks every cell, heading semantics, row/button selection and stable
+ordering of equal labels in both directions. Selection follows authored IDs
+through sorting and source replacement. Parent and previous-sibling results
+retain their source meaning, including an empty previous sibling and exact
+mixed-text whitespace. Comments, processing instructions and intervening text
+do not become rows or previous element siblings. Empty roots retain an empty
+table; malformed XML removes the view, and recovery restores selection when
+the selected ID returns.
+
+The tree checks element/attribute namespaces, coalesced text/CDATA, comments,
+processing instructions and empty elements. Independent checks use Enter/Space
+to close and reopen disclosures and verify native summary focus. A collapsed
+root retains its connected element and closed state while its text changes.
+Both editors retain identity, value, focus and selection through invalid input
+and recovery; Storybook includes interior carets. Recovery between malformed
+inputs prevents stale alerts from passing. Later edits preserve the other
+sample's state, and source-loaded diagnostic histories stay empty.
+
+Both loaders use the approved source-link policy, with all seven destinations
+asserted. The introduction now reflects the README's supported HTTP XML loader
+and standard XPath sorting capabilities. At 1280px and 390px, mixed-content
+tables and trees remain contained and both source panels scroll to their end;
+standalone retains a two-card desktop row.
+
+Focused validation passes one Storybook test, two source-contract unit tests,
+both independent browser modes, changed-story lint and verifier syntax checks.
+No full suite was run. Shared runtime and XPath library are unchanged. This
+audit is complete; next is `xpath-sequences.html` (two samples). Broader
+per-sample coverage and historical startup investigations remain open.
