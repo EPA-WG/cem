@@ -5311,6 +5311,20 @@ registration identities may reuse an inherited or existing definition.
     - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped
           diagnostics before implementing the immutable update adapter.
+        - [x] Pin and probe WPT component setter cases against Rust url 2.5.8,
+              including partial-host effects and setter outcome signals, before
+              adopting its setters for immutable assembly/update operations.
+              Completed 2026-09-25: 255/277 WPT component cases match; 22 have
+              36 differences. Four final characterization tests pass with exact
+              baseline assertions; initial conformance assertion fails. Raw host
+              success hides an ignored port; file protocol outcome signals also
+              differ. No production/common module changed or global task ran.
+              See [setter gate](../packages/cem_ql/fixtures/url/SETTERS.md) and
+              [importance assessment](wishlist.md#rust-url-setter-compatibility-gaps).
+        - [ ] Decide new setter-gap scope before implementation: fix the Rust
+              setter path before exposing assembly/updates (recommended), or
+              defer those APIs and proceed with read/parse integration. Do not
+              silently broaden the accepted deferred parse limitations.
     - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
           user-function name isolation, diagnostic propagation and CLI/SSR/WASM
           parity, then generate implemented reference tables and query examples.

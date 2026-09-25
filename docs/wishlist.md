@@ -54,6 +54,35 @@ are [origin](https://url.spec.whatwg.org/#origin),
 [file parsing](https://url.spec.whatwg.org/#file-state), and
 [domain-to-ASCII](https://url.spec.whatwg.org/#concept-domain-to-ascii).
 
+## Rust URL setter compatibility gaps
+
+The next native probe finds **22/277 WPT component cases differing across 36
+fields** in the seed-parse/setter path of `url` 2.5.8. These are separate from
+the eight parse cases above. Keep Rust. No production setter API or broader
+compatibility waiver is introduced. Exact inputs, expected/actual values and
+provenance are in the [setter evidence](../packages/cem_ql/fixtures/url/SETTERS.md).
+Indices are zero-based within each pinned setter array. Priorities below are
+engineering judgments about consequences, not measured input frequency.
+
+| Done | Cases | Importance and suggested action |
+| --- | --- | --- |
+| [ ] | port[26] | High: whitespace-only assignment removes explicit port 3000, changing the destination. Preserve the port and correctly classify the ignored assignment. |
+| [ ] | pathname[24], [25], [26] | High for custom schemes: hostless paths serialize like authority-bearing URLs; reparsing can change interpretation. Fix serialization at the correct layer before supporting these updates. |
+| [ ] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Track parser-level path preservation; avoid global slash collapsing. |
+| [ ] | search[10], [11], [12], [13]; hash[16], [17], [18], [19] | High consequence for opaque payloads, specialized inputs: trailing spaces are lost or not encoded as expected. Distinguish initial parse loss from setter loss; preserve opaque content through clearing query/hash. |
+| [ ] | hostname[34], [35]; pathname[27] | Medium: non-special path normalization retains extra dot segments, breaking canonical href parity. Investigate with the hostless-path cases. |
+| [ ] | pathname[5] | Medium for custom schemes: empty path becomes `/`, changing the serialized identifier. Cover empty-host/empty-path distinction. |
+| [ ] | pathname[13] | Lower priority: caret encoding differs. Usually interoperability/canonicalization debt; still affects exact href comparisons. |
+| [ ] | host[59]; hostname[41] | Low: empty-punycode compatibility already affects parsing; setters preserve the old host instead of accepting `xn--`. Track together with parse cases 839/921. |
+| [ ] | Authored: equal `file:` and HTTPS-to-file protocol assignments | Medium: raw setter rejects an equal valid request (false warning risk) and ignores an eligible conversion. Check standard transition preconditions explicitly. Outside the 277-case count. |
+| [ ] | Authored: partial host-port and opaque pathname outcomes | High for the accepted diagnostics: a successful host return hides an ignored port; a void pathname setter hides inapplicability. Detect outcomes without relying on return value or href equality alone. Outside the 277-case count. |
+
+Recommended next decision: fix the Rust setter path before exposing
+assembly/updates, or defer those APIs and continue read/parse integration.
+The earlier decision to defer four parser gaps does not establish how to handle
+these additional setter gaps. Full fixed-order assembly and source-mapped
+warning integration remain active work in [todo.md](todo.md).
+
 ## Distribution and Publication
 
 - [ ] **CEM web npm family publication.** Publish and remotely verify the fixed

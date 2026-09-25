@@ -494,3 +494,20 @@ Validation: the focused `url_parse`, `url_origin`, `url_params` and
 `url_parse_candidate` test binaries pass, as does `yarn nx run cem_ql:build:wasm`.
 The build verifies WASM compilation, not query execution parity. No full test
 suite or workspace-wide task ran; shared evaluator/type behavior is unchanged.
+
+### URL-PARTS setter gate — decision pending
+
+The [pinned setter probe](../packages/cem_ql/fixtures/url/SETTERS.md) compares 277
+WPT component cases through native seed parsing and `url` 2.5.8 setters. It
+finds 22 differing cases (36 fields), including port loss, hostless/file path
+serialization and opaque trailing-space handling. Additional authored probes
+show that raw return values cannot supply D2 warning classification, including
+partial host success and equal file-protocol rejection. Four passing tests
+characterize those findings; they do not establish setter conformance.
+
+Assembly/update implementation stops at this new scope decision. Keep Rust;
+recommend fixing the setter path before exposing updates, or defer the update
+APIs while integrating the completed read/parse core. The previous parse-gap
+exception is not automatically extended. The complete list and importance
+assessment are in [the wishlist](wishlist.md#rust-url-setter-compatibility-gaps).
+No production/common module changed; no global task or full test suite ran.

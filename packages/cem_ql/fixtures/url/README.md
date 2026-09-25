@@ -75,3 +75,6 @@ Its [core test](../../tests/url_parse.rs) exercises all 51 selected WPT cases:
 47 match and four preserve exactly seven documented file/IDNA differences.
 The raw candidate test remains unchanged. These counts are selected-case
 characterization, not full WHATWG conformance. Query registration is pending.
+
+The separate [setter gate](SETTERS.md) pins component-update evidence and
+records the new scope decision before assembly/update implementation.
