@@ -332,12 +332,23 @@ name = "cem-ql"
 version = "0.1.0"
 dependencies = [
  "cem-ml",
+ "cem-url",
  "form_urlencoded",
  "rmp-serde",
  "serde",
  "serde_json",
  "url",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "cem-url"
+version = "2.5.8"
+dependencies = [
+ "form_urlencoded",
+ "idna",
+ "percent-encoding",
+ "serde",
 ]
 
 [[package]]

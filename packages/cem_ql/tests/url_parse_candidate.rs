@@ -1,6 +1,7 @@
 //! Explicit pinned-WPT JSON test-data boundary; no query/runtime registration.
 use serde::Deserialize;
 use url::{quirks, Url};
+use url_unpatched as url;
 
 #[derive(Deserialize)]
 struct Fixture {

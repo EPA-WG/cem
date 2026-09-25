@@ -12,7 +12,8 @@ The raw-parser baseline is `url` 2.5.8: eight selected WPT cases have 11
 field/outcome differences. The Rust origin adapter now fixes the four blob cases
 at the native core layer; query registration/integration remains pending. The
 pinned upstream Rust revision fixes only case 664; it has not been adopted.
-The table retains the raw-parser failures, not missing test coverage.
+The scoped local parser patch additionally fixes case 138, leaving three native
+parse gaps. The table retains raw-parser failures and records native fixes.
 
 The table evaluates consequence and likely relevance, not measured frequency:
 we have no application-input telemetry. Priorities are engineering judgments.
@@ -26,7 +27,7 @@ expectation, consistent with the accepted pure origin profile.
 | [x] | 787: `blob:ws://example.org/` | Origin `null` → `ws://example.org` | High semantic priority: same origin classification issue. Fixed in the same native adapter as 782; query exposure pending. |
 | [x] | 788: `blob:wss://example.org/` | Origin `null` → `wss://example.org` | High semantic priority: same origin classification issue. Fixed in the same native adapter as 782; query exposure pending. |
 | [ ] | 664: `file://[1::8]/C:/` | Href unchanged, host/hostname `[1::8]` → `file:///C:/`, empty host/hostname | High consequence if used for file resolution: silently loses the remote authority. Specialized file/drive combination; prioritize before relying on this class of file URLs. Fixed in the probed upstream Rust revision; prefer a released upstream fix when available. |
-| [ ] | 138: `file:///w\|/m` | Href `file:///w:/m`, pathname `/w:/m` → vertical bar retained in both | Medium for legacy Windows file interoperability; low for ordinary web links. Canonical identity and downstream path handling can differ. Requires parser-level normalization, not an unrestricted string replacement. |
+| [x] | 138: `file:///w\|/m` | Href `file:///w:/m`, pathname `/w:/m` → vertical bar retained in both | Medium for legacy Windows file interoperability; low for ordinary web links. Canonical identity and downstream path handling can differ. Fixed by the scoped Rust file path-start patch; native core coverage passes, query exposure pending. |
 | [ ] | 839: `file://xn--/p` | Parse succeeds, href unchanged, host `xn--` → rejected | Low practical priority: empty punycode label compatibility. Rejection prevents a result instead of silently changing its destination. Revisit with upstream IDNA work. |
 | [ ] | 921: `https://xn--/` | Parse succeeds, href unchanged, origin `https://xn--` → rejected | Low practical priority: same empty-label issue for HTTPS. Parsing acceptance is separate from DNS resolution or reachability; do not generalize this gap to normal internationalized domains. |
 
@@ -68,7 +69,7 @@ engineering judgments about consequences, not measured input frequency.
 | --- | --- | --- |
 | [x] | port[26] | Fixed in the native adapter: whitespace-only assignment preserves the existing port and reports an ignored port; truly empty input still clears it. All 27 pinned port cases pass. Query exposure pending. |
 | [x] | pathname[24], [25], [26] | Fixed in the native adapter: serialize the normalized hostless components with the required `/.` guard. Reparse preserves the absent authority, path, query and fragment. Query exposure pending. |
-| [ ] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Parsing the exact expected outputs also collapses them; component reserialization cannot repair this. Parser-patch ownership is the next decision. |
+| [x] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Fixed by the scoped Rust parser patch: expected slash segments now survive parsing, setters and round trips. Query exposure pending. |
 | [ ] | search[10], [11], [12], [13]; hash[16], [17], [18], [19] | High consequence for opaque payloads, specialized inputs: trailing spaces are lost or not encoded as expected. Distinguish initial parse loss from setter loss; preserve opaque content through clearing query/hash. |
 | [ ] | hostname[34], [35] | Medium: adding/changing an authority retains extra dot segments in serialization. Still requires an adapter; the pathname fix alone does not fix host updates. |
 | [x] | pathname[27] | Fixed in the native adapter: remove the stale hostless `/.` guard when the replacement path no longer starts with `//`. Query exposure pending. |
@@ -79,11 +80,11 @@ engineering judgments about consequences, not measured input frequency.
 | [ ] | Authored: partial host-port and opaque pathname outcomes | High for the accepted diagnostics: a successful host return hides an ignored port; a void pathname setter hides inapplicability. Detect outcomes without relying on return value or href equality alone. Outside the 277-case count. |
 
 The user chose to fix the Rust setter path before exposing assembly/updates.
-The bounded port and pathname adapters fix five cases; 17/277 cases (30 field
-differences) remain. Raw dependency characterization stays unchanged.
-Next decision: own a scoped Rust parser patch for file-path preservation
-(recommended), or explicitly defer file setters. The current parser loses
-required slash segments even when reparsing correct expected serialization.
+The bounded port/path adapters and scoped file parser patch fix eight cases;
+14/277 cases (24 field differences) remain. Raw registry characterization stays
+unchanged. The user accepted the file parser patch; it is now a private CEM-QL
+path dependency with [provenance and maintenance notes](../vendor/url/CEM-PATCH.md).
+Next: opaque trailing-space preservation and partial-host/protocol outcomes.
 Full fixed-order assembly and source-mapped warnings remain active work in
 [todo.md](todo.md).
 

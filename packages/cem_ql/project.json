@@ -73,6 +73,8 @@
             "inputs": [
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/Cargo.toml",
                 "{workspaceRoot}/Cargo.lock",
                 "{workspaceRoot}/rust-toolchain.toml",
@@ -105,6 +107,8 @@
                 "{projectRoot}/tests/embedded_expressions.rs",
                 "{projectRoot}/fixtures/embedded-expression-waivers.json",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/**/*.cem",
@@ -125,6 +129,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/rust_first_parity.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -141,6 +147,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/fixtures_snapshot.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/examples/cem-ml/**/*.cem",
                 "{workspaceRoot}/examples/semantic/**/*.html",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
@@ -159,6 +167,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/set_operator_identity.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -175,6 +185,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/reference_resolution.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -191,6 +203,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/read_content_negotiation.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -207,6 +221,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/policy_hooks.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -223,6 +239,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/compiled_artifact_reload.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ql/v1/examples/compiled-artifact-identity.cemql",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
@@ -241,6 +259,8 @@
                 "{projectRoot}/tests/template_artifact_reload.rs",
                 "{projectRoot}/fixtures/component-template-artifact.cem",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -258,6 +278,8 @@
                 "{projectRoot}/examples/compile_template_artifact.rs",
                 "{projectRoot}/fixtures/component-template-artifact.cem",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],
@@ -274,6 +296,8 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/transport_protocol.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/vendor/url/Cargo.toml",
+                "{workspaceRoot}/vendor/url/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],

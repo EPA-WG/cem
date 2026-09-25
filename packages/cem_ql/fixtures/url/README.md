@@ -78,3 +78,8 @@ characterization, not full WHATWG conformance. Query registration is pending.
 
 The separate [setter gate](SETTERS.md) pins component-update evidence and
 records the new scope decision before assembly/update implementation.
+
+The scoped [file parser patch](../../../../vendor/url/CEM-PATCH.md) now fixes
+parse case 138 as well. The patched native core matches 48/51 selected parse
+cases; three retain exactly five differences. Raw registry characterization
+continues unchanged via the `url_unpatched` dev dependency.

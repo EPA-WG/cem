@@ -534,3 +534,34 @@ The remaining cases and their importance stay in the wishlist. Assembly,
 fixed-order multi-field updates and source-mapped warning integration remain open.
 
 The package Nx WASM build passes; no full test suite or global task ran.
+
+### Scoped file-path parser patch completed — 2026-09-25
+
+The user accepted maintaining a scoped Rust patch. The [vendored crate](../vendor/url/CEM-PATCH.md)
+preserves leading empty file segments and corrects path-start handling for
+empty/localhost authorities. Simply removing trimming doubled root separators;
+upstream `issue_197` and the existing href round-trip assertions caught that
+regression before the complete patch passed. Runtime changes are confined to
+three sections of the dependency's `parser.rs`, with a reviewable source diff.
+
+CEM-QL uses private `cem-url` 2.5.8 through a path dependency, retaining the
+`url` Rust library API. The distinct package name avoids an Nx graph collision
+with registry `url`; explicit CEM-QL cache inputs include vendored source.
+CEM-ML still resolves registry `url`; there is no workspace-wide Cargo patch.
+Raw candidate tests explicitly use `url_unpatched` and retain their original
+expectations. The new fork is excluded from the main Cargo workspace.
+
+File setter cases pathname[21–23] and legacy drive parse case 138 now pass.
+The native core matches 48/51 selected parse cases and 263/277 setters. All
+31 focused CEM tests, 66 upstream unit tests and the historical dependency WPT
+harness pass. The latter removed only 23 now-passing expected-failure entries;
+no upstream expected outputs changed. This remains partial conformance.
+
+Next is opaque trailing-space preservation and partial-host/protocol outcome
+classification. Assembly/update registration and source-mapped warnings remain
+open. Publishing CEM-QL requires a deliberate distribution route for private
+`cem-url`; the local path dependency is sufficient for workspace builds only.
+
+The CEM-QL Nx WASM build passes with the private parser dependency. This is
+compilation verification; registered query execution parity remains pending.
+No full workspace/package test suite or global task ran.

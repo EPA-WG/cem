@@ -106,8 +106,8 @@ characterization: expected file outputs `file://monkey//`, `file://////` and
 strategy cannot solve this loss. A fix at the parser layer needs its own scope
 and regression review. No dependency source or version changed.
 
-**Next decision:** own a scoped Rust parser patch for file-path preservation
-(recommended), or explicitly defer file setter support. This does not reopen
+**Subsequent decision:** the user accepted the scoped Rust parser patch; see
+the completed work below. This does not reopen
 the Rust toolchain choice. Other setter gaps remain listed in the wishlist.
 
 Validation: all 31 focused URL tests pass, including both raw and adapted setter
@@ -116,3 +116,22 @@ sources; shared evaluator/type behavior is unchanged. No full/global tests ran.
 
 The package `yarn nx run cem_ql:build:wasm` gate also passes. This verifies
 compilation, not query execution parity for the unregistered primitives.
+
+## File parser patch completed
+
+The private [cem-url patch](../../../../vendor/url/CEM-PATCH.md) corrects file
+path-start and preserves leading empty segments. Cases pathname[21–23] now
+pass, including parse/serialize round trips. The full patched/adapter matrix
+matches 263/277 with 14 cases/24 differences remaining. The raw registry probe
+still matches 255/277. Parse case 138 also improves through the same patch.
+
+The adapted matrix now lives in `tests/url_setters.rs`; the raw candidate test
+imports `url_unpatched` so it remains independent. All 31 focused URL tests,
+66 dependency unit tests and the dependency's historical WPT harness pass.
+No upstream expected outputs changed; only 23 fixed expected-failure entries
+were removed from that historical harness. Next is opaque trailing-space and
+partial-host/protocol outcome work. No full/global tests ran.
+
+The CEM-QL Nx WASM build passes with the private parser dependency. This is
+compilation verification; registered query execution parity remains pending.
+No full workspace/package test suite or global task ran.

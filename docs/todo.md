@@ -5333,11 +5333,28 @@ registration identities may reuse an inherited or existing definition.
               raw characterization remains 255/277. All 31 focused URL tests
               and the package Nx WASM build pass. No full/global tests ran.
               Primitives operate on private clones; no query exposure.
-        - [ ] Decide file-path correction ownership: the raw parser collapses
-              the exact expected outputs for pathname[21–23], so component
-              reserialization cannot repair this loss. Recommend a scoped,
-              tested Rust parser patch; alternatively explicitly defer file
-              setters. No parser fork or broader compatibility waiver is added.
+        - [x] Decide file-path correction ownership: user chose the scoped
+              Rust parser patch before exposing assembly/update functions.
+        - [x] Fixture: vendor the pinned Rust url source/licenses and upstream
+              unit/WPT fixtures; correct file path-start and obsolete empty-segment
+              trimming, scope the dependency to CEM-QL, and prove file parsing,
+              setters and round trips plus unchanged raw baseline evidence.
+              Completed 2026-09-25: private cem-url 2.5.8 fixes pathname[21–23]
+              and parse[138]. CEM matrix: 263/277 setters (14 cases/24 differences
+              remain), 48/51 parse cases (three cases/five differences remain).
+              All 31 focused URL tests, 66 upstream unit tests and the historical
+              dependency WPT harness pass. Only 23 newly passing expected-failure
+              entries were removed; no upstream expected outputs changed.
+              See [patch provenance/maintenance](../vendor/url/CEM-PATCH.md).
+              The package Nx WASM build and cache-input checks pass. No global
+              tasks ran. The registry crate still serves CEM-ML and raw candidate tests;
+              no global Cargo override or common-module source change was made.
+        - [ ] Continue bounded Rust setter repairs: preserve opaque trailing
+              spaces when clearing search/hash, then classify partial host and
+              protocol outcomes; retain unchanged WPT and raw baseline evidence.
+        - [ ] Before CEM-QL crate publication, resolve distribution of the private
+              cem-url dependency; Cargo packaging cannot publish this local-only
+              patch as an ordinary registry dependency.
 
     - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
           user-function name isolation, diagnostic propagation and CLI/SSR/WASM

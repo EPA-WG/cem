@@ -1,6 +1,7 @@
 
 [workspace]
 resolver = '2'
+exclude = ['vendor/url']
 members = [
 	'packages/cem_ml',
 	'packages/cem_ml_transform_cem_ql',

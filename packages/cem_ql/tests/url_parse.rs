@@ -257,11 +257,11 @@ fn selected_wpt_through_core_retains_only_deferred_parser_gaps() {
     let expected = include_str!("../fixtures/url/url-2.5.8-differences.txt")
         .lines()
         .filter(|line| {
-            ["138:", "664:", "839:", "921:"]
+            ["664:", "839:", "921:"]
                 .iter()
                 .any(|id| line.starts_with(id))
         })
         .collect::<Vec<_>>();
-    assert_eq!(expected.len(), 7);
+    assert_eq!(expected.len(), 5);
     assert_eq!(differences, expected);
 }

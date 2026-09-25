@@ -101,14 +101,121 @@ fn hostless_path_guard_preserves_query_fragment_and_never_introduces_authority()
 }
 
 #[test]
-fn remaining_file_slash_gap_also_occurs_when_parsing_expected_output() {
-    // Characterization only: these expected WPT outputs cannot currently be
-    // represented by reparsing through the dependency, unlike hostless guards.
-    for (expected, actual) in [
-        ("file://monkey//", "file://monkey/"),
-        ("file://////", "file:///"),
-        ("file://///", "file:///"),
+fn file_slash_segments_survive_parsing_setters_and_roundtrips() {
+    for (seed, path, expected) in [
+        ("file://monkey/", "\\\\", "file://monkey//"),
+        ("file:///unicorn", "//\\/", "file://////"),
+        ("file:///unicorn", "//monkey/..//", "file://///"),
     ] {
-        assert_eq!(Url::parse(expected).unwrap().as_str(), actual);
+        let parsed = Url::parse(expected).unwrap();
+        assert_eq!(parsed.as_str(), expected);
+        let mut updated = Url::parse(seed).unwrap();
+        assert_eq!(set_pathname(&mut updated, path), SetterOutcome::Applied);
+        assert_eq!(updated.as_str(), expected);
+        assert_eq!(Url::parse(updated.as_str()).unwrap(), updated);
     }
+}
+
+fn apply(url: &mut Url, field: &str, value: &str) -> Result<(), ()> {
+    match field {
+        "protocol" => quirks::set_protocol(url, value),
+        "username" => quirks::set_username(url, value),
+        "password" => quirks::set_password(url, value),
+        "host" => quirks::set_host(url, value),
+        "hostname" => quirks::set_hostname(url, value),
+        "port" => quirks::set_port(url, value),
+        "pathname" => {
+            quirks::set_pathname(url, value);
+            Ok(())
+        }
+        "search" => {
+            quirks::set_search(url, value);
+            Ok(())
+        }
+        "hash" => {
+            quirks::set_hash(url, value);
+            Ok(())
+        }
+        _ => panic!("unsupported setter {field}"),
+    }
+}
+fn get(url: &Url, field: &str) -> String {
+    match field {
+        "href" => quirks::href(url),
+        "protocol" => quirks::protocol(url),
+        "username" => quirks::username(url),
+        "password" => quirks::password(url),
+        "host" => quirks::host(url),
+        "hostname" => quirks::hostname(url),
+        "port" => quirks::port(url),
+        "pathname" => quirks::pathname(url),
+        "search" => quirks::search(url),
+        "hash" => quirks::hash(url),
+        _ => panic!("unsupported getter {field}"),
+    }
+    .to_owned()
+}
+
+fn adapted_differences() -> (usize, usize, Vec<String>) {
+    // Select component arrays only; href assignment is not the CEM parts API.
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../fixtures/url/wpt-url-setters.json")).unwrap();
+    let mut differences = Vec::new();
+    let mut count = 0;
+    let mut failed = 0;
+    for setter in [
+        "protocol", "username", "password", "host", "hostname", "port", "pathname", "search",
+        "hash",
+    ] {
+        let cases: Vec<Case> = serde_json::from_value(fixture[setter].clone()).unwrap();
+        count += cases.len();
+        for (index, case) in cases.into_iter().enumerate() {
+            let mut url = Url::parse(&case.href).unwrap();
+            if setter == "port" {
+                cem_ql::stdlib::url_setters::set_port(&mut url, &case.new_value);
+            } else if setter == "pathname" {
+                cem_ql::stdlib::url_setters::set_pathname(&mut url, &case.new_value);
+            } else {
+                let _outcome = apply(&mut url, setter, &case.new_value);
+            }
+            let before = differences.len();
+            for (field, expected) in case.expected {
+                let actual = get(&url, &field);
+                if actual != expected {
+                    differences.push(format!(
+                        "{setter}[{index}] {field}: expected {expected:?}, received {actual:?}"
+                    ));
+                }
+            }
+            if differences.len() != before {
+                failed += 1;
+            }
+        }
+    }
+    (count, failed, differences)
+}
+
+#[test]
+fn patched_parser_and_adapters_leave_only_recorded_remaining_gaps() {
+    let (count, failed, differences) = adapted_differences();
+    assert_eq!((count, failed), (277, 14));
+    let remaining = include_str!("../fixtures/url/url-2.5.8-setter-differences.txt")
+        .lines()
+        .filter(|line| {
+            ![
+                "port[26]",
+                "pathname[21]",
+                "pathname[22]",
+                "pathname[23]",
+                "pathname[24]",
+                "pathname[25]",
+                "pathname[26]",
+                "pathname[27]",
+            ]
+            .iter()
+            .any(|id| line.starts_with(id))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(remaining.len(), 24);
+    assert_eq!(differences, remaining);
 }
