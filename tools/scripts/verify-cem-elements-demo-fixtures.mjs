@@ -2373,6 +2373,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/table-inspector.html',
         samples: tableInspectorSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     { path: '/packages/cem-elements/demo/data-tree.html', samples: dataTreeSamples },
     { path: '/packages/cem-elements/demo/data-table.html', samples: dataTableSamples },
@@ -4900,6 +4901,11 @@ async function verifySetUrlPresentation(page) {
 }
 
 async function verifyTableInspectorPresentation(page) {
+    await runCheck(page, countExactly('nav a, main > section a', 5));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['data-table-view.cemt', 'data-table.html', 'data-tree.html', 'xpath-sort.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
     for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await poll(page, width => {

@@ -4690,7 +4690,7 @@ registration identities may reuse an inherited or existing definition.
           documents, plus build, typecheck and lint (two existing warnings).
           This fixture audit is complete; broader coverage and historical
           startup investigations remain open.
-    - [ ] Fixture: audit all four `demo/table-inspector.html` samples against
+    - [x] Fixture: audit all four `demo/table-inspector.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Verify exact columns and empty/missing values, text sorting, nested
           table isolation, selection through sorting, and source-error recovery.
@@ -4707,12 +4707,26 @@ registration identities may reuse an inherited or existing definition.
               documents, plus build, typecheck and lint (two existing warnings).
               Both modes pass 1280px/390px containment and scrolling; standalone
               retains a two-card desktop row. Navigation was inspected separately;
-              its correction remains paused at the decision below. No authored
+              its correction follows the accepted decision below. No authored
               sample or shared runtime change was needed for the behavior checks.
-        - [ ] Decision: enable existing link-base="source" on this page's
+        - [x] Decision: enable existing link-base="source" on this page's
               loading declarations (recommended), or leave navigation pending.
-              All five ordinary links currently resolve against the source
-              harness URL instead of the authored demo directory.
+              All five ordinary links resolved against the source harness URL
+              instead of the authored demo directory. Accepted 2026-09-25:
+              enable the existing source-link policy.
+        - [x] Enable the policy on both page loaders and assert all five
+              resolved destinations in Storybook and both independent modes.
+              Completed 2026-09-25: all four focused Storybook tests, 514 unit
+              tests, both focused independent browser modes, lint and typecheck
+              pass (two existing lint warnings). All five destinations now use
+              the source directory. The four-sample fixture audit is complete;
+              broader coverage and historical startup investigations stay open.
+    - [ ] Fixture: audit both `demo/xpath-aggregates.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Verify all decimal statistics, empty/invalid inputs and recovery,
+          editable basket rows and totals, new fruit names, and non-negative
+          amount validation. Check diagnostics, desktop/mobile presentation and
+          navigation; stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

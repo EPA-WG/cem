@@ -17,12 +17,16 @@ function renderDocument(): HTMLElement {
     declaration.hidden = true;
     declaration.setAttribute('tag', 'story-table-inspector-document');
     declaration.setAttribute('src', SOURCE_URL.href);
+    declaration.setAttribute('link-base', 'source');
     root.append(declaration, document.createElement('story-table-inspector-document'));
     return root;
 }
 async function ready(root: HTMLElement): Promise<void> {
     await waitFor(() => expect(root.querySelectorAll('cem-table-inspector table')).toHaveLength(6), { timeout: 30000 });
     await whenCemSourceRendered(root.querySelector('story-table-inspector-document') as HTMLElement);
+    expect(Array.from(root.querySelectorAll<HTMLAnchorElement>('nav a, main > section a'), link => link.href))
+        .toEqual(['../index.html', './data-table-view.cemt', './data-table.html', './data-tree.html', './xpath-sort.html']
+            .map(relative => new URL(relative, SOURCE_URL).href));
 }
 function card(root: HTMLElement, legend: string): HTMLElement {
     const viewer = root.querySelector<HTMLElement>(`cem-demo-element[legend="${legend}"] cem-table-inspector`);

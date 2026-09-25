@@ -1409,7 +1409,11 @@ unit tests and 31 standalone / 37 source-loaded documents, plus build,
 typecheck and lint (two existing warnings).
 
 The audit also found five ordinary navigation links resolving against the host
-page in source-loaded mode. Enabling the existing `link-base="source"` policy
-on this page's loading declarations is pending the user's decision. The
-fixture audit, broader per-sample coverage and historical startup investigations
-remain open.
+page in source-loaded mode. The user approved enabling the existing
+`link-base="source"` policy on this page's loading declarations. Both loaders
+now opt in, and Storybook plus both independent modes assert all five resolved
+destinations. Follow-up validation passes all four focused Storybook tests,
+514 unit tests, both focused independent browser modes, lint and typecheck
+(two existing lint warnings). The four-sample fixture audit is complete. Next
+is `xpath-aggregates.html` (two samples); broader per-sample coverage and
+historical startup investigations remain open.
