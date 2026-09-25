@@ -5268,11 +5268,21 @@ registration identities may reuse an inherited or existing definition.
               See [candidate evidence](../packages/cem_ql/fixtures/url/README.md).
               No production parser adopted; no common modules changed and no
               full suite ran. Source/license integrity and formatting pass.
+        - [x] Fixture: compare pinned upstream url and Ada with the same 51
+              WPT cases; probe standalone browser-WASM builds and record
+              dependency/toolchain implications before choosing a parser.
+              Completed 2026-09-25: upstream matches 44/51; Ada 4.0.0 matches
+              51/51 natively. Both combined WASM builds succeed with SDK 34,
+              but the no-host-import gate fails (three debug imports, one
+              release import). Browser-WASM execution remains unproven.
+              See [reproducible investigation](../packages/cem_ql/fixtures/url/parser-probe/README.md).
+              Research dependencies are isolated; no common modules changed
+              and no global tests ran.
         - [ ] Decide native parser strategy before production adoption:
-              investigate maintained upstream fixes/replacements (recommended),
-              or authorize maintaining a patched url dependency. Preserve the
-              accepted WHATWG/pure profile and unchanged WPT expectations;
-              do not treat the characterization baseline as a conformance waiver.
+              accept Ada's C++/WASI toolchain for further import-free WASM
+              qualification (recommended), or authorize ownership of patched
+              Rust url semantics. Preserve the accepted contract and unchanged
+              WPT expectations; passing a characterization is not a waiver.
     - [ ] Fixture URL-PARTS: test seeded assembly, fixed setter order, conflicts,
           equal/normalized/ignored/partially applied setters and source-mapped
           diagnostics before implementing the immutable update adapter.

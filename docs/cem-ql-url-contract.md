@@ -412,3 +412,13 @@ pure-profile handling, but drive/host and IDNA differences require parser-level
 evidence; do not assume post-serialization rewriting can recover lost host
 information or rejected input. URL-PARSE remains open until that strategy and
 its conformance evidence are complete. No compatibility fix is included here.
+
+### Maintained alternative investigation
+
+The [isolated reproducible probe](../packages/cem_ql/fixtures/url/parser-probe/README.md)
+compares current upstream `url` at a pinned revision (44/51 selected cases match)
+with Ada 4.0.0 (51/51 native matches). SDK 34 permits the combined browser-WASM
+build, but residual WASI imports block standalone execution in both debug and
+release. No production dependency changed. The next decision is whether to
+accept Ada's C++/WASI toolchain for further WASM qualification, or own Rust
+parser fixes. Full conformance, setters, and CEM integration remain open.

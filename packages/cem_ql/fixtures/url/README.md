@@ -59,3 +59,6 @@ bounded by the pure profile; host/drive preservation and IDNA rejection need
 parser-level evidence. Do not assume a generic serialization wrapper can repair
 information already discarded or input already rejected. Stop before choosing
 between maintaining parser patches and adopting a different native dependency.
+
+Follow-up: [maintained upstream/Ada investigation](parser-probe/README.md),
+including native comparison and the unresolved browser-WASM import gate.
