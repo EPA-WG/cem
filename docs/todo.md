@@ -5321,10 +5321,24 @@ registration identities may reuse an inherited or existing definition.
               differ. No production/common module changed or global task ran.
               See [setter gate](../packages/cem_ql/fixtures/url/SETTERS.md) and
               [importance assessment](wishlist.md#rust-url-setter-compatibility-gaps).
-        - [ ] Decide new setter-gap scope before implementation: fix the Rust
-              setter path before exposing assembly/updates (recommended), or
-              defer those APIs and proceed with read/parse integration. Do not
-              silently broaden the accepted deferred parse limitations.
+        - [x] Decide new setter-gap scope before implementation: user chose
+              fixing the Rust setter path before exposing assembly/updates.
+              Preserve the accepted setter contract and pinned expectations.
+        - [x] Fixture: fix ignored whitespace-only port assignments and
+              hostless hierarchical pathname serialization with bounded Rust
+              adapters; cover outcome classification and immutable caller seeds.
+              Completed 2026-09-25: port[26] and pathname[24–27] match unchanged
+              WPT expectations. All 27 port cases pass. The adapted setter
+              matrix matches 260/277, with 17 cases/30 differences remaining;
+              raw characterization remains 255/277. All 31 focused URL tests
+              and the package Nx WASM build pass. No full/global tests ran.
+              Primitives operate on private clones; no query exposure.
+        - [ ] Decide file-path correction ownership: the raw parser collapses
+              the exact expected outputs for pathname[21–23], so component
+              reserialization cannot repair this loss. Recommend a scoped,
+              tested Rust parser patch; alternatively explicitly defer file
+              setters. No parser fork or broader compatibility waiver is added.
+
     - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
           user-function name isolation, diagnostic propagation and CLI/SSR/WASM
           parity, then generate implemented reference tables and query examples.

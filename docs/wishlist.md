@@ -66,22 +66,26 @@ engineering judgments about consequences, not measured input frequency.
 
 | Done | Cases | Importance and suggested action |
 | --- | --- | --- |
-| [ ] | port[26] | High: whitespace-only assignment removes explicit port 3000, changing the destination. Preserve the port and correctly classify the ignored assignment. |
-| [ ] | pathname[24], [25], [26] | High for custom schemes: hostless paths serialize like authority-bearing URLs; reparsing can change interpretation. Fix serialization at the correct layer before supporting these updates. |
-| [ ] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Track parser-level path preservation; avoid global slash collapsing. |
+| [x] | port[26] | Fixed in the native adapter: whitespace-only assignment preserves the existing port and reports an ignored port; truly empty input still clears it. All 27 pinned port cases pass. Query exposure pending. |
+| [x] | pathname[24], [25], [26] | Fixed in the native adapter: serialize the normalized hostless components with the required `/.` guard. Reparse preserves the absent authority, path, query and fragment. Query exposure pending. |
+| [ ] | pathname[21], [22], [23] | High consequence for file consumers, specialized inputs: repeated slash/path segments are lost. Parsing the exact expected outputs also collapses them; component reserialization cannot repair this. Parser-patch ownership is the next decision. |
 | [ ] | search[10], [11], [12], [13]; hash[16], [17], [18], [19] | High consequence for opaque payloads, specialized inputs: trailing spaces are lost or not encoded as expected. Distinguish initial parse loss from setter loss; preserve opaque content through clearing query/hash. |
-| [ ] | hostname[34], [35]; pathname[27] | Medium: non-special path normalization retains extra dot segments, breaking canonical href parity. Investigate with the hostless-path cases. |
+| [ ] | hostname[34], [35] | Medium: adding/changing an authority retains extra dot segments in serialization. Still requires an adapter; the pathname fix alone does not fix host updates. |
+| [x] | pathname[27] | Fixed in the native adapter: remove the stale hostless `/.` guard when the replacement path no longer starts with `//`. Query exposure pending. |
 | [ ] | pathname[5] | Medium for custom schemes: empty path becomes `/`, changing the serialized identifier. Cover empty-host/empty-path distinction. |
 | [ ] | pathname[13] | Lower priority: caret encoding differs. Usually interoperability/canonicalization debt; still affects exact href comparisons. |
 | [ ] | host[59]; hostname[41] | Low: empty-punycode compatibility already affects parsing; setters preserve the old host instead of accepting `xn--`. Track together with parse cases 839/921. |
 | [ ] | Authored: equal `file:` and HTTPS-to-file protocol assignments | Medium: raw setter rejects an equal valid request (false warning risk) and ignores an eligible conversion. Check standard transition preconditions explicitly. Outside the 277-case count. |
 | [ ] | Authored: partial host-port and opaque pathname outcomes | High for the accepted diagnostics: a successful host return hides an ignored port; a void pathname setter hides inapplicability. Detect outcomes without relying on return value or href equality alone. Outside the 277-case count. |
 
-Recommended next decision: fix the Rust setter path before exposing
-assembly/updates, or defer those APIs and continue read/parse integration.
-The earlier decision to defer four parser gaps does not establish how to handle
-these additional setter gaps. Full fixed-order assembly and source-mapped
-warning integration remain active work in [todo.md](todo.md).
+The user chose to fix the Rust setter path before exposing assembly/updates.
+The bounded port and pathname adapters fix five cases; 17/277 cases (30 field
+differences) remain. Raw dependency characterization stays unchanged.
+Next decision: own a scoped Rust parser patch for file-path preservation
+(recommended), or explicitly defer file setters. The current parser loses
+required slash segments even when reparsing correct expected serialization.
+Full fixed-order assembly and source-mapped warnings remain active work in
+[todo.md](todo.md).
 
 ## Distribution and Publication
 

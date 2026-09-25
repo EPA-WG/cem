@@ -495,7 +495,7 @@ Validation: the focused `url_parse`, `url_origin`, `url_params` and
 The build verifies WASM compilation, not query execution parity. No full test
 suite or workspace-wide task ran; shared evaluator/type behavior is unchanged.
 
-### URL-PARTS setter gate — decision pending
+### URL-PARTS setter evidence and accepted repair direction
 
 The [pinned setter probe](../packages/cem_ql/fixtures/url/SETTERS.md) compares 277
 WPT component cases through native seed parsing and `url` 2.5.8 setters. It
@@ -505,9 +505,32 @@ show that raw return values cannot supply D2 warning classification, including
 partial host success and equal file-protocol rejection. Four passing tests
 characterize those findings; they do not establish setter conformance.
 
-Assembly/update implementation stops at this new scope decision. Keep Rust;
-recommend fixing the setter path before exposing updates, or defer the update
-APIs while integrating the completed read/parse core. The previous parse-gap
+The user chose to fix the Rust setter path before exposing updates; bounded
+adapter progress and the next parser-level decision are recorded below. The previous parse-gap
 exception is not automatically extended. The complete list and importance
 assessment are in [the wishlist](wishlist.md#rust-url-setter-compatibility-gaps).
 No production/common module changed; no global task or full test suite ran.
+
+### Bounded port and hostless-path fixes — 2026-09-25
+
+The [native setter primitives](../packages/cem_ql/src/stdlib/url_setters.rs)
+fix whitespace-only port preservation and hostless hierarchical pathname
+serialization. Applicability/outcome reporting distinguishes an ignored port
+or opaque pathname from equal/normalized successful assignments. A truly empty
+port still clears it. Hostless paths retain the required `/.` guard and shed a
+stale guard when no longer needed, preserving query/fragment and URL identity
+through reparsing. These mutators act on a future parts adapter's private clone;
+no query API or evaluator warning is registered yet.
+
+All 31 focused URL tests pass. The adapted WPT matrix matches 260/277, leaving
+17 cases with exactly 30 differences; the raw candidate baseline stays unchanged.
+Five cases (port[26], pathname[24–27]) are closed at the native adapter layer.
+
+File pathname[21–23] cannot use the same repair strategy: the pinned parser
+collapses leading empty file segments even when parsing the correct expected
+serialization. Stop before adopting a dependency patch. Recommend owning a
+scoped Rust parser fix; alternatively explicitly defer file setter support.
+The remaining cases and their importance stay in the wishlist. Assembly,
+fixed-order multi-field updates and source-mapped warning integration remain open.
+
+The package Nx WASM build passes; no full test suite or global task ran.

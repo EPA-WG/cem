@@ -51,10 +51,10 @@ Additional authored probes (outside the 277) show:
   serializations; that is supplemental evidence, not the native implementation.
   See the [standard scheme-state rules](https://url.spec.whatwg.org/#scheme-state).
 
-## Decision before implementation
+## Initial scope decision (accepted)
 
-Keep Rust as chosen. Direct delegation cannot satisfy accepted D2. Recommend
-fixing the Rust setter path before enabling assembly/updates, beginning with
+Keep Rust as chosen. Direct delegation cannot satisfy accepted D2. The user
+chose to fix the Rust setter path before enabling assembly/updates, beginning with
 port preservation, hostless-path serialization and reliable ignored/partial
 outcome detection. File/opaque-path behavior and protocol transitions also need
 coverage. Assess fixes individually as bounded adapters or parser-level changes;
@@ -68,7 +68,7 @@ Importance and the complete case list remain in
 Assembly validation, fixed multi-field order, warning diagnostics and query
 registration remain unimplemented; this change adds evidence only.
 
-## Validation
+## Initial probe validation
 
 ```sh
 cargo test -p cem-ql --test url_setter_candidate --target-dir dist/target/cem_ql
@@ -77,3 +77,42 @@ cargo test -p cem-ql --test url_setter_candidate --target-dir dist/target/cem_ql
 Four characterization tests pass. No production/common module changed; no full
 suite, global task or WASM build ran. Source byte/hash integrity, formatting and
 whitespace checks pass.
+
+## Bounded port/path adapters completed
+
+The native [component primitives](../../src/stdlib/url_setters.rs) fix port[26]
+and pathname[24–27]. All 27 port cases and these four hostless path cases now
+match unchanged WPT expectations. The full adapted matrix matches 260/277:
+17 cases retain exactly 30 differences. The original raw-dependency baseline
+still records 22 cases/36 differences.
+
+A truly empty port assignment clears the port. A nonempty assignment consisting
+only of stripped tabs/newlines is ignored, with an explicit `Ignored("port")`
+outcome. Equal, normalized and valid-prefix assignments are classified by
+applicability/parser outcome rather than serialization equality.
+
+For hostless hierarchical pathname updates, the adapter uses the normalized
+path component, scheme and retained query/fragment to rebuild only that URL's
+serialization, adding/removing the `/.` guard as required. It does not reparse
+the dependency's ambiguous authority-looking output. Opaque pathname updates
+report `Ignored("pathname")`. The low-level mutators are intended for a private
+clone; assembly/update query APIs remain unregistered and unimplemented.
+
+Four [native adapter tests](../../tests/url_setters.rs) cover outcomes, WPT
+expectations, preserved caller seeds, and reparse invariants. One is explicitly
+characterization: expected file outputs `file://monkey//`, `file://////` and
+`file://///` are collapsed by `Url::parse` itself. The pinned parser's
+`parse_path` removes leading empty file segments, so the hostless reconstruction
+strategy cannot solve this loss. A fix at the parser layer needs its own scope
+and regression review. No dependency source or version changed.
+
+**Next decision:** own a scoped Rust parser patch for file-path preservation
+(recommended), or explicitly defer file setter support. This does not reopen
+the Rust toolchain choice. Other setter gaps remain listed in the wishlist.
+
+Validation: all 31 focused URL tests pass, including both raw and adapted setter
+matrices. Only the URL module export and new component code changed in runtime
+sources; shared evaluator/type behavior is unchanged. No full/global tests ran.
+
+The package `yarn nx run cem_ql:build:wasm` gate also passes. This verifies
+compilation, not query execution parity for the unregistered primitives.

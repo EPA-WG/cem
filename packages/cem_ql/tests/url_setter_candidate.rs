@@ -50,8 +50,7 @@ fn get(url: &Url, field: &str) -> String {
     .to_owned()
 }
 
-#[test]
-fn pinned_component_setters_record_candidate_differences() {
+fn candidate_differences(adapt: bool) -> (usize, usize, Vec<String>) {
     // Select component arrays only; href assignment is not the CEM parts API.
     let fixture: serde_json::Value =
         serde_json::from_str(include_str!("../fixtures/url/wpt-url-setters.json")).unwrap();
@@ -66,7 +65,13 @@ fn pinned_component_setters_record_candidate_differences() {
         count += cases.len();
         for (index, case) in cases.into_iter().enumerate() {
             let mut url = Url::parse(&case.href).unwrap();
-            let _outcome = apply(&mut url, setter, &case.new_value);
+            if adapt && setter == "port" {
+                cem_ql::stdlib::url_setters::set_port(&mut url, &case.new_value);
+            } else if adapt && setter == "pathname" {
+                cem_ql::stdlib::url_setters::set_pathname(&mut url, &case.new_value);
+            } else {
+                let _outcome = apply(&mut url, setter, &case.new_value);
+            }
             let before = differences.len();
             for (field, expected) in case.expected {
                 let actual = get(&url, &field);
@@ -81,13 +86,40 @@ fn pinned_component_setters_record_candidate_differences() {
             }
         }
     }
-    assert_eq!(count, 277);
-    assert_eq!(failed, 22);
-    // Characterization only: no WPT expectation is relaxed for production.
+    (count, failed, differences)
+}
+
+#[test]
+fn pinned_component_setters_record_candidate_differences() {
+    let (count, failed, differences) = candidate_differences(false);
+    assert_eq!((count, failed), (277, 22));
+    // Raw characterization remains unchanged, not a conformance waiver.
     assert_eq!(
         differences.join("\n"),
         include_str!("../fixtures/url/url-2.5.8-setter-differences.txt").trim_end()
     );
+}
+
+#[test]
+fn port_and_hostless_path_adapters_remove_only_the_targeted_gaps() {
+    let (count, failed, differences) = candidate_differences(true);
+    assert_eq!((count, failed), (277, 17));
+    let remaining = include_str!("../fixtures/url/url-2.5.8-setter-differences.txt")
+        .lines()
+        .filter(|line| {
+            ![
+                "port[26]",
+                "pathname[24]",
+                "pathname[25]",
+                "pathname[26]",
+                "pathname[27]",
+            ]
+            .iter()
+            .any(|id| line.starts_with(id))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(remaining.len(), 30);
+    assert_eq!(differences, remaining);
 }
 
 #[test]
