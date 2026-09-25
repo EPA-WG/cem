@@ -1739,66 +1739,100 @@ const cellOverrideSamples = [
     ]),
 ];
 
+const inspectorOuter = 'table[aria-label="document/row"]';
+const inspectorNested = index => `${inspectorOuter} > tbody > tr:nth-child(${index}) table`;
+const inspectorDisclosure = index => `${inspectorOuter} > tbody > tr:nth-child(${index}) details:has(> .table-scroll)`;
+const inspectorFruit = [['2', 'Cherry 🍒'], ['10', 'Lemon 🍋'], ['02', 'Apple 🍏'], ['∅', 'Banana 🍌']];
 const tableInspectorSamples = [
     sampleContract('1. Columns from every row', [
-        text('table caption', 'document/row'),
-        normalizedText('table > tbody > tr:first-child > td:nth-child(2)', '""'),
-        normalizedText('table > tbody > tr:first-child > td:last-child', '∅'),
-        normalizedText('table > tbody > tr:last-child > td:nth-child(2)', '∅'),
-        normalizedText('table > tbody > tr:last-child > td:last-child', 'ripe'),
-        countExactly('th[scope="col"]', 4),
+        inspectorTable('table', [['""', '🍒', '∅'], ['∅', '🍋', 'ripe']], [],
+            { headings: ['✓', '@early', '#text', '@later'], sort: null, mode: 'text' }),
+        elementIdentity('table > tbody > tr:first-child input', 'remember'),
+        pressThenProperty('table > tbody > tr:first-child input', 'Space',
+            'table > tbody > tr:first-child input', 'checked', true),
+        inspectorTable('table', [['""', '🍒', '∅'], ['∅', '🍋', 'ripe']], [0]),
+        pressThenProperty('table > tbody > tr:first-child input', 'Space',
+            'table > tbody > tr:first-child input', 'checked', false),
+        inspectorTable('table', [['""', '🍒', '∅'], ['∅', '🍋', 'ripe']]),
+        elementIdentity('table > tbody > tr:first-child input', 'same'),
     ]),
     sampleContract('2. Text-only rows stay visible', [
-        normalizedText('table > tbody > tr:first-child > td:last-child', 'ivysaur'),
-        normalizedText('table > tbody > tr:last-child > td:last-child', 'venusaur'),
+        inspectorTable('table', [['ivysaur'], ['venusaur']], [], { headings: ['✓', '#text'], sort: null }),
         pressThenProperty('button[aria-label="Sort #text descending in document/name"]', 'Enter',
             'th[aria-sort]', 'ariaSort', 'descending'),
-        normalizedText('table > tbody > tr:first-child > td:last-child', 'venusaur'),
-        normalizedText('table > tbody > tr:last-child > td:last-child', 'ivysaur'),
+        inspectorTable('table', [['venusaur'], ['ivysaur']], [], { sort: 'descending' }),
+        clickThenText('button[aria-label="Sort #text ascending in document/name"]',
+            'table > tbody > tr:first-child > td', 'ivysaur'),
+        inspectorTable('table', [['ivysaur'], ['venusaur']], [], { sort: 'ascending' }),
+        clickThenText('button[aria-label="Restore source order in document/name"]',
+            'table > tbody > tr:first-child > td', 'ivysaur'),
+        inspectorTable('table', [['ivysaur'], ['venusaur']], [], { sort: null }),
     ]),
     sampleContract('3. Nested tables keep their own state', [
         countExactly('table', 3),
-        checkThenText('table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:first-child input',
-            'table[aria-label="document/row"] > tbody > tr:first-child table caption output', '1'),
-        clickThenText('table[aria-label="document/row"] > tbody > tr:first-child button[aria-label="Sort #text descending in tags/tag"]',
-            'table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:first-child > td:last-child', 'sweet'),
-        normalizedText('table[aria-label="document/row"] > tbody > tr:last-child table > tbody > tr:first-child > td:last-child', 'yellow'),
-        normalizedText('table[aria-label="document/row"] > tbody > tr:last-child table caption output', '0'),
-        propertyEquals('table[aria-label="document/row"] > tbody > tr:first-child table > tbody > tr:last-child input', 'checked', true),
-        countExactly('table[aria-label="document/row"] > tbody > tr[aria-selected="true"]', 0),
+        inspectorTable(inspectorOuter, [['""', null], ['""', null]], [], { headings: ['✓', '#text', 'tags'], sort: null }),
+        inspectorTable(inspectorNested(1), [['red'], ['sweet']], [], { headings: ['✓', '#text'], sort: null }),
+        inspectorTable(inspectorNested(2), [['yellow'], ['tart']], [], { headings: ['✓', '#text'], sort: null }),
+        checkThenText(`${inspectorNested(1)} > tbody > tr:first-child input`,
+            `${inspectorNested(1)} > caption > output`, '1'),
+        clickThenText(`${inspectorNested(1)} button[aria-label="Sort #text descending in tags/tag"]`,
+            `${inspectorNested(1)} > tbody > tr:first-child > td`, 'sweet'),
+        inspectorTable(inspectorNested(1), [['sweet'], ['red']], [1], { sort: 'descending' }),
+        elementIdentity(inspectorDisclosure(1), 'remember'),
+        pressThenProperty(`${inspectorDisclosure(1)} > summary`, 'Enter', inspectorDisclosure(1), 'open', false),
+        pressThenProperty(`${inspectorOuter} > tbody > tr:first-child > th input`, 'Space',
+            `${inspectorOuter} > tbody > tr:first-child > th input`, 'checked', true),
+        inspectorTable(inspectorOuter, [['""', null], ['""', null]], [0], { sort: null }),
+        inspectorTable(inspectorNested(1), [['sweet'], ['red']], [1], { sort: 'descending' }),
+        propertyEquals(inspectorDisclosure(1), 'open', false),
+        elementIdentity(inspectorDisclosure(1), 'same'),
+        pressThenProperty(`${inspectorDisclosure(1)} > summary`, 'Space', inspectorDisclosure(1), 'open', true),
+        focusedElement(`${inspectorDisclosure(1)} > summary`),
+        clickThenText(`${inspectorNested(2)} button[aria-label="Sort #text ascending in tags/tag"]`,
+            `${inspectorNested(2)} > tbody > tr:first-child > td`, 'tart'),
+        inspectorTable(inspectorNested(2), [['tart'], ['yellow']], [], { sort: 'ascending' }),
+        inspectorTable(inspectorNested(1), [['sweet'], ['red']], [1], { sort: 'descending' }),
+        inspectorTable(inspectorOuter, [['""', null], ['""', null]], [0], { sort: null }),
     ]),
     sampleContract('4. Multiple selections survive sorting', [
+        inspectorTable('table', inspectorFruit, [], { headings: ['✓', '@qty', '#text'], sort: null, mode: 'text' }),
+        elementIdentity('textarea', 'remember'),
         pressThenProperty('table > tbody > tr:nth-child(2) input', 'Space',
             'table > tbody > tr:nth-child(2) input', 'checked', true),
-        normalizedText('caption output', '1'),
+        inspectorTable('table', inspectorFruit, [1]),
         pressThenProperty('table > tbody > tr:nth-child(3) input', 'Space',
             'table > tbody > tr:nth-child(3) input', 'checked', true),
-        normalizedText('caption output', '2'),
+        inspectorTable('table', inspectorFruit, [1, 2]),
         clickThenText('button[aria-label="Sort @qty ascending in document/row"]',
             'table > tbody > tr:first-child > td:last-child', 'Apple 🍏'),
+        inspectorTable('table', [inspectorFruit[2], inspectorFruit[1], inspectorFruit[0], inspectorFruit[3]], [0, 1], { sort: 'ascending', mode: 'text' }),
         selectThenText('select[aria-label="Compare document/row"]', 'number',
             'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
-        normalizedText('table > tbody > tr:nth-child(2) > td:last-child', 'Apple 🍏'),
-        attributeEquals('th[aria-sort]', 'aria-sort', 'ascending'),
-        propertyEquals('table > tbody > tr:nth-child(2) input', 'checked', true),
-        propertyEquals('table > tbody > tr:nth-child(3) input', 'checked', true),
+        inspectorTable('table', [inspectorFruit[0], inspectorFruit[2], inspectorFruit[1], inspectorFruit[3]], [1, 2], { sort: 'ascending', mode: 'number' }),
         clickThenText('button[aria-label="Sort @qty descending in document/row"]',
             'table > tbody > tr:first-child > td:last-child', 'Lemon 🍋'),
-        normalizedText('table > tbody > tr:nth-child(2) > td:last-child', 'Cherry 🍒'),
-        normalizedText('table > tbody > tr:nth-child(3) > td:last-child', 'Apple 🍏'),
-        normalizedText('table > tbody > tr:last-child > td:last-child', 'Banana 🍌'),
-        normalizedText('caption output', '2'),
-        countExactly('input:checked', 2),
+        inspectorTable('table', [inspectorFruit[1], inspectorFruit[0], inspectorFruit[2], inspectorFruit[3]], [0, 2], { sort: 'descending', mode: 'number' }),
+        pressThenProperty('table > tbody > tr:first-child input', 'Space',
+            'table > tbody > tr:first-child input', 'checked', false),
+        inspectorTable('table', [inspectorFruit[1], inspectorFruit[0], inspectorFruit[2], inspectorFruit[3]], [2]),
         clickThenText('button[aria-label="Restore source order in document/row"]',
             'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
-        countExactly('th[aria-sort]', 0),
-        countExactly('input:checked', 2),
+        inspectorTable('table', inspectorFruit, [2], { sort: null }),
         clickThenText('button[aria-label="Reset source"]', 'caption output', '0'),
-        countExactly('input:checked', 0),
+        inspectorTable('table', inspectorFruit),
         fillBlurThenText('textarea', '<broken>', '[role="alert"]', 'XML'),
         countExactly('table', 0),
+        elementIdentity('textarea', 'same'),
         clickThenText('button[aria-label="Reset source"]', 'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
-        countExactly('input:checked', 0),
+        inspectorTable('table', inspectorFruit),
+        countExactly('[role="alert"]', 0),
+        checkThenText('table > tbody > tr:first-child input', 'caption output', '1'),
+        fillBlurThenText('textarea', '<fruit><row qty="3">Pear</row><row qty="1">Peach</row></fruit>',
+            'table > tbody > tr:first-child > td:last-child', 'Pear'),
+        inspectorTable('table', [['3', 'Pear'], ['1', 'Peach']]),
+        elementIdentity('textarea', 'same'),
+        clickThenText('button[aria-label="Reset source"]', 'table > tbody > tr:first-child > td:last-child', 'Cherry 🍒'),
+        inspectorTable('table', inspectorFruit),
     ]),
 ];
 
@@ -2839,6 +2873,9 @@ try {
                 await verifySetUrlLifecycle(page);
                 await verifySetUrlPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/table-inspector.html') {
+                await verifyTableInspectorPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -2944,6 +2981,10 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/set-url.html') {
                 await verifySetUrlLifecycle(page);
                 await verifySetUrlPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/table-inspector.html') {
+                await verifyTableInspectorPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -3841,6 +3882,27 @@ async function runCheck(page, check) {
                             && (!selection[2] || control.selectionDirection === selection[2])));
                 }, check);
                 return;
+            case 'inspectorTable':
+                await poll(page, ({ selector, cells, selected, headings, sort, mode }) => {
+                    const table = document.querySelector(selector);
+                    if (!table) return false;
+                    const ownRows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
+                    const text = node => (node.textContent ?? '').trim();
+                    const headers = Array.from(table.querySelectorAll(':scope > thead > tr > th'));
+                    const active = headers.filter(header => header.hasAttribute('aria-sort'));
+                    return ownRows.length === cells.length && ownRows.every((row, index) => {
+                        const actual = Array.from(row.cells).slice(1).map(text);
+                        return actual.length === cells[index].length
+                            && cells[index].every((value, column) => value === null || actual[column] === value)
+                            && row.querySelector(':scope > th input')?.checked === selected.includes(index)
+                            && row.getAttribute('aria-selected') === String(selected.includes(index));
+                    }) && table.querySelector(':scope > caption > output')?.textContent.trim() === String(selected.length)
+                        && (!headings || JSON.stringify(headers.map(header => text(header).replace(/[↑↓]/gu, '').trim())) === JSON.stringify(headings))
+                        && (sort === undefined || (sort === null ? active.length === 0
+                            : active.length === 1 && active[0].getAttribute('aria-sort') === sort))
+                        && (mode === undefined || table.querySelector(':scope > caption select')?.value === mode);
+                }, check);
+                return;
             case 'tableState':
                 await poll(page, ({ selector, cells, selected }) => {
                     const table = document.querySelector(selector);
@@ -4198,6 +4260,10 @@ function treeSelection(selected, branches) {
 }
 
 // null skips a nested cell whose own table has a separate contract.
+function inspectorTable(selector, cells, selected = [], options = {}) {
+    return { kind: 'inspectorTable', selector, cells, selected, ...options };
+}
+
 function tableState(selector, cells, selected = []) {
     return { kind: 'tableState', selector, cells, selected };
 }
@@ -4596,8 +4662,9 @@ function describeCheck(check) {
             return `counterState(${check.selector}, ${JSON.stringify(check.value)}, counts=${JSON.stringify(check.counts)}, selection=${JSON.stringify(check.selection)})`;
         case 'treeSelection':
             return `treeSelection(${check.selector}, selected=${JSON.stringify(check.selected)}, branches=${JSON.stringify(check.branches)})`;
+        case 'inspectorTable':
         case 'tableState':
-            return `tableState(${check.selector}, ${JSON.stringify(check.cells)}, selected=${JSON.stringify(check.selected)})`;
+            return `${check.kind}(${check.selector}, ${JSON.stringify(check.cells)}, selected=${JSON.stringify(check.selected)})`;
         case 'formState':
             return `formState(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'nativeValidity':
@@ -4828,6 +4895,35 @@ async function verifySetUrlPresentation(page) {
                 return reached;
             }));
         if (!reachable) throw new Error('Set-URL source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 4);
+}
+
+async function verifyTableInspectorPresentation(page) {
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 4 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, textarea, .table-scroll')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && (node.classList.contains('table-scroll') || node.scrollWidth <= node.clientWidth + 1);
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre, cem-table-inspector .table-scroll').evaluateAll(regions =>
+            regions.length === 10 && regions.every(region => {
+                const end = region.scrollWidth - region.clientWidth;
+                region.scrollLeft = end;
+                const reached = Math.abs(region.scrollLeft - end) <= 1;
+                region.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('Table-inspector source/table content cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 4);
 }

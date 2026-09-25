@@ -1375,3 +1375,41 @@ standalone / 37 source-loaded documents, plus build, typecheck and lint (two
 existing warnings). This fixture audit is complete. The next fixture audit is
 `table-inspector.html` (four samples). Broader per-sample coverage and the
 historical startup investigations remain open.
+
+## Table-inspector behavior audit, 2026-09-25
+
+The four authored cases now require complete cell matrices and exact table
+headings, with native checkbox state, row `aria-selected`, selected-row counts,
+comparison mode and active sort direction checked together. Independent
+standalone and source-loaded modes share these contracts. The heterogeneous
+case distinguishes every empty and missing value; the text-only case checks
+both sort directions and restoration of source order.
+
+Nested checks give the two child tables different sort orders while preserving
+their independent selections and the outer table state. They collapse the first
+child, select its parent row to force a render, then query the live disclosure
+again and require the same connected, still-closed element. The independent
+browser harness uses Enter/Space and checks native summary focus. Storybook
+uses click interactions for disclosures because its synthetic keyboard helper
+does not implement that browser default action.
+
+The fruit case checks text-versus-number ordering, stable 2/02 keys, missing
+values last, selected source rows through both sort directions, deselection,
+source order, and reset of unchanged source. Invalid input removes the table;
+repair restores it without replacing the source textarea. Editing to a new
+Pear/Peach document clears selection and renders both rows exactly; Reset
+restores every original cell. Source-loaded checks require empty diagnostic
+histories for the page loader, shared declaration and produced viewers.
+
+All four focused Storybook tests and both independent modes pass. At 1280px
+and 390px the cards, editors and scroll regions stay contained; all four source
+panels and six table regions can scroll to their horizontal end. Standalone
+retains a two-card desktop row. The full gate passes 256 Storybook tests, 514
+unit tests and 31 standalone / 37 source-loaded documents, plus build,
+typecheck and lint (two existing warnings).
+
+The audit also found five ordinary navigation links resolving against the host
+page in source-loaded mode. Enabling the existing `link-base="source"` policy
+on this page's loading declarations is pending the user's decision. The
+fixture audit, broader per-sample coverage and historical startup investigations
+remain open.
