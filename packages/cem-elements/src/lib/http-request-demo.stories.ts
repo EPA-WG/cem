@@ -1,6 +1,7 @@
 import { verifyExternalFilePreviews } from '../../.storybook/external-file-previews.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { traceCemReadiness } from '../../.storybook/preview.js';
+import { userEvent } from 'storybook/test';
+import { cemDiagnosticCodes, traceCemReadiness, whenCemRendered } from '../../.storybook/preview.js';
 import { readinessCheckpoint, readinessWait } from '../../.storybook/readiness-timing.js';
 
 const SOURCE_TAG = 'story-http-request-demo-document';
@@ -35,7 +36,7 @@ export const EveryAuthoredSample: Story = {
         traceCemReadiness(root, 'http/EveryAuthoredSample');
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         const articleCounts = () => Array.from(host.querySelectorAll('cem-demo-element[legend]'), sample =>
             ({ legend: sample.getAttribute('legend'), articles: sample.querySelectorAll('article').length }));
@@ -59,62 +60,84 @@ export const EveryAuthoredSample: Story = {
             'HTTP request sample inventory'
         );
 
-        await verifyExternalFilePreviews(host, DEMO_URL, PREVIEW_FILES);
-        await verifyRuntimeUrlSelection(sampleByLegend(host, EXPECTED_LEGENDS[0]));
-        await verifySimplestRequest(sampleByLegend(host, EXPECTED_LEGENDS[1]));
-        await verifyRequestEnvelope(sampleByLegend(host, EXPECTED_LEGENDS[2]));
+        const checks = [verifyRuntimeUrlSelection, verifySimplestRequest, verifyRequestEnvelope];
+        for (const [index, check] of checks.entries()) {
+            await step(EXPECTED_LEGENDS[index], async () => {
+                const sample = sampleByLegend(host, EXPECTED_LEGENDS[index]);
+                await check(sample);
+                assertDeepEqual(cemDiagnosticCodes(requiredElement(sample, 'article').parentElement as HTMLElement),
+                    index === 0 ? ['cem-element.http_request_parse_failed'] : [],
+                    'only the deliberately malformed response produces a diagnostic');
+            });
+        }
+        for (const file of PREVIEW_FILES) {
+            await step(file, async () => verifyExternalFilePreviews(host, DEMO_URL, [file]));
+        }
+        assertDeepEqual(cemDiagnosticCodes(host), [], 'source document diagnostics');
     },
 };
 
 async function verifyRuntimeUrlSelection(sample: HTMLElement): Promise<void> {
-    await waitForCondition(
-        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: idle'),
-        'no request runs until GET'
-    );
-    if (sample.querySelector('li')) throw new Error('idle request must not render response data');
-    click(buttonByName(sample, 'GET'));
-    await waitForCondition(
-        () => textList(sample, 'li').join('|') === 'alpha: ready|beta: loaded',
-        'the initial selected URL loads the full response',
-        300
-    );
+    const owner = requiredElement(sample, 'article').parentElement as HTMLElement;
+    const input = requiredInput(sample);
+    const get = buttonByName(sample, 'GET');
+    const full = ['alpha: ready', 'beta: loaded'];
+    const compact = ['solo: compact'];
+    const state = async (selected: string, requested: string, status: string, rows: readonly string[]) => {
+        await whenCemRendered(owner);
+        await waitForCondition(() => textList(sample, 'article > p output').join('|') === [selected, requested, status].join('|')
+            && textList(sample, 'li').join('|') === rows.join('|'),
+        `selected=${selected}, requested=${requested}, state=${status}, rows=${rows.join('|')}`, 300);
+        assertEqual(requiredInput(sample), input, 'live URL input identity');
+        assertEqual(input.value, selected, 'editable URL value');
+        assertEqual(buttonByName(sample, 'GET'), get, 'live GET button identity');
+        assertEqual(get.value, selected, 'GET copies the current draft');
+        assertEqual(normalize(requiredElement(sample, 'article').textContent ?? '').includes('This URL did not provide an accepted JSON response.'),
+            status === 'failed', 'failure guidance appears only for a failed request');
+    };
+    const preset = async (name: string) => { await userEvent.click(buttonByName(sample, name)); };
+    const edit = async (value: string) => {
+        await userEvent.clear(input);
+        if (value) await userEvent.type(input, value);
+        await whenCemRendered(owner);
+        assertEqual(document.activeElement, input, 'editing retains input focus');
+        assertEqual(input.selectionStart, value.length, 'editing retains the caret');
+    };
+    const submit = async () => { await userEvent.click(get); };
 
-    click(buttonByName(sample, 'Compact records'));
-    await waitForCondition(
-        () => requiredInput(sample).value === './http-data-compact.json',
-        'the compact preset updates the editable URL'
-    );
-    assertText(sample, 'article', 'Selected URL: ./http-data-compact.json', 'the selected URL is visible', true);
+    await state('./http-data.json', '', 'idle', []);
+    // Preset-after-typing refresh is pending the shared-value decision in TODO.
+    // Keep the preset sequence before direct edits while that case is open.
+    await submit();
+    await state('./http-data.json', './http-data.json', 'loaded', full);
+    await preset('Compact records');
+    await state('./http-data-compact.json', './http-data.json', 'loaded', full);
+    await submit();
+    await state('./http-data-compact.json', './http-data-compact.json', 'loaded', compact);
 
-    click(buttonByName(sample, 'GET'));
-    await waitForCondition(
-        () => textList(sample, 'li').join('|') === 'solo: compact',
-        'GET replaces the resource with the compact response',
-        300
-    );
-    assertText(sample, 'article', 'Requested URL: ./http-data-compact.json', 'the requested URL is visible', true);
-    assertText(sample, 'article', 'Request state: loaded', 'the selected request reaches loaded state', true);
-    click(buttonByName(sample, 'Invalid JSON response'));
-    await waitForCondition(() => requiredInput(sample).value === './http-data-invalid.json', 'invalid JSON preset');
-    assertText(sample, 'article', 'Request state: loaded', 'a draft change does not fetch', true);
-    click(buttonByName(sample, 'GET'));
-    await waitForCondition(
-        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: failed'),
-        'a malformed response visibly fails', 300
-    );
-    assertEqual(sample.querySelectorAll('li').length, 0, 'failed requests hide stale response rows');
-    click(buttonByName(sample, 'All records'));
-    await waitForCondition(() => requiredInput(sample).value === './http-data.json', 'recovery preset');
-    click(buttonByName(sample, 'GET'));
-    await waitForCondition(() => textList(sample, 'li').join('|') === 'alpha: ready|beta: loaded', 'recovery loads records', 300);
-    click(buttonByName(sample, 'Empty URL'));
-    await waitForCondition(() => requiredInput(sample).value === '', 'empty preset');
-    click(buttonByName(sample, 'GET'));
-    await waitForCondition(
-        () => normalize(sample.querySelector('article')?.textContent ?? '').includes('Request state: idle')
-            && sample.querySelector('li') === null,
-        'empty URL returns to idle without stale records'
-    );
+    await preset('Invalid JSON response');
+    await state('./http-data-invalid.json', './http-data-compact.json', 'loaded', compact);
+    await submit();
+    await state('./http-data-invalid.json', './http-data-invalid.json', 'failed', []);
+    await preset('All records');
+    await state('./http-data.json', './http-data-invalid.json', 'failed', []);
+    await submit();
+    await state('./http-data.json', './http-data.json', 'loaded', full);
+
+    await preset('Empty URL');
+    await state('', './http-data.json', 'loaded', full);
+    await submit();
+    await state('', '', 'idle', []);
+    // A typed URL can restart the removed resource; Enter activates native GET.
+    await edit('./http-data-compact.json');
+    await state('./http-data-compact.json', '', 'idle', []);
+    get.focus();
+    await userEvent.keyboard('{Enter}');
+    await state('./http-data-compact.json', './http-data-compact.json', 'loaded', compact);
+    await edit('./http-data.json');
+    await state('./http-data.json', './http-data-compact.json', 'loaded', compact);
+    await submit();
+    await state('./http-data.json', './http-data.json', 'loaded', full);
 }
 
 async function verifySimplestRequest(sample: HTMLElement): Promise<void> {
@@ -142,6 +165,13 @@ async function verifySimplestRequest(sample: HTMLElement): Promise<void> {
             `${expectedNames[index]} sprite URL`
         );
         assertEqual(image.alt, expectedNames[index], 'each Pokémon image has useful alternative text');
+        const button = image.parentElement as HTMLButtonElement;
+        assertEqual(button.title, expectedNames[index], 'button title');
+        assertEqual(button.type, 'button', 'catalog buttons do not submit a form');
+        assertEqual(normalize(button.textContent ?? ''), '', 'image button has no duplicate visible name');
+        button.focus();
+        assertEqual(document.activeElement, button, 'catalog button accepts keyboard focus');
+        await waitForCondition(() => image.complete && image.naturalWidth > 0, 'Pokémon sprite loads', 300);
     }
     assertText(sample, 'article', 'Request state: loaded', 'the fixed request reaches loaded state', true);
 }
@@ -165,7 +195,7 @@ async function verifyRequestEnvelope(sample: HTMLElement): Promise<void> {
 
     const resolvedLink = requiredElement(sample, 'dd a') as HTMLAnchorElement;
     assert(
-        new URL(resolvedLink.href).pathname.endsWith('/demo/http-data.json'),
+        resolvedLink.href === new URL('./http-data.json', DEMO_URL).href,
         `resolved URL uses the demo source base: ${resolvedLink.href}`
     );
     assertEqual(resolvedLink.title, resolvedLink.href, 'the complete resolved URL remains available');
@@ -194,10 +224,6 @@ function buttonByName(root: ParentNode, expected: string): HTMLButtonElement {
     );
     if (!button) throw new Error(`expected ${expected} button`);
     return button;
-}
-
-function click(element: HTMLElement): void {
-    element.click();
 }
 
 function textList(root: ParentNode, selector: string): string[] {

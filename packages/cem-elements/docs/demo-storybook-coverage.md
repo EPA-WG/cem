@@ -915,3 +915,51 @@ demo is unchanged and no new behavior decision was needed. The next fixture
 covers the seven `http-request.html` samples, including its four external-file
 previews. The broader per-sample audit and separate startup investigations remain
 open.
+
+## HTTP-request audit checkpoint, 2026-09-24
+
+The seven named Storybook steps cover the URL selector, Pokémon buttons,
+request/response metadata and four exact external-file previews. The independent
+standalone and source-document harnesses now share the same interaction contract.
+Preset changes preserve the last requested URL and response until GET; malformed
+JSON fails with no stale rows, a valid preset recovers, and an empty request
+returns to idle. Direct input edits preserve live input/button identity and the
+caret, restart the removed request through keyboard Enter, and load a second
+typed URL through GET. All six sprite buttons retain their names, titles,
+alternatives and exact URLs; their images load and their buttons accept focus.
+The metadata case verifies all eight fields, exact source-relative resolution
+and the compact link's complete title. Each preview displays the complete file
+text with no demo output, including the intentionally invalid JSON prose.
+
+One malformed request contributes exactly
+`cem-element.http_request_parse_failed` to its instance's diagnostic history.
+The other instances and source document have no diagnostics. Existing startup
+tracing and frame-count waits remain unchanged: their separate timeout is still
+unattributed, and this audit does not claim to resolve it.
+
+Direct editing also exposed a shared live-input discrepancy. To reproduce, type
+`./http-data-compact.json` into sample 0, then choose All records. The owning
+render settles with these values in both Storybook and standalone Chromium:
+
+| Surface | Value |
+| --- | --- |
+| Live input value | `./http-data-compact.json` |
+| Input value attribute and defaultValue | `./http-data.json` |
+| Selected URL output and GET button value | `./http-data.json` |
+| Requested URL output / state before GET | empty / `idle` |
+| Requested URL output / state after GET | `./http-data.json` / `loaded` |
+
+The discrepancy persists for another second after render settlement, with the
+same connected input and no diagnostics. GET loads the full alpha/beta response
+while the field still displays compact. A screenshot and read-only runtime
+observations confirmed the visible mismatch. The strict input-value assertion
+fails; the demo and shared runtime are unchanged pending the user's decision.
+
+Passing checkpoint tests keep the preset sequence before direct typing. They
+explicitly leave preset-after-typing refresh open rather than asserting the
+stale value as desired behavior. Checkpoint validation passes all 232 Storybook
+tests, 513 unit tests and 31 standalone / 37 source-loaded documents. Aggregate
+coverage, lint and typecheck pass with the two existing lint warnings. The HTTP
+page passes desktop two-card layout and 1280px/390px overflow checks. The
+seven-sample audit remains open at the shared input-value refresh decision in
+`docs/todo.md`.

@@ -1120,6 +1120,94 @@ const mappedImageFragmentSample = sampleContract('4d. Mapped image and same-libr
     attributeContains('article cem-element a', 'href', '/demo/lib-dir/embed-lib.html#embed-lib-component'),
 ]);
 
+const httpFullRows = ['alpha : ready', 'beta : loaded'];
+const httpCompactRows = ['solo : compact'];
+function httpUrlState(selected, requested, status, rows) {
+    return [
+        formState({ inputs: [selected], outputs: [selected, requested, status] }),
+        propertyEquals('button[aria-label="GET"]', 'value', selected),
+        elementIdentity('input', 'same'),
+        elementIdentity('button[aria-label="GET"]', 'same'),
+        countExactly('li', rows.length),
+        ...rows.map((row, index) => normalizedText(`li:nth-of-type(${index + 1})`, row)),
+        ...(status === 'failed' ? [text('article > p:last-of-type',
+            'This URL did not provide an accepted JSON response. Choose All records or Compact records and press GET to recover.')] : []),
+    ];
+}
+function editHttpUrl(value) {
+    return [
+        fillThenText('input', value, 'article > p:nth-of-type(2) output', value),
+        focusedElement('input'),
+        propertyEquals('input', 'selectionStart', value.length),
+    ];
+}
+const httpSamples = [
+    sampleContract('0. URL from text to http-request', [
+        elementIdentity('input', 'remember'),
+        elementIdentity('button[aria-label="GET"]', 'remember'),
+        ...httpUrlState('./http-data.json', '', 'idle', []),
+        // Preset-after-typing refresh remains pending in docs/todo.md.
+        clickThenText('article > button', 'article', 'Request state: loaded'),
+        ...httpUrlState('./http-data.json', './http-data.json', 'loaded', httpFullRows),
+        clickThenText('button:has-text("Compact records")', 'article', 'Selected URL: ./http-data-compact.json'),
+        ...httpUrlState('./http-data-compact.json', './http-data.json', 'loaded', httpFullRows),
+        clickThenText('article > button', 'li', 'solo : compact'),
+        ...httpUrlState('./http-data-compact.json', './http-data-compact.json', 'loaded', httpCompactRows),
+        clickThenText('button[aria-label="Invalid JSON response"]', 'article', 'Selected URL: ./http-data-invalid.json'),
+        ...httpUrlState('./http-data-invalid.json', './http-data-compact.json', 'loaded', httpCompactRows),
+        clickThenText('article > button', 'article', 'Request state: failed'),
+        ...httpUrlState('./http-data-invalid.json', './http-data-invalid.json', 'failed', []),
+        clickThenText('button:has-text("All records")', 'article', 'Selected URL: ./http-data.json'),
+        ...httpUrlState('./http-data.json', './http-data-invalid.json', 'failed', []),
+        clickThenText('article > button', 'li', 'beta : loaded'),
+        ...httpUrlState('./http-data.json', './http-data.json', 'loaded', httpFullRows),
+        clickThenText('button[aria-label="Empty URL"]', 'article', 'Selected URL:'),
+        ...httpUrlState('', './http-data.json', 'loaded', httpFullRows),
+        clickThenText('article > button', 'article', 'Request state: idle'),
+        ...httpUrlState('', '', 'idle', []),
+        ...editHttpUrl('./http-data-compact.json'),
+        ...httpUrlState('./http-data-compact.json', '', 'idle', []),
+        pressThenProperty('button[aria-label="GET"]', 'Enter', 'article > p:nth-of-type(4) output', 'textContent', 'loaded'),
+        ...httpUrlState('./http-data-compact.json', './http-data-compact.json', 'loaded', httpCompactRows),
+        ...editHttpUrl('./http-data.json'),
+        ...httpUrlState('./http-data.json', './http-data-compact.json', 'loaded', httpCompactRows),
+        clickThenText('article > button', 'li', 'beta : loaded'),
+        ...httpUrlState('./http-data.json', './http-data.json', 'loaded', httpFullRows),
+    ]),
+    sampleContract('1. Simplest http-request', [
+        countExactly('.result-buttons button', 6),
+        countExactly('.result-buttons img', 6),
+        countExactly('.result-buttons span', 0),
+        normalizedText('article output', 'loaded'),
+        ...['bulbasaur', 'ivysaur', 'venusaur', 'charmander', 'charmeleon', 'charizard'].flatMap((name, index) => {
+            const button = `.result-buttons button:nth-of-type(${index + 1})`;
+            return [
+                attributeEquals(button, 'aria-label', name),
+                attributeEquals(button, 'title', name),
+                attributeEquals(button, 'type', 'button'),
+                normalizedText(button, ''),
+                attributeEquals(`${button} img`, 'alt', name),
+                attributeEquals(`${button} img`, 'src',
+                    `https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/${index + 1}.svg`),
+                imageLoaded(`${button} img`),
+            ];
+        }),
+    ]),
+    sampleContract('2. http-request response and headers', [
+        ...['State', 'Method', 'Authored URL', 'Resolved URL', 'Accept header', 'X-Demo header', 'Status', 'Content type']
+            .map((term, index) => normalizedText(`dl dt:nth-of-type(${index + 1})`, term)),
+        normalizedText('dl dd:nth-of-type(1)', 'loaded'),
+        normalizedText('dl dd:nth-of-type(2)', 'GET'),
+        normalizedText('dl dd:nth-of-type(3)', './http-data.json'),
+        normalizedText('dl dd:nth-of-type(5)', 'application/json'),
+        normalizedText('dl dd:nth-of-type(6)', 'ported-from-legacy'),
+        normalizedText('dl dd:nth-of-type(7)', '200'),
+        text('dl dd:nth-of-type(8)', 'application/json'),
+        attributeContains('dl a', 'href', '/packages/cem-elements/demo/http-data.json'),
+        shortenedHrefText('dl a', 32),
+    ]),
+];
+
 const hexRowSample = sampleContract('9. Horizontal row with a current page', [
     countExactly('nav[aria-label="Demo page links"] a', 3),
     countExactly('nav a[aria-current="page"]', 1),
@@ -1741,70 +1829,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/http-request.html',
-        checks: [
-            text(
-                'cem-demo-element[legend="0. URL from text to http-request"] article',
-                'Request state: idle',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="0. URL from text to http-request"] article > button',
-                'cem-demo-element[legend="0. URL from text to http-request"] article', 'Request state: loaded',
-            ),
-            text(
-                'cem-demo-element[legend="0. URL from text to http-request"] li',
-                'beta : loaded',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="0. URL from text to http-request"] .url-presets button:nth-of-type(2)',
-                'cem-demo-element[legend="0. URL from text to http-request"] article',
-                'Selected URL: ./http-data-compact.json',
-            ),
-            clickThenText(
-                'cem-demo-element[legend="0. URL from text to http-request"] article > button',
-                'cem-demo-element[legend="0. URL from text to http-request"] li',
-                'solo : compact',
-            ),
-            countExactly(
-                'cem-demo-element[legend="1. Simplest http-request"] .result-buttons button',
-                6,
-            ),
-            attributeEquals(
-                'cem-demo-element[legend="1. Simplest http-request"] .result-buttons button:first-of-type',
-                'aria-label',
-                'bulbasaur',
-            ),
-            attributeEquals(
-                'cem-demo-element[legend="1. Simplest http-request"] .result-buttons button:first-of-type img',
-                'src',
-                'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg',
-            ),
-            attributeEquals(
-                'cem-demo-element[legend="1. Simplest http-request"] .result-buttons button:last-of-type img',
-                'src',
-                'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/6.svg',
-            ),
-            text(
-                'cem-demo-element[legend="2. http-request response and headers"] dl dd:nth-of-type(6)',
-                'ported-from-legacy',
-            ),
-            text(
-                'cem-demo-element[legend="2. http-request response and headers"] dl dd:nth-of-type(7)',
-                '200',
-            ),
-            text(
-                'cem-demo-element[legend="2. http-request response and headers"] dl dd:nth-of-type(8)',
-                'application/json',
-            ),
-            attributeContains(
-                'cem-demo-element[legend="2. http-request response and headers"] dl a',
-                'href',
-                '/packages/cem-elements/demo/http-data.json',
-            ),
-            shortenedHrefText(
-                'cem-demo-element[legend="2. http-request response and headers"] dl a',
-                32,
-            ),
-        ],
+        checks: httpSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))),
     },
     {
         path: '/packages/cem-elements/demo/local-storage.html',
@@ -2431,53 +2457,7 @@ const sourceDocumentSpecs = [
     { path: '/packages/cem-elements/demo/html-template.html', checks: [text('#wave', '👋'), text('#ok', '👌'), countExactly('#dwc-logo', 1), countExactly('#sophomores-dream', 1)] },
     {
         path: '/packages/cem-elements/demo/http-request.html',
-        samples: [
-            sampleContract('0. URL from text to http-request', [
-                text('article', 'Request state: idle'),
-                clickThenText('article > button', 'article', 'Request state: loaded'),
-                text('li', 'beta : loaded'),
-                clickThenText(
-                    '.url-presets button:nth-of-type(2)',
-                    'article',
-                    'Selected URL: ./http-data-compact.json',
-                ),
-                clickThenText('article > button', 'li', 'solo : compact'),
-                clickThenText('button[aria-label="Invalid JSON response"]', 'article', 'Selected URL: ./http-data-invalid.json'),
-                text('article', 'Request state: loaded'),
-                clickThenText('article > button', 'article', 'Request state: failed'),
-                countExactly('li', 0),
-                clickThenText('button:has-text("All records")', 'article', 'Selected URL: ./http-data.json'),
-                clickThenText('article > button', 'li', 'beta : loaded'),
-                clickThenText('button[aria-label="Empty URL"]', 'article', 'Selected URL:'),
-                attributeAbsent('input[type="text"]', 'value'),
-                clickThenText('article > button', 'article', 'Request state: idle'),
-                countExactly('li', 0),
-            ]),
-            sampleContract('1. Simplest http-request', [
-                countExactly('.result-buttons button', 6),
-                countExactly('.result-buttons span', 0),
-                attributeEquals('.result-buttons button:first-of-type', 'aria-label', 'bulbasaur'),
-                attributeEquals(
-                    '.result-buttons button:first-of-type img',
-                    'src',
-                    'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg',
-                ),
-                attributeEquals(
-                    '.result-buttons button:last-of-type img',
-                    'src',
-                    'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/6.svg',
-                ),
-            ]),
-            sampleContract('2. http-request response and headers', [
-                text('dl dd:nth-of-type(2)', 'GET'),
-                text('dl dd:nth-of-type(5)', 'application/json'),
-                text('dl dd:nth-of-type(6)', 'ported-from-legacy'),
-                text('dl dd:nth-of-type(7)', '200'),
-                text('dl dd:nth-of-type(8)', 'application/json'),
-                attributeContains('dl a', 'href', '/packages/cem-elements/demo/http-data.json'),
-                shortenedHrefText('dl a', 32),
-            ]),
-        ],
+        samples: httpSamples,
     },
     {
         path: '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-lib-component',
@@ -2672,12 +2652,20 @@ for (const [directory, page, files] of [
     ['custom-element', 'npm-versions-demo.html', ['npm-versions.json']],
 ]) {
     const path = `/packages/${directory}/demo/${page}`;
-    const previews = files.map(file => sampleContract(file, [
+    const previews = await Promise.all(files.map(async file => sampleContract(file, [
         attributeEquals(':scope', 'src', `./${file}`),
         attributeEquals(':scope', 'type', file.endsWith('.xml') ? 'xml' : 'json'),
         attributeEquals(':scope', 'demo', 'false'),
         countExactly('[slot="demo"] > *', 0),
-    ]));
+        ...(directory === 'cem-elements' && page === 'http-request.html' ? [
+            attributeEquals(':scope', 'data-state', 'ready'),
+            propertyEquals('[slot=text] code', 'textContent',
+                await readFile(join(repoRoot, 'packages/cem-elements/demo', file), 'utf8')),
+            file === 'http-data-invalid.json' ? attributeEquals('[slot=text] code', 'data-language', 'js')
+                : countAtLeast('[slot=text] code i', 1),
+            propertyEquals('[slot=demo]', 'textContent', ''),
+        ] : []),
+    ])));
     const checks = previews.flatMap(sample => sample.checks.map(check =>
         scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`)));
     const fixture = fixtureSpecs.find(fixture => fixture.path === path);
@@ -2824,6 +2812,9 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/form.html') {
                 await verifyDemoLayout(page, 5);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/http-request.html') {
+                await verifyDemoLayout(page, 7);
             }
             if (fixture.path === '/packages/cem-elements/demo/hex-grid.html') {
                 await verifyHexSamples(page);

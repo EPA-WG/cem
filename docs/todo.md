@@ -4379,6 +4379,35 @@ registration identities may reuse an inherited or existing definition.
           response/header projections, invalid-response recovery and exact
           source previews. Preserve authored examples, verify desktop/mobile
           layout and stop for any new behavior decision.
+          Checkpoint 2026-09-24: direct URL editing exposes the live-value
+          discrepancy below. The audit remains open pending that decision;
+          preserve startup tracing and the separate unattributed timeout.
+    - [x] Fixture: characterize HTTP sample 0's preset change after direct URL
+          editing. Type `./http-data-compact.json`, then choose All records.
+          Storybook and standalone Chromium show the input's live value still
+          compact while its value attribute/defaultValue, Selected URL output
+          and GET button value are `./http-data.json`. This persists after the
+          owning render settles and one further second, with no diagnostics.
+          GET loads the full response while the field still displays compact.
+          No authored fixture or shared runtime change has been made.
+    - [ ] Decision: fix shared input-value refresh after a typed control's
+          bound value changes (recommended), or record the limitation and
+          leave the corresponding HTTP audit case pending. Preserve native
+          editing focus/caret behavior and compare the live value with the
+          committed binding, including changes back to the initial value.
+    - [x] Fixture: strengthen the remaining HTTP request contracts while the
+          preset-after-typing decision stays open. Add seven named Storybook
+          steps, exact request/draft states, malformed/empty recovery, direct
+          input and keyboard GET, six loaded sprites and all metadata fields.
+          Share both gallery modes' interaction contracts and require exact
+          content in all four external previews. Keep the known failing case
+          explicitly pending rather than asserting its stale value as desired.
+          Completed 2026-09-24: all 232 Storybook tests, 513 unit tests and 31
+          standalone / 37 source-loaded documents pass. Aggregate coverage,
+          lint and typecheck pass with the two existing lint warnings; desktop
+          two-card layout and 1280px/390px overflow checks pass. The authored
+          demo and shared runtime are unchanged. The seven-sample audit and
+          separate startup-timeout investigation remain open.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
