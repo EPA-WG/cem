@@ -37,9 +37,9 @@ revision during implementation, with their license and provenance.
   order; choosing whichever happens to occur would undermine portability.
 - [record:entries](../packages/cem_ql/src/eval/pipeline.rs) enumerates those
   fields. It does not restore the lost authored ordering.
-- [The registry](../packages/cem_ql/src/stdlib.rs) has no URL module.
-  `cem-ql` has no direct `url` crate dependency. The workspace lock contains `url`
-  2.5.8, but that is a candidate dependency, not evidence of conformance.
+- [The registry](../packages/cem_ql/src/stdlib.rs) has no registered URL query
+  module yet. Native URL cores now use the pinned Rust `url` 2.5.8 dependency.
+  This is not evidence of full conformance; four file/IDNA parser gaps remain.
   Its typed setters alone cannot establish JavaScript setter parity.
 
 ## Value contract
@@ -460,3 +460,37 @@ url_parse_candidate --target-dir dist/target/cem_ql` passes (15 tests), and
 `yarn nx run cem_ql:build:wasm` succeeds. The WASM build verifies compilation,
 not execution parity of the unregistered API. Formatting and whitespace checks
 pass; no full package test suite or workspace-wide task ran.
+
+### Native parse/serialize core completed — 2026-09-25
+
+The [typed Rust core](../packages/cem_ql/src/stdlib/url.rs) implements `can_parse`,
+`href` and `parse` over CEM-QL item streams. It accepts singleton string/anyURI
+atoms, including native atomic views, while rejecting non-atomic views even if
+they expose an atom. Omitted bases are distinct from empty argument streams.
+All argument shapes are checked in argument order before validating the base,
+then input syntax. An invalid supplied base fails even for absolute input.
+
+`href` returns an anyURI atom or a classified error; `parse` returns an optional
+control record, and `can_parse` a boolean. The latter two suppress syntax errors
+only. Error codes/messages omit input payloads; future evaluator integration
+must attach source ranges and preserve existing argument diagnostics. Parsed
+records use the pure-origin adapter, retain authoritative href delimiters, and
+contain ordered query entry streams built through the existing parameter core.
+No runtime JSON conversion, ambient base, host lookup or resource load occurs.
+
+Seven new [tests](../packages/cem_ql/tests/url_parse.rs) cover strict typed
+boundaries, explicit/opaque/invalid bases, canonical fields, href idempotence,
+query decoding/duplicates, recoverable encoding, origin handling and error codes.
+All 51 selected WPT cases now pass through the core: 47 match, and four retain
+exactly the seven deferred file/IDNA differences. That test characterizes the
+known gaps; it does not claim full conformance or alter upstream expectations.
+
+All 22 focused URL tests pass. The URL-PARSE native stage is complete with the
+accepted deferred compatibility debt. Next is URL-PARTS: seeded assembly and
+immutable setters with ignored/partial-effect evidence. Query registry, static
+types, source-mapped evaluator diagnostics and execution parity remain pending.
+
+Validation: the focused `url_parse`, `url_origin`, `url_params` and
+`url_parse_candidate` test binaries pass, as does `yarn nx run cem_ql:build:wasm`.
+The build verifies WASM compilation, not query execution parity. No full test
+suite or workspace-wide task ran; shared evaluator/type behavior is unchanged.

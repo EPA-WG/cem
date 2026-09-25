@@ -5255,7 +5255,7 @@ registration identities may reuse an inherited or existing definition.
           assertion. No common module or authored component changed; no full
           test, browser or workspace-wide gate ran. Full package status remains
           unverified beyond this corrected failure until its next required run.
-    - [ ] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
+    - [x] Fixture URL-PARSE: pin selected WPT vectors with provenance/license;
           test native parsing, explicit bases, serialization, encoding and the
           pure origin profile before choosing dependency adapters.
         - [x] Pin candidate evidence: retain 51 unmodified WPT cases, source
@@ -5293,7 +5293,16 @@ registration identities may reuse an inherited or existing definition.
               unchanged. url 2.5.8 is now a runtime dependency; no fork/C++.
               All 15 focused URL tests and the package Nx WASM build pass.
               No full test suite ran. Query registration remains pending.
-        - [ ] Continue URL-PARSE using Rust with native tests first: add the
+        - [x] Fixture URL-PARSE-CORE: cover typed parse/can_parse/href,
+              explicit bases, diagnostic classification, typed record/query
+              projection and deferred parser differences.
+              Completed 2026-09-25: seven new tests cover the typed native API;
+              47/51 selected WPT cases match through the core. The remaining
+              four file/IDNA cases retain exactly seven raw-parser differences,
+              documented in the wishlist; upstream expectations are unchanged.
+              All 22 focused URL tests and the package Nx WASM build pass.
+              No full/global tests ran. Query registration is still pending.
+        - [x] Continue URL-PARSE using Rust with native tests first: add the
               explicit-base parse/serialize core and wire the completed origin
               serializer into parsed results; retain unchanged WPT expectations
               and explicitly document deferred parser limitations. The wishlist

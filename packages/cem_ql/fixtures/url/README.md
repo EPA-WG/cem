@@ -69,3 +69,9 @@ selected blob-origin expectations, including cases 782/786/787/788. Its separate
 [test](../../tests/url_origin.rs) verifies unchanged WPT expectations; the raw
 candidate characterization intentionally still records its original eight gaps.
 Four parser gaps remain; query registration/integration is pending.
+
+The [typed parse/serialize core](../../src/stdlib/url.rs) is now implemented.
+Its [core test](../../tests/url_parse.rs) exercises all 51 selected WPT cases:
+47 match and four preserve exactly seven documented file/IDNA differences.
+The raw candidate test remains unchanged. These counts are selected-case
+characterization, not full WHATWG conformance. Query registration is pending.
