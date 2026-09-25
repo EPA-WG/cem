@@ -1581,7 +1581,7 @@ and shared runtime are unchanged. This audit is complete; next is
 `xpath-sort.html` (two samples). Broader per-sample coverage and historical
 startup investigations remain open.
 
-## XPath sort behavior coverage, 2026-09-25 — diagnostic correction pending
+## XPath sort behavior audit, 2026-09-25
 
 Both samples now have named Storybook steps and shared independent contracts.
 Word checks cover all text/numeric and ascending/descending combinations,
@@ -1603,18 +1603,17 @@ Both independent modes pass 1280px/390px containment and complete source
 scrolling with ten rows visible; standalone retains a two-card desktop row.
 Focused validation passes one Storybook test, two source-contract unit tests,
 both independent browser modes, changed-story lint and verifier syntax checks.
-No full suite was run. Authored HTML, XPath library and shared runtime are
-unchanged.
+No full suite was run. XPath library and shared runtime are unchanged.
 
-The audit remains open because the table sample passes its initial empty
-selection to the required string `id` parameter of `sort.selected`. Its produced
-instance retains `cem.ql.xpath_function_argument` and
-`cem.ql.render.for_each_failed`. Both harnesses temporarily expect exactly these
-two codes for that instance; page, declaration and word-instance histories must
-remain empty. A temporary focused native probe reproduced the argument error
-and confirmed that `datadom.slices.selected ?? ""` avoids it while preserving
-later selection. The fixture-only correction is recommended and awaits the
-user's fixture-versus-runtime decision. After correction, remove the temporary
-expectations and require empty histories before closing the audit. Next after
-sort is `xpath-validation.html` (two samples). Broader per-sample coverage and
-historical startup investigations remain open.
+Sample 2 now passes `datadom.slices.selected ?? ""` to the required string
+`id` parameter of `sort.selected`, following the approved fixture-only
+correction. The initial empty selection produces no rows or errors; later
+selection, sorting and source replacement retain the behavior described above.
+The temporary diagnostic expectations are removed. Storybook and the independent
+source-loaded harness both require empty page, declaration and produced-instance
+diagnostic histories through startup and all interactions. The focused native
+probe had confirmed the fallback before the fixture correction, and the browser
+checks now confirm it in the authored sample.
+
+This audit is complete. Next is `xpath-validation.html` (two samples). Broader
+per-sample coverage and historical startup investigations remain open.

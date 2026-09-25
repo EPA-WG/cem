@@ -3358,13 +3358,7 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/xpath-sort.html') {
                 await verifyXPathSortPresentation(page);
-                // Known empty-selection startup failure; correction awaits the
-                // fixture-versus-runtime decision recorded in docs/todo.md.
-                await verifySourceDocumentDiagnostics(page, tag, {
-                    '2. Multiple keys and source selection': [
-                        'cem.ql.xpath_function_argument', 'cem.ql.render.for_each_failed',
-                    ],
-                });
+                await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {

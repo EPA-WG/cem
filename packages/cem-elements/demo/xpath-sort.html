@@ -119,7 +119,7 @@
                             {td | {$native:call("row.qty", row)}}
             }   }   }   }
             {cem:for-each @as=row @select='native:call("sort.selected",
-                document.root, datadom.slices.selected)' |
+                document.root, datadom.slices.selected ?? "")' |
                 {p | Selected: {output | {$native:call("row.label", row)}};
                     previous source sibling: {output | {$native:call("row.previous", row)}}}}
 }   }   }

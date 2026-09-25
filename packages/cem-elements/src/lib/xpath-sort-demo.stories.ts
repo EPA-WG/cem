@@ -175,12 +175,7 @@ export const TypedKeysAndSourceSelection: Story = {
             expect(cemDiagnosticCodes(declaration)).toEqual([]);
             const tag = declaration.getAttribute('tag');
             if (tag) for (const instance of canvasElement.querySelectorAll<HTMLElement>(tag)) {
-                // Known initial empty-selection failure; fixture-versus-runtime correction
-                // is pending in docs/todo.md. Keep all other diagnostics unexpected.
-                const expected = instance.closest('cem-demo-element')?.getAttribute('legend')
-                    === '2. Multiple keys and source selection'
-                    ? ['cem.ql.xpath_function_argument', 'cem.ql.render.for_each_failed'] : [];
-                expect(cemDiagnosticCodes(instance)).toEqual(expected);
+                expect(cemDiagnosticCodes(instance)).toEqual([]);
             }
         }
     },

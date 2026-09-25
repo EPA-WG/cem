@@ -4861,7 +4861,7 @@ registration identities may reuse an inherited or existing definition.
           modes, changed-story lint and verifier syntax checks. No full suite
           was run; authored HTML, XPath library and shared runtime are unchanged.
           Broader coverage and historical startup investigations remain open.
-    - [ ] Fixture: audit both `demo/xpath-sort.html` samples against their
+    - [x] Fixture: audit both `demo/xpath-sort.html` samples against their
           source-loaded Storybook and independent gallery contracts. Verify
           text/numeric ordering, direction, stable and multiple keys, missing/
           invalid values, retained source selection and invalid-XML recovery.
@@ -4876,32 +4876,36 @@ registration identities may reuse an inherited or existing definition.
               edits, empty results and malformed-XML recovery.
         - [x] Check navigation and desktop/mobile containment and scrolling;
               run focused checks and record the remaining diagnostic decision.
-        - [ ] Resolve sample 2's initial empty-selection argument error after
-              the fixture-versus-runtime decision. Recommended: pass
-              `datadom.slices.selected ?? ""` to `sort.selected`, then remove
-              the temporary diagnostic expectations from both browser harnesses
+        - [x] Apply the approved fixture-only correction for sample 2's initial
+              empty-selection argument error: pass
+              `datadom.slices.selected ?? ""` to `sort.selected`, remove the
+              temporary diagnostic expectations from both browser harnesses
               and require empty diagnostic histories before closing this audit.
-          Coverage completed 2026-09-25; audit remains open: both named
-          Storybook steps and independent modes verify word ordering, decimal
-          ties, invalid-last ordering, Unicode and empty input, every row/cell,
-          group/quantity keys, source selection and malformed-XML recovery.
-          Controls retain identity, focus and selection; sample edits remain
-          independent. All six navigation links use the approved source base.
-          Both independent modes pass 1280px/390px containment and complete
-          source scrolling, with a standalone two-card desktop row. Focused
-          validation passes one Storybook test, two source-contract unit tests,
-          both browser modes, changed-story lint and verifier syntax checks.
-          The produced table instance retains two startup diagnostics:
-          `cem.ql.xpath_function_argument` and `cem.ql.render.for_each_failed`.
-          Its empty selected slice reaches the required string `id` parameter.
-          A temporary focused native probe reproduced the argument failure and
-          confirmed an empty-string fallback yields no rows or diagnostics while
-          preserving later selection. Only those two codes are temporarily
-          expected for this sample; other diagnostic histories must stay empty.
-          No authored fixture, XPath library or shared runtime changed, and no
-          full suite ran. Next: resolve this decision and finish the sort audit;
-          then audit `xpath-validation.html` (two samples). Broader coverage and
+          Completed 2026-09-25: both named Storybook steps and independent modes
+          verify word ordering, decimal ties, invalid-last ordering, Unicode
+          and empty input, every row/cell, group/quantity keys, source selection
+          and malformed-XML recovery. Controls retain identity, focus and
+          selection; sample edits remain independent. All six navigation links
+          use the approved source base. Both independent modes pass
+          1280px/390px containment and complete source scrolling, with a
+          standalone two-card desktop row. Focused validation passes one
+          Storybook test, two source-contract unit tests, both browser modes,
+          changed-story lint and verifier syntax checks. Sample 2 now passes an
+          empty string to the required `sort.selected` string parameter before
+          selection, as approved by the user and confirmed by the native probe.
+          Both source-loaded harnesses require empty diagnostic histories;
+          later selection, sorting and source replacement continue to pass.
+          XPath library and shared runtime are unchanged; no full suite ran.
+          Next: `xpath-validation.html` (two samples). Broader coverage and
           historical startup investigations remain open.
+    - [ ] Fixture: audit both `demo/xpath-validation.html` samples against
+          source-loaded Storybook and independent gallery contracts. Verify
+          user-name boundaries, integer age ranges, tag validation/formatting,
+          IPv4 octets and optional CIDR prefixes, local allow-list rules,
+          invalid/empty input and recovery. Check control retention, independent
+          sample state, diagnostics, navigation and desktop/mobile presentation;
+          stop for any new behavior decision and keep validation focused unless
+          shared modules change.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
