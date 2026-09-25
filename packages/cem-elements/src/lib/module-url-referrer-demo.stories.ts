@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { expect } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-module-url-referrer-document';
 const DEMO_URL = new URL('../../demo/module-url-referrer.html', import.meta.url);
@@ -27,7 +28,8 @@ export const EveryAuthoredSample: Story = {
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
+        const originalUrl = location.href;
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await whenCemSourceRendered(host);
         await waitForCondition(
@@ -40,8 +42,6 @@ export const EveryAuthoredSample: Story = {
         const tag = declaration.getAttribute('tag');
         assert(tag, 'the matrix declaration has its generated tag');
         const instance = requiredElement(sample, tag);
-        assert(cemDiagnosticCodes(declaration).length === 0, 'the matrix declaration has no diagnostics');
-        assert(cemDiagnosticCodes(instance).length === 0, 'the settled matrix has no diagnostics');
         const cells = () => Array.from(
             sample.querySelectorAll('tbody td'),
             (cell) => normalize(cell.textContent ?? '')
@@ -65,10 +65,47 @@ export const EveryAuthoredSample: Story = {
                 && cells().every((value, index) => value === expected[index]),
             'all scalar src-by-referrer combinations publish their expected URLs'
         );
-        assert(
-            host.querySelector('cem-module-url') === null,
-            'transient cem-module-url controls are removed from rendered output'
-        );
+        await whenCemRendered(instance);
+        const labels = ['relative URL', 'module path', 'absolute URL'];
+        expect(texts(sample, 'thead th')).toEqual(['referrer / src', ...labels]);
+        expect(texts(sample, 'tbody th')).toEqual(labels);
+        expect(sample.querySelectorAll('thead th[scope="col"]')).toHaveLength(4);
+        expect(sample.querySelectorAll('tbody th[scope="row"]')).toHaveLength(3);
+        expect(sample.querySelectorAll('tbody tr')).toHaveLength(3);
+        const rows = Array.from(sample.querySelectorAll('tbody tr'));
+        for (const [rowIndex, label] of labels.entries()) {
+            await step(`${label} referrer resolves all three src forms`, async () => {
+                expect(texts(rows[rowIndex], 'td')).toEqual(expected.slice(rowIndex * 3, rowIndex * 3 + 3));
+            });
+        }
+        await step('The source presents all nine inputs and bindings', async () => {
+            const source = requiredElement(sample, '[slot="text"] pre').textContent ?? '';
+            expect(source.replace(/^\r?\n/u, '').startsWith('<cem-element>')).toBe(true);
+            const controls = [...source.matchAll(/\{cem-module-url\s+([^}]+)\}/gu)];
+            expect(controls).toHaveLength(9);
+            const suffixes = ['Relative', 'Module', 'Absolute'];
+            const referrers = ['./relative-referrer/component.js', 'demo-module-referrer',
+                'https://referrer.example.test/absolute/component.js'];
+            for (const [row, suffix] of suffixes.entries()) {
+                const sources = [`../lib-dir/Smiley.svg?case=relative-${suffix.toLowerCase()}`,
+                    'demo-referrer-image', 'https://assets.example.test/logo.svg'];
+                for (const [column, prefix] of ['relative', 'module', 'absolute'].entries()) {
+                    const control = normalize(controls[row * 3 + column][1]);
+                    expect(control).toBe(`@slice=${prefix}By${suffix} @src="${sources[column]}" @referrer="${referrers[row]}"`);
+                    expect(source).toMatch(new RegExp(`\\{\\$datadom\\.slices\\.${prefix}By${suffix}\\s*\\}`));
+                }
+            }
+            expect(sample.querySelector('[slot="status"]')?.textContent?.trim() ?? '').toBe('');
+        });
+        expect(location.href).toBe(originalUrl);
+        // Ordinary source-document navigation resolution is a separate pending
+        // decision; the matrix's CEM module URLs are checked above in full.
+        const related = requiredElement(host, 'main section a[href$="module-url.html"]');
+        expect(related.getAttribute('href')).toBe('./module-url.html');
+        expect(host.querySelectorAll('cem-module-url')).toHaveLength(0);
+        expect(cemDiagnosticCodes(declaration)).toEqual([]);
+        expect(cemDiagnosticCodes(instance)).toEqual([]);
+        expect(cemDiagnosticCodes(host)).toEqual([]);
     },
 };
 
@@ -103,4 +140,8 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function normalize(value: string): string {
     return value.replace(/\s+/gu, ' ').trim();
+}
+
+function texts(root: ParentNode, selector: string): string[] {
+    return Array.from(root.querySelectorAll(selector), node => normalize(node.textContent ?? ''));
 }

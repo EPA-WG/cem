@@ -1090,3 +1090,46 @@ warnings. All three location samples are audited without a new behavior
 decision. The next fixture is the nine-cell scalar-referrer matrix in
 `module-url-referrer.html`; the broader per-sample audit and separate startup
 investigations remain open.
+
+## Scalar-referrer matrix audit, 2026-09-24
+
+The matrix's nine scalar src/referrer combinations resolve correctly in
+Storybook, standalone Chromium and the independent source-document harness.
+Storybook now names each referrer row, checks the exact ordered URL values and
+row/column headings, verifies all nine displayed source controls and bindings,
+and requires empty declaration, instance and source-host diagnostic histories.
+Both gallery modes share the complete nine-cell contract, replacing five
+partial-value checks. Request observation begins before document loading and
+rejects target/referrer fetches; the page URL must remain unchanged.
+
+The audit found that the mobile output was clipped despite a passing page-width
+check. At 390px, a 372px card contained a roughly 893px standalone / 989px
+source-loaded table. The user approved a fixture-only correction. The authored
+matrix now constrains its table to the card with wrapping cells, explicit row/column
+header scopes, multiline resource controls and source beginning at column 1.
+All original inputs and full output URLs are preserved. Both focused gallery
+modes verify table/cell containment at 1280px and 390px and access to the end of
+the source panel's horizontal scroller. This intentionally wide, single-matrix
+page is not subject to the ordinary gallery's two-card-row check.
+
+A related-page link completes the existing parent-page cross-reference. Its
+standalone target is correct, but the source-loaded check exposed an ordinary
+HTML navigation limitation: both the existing `../index.html` link and new
+`./module-url.html` link resolve relative to the host document, outside the
+authored demo directory. Storybook reproduces the related-link mismatch. The
+nine CEM module URLs remain source-relative and correct. The user approved
+investigating shared source-link resolution. The loader retains the final
+source URL as `resourceBaseUrl`, but `templateFromDocument`/`templateFromTarget`
+import ordinary attributes unchanged. The existing loading contract governs
+CEM resource controls and supplies no ordinary-link rebasing policy. A decision
+between an explicit per-declaration opt-in and a default for external
+declarations is pending. Both proposed modes preserve current-page fragments
+and allow explicit host-document resolution. No shared implementation, fixture
+or harness rebasing has been added; tests do not assert the host-relative
+destination as desired.
+
+The focused story and both gallery modes pass after the approved presentation
+correction. The full aggregate gate passes all 237 Storybook tests, 513 unit
+tests and 31 standalone / 37 source-loaded documents. Lint and typecheck pass
+with the two existing lint warnings. The broader matrix audit remains open for
+the navigation policy decision; the next demo after it is `module-url.html`.

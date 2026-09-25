@@ -51,6 +51,8 @@
             module-map context. Use <code>referrer-selector</code> when resolution must use
             the context owned by a rendered descendant component.
         </p>
+        <h3>See also</h3>
+        <p><a href="./module-url.html">Module URLs and component referrers</a></p>
     </section>
 
     <cem-demo-element
@@ -58,30 +60,73 @@
         description="Each src form is resolved with a relative-URL, bare-module, and absolute-URL referrer;<br/>
                     module-map scopes affect only the mapped src while relative src changes base and absolute src stays fixed">
         <template>
-            <cem-element>
-                <template type="text/cem-ml">
-                    {cem-module-url @slice=relativeByRelative @src="../lib-dir/Smiley.svg?case=relative-relative"   @referrer="./relative-referrer/component.js"}
-                    {cem-module-url @slice=moduleByRelative   @src="demo-referrer-image"                            @referrer="./relative-referrer/component.js"}
-                    {cem-module-url @slice=absoluteByRelative @src="https://assets.example.test/logo.svg"           @referrer="./relative-referrer/component.js"}
+<cem-element>
+    <template type="text/cem-ml">
+{style |```
+    table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    th, td { padding: 0.4rem; vertical-align: top; text-align: left;
+        overflow-wrap: anywhere; }
+    thead th:first-child { width: 18%; }
+```}
+{cem-module-url @slice=relativeByRelative
+    @src="../lib-dir/Smiley.svg?case=relative-relative"
+    @referrer="./relative-referrer/component.js"}
+{cem-module-url @slice=moduleByRelative
+    @src="demo-referrer-image"
+    @referrer="./relative-referrer/component.js"}
+{cem-module-url @slice=absoluteByRelative
+    @src="https://assets.example.test/logo.svg"
+    @referrer="./relative-referrer/component.js"}
 
-                    {cem-module-url @slice=relativeByModule @src="../lib-dir/Smiley.svg?case=relative-module"   @referrer="demo-module-referrer"}
-                    {cem-module-url @slice=moduleByModule   @src="demo-referrer-image"                          @referrer="demo-module-referrer"}
-                    {cem-module-url @slice=absoluteByModule @src="https://assets.example.test/logo.svg"         @referrer="demo-module-referrer"}
+{cem-module-url @slice=relativeByModule
+    @src="../lib-dir/Smiley.svg?case=relative-module"
+    @referrer="demo-module-referrer"}
+{cem-module-url @slice=moduleByModule
+    @src="demo-referrer-image"
+    @referrer="demo-module-referrer"}
+{cem-module-url @slice=absoluteByModule
+    @src="https://assets.example.test/logo.svg"
+    @referrer="demo-module-referrer"}
 
-                    {cem-module-url @slice=relativeByAbsolute @src="../lib-dir/Smiley.svg?case=relative-absolute"   @referrer="https://referrer.example.test/absolute/component.js"}
-                    {cem-module-url @slice=moduleByAbsolute   @src="demo-referrer-image"                            @referrer="https://referrer.example.test/absolute/component.js"}
-                    {cem-module-url @slice=absoluteByAbsolute @src="https://assets.example.test/logo.svg"           @referrer="https://referrer.example.test/absolute/component.js"}
+{cem-module-url @slice=relativeByAbsolute
+    @src="../lib-dir/Smiley.svg?case=relative-absolute"
+    @referrer="https://referrer.example.test/absolute/component.js"}
+{cem-module-url @slice=moduleByAbsolute
+    @src="demo-referrer-image"
+    @referrer="https://referrer.example.test/absolute/component.js"}
+{cem-module-url @slice=absoluteByAbsolute
+    @src="https://assets.example.test/logo.svg"
+    @referrer="https://referrer.example.test/absolute/component.js"}
 
-                    {table @class=demo-card |
-                        {thead | {tr | {th | referrer / src} {th | relative URL} {th | module path} {th | absolute URL}}}
-                        {tbody |
-                            {tr | {th | relative URL} {td | {$datadom.slices.relativeByRelative}} {td | {$datadom.slices.moduleByRelative}} {td | {$datadom.slices.absoluteByRelative}}}
-                            {tr | {th | module path } {td | {$datadom.slices.relativeByModule  }} {td | {$datadom.slices.moduleByModule  }} {td | {$datadom.slices.absoluteByModule  }}}
-                            {tr | {th | absolute URL} {td | {$datadom.slices.relativeByAbsolute}} {td | {$datadom.slices.moduleByAbsolute}} {td | {$datadom.slices.absoluteByAbsolute}}}
-                        }
-                    }
-                </template>
-            </cem-element>
+{table @class=demo-card |
+    {thead | {tr |
+        {th @scope=col | referrer / src}
+        {th @scope=col | relative URL}
+        {th @scope=col | module path}
+        {th @scope=col | absolute URL}
+    }   }
+    {tbody |
+        {tr |
+            {th @scope=row | relative URL}
+            {td | {$datadom.slices.relativeByRelative}}
+            {td | {$datadom.slices.moduleByRelative}}
+            {td | {$datadom.slices.absoluteByRelative}}
+        }
+        {tr |
+            {th @scope=row | module path}
+            {td | {$datadom.slices.relativeByModule}}
+            {td | {$datadom.slices.moduleByModule}}
+            {td | {$datadom.slices.absoluteByModule}}
+        }
+        {tr |
+            {th @scope=row | absolute URL}
+            {td | {$datadom.slices.relativeByAbsolute}}
+            {td | {$datadom.slices.moduleByAbsolute}}
+            {td | {$datadom.slices.absoluteByAbsolute}}
+        }
+}   }
+    </template>
+</cem-element>
         </template>
     </cem-demo-element>
 </main>

@@ -350,6 +350,28 @@ const xpathNodeSamples = [
     ]),
 ];
 
+const scalarReferrerSample = sampleContract('src by scalar referrer matrix', [
+    nodeTexts('thead th', ['referrer / src', 'relative URL', 'module path', 'absolute URL']),
+    nodeTexts('tbody th', ['relative URL', 'module path', 'absolute URL']),
+    countExactly('thead th[scope="col"]', 4),
+    countExactly('tbody th[scope="row"]', 3),
+    countExactly('tbody tr', 3),
+    {
+        kind: 'resolvedUrlTexts', selector: 'tbody td', expected: [
+            '/packages/cem-elements/demo/lib-dir/Smiley.svg?case=relative-relative',
+            '/packages/cem-elements/demo/lib-dir/Smiley.svg?referrer=relative',
+            'https://assets.example.test/logo.svg',
+            '/packages/cem-elements/demo/lib-dir/Smiley.svg?case=relative-module',
+            '/packages/cem-elements/demo/confused.svg?referrer=module',
+            'https://assets.example.test/logo.svg',
+            'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute',
+            '/packages/cem-elements/demo/wc-square.svg?referrer=absolute',
+            'https://assets.example.test/logo.svg',
+        ],
+    },
+    countExactly('cem-module-url', 0),
+]);
+
 function locationReader(selector, mode) {
     return { kind: 'locationReader', selector, mode };
 }
@@ -1987,14 +2009,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/module-url-referrer.html',
-        checks: [
-            text('tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
-            text('tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
-            text('tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
-            text('tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
-            text('tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
-            countExactly('cem-module-url', 0),
-        ],
+        checks: scalarReferrerSample.checks.map(check => scopeCheck(check,
+            `cem-demo-element[legend="${scalarReferrerSample.legend}"]`)),
     },
     {
         path: '/packages/cem-elements/demo/functions/dom.html',
@@ -2590,16 +2606,7 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/module-url-referrer.html',
-        samples: [
-            sampleContract('src by scalar referrer matrix', [
-                text('tbody tr:first-of-type td:first-of-type', 'Smiley.svg?case=relative-relative'),
-                text('tbody tr:first-of-type td:nth-of-type(2)', 'Smiley.svg?referrer=relative'),
-                text('tbody tr:nth-of-type(2) td:nth-of-type(2)', 'confused.svg?referrer=module'),
-                text('tbody tr:last-of-type td:first-of-type', 'https://referrer.example.test/lib-dir/Smiley.svg?case=relative-absolute'),
-                text('tbody tr:last-of-type td:nth-of-type(2)', 'wc-square.svg?referrer=absolute'),
-                countExactly('cem-module-url', 0),
-            ]),
-        ],
+        samples: [scalarReferrerSample],
     },
     { path: '/packages/cem-elements/demo/functions/dom.html', samples: domChainSamples },
     {
@@ -2837,6 +2844,7 @@ try {
         const pageErrors = [];
         const context = await browser.newContext();
         const page = await context.newPage();
+        const resolutionRequests = observeScalarReferrerRequests(page, fixture);
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
@@ -2854,6 +2862,10 @@ try {
                 await runCheck(page, check);
             }
             await verifySymbolicControls(page, fixture.path);
+            if (resolutionRequests) {
+                await verifyScalarReferrerPresentation(page, resolutionRequests,
+                    `http://127.0.0.1:${port}${fixture.path}`);
+            }
             if (fixture.path === '/packages/cem-elements/demo/dom-merge.html') {
                 await verifyDemoLayout(page, 3);
             }
@@ -2905,6 +2917,7 @@ try {
     for (const [index, fixture] of sourceDocumentSpecs.entries()) {
         const pageErrors = [];
         const page = await browser.newPage();
+        const resolutionRequests = observeScalarReferrerRequests(page, fixture);
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
@@ -2932,6 +2945,10 @@ try {
                 await runCheck(page, scopeCheck(check, tag));
             }
             await verifySymbolicControls(page, fixture.path);
+            if (resolutionRequests) {
+                await verifyScalarReferrerPresentation(page, resolutionRequests,
+                    `http://127.0.0.1:${port}/__cem-source-harness.html`);
+            }
             if (fixture.path === '/packages/cem-elements/demo/location-element.html') {
                 await verifyLocationLifecycle(page, async () => {
                     await mountSourceDocument(page, fixture, tag);
@@ -3415,6 +3432,79 @@ async function verifyHexRowNavigation(page) {
     ]);
 }
 
+function observeScalarReferrerRequests(page, fixture) {
+    if (fixture.path !== '/packages/cem-elements/demo/module-url-referrer.html') return null;
+    const requests = [];
+    page.on('request', request => requests.push(request.url()));
+    return requests;
+}
+
+async function verifyScalarReferrerPresentation(page, requests, originalUrl) {
+    const selector = `cem-demo-element[legend="${scalarReferrerSample.legend}"]`;
+    const expectedControls = [
+        ['Relative', './relative-referrer/component.js'],
+        ['Module', 'demo-module-referrer'],
+        ['Absolute', 'https://referrer.example.test/absolute/component.js'],
+    ].flatMap(([suffix, referrer]) => [
+        ['relative', `../lib-dir/Smiley.svg?case=relative-${suffix.toLowerCase()}`],
+        ['module', 'demo-referrer-image'],
+        ['absolute', 'https://assets.example.test/logo.svg'],
+    ].map(([prefix, src]) => `@slice=${prefix}By${suffix} @src="${src}" @referrer="${referrer}"`));
+    await poll(page, ({ selector, expectedControls }) => {
+        const sample = document.querySelector(selector);
+        const source = sample?.querySelector('[slot="text"] pre')?.textContent ?? '';
+        const controls = [...source.matchAll(/\{cem-module-url\s+([^}]+)\}/gu)]
+            .map(match => match[1].replace(/\s+/gu, ' ').trim());
+        return source.replace(/^\r?\n/u, '').startsWith('<cem-element>')
+            && JSON.stringify(controls) === JSON.stringify(expectedControls)
+            && expectedControls.every(control => source.includes(`{$datadom.slices.${control.split(' ')[0].slice(7)}}`))
+            && !(sample?.querySelector('[slot="status"]')?.textContent ?? '').trim();
+    }, { selector, expectedControls });
+    // Source-loaded ordinary navigation resolution is tracked separately. Do not
+    // turn its host-relative link into an expected successful demo-file link.
+    if (new URL(originalUrl).pathname !== '/__cem-source-harness.html') {
+        await runCheck(page, urlEquals('main section a[href$="module-url.html"]', 'href',
+            '/packages/cem-elements/demo/module-url.html'));
+    }
+    // A dedicated wide matrix has one card. Verify the output itself, since the
+    // shared card's overflow:hidden can hide a table without widening the page.
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, ({ selector, width }) => {
+            const sample = document.querySelector(selector);
+            if (!sample || document.documentElement.scrollWidth > width) return false;
+            const card = sample.getBoundingClientRect();
+            const output = sample.querySelector('[slot="demo"]');
+            const table = output?.querySelector('table');
+            if (!output || !table) return false;
+            const boxes = [sample, output, table, ...table.querySelectorAll('th, td')];
+            return card.left >= 0 && card.right <= width
+                && boxes.every(element => {
+                    const rect = element.getBoundingClientRect();
+                    return element.scrollWidth <= element.clientWidth + 1
+                        && rect.left >= card.left && rect.right <= card.right;
+                });
+        }, { selector, width });
+        // Long source lines remain reachable in the source panel's own scroller.
+        const source = page.locator(`${selector} [slot="text"] pre`);
+        const reachable = await source.evaluate(pre => {
+            const max = pre.scrollWidth - pre.clientWidth;
+            pre.scrollLeft = max;
+            const reached = Math.abs(pre.scrollLeft - max) <= 1;
+            pre.scrollLeft = 0;
+            return reached;
+        });
+        if (!reachable) throw new Error('Matrix source text cannot be scrolled to its end');
+    }
+    if (page.url() !== originalUrl) throw new Error('Scalar URL resolution navigated the page');
+    const fetched = requests.filter(request => {
+        const url = new URL(request);
+        return url.hostname.endsWith('.example.test') || url.pathname.endsWith('.svg')
+            || url.pathname.endsWith('/component.js');
+    });
+    if (fetched.length > 0) throw new Error(`Scalar URL resolution fetched a target or referrer: ${fetched.join(', ')}`);
+}
+
 async function verifyDemoLayout(page, expectedCount) {
     for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
@@ -3492,6 +3582,13 @@ async function runCheck(page, check) {
                 return;
             case 'text':
                 await waitForText(page, check.selector, check.expected);
+                return;
+            case 'resolvedUrlTexts':
+                await poll(page, ({ selector, expected }) => {
+                    const actual = Array.from(document.querySelectorAll(selector), element =>
+                        (element.textContent ?? '').replace(/\s+/gu, ' ').trim());
+                    return JSON.stringify(actual) === JSON.stringify(expected.map(value => new URL(value, location.href).href));
+                }, check);
                 return;
             case 'nodeTexts':
                 await poll(page, ({ selector, expected }) => {
@@ -4321,6 +4418,7 @@ function describeCheck(check) {
             return `storageValue(${check.key}, ${JSON.stringify(check.expected)})`;
         case 'text':
         case 'normalizedText':
+        case 'resolvedUrlTexts':
         case 'nodeTexts':
             return `${check.kind}(${check.selector}, ${JSON.stringify(check.expected)})`;
         case 'countAtLeast':

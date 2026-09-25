@@ -4475,6 +4475,49 @@ registration identities may reuse an inherited or existing definition.
           resolved resources, visible outcomes and source presentation. Preserve
           authored examples, verify desktop/mobile layout and stop for any new
           behavior decision.
+        - [x] Decision, 2026-09-24: correct this fixture's table layout and
+              source indentation. Both browser modes resolve all nine URLs
+              correctly, but at 390px the 372px card clips a table measuring
+              about 893px standalone / 989px source-loaded. Keep this correction
+              local to the authored matrix; do not change shared demo overflow.
+        - [x] Fixture: wrap all nine full URL values within the matrix, expose
+              row/column header semantics, align the source at column 1 and
+              verify content containment at 1280px/390px in both gallery modes.
+              Completed 2026-09-24: all nine exact values, headers, source
+              controls/bindings, diagnostic histories and resolution-only
+              behavior pass. All 237 Storybook tests, 513 unit tests and 31
+              standalone / 37 source-loaded documents pass, with aggregate
+              coverage, lint and typecheck (two existing warnings). Shared
+              source-link policy remains a separate decision below.
+        - [x] Fixture: characterize ordinary source-document navigation links.
+              Standalone resolves `../index.html` and `./module-url.html` within
+              the package/demo directories. Source-loaded Chromium resolves
+              them to the harness origin's `/index.html` and `/module-url.html`;
+              Storybook likewise resolves the new related-page link outside
+              its `/demo/` source directory. The CEM matrix URLs remain correct.
+        - [x] Decision: investigate shared source-link resolution (recommended),
+              or record the ordinary navigation limitation and leave it pending.
+              Do not silently rebase links in the fixture or test harness.
+              Preserve the current-document hash navigation already covered by
+              the location demo when evaluating any shared resolution change.
+              Accepted 2026-09-24: investigate shared source-link resolution.
+        - [x] Investigation: the external loader retains the final URL as
+              `resourceBaseUrl`, while `templateFromDocument`/`templateFromTarget`
+              import ordinary HTML attributes verbatim. CEM resource controls
+              consume that source context; ordinary anchor attributes do not.
+              The resource-loading contract covers CEM controls and does not
+              define ordinary-link rebasing. No shared implementation changed.
+        - [ ] Decision: make source-relative ordinary links an explicit
+              per-declaration opt-in (recommended), or the default for external
+              declarations. Preserve current-page fragment links and provide an
+              explicit host-document mode. A global default changes existing
+              reusable components that currently rely on host-relative links.
+    - [ ] Fixture: audit every `demo/module-url.html` sample against its
+          source-loaded Storybook and independent gallery contracts. Check
+          mapped and relative declarations, fragments, image/link outcomes,
+          local maps, overrides, descendant referrers and failure diagnostics.
+          Preserve authored examples, verify desktop/mobile layout and stop
+          for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

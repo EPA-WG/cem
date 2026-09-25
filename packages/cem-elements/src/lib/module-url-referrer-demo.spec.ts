@@ -42,18 +42,24 @@ describe('module-url referrer demo source contract', () => {
     it('owns the scalar src-by-referrer matrix moved from module-url.html', () => {
         const normalizedSource = DEMO_SOURCE.replace(/\s+/gu, ' ');
         expect(normalizedSource).toContain('legend="src by scalar referrer matrix"');
-        expect(normalizedSource).toContain(
-            '@src="../lib-dir/Smiley.svg?case=relative-relative" @referrer="./relative-referrer/component.js"'
-        );
-        expect(normalizedSource).toContain(
-            '@src="demo-referrer-image" @referrer="demo-module-referrer"'
-        );
-        expect(normalizedSource).toContain(
-            '@src="https://assets.example.test/logo.svg" @referrer="https://referrer.example.test/absolute/component.js"'
-        );
-        expect(normalizedSource).toContain('{$datadom.slices.relativeByRelative}');
-        expect(normalizedSource).toContain('$datadom.slices.moduleByModule');
-        expect(normalizedSource).toContain('{$datadom.slices.absoluteByAbsolute}');
+        const controls = [...normalizedSource.matchAll(/\{cem-module-url ([^}]+)\}/gu)].map(match => match[1]);
+        const expected = [
+            ['Relative', './relative-referrer/component.js'],
+            ['Module', 'demo-module-referrer'],
+            ['Absolute', 'https://referrer.example.test/absolute/component.js'],
+        ].flatMap(([suffix, referrer]) => [
+            ['relative', `../lib-dir/Smiley.svg?case=relative-${suffix.toLowerCase()}`],
+            ['module', 'demo-referrer-image'],
+            ['absolute', 'https://assets.example.test/logo.svg'],
+        ].map(([prefix, src]) => {
+            expect(normalizedSource).toContain(`{$datadom.slices.${prefix}By${suffix}}`);
+            return `@slice=${prefix}By${suffix} @src="${src}" @referrer="${referrer}"`;
+        }));
+        expect(controls).toEqual(expected);
+        expect(DEMO_SOURCE).toContain('<template>\n<cem-element>');
+        expect(normalizedSource.match(/\{th @scope=col /gu)).toHaveLength(4);
+        expect(normalizedSource.match(/\{th @scope=row /gu)).toHaveLength(3);
+        expect(DEMO_SOURCE).toContain('href="./module-url.html"');
         expect(normalizedSource).not.toContain('{module-url');
     });
 });
