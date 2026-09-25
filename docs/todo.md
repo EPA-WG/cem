@@ -5365,9 +5365,20 @@ registration identities may reuse an inherited or existing definition.
               66 dependency unit tests and the refreshed historical WPT harness
               pass, as does the package Nx WASM build. No global tasks ran.
               Query/source-mapped diagnostics remain unregistered.
-        - [ ] Repair remaining hostname/path serialization gaps (hostname[34–35],
+        - [x] Fixture: cover authority guard removal, empty custom-scheme paths
+              and caret encoding with round-trip and query/fragment checks.
+        - [x] Repair remaining hostname/path serialization gaps (hostname[34–35],
               pathname[5] and [13]); keep empty-punycode host updates tracked with
               the existing deferred IDNA compatibility cases.
+              Completed 2026-09-25: three native regressions fail before repair
+              and pass after. All four pinned cases now match (275/277 total);
+              only two empty-punycode cases/six field differences remain.
+              The scoped dependency patch removes stale hostless guards when
+              adding authority, preserves empty custom-scheme paths and encodes
+              path carets. Three historical caret expectations were refreshed
+              from pinned WPT, and three fixed expected failures were removed.
+              All 37 focused URL tests, 66 dependency unit tests, the historical
+              WPT harness and package Nx WASM build pass. No global tasks ran.
 
         - [ ] Before CEM-QL crate publication, resolve distribution of the private
               cem-url dependency; Cargo packaging cannot publish this local-only

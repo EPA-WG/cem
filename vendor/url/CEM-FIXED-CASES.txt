@@ -21,3 +21,6 @@
 <file://monkey/> set pathname to <\\\\>
 <file:///unicorn> set pathname to <//\\/>
 <file:///unicorn> set pathname to <//monkey/..//>
+<non-spec:/.//p> set hostname to <h>
+<non-spec:/.//p> set hostname to <>
+<foo:///some/path> set pathname to <>

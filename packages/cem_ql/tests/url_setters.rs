@@ -202,11 +202,15 @@ fn adapted_differences() -> (usize, usize, Vec<String>) {
 #[test]
 fn patched_parser_and_adapters_leave_only_recorded_remaining_gaps() {
     let (count, failed, differences) = adapted_differences();
-    assert_eq!((count, failed), (277, 6));
+    assert_eq!((count, failed), (277, 2));
     let remaining = include_str!("../fixtures/url/url-2.5.8-setter-differences.txt")
         .lines()
         .filter(|line| {
             ![
+                "hostname[34]",
+                "hostname[35]",
+                "pathname[5]",
+                "pathname[13]",
                 "port[26]",
                 "search[10]",
                 "search[11]",
@@ -228,7 +232,7 @@ fn patched_parser_and_adapters_leave_only_recorded_remaining_gaps() {
             .any(|id| line.starts_with(id))
         })
         .collect::<Vec<_>>();
-    assert_eq!(remaining.len(), 12);
+    assert_eq!(remaining.len(), 6);
     assert_eq!(differences, remaining);
 }
 
@@ -382,4 +386,54 @@ fn protocol_outcome_covers_equal_normalized_and_file_transitions() {
         assert_eq!(set_protocol(&mut url, value), outcome, "{seed} -> {value}");
         assert_eq!(url.as_str(), expected);
     }
+}
+
+#[test]
+fn hostname_authority_removes_only_the_hostless_guard() {
+    for setter in ["host", "hostname"] {
+        for (seed, value, expected) in [
+            ("custom:/.//p?q#f", "h", "custom://h//p?q#f"),
+            ("custom:/.//p?q#f", "", "custom:////p?q#f"),
+            ("custom:/p?q#f", "h", "custom://h/p?q#f"),
+            ("custom://old:123//p?q#f", "h", "custom://h:123//p?q#f"),
+        ] {
+            let mut url = Url::parse(seed).unwrap();
+            apply(&mut url, setter, value).unwrap();
+            assert_eq!(url.as_str(), expected, "{setter} {seed}");
+            assert_eq!(Url::parse(expected).unwrap(), url);
+        }
+    }
+}
+
+#[test]
+fn empty_path_distinguishes_empty_authority_from_absent_authority() {
+    for (seed, expected) in [
+        ("custom:///old?q#f", "custom://?q#f"),
+        ("custom://h/old?q#f", "custom://h?q#f"),
+        ("custom:/old?q#f", "custom:/?q#f"),
+        ("https://h/old?q#f", "https://h/?q#f"),
+        ("file:///old?q#f", "file:///?q#f"),
+    ] {
+        let mut url = Url::parse(seed).unwrap();
+        assert_eq!(set_pathname(&mut url, ""), SetterOutcome::Applied);
+        assert_eq!(url.as_str(), expected);
+        assert_eq!(Url::parse(expected).unwrap(), url);
+    }
+}
+
+#[test]
+fn caret_encoding_applies_to_paths_but_not_queries_fragments_or_opaque_payloads() {
+    for seed in ["https://h/old?^#^", "custom:///old?^#^", "custom:/old?^#^"] {
+        let mut url = Url::parse(seed).unwrap();
+        set_pathname(&mut url, "/a^%5E");
+        assert_eq!(url.path(), "/a%5E%5E");
+        assert_eq!(url.query(), Some("^"));
+        assert_eq!(url.fragment(), Some("^"));
+        assert_eq!(Url::parse(url.as_str()).unwrap(), url);
+    }
+    assert_eq!(
+        Url::parse("https://h/a^?^#^").unwrap().as_str(),
+        "https://h/a%5E?^#^"
+    );
+    assert_eq!(Url::parse("data:a^?^#^").unwrap().as_str(), "data:a^?^#^");
 }

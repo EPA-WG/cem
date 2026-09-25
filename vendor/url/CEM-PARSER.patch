@@ -1,5 +1,8 @@
---- url-2.5.8/src/parser.rs
-+++ cem-url-2.5.8/src/parser.rs
+--- a/src/parser.rs
++++ b/src/parser.rs
+@@ -23 +23 @@
+-const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'{').add(b'}');
++const PATH: &AsciiSet = &FRAGMENT.add(b'#').add(b'?').add(b'^').add(b'{').add(b'}');
 @@ -532 +532 @@
 -                let (path_start, mut host, remaining) =
 +                let (_, mut host, remaining) =
@@ -53,9 +56,13 @@
 +                        self.serialization
 +                            .extend(utf8_percent_encode(utf8_c, CONTROLS));
 +                    }
---- url-2.5.8/src/lib.rs
-+++ cem-url-2.5.8/src/lib.rs
-@@ -2473 +2473,6 @@
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -2087 +2087,2 @@
+-        let old_suffix_pos = if opt_new_port.is_some() {
++        // Introducing an authority removes the hostless path serialization guard.
++        let old_suffix_pos = if opt_new_port.is_some() || !self.has_authority() {
+@@ -2473 +2474,6 @@
 -            (new_scheme_type.is_file() && self.has_authority())
 +            // CEM patch: authority alone does not prevent a file transition;
 +            // credentials or an explicit port do. Empty-host file URLs may
@@ -63,8 +70,13 @@
 +            (new_scheme_type.is_file()
 +                && (!self.username().is_empty() || self.password().is_some() || self.port().is_some()))
 +            || (old_scheme_type.is_file() && !self.has_host() && !new_scheme_type.is_file())
-@@ -2478 +2483,3 @@
+@@ -2478 +2484,3 @@
 -        if !remaining.is_empty() || (!self.has_host() && new_scheme_type.is_special()) {
 +        if !remaining.is_empty()
 +            || (!self.has_host() && new_scheme_type.is_special() && !new_scheme_type.is_file())
 +        {
+--- a/src/quirks.rs
++++ b/src/quirks.rs
+@@ -289 +289 @@
+-        || !url.has_host()
++        || !url.has_authority()

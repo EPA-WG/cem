@@ -154,3 +154,18 @@ remain linked to deferred IDNA compatibility in the wishlist.
 
 The package Nx WASM build passes; no full/global test suite ran. Shared
 evaluator/type behavior and CEM-ML registry dependency remain unchanged.
+
+
+## Hostname/path serialization completed
+
+The private Rust dependency now fixes hostname[34–35] and pathname[5], [13].
+The adapted matrix matches 275/277 cases; the only remaining six field
+differences are host[59] and hostname[41], the deferred empty-punycode cases.
+Pinned WPT and raw registry baselines remain unchanged. Three added native
+regressions cover guards, empty authorities and caret encoding, including
+round trips and query/fragment retention. All 37 focused URL tests, dependency
+unit/WPT tests and the package Nx WASM build pass; no global tasks ran.
+Historical fixture refreshes are documented in the
+[patch provenance](../../../../vendor/url/CEM-PATCH.md).
+Next: seeded assembly and immutable updates, followed by query registration
+and source-mapped warnings.

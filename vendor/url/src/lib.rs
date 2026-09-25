@@ -2084,7 +2084,8 @@ impl Url {
 
     /// opt_new_port: None means leave unchanged, Some(None) means remove any port number.
     fn set_host_internal(&mut self, host: Host<Cow<'_, str>>, opt_new_port: Option<Option<u16>>) {
-        let old_suffix_pos = if opt_new_port.is_some() {
+        // Introducing an authority removes the hostless path serialization guard.
+        let old_suffix_pos = if opt_new_port.is_some() || !self.has_authority() {
             self.path_start
         } else {
             self.host_end

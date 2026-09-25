@@ -15,12 +15,12 @@ baselines. This directory is an excluded, independent Cargo workspace.
 - Original MIT/Apache licenses, source, README, original manifest and tests are
   retained. WPT-derived fixtures also retain the [WPT license](tests/LICENSE-WPT.md).
 - [CEM-PARSER.patch](CEM-PARSER.patch) is the complete runtime source delta.
-  It covers file/opaque parsing in `parser.rs` and scheme transitions in `lib.rs`;
-  no other upstream runtime source file changes.
+  It covers file/opaque parsing and path encoding in `parser.rs`, scheme
+  transitions and authority guards in `lib.rs`, and empty paths in `quirks.rs`.
 - `Cargo.toml` renames the package to private `cem-url` (`publish = false`)
   and gains an independent workspace declaration. The local
   `Cargo.lock` pins standalone dependency-test resolution.
-- `tests/expected_failures.txt` removes exactly the 23 now-passing cases listed
+- `tests/expected_failures.txt` removes exactly the 26 now-passing cases listed
   in [CEM-FIXED-CASES.txt](CEM-FIXED-CASES.txt). The original file-path fix did
   not change expected outputs. The later opaque-space refresh below updates
   eight historical cases from the newer pinned WPT expectations.
@@ -49,8 +49,8 @@ cargo test --locked -p cem-ql --test url_setters --test url_setter_candidate --t
 ```
 
 All 66 dependency unit tests, the historical WPT harness (with the documented
-fixture refresh), and 34 focused CEM URL tests pass. The CEM matrix
-matches 48/51 parse cases and 271/277 component setter cases; remaining exact
+fixture refresh), and 37 focused CEM URL tests pass. The CEM matrix
+matches 48/51 parse cases and 275/277 component setter cases; remaining exact
 baselines remain asserted. No shared evaluator/type or CEM-ML source changed.
 
 When upgrading, compare this patch against upstream, rerun both dependency and
@@ -90,3 +90,24 @@ empty-host file URLs cannot transition to another scheme. This preserves
 normalized/equal setter outcomes and permits eligible HTTP(S)-to-file updates.
 CEM's separate host adapter retains partial hostname effects while reporting
 invalid port subcomponents; no dependency host-parser patch was introduced.
+
+
+## Authority guards, empty paths and caret encoding
+
+Adding an authority now takes the suffix from the actual path start, omitting
+the hostless `/.` serialization guard. Existing authorities still retain ports.
+The pathname quirks setter distinguishes an empty authority from no authority:
+an empty custom-scheme authority permits an empty path. The path percent-encode
+set now includes caret, as required by the
+[URL Standard](https://url.spec.whatwg.org/#path-percent-encode-set).
+
+CEM cases hostname[34–35] and pathname[5], [13] now pass. Three historical
+expected failures were removed; CEM's pinned expectations remain untouched.
+Historical setter pathname[13] and parse cases 815/816 were refreshed from
+the same pinned WPT revision (parse indices 854/855, matched by input/base).
+Only href/pathname caret expectations changed in these three objects.
+The complete pinned parse source SHA-256 is
+`81e85fd3c199c08ef9c34cf651b3580eeedd080316493bfaf277a6b5ff8cf652`.
+No new expected failure was added. Native regressions additionally cover
+query/fragment retention, existing ports, empty/absent authority, round trips
+and unchanged opaque/query/fragment carets.
