@@ -5016,6 +5016,43 @@ registration identities may reuse an inherited or existing definition.
           attributes and projected payload, namespace/script handling, links,
           diagnostics and presentation in the applicable browser harnesses.
           Keep checks focused and stop for new behavior or policy decisions.
+        - [x] Verify the selected document/fragment output and exclusion of
+              sibling library content, including the other embedded-library
+              fragments and HTML/SVG/MathML fragment boundaries.
+        - [x] Check default/projected payload and missing/empty/changed title
+              values, retained output nodes and independent instances.
+        - [x] Check diagnostics, script exclusion, source-relative links and
+              1280px/390px presentation; run focused checks and record next work.
+        - [ ] Decision: correct root `demo/embed-lib.html` presentation:
+              add the missing image alternative and align its file-link label
+              with the actual `./embed-1.html` target. Browser probes confirm
+              the image loads and both URLs resolve; these authored labels
+              remain pending the user's fixture-only decision.
+        - [ ] Decision: fix shared Storybook fixture serving to return authored
+              HTML unchanged. A direct fetch of `/demo/embed-1.html` includes
+              Storybook's “No Preview” markup before the authored h4; native
+              source loading therefore renders extra headings/links without a
+              CEM diagnostic. The independent server returns the correct body.
+              Keep full-document purity and audit closure pending; do not add
+              a per-fixture filtering workaround or broaden startup waits.
+          Coverage added 2026-09-25: six owner stories and the independent
+          harness cover the six mapped sources plus ten other fragment loads.
+          Four additional instances verify slot fallback/projection; four title
+          changes cover replacement, empty strings, literal markup text and
+          removal while retaining article/heading/paragraph/link identity and
+          independent instance state. SVG/MathML namespaces and structure,
+          sibling-fragment exclusion, script removal and nested rendering pass.
+          The loaders reuse the approved source-link policy. The independent
+          harness passes 1280px/390px containment and empty diagnostic histories;
+          both existing external-template/scoped-CSS standalone consumers pass.
+          Focused checks pass six Storybook tests, 61 source/inventory units,
+          two standalone pages, six source documents with their extra variants,
+          changed-file lint and verifier syntax. No global suite ran; authored
+          HTML, shared runtime and shared Storybook server remain unchanged.
+          The audit stays open for the two decisions above. Storybook checks
+          authored subtrees while strict whole-document purity remains pending.
+          Next: resolve the fixture presentation and shared server decisions,
+          then reconcile all completed page audits against the coverage inventory.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

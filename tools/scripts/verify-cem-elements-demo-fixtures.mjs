@@ -3225,20 +3225,25 @@ const sourceDocumentSpecs = [
         path: '/packages/cem-elements/demo/dom-merge.html',
         samples: domMergeSamples,
     },
-    { path: '/packages/cem-elements/demo/embed-1.html', checks: [text('h4', 'embed-1.html'), text(':scope', '🖖')] },
+    { path: '/packages/cem-elements/demo/embed-1.html', checks: supportEmbeddedDocumentChecks() },
     {
         path: '/packages/cem-elements/demo/embed-lib.html#embed-lib-component',
-        checks: [text(':scope', '👋 from embed-lib-component')],
+        checks: [normalizedText(':scope', '👋 from embed-lib-component'), countExactly(':is(h1,h4,a,img,article,script)', 0)],
     },
     {
         path: '/packages/cem-elements/demo/external-template-document.html',
-        checks: [text('h2', 'External document'), text('p', 'External document fallback')],
+        checks: [countExactly('article.external-document-template', 1),
+            propertyEquals('h2', 'textContent', 'External document'), propertyEquals('p', 'textContent', 'External document fallback')],
     },
     {
         path: '/packages/cem-elements/demo/external-template-templates.html#external-card-template',
         attributes: { title: 'Source-loaded card' },
         content: 'Projected source content',
-        checks: [text('h2', 'Source-loaded card'), text('p', 'Projected source content')],
+        declarationAttributes: { 'link-base': 'source' },
+        checks: [countExactly('article', 1), propertyEquals('h2', 'textContent', 'Source-loaded card'),
+            propertyEquals('p', 'textContent', 'Projected source content'),
+            urlEquals('a', 'href', '/packages/cem-elements/demo/external-template-templates.html#external-card-template'),
+            countExactly(':is(#external-subtree-template, .external-scoped-card, script)', 0)],
     },
     {
         path: '/packages/cem-elements/demo/external-template.html',
@@ -3314,14 +3319,16 @@ const sourceDocumentSpecs = [
             hexRowSample,
         ],
     },
-    { path: '/packages/cem-elements/demo/html-template.html', checks: [text('#wave', '👋'), text('#ok', '👌'), countExactly('#dwc-logo', 1), countExactly('#sophomores-dream', 1)] },
+    { path: '/packages/cem-elements/demo/html-template.html', checks: [
+        propertyEquals('#wave', 'textContent', '👋'), propertyEquals('#ok', 'textContent', '👌'),
+        countExactly('b', 2), ...supportSvgChecks(), ...supportMathChecks(), countExactly('script', 0)] },
     {
         path: '/packages/cem-elements/demo/http-request.html',
         samples: httpSamples,
     },
     {
         path: '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-lib-component',
-        checks: [text(':scope', '👋 from embed-lib-component')],
+        checks: [normalizedText(':scope', '👋 from embed-lib-component'), countExactly(':is(h1,h4,a,img,article,script)', 0)],
     },
     {
         path: '/packages/cem-elements/demo/local-storage.html',
@@ -3652,6 +3659,7 @@ try {
             for (const check of fixture.checks ?? []) {
                 await runCheck(page, scopeCheck(check, tag));
             }
+            if (isSupportingHtmlSource(fixture.path)) await verifySupportingHtmlSource(page, fixture, tag);
             if (fixture.path === '/packages/cem-elements/demo/module-url.html') {
                 await verifyModuleUrlPresentation(page, resolutionRequests, `http://127.0.0.1:${port}/__cem-source-harness.html`);
                 await verifySourceDocumentDiagnostics(page, tag, {
@@ -6058,4 +6066,137 @@ async function verifyStringFunctionsPresentation(page) {
         if (!reachable) throw new Error('String-function source cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 12);
+}
+
+function isSupportingHtmlSource(path) {
+    return ['embed-1.html', 'embed-lib.html', 'lib-dir/embed-lib.html',
+        'external-template-document.html', 'external-template-templates.html', 'html-template.html']
+        .some(file => path.split('#')[0] === `/packages/cem-elements/demo/${file}`);
+}
+
+function supportEmbeddedDocumentChecks() {
+    return [countExactly('h4', 1), propertyEquals('h4', 'textContent', 'embed-1.html'),
+        countExactly('[data-cem-anonymous-instance]', 1), normalizedText('[data-cem-anonymous-instance]', '🖖'),
+        countExactly(':is(h1,a,img,article,script)', 0)];
+}
+
+function supportSvgChecks() {
+    return [countExactly('svg', 1), propertyEquals('svg', 'namespaceURI', 'http://www.w3.org/2000/svg'),
+        attributeEquals('svg', 'viewBox', '0 0 216 209.18'), countExactly('svg polygon', 1), countExactly('svg path', 21)];
+}
+
+function supportMathChecks() {
+    return [countExactly('math', 1), propertyEquals('math', 'namespaceURI', 'http://www.w3.org/1998/Math/MathML'),
+        attributeEquals('math', 'display', 'block'), countExactly('math msubsup', 1), countExactly('math munderover', 1),
+        countExactly('math msup', 3), nodeTexts('math mi', ['x', 'x', 'x', 'n', 'n', 'n', 'n'])];
+}
+
+async function verifySupportingHtmlSource(page, fixture, tag) {
+    const base = '/packages/cem-elements/demo/';
+    const file = fixture.path.slice(base.length).split('#')[0];
+    const checks = async (selector, items) => {
+        for (const check of items) await runCheck(page, scopeCheck(check, selector));
+    };
+    let variant = 0;
+    const source = async (path, items) => {
+        const child = `${tag}-fragment-${++variant}`;
+        const spec = { path: base + path, declarationAttributes: { 'link-base': 'source' } };
+        await mountSourceDocument(page, spec, child);
+        await verifySampleContractInventory(page, child, spec);
+        await checks(child, items);
+        return child;
+    };
+    const instance = async (parent, payload) => {
+        const index = await page.evaluate(({ parent, payload }) => {
+            const existing = document.querySelector(parent);
+            const element = document.createElement(existing.localName);
+            if (payload !== undefined) {
+                const strong = document.createElement('strong');
+                strong.textContent = payload;
+                element.append(strong);
+            }
+            existing.parentNode.append(element);
+            return document.querySelectorAll(existing.localName).length;
+        }, { parent, payload });
+        return `${parent}:nth-of-type(${index})`;
+    };
+    if (file.endsWith('embed-lib.html')) {
+        const library = 'lib-dir/embed-lib.html';
+        const hash = await source(`${file}#embed-relative-hash`, [
+            countExactly('a', 1), urlEquals('a', 'href', `${base}${library}#embed-lib-component`),
+            normalizedText('dce-embed-lib-component', '👋 from embed-lib-component'),
+            countExactly('img', 1), urlEquals('img', 'src', `${base}lib-dir/Smiley.svg`), imageLoaded('img'),
+            countExactly(':is(h1,h4,article,script)', 0),
+            ...(file.startsWith('lib-dir/') ? [attributeEquals('img', 'alt', 'Library Smiley')] : []),
+        ]);
+        await source(`${file}#embed-relative-file`, [countExactly('a', 1), urlEquals('a', 'href', `${base}embed-1.html`),
+            ...supportEmbeddedDocumentChecks().map(check => scopeCheck(check, 'dce-embed-lib-file'))]);
+        await checks(hash, [normalizedText('dce-embed-lib-component', '👋 from embed-lib-component')]);
+        await checks(tag, [normalizedText(':scope', '👋 from embed-lib-component')]);
+    }
+    if (file === 'external-template-document.html') {
+        const projected = await instance(tag, 'Projected <fruit> & 🍒');
+        await checks(projected, [propertyEquals('h2', 'textContent', 'External document'),
+            propertyEquals('p', 'textContent', 'Projected <fruit> & 🍒'), countExactly('p > strong', 1), countExactly(':is(script,slot)', 0)]);
+        await checks(`${tag}:first-of-type`, [propertyEquals('p', 'textContent', 'External document fallback')]);
+    }
+    if (file === 'external-template-templates.html') {
+        const original = `${tag}:first-of-type`;
+        const fallback = await instance(tag);
+        await checks(fallback, [propertyEquals('h2', 'textContent', 'External template'), propertyEquals('p', 'textContent', 'External fallback')]);
+        const projected = await instance(tag, 'Projected <fruit> & 🍒');
+        await checks(projected, [propertyEquals('p > strong', 'textContent', 'Projected <fruit> & 🍒')]);
+        for (const selector of ['article', 'h2', 'p', 'a']) await checks(original, [elementIdentity(selector, 'remember')]);
+        for (const value of ['Edited title', '', '<Fruit & 🍒>', null]) {
+            await page.evaluate(({ tag, value }) => {
+                const host = document.querySelector(tag);
+                if (value === null) host.removeAttribute('title');
+                else host.setAttribute('title', value);
+            }, { tag, value });
+            await checks(original, [propertyEquals('h2', 'textContent', value ?? 'External template'),
+                propertyEquals('p', 'textContent', 'Projected source content'),
+                urlEquals('a', 'href', `${base}external-template-templates.html#external-card-template`),
+                ...['article', 'h2', 'p', 'a'].map(selector => elementIdentity(selector, 'same'))]);
+            await checks(fallback, [propertyEquals('h2', 'textContent', 'External template')]);
+            await checks(projected, [propertyEquals('p > strong', 'textContent', 'Projected <fruit> & 🍒')]);
+        }
+        const subtree = await source(`${file}#external-subtree-template`, [countExactly('article', 1),
+            propertyEquals('#external-subtree-template h2', 'textContent', 'External subtree'),
+            propertyEquals('p', 'textContent', 'External subtree fallback'), countExactly(':is(a, .external-scoped-card)', 0)]);
+        const subtreePayload = await instance(subtree, 'Subtree payload 🍋');
+        await checks(subtreePayload, [propertyEquals('p > strong', 'textContent', 'Subtree payload 🍋')]);
+        await source(`${file}#scoped-css-external-template`, [countExactly('section.external-scoped-card', 1),
+            normalizedText('p', 'External scoped fallback ./external-template-templates.html#scoped-css-external-template'),
+            computedStyle('p', 'backgroundColor', 'rgb(254, 243, 199)'), computedStyle('p', 'borderTopColor', 'rgb(180, 83, 9)'),
+            urlEquals('a', 'href', `${base}external-template-templates.html`), countExactly(':is(article,h2,script)', 0)]);
+    }
+    if (file === 'html-template.html') {
+        for (const [id, items] of [
+            ['wave', [propertyEquals('b', 'textContent', '👋')]],
+            ['ok', [propertyEquals('b', 'textContent', '👌')]],
+            ['dwc-logo', supportSvgChecks()], ['sophomores-dream', supportMathChecks()],
+        ]) await source(`${file}#${id}`, [countExactly(':is(b,svg,math)', 1), countExactly('script', 0), ...items]);
+        await poll(page, () => Array.from(document.querySelectorAll('svg,math')).every(root =>
+            Array.from(root.querySelectorAll('*')).every(node => node.namespaceURI === root.namespaceURI)));
+    }
+    await poll(page, async () => {
+        const runtime = window.__cemFixtureRuntime;
+        for (const declaration of document.querySelectorAll('cem-element[tag]')) {
+            await runtime.whenDeclarationSettled(declaration);
+            if (runtime.diagnosticsFor(declaration).length) return false;
+            for (const host of document.querySelectorAll(declaration.getAttribute('tag'))) {
+                await runtime.whenRenderSettled(host);
+                if (runtime.diagnosticsFor(host).length) return false;
+            }
+        }
+        return true;
+    });
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => document.documentElement.scrollWidth <= width
+            && Array.from(document.querySelectorAll('article,h1,h2,h4,p,a,b,svg,math,img')).every(node => {
+                const box = node.getBoundingClientRect();
+                return box.left >= 0 && box.right <= width && node.scrollWidth <= node.clientWidth + 1;
+            }), width);
+    }
 }
