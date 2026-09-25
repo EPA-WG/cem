@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { expect, userEvent } from 'storybook/test';
+import { cemDiagnosticCodes, whenCemRendered, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-module-url-document';
 const MODULE_URL_DEMO_URL = new URL('../../demo/module-url.html', import.meta.url);
@@ -18,256 +20,167 @@ const EXPECTED_LEGENDS = [
     'image-link',
 ] as const;
 
-const meta: Meta = {
-    title: 'CEM Elements/Module URL Demo',
-    tags: ['test'],
-};
-
+const meta: Meta = { title: 'CEM Elements/Module URL Demo', tags: ['test'] };
 export default meta;
-
 type Story = StoryObj;
 
 export const EveryAuthoredSample: Story = {
     render: () => {
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'source-loaded module URL demo coverage');
-
         const declaration = document.createElement('cem-element');
         declaration.hidden = true;
         declaration.setAttribute('tag', SOURCE_TAG);
         declaration.setAttribute('src', MODULE_URL_DEMO_URL.href);
-
+        declaration.setAttribute('link-base', 'source');
         root.append(declaration, document.createElement(SOURCE_TAG));
         return root;
     },
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, step }) => {
+        const originalUrl = location.href;
         const host = requiredElement(canvasElement, SOURCE_TAG);
-        await waitForCondition(
-            () => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
-            'all module-url samples render from the HTML source'
-        );
-
-        const actualLegends = Array.from(host.querySelectorAll('cem-demo-element[legend]'), (sample) =>
-            normalize(sample.getAttribute('legend') ?? '')
-        );
-        assertDeepEqual(actualLegends, [...EXPECTED_LEGENDS], 'module-url sample inventory');
-
-        const symbolic = sampleByLegend(host, EXPECTED_LEGENDS[1]);
-        const squareUrl = new URL('./wc-square.svg', MODULE_URL_DEMO_URL).href;
-        await waitForCondition(
-            () => symbolic.querySelector('image-link')?.getAttribute('src') === squareUrl
-                && symbolic.querySelector('image-link img')?.getAttribute('src') === squareUrl
-                && symbolic.querySelector('image-link a')?.getAttribute('href') === squareUrl,
-            () => `resolved package-subpath slice reaches image-link src; observed ${symbolic.querySelector('image-link')?.outerHTML ?? 'no image-link'}`,
-            400
-        );
-        assertEqual(
-            requiredElement(symbolic, 'image-link img').getAttribute('src'),
-            squareUrl,
-            'image-link renders the package-subpath image URL'
-        );
-        assertEqual(
-            requiredElement(symbolic, 'image-link a').getAttribute('href'),
-            squareUrl,
-            'image-link retains the package-subpath URL as its link target'
-        );
-
-        const smileyUrl = new URL('./lib-dir/Smiley.svg', MODULE_URL_DEMO_URL);
-        const relativeSrcUrl = withSearch(smileyUrl, 'src', 'relative');
-        const relative = sampleByLegend(host, EXPECTED_LEGENDS[2]);
-        await waitForCondition(
-            () => relative.querySelector('image-link')?.getAttribute('src') === relativeSrcUrl,
-            'anonymous relative-URL sample passes its resolved slice to image-link'
-        );
-
-        const absolute = sampleByLegend(host, EXPECTED_LEGENDS[3]);
-        await waitForCondition(
-            () => {
-                const source = absolute.querySelector('image-link')?.getAttribute('src');
-                return source?.startsWith('data:image/svg+xml,') === true
-                    && absolute.querySelector('image-link img')?.getAttribute('src') === source
-                    && absolute.querySelector('image-link a')?.getAttribute('href') === source;
-            },
-            'absolute src passes unchanged through image-link'
-        );
-
-        const confusedUrl = new URL('./confused.svg', MODULE_URL_DEMO_URL);
-        const squareReferrerUrl = new URL('./wc-square.svg', MODULE_URL_DEMO_URL);
-        const nakedUrl = withSearch(smileyUrl, 'owner', 'component');
-        const wrappedUrl = withSearch(confusedUrl, 'owner', 'wrapper');
-        const nodeReferrerUrl = withSearch(squareReferrerUrl, 'owner', 'component');
-
-        const relativeDeclaration = sampleByLegend(host, EXPECTED_LEGENDS[4]);
-        await waitForCondition(
-            () => normalize(relativeDeclaration.querySelector('output')?.textContent ?? '') === new URL('./embed-1.html', MODULE_URL_DEMO_URL).href,
-            'a relative declaration document URL resolves from the demo source document',
-            300
-        );
-
-        const mappedDeclaration = sampleByLegend(host, EXPECTED_LEGENDS[5]);
-        await waitForCondition(
-            () => normalize(mappedDeclaration.querySelector('output')?.textContent ?? '') === new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href,
-            'a bare declaration document URL resolves through the import map',
-            300
-        );
-        assertEqual(
-            mappedDeclaration.querySelector('output')?.closest('a')?.getAttribute('href'),
-            new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href,
-            'the reader can open the resolved declaration source'
-        );
-
-        const missing = sampleByLegend(host, EXPECTED_LEGENDS[6]);
-        await waitForCondition(
-            () => normalize(missing.querySelector('output')?.textContent ?? '') === 'not published',
-            'an unmapped bare specifier does not publish a misleading URL'
-        );
-
-        const fragment = sampleByLegend(host, EXPECTED_LEGENDS[7]);
-        await waitForCondition(
-            () => normalize(fragment.querySelector('output')?.textContent ?? '') === `${new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href}#embed-relative-file`,
-            'a mapped template fragment resolves through the import map',
-            300
-        );
-        assertEqual(
-            fragment.querySelector('output')?.closest('a')?.getAttribute('href'),
-            `${new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href}#embed-relative-file`,
-            'the reader can open the resolved fragment source'
-        );
-
-        const paired = sampleByLegend(host, '4d. Mapped image and same-library fragment');
-        const libraryUrl = new URL('./lib-dir/embed-lib.html', MODULE_URL_DEMO_URL).href;
-        await waitForCondition(
-            () => paired.querySelectorAll('article img').length === 2
-                && normalize(paired.querySelector('article')?.textContent ?? '').includes('👋 from embed-lib-component')
-                && Array.from(paired.querySelectorAll<HTMLImageElement>('article img'))
-                    .every((image) => image.src === smileyUrl.href && image.complete && image.naturalWidth > 0),
-            'both the prefix-mapped image and nested library image load, with the nested declaration rendered',
-            900
-        );
-        assertEqual(
-            requiredElement(paired, 'article > a').getAttribute('href'),
-            `${libraryUrl}#embed-relative-hash`,
-            'the mapped image opens the selected fragment'
-        );
-        assertEqual(
-            paired.querySelector('article img[alt="Library Smiley"]')?.closest('a')?.getAttribute('href'),
-            `${libraryUrl}#embed-lib-component`,
-            'the nested image opens the library-local component'
-        );
-
-        const naked = sampleByLegend(host, EXPECTED_LEGENDS[9]);
-        await waitForCondition(
-            () => naked.querySelector('cem-local-map-naked-image img')?.getAttribute('src') === nakedUrl
-                && naked.querySelector('cem-local-map-naked-image a')?.getAttribute('href') === nakedUrl,
-            'naked component resolves through its own module map'
-        );
-
-        const override = sampleByLegend(host, EXPECTED_LEGENDS[10]);
-        await waitForCondition(
-            () => override.querySelector('cem-local-map-override-image img')?.getAttribute('src') === wrappedUrl
-                && override.querySelector('cem-local-map-override-image a')?.getAttribute('href') === wrappedUrl,
-            'wrapper module map overrides the child mapping'
-        );
-
-        const nodeReferrer = sampleByLegend(host, EXPECTED_LEGENDS[11]);
-        const nodeReferrerCells = () => Array.from(
-            nodeReferrer.querySelectorAll('cem-local-map-referrer-demo table.node-referrer-matrix td expando-link a'),
-            (link) => link.getAttribute('href')
-        );
-        const expectedNodeReferrerCells = [
-            withSearch(smileyUrl, 'referrer', 'node'),
-            nodeReferrerUrl,
-            'https://assets.example.test/logo.svg',
-        ];
-        await waitForCondition(
-            () => nodeReferrer.querySelector('cem-local-map-referrer-demo img.node-referrer-image')?.getAttribute('src') === nodeReferrerUrl &&
-                nodeReferrerCells().length === expectedNodeReferrerCells.length &&
-                nodeReferrerCells().every((value, index) => value === expectedNodeReferrerCells[index]),
-            () => `descendant node-referrer values resolve; observed image ${nodeReferrer.querySelector('img.node-referrer-image')?.getAttribute('src') ?? 'none'}, cells ${JSON.stringify(nodeReferrerCells())}`
-        );
-        assertEqual(
-            nodeReferrerCells()[1],
-            nodeReferrerUrl,
-            'node referrer publishes the inner-only child mapping'
-        );
-        assertEqual(
-            nodeReferrer.querySelector('cem-local-map-referrer-demo image-link.node-referrer-image a')?.getAttribute('href'),
-            nodeReferrerUrl,
-            'node-referrer image-link retains the full resolved URL'
-        );
-
-        const helper = sampleByLegend(host, EXPECTED_LEGENDS[12]);
-        const helperLink = requiredElement(helper, 'image-link a');
-        assertEqual(
-            normalize(helperLink.textContent ?? ''),
-            shortenMiddle(confusedUrl.href, 32),
-            'relative helper URL resolves from the source file and is shortened'
-        );
-        assertEqual(helperLink.getAttribute('href'), confusedUrl.href, 'helper link retains its full resolved URL');
-        assert(
-            host.querySelector('cem-module-url') === null,
-            'transient cem-module-url controls are removed from rendered output'
-        );
+        await whenCemSourceRendered(host);
+        await waitForCondition(() => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
+            'all module-url samples render from the HTML source');
+        const samples = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]'));
+        expect(samples.map(sample => normalize(sample.getAttribute('legend') ?? ''))).toEqual(EXPECTED_LEGENDS);
+        const sourceResponse = await fetch(MODULE_URL_DEMO_URL);
+        expect(sourceResponse.ok).toBe(true);
+        const sourceDocument = new DOMParser().parseFromString(await sourceResponse.text(), 'text/html');
+        const url = (relative: string) => new URL(relative, MODULE_URL_DEMO_URL).href;
+        const library = url('./lib-dir/embed-lib.html');
+        const imageUrls: Record<number, string> = {
+            1: url('./wc-square.svg'), 2: url('./lib-dir/Smiley.svg?src=relative'),
+            9: url('./lib-dir/Smiley.svg?owner=component'), 10: url('./confused.svg?owner=wrapper'),
+            11: url('./wc-square.svg?owner=component'), 12: url('./confused.svg'),
+        };
+        for (const [index, sample] of samples.entries()) {
+            await step(EXPECTED_LEGENDS[index], async () => {
+                if (index === 0) {
+                    const authoredMap = JSON.parse(sourceDocument.querySelector('script[type="importmap"]')?.textContent ?? '');
+                    // The displayed map documents example resources, omitting the
+                    // formatter's browser bootstrap entry.
+                    delete authoredMap.imports['@epa-wg/cem-ml/wasm'];
+                    expect(JSON.parse(requiredElement(sample, '[slot="demo"] pre').textContent ?? ''))
+                        .toEqual(authoredMap);
+                } else if (index in imageUrls || index === 3) {
+                    const helper = requiredElement(sample, 'image-link');
+                    await whenCemRendered(helper);
+                    const expected = index === 3 ? helper.getAttribute('src') ?? '' : imageUrls[index];
+                    if (index === 3) expect(expected.startsWith('data:image/svg+xml,')).toBe(true);
+                    await waitForCondition(() => {
+                        const image = helper.querySelector<HTMLImageElement>('img');
+                        return image?.getAttribute('src') === expected && image.complete && image.naturalWidth > 0
+                            && helper.querySelector('a')?.getAttribute('href') === expected;
+                    }, `decoded image and complete link for ${EXPECTED_LEGENDS[index]}`, 400);
+                    const anchor = requiredElement(helper, 'a');
+                    expect(normalize(anchor.textContent ?? '')).toBe(shortenMiddle(expected, 32));
+                    const disclosure = requiredElement(helper, 'details') as HTMLDetailsElement;
+                    const summary = requiredElement(disclosure, 'summary');
+                    expect(disclosure.open).toBe(false);
+                    await userEvent.click(summary);
+                    expect(disclosure.open).toBe(true);
+                    expect(disclosure.textContent).toContain(expected);
+                    await userEvent.click(summary);
+                    expect(disclosure.open).toBe(false);
+                    expect(requiredElement(helper, 'details')).toBe(disclosure);
+                    if (index === 11) {
+                        expect(Array.from(sample.querySelectorAll('thead th'), th => normalize(th.textContent ?? '')))
+                            .toEqual(['relative URL src', 'module path src', 'absolute URL src']);
+                        expect(Array.from(sample.querySelectorAll('table td a'), a => a.getAttribute('href'))).toEqual([
+                            url('./lib-dir/Smiley.svg?referrer=node'), imageUrls[11], 'https://assets.example.test/logo.svg',
+                        ]);
+                        expect(sample.querySelector('cem-local-map-referrer')?.textContent)
+                            .toContain('Child owns the inner-only module mapping');
+                    }
+                    if (index === 10) {
+                        const comparison = requiredElement(sample, 'cem-local-map-override-wrapper > img') as HTMLImageElement;
+                        await waitForCondition(() => comparison.src === url('./lib-dir/Smiley.svg')
+                            && comparison.complete && comparison.naturalWidth > 0, 'decoded source-relative comparison image');
+                    }
+                } else if (index === 6) {
+                    expect(normalize(requiredElement(sample, 'output').textContent ?? '')).toBe('not published');
+                } else if (index === 8) {
+                    await waitForCondition(() => sample.querySelectorAll('article img').length === 2
+                        && sample.querySelector('article')?.textContent?.includes('👋 from embed-lib-component') === true
+                        && Array.from(sample.querySelectorAll<HTMLImageElement>('article img'))
+                            .every(image => image.src === url('./lib-dir/Smiley.svg') && image.complete && image.naturalWidth > 0),
+                    'both mapped/library images and the nested declaration render', 900);
+                    expect(requiredElement(sample, 'article > a').getAttribute('href')).toBe(`${library}#embed-relative-hash`);
+                    expect(sample.querySelector('img[alt="Library Smiley"]')?.closest('a')?.getAttribute('href'))
+                        .toBe(`${library}#embed-lib-component`);
+                } else {
+                    const expected = index === 4 ? url('./embed-1.html')
+                        : index === 5 ? library : `${library}#embed-relative-file`;
+                    const tag = index === 4 ? 'cem-module-relative-declaration'
+                        : index === 5 ? 'cem-module-mapped-declaration' : 'cem-module-mapped-fragment';
+                    const instance = requiredElement(sample, tag);
+                    await whenCemRendered(instance);
+                    await waitForCondition(() => normalize(sample.querySelector('output')?.textContent ?? '') === expected
+                        && instance.innerText.includes(index === 5 ? '👋 from embed-lib-component' : '🖖'),
+                    `resolved URL and loaded declaration for ${EXPECTED_LEGENDS[index]}`, 300);
+                    expect((index === 4 ? instance.closest('a') : sample.querySelector('output')?.closest('a'))?.getAttribute('href'))
+                        .toBe(expected);
+                    expect(normalize(instance.innerText)).not.toContain(index === 4 ? 'loading ./embed-1.html'
+                        : index === 5 ? 'failed to load embed-lib' : 'failed to load mapped fragment');
+                    if (index === 4) expect(normalize(instance.innerText)).toBe('embed-1.html 🖖');
+                    if (index === 7) {
+                        expect(instance.textContent).toContain('👍 from embed-relative-file');
+                        expect(requiredElement(instance, 'a').getAttribute('href')).toBe(url('./embed-1.html'));
+                    }
+                }
+                const declarations = Array.from(sample.querySelectorAll<HTMLElement>('cem-element[tag]'));
+                const diagnostics = new Set<string>();
+                for (const declaration of declarations) {
+                    expect(cemDiagnosticCodes(declaration)).toEqual([]);
+                    for (const instance of sample.querySelectorAll<HTMLElement>(declaration.getAttribute('tag') ?? '')) {
+                        await whenCemRendered(instance);
+                        for (const code of cemDiagnosticCodes(instance)) diagnostics.add(code);
+                    }
+                }
+                expect([...diagnostics]).toEqual(index === 6 ? ['cem-element.module_url_resolve_failed'] : []);
+                const source = requiredElement(sample, '[slot="text"] pre').textContent ?? '';
+                expect(source.replace(/^\r?\n/u, '').startsWith(index === 0 ? '<style>' : '<cem-element')).toBe(true);
+                expect(sample.querySelector('[slot="status"]')?.textContent?.trim() ?? '').toBe('');
+            });
+        }
+        const navigation = ['../index.html', './set-url.html', './external-template.html',
+            './module-url-referrer.html', './functions/str.html'];
+        for (const path of navigation) {
+            const anchor = Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a, main > section a'))
+                .find(anchor => anchor.href === url(path));
+            expect(anchor, `source navigation to ${path}`).toBeDefined();
+        }
+        const images = Array.from(host.querySelectorAll<HTMLImageElement>('cem-demo-element [slot="demo"] img'));
+        expect(images).toHaveLength(10);
+        expect(images.every(image => image.alt.trim().length > 0)).toBe(true);
+        expect(host.querySelectorAll('cem-module-url')).toHaveLength(0);
+        expect(cemDiagnosticCodes(host)).toEqual([]);
+        expect(location.href).toBe(originalUrl);
     },
 };
 
-
-function sampleByLegend(host: ParentNode, legend: string): HTMLElement {
-    const sample = Array.from(host.querySelectorAll<HTMLElement>('cem-demo-element[legend]')).find(
-        (candidate) => normalize(candidate.getAttribute('legend') ?? '') === legend
-    );
-    assert(sample, `expected sample ${legend}`);
-    return sample;
-}
-
 function requiredElement(root: ParentNode, selector: string): HTMLElement {
     const element = root.querySelector<HTMLElement>(selector);
-    assert(element, `expected ${selector}`);
+    if (!element) throw new Error(`expected ${selector}`);
     return element;
-}
-
-function withSearch(input: URL, name: string, value: string): string {
-    const url = new URL(input);
-    url.searchParams.set(name, value);
-    return url.href;
 }
 
 function shortenMiddle(input: string, maxLength: number): string {
     const codepoints = Array.from(input);
     if (codepoints.length <= maxLength) return input;
     const prefixLength = Math.floor((maxLength - 1) / 2);
-    const suffixLength = maxLength - 1 - prefixLength;
-    return `${codepoints.slice(0, prefixLength).join('')}…${codepoints.slice(-suffixLength).join('')}`;
+    return `${codepoints.slice(0, prefixLength).join('')}…${codepoints.slice(-(maxLength - 1 - prefixLength)).join('')}`;
 }
 
-async function waitForCondition(
-    condition: () => boolean,
-    message: string | (() => string),
-    attempts = 120
-): Promise<void> {
+async function waitForCondition(condition: () => boolean, message: string, attempts = 120): Promise<void> {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
         if (condition()) return;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     }
-    throw new Error(typeof message === 'string' ? message : message());
+    throw new Error(message);
 }
 
 function normalize(value: string): string {
     return value.replace(/\s+/gu, ' ').trim();
-}
-
-function assert(condition: unknown, message: string): asserts condition {
-    if (!condition) throw new Error(message);
-}
-
-function assertEqual(actual: unknown, expected: unknown, message: string): void {
-    if (actual !== expected) {
-        throw new Error(`${message}: expected ${String(expected)}, got ${String(actual)}`);
-    }
-}
-
-function assertDeepEqual(actual: readonly string[], expected: readonly string[], message: string): void {
-    if (actual.length !== expected.length || actual.some((value, index) => value !== expected[index])) {
-        throw new Error(`${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
-    }
 }

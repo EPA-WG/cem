@@ -1161,3 +1161,46 @@ Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded documents.
 Build, lint and typecheck pass with the two existing lint warnings. The matrix
 audit is complete; the broader per-sample audit and separate startup
 investigations remain open.
+
+## Module-URL behavior audit, 2026-09-24
+
+All 13 authored cases now have named Storybook steps. The audit compares the
+shown import map with the authored resource entries, checks exact image/link
+URLs and image decoding, and waits for the actual nested declaration content
+in the relative, mapped and fragment examples. Component-local mappings,
+wrapper overrides and all three descendant-referrer URLs are checked together.
+Only the intentionally missing map entry reports
+`cem-element.module_url_resolve_failed`; source-host, declaration and other
+instance diagnostic histories are empty. The accepted `link-base="source"`
+policy on the loading declarations keeps the index and four related-page
+links in their authored directories.
+
+Sample 6's bare comparison image previously requested `/lib-dir/Smiley.svg`
+from the source harness. An existing server alias supplied the image at that
+wrong destination. Removing the alias during characterization reproduced a
+404 and zero natural image width. The user approved a fixture correction using
+`cem-module-url`; the comparison image now resolves from the declaration source,
+and the server alias is removed. Both browser modes require the exact resolved
+URL and a decoded image. No shared image-source behavior changed.
+
+At 390px, the import-map output measured about 634px and the node-referrer table
+about 485px standalone / 422px source-loaded inside a 372px output. The approved
+fixture presentation changes wrap the map preview, constrain the three-column
+table, add column header semantics, wrap full URL disclosures and remove an
+unnecessary figure margin. Both previously unlabeled images have alternatives.
+The map preview's static CSS stays inside its authored sample, and the CEM-ML
+styles stay with their owning declarations. All original resolution cases and
+complete URL values remain available.
+
+The independent verifier now shares all 13 sample contracts between modes.
+Real Enter/Space input opens and closes URL disclosures, and the layout check
+opens every disclosure at 1280px/390px before checking image, table and card
+containment plus source-panel scroll reachability. Standalone retains its
+12-card, two-column desktop gallery. Request observation rejects the old alias,
+unresolved bare-specifier fetches and remote resolution-only target fetches;
+the document URL remains unchanged. The focused story and both focused gallery
+modes pass. The full aggregate gate passes 242 Storybook tests, 514 unit tests
+and 31 standalone / 37 source-loaded documents. Build, lint and typecheck pass
+with the two existing lint warnings. This fixture audit is complete. The next
+behavior audit is the six-sample `npm-versions-demo.html`; broader coverage and
+historical startup investigations remain open.

@@ -4530,12 +4530,49 @@ registration identities may reuse an inherited or existing definition.
               standalone / 37 source-loaded documents, plus build, lint and
               typecheck (two existing warnings). The matrix audit is complete;
               the broader audit and separate startup investigations remain open.
-    - [ ] Fixture: audit every `demo/module-url.html` sample against its
+    - [x] Fixture: audit every `demo/module-url.html` sample against its
           source-loaded Storybook and independent gallery contracts. Check
           mapped and relative declarations, fragments, image/link outcomes,
           local maps, overrides, descendant referrers and failure diagnostics.
           Preserve authored examples, verify desktop/mobile layout and stop
           for any new behavior decision.
+        - [x] Fixture: strengthen the module-URL story and gallery checks for
+              all 13 cases, loaded nested declarations, decoded images, exact
+              links, disclosure behavior and missing-map diagnostics. Enable
+              the accepted source-link policy on this page's loading declarations.
+        - [x] Decision: correct sample 6's comparison image with the existing
+              `cem-module-url` resolver and remove the harness's `/lib-dir/Smiley.svg`
+              server alias (recommended), or investigate shared ordinary image
+              source resolution. The bare image used the host URL;
+              the alias hid its wrong source-loaded destination.
+              Accepted 2026-09-24: correct the fixture and remove the alias.
+        - [x] Decision: correct this fixture's clipped import-map preview and
+              node-referrer table at 390px, including missing image alternatives
+              (recommended), or leave presentation fixes pending. The node table
+              measures about 485px standalone / 422px source-loaded inside a
+              372px output, and the import-map output is about 634px wide.
+              Accepted 2026-09-24: correct fixture presentation.
+        - [x] Fixture: wrap the import-map preview, constrain the node-referrer
+              matrix while preserving complete URL disclosures, and provide
+              image alternatives. Verify containment at 1280px/390px in both
+              browser modes and the standalone desktop two-card layout.
+              Completed 2026-09-24: all 13 named steps verify decoded images,
+              exact links, nested rendered content, disclosures and diagnostic
+              histories. Sample 6 resolves its comparison image through the
+              shared control; the harness alias is removed. Both gallery modes
+              contain the map preview and table with full URL disclosures open
+              at 1280px/390px, and all ten images have alternatives. Standalone
+              retains a two-card desktop row. The full gate passes 242 Storybook
+              tests, 514 unit tests and 31 standalone / 37 source-loaded
+              documents, plus build, lint and typecheck (two existing warnings).
+              This fixture audit is complete; broader coverage and historical
+              startup investigations remain open.
+    - [ ] Fixture: audit all six `demo/npm-versions-demo.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Check default/preselected versions, dates, propagated values, label
+          slots and URL synchronization. Preserve deterministic package data,
+          verify desktop/mobile layout and stop for any new behavior decision.
+          Keep the separate historical startup-wait investigation open.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

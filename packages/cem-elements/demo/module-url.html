@@ -91,8 +91,14 @@
     </section>
     <section>
         <cem-demo-element legend="this page import maps"
-        >
+            description="Symbolic resource names and scoped overrides used by the examples below">
             <template>
+<style>
+    cem-demo-element[legend="this page import maps"] [slot="demo"] pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+</style>
 <pre>
 {   "imports": {
         "lib-root": "./lib-dir/",
@@ -349,7 +355,9 @@
         @target="./confused.svg?owner=wrapper"
         @content-type="image/svg+xml"}
 }
-{img @src="./lib-dir/Smiley.svg"} {br}
+{cem-module-url @slice=originalImageUrl @src="./lib-dir/Smiley.svg"}
+{img @src="{$datadom.slices.originalImageUrl}"
+    @alt="Original component image"} {br}
         ⇓
 {cem-local-map-override-image}
     </template>
@@ -375,6 +383,10 @@
 
 <cem-element tag="cem-local-map-referrer-demo">
     <template type="text/cem-ml">
+{style |```
+    table { width: 100%; table-layout: fixed; }
+    th, td { overflow-wrap: anywhere; vertical-align: top; }
+```}
 {cem-module-url
     @slice=relativeFromChildUrl
     @src="./lib-dir/Smiley.svg?referrer=node"
@@ -396,9 +408,9 @@
     {table @class=node-referrer-matrix |
         {thead |
             {tr |
-                {th | relative URL src}
-                {th | module path src}
-                {th | absolute URL src}
+                {th @scope=col | relative URL src}
+                {th @scope=col | module path src}
+                {th @scope=col | absolute URL src}
         }   }
         {tbody |
             {tr |
@@ -417,6 +429,9 @@
         <template>
 <cem-element tag="expando-link">
     <template type="text/cem-ml">
+{style |```
+    :host { overflow-wrap: anywhere; }
+```}
 {attribute @name=href}
 {details
     {summary |
@@ -430,6 +445,9 @@
 </cem-element>
 <cem-element tag="image-link">
     <template type="text/cem-ml">
+{style |```
+    figure { margin: 0; }
+```}
 {attribute @name=src}
 {attribute @name=class}
 {attribute @name=alt}
@@ -446,6 +464,7 @@
 </cem-element>
 <image-link src="./confused.svg"
             href="./confused.svg"
+            alt="Confused face from the relative helper URL"
     ></image-link>
         </template>
     </cem-demo-element>

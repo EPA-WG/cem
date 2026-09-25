@@ -126,6 +126,8 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '@specifier="demo-component-image" @target="./lib-dir/Smiley.svg?owner=component"',
             '<cem-element tag="cem-local-map-override-wrapper">',
             '@specifier="demo-component-image" @target="./confused.svg?owner=wrapper"',
+            '{cem-module-url @slice=originalImageUrl @src="./lib-dir/Smiley.svg"}',
+            '{img @src="{$datadom.slices.originalImageUrl}" @alt="Original component image"}',
             '{cem-local-map-override-image}',
             '<cem-local-map-override-wrapper></cem-local-map-override-wrapper>',
         ],
@@ -159,6 +161,7 @@ const SAMPLE_CONTRACTS: readonly SampleSourceContract[] = [
             '{expando-link @href="{$datadom.slices.imageUrl}"}',
             '<image-link src="./confused.svg"',
             'href="./confused.svg"',
+            'alt="Confused face from the relative helper URL"',
         ],
         excludes: [
             '{cem-module-url @slice=linkUrl',

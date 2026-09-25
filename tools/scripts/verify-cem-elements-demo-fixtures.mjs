@@ -1216,6 +1216,82 @@ const mappedImageFragmentSample = sampleContract('4d. Mapped image and same-libr
     attributeContains('article cem-element a', 'href', '/demo/lib-dir/embed-lib.html#embed-lib-component'),
 ]);
 
+function moduleImageChecks(path, selector = 'image-link') {
+    return [
+        urlEquals(`${selector} img`, 'src', path),
+        urlEquals(`${selector} a`, 'href', path),
+        imageLoaded(`${selector} img`),
+        shortenedHrefText(`${selector} a`, 32),
+        propertyEquals(`${selector} details`, 'open', false),
+        pressThenProperty(`${selector} summary`, 'Enter', `${selector} details`, 'open', true),
+        text(`${selector} details`, path),
+        pressThenProperty(`${selector} summary`, 'Space', `${selector} details`, 'open', false),
+    ];
+}
+const moduleDemoPath = '/packages/cem-elements/demo/';
+const moduleLibraryPath = `${moduleDemoPath}lib-dir/embed-lib.html`;
+const moduleUrlSamples = [
+    sampleContract('this page import maps', [text('pre', '"lib-root"'), text('pre', '"embed-lib"'),
+        text('pre', '"demo-module-referrer"'), text('pre', '"scopes"')]),
+    sampleContract('1. module path by symbolic name', moduleImageChecks(`${moduleDemoPath}wc-square.svg`)),
+    sampleContract('2. src forms: relative URL', moduleImageChecks(`${moduleDemoPath}lib-dir/Smiley.svg?src=relative`)),
+    sampleContract('3. src forms: absolute URL', [
+        attributeContains('image-link img', 'src', 'data:image/svg+xml,'),
+        attributeContains('image-link a', 'href', 'data:image/svg+xml,'), imageLoaded('image-link img'),
+        shortenedHrefText('image-link a', 32),
+        pressThenProperty('image-link summary', 'Enter', 'image-link details', 'open', true),
+        pressThenProperty('image-link summary', 'Space', 'image-link details', 'open', false),
+    ]),
+    sampleContract('4. Relative declaration source', [
+        { kind: 'resolvedUrlTexts', selector: 'output', expected: [`${moduleDemoPath}embed-1.html`] },
+        urlEquals('a', 'href', `${moduleDemoPath}embed-1.html`),
+        normalizedText('cem-module-relative-declaration', 'embed-1.html 🖖'),
+    ]),
+    sampleContract('4a. Mapped declaration source', [
+        { kind: 'resolvedUrlTexts', selector: 'output', expected: [moduleLibraryPath] },
+        urlEquals('a', 'href', moduleLibraryPath),
+        normalizedText('cem-module-mapped-declaration', '👋 from embed-lib-component'),
+    ]),
+    sampleContract('4b. Missing import-map entry', [
+        normalizedText('output', 'not published'), text('article', 'cem-element.module_url_resolve_failed'),
+    ]),
+    sampleContract('4c. Mapped fragment with a relative dependency', [
+        { kind: 'resolvedUrlTexts', selector: 'output', expected: [`${moduleLibraryPath}#embed-relative-file`] },
+        urlEquals('article > p a', 'href', `${moduleLibraryPath}#embed-relative-file`),
+        urlEquals('cem-module-mapped-fragment a', 'href', `${moduleDemoPath}embed-1.html`),
+        normalizedText('cem-module-mapped-fragment', '👍 from embed-relative-file invoking ../embed-1.html : embed-1.html 🖖'),
+    ]),
+    sampleContract(mappedImageFragmentSample.legend, [
+        ...mappedImageFragmentSample.checks,
+        urlEquals('img[alt="Mapped Smiley"]', 'src', `${moduleDemoPath}lib-dir/Smiley.svg`),
+        urlEquals('img[alt="Library Smiley"]', 'src', `${moduleDemoPath}lib-dir/Smiley.svg`),
+        imageLoaded('img[alt="Mapped Smiley"]'), imageLoaded('img[alt="Library Smiley"]'),
+        urlEquals('article > a', 'href', `${moduleLibraryPath}#embed-relative-hash`),
+        urlEquals('article cem-element a', 'href', `${moduleLibraryPath}#embed-lib-component`),
+    ]),
+    sampleContract('5. component-local map: naked', moduleImageChecks(`${moduleDemoPath}lib-dir/Smiley.svg?owner=component`)),
+    sampleContract('6. component-local map: wrapper override', [
+        ...moduleImageChecks(`${moduleDemoPath}confused.svg?owner=wrapper`),
+        urlEquals('cem-local-map-override-wrapper > img', 'src', `${moduleDemoPath}lib-dir/Smiley.svg`),
+        imageLoaded('cem-local-map-override-wrapper > img'),
+    ]),
+    sampleContract('7. component-local map: node referrer', [
+        ...moduleImageChecks(`${moduleDemoPath}wc-square.svg?owner=component`, 'image-link.node-referrer-image'),
+        nodeTexts('thead th', ['relative URL src', 'module path src', 'absolute URL src']),
+        urlEquals('table td:first-of-type a', 'href', `${moduleDemoPath}lib-dir/Smiley.svg?referrer=node`),
+        urlEquals('table td:nth-of-type(2) a', 'href', `${moduleDemoPath}wc-square.svg?owner=component`),
+        urlEquals('table td:last-of-type a', 'href', 'https://assets.example.test/logo.svg'),
+        text('cem-local-map-referrer', 'Child owns the inner-only module mapping'),
+    ]),
+    sampleContract('image-link', moduleImageChecks(`${moduleDemoPath}confused.svg`)),
+];
+const moduleUrlNavigationChecks = [
+    urlEquals('nav a', 'href', '/packages/cem-elements/index.html'),
+    ...['set-url.html', 'external-template.html', 'module-url-referrer.html', 'functions/str.html'].map(path =>
+        urlEquals(`main > section a[href$="${path}"]`, 'href', `${moduleDemoPath}${path}`)),
+    countExactly('cem-module-url', 0),
+];
+
 const httpFullRows = ['alpha : ready', 'beta : loaded'];
 const httpCompactRows = ['solo : compact'];
 function httpUrlState(selected, requested, status, rows) {
@@ -1944,68 +2020,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/module-url.html',
-        checks: [
-            attributeContains(
-                'cem-demo-element[legend="1. module path by symbolic name"] image-link',
-                'src',
-                '/packages/cem-elements/demo/wc-square.svg',
-            ),
-            attributeContains(
-                'cem-demo-element[legend="1. module path by symbolic name"] image-link img',
-                'src',
-                '/packages/cem-elements/demo/wc-square.svg',
-            ),
-            attributeContains(
-                'cem-demo-element[legend="1. module path by symbolic name"] image-link a',
-                'href',
-                '/packages/cem-elements/demo/wc-square.svg',
-            ),
-            shortenedHrefText('cem-demo-element[legend="1. module path by symbolic name"] image-link a', 32),
-            attributeContains(
-                'cem-demo-element[legend="2. src forms: relative URL"] image-link',
-                'src',
-                'Smiley.svg?src=relative',
-            ),
-            attributeContains(
-                'cem-demo-element[legend="2. src forms: relative URL"] image-link img',
-                'src',
-                'Smiley.svg?src=relative',
-            ),
-            shortenedHrefText('cem-demo-element[legend="2. src forms: relative URL"] image-link a', 32),
-            attributeContains(
-                'cem-demo-element[legend="3. src forms: absolute URL"] image-link',
-                'src',
-                'data:image/svg+xml,',
-            ),
-            attributeContains(
-                'cem-demo-element[legend="3. src forms: absolute URL"] image-link img',
-                'src',
-                'data:image/svg+xml,',
-            ),
-            shortenedHrefText('cem-demo-element[legend="3. src forms: absolute URL"] image-link a', 32),
-            text('cem-module-relative-declaration', '🖖'),
-            text('cem-module-mapped-declaration', '👋 from embed-lib-component'),
-            normalizedText(
-                'cem-demo-element[legend="4b. Missing import-map entry"] output',
-                'not published',
-            ),
-            text('cem-module-mapped-fragment', '👍 from embed-relative-file'),
-            text('cem-module-mapped-fragment', '🖖'),
-            ...mappedImageFragmentSample.checks.map((check) => scopeCheck(
-                check, `cem-demo-element[legend="${mappedImageFragmentSample.legend}"]`,
-            )),
-            attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
-            shortenedHrefText('cem-local-map-naked-image image-link a', 32),
-            attributeContains('cem-local-map-override-wrapper img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
-            shortenedHrefText('cem-local-map-override-wrapper image-link a', 32),
-            attributeContains('cem-local-map-referrer-demo img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
-            shortenedHrefText('cem-local-map-referrer-demo image-link.node-referrer-image a', 32),
-            text('cem-local-map-referrer-demo table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
-            text('cem-local-map-referrer-demo table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
-            text('cem-local-map-referrer-demo table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
-            shortenedHrefText('cem-demo-element[legend="image-link"] image-link a', 32),
-            countExactly('cem-module-url', 0),
-        ],
+        checks: [...moduleUrlSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))), ...moduleUrlNavigationChecks],
     },
     {
         path: '/packages/cem-elements/demo/module-url-referrer.html',
@@ -2553,56 +2569,9 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/module-url.html',
-        samples: [
-            sampleContract('this page import maps', [text(':scope', '"lib-root"'), text(':scope', '"embed-lib"')]),
-            sampleContract('1. module path by symbolic name', [
-                attributeContains('image-link', 'src', '/packages/cem-elements/demo/wc-square.svg'),
-                attributeContains('image-link img', 'src', '/packages/cem-elements/demo/wc-square.svg'),
-                attributeContains('image-link a', 'href', '/packages/cem-elements/demo/wc-square.svg'),
-                shortenedHrefText('image-link a', 32),
-            ]),
-            sampleContract('2. src forms: relative URL', [
-                attributeContains('image-link', 'src', 'Smiley.svg?src=relative'),
-                attributeContains('image-link img', 'src', 'Smiley.svg?src=relative'),
-                shortenedHrefText('image-link a', 32),
-            ]),
-            sampleContract('3. src forms: absolute URL', [
-                attributeContains('image-link', 'src', 'data:image/svg+xml,'),
-                attributeContains('image-link img', 'src', 'data:image/svg+xml,'),
-                shortenedHrefText('image-link a', 32),
-            ]),
-            sampleContract('4. Relative declaration source', [
-                text('output', '/packages/cem-elements/demo/embed-1.html'),
-            ]),
-            sampleContract('4a. Mapped declaration source', [
-                text('output', '/packages/cem-elements/demo/lib-dir/embed-lib.html'),
-            ]),
-            sampleContract('4b. Missing import-map entry', [
-                normalizedText('output', 'not published'),
-                text('article', 'cem-element.module_url_resolve_failed'),
-            ]),
-            sampleContract('4c. Mapped fragment with a relative dependency', [
-                text('output', '/packages/cem-elements/demo/lib-dir/embed-lib.html#embed-relative-file'),
-            ]),
-            mappedImageFragmentSample,
-            sampleContract('5. component-local map: naked', [
-                attributeContains('cem-local-map-naked-image img.component-owned-image', 'src', 'Smiley.svg?owner=component'),
-                shortenedHrefText('cem-local-map-naked-image image-link a', 32),
-            ]),
-            sampleContract('6. component-local map: wrapper override', [
-                attributeContains('cem-local-map-override-wrapper img.component-owned-image', 'src', 'confused.svg?owner=wrapper'),
-                shortenedHrefText('cem-local-map-override-wrapper image-link a', 32),
-            ]),
-            sampleContract('7. component-local map: node referrer', [
-                attributeContains('cem-local-map-referrer-demo img.node-referrer-image', 'src', 'wc-square.svg?owner=component'),
-                shortenedHrefText('cem-local-map-referrer-demo image-link.node-referrer-image a', 32),
-                text('cem-local-map-referrer-demo table.node-referrer-matrix td:first-of-type', 'Smiley.svg?referrer=node'),
-                text('cem-local-map-referrer-demo table.node-referrer-matrix td:nth-of-type(2)', 'wc-square.svg?owner=component'),
-                text('cem-local-map-referrer-demo table.node-referrer-matrix td:last-of-type', 'https://assets.example.test/logo.svg'),
-                countExactly('cem-module-url', 0),
-            ]),
-            sampleContract('image-link', [shortenedHrefText('image-link a', 32)]),
-        ],
+        samples: moduleUrlSamples,
+        checks: moduleUrlNavigationChecks,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/module-url-referrer.html',
@@ -2806,14 +2775,7 @@ const server = createServer(async (request, response) => {
             response.end(sourceHarnessHtml);
             return;
         }
-        // The source harness is the page URL for ordinary relative HTML assets.
-        // Provide the comparison image used by the module-URL wrapper sample at
-        // that page-relative address; CEM module resolution remains covered by
-        // the distinct /packages/cem-elements/demo/... URLs.
-        const fixturePathname = pathname === '/lib-dir/Smiley.svg'
-            ? '/packages/cem-elements/demo/lib-dir/Smiley.svg'
-            : pathname;
-        const filePath = normalize(join(repoRoot, fixturePathname));
+        const filePath = normalize(join(repoRoot, pathname));
         if (filePath !== repoRoot && !filePath.startsWith(repoRoot + sep)) {
             response.writeHead(403);
             response.end('Forbidden');
@@ -2845,7 +2807,7 @@ try {
         const pageErrors = [];
         const context = await browser.newContext();
         const page = await context.newPage();
-        const resolutionRequests = observeScalarReferrerRequests(page, fixture);
+        const resolutionRequests = observeModuleUrlRequests(page, fixture);
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
@@ -2862,8 +2824,11 @@ try {
             for (const check of fixture.checks) {
                 await runCheck(page, check);
             }
+            if (fixture.path === '/packages/cem-elements/demo/module-url.html') {
+                await verifyModuleUrlPresentation(page, resolutionRequests, `http://127.0.0.1:${port}${fixture.path}`);
+            }
             await verifySymbolicControls(page, fixture.path);
-            if (resolutionRequests) {
+            if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
                     `http://127.0.0.1:${port}${fixture.path}`);
             }
@@ -2918,7 +2883,7 @@ try {
     for (const [index, fixture] of sourceDocumentSpecs.entries()) {
         const pageErrors = [];
         const page = await browser.newPage();
-        const resolutionRequests = observeScalarReferrerRequests(page, fixture);
+        const resolutionRequests = observeModuleUrlRequests(page, fixture);
         page.on('pageerror', (error) => pageErrors.push(error.message));
         page.on('console', (message) => {
             if (message.type() === 'error') {
@@ -2945,8 +2910,12 @@ try {
             for (const check of fixture.checks ?? []) {
                 await runCheck(page, scopeCheck(check, tag));
             }
+            if (fixture.path === '/packages/cem-elements/demo/module-url.html') {
+                await verifyModuleUrlPresentation(page, resolutionRequests, `http://127.0.0.1:${port}/__cem-source-harness.html`);
+                await verifyModuleUrlDiagnostics(page, tag);
+            }
             await verifySymbolicControls(page, fixture.path);
-            if (resolutionRequests) {
+            if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
                     `http://127.0.0.1:${port}/__cem-source-harness.html`);
             }
@@ -3437,11 +3406,76 @@ async function verifyHexRowNavigation(page) {
     ]);
 }
 
-function observeScalarReferrerRequests(page, fixture) {
-    if (fixture.path !== '/packages/cem-elements/demo/module-url-referrer.html') return null;
+function observeModuleUrlRequests(page, fixture) {
+    if (!['/packages/cem-elements/demo/module-url-referrer.html', '/packages/cem-elements/demo/module-url.html'].includes(fixture.path)) return null;
     const requests = [];
     page.on('request', request => requests.push(request.url()));
     return requests;
+}
+
+async function verifyModuleUrlPresentation(page, requests, originalUrl) {
+    const samples = 'cem-demo-element[legend]';
+    const summaries = page.locator(`${samples} expando-link summary`);
+    // Inspect complete URLs as well as their shortened summaries.
+    for (let index = 0; index < await summaries.count(); index++) await summaries.nth(index).press('Enter');
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, ({ samples, width }) => {
+            const cards = Array.from(document.querySelectorAll(samples));
+            const images = cards.flatMap(card => Array.from(card.querySelectorAll('[slot="demo"] img')));
+            return cards.length === 13 && images.length === 10
+                && images.every(image => image.complete && image.naturalWidth > 0 && image.alt.trim())
+                && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], [slot="demo"] pre, [slot="demo"] table, [slot="demo"] th, [slot="demo"] td, [slot="demo"] figure, [slot="demo"] details'))
+                            .every(node => {
+                                const rect = node.getBoundingClientRect();
+                                return node.scrollWidth <= node.clientWidth + 1
+                                    && rect.left >= box.left && rect.right <= box.right;
+                            });
+                });
+        }, { samples, width });
+        const sourcesReachable = await page.locator(`${samples} [slot="text"] pre`).evaluateAll(sources =>
+            sources.length === 13 && sources.every(pre => {
+                const max = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = max;
+                const reachable = Math.abs(pre.scrollLeft - max) <= 1;
+                pre.scrollLeft = 0;
+                return reachable;
+            }));
+        if (!sourcesReachable) throw new Error('Module-URL source text cannot be scrolled to its end');
+    }
+    for (let index = 0; index < await summaries.count(); index++) await summaries.nth(index).press('Space');
+    if (new URL(originalUrl).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 12);
+    if (page.url() !== originalUrl) throw new Error('Module URL resolution or disclosure toggling navigated the page');
+    const unexpected = requests.filter(request => {
+        const url = new URL(request);
+        return url.hostname.endsWith('.example.test') || url.pathname === '/lib-dir/Smiley.svg'
+            || url.pathname.includes('/missing-demo-lib/');
+    });
+    if (unexpected.length) throw new Error(`Unexpected module URL requests: ${unexpected.join(', ')}`);
+}
+
+async function verifyModuleUrlDiagnostics(page, tag) {
+    await poll(page, tag => {
+        const runtime = window.__cemFixtureRuntime;
+        const host = document.querySelector(tag);
+        if (!host || !runtime || runtime.diagnosticsFor(host).length) return false;
+        return Array.from(host.querySelectorAll('cem-demo-element[legend]')).every(sample => {
+            const codes = new Set();
+            for (const declaration of sample.querySelectorAll('cem-element[tag]')) {
+                if (runtime.diagnosticsFor(declaration).length) return false;
+                for (const instance of sample.querySelectorAll(declaration.getAttribute('tag'))) {
+                    for (const diagnostic of runtime.diagnosticsFor(instance)) codes.add(diagnostic.code);
+                }
+            }
+            const expected = sample.getAttribute('legend') === '4b. Missing import-map entry'
+                ? ['cem-element.module_url_resolve_failed'] : [];
+            return JSON.stringify([...codes]) === JSON.stringify(expected);
+        });
+    }, tag);
 }
 
 async function verifyScalarReferrerPresentation(page, requests, originalUrl) {
