@@ -289,25 +289,66 @@ const xpathSortSamples = [
     ]),
 ];
 
+const aggregateOutputs = expected => [
+    nodeTexts('article output', expected), countExactly('article [role="alert"]', 0),
+];
+const aggregateRows = rows => [
+    normalizedText('article caption', 'Fruit amounts'),
+    nodeTexts('article thead th[scope="col"]', ['Fruit', 'Amount']),
+    countExactly('article tbody tr', rows.length),
+    nodeTexts('article tbody th[scope="row"]', rows.map(([name]) => name)),
+    nodeTexts('article tbody td', rows.map(([, amount]) => amount)),
+];
+const aggregateEditor = value => [
+    elementIdentity('article textarea', 'same'), focusedElement('article textarea'),
+    propertyEquals('article textarea', 'value', value),
+    propertyEquals('article textarea', 'selectionStart', value.length),
+    propertyEquals('article textarea', 'selectionEnd', value.length),
+];
+const aggregateEdit = (value, expected, rows) => [
+    fillThenText('article textarea', value, 'article p:first-of-type output', expected[0]),
+    ...aggregateOutputs(expected), ...aggregateEditor(value),
+    ...(rows ? aggregateRows(rows) : []),
+];
+const aggregateInvalid = (value, message, basket = false) => [
+    fillThenText('article textarea', value, 'article [role="alert"]', message),
+    countExactly('article output', 0), ...aggregateEditor(value),
+    ...(basket ? [countExactly('article table', 0)] : []),
+];
 const xpathAggregateSamples = [
     sampleContract('1. Decimal sequence statistics', [
-        normalizedText('article p:first-of-type output', '0.3'),
-        normalizedText('article p:last-of-type output', '0.15'),
-        fillThenText('article textarea', '-2 1 4', 'article p:first-of-type output', '3'),
-        normalizedText('article p:nth-of-type(2) output', '-2'),
-        fillThenText('article textarea', 'bad', 'article [role="alert"]', 'Enter decimal'),
-        fillThenText('article textarea', '', 'article p:first-of-type output', '0'),
-        normalizedText('article p:last-of-type output', '∅'),
+        ...aggregateOutputs(['0.3', '0.1', '0.2', '0.15']),
+        propertyEquals('article textarea', 'value', '0.1 0.2'),
+        elementIdentity('article textarea', 'remember'),
+        ...aggregateEdit('-2\t1\n4', ['3', '-2', '4', '1']),
+        ...aggregateEdit('+001.20 -.20 0', ['1', '-0.2', '1.2', '0.333333333333333333']),
+        ...aggregateEdit('0 0 1', ['1', '0', '1', '0.333333333333333333']),
+        ...aggregateEdit('0 1 1', ['2', '0', '1', '0.666666666666666667']),
+        ...aggregateEdit('0 -1 -1', ['-2', '-1', '0', '-0.666666666666666667']),
+        ...aggregateEdit('-0 .5 5.', ['5.5', '0', '5', '1.83333333333333333']),
+        ...['1 bad', 'NaN', '1e2', '1\u00a02'].flatMap(value => [
+            ...aggregateInvalid(value, 'Enter decimal'),
+            ...aggregateEdit('0.1 0.2', ['0.3', '0.1', '0.2', '0.15']),
+        ]),
+        ...aggregateEdit('', ['0', '∅', '∅', '∅']),
+        ...aggregateEdit(' \t\n', ['0', '∅', '∅', '∅']),
     ]),
     sampleContract('2. A basket that accepts new fruits', [
-        normalizedText('article p:first-of-type output', '3.75'),
-        fillThenText('article textarea', '<basket><apple>0.1</apple><cherry>0.2</cherry><pear>0.6</pear></basket>', 'article p:first-of-type output', '0.9'),
-        normalizedText('article tbody tr:last-child th', 'pear'),
-        normalizedText('article p:last-of-type output', '0.3'),
-        fillThenText('article textarea', '<basket><pear>bad</pear></basket>', 'article [role="alert"]', 'non-negative decimal'),
-        fillThenText('article textarea', '<basket/>', 'article p:first-of-type output', '0'),
-        normalizedText('article p:last-of-type output', '∅'),
-        countExactly('article tbody tr', 0),
+        ...aggregateOutputs(['3.75', '1.25', '2.5', '1.875']),
+        ...aggregateRows([['apple', '1.25'], ['cherry', '2.5']]),
+        elementIdentity('article textarea', 'remember'),
+        ...aggregateEdit('<basket><apple>0.1</apple><cherry>0.2</cherry><pear>0.6</pear></basket>',
+            ['0.9', '0.1', '0.6', '0.3'], [['apple', '0.1'], ['cherry', '0.2'], ['pear', '0.6']]),
+        ...aggregateEdit('<basket><pear>+001.20</pear><lime>-0</lime></basket>',
+            ['1.2', '0', '1.2', '0.6'], [['pear', '1.2'], ['lime', '0']]),
+        ...['<basket><pear>bad</pear></basket>', '<basket><pear/></basket>',
+            '<basket><pear>-1</pear></basket>', '<basket><pear><qty>1</qty></pear></basket>',
+            '<other><pear>1</pear></other>', '<basket>'].flatMap(value => [
+            ...aggregateInvalid(value, value === '<basket>' ? 'XML' : 'non-negative decimal', true),
+            ...aggregateEdit('<basket><plum>7</plum></basket>', ['7', '7', '7', '7'], [['plum', '7']]),
+        ]),
+        ...aggregateEdit('<basket/>', ['0', '∅', '∅', '∅'], []),
+        ...aggregateEdit('<basket><plum>7</plum></basket>', ['7', '7', '7', '7'], [['plum', '7']]),
     ]),
 ];
 
@@ -2514,6 +2555,7 @@ const sourceDocumentSpecs = [
     {
         path: '/packages/cem-elements/demo/xpath-aggregates.html',
         samples: xpathAggregateSamples,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/xpath-functions.html',
@@ -2877,6 +2919,9 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/table-inspector.html') {
                 await verifyTableInspectorPresentation(page);
             }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-aggregates.html') {
+                await verifyXPathAggregatesPresentation(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -2986,6 +3031,10 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/table-inspector.html') {
                 await verifyTableInspectorPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+            }
+            if (fixture.path === '/packages/cem-elements/demo/xpath-aggregates.html') {
+                await verifyXPathAggregatesPresentation(page);
                 await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
@@ -4932,4 +4981,39 @@ async function verifyTableInspectorPresentation(page) {
         if (!reachable) throw new Error('Table-inspector source/table content cannot be scrolled to its end');
     }
     if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 4);
+}
+
+async function verifyXPathAggregatesPresentation(page) {
+    await runCheck(page, nodeTexts('cem-demo-element[legend="1. Decimal sequence statistics"] output', ['0', '∅', '∅', '∅']));
+    await runCheck(page, countExactly('nav a, main > section a', 6));
+    await runCheck(page, urlEquals('nav a', 'href', '/packages/cem-elements/index.html'));
+    for (const target of ['xpath-aggregates.cemt', 'xpath-maps-arrays.html', 'xpath-sequences.html', 'xpath-nodes.html', 'data-table.html']) {
+        await runCheck(page, urlEquals(`main > section a[href$="${target}"]`, 'href', `/packages/cem-elements/demo/${target}`));
+    }
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, width => {
+            const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
+            return cards.length === 2 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, textarea, table')).every(node => {
+                            const rect = node.getBoundingClientRect();
+                            return rect.left >= box.left && rect.right <= box.right
+                                && node.scrollWidth <= node.clientWidth + 1;
+                        });
+                });
+        }, width);
+        const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
+            sources.length === 2 && sources.every(pre => {
+                const end = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = end;
+                const reached = Math.abs(pre.scrollLeft - end) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!reachable) throw new Error('XPath aggregate source cannot be scrolled to its end');
+    }
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 2);
 }

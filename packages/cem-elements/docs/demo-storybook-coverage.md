@@ -1417,3 +1417,39 @@ destinations. Follow-up validation passes all four focused Storybook tests,
 (two existing lint warnings). The four-sample fixture audit is complete. Next
 is `xpath-aggregates.html` (two samples); broader per-sample coverage and
 historical startup investigations remain open.
+
+## XPath aggregate behavior audit, 2026-09-25
+
+Both samples now have named Storybook steps and share complete independent
+standalone/source-loaded contracts. Every valid case asserts all four aggregate
+outputs together. Decimal checks include XML whitespace, negative values,
+canonical signs/zeroes, terminating averages and positive/negative repeating
+averages at the documented precision. Invalid text, NaN, exponent notation and
+non-XML whitespace remove all results and show the decimal-input error. Each
+invalid case is followed by a successful recovery, so a stale alert cannot
+satisfy the next case. Empty and whitespace-only input produce sum 0 and three
+absent-value markers.
+
+Basket checks assert the caption, column/row heading semantics, every fruit
+name and amount, and all four statistics. Adding pear includes the new row;
+canonical decimal amounts and negative zero display their normalized values.
+Bad, empty or negative amounts, nested fruit content and a wrong root show the
+validation message without a table. Malformed XML shows its reader error.
+Recovery, an empty basket and a later single-fruit basket restore the expected
+rows/results while preserving the other sample's state. Both editors retain
+identity, focus and selection through changes; Storybook also checks a caret
+inside the edited value. Source-loaded diagnostic histories remain empty,
+including after the expected reader-error presentation.
+
+The six source-loaded navigation links had the same host-relative problem as
+previous audited pages. Both loaders now use the already-approved
+`link-base="source"` policy, with all six destinations asserted. The authored
+HTML, XPath companion library and shared runtime are unchanged.
+
+The focused Storybook test and both independent modes pass. At 1280px and 390px,
+editors, tables and cards stay contained and both source panels can scroll to
+their horizontal end. Standalone retains a two-card desktop row. The full gate
+passes 256 Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
+documents, plus build, typecheck and lint (two existing warnings). This fixture
+audit is complete. Next is `xpath-functions.html` (six samples); broader
+per-sample coverage and historical startup investigations remain open.

@@ -4721,12 +4721,36 @@ registration identities may reuse an inherited or existing definition.
               pass (two existing lint warnings). All five destinations now use
               the source directory. The four-sample fixture audit is complete;
               broader coverage and historical startup investigations stay open.
-    - [ ] Fixture: audit both `demo/xpath-aggregates.html` samples against
+    - [x] Fixture: audit both `demo/xpath-aggregates.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Verify all decimal statistics, empty/invalid inputs and recovery,
           editable basket rows and totals, new fruit names, and non-negative
           amount validation. Check diagnostics, desktop/mobile presentation and
           navigation; stop for any new behavior decision.
+        - [x] Check exact four-value output sets, complete fruit rows, invalid
+              lexical and structural input, empty input, recovery and sibling
+              isolation in both named Storybook steps and shared independent
+              contracts. Verify textarea identity/focus/selection, diagnostics,
+              desktop/mobile containment and complete source scrolling.
+        - [x] Apply the already-approved source-link policy to this page's
+              two loading declarations and check all six navigation targets.
+              The audit confirms these links otherwise use the harness URL.
+          Completed 2026-09-25: both samples pass complete output/row checks,
+          invalid-input recovery, empty states, editor retention and sibling
+          isolation. All six links resolve against the source. Both independent
+          modes pass 1280px/390px containment and source scrolling, with a
+          standalone two-card desktop row and empty diagnostic histories.
+          The full gate passes 256 Storybook tests, 514 unit tests and 31
+          standalone / 37 source-loaded documents, plus build, typecheck and
+          lint (two existing warnings). Authored HTML, XPath companion and
+          shared runtime are unchanged. This fixture audit is complete;
+          broader coverage and historical startup investigations remain open.
+    - [ ] Fixture: audit all six `demo/xpath-functions.html` samples against
+          their source-loaded Storybook and independent gallery contracts.
+          Verify each XPath/CEM-QL pair's string result, predicate selection,
+          XML node matching, input identity/focus and invalid-source recovery.
+          Check diagnostics, desktop/mobile presentation and navigation; stop
+          for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.
