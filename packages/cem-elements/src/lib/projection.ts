@@ -1908,6 +1908,7 @@ export function mergeRenderedFragmentIntoRange(
         throw new Error('cem-element render bounds are not attached to the same parent');
     }
     const focus = captureRenderRangeFocus(bounds);
+    const finishSelectRefresh = beginSelectRefresh();
     try {
         mergeChildNodes(
             parent,
@@ -1917,6 +1918,8 @@ export function mergeRenderedFragmentIntoRange(
             options,
         );
     } finally {
+        finishSelectRefresh();
+        refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
     }
 }
@@ -1933,6 +1936,7 @@ export function applyRenderPlanToRange(
     }
 
     const focus = captureRenderRangeFocus(bounds);
+    const finishSelectRefresh = beginSelectRefresh();
     try {
         const recovery = renderScopeRecoveryReason(bounds, plan, options);
         if (recovery) {
@@ -1960,6 +1964,8 @@ export function applyRenderPlanToRange(
         );
         return { mode: 'patch', diagnostics: [] };
     } finally {
+        finishSelectRefresh();
+        refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
     }
 }
@@ -2023,6 +2029,7 @@ export function applyPatchFramesToRange(
         resolved.push({ operation, target });
     }
     const focus = captureRenderRangeFocus(bounds);
+    const finishSelectRefresh = beginSelectRefresh();
     const previousCheckboxBindings = new Map<Element, string>();
     try {
         for (const { operation, target } of resolved) {
@@ -2063,6 +2070,7 @@ export function applyPatchFramesToRange(
                     options,
                 });
             } else {
+                trackSelectChildren(target.parentNode);
                 target.parentNode?.replaceChild(
                     materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document),
                     target,
@@ -2077,6 +2085,8 @@ export function applyPatchFramesToRange(
             updateCommittedRenderMetadata(bounds, parsed.commit.nextRenderPlan, options);
         }
     } finally {
+        finishSelectRefresh();
+        refreshControlledSelectsInRange(bounds, options);
         restoreRenderRangeFocus(focus);
     }
     return { status: 'applied', diagnostics: [] };
@@ -2284,6 +2294,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const child of node.children) {
         childContainer.appendChild(materializeNode(child, plan, document));
     }
+    syncControlledSelect(element);
     return element;
 }
 
@@ -2393,6 +2404,7 @@ function mergeRenderPlanChildNodes(
     desiredNodes: readonly RenderPlanNode[],
     context: RenderPlanApplyContext,
 ): void {
+    trackSelectChildren(parent);
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
         const match = matchRenderPlanNode(current, end, desired, context);
@@ -2666,6 +2678,7 @@ function mergeChildNodes(
     desiredNodes: readonly Node[],
     options: RenderedFragmentMergeOptions,
 ): void {
+    trackSelectChildren(parent);
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
         const matched = matchMergeNode(current, end, desired);
@@ -2797,11 +2810,95 @@ export function setRenderPlanAttribute(element: Element, name: string, value: st
         element.setAttributeNS(XLINK_NAMESPACE, name, value);
         return;
     }
+    const addedSelected = name === 'selected' && !element.hasAttribute(name);
     const addedChecked = name === 'checked' && !element.hasAttribute(name);
     const changedValue = name === 'value' && element.getAttribute(name) !== value;
     element.setAttribute(name, value);
+    if (addedSelected) queueSelectRefresh(element);
     if (addedChecked) syncRenderedCheckedPresence(element, true);
     if (changedValue) syncRenderedInputValue(element, value);
+}
+
+// Selected attributes set defaults; dirty options stop following those defaults.
+// Reconcile once after the whole transaction so option order and patch order do
+// not affect the result. Unchanged authored selections preserve user edits.
+// null means an explicit selected-presence change; a snapshot detects changed
+// defaults when conditional branches insert, remove or replace option nodes.
+let pendingSelectRefresh: Map<HTMLSelectElement, HTMLOptionElement[] | null> | undefined;
+
+function beginSelectRefresh(): () => void {
+    const parent = pendingSelectRefresh;
+    const current = new Map<HTMLSelectElement, HTMLOptionElement[] | null>();
+    pendingSelectRefresh = current;
+    return () => {
+        pendingSelectRefresh = parent;
+        for (const [select, before] of current) {
+            if (parent) {
+                if (before === null || !parent.has(select)) parent.set(select, before);
+            } else {
+                const after = Array.from(select.options).filter(option => option.defaultSelected);
+                if (before === null || before.length !== after.length
+                    || before.some((option, index) => option !== after[index])) syncRenderedSelect(select);
+            }
+        }
+    };
+}
+
+function queueSelectRefresh(element: Element): void {
+    if (element.namespaceURI !== XHTML_NAMESPACE || !['option', 'select'].includes(element.localName)) return;
+    const select = element.closest('select') as HTMLSelectElement | null;
+    if (!select || select.namespaceURI !== XHTML_NAMESPACE) return;
+    if (pendingSelectRefresh) pendingSelectRefresh.set(select, null);
+    else syncRenderedSelect(select);
+}
+
+function trackSelectChildren(parent: Node | null): void {
+    if (!pendingSelectRefresh || parent?.nodeType !== 1) return;
+    const select = (parent as Element).closest('select') as HTMLSelectElement | null;
+    if (!select || select.namespaceURI !== XHTML_NAMESPACE || pendingSelectRefresh.has(select)) return;
+    pendingSelectRefresh.set(select, Array.from(select.options).filter(option => option.defaultSelected));
+}
+
+function syncRenderedSelect(select: HTMLSelectElement): void {
+    const options = Array.from(select.options);
+    if (select.multiple) {
+        for (const option of options) option.selected = option.defaultSelected;
+        return;
+    }
+    // Native single selects use the last explicit default, or the first enabled
+    // option for a one-row control. A listbox without a default stays unselected.
+    let index = options.length - 1;
+    while (index >= 0 && !options[index].defaultSelected) index--;
+    if (index < 0 && select.size <= 1) {
+        index = options.findIndex(option => !option.disabled
+            && !(option.parentElement?.localName === 'optgroup'
+                && (option.parentElement as HTMLOptGroupElement).disabled));
+    }
+    select.selectedIndex = index;
+}
+
+// Explicit select[value] owns the live selection on every owning commit,
+// including an empty patch after an intermediate render was superseded. Apply
+// after options and default-selection refresh, without crossing child ownership.
+function refreshControlledSelectsInRange(
+    bounds: RenderPlanDomRange,
+    options: RenderedFragmentMergeOptions = {},
+): void {
+    const visit = (node: Node): void => {
+        if (node.nodeType === 1) {
+            const element = node as Element;
+            if (options.preserveElementChildren?.(element, element.cloneNode(false) as Element)) return;
+            syncControlledSelect(element);
+        }
+        for (let child = node.firstChild; child; child = child.nextSibling) visit(child);
+    };
+    for (let node = bounds.start.nextSibling; node && node !== bounds.end; node = node.nextSibling) visit(node);
+}
+
+function syncControlledSelect(element: Element): void {
+    if (element.namespaceURI !== XHTML_NAMESPACE || element.localName !== 'select') return;
+    const value = element.getAttribute('value');
+    if (value !== null) (element as HTMLSelectElement).value = value;
 }
 
 // The value attribute sets the default; a dirty input needs its live property
@@ -2855,11 +2952,16 @@ function removeRenderPlanAttribute(element: Element, name: string): void {
     if (xlinkLocalName) {
         element.removeAttributeNS(XLINK_NAMESPACE, xlinkLocalName);
     }
+    const removedSelected = name === 'selected' && element.hasAttribute(name);
     const removedChecked = name === 'checked' && element.hasAttribute(name);
     const removedValue = name === 'value' && element.hasAttribute(name);
     element.removeAttribute(name);
+    if (removedSelected) queueSelectRefresh(element);
     if (removedChecked) syncRenderedCheckedPresence(element, false);
-    if (removedValue) syncRenderedInputValue(element, '');
+    if (removedValue) {
+        syncRenderedInputValue(element, '');
+        if (element.localName === 'select') queueSelectRefresh(element);
+    }
 }
 
 function xlinkAttributeLocalName(name: string): string | null {

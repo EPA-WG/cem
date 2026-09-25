@@ -5867,7 +5867,7 @@ export class CemElementRuntime {
         if (
             previous &&
             !renderPlansHaveDomChanges(previous, renderPlan) &&
-            !renderPlanHasRuntimeResourceNodes(renderPlan)
+            !renderPlanRequiresCommit(renderPlan)
         ) {
             this.committedRenderPlans.set(instance, renderPlan);
             return Promise.resolve();
@@ -8452,12 +8452,13 @@ function renderPlanApplyDiagnostic(diagnostic: RenderPlanApplyDiagnostic, tag: s
     };
 }
 
-function renderPlanHasRuntimeResourceNodes(plan: RenderPlan): boolean {
+function renderPlanRequiresCommit(plan: RenderPlan): boolean {
     const visit = (node: RenderPlan['nodes'][number]): boolean => {
         if (node.kind !== 'element') {
             return false;
         }
         return (
+            (node.tag === 'select' && node.attributes.some(attribute => attribute.name === 'value')) ||
             node.tag === 'cem-module-url' ||
             node.tag === 'module-url' ||
             node.tag === 'http-request' ||

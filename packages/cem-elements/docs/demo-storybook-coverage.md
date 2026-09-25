@@ -1204,3 +1204,100 @@ and 31 standalone / 37 source-loaded documents. Build, lint and typecheck pass
 with the two existing lint warnings. This fixture audit is complete. The next
 behavior audit is the six-sample `npm-versions-demo.html`; broader coverage and
 historical startup investigations remain open.
+
+
+## NPM versions behavior audit, 2026-09-24
+
+The five picker cases and shared JSON preview now have named Storybook steps.
+Both browser modes check all four ordered versions and publication dates,
+default and explicit selections, native label association, the projected label,
+initially empty reflected values, repeated changes, propagated output and
+sibling isolation. Selection checks compare the live select's identity and its
+current value with the reflected host attribute. The source-loaded declarations
+use the accepted `link-base="source"` policy to verify the index and all three
+related-page destinations. The shared helper now distinguishes initialversion
+defaults from explicit currentversion control; the deterministic data is unchanged.
+
+The independent gallery shares the five picker contracts between standalone and
+source-loaded modes; the sixth preview uses the real shared demo component.
+Native Arrow/Home/End keys exercise the selects. All six cards and their controls
+fit at 1280px and 390px in both modes, the standalone gallery retains a two-card
+desktop row, and complete source lines remain reachable through their source-panel
+scrollers. Source-host, loading declaration, sample declaration and produced-instance
+diagnostic histories must stay empty. Storybook additionally checks Back/Forward,
+clearing the hash and preservation of the latest user-selection output, restoring
+both the original URL and history state afterward.
+
+### Shared select refresh
+
+The extended independent URL lifecycle passed once in both modes, including
+native Enter/Space activation, Back/Forward and reload with a version deep link.
+Further source-loaded runs exposed an intermittent stale select after the
+existing sample checks and desktop/mobile presentation checks:
+
+1. Activate “Set URL to 0.0.22,” then select 0.1.0.
+2. Activate “Set URL to 0.0.25,” then select 0.1.0 again.
+3. Press Enter on “Set URL to 0.0.25.”
+
+One instrumented run still had this state after the unchanged 45-second timeout:
+
+| Observable | Expected | Actual |
+| --- | --- | --- |
+| Page hash | `#version=0.0.25` | `#version=0.0.25` |
+| Current-hash output | `#version=0.0.25` | `#version=0.0.25` |
+| Native select value | `0.0.25` | `0.1.0` |
+| Reflected value / last-selection output | `0.1.0` | `0.1.0` |
+
+The user approved a shared fix. A native regression verifies the authored
+picker emits the correct selected option for every external version and still
+reflects the latest user selection separately. A second native contract verifies
+currentversion emits a select value without changing option defaults; all six
+native picker tests pass. Two focused browser regressions then reproduced the dirty-option failure
+in direct render plans and worker patches, without HTTP or URL timing.
+
+Shared DOM projection now reconciles each affected select after the complete
+render transaction when selected presence changes or conditional branches
+replace selected option nodes. It uses all explicit defaults for a multiple select and the last explicit default for a
+single select; clearing all defaults follows native one-row/listbox behavior,
+including disabled options and groups. Unchanged option identities and selected
+attributes preserve user edits. Six browser regressions cover retained and
+conditional option identities in direct plans, patches and fragment merges,
+live selection, retained select identity, focus, reset defaults and absence
+of generated input/change events. Existing input-refresh regressions
+also pass. No fixture-specific synchronization or timeout change is used.
+
+### Explicit control through superseded renders
+
+The full demo still exposes a separate case when a new external hash arrives
+before the preceding picker render commits. Just before the failing Enter
+press, the hash, host initialversion and live value are all 0.1.0, but the option
+defaults still select 0.0.25. The next hash requests 0.0.25 again, superseding
+the unfinished render. Its final default matches the previously committed plan,
+so unchanged-default preservation keeps the user's live 0.1.0 choice. The
+rendered attributes are correct; this is not a lost host mutation. An extra
+render-settlement round trip avoids the race, but is not a runtime fix.
+
+The user approved explicit shared `select[value]` control. The URL picker now
+passes `currentversion` to this binding, while other samples keep initialversion
+and native user-choice preservation. The renderer applies explicit values after
+options on every owning commit, including empty worker patches and unchanged
+plans. Missing matches remain unselected; removing control restores option
+defaults. Nested component ownership, focus and native reset defaults are preserved,
+and no synthetic input/change events are emitted.
+
+Three controlled projection regressions cover direct plans, worker patches and
+fragment merges, including a dirty live choice with an unchanged final plan,
+conditional option replacement, delayed options, empty and removed values,
+child ownership and reset behavior. Three runtime stories cover DOM templates,
+worker CEM-ML and direct WASM, including superseding slice updates. Together with
+the six default-selection regressions, existing input checks and authored NPM
+story, all 18 focused browser tests pass.
+
+The independent lifecycle again returns to the previous external URL without
+waiting for the child's intermediate selection render. It also verifies native
+Enter/Space activation, Back/Forward, clearing, deep-link reload and last-user
+selection output. Both focused gallery modes pass. The full gate passes 254
+Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded documents.
+Build, typecheck and lint pass with the two existing warnings. The six-sample
+NPM audit is complete. The next audit is the 12 samples in `scoped-css.html`;
+broader coverage and historical startup investigations remain open.

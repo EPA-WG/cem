@@ -29,7 +29,7 @@ const SAMPLE_CONTRACTS = [
         legend: '5. Synchronize the selected version with the URL',
         includes: [
             "onclick=\"location.hash = 'version=0.0.22'\"",
-            'str:substring(datadom.slices.current.hash, 10)',
+            '@currentversion="{str:substring(datadom.slices.current.hash, 10)}"',
             '@trigger="{$datadom.eventPayloads.selectedVersion.revision}"',
             '{location-element @slice=current @live=true}',
             '@method=location.hash',
@@ -57,6 +57,8 @@ describe('npm versions demo source contracts', () => {
     it('defines one shared source fragment with HTTP, selection, reflection, and slot behavior', () => {
         expect(DEMO_SOURCE).toContain('<template id="npm-version" type="text/cem-ml" xpath-functions="./http-data.cemt">');
         expect(DEMO_SOURCE).toContain('@url="./npm-versions.json"');
+        expect(DEMO_SOURCE).toContain('{attribute @name=currentversion}');
+        expect(DEMO_SOURCE).toContain('{attribute @name=value @value="{currentversion}"}');
         expect(DEMO_SOURCE).toContain('@name=value');
         expect(DEMO_SOURCE).toContain('datadom.eventPayloads.selectedVersion');
         expect(DEMO_SOURCE).toContain('{slot @name=label |');

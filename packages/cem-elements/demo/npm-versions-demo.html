@@ -42,7 +42,8 @@
         </p>
         <dl>
             <dt>package</dt><dd>Package name shown by the picker.</dd>
-            <dt>initialversion</dt><dd>Version selected after the records load.</dd>
+            <dt>initialversion</dt><dd>Default version selected after the records load; user choices persist.</dd>
+            <dt>currentversion</dt><dd>Optional current selection, controlled on each render through native <code>select[value]</code>.</dd>
             <dt>showdate</dt><dd>Set to <code>true</code> to append publication dates.</dd>
             <dt>value</dt><dd>Reflects the latest user selection.</dd>
             <dt>label slot</dt><dd>Overrides the default package label.</dd>
@@ -60,6 +61,7 @@
 ```}
 {attribute @name=package}
 {attribute @name=initialversion}
+{attribute @name=currentversion}
 {attribute @name=showdate}
 {attribute
     @name=value
@@ -84,6 +86,8 @@
             @slice=selectedVersion
             @slice-event=change
             @slice-value="$target.value" |
+            {cem:if @test=currentversion |
+                {attribute @name=value @value="{currentversion}"}}
             {cem:for-each
                 @select='native:call("http.versions", datadom.slices.registry.data)'
                 @as=version |
@@ -220,7 +224,7 @@
     {cem-npm-version-url
         @package="@epa-wg/cem-elements"
         @showdate=true
-        @initialversion="{str:substring(datadom.slices.current.hash, 10)}"
+        @currentversion="{str:substring(datadom.slices.current.hash, 10)}"
         @slice=selectedVersion
         @slice-event=change
         @slice-value="$target.value"

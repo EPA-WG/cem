@@ -1285,6 +1285,87 @@ const moduleUrlSamples = [
     ]),
     sampleContract('image-link', moduleImageChecks(`${moduleDemoPath}confused.svg`)),
 ];
+const npmReleases = [
+    ['0.1.0', '2026-08-01'], ['0.0.25', '2024-05-18'],
+    ['0.0.22', '2024-04-20'], ['0.0.21', '2024-03-09'],
+];
+const npmPickerChecks = (tag, selected, dates = false, label = '@epa-wg/cem-elements version:') => [
+    countExactly('select', 1),
+    nodeTexts('select option', npmReleases.map(([version, date]) => dates ? `${version} - ${date}` : version)),
+    ...npmReleases.map(([version], index) => attributeEquals(`option:nth-of-type(${index + 1})`, 'value', version)),
+    propertyEquals('select', 'value', selected),
+    attributeEquals(tag, 'value', ''),
+    normalizedText('label span', label),
+];
+const npmVersionSamples = [
+    sampleContract('1. Default to the latest version', [
+        ...npmPickerChecks('cem-npm-version-default', '0.1.0'),
+        elementIdentity('select', 'remember'),
+        pressThenProperty('select', 'ArrowDown', 'select', 'value', '0.0.25'),
+        attributeEquals('cem-npm-version-default', 'value', '0.0.25'),
+        pressThenProperty('select', 'Home', 'select', 'value', '0.1.0'),
+        attributeEquals('cem-npm-version-default', 'value', '0.1.0'),
+        elementIdentity('select', 'same'),
+    ]),
+    sampleContract('2. Preselect a version and show dates', [
+        ...npmPickerChecks('cem-npm-version-preselected', '0.0.22', true),
+        elementIdentity('select', 'remember'),
+        pressThenProperty('select', 'End', 'select', 'value', '0.0.21'),
+        attributeEquals('cem-npm-version-preselected', 'value', '0.0.21'),
+        pressThenProperty('select', 'ArrowUp', 'select', 'value', '0.0.22'),
+        attributeEquals('cem-npm-version-preselected', 'value', '0.0.22'),
+        attributeEquals('cem-npm-version-preselected', 'initialversion', '0.0.22'),
+        elementIdentity('select', 'same'),
+    ]),
+    sampleContract('3. Propagate the selected value', [
+        ...npmPickerChecks('cem-npm-version-propagated', '0.1.0'),
+        normalizedText('output', ''),
+        elementIdentity('select', 'remember'),
+        ...['0.0.25', '0.0.21', '0.0.25'].flatMap(value => [
+            selectThenText('select', value, 'output', value),
+            propertyEquals('select', 'value', value),
+            normalizedText('output', value),
+            attributeEquals('cem-npm-version-propagated', 'value', value),
+            elementIdentity('select', 'same'),
+        ]),
+    ]),
+    sampleContract('4. Override the label slot', [
+        ...npmPickerChecks('cem-npm-version-label', '0.1.0', false, 'Select a release:'),
+        countExactly('label code', 0),
+        normalizedText('i[slot="label"]', 'Select a release:'),
+        normalizedText('output', ''),
+        elementIdentity('select', 'remember'),
+        ...['0.0.21', '0.1.0', '0.0.21'].flatMap(value => [
+            selectThenText('select', value, 'output', value),
+            propertyEquals('select', 'value', value),
+            normalizedText('output', value),
+            attributeEquals('cem-npm-version-label', 'value', value),
+            elementIdentity('select', 'same'),
+        ]),
+    ]),
+    sampleContract('5. Synchronize the selected version with the URL', [
+        ...npmPickerChecks('cem-npm-version-url', '0.1.0', true),
+        formState({ outputs: ['', ''] }),
+        clickThenText('button[aria-label="Set URL to 0.0.22"]', 'article', 'Current hash: #version=0.0.22'),
+        propertyEquals('select', 'value', '0.0.22'),
+        formState({ outputs: ['#version=0.0.22', ''] }),
+        selectThenText('select', '0.1.0', 'article', 'selected-version slice: 0.1.0'),
+        formState({ outputs: ['#version=0.1.0', '0.1.0'] }),
+        attributeEquals('cem-npm-version-url', 'value', '0.1.0'),
+        clickThenText('button[aria-label="Set URL to 0.0.25"]', 'article', 'Current hash: #version=0.0.25'),
+        propertyEquals('select', 'value', '0.0.25'),
+        formState({ outputs: ['#version=0.0.25', '0.1.0'] }),
+        selectThenText('select', '0.1.0', 'article', 'Current hash: #version=0.1.0'),
+        propertyEquals('select', 'value', '0.1.0'),
+        formState({ outputs: ['#version=0.1.0', '0.1.0'] }),
+    ]),
+];
+const npmNavigationChecks = [
+    urlEquals('nav a', 'href', '/packages/cem-elements/index.html'),
+    ...['http-request', 'location-element', 'set-url'].map(name =>
+        urlEquals(`main > section a[href$="/${name}.html"]`, 'href', `/packages/cem-elements/demo/${name}.html`)),
+];
+
 const moduleUrlNavigationChecks = [
     urlEquals('nav a', 'href', '/packages/cem-elements/index.html'),
     ...['set-url.html', 'external-template.html', 'module-url-referrer.html', 'functions/str.html'].map(path =>
@@ -2050,50 +2131,8 @@ const fixtureSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/npm-versions-demo.html',
-        checks: [
-            countExactly('cem-demo-element[legend="1. Default to the latest version"] select option', 4),
-            normalizedText(
-                'cem-demo-element[legend="1. Default to the latest version"] select option:first-of-type',
-                '0.1.0',
-            ),
-            propertyEquals(
-                'cem-demo-element[legend="2. Preselect a version and show dates"] select',
-                'value',
-                '0.0.22',
-            ),
-            text(
-                'cem-demo-element[legend="2. Preselect a version and show dates"] option[value="0.0.22"]',
-                '2024-04-20',
-            ),
-            selectThenText(
-                'cem-demo-element[legend="3. Propagate the selected value"] select',
-                '0.0.25',
-                'cem-demo-element[legend="3. Propagate the selected value"] output',
-                '0.0.25',
-            ),
-            attributeEquals('cem-npm-version-propagated', 'value', '0.0.25'),
-            text('cem-demo-element[legend="4. Override the label slot"] label', 'Select a release:'),
-            clickThenText(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] button[aria-label="Set URL to 0.0.22"]',
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
-                'Current hash: #version=0.0.22',
-            ),
-            propertyEquals(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] select',
-                'value',
-                '0.0.22',
-            ),
-            selectThenText(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] select',
-                '0.1.0',
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
-                'selected-version slice: 0.1.0',
-            ),
-            text(
-                'cem-demo-element[legend="5. Synchronize the selected version with the URL"] article',
-                'Current hash: #version=0.1.0',
-            ),
-        ],
+        checks: [...npmVersionSamples.flatMap(sample => sample.checks.map(check =>
+            scopeCheck(check, `cem-demo-element[legend="${sample.legend}"]`))), ...npmNavigationChecks],
     },
     {
         path: '/packages/cem-elements/demo/scoped-css.html',
@@ -2596,33 +2635,9 @@ const sourceDocumentSpecs = [
     },
     {
         path: '/packages/cem-elements/demo/npm-versions-demo.html',
-        samples: [
-            sampleContract('1. Default to the latest version', [
-                countExactly('select option', 4),
-                normalizedText('select option:first-of-type', '0.1.0'),
-            ]),
-            sampleContract('2. Preselect a version and show dates', [
-                propertyEquals('select', 'value', '0.0.22'),
-                text('option[value="0.0.22"]', '2024-04-20'),
-            ]),
-            sampleContract('3. Propagate the selected value', [
-                selectThenText('select', '0.0.25', 'output', '0.0.25'),
-                attributeEquals('cem-npm-version-propagated', 'value', '0.0.25'),
-            ]),
-            sampleContract('4. Override the label slot', [
-                text('label', 'Select a release:'),
-                selectThenText('select', '0.0.21', 'output', '0.0.21'),
-            ]),
-            sampleContract('5. Synchronize the selected version with the URL', [
-                clickThenText('button[aria-label="Set URL to 0.0.22"]', 'article', 'Current hash: #version=0.0.22'),
-                propertyEquals('select', 'value', '0.0.22'),
-                selectThenText('select', '0.1.0', 'article', 'selected-version slice: 0.1.0'),
-                text('article', 'Current hash: #version=0.1.0'),
-                clickThenText('button[aria-label="Set URL to 0.0.25"]', 'article', 'Current hash: #version=0.0.25'),
-                propertyEquals('select', 'value', '0.0.25'),
-                selectThenText('select', '0.1.0', 'article', 'Current hash: #version=0.1.0'),
-            ]),
-        ],
+        samples: npmVersionSamples,
+        checks: npmNavigationChecks,
+        declarationAttributes: { 'link-base': 'source' },
     },
     {
         path: '/packages/cem-elements/demo/scoped-css.html',
@@ -2827,6 +2842,11 @@ try {
             if (fixture.path === '/packages/cem-elements/demo/module-url.html') {
                 await verifyModuleUrlPresentation(page, resolutionRequests, `http://127.0.0.1:${port}${fixture.path}`);
             }
+            if (fixture.path === '/packages/cem-elements/demo/npm-versions-demo.html') {
+                await verifyNpmVersionsPresentation(page);
+                await verifyDemoLayout(page, 6);
+                await verifyNpmVersionsLifecycle(page);
+            }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
                 await verifyScalarReferrerPresentation(page, resolutionRequests,
@@ -2912,7 +2932,18 @@ try {
             }
             if (fixture.path === '/packages/cem-elements/demo/module-url.html') {
                 await verifyModuleUrlPresentation(page, resolutionRequests, `http://127.0.0.1:${port}/__cem-source-harness.html`);
-                await verifyModuleUrlDiagnostics(page, tag);
+                await verifySourceDocumentDiagnostics(page, tag, {
+                    '4b. Missing import-map entry': ['cem-element.module_url_resolve_failed'],
+                });
+            }
+            if (fixture.path === '/packages/cem-elements/demo/npm-versions-demo.html') {
+                await verifyNpmVersionsPresentation(page);
+                await verifySourceDocumentDiagnostics(page, tag);
+                await verifyNpmVersionsLifecycle(page, async () => {
+                    await mountSourceDocument(page, fixture, tag);
+                    await verifySampleContractInventory(page, tag, fixture);
+                });
+                await verifySourceDocumentDiagnostics(page, tag);
             }
             await verifySymbolicControls(page, fixture.path);
             if (fixture.path === '/packages/cem-elements/demo/module-url-referrer.html') {
@@ -3413,6 +3444,90 @@ function observeModuleUrlRequests(page, fixture) {
     return requests;
 }
 
+async function verifyNpmVersionsPresentation(page) {
+    const selector = 'cem-demo-element[legend]';
+    await poll(page, () => {
+        const selects = Array.from(document.querySelectorAll('cem-demo-element select'));
+        return selects.length === 5 && selects.every(select => select.labels.length === 1
+            && select.labels[0] === select.closest('label') && select.name === 'version')
+            && JSON.stringify(selects.slice(0, 4).map(select => select.value))
+                === JSON.stringify(['0.1.0', '0.0.22', '0.0.25', '0.0.21']);
+    });
+    for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await poll(page, ({ selector, width }) => {
+            const cards = Array.from(document.querySelectorAll(selector));
+            return cards.length === 6 && document.documentElement.scrollWidth <= width
+                && cards.every(card => {
+                    const box = card.getBoundingClientRect();
+                    return box.left >= 0 && box.right <= width
+                        && Array.from(card.querySelectorAll('[slot="demo"], article, label, select, button'))
+                            .every(node => {
+                                const rect = node.getBoundingClientRect();
+                                return node.scrollWidth <= node.clientWidth + 1
+                                    && rect.left >= box.left && rect.right <= box.right;
+                            });
+                });
+        }, { selector, width });
+        const sourceReachable = await page.locator(`${selector} [slot="text"] pre`).evaluateAll(sources =>
+            sources.length === 6 && sources.every(pre => {
+                const max = pre.scrollWidth - pre.clientWidth;
+                pre.scrollLeft = max;
+                const reached = Math.abs(pre.scrollLeft - max) <= 1;
+                pre.scrollLeft = 0;
+                return reached;
+            }));
+        if (!sourceReachable) throw new Error('NPM source text cannot be scrolled to its end');
+    }
+}
+
+async function verifyNpmVersionsLifecycle(page, remount) {
+    const sample = `cem-demo-element[legend="${npmVersionSamples[4].legend}"]`;
+    const expectUrl = async (hash, version, selection) => {
+        try {
+            await poll(page, ({ sample, hash, version, selection }) => {
+                const root = document.querySelector(sample);
+                return location.hash === hash && root?.querySelector('select')?.value === version
+                    && (root.querySelector('cem-npm-version-url')?.getAttribute('currentversion') ?? '') === (hash ? version : '')
+                    && (root.querySelector('select')?.getAttribute('value') ?? '') === (hash ? version : '')
+                    && root.querySelector('cem-npm-version-url')?.getAttribute('value') === selection
+                    && JSON.stringify(Array.from(root.querySelectorAll('output'), output => output.textContent.trim()))
+                        === JSON.stringify([hash, selection]);
+            }, { sample, hash, version, selection });
+        } catch (error) {
+            const actual = await page.locator(sample).evaluate(root => ({
+                hash: location.hash,
+                version: root.querySelector('select')?.value,
+                reflected: root.querySelector('cem-npm-version-url')?.getAttribute('value'),
+                currentversion: root.querySelector('cem-npm-version-url')?.getAttribute('currentversion'),
+                defaults: Array.from(root.querySelectorAll('option[selected]'), option => option.value),
+                outputs: Array.from(root.querySelectorAll('output'), output => output.textContent.trim()),
+            }));
+            throw new Error(`Expected NPM URL state ${JSON.stringify({ hash, version, selection })}; got ${JSON.stringify(actual)}`, { cause: error });
+        }
+    };
+    // Return to the preceding URL without waiting for the child's intermediate
+    // selection render; explicit select[value] must survive a superseded plan.
+    await page.locator(`${sample} button[aria-label="Set URL to 0.0.25"]`).press('Enter');
+    await expectUrl('#version=0.0.25', '0.0.25', '0.1.0');
+    await page.goBack();
+    await expectUrl('#version=0.1.0', '0.1.0', '0.1.0');
+    await page.goForward();
+    await expectUrl('#version=0.0.25', '0.0.25', '0.1.0');
+    await page.locator(`${sample} button[aria-label="Clear URL version"]`).press('Space');
+    await expectUrl('', '0.1.0', '0.1.0');
+    await page.goBack();
+    await expectUrl('#version=0.0.25', '0.0.25', '0.1.0');
+    // A fresh page reads a deep link before any selection event has occurred.
+    await page.reload({ waitUntil: 'networkidle' });
+    if (remount) await remount();
+    await expectUrl('#version=0.0.25', '0.0.25', '');
+    await page.locator(`${sample} select`).selectOption('0.0.21');
+    await expectUrl('#version=0.0.21', '0.0.21', '0.0.21');
+    await page.locator(`${sample} button[aria-label="Clear URL version"]`).click();
+    await expectUrl('', '0.1.0', '0.0.21');
+}
+
 async function verifyModuleUrlPresentation(page, requests, originalUrl) {
     const samples = 'cem-demo-element[legend]';
     const summaries = page.locator(`${samples} expando-link summary`);
@@ -3458,11 +3573,13 @@ async function verifyModuleUrlPresentation(page, requests, originalUrl) {
     if (unexpected.length) throw new Error(`Unexpected module URL requests: ${unexpected.join(', ')}`);
 }
 
-async function verifyModuleUrlDiagnostics(page, tag) {
-    await poll(page, tag => {
+async function verifySourceDocumentDiagnostics(page, tag, expectedByLegend = {}) {
+    await poll(page, ({ tag, expectedByLegend }) => {
         const runtime = window.__cemFixtureRuntime;
         const host = document.querySelector(tag);
-        if (!host || !runtime || runtime.diagnosticsFor(host).length) return false;
+        const declaration = document.querySelector(`cem-element[tag="${tag}"]`);
+        if (!host || !declaration || !runtime || runtime.diagnosticsFor(host).length
+            || runtime.diagnosticsFor(declaration).length) return false;
         return Array.from(host.querySelectorAll('cem-demo-element[legend]')).every(sample => {
             const codes = new Set();
             for (const declaration of sample.querySelectorAll('cem-element[tag]')) {
@@ -3471,11 +3588,10 @@ async function verifyModuleUrlDiagnostics(page, tag) {
                     for (const diagnostic of runtime.diagnosticsFor(instance)) codes.add(diagnostic.code);
                 }
             }
-            const expected = sample.getAttribute('legend') === '4b. Missing import-map entry'
-                ? ['cem-element.module_url_resolve_failed'] : [];
+            const expected = expectedByLegend[sample.getAttribute('legend')] ?? [];
             return JSON.stringify([...codes]) === JSON.stringify(expected);
         });
-    }, tag);
+    }, { tag, expectedByLegend });
 }
 
 async function verifyScalarReferrerPresentation(page, requests, originalUrl) {

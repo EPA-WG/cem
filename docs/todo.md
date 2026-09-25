@@ -4567,12 +4567,69 @@ registration identities may reuse an inherited or existing definition.
               documents, plus build, lint and typecheck (two existing warnings).
               This fixture audit is complete; broader coverage and historical
               startup investigations remain open.
-    - [ ] Fixture: audit all six `demo/npm-versions-demo.html` samples against
+    - [x] Fixture: audit all six `demo/npm-versions-demo.html` samples against
           their source-loaded Storybook and independent gallery contracts.
           Check default/preselected versions, dates, propagated values, label
           slots and URL synchronization. Preserve deterministic package data,
           verify desktop/mobile layout and stop for any new behavior decision.
           Keep the separate historical startup-wait investigation open.
+        - [x] Verify every version/date pair, labels, initial selections,
+              repeated updates, reflected values, stable selects and sibling
+              isolation in Storybook and shared independent sample contracts.
+        - [x] Check native select keys, all six cards at 1280px/390px, the
+              standalone two-card row, full source scroll reachability,
+              external JSON preview, source-relative navigation and diagnostics.
+        - [x] Decision: investigate and fix shared select refresh (recommended),
+              or record the limitation. In sample 5, after selecting 0.1.0,
+              changing the hash to 0.0.25, selecting 0.1.0 again and activating
+              “Set URL to 0.0.25” with Enter, the independent source-loaded
+              harness intermittently keeps the native select at 0.1.0.
+              The URL and current-hash output both show #version=0.0.25,
+              while the reflected value and last-selection output correctly
+              retain 0.1.0. Two extended runs timed out after 45 seconds;
+              focused Storybook and other independent runs passed. The first
+              timeout lacked a live-state snapshot; the second captured the
+              stale select explicitly. Do not widen waits or change the fixture
+              to conceal the mismatch. Accepted 2026-09-24: investigate and
+              fix shared select refresh.
+        - [x] Fixture: add a native selection-render contract and focused
+              browser regressions for changed selected presence and replacement
+              of selected option nodes. Shared projection reconciles the owning
+              select after the full transaction; unchanged selections preserve
+              edits. Five native picker tests and six new browser regressions
+              pass, plus existing input-value checks and the focused NPM story.
+        - [x] Decision: add explicit shared select[value] control for the URL
+              picker (recommended), or extend automatic default refresh through
+              superseded renders. The remaining race returns to 0.0.25 before
+              the preceding 0.1.0 render commits. Before the external action,
+              the hash, initialversion attribute and live select are 0.1.0 but
+              option defaults still select 0.0.25. Afterward, the new default
+              matches the previously committed plan, leaving the live choice
+              at 0.1.0. Reapplying every unchanged default would reset the other
+              samples' user choices. Accepted 2026-09-24: explicit shared
+              select[value] binding.
+        - [x] Fixture: implement explicit native select[value] control, use a
+              distinct currentversion input for the URL picker and retain
+              initial-only defaults for the other samples. Verify unchanged
+              plans, option replacement, empty/missing values, ownership and
+              superseding URL changes, plus Back/Forward, clear and reload.
+              Completed 2026-09-24: shared explicit control applies after options
+              on every owning commit, including unchanged plans and empty
+              worker patches. The URL sample uses currentversion; other samples
+              retain their defaults and user choices. Six native tests and 12
+              select browser regressions pass. The full gate passes 254
+              Storybook tests, 514 unit tests and 31 standalone / 37 source-loaded
+              documents, plus build, lint and typecheck (two existing warnings).
+              Rapid external URL changes, Back/Forward, clear and deep-link
+              reload pass in both gallery modes. This fixture audit is complete;
+              broader coverage and historical startup investigations remain open.
+    - [ ] Fixture: audit all 12 `demo/scoped-css.html` samples against their
+          source-loaded Storybook and independent gallery contracts. Verify
+          private/named scopes, mixed styles, invalid-scope diagnostics, payload
+          ownership, static declaration rules, fragment/anonymous tags, seeded
+          keyframes, descendant isolation and external template CSS. Check
+          computed styles, desktop/mobile layout and source-relative navigation;
+          stop for any new behavior decision.
     - [x] Keep `verify-demo-fixtures` as the independent standalone-page and
           source-document browser gate, and require `test:unit`, Storybook
           Chromium, and demo-fixture inventory checks to pass together.

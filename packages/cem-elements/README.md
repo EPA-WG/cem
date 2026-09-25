@@ -56,6 +56,25 @@ the input node, focus and selection (clamped to the new length); native input
 sanitization and form reset defaults still apply. File inputs and controls whose
 values already reflect their attributes retain native behavior.
 
+Changing an option's `selected` presence or replacing selected option nodes
+refreshes the owning select after the whole render transaction. Single selects
+use the last explicit selection, or native empty-selection rules when no option
+is selected; multiple selects use all explicit selections. Unchanged option
+identities and selected attributes preserve user choices during unrelated renders.
+Select identity, focus and form-reset defaults are retained, and refresh does not
+dispatch input or change events.
+
+Set an explicit native `select[value]` binding to control the current selection
+on every owning render, including unchanged plans and superseded updates. It
+applies after options render and takes precedence over their `selected` defaults.
+It uses native `select.value` semantics: one matching option, or no selection
+when none matches; an empty string matches an empty-valued option. Removing the
+binding restores option defaults, then subsequent unchanged renders preserve
+user choices. Form reset still uses option defaults; the next owning render
+reapplies the explicit value. Parent renders do not refresh a nested component's
+selects. The NPM URL demo uses `currentversion` for this control and keeps
+`initialversion` for ordinary defaults.
+
 The [demo teaching-point audit](docs/demo-teaching-points.md) records the lessons
 preserved from the local prototype and the standalone/source-loaded checks.
 

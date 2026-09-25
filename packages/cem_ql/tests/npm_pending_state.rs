@@ -1,7 +1,7 @@
 //! Authored HTTP pending-state guards over metadata and retained CEM documents.
 use cem_ql::{
     eval::{AtomValue, Item, ItemStream},
-    render::{render_template, TemplateData},
+    render::{render_template, HostAttributeUpdate, TemplateData},
     xpath::functions::CemtXPathFunctions,
 };
 use std::sync::Arc;
@@ -168,4 +168,93 @@ fn loaded_state_does_not_hide_an_absent_native_document() {
     let result = render_template(picker(), &data);
     assert!(!result.diagnostics.is_empty());
     assert!(!result.rendered.contains("<option "));
+}
+
+#[test]
+fn authored_picker_refreshes_external_selection_without_changing_last_user_value() {
+    let tree = cem_ml::import::import_data_bytes(
+        RESPONSE,
+        "application/json",
+        "cem",
+        "memory:npm-versions.json",
+    )
+    .unwrap();
+    let mut data = data(Some("loaded"));
+    install_functions(&mut data);
+    data.bindings.insert(
+        "datadom".into(),
+        ItemStream::once(record([
+            (
+                "slices",
+                record([
+                    ("registry", record([("state", string("loaded"))])),
+                    ("selectedVersion", string("0.1.0")),
+                ]),
+            ),
+            (
+                "eventPayloads",
+                record([("selectedVersion", record([("type", string("change"))]))]),
+            ),
+        ])),
+    );
+    data.bind_cem_document("registry", tree).unwrap();
+    for version in ["0.0.22", "0.1.0", "0.0.25", "0.1.0", "0.0.25", ""] {
+        data.bindings
+            .insert("initialversion".into(), ItemStream::once(string(version)));
+        let result = render_template(picker(), &data);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        assert_eq!(
+            result.rendered.matches("selected=\"true\"").count(),
+            usize::from(!version.is_empty())
+        );
+        if !version.is_empty() {
+            assert!(
+                result
+                    .rendered
+                    .contains(&format!("<option value=\"{version}\" selected=\"true\"")),
+                "{}",
+                result.rendered
+            );
+        }
+        assert!(result
+            .host_attribute_updates
+            .contains(&HostAttributeUpdate::new("value", "0.1.0")));
+    }
+}
+
+#[test]
+fn authored_picker_emits_explicit_current_value_without_changing_option_defaults() {
+    let tree = cem_ml::import::import_data_bytes(
+        RESPONSE,
+        "application/json",
+        "cem",
+        "memory:npm-versions.json",
+    )
+    .unwrap();
+    let mut data = data(Some("loaded"));
+    install_functions(&mut data);
+    data.bind_cem_document("registry", tree).unwrap();
+    data.bindings
+        .insert("initialversion".into(), ItemStream::once(string("0.0.22")));
+    for current in ["0.0.25", "0.1.0", "0.0.25", ""] {
+        data.bindings
+            .insert("currentversion".into(), ItemStream::once(string(current)));
+        let result = render_template(picker(), &data);
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        let select = result
+            .rendered
+            .split_once("<select ")
+            .unwrap()
+            .1
+            .split_once('>')
+            .unwrap()
+            .0;
+        assert_eq!(select.contains(" value="), !current.is_empty(), "{select}");
+        if !current.is_empty() {
+            assert!(select.contains(&format!("value=\"{current}\"")), "{select}");
+        }
+        assert!(result
+            .rendered
+            .contains("<option value=\"0.0.22\" selected=\"true\""));
+    }
 }
