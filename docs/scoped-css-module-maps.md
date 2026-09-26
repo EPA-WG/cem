@@ -204,22 +204,22 @@ template's generated filter. CSS's [local URL semantics](https://www.w3.org/TR/c
 do not by themselves provide this template-specific binding in a light-DOM
 runtime. Native compilation must retain the scoped reference and connect it to
 rendered resource identity rather than infer the destination from the CSS text
-or the hosting page URL. This requirement does not authorize a new ID allocation
-scheme, per-instance declaration-style copies, or generated CSS scope selectors.
+or the hosting page URL. Existing owner identities are reused; declaration styles
+remain shared and no generated instance CSS scope selectors are introduced.
 
-**Context boundary still to clarify:** does “related to template source” apply
-to CSS outside the `cem-element` template body, while body-local references keep
-generated-DOM binding, or does an externally imported template change the
-binding context even inside a `cem-element` body? Do not select either behavior
-implicitly. URL emission remains paused at this boundary.
+The binding design now reuses existing admitted owner identities as resource-ID
+prefixes. Rendered-template references bind to generated output, including output
+from an imported template; explicit source-document URLs retain their source
+base and module-map resolution. See
+[Scoped CSS fragment bindings](scoped-css-fragment-bindings.md) for the native
+manifest, collision-safe encoding, shared custom-property slots, ownership,
+IDREF consistency, lifecycle and hydration design. It is not implemented yet.
 
-After clarification, define the native reference/context representation and its
-connection to generated resource IDs. Add fixtures for local and external
-sources, multiple produced instances, fragment reuse, source provenance,
-missing/ambiguous targets, SSR/hydration and module-map interaction. Preserve
-shared declaration ownership and the separation between render identity and
-CSS scope identity. The generic resource plan currently does not represent this
-binding; no browser behavior has changed yet.
+The first binding profile has one target per instance. Repeat-local carriers,
+public resource exports and broader resource grammars remain explicit extensions.
+The current runtime-local instance counter must not be mistaken for an already
+admitted document-wide owner identity; identity qualification/admission is the
+first implementation prerequisite.
 
 ## Unmapped CSS URLs: accepted and implemented
 
