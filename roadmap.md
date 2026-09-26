@@ -858,3 +858,25 @@ Exit criteria:
 - Add native compile validation to CI once Swift and Kotlin toolchains are available.
 - Add a final-phase Figma UI Kit plan that maps components to generated token variables without writing values back to
   the canonical Markdown token specifications.
+
+## Future: Shared Parsed-Content and Browser AST/DOM Caching
+
+Goal: avoid parsing identical content repeatedly. Start with CEM-QL and CEM-ML,
+then extend the same cache contract to other supported languages and formats.
+
+- Reuse an already parsed CEM AST tree whenever the same content is present in
+  memory, retaining the typed tree rather than reparsing or converting it through
+  JSON.
+- Use the content string itself as the cache key for small strings; use a SHA
+  checksum for larger content. Design the size threshold, SHA variant, parser
+  version/options identity, ownership, memory limits and eviction policy.
+- Design browser AST/DOM caching across windows and sessions, including shared
+  ownership, persistence, restoration and invalidation. Define how reusable
+  parsed trees relate to document-owned DOM instances and source locations.
+- Permit cross-site cache reuse when content checksums match. Design the browser
+  sharing mechanism and compatible parsing-context checks; a source site's URL
+  alone must not prevent reuse of identical parsed content.
+- Prove cache hits reuse the retained tree, changed content cannot reuse a stale
+  tree, and concurrent consumers preserve independent runtime state. Add
+  cross-window/session and cross-site checksum-matching fixtures when the browser
+  cache design is promoted to implementation work.
