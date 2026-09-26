@@ -265,7 +265,7 @@ loader/validation failures make the closure terminal; stale/duplicate delivery
 IDs are rejected without consuming a different outstanding request.
 
 `Ready` describes a complete import graph only. It does not authorize installation
-or prove that media/supports/layer grammar is valid. Native byte delivery now
+or prove that media/supports grammar is valid. Native byte delivery now
 enforces MIME/integrity/size limits as described below.
 Import condition validation, resource rewriting, scoped emission and browser/worker
 loader and ownership integration remain pending. Resource URL references are resolved but not fetched by this
@@ -282,7 +282,27 @@ This follows the [CSS cascade import placement rules](https://www.w3.org/TR/css-
 Misplaced imports produce `cem.css.import_placement_invalid`. A delivered sheet
 with misplaced imports fails the closure before attaching the sheet or queueing
 its dependencies. Unknown/unsupported rules conservatively end the prefix;
-full condition grammar validation remains pending.
+Supports/media condition grammar validation remains pending.
+
+## Import layer clauses: implemented natively
+
+The shared CSS import boundary validates named import layers against the
+[CSS layer-name grammar](https://drafts.csswg.org/css-cascade-5/#layer-names):
+a nonempty dotted identifier path with no internal whitespace or CSS-wide
+keywords. Comments and identifier escapes retain their token semantics;
+`default` is a valid layer name. Bare `layer` remains anonymous, while `layer()`
+is rejected rather than silently treated as anonymous.
+
+Each layer clause retains a `css:import-layer` child with an `anonymous` boolean
+and ordered `css:layer-segment` children containing decoded `value` attributes.
+Segments retain source ranges and maps. This distinguishes an escaped dot within
+one name from the separator between nested layers without downstream reparsing.
+The existing `layer` attribute retains authored text for control metadata.
+Absence of a layer clause remains distinct from an anonymous clause, whose
+identity belongs to its import occurrence rather than its reusable source tree.
+Malformed downloaded clauses fail byte delivery with `cem.css.import_parse_failed`
+before the sheet or its dependencies enter the closure. Supports/media grammar,
+condition emission and the complete scoped compiler remain pending.
 
 ## Shared-resolver byte delivery: implemented natively
 

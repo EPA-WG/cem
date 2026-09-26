@@ -618,3 +618,27 @@ fn css_import_placement_failure_does_not_attach_or_queue_a_delivered_sheet() {
     assert!(c.edges().is_empty());
     assert!(c.next_import().is_err());
 }
+
+#[test]
+fn css_import_invalid_layer_response_fails_before_attaching_dependencies() {
+    let mut c = closure(
+        "@import 'a.css'; @import 'b.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    let request = c.next_import().unwrap().unwrap();
+    let error = c
+        .complete_response(
+            request.id,
+            response(b"@import 'child.css' layer();", Some("text/css")),
+            &CssImportResponsePolicy::default(),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "cem.css.import_parse_failed");
+    assert!(error.message.contains("layer"));
+    assert_eq!(c.state(), CssImportState::Failed);
+    assert_eq!(c.sheets().len(), 1);
+    assert!(c.edges().is_empty());
+    assert_eq!(c.received_bytes(), 0);
+    assert!(c.next_import().is_err());
+}

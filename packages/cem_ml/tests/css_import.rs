@@ -177,3 +177,78 @@ fn css_import_preserves_at_rule_components_and_declaration_list_mode() {
             .all(|id| attr(&tree, *id, "kind").as_deref() != Some("url"))
     );
 }
+
+#[test]
+fn css_import_layer_names_reject_invalid_grammar_at_the_import_boundary() {
+    for name in [
+        "",
+        "/* empty */",
+        "base.",
+        ".base",
+        "base..theme",
+        "base theme",
+        "base .theme",
+        "base. theme",
+        "base,theme",
+        "123",
+        "'base'",
+        "foo()",
+        "initial",
+        "INHERIT",
+        "unset",
+        "revert",
+        "revert-layer",
+        "base.initial",
+        r"\69 nitial",
+        "base{color:red}",
+    ] {
+        let css = format!("@import 'theme.css' layer({name});");
+        let error = import_data(&css, "text/css", "cem", "layer.css")
+            .err()
+            .unwrap_or_else(|| panic!("accepted invalid layer: {name}"));
+        assert!(error.contains("layer"), "{name}: {error}");
+    }
+}
+
+#[test]
+fn css_import_layer_names_retain_decoded_segments_and_anonymous_clauses() {
+    for (clause, expected) in [
+        ("layer", vec![]),
+        ("LaYeR(default)", vec!["default"]),
+        ("layer( base.theme )", vec!["base", "theme"]),
+        ("layer(base/**/./**/theme)", vec!["base", "theme"]),
+        (r"layer(base\.theme)", vec!["base.theme"]),
+        (r"l\61 yer(\62 ase.theme)", vec!["base", "theme"]),
+        ("layer(主题)", vec!["主题"]),
+    ] {
+        let css = format!("@import 'theme.css' {clause} supports(display:grid) screen;");
+        let tree = import_data(&css, "text/css", "cem", "layer.css").unwrap();
+        let layer = elements(&tree, "import-layer");
+        assert_eq!(layer.len(), 1, "{clause}");
+        let layer = layer[0];
+        assert_eq!(
+            attr(&tree, layer, "anonymous").as_deref(),
+            Some(if expected.is_empty() { "true" } else { "false" })
+        );
+        let segments: Vec<_> = tree
+            .node(layer)
+            .unwrap()
+            .children
+            .iter()
+            .map(|id| attr(&tree, *id, "value").unwrap())
+            .collect();
+        assert_eq!(segments, expected, "{clause}");
+        assert_eq!(
+            tree.node(layer).unwrap().range.offset,
+            css.find(clause).unwrap() as u64
+        );
+        let import = elements(&tree, "import")[0];
+        assert_eq!(
+            attr(&tree, import, "supports").as_deref(),
+            Some("display:grid")
+        );
+        assert_eq!(attr(&tree, import, "media").as_deref(), Some("screen"));
+    }
+    let tree = import_data("@import 'theme.css';", "text/css", "cem", "layer.css").unwrap();
+    assert!(elements(&tree, "import-layer").is_empty());
+}

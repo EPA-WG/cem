@@ -340,10 +340,15 @@ impl CssImport<'_> {
                 {
                     if e.token_kind == "function-open" {
                         let close = self.close(i, end);
+                        if name == "layer" {
+                            self.import_layer(id, i, close)?;
+                        }
                         self.attr(id, name, self.text(i + 1, close).trim());
                         pos = (close + 1).min(end);
                     } else if name == "layer" && e.token_kind == "ident" {
                         self.attr(id, name, "");
+                        let layer = self.node(id, "import-layer", i, i + 1);
+                        self.attr(layer, "anonymous", "true");
                         pos = i + 1;
                     }
                 }
@@ -351,6 +356,61 @@ impl CssImport<'_> {
         }
         if let Some(i) = self.significant(pos, end) {
             self.attr(id, "media", self.text(i, end).trim());
+        }
+        Ok(())
+    }
+
+    /// Decode the layer path at the import boundary. Keep segments separate:
+    /// `base\.theme` names one layer, whereas `base.theme` names a nested layer.
+    fn import_layer(&mut self, parent: AstNodeId, open: usize, close: usize) -> Result<(), String> {
+        let error = || {
+            format!(
+                concat!(
+                    "CSS import layer() at byte {} requires a nonempty dotted identifier path ",
+                    "without internal whitespace or CSS-wide keywords."
+                ),
+                self.events[open].source_range.start.byte_offset,
+            )
+        };
+        let significant: Vec<_> = (open + 1..close)
+            .filter(|i| {
+                !matches!(
+                    self.events[*i].token_kind.as_str(),
+                    "whitespace" | "comment" | "presentation-gap"
+                )
+            })
+            .collect();
+        let (Some(&first), Some(&last)) = (significant.first(), significant.last()) else {
+            return Err(error());
+        };
+        if significant.len() % 2 == 0
+            || self.events[first..=last]
+                .iter()
+                .any(|e| matches!(e.token_kind.as_str(), "whitespace" | "presentation-gap"))
+        {
+            return Err(error());
+        }
+        for (index, &i) in significant.iter().enumerate() {
+            let e = &self.events[i];
+            if index % 2 == 0 {
+                if e.token_kind != "ident"
+                    || e.value.as_deref().is_none_or(|value| {
+                        ["initial", "inherit", "unset", "revert", "revert-layer"]
+                            .iter()
+                            .any(|keyword| value.eq_ignore_ascii_case(keyword))
+                    })
+                {
+                    return Err(error());
+                }
+            } else if e.token_kind != "delimiter" || e.value.as_deref() != Some(".") {
+                return Err(error());
+            }
+        }
+        let layer = self.node(parent, "import-layer", open, close + 1);
+        self.attr(layer, "anonymous", "false");
+        for i in significant.into_iter().step_by(2) {
+            let segment = self.node(layer, "layer-segment", i, i + 1);
+            self.attr(segment, "value", self.events[i].value.as_deref().unwrap());
         }
         Ok(())
     }

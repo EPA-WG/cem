@@ -5773,6 +5773,10 @@ registration identities may reuse an inherited or existing definition.
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+        - [x] Fixture: validate native import layer names (including escapes,
+              reserved keywords, whitespace and empty functions); retain decoded
+              layer segments and anonymous identity, and reject invalid downloaded
+              layer clauses before attaching or loading their dependencies.
         - [x] Fixture: reject late and nested CSS imports before loading; allow
               comments, charset and layer-order statements in the import prefix,
               distinguish empty layer blocks, and fail imported sheets atomically.
