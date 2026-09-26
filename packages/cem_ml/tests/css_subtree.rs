@@ -184,8 +184,8 @@ fn browser_fixture_emits_scoped_native_nesting() {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
         }
     }
-    // This fixture supplies the emitted symbol explicitly. It does not claim
-    // that authored animation references are already rewritten by the compiler.
+    // Compose native definition/name-value helpers. Whole-stylesheet symbol
+    // collection and general declaration integration remain separate work.
     for (file, source) in [
         (
             "keyframes",
@@ -206,9 +206,41 @@ fn browser_fixture_emits_scoped_native_nesting() {
         .unwrap()
         .rule
         .unwrap();
+        let authored_names = plan(&format!(
+            ".card {{animation-name:{}}}",
+            cem_ml::transform_template::transform_template_encode_css_string(&definition.name)
+        ));
+        let declaration = authored_names
+            .tree
+            .node(first_rule(&authored_names))
+            .unwrap()
+            .children
+            .iter()
+            .copied()
+            .find(|id| {
+                authored_names
+                    .tree
+                    .node(*id)
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .is_some_and(|n| n.local_name == "declaration")
+            })
+            .unwrap();
+        let names = std::collections::BTreeMap::from([(
+            definition.name.clone(),
+            definition.scoped_name.clone(),
+        )]);
+        let value = cem_ml::css_emission::emit_css_animation_names(
+            &authored_names.tree,
+            declaration,
+            &names,
+        )
+        .unwrap()
+        .value
+        .unwrap();
         let reference_plan = plan(&format!(
-            r#".card {{animation-name:"{}"; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}"#,
-            definition.scoped_name
+            ".card {{animation-name:{value}; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}"
         ));
         let references = emit_css_rule_subtree(
             &reference_plan,

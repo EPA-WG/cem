@@ -6,7 +6,9 @@ pub use declarations::{
     emit_css_rule_declarations, emit_css_rule_declarations_with_resources, CssEmittedDeclaration,
     CssRuleDeclarations,
 };
+mod animation_names;
 mod keyframes;
+pub use animation_names::{emit_css_animation_names, CssAnimationNameEmission};
 mod resources;
 pub use keyframes::{
     emit_css_keyframes, CssEmittedKeyframeOffset, CssKeyframeBlock, CssKeyframesEmission,
@@ -207,6 +209,11 @@ fn components_with(
     let children = &tree.node(id).unwrap().children;
     let mut tokens = Vec::new();
     for &child in children {
+        // Declaration-owned semantic slots supplement, rather than replace,
+        // their original component tokens.
+        if named(tree, id, "declaration") && named(tree, child, "animation-name-list") {
+            continue;
+        }
         if !named(tree, child, "component-value") {
             return Err(invalid(
                 tree,

@@ -843,8 +843,8 @@ unsupported in this first profile. These forms follow the
 [CSS Animations keyframe grammar](https://www.w3.org/TR/css-animations-1/#keyframes).
 
 A keyframe body does not inherit a surrounding style selector. Its offsets
-never receive host rewriting, specificity or instance-prefix policy. The definition emitter below consumes this representation; typed animation-reference
-classification, closure symbol ownership and browser installation remain pending. The subtree
+never receive host rewriting, specificity or instance-prefix policy. The definition and longhand-reference helpers below consume this representation.
+Shorthand classification, closure symbol ownership and browser installation remain pending. The subtree
 composer continues to diagnose and omit keyframe constructs until that
 compilation path is complete.
 
@@ -867,9 +867,8 @@ fails without a raw-prelude fallback.
 Empty definitions and valid empty frame blocks are preserved. An empty named
 animation still has a browser animation object and lifecycle; dropping its
 `@keyframes` rule would change that behavior. Browser fixtures cover ordinary,
-quoted-name and empty animations. They explicitly supply the emitted name to
-the animation declaration, isolating definition emission from the still-pending
-reference compiler. The general subtree composer continues to reject keyframes
+quoted-name and empty animations. They compose the definition and longhand-name helpers using an explicit native
+symbol map. The general subtree composer continues to reject keyframes
 until namespace and animation-reference compilation are integrated.
 
 ## Shared-resolver byte delivery: implemented natively
@@ -905,3 +904,20 @@ integrity verification and tampering, stronger-algorithm mismatch, malformed
 metadata, MIME rejection, byte budgets, malformed CSS, loader failures and
 cancellation before imported trees are attached. Browser transport wiring and
 scoped CSS installation remain pending.
+
+## Static animation-name references
+
+Shared CSS import retains typed `animation-name-list` and `animation-name-slot`
+nodes for both standard and prefixed longhands. `emit_css_animation_names`
+consumes these slots and a native map of decoded original names to scoped names.
+It preserves commas, comments, whitespace and source ranges; unmapped names
+remain external. Replacements are CSS strings, so reserved words and spaces in
+scoped names retain symbol identity. Bare `none` and CSS-wide keywords are never
+renamed; quoted strings with the same spelling remain symbol references.
+
+Dynamic name expressions and unsupported lists produce diagnostics without a
+partial value. Missing typed slots fail without reparsing declaration text.
+The helper emits a value fragment; ordinary declaration policy still applies.
+General declaration/subtree integration, shorthand classification and closure
+namespace ownership remain pending. Browser fixtures now resolve original
+longhand names through the same map used to emit their keyframe definitions.

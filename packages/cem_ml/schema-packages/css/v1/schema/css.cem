@@ -56,7 +56,9 @@
         {element @name="compound-selector" @optional-attributes="source-id byte-offset byte-length" @children="simple-selector*"}
         {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace operator modifier relative source-id byte-offset byte-length" @children="selector-list?"}
         {element @name="combinator" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length"}
-        {element @name="declaration" @required-attributes="name value" @optional-attributes="important custom-property source-id byte-offset byte-length" @children="component-value*"}
+        {element @name="declaration" @required-attributes="name value" @optional-attributes="important custom-property source-id byte-offset byte-length" @children="component-value* animation-name-list?"}
+        {element @name="animation-name-list" @required-attributes="analysis-status" @optional-attributes="source-id byte-offset byte-length" @children="animation-name-slot*"}
+        {element @name="animation-name-slot" @required-attributes="kind value token" @optional-attributes="source-id byte-offset byte-length"}
         {element @name="component-value" @required-attributes="kind" @optional-attributes="value unit token source-id byte-offset byte-length" @children="component-value* function? block?"}
         {element @name="function" @required-attributes="name" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="block" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length" @children="component-value* declaration* rule*"}
@@ -84,7 +86,7 @@
         {attribute @name="nonce" @type="schema:string"}
         {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
         {attribute @name="href" @type="schema:string"}
-        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes keyframe font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal nesting combinator descendant child next-sibling subsequent-sibling ident function hash string url number percentage dimension delimiter whitespace comment unicode-range curly square paren unknown"}
+        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes keyframe font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal nesting combinator descendant child next-sibling subsequent-sibling ident keyword function hash string url number percentage dimension delimiter whitespace comment unicode-range curly square paren unknown"}
         {attribute @name="selector" @type="schema:string"}
         {attribute @name="prelude" @type="schema:string"}
         {attribute @name="name" @type="schema:string"}
@@ -100,7 +102,7 @@
         {attribute @name="custom-property" @type="schema:boolean"}
         {attribute @name="text" @type="schema:string"}
         {attribute @name="specificity" @type="schema:string"}
-        {attribute @name="analysis-status" @type="schema:string" @values="complete unsupported"}
+        {attribute @name="analysis-status" @type="schema:string" @values="complete unsupported dynamic"}
         {attribute @name="operator" @type="schema:string"}
         {attribute @name="modifier" @type="schema:string" @values="i s"}
         {attribute @name="relative" @type="schema:boolean"}

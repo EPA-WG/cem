@@ -5903,13 +5903,20 @@ registration identities may reuse an inherited or existing definition.
               Preserve empty definitions/frames and verify ordinary, quoted-name
               and empty animation identity/lifecycle in Chromium. Native tests,
               Nx WASM build, browser fixtures and lint (existing warnings) pass.
-        - [ ] Fixture: retain and emit static `animation-name` references from
+        - [x] Fixture: retain and emit static `animation-name` references from
               typed import-owned slots, preserving literal/string identity,
               comma order, keyword semantics, source maps and external names.
               Recommended: classify the longhand before the shorthand, where
               timing keywords can also be animation names. Dynamic local-name
               substitution needs a separate authoring contract; variables used
               for duration/easing do not imply dynamic keyframe names.
+              Validation: 70 focused native/schema tests, Nx WASM build,
+              Chromium animation fixtures and lint (existing warnings) pass.
+        - [ ] Fixture: classify static `animation` shorthand name slots at
+              import, respecting timing/count/direction/fill/play keyword
+              precedence, comma groups and source retention. Preserve external
+              names and reject ambiguous dynamic shorthand until its contract
+              is defined; verify rewritten names against browser animations.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
