@@ -5696,6 +5696,11 @@ registration identities may reuse an inherited or existing definition.
 
 - [ ] Support scoped module maps inside `cem-element` styles through typed CSS
       adoption into the CEM AST.
+    - [x] Audit existing CSS registration, module-map precedence and managed
+          import policy; record the concrete proposal and open decisions in
+          [scoped CSS module maps](scoped-css-module-maps.md).
+    - [ ] Decide CSS override representation/precedence and managed `@import`
+          loading before changing the resolver or scoped-CSS contract.
     - [ ] Register the CSS content type (`text/css`) as its default namespace so
           template DOM adoption recognizes `<style>` as CSS-namespace content
           and invokes the shared CSS content-type parser to produce a retained
