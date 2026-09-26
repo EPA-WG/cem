@@ -5760,9 +5760,19 @@ registration identities may reuse an inherited or existing definition.
         - [x] Fixture: resolve unmapped CSS paths and aliases against the owning
               stylesheet URL; preserve mapped overrides, ancestor blocks/policies,
               resolution metadata and strict non-CSS bare-specifier behavior.
-        - [ ] Decide context-dependent stylesheet ownership before browser
+        - [x] Decide context-dependent stylesheet ownership before browser
               import installation; approve or revise the [context-qualified
-              stylesheet proposal](scoped-css-module-maps.md#context-dependent-stylesheet-ownership-decision-required).
+              stylesheet contract](scoped-css-module-maps.md#context-dependent-stylesheet-ownership-accepted).
+              Accepted: per-context derived sets and an internal context marker.
+        - [x] Fixture: drive a native retained CSS import closure through pending,
+              completed and failed states; preserve import order/conditions,
+              imported-sheet URL bases, repeated imports and native owners;
+              reject cycles, wrong responses, non-CSS trees, denied redirects,
+              cancellation and depth/count limits before browser integration.
+        - [ ] Connect the retained import closure to shared-loader byte, MIME,
+              integrity, redirect and aggregate-size checks; validate import
+              placement/conditions and compile the complete closure into scoped
+              CSS before context-specific browser installation.
     - [ ] Include an explicit CSS override entry in the module map; define its
           syntax and precedence and verify the closest-scope override is used
           for stylesheet imports and resource URLs.
