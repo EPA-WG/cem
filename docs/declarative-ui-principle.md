@@ -84,6 +84,10 @@ no-component-JavaScript rule. It MUST:
 
 - import `expect`, `userEvent`, `within`, or other required test helpers from
   `storybook/test`;
+- permit a guarded dynamic `vitest/browser` import solely for native pointer/keyboard
+  checks inside colocated plays; use `import.meta.env.MODE` to keep that driver
+  out of ordinary Storybook, and label the fixture with which assertions run
+  only in the browser runner; assertions still come from `storybook/test`;
 - use CSF Next `preview.meta(...)` and `meta.story(...)`;
 - import its own `./<cem-tag>.xhtml?raw` declaration and load it through the
   shared `cem-elements` Storybook declaration loader;

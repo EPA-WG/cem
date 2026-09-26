@@ -26,7 +26,10 @@ authored in CEM-ML. Its template is
 `<declaration-url>#<cem-tag>` while remaining inside the component declaration.
 Each component has a colocated CSF Next `<cem-tag>.stories.ts` file
 containing all component unit tests in asynchronous `play` functions imported
-from `storybook/test`. Story `render` functions return HTML strings and load
+from `storybook/test`. Colocated plays may dynamically import `vitest/browser`
+only in test mode (guarded by `import.meta.env.MODE`) for native browser
+input checks; ordinary Storybook must not load that driver and must identify
+those checks as browser-runner-only. Story `render` functions return HTML strings and load
 their own raw XHTML declaration through the shared `cem-elements` Storybook
 loader. This development-only story is the sole per-component TypeScript
 exception; it must not implement component behavior. Component CSS is an

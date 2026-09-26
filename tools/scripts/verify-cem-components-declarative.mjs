@@ -294,6 +294,14 @@ if (!existsSync(componentRoot)) {
             `./${tag}.xhtml?raw`,
         ]);
         const storyImports = [...story.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((match) => match[1]);
+        const dynamicImports = [...story.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)].map((match) => match[1]);
+        for (const specifier of dynamicImports) {
+            if (specifier !== 'vitest/browser') {
+                fail(`${slash(relative(repoRoot, storyPath))} has forbidden dynamic import ${specifier}`);
+            } else if (!/if\s*\(import\.meta\.env\.MODE\s*!==\s*['"]test['"]\)\s*return;/.test(story)) {
+                fail(`${slash(relative(repoRoot, storyPath))} must guard the native browser driver from ordinary Storybook`);
+            }
+        }
         const forbiddenStoryImports = storyImports.filter((specifier) => !allowedStoryImports.has(specifier));
         if (forbiddenStoryImports.length > 0) {
             fail(
