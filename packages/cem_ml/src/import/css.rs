@@ -342,6 +342,8 @@ impl CssImport<'_> {
                         let close = self.close(i, end);
                         if name == "layer" {
                             self.import_layer(id, i, close)?;
+                        } else {
+                            self.import_supports(id, i, close)?;
                         }
                         self.attr(id, name, self.text(i + 1, close).trim());
                         pos = (close + 1).min(end);
@@ -413,6 +415,99 @@ impl CssImport<'_> {
             self.attr(segment, "value", self.events[i].value.as_deref().unwrap());
         }
         Ok(())
+    }
+
+    fn import_supports(
+        &mut self,
+        parent: AstNodeId,
+        open: usize,
+        close: usize,
+    ) -> Result<(), String> {
+        let form = self.supports_form(open + 1, close).ok_or_else(|| {
+            format!(
+                "CSS import supports() at byte {} requires a declaration or a valid supports condition.",
+                self.events[open].source_range.start.byte_offset,
+            )
+        })?;
+        let supports = self.node(parent, "import-supports", open, close + 1);
+        self.attr(supports, "condition-form", form);
+        self.components(supports, open + 1, close);
+        Ok(())
+    }
+
+    /// Validate syntax only, never evaluate feature support. Balanced functions
+    /// and parentheses admit general-enclosed syntax for forward compatibility;
+    /// their contents must be retained even when this implementation cannot
+    /// interpret a feature. The emitting browser evaluates the unchanged query.
+    fn supports_form(&self, start: usize, end: usize) -> Option<&'static str> {
+        if self.events[start..end].iter().any(|e| e.recovered) {
+            return None;
+        }
+        let mut top = Vec::new();
+        let mut pos = start;
+        while let Some(i) = self.significant(pos, end) {
+            top.push(i);
+            pos = if self.events[i].kind == "block-open" {
+                let close = self.close(i, end);
+                if close == end {
+                    return None;
+                }
+                close + 1
+            } else {
+                i + 1
+            };
+        }
+        let first = *top.first()?;
+        let keyword = |i: usize, value: &str| {
+            self.events[i].token_kind == "ident"
+                && self.events[i]
+                    .value
+                    .as_deref()
+                    .is_some_and(|v| v.eq_ignore_ascii_case(value))
+        };
+        let bang = |i: usize| {
+            self.events[i].token_kind == "delimiter" && self.events[i].value.as_deref() == Some("!")
+        };
+        if self.events[first].token_kind == "ident"
+            && top
+                .get(1)
+                .is_some_and(|i| self.events[*i].token_kind == "colon")
+        {
+            // A declaration permits an empty value and a final !important,
+            // but no top-level semicolon or other exclamation delimiter.
+            let mut value_end = top.len();
+            if value_end >= 4
+                && bang(top[value_end - 2])
+                && keyword(top[value_end - 1], "important")
+            {
+                value_end -= 2;
+            }
+            return top[2..value_end]
+                .iter()
+                .all(|i| self.events[*i].token_kind != "semicolon" && !bang(*i))
+                .then_some("declaration");
+        }
+        let atom = |i: usize| {
+            matches!(
+                self.events[i].token_kind.as_str(),
+                "parenthesis-open" | "function-open"
+            )
+        };
+        if keyword(first, "not") {
+            return (top.len() == 2 && atom(top[1])).then_some("condition");
+        }
+        if !atom(first) || top.len() % 2 == 0 {
+            return None;
+        }
+        let operator = top
+            .get(1)
+            .map(|i| if keyword(*i, "and") { "and" } else { "or" });
+        for pair in top[1..].chunks_exact(2) {
+            if !keyword(pair[0], operator.unwrap()) || !atom(pair[1]) {
+                return None;
+            }
+        }
+        Some("condition")
     }
 
     fn components(&mut self, parent: AstNodeId, mut pos: usize, end: usize) {

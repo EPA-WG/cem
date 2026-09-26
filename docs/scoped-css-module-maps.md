@@ -265,7 +265,7 @@ loader/validation failures make the closure terminal; stale/duplicate delivery
 IDs are rejected without consuming a different outstanding request.
 
 `Ready` describes a complete import graph only. It does not authorize installation
-or prove that media/supports grammar is valid. Native byte delivery now
+or prove that media-query grammar is valid. Native byte delivery now
 enforces MIME/integrity/size limits as described below.
 Import condition validation, resource rewriting, scoped emission and browser/worker
 loader and ownership integration remain pending. Resource URL references are resolved but not fetched by this
@@ -282,7 +282,7 @@ This follows the [CSS cascade import placement rules](https://www.w3.org/TR/css-
 Misplaced imports produce `cem.css.import_placement_invalid`. A delivered sheet
 with misplaced imports fails the closure before attaching the sheet or queueing
 its dependencies. Unknown/unsupported rules conservatively end the prefix;
-Supports/media condition grammar validation remains pending.
+Media-query grammar validation remains pending.
 
 ## Import layer clauses: implemented natively
 
@@ -301,8 +301,29 @@ The existing `layer` attribute retains authored text for control metadata.
 Absence of a layer clause remains distinct from an anonymous clause, whose
 identity belongs to its import occurrence rather than its reusable source tree.
 Malformed downloaded clauses fail byte delivery with `cem.css.import_parse_failed`
-before the sheet or its dependencies enter the closure. Supports/media grammar,
+before the sheet or its dependencies enter the closure. Media-query grammar,
 condition emission and the complete scoped compiler remain pending.
+
+## Import supports clauses: implemented natively
+
+The CSS import boundary checks the structural
+[supports grammar](https://www.w3.org/TR/css-conditional-3/#at-supports): a bare
+import declaration, a single condition, negation, or a uniform `and`/`or` chain.
+A bare declaration can have an empty value and final `!important`, but cannot
+contain a top-level semicolon or another exclamation delimiter. Recovered bad
+tokens are rejected. Invalid clauses fail import before a downloaded sheet
+attaches or queues dependencies.
+
+A `css:import-supports` child records `condition-form="declaration"` or
+`condition-form="condition"` and retains typed component values, authored tokens
+and source ranges. The emitter can use the form to parenthesize a bare declaration
+without reparsing CSS. The existing `supports` attribute remains control metadata.
+Balanced parenthesized and functional operands preserve the grammar's
+future-compatible general-enclosed syntax, including unknown feature queries.
+Validation does not determine browser feature support, simplify conditions, or
+interpret property/selector feature semantics. Their original structure must
+survive emission for the browser to evaluate. Media-query validation and scoped
+emission remain pending.
 
 ## Shared-resolver byte delivery: implemented natively
 

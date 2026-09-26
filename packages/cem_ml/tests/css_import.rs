@@ -252,3 +252,83 @@ fn css_import_layer_names_retain_decoded_segments_and_anonymous_clauses() {
     let tree = import_data("@import 'theme.css';", "text/css", "cem", "layer.css").unwrap();
     assert!(elements(&tree, "import-layer").is_empty());
 }
+
+#[test]
+fn css_import_supports_rejects_invalid_outer_grammar() {
+    for condition in [
+        "",
+        "/* empty */",
+        "display",
+        "display grid",
+        ":grid",
+        "not",
+        "not not (display:grid)",
+        "(display:grid) and",
+        "(display:grid) (color:red)",
+        "(display:grid) and (color:red) or (color:blue)",
+        "not (display:grid) and (color:red)",
+        "(display:grid), (color:red)",
+        "display:grid; color:red",
+        "display:grid !bad",
+        "display:grid !important extra",
+        "background:url(bad url)",
+    ] {
+        let css = format!("@import 'theme.css' supports({condition});");
+        let error = import_data(&css, "text/css", "cem", "supports.css")
+            .err()
+            .unwrap_or_else(|| panic!("accepted invalid supports: {condition}"));
+        assert!(error.contains("supports"), "{condition}: {error}");
+    }
+}
+
+#[test]
+fn css_import_supports_preserves_form_tokens_and_future_compatible_queries() {
+    for (condition, form) in [
+        ("display:grid", "declaration"),
+        ("display:", "declaration"),
+        ("--custom: { nested: value; }", "declaration"),
+        ("color: red ! IMPORTANT", "declaration"),
+        (r"d\69 splay: grid", "declaration"),
+        ("background: url(icon.svg)", "declaration"),
+        ("(display:grid)", "condition"),
+        ("not (display:grid)", "condition"),
+        (r"n\6ft/**/(display:grid)", "condition"),
+        ("(display:grid) AND (color:red)", "condition"),
+        (
+            "(display:grid) or ((color:red) and (color:blue))",
+            "condition",
+        ),
+        ("selector(:has(> .item))", "condition"),
+        ("future-feature()", "condition"),
+        ("()", "condition"),
+        ("(future syntax; ! foo)", "condition"),
+        // General-enclosed keeps inner unknown syntax; it must not be simplified.
+        (
+            "((display:grid) and (color:red) or (color:blue))",
+            "condition",
+        ),
+    ] {
+        let css = format!("@import 'theme.css' layer(base) supports({condition}) screen;");
+        let tree = import_data(&css, "text/css", "cem", "supports.css").unwrap();
+        let nodes = elements(&tree, "import-supports");
+        assert_eq!(nodes.len(), 1, "{condition}");
+        let node = nodes[0];
+        assert_eq!(attr(&tree, node, "condition-form").as_deref(), Some(form));
+        let retained: String = tree
+            .node(node)
+            .unwrap()
+            .children
+            .iter()
+            .map(|id| attr(&tree, *id, "token").unwrap())
+            .collect();
+        assert_eq!(retained, condition);
+        let range = tree.node(node).unwrap().range;
+        assert_eq!(
+            &css[range.offset as usize..(range.offset + range.length) as usize],
+            format!("supports({condition})")
+        );
+        let import = elements(&tree, "import")[0];
+        assert_eq!(attr(&tree, import, "supports").as_deref(), Some(condition));
+        assert_eq!(attr(&tree, import, "media").as_deref(), Some("screen"));
+    }
+}
