@@ -25,6 +25,7 @@ yaml-rust2 = "0.11"
 quick-xml = "0.41"
 pulldown-cmark = { version = "0.13", default-features = false }
 blake3 = "1"
+base64 = "0.22"
 syn = { version = "2", features = ["full", "visit"] }
 regex = "1"
 regex-automata = "0.4"

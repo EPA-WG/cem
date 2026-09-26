@@ -1,5 +1,5 @@
 use cem_ml::{
-    css_imports::{CssImportClosure, CssImportLimits, CssImportState},
+    css_imports::{CssImportClosure, CssImportLimits, CssImportResponsePolicy, CssImportState},
     import::import_data,
     module_resolution::{
         CemModuleUrlContext, CemModuleUrlFrame, CemModuleUrlResolutionCapability,
@@ -13,7 +13,33 @@ fn tree(css: &str) -> Arc<RetainedCemTree> {
     import_data(css, "text/css", "cem", "urn:fixture:css").unwrap()
 }
 fn closure(css: &str, limits: CssImportLimits, abort: AbortSignal) -> CssImportClosure {
+    configured_closure(css, limits, abort, None)
+}
+fn configured_closure(
+    css: &str,
+    limits: CssImportLimits,
+    abort: AbortSignal,
+    integrity: Option<&str>,
+) -> CssImportClosure {
+    closure_with_mapping(
+        css,
+        limits,
+        abort,
+        integrity.map(|value| {
+            cem_ml::module_resolution::CemModuleUrlMapping::target("./a.css").with_integrity(value)
+        }),
+    )
+}
+fn closure_with_mapping(
+    css: &str,
+    limits: CssImportLimits,
+    abort: AbortSignal,
+    mapping: Option<cem_ml::module_resolution::CemModuleUrlMapping>,
+) -> CssImportClosure {
     let mut frame = CemModuleUrlFrame::new("root", "https://example.test/main.css");
+    if let Some(mapping) = mapping {
+        frame.specifiers.resources.insert("a.css".into(), mapping);
+    }
     frame.allowed_schemes = Some(["https".into()].into());
     let context = CemResolutionContextHandle::new("test");
     let capability = CemModuleUrlResolutionCapability::new(
@@ -237,4 +263,289 @@ fn css_import_closure_rejects_non_css_and_bounds_recursive_imports() {
     )
     .unwrap();
     assert_eq!(c.next_import().unwrap_err().code, "cem.css.import_cycle");
+}
+
+fn response(bytes: &[u8], mime: Option<&str>) -> cem_ml::resolver::ResolvedRead {
+    cem_ml::resolver::ResolvedRead {
+        uri: "https://example.test/cdn/a.css".into(),
+        bytes: bytes.to_vec(),
+        content_type: mime.map(str::to_owned),
+    }
+}
+#[test]
+fn css_import_byte_delivery_validates_mime_limits_and_integrity() {
+    for (body, mime, policy, expected) in [
+        (
+            b"a {}".as_slice(),
+            Some("text/html"),
+            CssImportResponsePolicy::default(),
+            "cem.css.import_content_type",
+        ),
+        (
+            b"a {}".as_slice(),
+            Some("text/css"),
+            CssImportResponsePolicy {
+                max_response_bytes: 3,
+                ..Default::default()
+            },
+            "cem.css.import_byte_limit",
+        ),
+        (
+            b"a {}".as_slice(),
+            Some("text/css"),
+            CssImportResponsePolicy {
+                max_total_bytes: 3,
+                ..Default::default()
+            },
+            "cem.css.import_byte_limit",
+        ),
+        (
+            b"a {".as_slice(),
+            Some("text/css"),
+            CssImportResponsePolicy::default(),
+            "cem.css.import_parse_failed",
+        ),
+    ] {
+        let mut c = closure(
+            "@import 'a.css';",
+            CssImportLimits::default(),
+            AbortSignal::new(),
+        );
+        let r = c.next_import().unwrap().unwrap();
+        assert_eq!(
+            c.complete_response(r.id, response(body, mime), &policy)
+                .unwrap_err()
+                .code,
+            expected
+        );
+        assert_eq!(c.state(), CssImportState::Failed);
+        assert_eq!(c.sheets().len(), 1);
+    }
+    let mut c = configured_closure(
+        "@import 'a.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+        Some("sha256-invalid"),
+    );
+    let r = c.next_import().unwrap().unwrap();
+    assert!(c
+        .complete_response(
+            r.id,
+            response(b"a {}", Some("text/css")),
+            &CssImportResponsePolicy::default()
+        )
+        .is_err());
+    assert_eq!(c.sheets().len(), 1);
+}
+#[test]
+fn css_import_byte_delivery_tracks_aggregate_bytes_and_final_bases() {
+    let mut c = closure(
+        "@import 'a.css'; @import 'b.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    let r = c.next_import().unwrap().unwrap();
+    let body = b"a {background:url(icon.svg)}";
+    let policy = CssImportResponsePolicy {
+        max_total_bytes: body.len(),
+        ..Default::default()
+    };
+    c.complete_response(r.id, response(body, None), &policy)
+        .unwrap();
+    assert_eq!(c.received_bytes(), body.len());
+    assert_eq!(
+        c.sheets()[1].resources.references[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .resolved_url,
+        "https://example.test/cdn/icon.svg"
+    );
+    let r = c.next_import().unwrap().unwrap();
+    assert_eq!(
+        c.complete_response(r.id, response(b"b {}", None), &policy)
+            .unwrap_err()
+            .code,
+        "cem.css.import_byte_limit"
+    );
+    assert_eq!(c.sheets().len(), 2);
+}
+
+#[test]
+fn css_import_byte_integrity_accepts_expected_bytes_and_rejects_changes() {
+    let integrity = "sha256-mkSHzL7faOU7/U/v8Umg+058R69+vN2A2xmE3Fz1q98=";
+    for (bytes, success) in [(b"a {}".as_slice(), true), (b"b {}".as_slice(), false)] {
+        let mut c = configured_closure(
+            "@import 'a.css';",
+            CssImportLimits::default(),
+            AbortSignal::new(),
+            Some(integrity),
+        );
+        let r = c.next_import().unwrap().unwrap();
+        let result = c.complete_response(
+            r.id,
+            response(bytes, Some("Text/CSS; charset=utf-8")),
+            &CssImportResponsePolicy::default(),
+        );
+        assert_eq!(result.is_ok(), success);
+        assert_eq!(c.sheets().len(), if success { 2 } else { 1 });
+    }
+}
+
+#[test]
+fn resource_integrity_uses_strongest_digest_and_rejects_unsupported_metadata() {
+    use cem_ml::resource_integrity::verify_resource_integrity as verify;
+    let sha256 = "sha256-ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=";
+    let sha384 = "sha384-ywB1P0WjXou1oD1pmsZQBycsMqsO3tFjGotgWkP/W+2AhgcroefMI1i67KE0yCWn";
+    let sha512 = "sha512-3a81oZNherrMQXNJriBBMRLm+k6JqX6iCp7u5ktV05ohkpkqJ0/BqDa6PCOj/uu9RU1EI2Q86A4qmslPpUyknw==";
+    let wrong512 = "sha512-sqhF9JAEi5h3ziP48SBnzQnaeei8cf/pfYJBdKL4F7xdu3v5yr71eQ0kCL11/jWRFjLG4TKOudUnS/u6WLMqYw==";
+    for digest in [sha256, sha384, sha512, sha256.trim_end_matches('=')] {
+        assert!(verify(b"abc", digest).is_ok());
+        assert!(verify(b"abcd", digest).is_err());
+    }
+    assert!(verify(b"abc", &format!("{sha256} {wrong512}")).is_err());
+    assert!(verify(b"abc", &format!("{wrong512} {sha512}")).is_ok());
+    for digest in ["", "garbage", "sha1-aGVsbG8=", "sha256-%%%", "sha256-YQ=="] {
+        assert!(verify(b"abc", digest).is_err());
+    }
+}
+
+#[derive(Default)]
+struct CssTransport {
+    requests: std::sync::Mutex<Vec<String>>,
+    abort: Option<AbortSignal>,
+}
+impl cem_ml::resolver::ResourceResolver for CssTransport {
+    fn read(
+        &self,
+        request: &cem_ml::resolver::ResolveRequest,
+    ) -> Result<cem_ml::resolver::ResolvedRead, cem_ml::resolver::ResolverDiagnostic> {
+        self.requests.lock().unwrap().push(request.uri.clone());
+        assert_eq!(request.content_type_hint.as_deref(), Some("text/css"));
+        if let Some(abort) = &self.abort {
+            abort.abort();
+        }
+        match request.uri.as_str() {
+            "https://example.test/a.css" => {
+                Ok(response(b"@import 'b.css'; a {}", Some("text/css")))
+            }
+            "https://example.test/cdn/b.css" => Ok(cem_ml::resolver::ResolvedRead {
+                uri: request.uri.clone(),
+                bytes: b"b {}".to_vec(),
+                content_type: Some("text/css".into()),
+            }),
+            _ => Err(cem_ml::resolver::ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: "fixture missing".into(),
+            }),
+        }
+    }
+    fn write(
+        &self,
+        _: &cem_ml::resolver::ResolveRequest,
+        _: &[u8],
+    ) -> Result<cem_ml::resolver::ResolvedWrite, cem_ml::resolver::ResolverDiagnostic> {
+        panic!("CSS imports must never write resources")
+    }
+}
+
+#[test]
+fn css_import_shared_resolver_driver_loads_in_order_and_propagates_failure() {
+    use cem_ml::resolver::{ResolveDirection, ResolvePurpose, ResolverRegistry};
+    let mut registry = ResolverRegistry::new();
+    let transport = Arc::new(CssTransport::default());
+    registry.register_arc(
+        "https",
+        ResolvePurpose::Input,
+        ResolveDirection::Read,
+        transport.clone(),
+    );
+    let mut c = closure(
+        "@import 'a.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    c.load_imports(&registry, &CssImportResponsePolicy::default())
+        .unwrap();
+    assert_eq!(c.state(), CssImportState::Ready);
+    assert_eq!(c.sheets().len(), 3);
+    assert_eq!(
+        *transport.requests.lock().unwrap(),
+        [
+            "https://example.test/a.css",
+            "https://example.test/cdn/b.css"
+        ]
+    );
+    let mut c = closure(
+        "@import 'missing.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    assert_eq!(
+        c.load_imports(&registry, &CssImportResponsePolicy::default())
+            .unwrap_err()
+            .code,
+        "cem.resolver.io"
+    );
+    assert_eq!(c.state(), CssImportState::Failed);
+    let abort = AbortSignal::new();
+    registry.register(
+        "https",
+        ResolvePurpose::Input,
+        ResolveDirection::Read,
+        CssTransport {
+            abort: Some(abort.clone()),
+            ..Default::default()
+        },
+    );
+    let mut c = closure("@import 'a.css';", CssImportLimits::default(), abort);
+    assert!(c
+        .load_imports(&registry, &CssImportResponsePolicy::default())
+        .is_err());
+    assert_eq!(c.sheets().len(), 1);
+}
+
+#[test]
+fn css_import_response_metadata_fails_before_read_or_parse() {
+    use cem_ml::resolver::{ResolveDirection, ResolvePurpose, ResolverRegistry};
+    let mut registry = ResolverRegistry::new();
+    let transport = Arc::new(CssTransport::default());
+    registry.register_arc(
+        "https",
+        ResolvePurpose::Input,
+        ResolveDirection::Read,
+        transport.clone(),
+    );
+    let mut c = closure_with_mapping(
+        "@import 'a.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+        Some(
+            cem_ml::module_resolution::CemModuleUrlMapping::target("./a.css")
+                .with_content_type("text/html"),
+        ),
+    );
+    assert_eq!(
+        c.load_imports(&registry, &CssImportResponsePolicy::default())
+            .unwrap_err()
+            .code,
+        "cem.css.import_content_type"
+    );
+    assert!(transport.requests.lock().unwrap().is_empty());
+    let mut c = closure(
+        "@import 'a.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    let r = c.next_import().unwrap().unwrap();
+    let mut denied = response(b"a {", Some("text/css"));
+    denied.uri = "http://example.test/a.css".into();
+    assert_eq!(
+        c.complete_response(r.id, denied, &CssImportResponsePolicy::default())
+            .unwrap_err()
+            .code,
+        "cem.css.import_redirect_denied"
+    );
+    assert_eq!(c.received_bytes(), 0);
+    assert_eq!(c.sheets().len(), 1);
 }

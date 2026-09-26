@@ -50,6 +50,7 @@ pub mod query;
 pub mod real;
 pub mod registry;
 pub mod resolver;
+pub mod resource_integrity;
 pub mod run_config;
 pub mod run_context;
 pub mod scheduler;

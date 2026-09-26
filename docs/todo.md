@@ -5773,6 +5773,10 @@ registration identities may reuse an inherited or existing definition.
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+        - [x] Fixture: deliver shared-resolver CSS byte responses into the native
+              closure; verify MIME hints/responses, supported integrity digests,
+              response/aggregate bounds, final URL checks, cancellation and loader
+              failure before retaining imported trees.
     - [ ] Include an explicit CSS override entry in the module map; define its
           syntax and precedence and verify the closest-scope override is used
           for stylesheet imports and resource URLs.

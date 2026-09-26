@@ -265,8 +265,41 @@ loader/validation failures make the closure terminal; stale/duplicate delivery
 IDs are rejected without consuming a different outstanding request.
 
 `Ready` describes a complete import graph only. It does not authorize installation
-or prove that media/supports/layer grammar and import placement are valid. Shared
-loader byte/MIME/integrity/aggregate-size enforcement, those validation rules,
-resource rewriting, scoped emission and browser/worker ownership integration
-remain pending. Resource URL references are resolved but not fetched by this
+or prove that media/supports/layer grammar and import placement are valid. Native byte delivery now enforces MIME/integrity/size limits as described below.
+Import validation rules, resource rewriting, scoped emission and browser/worker
+loader and ownership integration remain pending. Resource URL references are resolved but not fetched by this
 state machine. No browser `@import` fallback is introduced.
+
+## Shared-resolver byte delivery: implemented natively
+
+`CssImportClosure::load_imports` uses `ResolverRegistry` input reads with the
+closure's abort signal. `complete_response` is the corresponding byte-delivery
+entry point for asynchronous host transports. Both paths send response bytes to
+`import_data_bytes` only after final-URL policy/cycle checks, MIME checks, response
+and aggregate byte bounds, and any declared integrity expectation. A non-CSS
+mapping hint rejects the synchronous request before reading. An explicit
+non-CSS response type fails even when its mapping says CSS. With no response
+MIME, the mapping hint or the explicit CSS import type is used; content is never
+sniffed. CSS entry modes other than a full stylesheet are rejected.
+
+Default response bounds are the shared import limit (16 MiB per response) and
+64 MiB of imported bytes per closure, excluding its already-imported root.
+Repeated deliveries count separately. These checks occur before parsing buffered
+responses; transports remain responsible for bounded streaming allocation,
+HTTP status/access policy, and intermediate redirect handling. A final URL
+recheck does not replace transport authorization.
+
+The shared `resource_integrity::verify_resource_integrity` helper supports
+space-separated `sha256`, `sha384` and `sha512` base64 digests. It selects the
+strongest algorithm and accepts a match among that algorithm's supplied digests,
+following [SRI's strongest-metadata rule](https://www.w3.org/TR/sri/#get-the-strongest-metadata-from-set).
+This is a strict supported profile: malformed or empty expectations, unsupported
+algorithms, options, and nonstandard encodings diagnose instead of silently
+removing the integrity requirement. Standard padded and unpadded base64 are
+accepted. Byte verification does not authorize cross-origin access.
+
+Fixtures cover shared-resolver request order, final response bases, successful
+integrity verification and tampering, stronger-algorithm mismatch, malformed
+metadata, MIME rejection, byte budgets, malformed CSS, loader failures and
+cancellation before imported trees are attached. Browser transport wiring and
+scoped CSS installation remain pending.

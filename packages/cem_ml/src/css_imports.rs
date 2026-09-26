@@ -1,9 +1,10 @@
 //! Retained CSS import closure driven by the shared host loader.
 //!
 //! Requests carry resolved URLs and mapping metadata, never serialized ASTs.
-//! Before delivery, the host must enforce transport, byte/MIME/integrity policy
-//! and import the response through the shared CEM import boundary. This module
-//! handles graph order, native ownership, final URL bases, limits and cancellation.
+//! Hosts enforce transport policy and streaming bounds. Byte delivery validates
+//! MIME, integrity and byte limits before shared CEM import; hosts that deliver
+//! retained trees directly must provide equivalent validation. This module also
+//! handles graph order, native ownership, final URL bases and cancellation.
 //! Ready means the import closure is complete, not that CSS is ready to install:
 //! condition validation, resource rewriting and scoped compilation still follow.
 use crate::{
@@ -37,6 +38,22 @@ impl Default for CssImportLimits {
         Self {
             max_sheets: 64,
             max_depth: 16,
+        }
+    }
+}
+
+/// Bounds apply before parsing; streaming transports must also bound buffering.
+#[derive(Debug, Clone, Copy)]
+pub struct CssImportResponsePolicy {
+    pub max_response_bytes: usize,
+    /// Imported bytes only; the root has already passed the shared import limit.
+    pub max_total_bytes: usize,
+}
+impl Default for CssImportResponsePolicy {
+    fn default() -> Self {
+        Self {
+            max_response_bytes: crate::import::MAX_DOCUMENT_BYTES,
+            max_total_bytes: 4 * crate::import::MAX_DOCUMENT_BYTES,
         }
     }
 }
@@ -90,6 +107,7 @@ pub struct CssImportClosure {
     pending: Vec<(usize, usize)>,
     in_flight: Option<CssImportRequest>,
     next_id: u64,
+    received_bytes: usize,
     failure: Option<CssImportFailure>,
 }
 
@@ -130,6 +148,7 @@ impl CssImportClosure {
             pending: Vec::new(),
             in_flight: None,
             next_id: 1,
+            received_bytes: 0,
             failure: None,
         };
         closure.enqueue(0);
@@ -238,29 +257,8 @@ impl CssImportClosure {
         self.check_active()?;
         let request = self.request(id)?.clone();
         let result = (|| {
-            let final_url = canonical_url(final_url)?;
-            let checked = self
-                .capability
-                .resolve_with_referrer(
-                    CemModuleUrlResolutionPurpose::Css,
-                    &final_url,
-                    CemModuleUrlReferrer::Url(request.resolution.resolved_url.clone()),
-                    request.source.clone(),
-                )
-                .map_err(|e| failure("cem.css.import_redirect_denied", e.to_string()))?;
-            if canonical_url(&checked.resolved_url)? != final_url {
-                return Err(failure(
-                    "cem.css.import_redirect_denied",
-                    "final stylesheet URL is remapped by the active context",
-                ));
-            }
+            let final_url = self.validate_final_url(&request, final_url)?;
             let parent = &self.sheets[request.parent_sheet];
-            if parent.ancestry.contains(&final_url) {
-                return Err(failure(
-                    "cem.css.import_cycle",
-                    "CSS import redirects to an ancestor stylesheet",
-                ));
-            }
             let root = tree
                 .node(0)
                 .and_then(|document| (document.children.len() == 1).then(|| document.children[0]))
@@ -308,6 +306,156 @@ impl CssImportClosure {
                 self.stop(error)
             }
         }
+    }
+
+    pub fn received_bytes(&self) -> usize {
+        self.received_bytes
+    }
+
+    /// Attach shared-resolver bytes only after metadata, size, redirect and digest
+    /// checks. Format parsing is exclusively the shared CEM import boundary.
+    pub fn complete_response(
+        &mut self,
+        id: u64,
+        response: crate::resolver::ResolvedRead,
+        policy: &CssImportResponsePolicy,
+    ) -> Result<(), CssImportFailure> {
+        self.check_active()?;
+        let request = self.request(id)?.clone();
+        let validated = (|| {
+            let url = self.validate_final_url(&request, &response.uri)?;
+            let hint = request.resolution.content_type_hint.as_deref();
+            for mime in [hint, response.content_type.as_deref()]
+                .into_iter()
+                .flatten()
+            {
+                if crate::schema::registry::content_type_essence(mime) != "text/css" {
+                    return Err(failure(
+                        "cem.css.import_content_type",
+                        "CSS imports require text/css",
+                    ));
+                }
+            }
+            let total = self
+                .received_bytes
+                .checked_add(response.bytes.len())
+                .ok_or_else(|| {
+                    failure(
+                        "cem.css.import_byte_limit",
+                        "CSS import byte count overflow",
+                    )
+                })?;
+            if response.bytes.len()
+                > policy
+                    .max_response_bytes
+                    .min(crate::import::MAX_DOCUMENT_BYTES)
+                || total > policy.max_total_bytes
+            {
+                return Err(failure(
+                    "cem.css.import_byte_limit",
+                    "CSS imports exceed response or aggregate byte limits",
+                ));
+            }
+            if let Some(integrity) = &request.resolution.integrity {
+                crate::resource_integrity::verify_resource_integrity(&response.bytes, integrity)
+                    .map_err(|e| failure("cem.css.import_integrity", e))?;
+            }
+            let mime = response
+                .content_type
+                .as_deref()
+                .or(hint)
+                .unwrap_or("text/css");
+            let tree = crate::import::import_data_bytes(&response.bytes, mime, "cem", &url)
+                .map_err(|e| failure("cem.css.import_parse_failed", e))?;
+            Ok((tree, url, total))
+        })();
+        match validated {
+            Ok((tree, url, total)) => {
+                self.complete_import(id, tree, &url)?;
+                self.received_bytes = total;
+                Ok(())
+            }
+            Err(mut error) => {
+                error.source = request.source;
+                self.stop(error)
+            }
+        }
+    }
+
+    /// Synchronous native host adapter. Browser transports use next_import /
+    /// complete_response around their asynchronous shared-loader operations.
+    pub fn load_imports(
+        &mut self,
+        resolver: &crate::resolver::ResolverRegistry,
+        policy: &CssImportResponsePolicy,
+    ) -> Result<(), CssImportFailure> {
+        use crate::resolver::{ResolveDirection, ResolvePurpose, ResolveRequest};
+        while let Some(request) = self.next_import()? {
+            if request
+                .resolution
+                .content_type_hint
+                .as_deref()
+                .is_some_and(|mime| {
+                    crate::schema::registry::content_type_essence(mime) != "text/css"
+                })
+            {
+                let mut error = failure(
+                    "cem.css.import_content_type",
+                    "CSS import mapping requires text/css",
+                );
+                error.source = request.source;
+                return self.stop(error);
+            }
+            let read = ResolveRequest::new(
+                &request.resolution.resolved_url,
+                ResolvePurpose::Input,
+                ResolveDirection::Read,
+            )
+            .with_content_type_hint("text/css");
+            let response = match resolver.read_with_abort(&read, &self.abort) {
+                Ok(response) => response,
+                Err(error) => {
+                    let mut error = failure(error.code(), error.to_string());
+                    error.source = request.source;
+                    return self.stop(error);
+                }
+            };
+            self.complete_response(request.id, response, policy)?;
+        }
+        Ok(())
+    }
+
+    fn validate_final_url(
+        &self,
+        request: &CssImportRequest,
+        final_url: &str,
+    ) -> Result<String, CssImportFailure> {
+        let final_url = canonical_url(final_url)?;
+        let checked = self
+            .capability
+            .resolve_with_referrer(
+                CemModuleUrlResolutionPurpose::Css,
+                &final_url,
+                CemModuleUrlReferrer::Url(request.resolution.resolved_url.clone()),
+                request.source.clone(),
+            )
+            .map_err(|e| failure("cem.css.import_redirect_denied", e.to_string()))?;
+        if canonical_url(&checked.resolved_url)? != final_url {
+            return Err(failure(
+                "cem.css.import_redirect_denied",
+                "final stylesheet URL is remapped by the active context",
+            ));
+        }
+        if self.sheets[request.parent_sheet]
+            .ancestry
+            .contains(&final_url)
+        {
+            return Err(failure(
+                "cem.css.import_cycle",
+                "CSS import redirects to an ancestor stylesheet",
+            ));
+        }
+        Ok(final_url)
     }
 
     pub fn fail_import(
