@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use super::{
     diagnostic, grouping::emit_grouping_rule_with_symbols, rules::emit_style_rule_with_symbols,
-    CssEmissionDiagnostic, CssGroupingContext, CssRuleBodyItem, CssRuleMode,
+    CssEmissionDiagnostic, CssGroupingContext, CssKeyframesEmission, CssRuleBodyItem, CssRuleMode,
 };
 use crate::{
     css_resources::{attribute, named, CssResourcePlan},
@@ -83,21 +83,29 @@ fn emit_subtree(
     compose(
         plan,
         rule,
-        mode,
+        &SubtreeOptions {
+            mode,
+            names,
+            definitions: None,
+        },
         CssGroupingContext::Stylesheet,
-        names,
         0,
         &mut output,
     )?;
     Ok(output)
 }
 
-fn compose(
+pub(super) struct SubtreeOptions<'a> {
+    pub mode: CssRuleMode,
+    pub names: Option<&'a BTreeMap<String, String>>,
+    pub definitions: Option<&'a BTreeMap<AstNodeId, CssKeyframesEmission>>,
+}
+
+pub(super) fn compose(
     plan: &CssResourcePlan,
     id: AstNodeId,
-    mode: CssRuleMode,
+    options: &SubtreeOptions<'_>,
     context: CssGroupingContext,
-    names: Option<&BTreeMap<String, String>>,
     depth: usize,
     output: &mut CssRuleSubtreeEmission,
 ) -> Result<(), CssEmissionDiagnostic> {
@@ -110,9 +118,49 @@ fn compose(
             "CSS rule nesting exceeds 64 levels",
         ));
     }
+    if let Some(definition) = options.definitions.and_then(|defs| defs.get(&id)) {
+        append_diagnostics(
+            output,
+            definition
+                .diagnostics
+                .iter()
+                .map(|d| CssEmissionDiagnostic {
+                    code: d.code,
+                    message: d.message.clone(),
+                    source: d.source.clone(),
+                    range: d.range,
+                })
+                .collect(),
+        );
+        if let Some(rule) = &definition.rule {
+            push_fragment(plan, output, id, rule.opening.clone());
+            for frame in &rule.frames {
+                push_fragment(
+                    plan,
+                    output,
+                    frame.node_id,
+                    format!(
+                        "{} {{",
+                        frame
+                            .selectors
+                            .iter()
+                            .map(|s| s.text.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                );
+                for declaration in &frame.declarations {
+                    push_fragment(plan, output, declaration.node_id, declaration.text.clone());
+                }
+                push_fragment(plan, output, frame.node_id, "}".into());
+            }
+            push_fragment(plan, output, id, "}".into());
+        }
+        return Ok(());
+    }
     let (opening, body, child_context) =
         if named(tree, id, "rule") && attribute(tree, id, "kind") == Some("style") {
-            let result = emit_style_rule_with_symbols(plan, id, mode, names)?;
+            let result = emit_style_rule_with_symbols(plan, id, options.mode, options.names)?;
             append_diagnostics(output, result.diagnostics);
             let Some(rule) = result.rule else {
                 return Ok(());
@@ -138,7 +186,7 @@ fn compose(
                     || n.eq_ignore_ascii_case("container")
             })
         {
-            let result = emit_grouping_rule_with_symbols(plan, id, context, names)?;
+            let result = emit_grouping_rule_with_symbols(plan, id, context, options.names)?;
             append_diagnostics(output, result.diagnostics);
             let Some(rule) = result.rule else {
                 return Ok(());
@@ -166,15 +214,9 @@ fn compose(
                 source: d.source,
                 range: d.range,
             }),
-            CssRuleBodyItem::Deferred(d) => compose(
-                plan,
-                d.node_id,
-                mode,
-                child_context,
-                names,
-                depth + 1,
-                output,
-            )?,
+            CssRuleBodyItem::Deferred(d) => {
+                compose(plan, d.node_id, options, child_context, depth + 1, output)?
+            }
         }
     }
     if output.fragments.len() == start + 1 {

@@ -956,5 +956,25 @@ The resource plan can be reused with different maps for different ownership
 contexts. The older fragment APIs still leave names authored when no map is
 supplied; the symbol-aware path validates even an empty map. Browser animation
 fixtures now pass original source declarations directly through this path,
-without reconstructing and reimporting emitted value fragments. Symbol
-collection, complete stylesheet/closure assembly and installation remain pending.
+without reconstructing and reimporting emitted value fragments. The single-sheet compiler below collects symbols and assembles these parts.
+Import-closure assembly and installation remain pending.
+
+## Single-sheet assembly with keyframe collection
+
+`emit_css_stylesheet` consumes one retained stylesheet/style-block and a
+caller-owned suffix. Its first pass collects admitted keyframe definitions;
+its second pass emits rules with the complete name map. References may precede
+definitions. Duplicate definitions retain their authored positions and share
+the same scoped name, including definitions inside supported stylesheet-level
+conditional groups. The browser evaluates those conditions and applies normal
+last-definition precedence. Empty definitions remain present.
+
+Suppressed groups contribute no definitions. Keyframes nested inside style
+rules remain outside this profile and diagnose; arbitrary unsupported at-rules
+are not searched for symbols. Emitted definition, frame and declaration
+fragments retain their source nodes/ranges. The result includes the native name
+map and diagnostics, and still requires its managed scope wrapper. Imports are
+explicitly diagnosed and omitted until closure compilation is connected; this
+API does not authorize runtime installation. Browser fixtures now compile
+references and definitions from the same retained source, including forward
+references and a later conditional duplicate definition.

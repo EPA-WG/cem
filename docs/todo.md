@@ -5943,11 +5943,18 @@ registration identities may reuse an inherited or existing definition.
               resource rewriting, order and source provenance. Replace browser
               fixture value reconstruction with direct subtree integration.
               Focused native suites, Nx WASM/browser gate and lint pass.
-        - [ ] Fixture: assemble one retained stylesheet with a caller-owned
+        - [x] Fixture: assemble one retained stylesheet with a caller-owned
               keyframe suffix, collecting forward references before emission,
               preserving duplicate-definition order and conditional groups,
               and diagnosing unsupported constructs. Keep import-closure symbol
               ownership and browser installation pending.
+              Focused native suites, Nx WASM build, lint and five browser
+              animation cases pass, including conditional duplicate precedence.
+        - [ ] Fixture: compile loaded import closures with one explicit managed
+              ownership context, preserving import occurrence order, condition
+              wrappers, final-response URL bases and keyframe references across
+              sheet boundaries. Define and test deterministic namespace identity
+              before connecting this output to runtime installation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

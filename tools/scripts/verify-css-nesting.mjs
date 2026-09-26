@@ -64,7 +64,7 @@ try {
     assert.deepEqual(after, { before: 'rgb(255, 165, 0)', color: 'rgb(0, 0, 0)' },
       `${name} must re-evaluate changed container state`);
   }
-  for (const name of ['keyframes', 'keyframes-empty', 'keyframes-string', 'keyframes-shorthand']) {
+  for (const name of ['keyframes', 'keyframes-empty', 'keyframes-string', 'keyframes-shorthand', 'keyframes-conditional']) {
     await page.setContent(markup);
     await page.addStyleTag({ content: await readFile(join(directory, `${name}.css`), 'utf8') });
     const state = await page.evaluate(() => {
@@ -77,7 +77,7 @@ try {
     });
     assert.deepEqual(state, {
       name: name === 'keyframes-string' ? 'quoted name-fixture' : name === 'keyframes-shorthand' ? 'linear-fixture' : 'pulse-fixture',
-      opacity: name === 'keyframes-empty' ? '1' : '0.5',
+      opacity: name === 'keyframes-empty' ? '1' : name === 'keyframes-conditional' ? '0.4' : '0.5',
       frameCount: name === 'keyframes-empty' ? 0 : 2,
     }, `${name} must preserve scoped animation identity and lifecycle`);
   }
@@ -105,7 +105,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, four keyframe animations and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, five keyframe animations and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

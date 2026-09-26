@@ -14,6 +14,8 @@ pub use keyframes::{
     emit_css_keyframes, CssEmittedKeyframeOffset, CssKeyframeBlock, CssKeyframesEmission,
     CssKeyframesRule,
 };
+mod stylesheet;
+pub use stylesheet::{emit_css_stylesheet, CssStylesheetEmission};
 mod subtree;
 pub use subtree::{
     emit_css_rule_subtree, emit_css_rule_subtree_with_symbols, CssRuleSubtreeEmission,

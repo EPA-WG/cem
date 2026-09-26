@@ -184,71 +184,31 @@ fn browser_fixture_emits_scoped_native_nesting() {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
         }
     }
-    // Compose native definitions and reference subtrees. Whole-stylesheet
-    // symbol collection remains separate work.
-    for (file, source) in [
-        (
-            "keyframes",
-            "@keyframes pulse {from {opacity:0} to {opacity:1}}",
-        ),
-        ("keyframes-empty", "@keyframes pulse {}"),
-        (
-            "keyframes-shorthand",
-            "@keyframes linear {from {opacity:0} to {opacity:1}}",
-        ),
-        (
-            "keyframes-string",
-            "@keyframes \"quoted name\" {from {opacity:0} to {opacity:1}}",
-        ),
+    // References precede their definitions in one retained sheet.
+    for (file, source, authored) in [
+        ("keyframes", "@keyframes pulse {from {opacity:0} to {opacity:1}}", "pulse"),
+        ("keyframes-empty", "@keyframes pulse {}", "pulse"),
+        ("keyframes-string", "@keyframes \"quoted name\" {from {opacity:0} to {opacity:1}}", "\"quoted name\""),
+        ("keyframes-shorthand", "@keyframes linear {from {opacity:0} to {opacity:1}}", "1s linear linear paused"),
+        ("keyframes-conditional", "@keyframes pulse {from {opacity:0} to {opacity:1}} @media all {@keyframes pulse {from {opacity:.2} to {opacity:.6}}}", "pulse"),
     ] {
-        let definition_plan = plan(source);
-        let definition = cem_ml::css_emission::emit_css_keyframes(
-            &definition_plan,
-            first_rule(&definition_plan),
-            "fixture",
-        )
-        .unwrap()
-        .rule
-        .unwrap();
         let shorthand = file == "keyframes-shorthand";
-        let property = if shorthand {
-            "animation"
-        } else {
-            "animation-name"
-        };
-        let authored_value = if shorthand {
-            "1s linear linear paused".to_owned()
-        } else {
-            cem_ml::transform_template::transform_template_encode_css_string(&definition.name)
-        };
-        let timing = if shorthand {
-            ""
-        } else {
+        let property = if shorthand { "animation" } else { "animation-name" };
+        let timing = if shorthand { "" } else {
             ";animation-duration:1s;animation-timing-function:linear;animation-play-state:paused"
         };
-        let reference_plan = plan(&format!(".card {{{property}:{authored_value}{timing}}}"));
-        let names = std::collections::BTreeMap::from([(
-            definition.name.clone(),
-            definition.scoped_name.clone(),
-        )]);
-        let references = cem_ml::css_emission::emit_css_rule_subtree_with_symbols(
-            &reference_plan,
-            first_rule(&reference_plan),
-            CssRuleMode::Declaration,
-            &names,
-        )
-        .unwrap();
-        assert!(references.diagnostics.is_empty());
+        let sheet_plan = plan(&format!(".card {{{property}:{authored}{timing}}} {source}"));
+        let sheet = cem_ml::css_emission::emit_css_stylesheet(&sheet_plan, CssRuleMode::Declaration, "fixture").unwrap();
+        assert!(sheet.body.diagnostics.is_empty());
         let scope = emit_css_scope_wrapper(&CssManagedScope::Private {
             tag: "cem-fixture".into(),
             context: None,
         })
         .unwrap();
         let css = format!(
-            "{}{}{}{}",
+            "{}{}{}",
             scope.opening,
-            definition.css(),
-            references.css(),
+            sheet.body.css(),
             scope.closing
         );
         if let Some(dir) = &output {
@@ -342,4 +302,69 @@ fn subtree_rewrites_animation_symbols_across_nested_declaration_runs() {
     .unwrap();
     assert!(result.css().contains("animation:\"pulse-other\" 1s linear"));
     assert!(result.css().contains("animation:1s linear linear;"));
+}
+
+#[test]
+fn stylesheet_collects_forward_names_and_preserves_conditional_duplicate_definitions() {
+    let plan = plan(
+        r#".card {animation:pulse 1s linear; animation-name:pulse, external} @keyframes pulse {from {opacity:0} to {opacity:1}} @media all {@keyframes pulse {from {opacity:.2} to {opacity:.8}}} @keyframes "empty" {}"#,
+    );
+    let result =
+        cem_ml::css_emission::emit_css_stylesheet(&plan, CssRuleMode::Declaration, "owner")
+            .unwrap();
+    assert!(
+        result.body.diagnostics.is_empty(),
+        "{:?}",
+        result.body.diagnostics
+    );
+    assert_eq!(
+        result.animation_names.get("pulse").map(String::as_str),
+        Some("pulse-owner")
+    );
+    assert_eq!(
+        result.animation_names.get("empty").map(String::as_str),
+        Some("empty-owner")
+    );
+    assert_eq!(result.body.css(), ".card {animation:\"pulse-owner\" 1s linear;animation-name:\"pulse-owner\", external;}@keyframes pulse-owner {from {opacity:0;}to {opacity:1;}}@media all {@keyframes pulse-owner {from {opacity:.2;}to {opacity:.8;}}}@keyframes empty-owner {}");
+    assert!(result
+        .body
+        .fragments
+        .iter()
+        .all(|f| f.source.origin().is_some() && f.range.length > 0));
+    assert!(result
+        .body
+        .fragments
+        .iter()
+        .any(|f| f.text == "opacity:.8;"));
+    assert!(
+        cem_ml::css_emission::emit_css_stylesheet(&plan, CssRuleMode::Declaration, "").is_err()
+    );
+}
+
+#[test]
+fn stylesheet_does_not_collect_names_from_suppressed_branches() {
+    let plan = plan("@import 'other.css'; .card {animation-name:hidden, bad, nested;} @layer private {@keyframes hidden {}} @supports invalid {@keyframes bad {}} .card {@keyframes nested {}} @keyframes none {} @font-face {font-family:private;src:url(font.woff)}");
+    let result =
+        cem_ml::css_emission::emit_css_stylesheet(&plan, CssRuleMode::Declaration, "owner")
+            .unwrap();
+    assert!(result.animation_names.is_empty());
+    assert_eq!(
+        result.body.css(),
+        ".card {animation-name:hidden, bad, nested;}"
+    );
+    assert!(result
+        .body
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.scoped_css.keyframe_name_invalid"));
+    assert!(result
+        .body
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.scoped_css.stylesheet_import_pending"));
+    assert!(result
+        .body
+        .diagnostics
+        .iter()
+        .all(|d| d.source.origin().is_some()));
 }
