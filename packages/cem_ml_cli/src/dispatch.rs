@@ -13795,6 +13795,7 @@ This document has **strong** text and a link.
 {style |```
 :host { --accent: #312e81; color: var(--accent); animation:1s linear linear; }
 :nth-child(odd of .odd) {color:red}
+@supports not (display:grid) {.card {display:block}}
 ```}
 {p @class=note |Hello}
 </template>"#;
@@ -13848,13 +13849,13 @@ This document has **strong** text and a link.
             source
         );
         assert!(written.contains("data-role=\"syntax.keyword\""));
-        for keyword in ["odd", "of"] {
+        for keyword in ["odd", "of", "not"] {
             assert!(
                 written.split("</span>").any(|span| {
                     span.contains("data-role=\"syntax.keyword\"")
                         && span.ends_with(&format!(">{keyword}"))
                 }),
-                "missing nth keyword role: {keyword}"
+                "missing CSS keyword role: {keyword}"
             );
         }
         let (outcome, stdout, stderr) = run(

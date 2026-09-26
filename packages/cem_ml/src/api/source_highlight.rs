@@ -1293,6 +1293,54 @@ mod tests {
     }
 
     #[test]
+    fn css_group_operator_roles_require_validated_outer_components() {
+        for (source, keyword) in [
+            ("@media screen and (width > 1px) {}", "and"),
+            ("@media only screen {}", "only"),
+            ("@supports not (display:grid) {}", "not"),
+            ("@supports (display:grid) or (display:flex) {}", "or"),
+            (
+                "@container card (width > 1px) and style(--theme:dark) {}",
+                "and",
+            ),
+            (r"@media screen \61 nd (width > 1px) {}", r"\61 nd"),
+        ] {
+            let value = response(
+                &serde_json::json!({"source":source,"contentType":"text/css"}).to_string(),
+            );
+            assert_eq!(
+                role_at(&value, source.find(&format!(" {keyword} ")).unwrap() + 1),
+                Some("syntax.keyword"),
+                "{source}"
+            );
+            assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+        }
+        for source in [
+            "@media screen or (width > 1px) {}",
+            "@supports (color:and) {}",
+            "@supports future(and) {}",
+            "@container only {}",
+            "@container card style(--theme:and) {}",
+        ] {
+            let word = if source.contains("and") {
+                "and"
+            } else if source.contains("only") {
+                "only"
+            } else {
+                "or"
+            };
+            let value = response(
+                &serde_json::json!({"source":source,"contentType":"text/css"}).to_string(),
+            );
+            assert_ne!(
+                role_at(&value, source.find(word).unwrap()),
+                Some("syntax.keyword"),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn css_semantic_coloring_preserves_fallback_and_escaped_source() {
         for source in [
             r".card {animation: 1s linear var(--motion)}",

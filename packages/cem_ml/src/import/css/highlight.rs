@@ -7,7 +7,15 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
     if !document.events.iter().any(|e| {
         (e.token_kind == "at-keyword"
             && e.value.as_deref().is_some_and(|n| {
-                n.eq_ignore_ascii_case("keyframes") || n.eq_ignore_ascii_case("-webkit-keyframes")
+                [
+                    "keyframes",
+                    "-webkit-keyframes",
+                    "media",
+                    "supports",
+                    "container",
+                ]
+                .iter()
+                .any(|name| n.eq_ignore_ascii_case(name))
             }))
             || (e.token_kind == "function-open"
                 && e.value.as_deref().is_some_and(|name| {
@@ -44,25 +52,57 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
         let CemAstNode::Element {
             node_id,
             expanded_name,
-            attributes,
             children,
             ..
         } = node
         else {
             continue;
         };
-        let attr = |name: &str| {
-            attributes
-                .iter()
-                .find_map(|id| match &ast.nodes[*id as usize] {
-                    CemAstNode::Attribute {
-                        expanded_name,
-                        value,
-                        ..
-                    } if expanded_name.local_name == name => value.as_deref(),
-                    _ => None,
-                })
-        };
+        let attr = |name| attribute(&ast.nodes, *node_id, name);
+        let media = expanded_name.local_name == "group-media";
+        if media
+            || matches!(
+                expanded_name.local_name.as_str(),
+                "group-supports" | "group-container"
+            )
+        {
+            let conditions = if media {
+                children.as_slice()
+            } else {
+                std::slice::from_ref(node_id)
+            };
+            for &condition in conditions {
+                if attribute(&ast.nodes, condition, "syntax-valid") != Some("true") {
+                    continue;
+                }
+                let CemAstNode::Element {
+                    children: components,
+                    ..
+                } = &ast.nodes[condition as usize]
+                else {
+                    continue;
+                };
+                // Only outer components have been validated as operators. Atom
+                // contents stay opaque: `and` can also be a custom value/name.
+                for &component in components {
+                    if attribute(&ast.nodes, component, "kind") != Some("ident") {
+                        continue;
+                    }
+                    let Some(value) = attribute(&ast.nodes, component, "value") else {
+                        continue;
+                    };
+                    if ["not", "and", "or"]
+                        .iter()
+                        .any(|word| value.eq_ignore_ascii_case(word))
+                        || (media && value.eq_ignore_ascii_case("only"))
+                    {
+                        if let Some(range) = semantics.ranges.get(&component) {
+                            roles.push((*range, CssSemanticKindAst::Keyword));
+                        }
+                    }
+                }
+            }
+        }
         if expanded_name.local_name == "simple-selector" && attr("nth-a").is_some() {
             if let Some(range) = semantics.ranges.get(node_id) {
                 let mut argument = *range;
@@ -102,4 +142,18 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             event.semantic_kind = *role;
         }
     }
+}
+
+fn attribute<'a>(nodes: &'a [CemAstNode], id: AstNodeId, name: &str) -> Option<&'a str> {
+    let CemAstNode::Element { attributes, .. } = &nodes[id as usize] else {
+        return None;
+    };
+    attributes.iter().find_map(|id| match &nodes[*id as usize] {
+        CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        } if expanded_name.local_name == name => value.as_deref(),
+        _ => None,
+    })
 }

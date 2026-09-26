@@ -1032,6 +1032,14 @@ prefix before their retained filter list colors identifiers such as `odd`,
 The sample `:nth-child(odd of .odd)` demonstrates the distinction. Escapes and
 comments keep their original source bytes, and invalid filters keep broad roles.
 
+Validated outer components of `@media`, `@supports` and `@container` conditions
+provide keyword roles for `not`, `and` and `or`; media's `only` modifier also
+uses the keyword palette. Each media query must pass its own syntax check.
+Feature expressions and unknown function contents remain opaque, so values
+such as `style(--theme: and)` retain their existing colors. Nested boolean
+operators inside those opaque atoms require additional import-owned structure
+before presentation can distinguish them. Samples and CLI use the same roles.
+
 ## Bounded structural nth selectors
 
 The stylesheet importer accepts An+B arguments for `:nth-child()`,

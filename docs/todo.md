@@ -3945,6 +3945,14 @@ registration identities may reuse an inherited or existing definition.
           escaped source, comments and unsupported-syntax fallback.
           Completed: native source highlighting, real CLI HTML/ANSI output,
           both lint targets and all 12 rebuilt WASM sample browser tests pass.
+    - [x] Fixture: color validated outer media/supports/container operators from
+          retained components; preserve opaque feature values, escaped operators,
+          invalid-query fallback and source parity in native, CLI and sample views.
+          Completed: 11 native highlighting tests, CLI HTML/ANSI regression, both
+          lint targets and all 12 browser tests after the WASM rebuild pass.
+    - [ ] Fixture: retain nested conditional operator roles at shared CSS import
+          before extending their coloring; distinguish nested boolean expressions
+          from feature declarations, custom values and general-enclosed syntax.
     - [ ] Extend retained role coverage for selector arguments and conditional
           group operators as their typed import profiles grow. Keep the existing
           selector/property/function colors and source fallback for other syntax.

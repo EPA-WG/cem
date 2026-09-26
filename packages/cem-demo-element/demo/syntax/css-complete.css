@@ -43,3 +43,7 @@
 :nth-child(odd of .odd) {
     border-width: 1px;
 }
+
+@supports (display: grid) or (display: flex) {
+    .card { display: grid; }
+}
