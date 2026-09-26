@@ -1,7 +1,7 @@
 # CEM-QL URL compatibility patch
 
 This is a maintained, scoped copy of the published Rust `url` 2.5.8 crate.
-The private Cargo package is named `cem-url` (library name `url`) to avoid
+The independently released Cargo package is named `cem-url` (library name `url`) to avoid
 Nx conflating it with the registry package. Only CEM-QL selects it through an explicit path dependency. There is no global
 `[patch.crates-io]`; CEM-ML and other registry consumers keep the published
 crate. CEM-QL's `url_unpatched` dev dependency retains the original candidate
@@ -17,9 +17,11 @@ baselines. This directory is an excluded, independent Cargo workspace.
 - [CEM-PARSER.patch](CEM-PARSER.patch) is the complete runtime source delta.
   It covers file/opaque parsing and path encoding in `parser.rs`, scheme
   transitions and authority guards in `lib.rs`, and empty paths in `quirks.rs`.
-- `Cargo.toml` renames the package to private `cem-url` (`publish = false`)
-  and gains an independent workspace declaration. The local
-  `Cargo.lock` pins standalone dependency-test resolution.
+- `Cargo.toml` identifies CEM-maintained `cem-url` 0.1.0, eligible for
+  crates.io publication with an independent workspace declaration. Upstream
+  version 2.5.8 is provenance, not the fork release version. The local
+  `Cargo.lock` pins standalone dependency-test resolution. Both upstream
+  `Cargo.toml.orig` and the archive-safe `UPSTREAM-Cargo.toml` are retained.
 - `tests/expected_failures.txt` removes exactly the 26 now-passing cases listed
   in [CEM-FIXED-CASES.txt](CEM-FIXED-CASES.txt). The original file-path fix did
   not change expected outputs. The later opaque-space refresh below updates
@@ -56,11 +58,11 @@ baselines remain asserted. No shared evaluator/type or CEM-ML source changed.
 When upgrading, compare this patch against upstream, rerun both dependency and
 CEM fixture sets, and remove the path override when a release preserves these
 behaviors. Do not repurpose this fork for unrelated URL changes or distribute
-it as an unmodified crates.io release. CEM-QL publication must account for the
-local patch: Cargo packages resolve path+version dependencies from the registry,
-so the private `cem-url` package has no registry release. Resolve that
-packaging boundary before publishing; workspace/native/WASM builds use the
-patched path today.
+it as an unmodified crates.io release. The user selected a separate fork crate
+on 2026-09-25. [RELEASING.md](RELEASING.md) defines its independent release and
+archive checks. CEM-QL uses an exact path+version dependency: the fork must be
+published and registry-resolvable before publishing CEM-QL. Local verification
+does not establish registry availability or authorize publication.
 
 The CEM-QL Nx WASM build passes with the private parser dependency. This is
 compilation verification; registered query execution parity remains pending.
@@ -79,7 +81,7 @@ The bundled historical setter fixtures expected the older trimming behavior.
 Exactly search[10–13] and hash[16–19] now use the expectations from the unchanged
 CEM-pinned WPT file at revision `c48d58747e1f211527fb695fd60548a997fae617` (same
 case indices, href and new_value). Source SHA-256 remains documented in
-[SETTERS.md](../../packages/cem_ql/fixtures/url/SETTERS.md). No CEM-pinned WPT
+[SETTERS.md](https://github.com/EPA-WG/cem/blob/develop/packages/cem_ql/fixtures/url/SETTERS.md). No CEM-pinned WPT
 expectation changed, and no new expected-failure waiver was added. The two
 assertions in the renamed `test_preserve_boundary_spaces_from_opaque_path`
 unit test now assert `data:space  %20` after clearing three-space seeds.
@@ -111,3 +113,19 @@ The complete pinned parse source SHA-256 is
 No new expected failure was added. Native regressions additionally cover
 query/fragment retention, existing ports, empty/absent authority, round trips
 and unchanged opaque/query/fragment carets.
+
+
+## Standalone crate packaging (2026-09-25)
+
+The `cem-url` 0.1.0 archive preserves every reviewed runtime source and fixture.
+[CEM-PACKAGING.patch](CEM-PACKAGING.patch) separately records the non-runtime
+source changes: the fork rustdoc URL and a package-local debugger visualizer
+path. The upstream published archive omitted that file, so enabling
+`debugger_visualizer` failed compilation when tested outside the repository.
+
+`debug_metadata/url.natvis` is copied unchanged from the upstream revision
+`d6ea13c5f8e7e6e627f6390161b3e185bda5e5ce`, path
+[`debug_metadata/url.natvis`](https://github.com/servo/rust-url/blob/d6ea13c5f8e7e6e627f6390161b3e185bda5e5ce/debug_metadata/url.natvis),
+SHA-256 `3e3e66a7e4d193b05aef4c3bdd2460e28a1c3eaa9999e9de447810894b0acc18`.
+It is included under the retained upstream project licenses. The package gate
+runs the archive's tests with every feature enabled, including this visualizer.

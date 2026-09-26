@@ -1,18 +1,31 @@
-rust-url
-========
+# cem-url
 
-[![Build status](https://github.com/servo/rust-url/workflows/CI/badge.svg)](https://github.com/servo/rust-url/actions?query=workflow%3ACI)
-[![Coverage](https://codecov.io/gh/servo/rust-url/branch/master/graph/badge.svg)](https://codecov.io/gh/servo/rust-url)
-[![Chat](https://img.shields.io/badge/chat-%23rust--url:mozilla.org-%2346BC99?logo=Matrix)](https://matrix.to/#/#rust-url:mozilla.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE-MIT)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
+CEM-maintained fork of upstream `url` 2.5.8, with scoped WHATWG URL
+compatibility fixes used by CEM-QL. This is a separately released package;
+`cem-url` 0.1.0 is its initial release candidate, not an upstream `url` release.
+It retains the Rust library name `url` and the upstream MIT OR Apache-2.0 license.
 
-URL library for Rust, based on the [URL Standard](https://url.spec.whatwg.org/).
+```toml
+[dependencies]
+url = { package = "cem-url", version = "=0.1.0" }
+```
 
-[Documentation](https://docs.rs/url)
+The registry dependency above becomes usable after publication. CEM's workspace
+uses the same exact version with a local path during development.
 
-Please see [UPGRADING.md](https://github.com/servo/rust-url/blob/main/UPGRADING.md) if you are upgrading from a previous version.
+```rust
+use url::Url;
+let url = Url::parse("https://example.test/docs").unwrap();
+assert_eq!(url.host_str(), Some("example.test"));
+```
 
-## Alternative Unicode back ends
+Read [CEM-PATCH.md](CEM-PATCH.md) for provenance, the runtime patch and fixture
+history. Known compatibility gaps remain; this package does not claim complete
+WHATWG conformance. [README.upstream.md](README.upstream.md) retains upstream
+project information. [UPSTREAM-Cargo.toml](UPSTREAM-Cargo.toml) preserves the
+original upstream manifest independently of Cargo's generated `Cargo.toml.orig`.
 
-`url` depends on the `idna` crate. By default, `idna` uses [ICU4X](https://github.com/unicode-org/icu4x/) as its Unicode back end. If you wish to opt for different tradeoffs between correctness, run-time performance, binary size, compile time, and MSRV, please see the [README of the latest version of the `idna_adapter` crate](https://docs.rs/crate/idna_adapter/latest) for how to opt into a different Unicode back end.
+The maintained code lives in `vendor/url` in the
+[CEM repository](https://github.com/EPA-WG/cem/tree/develop/vendor/url).
+Report fork issues there. See [RELEASING.md](RELEASING.md) for independent
+versioning, archive verification and dependency-first publication order.

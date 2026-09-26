@@ -67,6 +67,13 @@ for signatures, edge cases, and differences from JavaScript.
 
 ## URL functions and parameter core
 
+The URL core uses the independently versioned `cem-url` 0.1.0 fork of upstream
+`url` 2.5.8. The exact path/version dependency supports local development; the
+fork must be published before this crate. See the
+[fork release contract](../../vendor/url/RELEASING.md) and run
+`yarn nx run cem_ql:verify:url-package` for archive and packaged-feature checks.
+
+
 The native Rust `stdlib::url_params::UrlParams` core provides immutable ordered
 query parameters, form parsing/serialization and strict CEM-QL value adapters.
 Mapping records use deterministic key order; pair streams retain order and

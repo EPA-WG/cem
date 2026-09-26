@@ -4,6 +4,15 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ql/src",
     "targets": {
+        "verify:url-package": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "python3 tools/scripts/verify-cem-url-package.py",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": ["{workspaceRoot}/dist/target/cem_url_package/package"]
+        },
         "test:url-integration": {
             "cache": true,
             "executor": "nx:run-commands",

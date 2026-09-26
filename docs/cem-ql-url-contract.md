@@ -678,5 +678,20 @@ loading is deferred under the [module-query contract](cem-ql-cli-module-query-de
 
 Native server rendering and browser CEMT rendering use the shared URL fixture;
 this does not claim coverage of the separate legacy Edge/SSR transport host.
-The private `cem-url` distribution boundary remains open before crate publication,
+The separate `cem-url` release must be available before CEM-QL crate publication,
 and the recorded URL conformance gaps remain in the wishlist.
+
+
+## Separate fork distribution (2026-09-25)
+
+The user selected an independently released crate. `cem-url` starts at 0.1.0,
+retaining upstream `url` 2.5.8 as explicit provenance. CEM-QL pins the fork's
+exact version while retaining its local development path. The Rust library
+name remains `url`; other CEM packages still select registry `url` normally.
+
+The [release contract](../vendor/url/RELEASING.md) requires archive verification,
+packaged-feature tests and dependency-first publication. The archive includes
+both upstream licenses, WPT attribution, original README/manifest and all patch
+records. The all-feature check exposed an upstream missing debugger visualizer;
+the pinned original now ships with a package-local path. Parser behavior is
+unchanged. Actual registry publication and name/owner verification remain open.

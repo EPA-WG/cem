@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "cem-url"
-version = "2.5.8"
+version = "0.1.0"
 dependencies = [
  "bencher",
  "form_urlencoded",

@@ -143,10 +143,10 @@ url = { version = "2", features = ["debugger_visualizer"] }
 */
 
 #![no_std]
-#![doc(html_root_url = "https://docs.rs/url/2.5.7")]
+#![doc(html_root_url = "https://docs.rs/cem-url/0.1.0")]
 #![cfg_attr(
     feature = "debugger_visualizer",
-    debugger_visualizer(natvis_file = "../../debug_metadata/url.natvis")
+    debugger_visualizer(natvis_file = "../debug_metadata/url.natvis")
 )]
 
 pub use form_urlencoded;

@@ -5434,9 +5434,27 @@ registration identities may reuse an inherited or existing definition.
               completes with existing warnings. Shared registry/type/evaluator
               integration required package-wide tests; no workspace-wide task ran.
 
-        - [ ] Before CEM-QL crate publication, resolve distribution of the private
-              cem-url dependency; Cargo packaging cannot publish this local-only
-              patch as an ordinary registry dependency.
+        - [x] Decision: distribute the maintained URL fork as a separate crate.
+              Accepted 2026-09-25: user selected separate distribution. Use an
+              independent `cem-url` release version, retaining upstream provenance.
+        - [x] Fixture URL-PACKAGE: build a registry-ready archive, assert retained
+              licenses/upstream provenance/patch records and registry-only
+              dependency metadata, then run the packaged upstream URL regressions
+              and focused CEM consumer tests. Cover every packaged feature,
+              including the pinned upstream debugger visualizer and its local path.
+        - [x] Prepare `cem-url` metadata, independent version and release order;
+              pin CEM-QL to that version and document publication prerequisites.
+              Completed 2026-09-25: `cem-url` 0.1.0 has explicit crates.io
+              metadata, retained upstream 2.5.8 provenance and a matching
+              CEM-QL dependency. The archive verifies 25 retained files, builds,
+              passes 68 all-feature unit tests and the historical WPT harness,
+              and checks without default features. All 48 focused CEM-QL URL
+              and module tests pass. No full/global test ran. The packaged
+              visualizer's missing upstream file is now pinned and included.
+              See [release order and prerequisites](../vendor/url/RELEASING.md).
+        - [ ] Before publishing CEM-QL, publish the reviewed `cem-url` archive and
+              verify registry resolution. External publication remains a separate
+              action after local preparation.
 
     - [x] Fixture: run one URL query/result matrix through native evaluation,
           CLI, Node WASM and browser WASM; compare native server-rendered and
