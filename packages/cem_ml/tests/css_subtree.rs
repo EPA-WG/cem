@@ -157,6 +157,7 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("host", ":host {color:purple; &.active {background-color:orange}}", CssRuleMode::Declaration),
         ("duplicates", ".card {color:green; &.card {color:red} && {color:red}}", CssRuleMode::Declaration),
         ("zero-weight", ".card.active {:where(&) {.label {color:orange}}}", CssRuleMode::Declaration),
+        ("nth-structural", ".card {color:black; &:nth-child(odd) {color:orange}} .pseudo:nth-last-child(1) {color:purple} .card:nth-of-type(1) {background-color:pink} .pseudo:nth-last-of-type(1) {background-color:orange}", CssRuleMode::Declaration),
     ];
     let output = std::env::var_os("CEM_CSS_SUBTREE_FIXTURE_DIR").map(std::path::PathBuf::from);
     if let Some(dir) = &output {
@@ -367,4 +368,85 @@ fn stylesheet_does_not_collect_names_from_suppressed_branches() {
         .diagnostics
         .iter()
         .all(|d| d.source.origin().is_some()));
+}
+
+#[test]
+fn structural_nth_arguments_are_typed_and_emitted_with_parent_specificity() {
+    for (argument, canonical) in [
+        ("odd", "2n+1"),
+        ("EVEN", "2n+0"),
+        ("-n + 3", "-1n+3"),
+        ("2n-1", "2n-1"),
+        ("4", "0n+4"),
+        ("+n", "1n+0"),
+        ("2n /*999999999999999*/ + 1", "2n+1"),
+        ("n-000000000000001", "1n-1"),
+    ] {
+        for name in [
+            "nth-child",
+            "nth-last-child",
+            "nth-of-type",
+            "nth-last-of-type",
+        ] {
+            let source = format!(".card {{ &:{}({}) {{color:red}} }}", name, argument);
+            let p = plan(&source);
+            let retained = (0..p.tree.ast().nodes.len() as u32)
+                .filter_map(|id| p.tree.node(id))
+                .find(|node| {
+                    node.attributes.iter().any(|attr| {
+                        p.tree
+                            .node(*attr)
+                            .unwrap()
+                            .name
+                            .as_ref()
+                            .is_some_and(|n| n.local_name == "nth-a")
+                    })
+                })
+                .unwrap();
+            assert_eq!(
+                &source[retained.range.offset as usize
+                    ..(retained.range.offset + retained.range.length) as usize],
+                format!(":{name}({argument})")
+            );
+
+            let result =
+                emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+            assert!(
+                result.diagnostics.is_empty(),
+                "{source}: {:?}",
+                result.diagnostics
+            );
+            assert_eq!(
+                result.css(),
+                format!(".card {{&:{name}({canonical}) {{color:red;}}}}")
+            );
+            assert!(result.fragments.iter().all(|f| f.source.origin().is_some()));
+        }
+    }
+    let p = plan(".a.b:nth-child(2n) {color:red}");
+    let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+    assert!(result.css().is_empty()); // authored class/pseudo-class ceiling remains active
+}
+
+#[test]
+fn structural_nth_rejects_invalid_out_of_profile_and_untyped_arguments() {
+    for argument in [
+        "",
+        "1.5n",
+        "2 n",
+        "n+-1",
+        "2n of .item",
+        "var(--n)",
+        "999999999999",
+        "n-999999999999",
+        "999999999999n",
+        "2n-999999999999",
+    ] {
+        let p = plan(&format!(".card:nth-child({argument}) {{color:red}}"));
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.css().is_empty() && !result.diagnostics.is_empty(),
+            "{argument}"
+        );
+    }
 }

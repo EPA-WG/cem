@@ -328,6 +328,7 @@ pub enum CssSelectorSimpleSelector {
     PseudoClass {
         name: String,
         selectors: Option<Box<CssSelectorListAst>>,
+        nth: Option<(i32, i32)>,
         relative: bool,
         source_range: CssSelectorSourceRange,
     },
@@ -1076,6 +1077,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 CssSelectorSimpleSelector::PseudoClass {
                     name: "pseudo-element".to_owned(),
                     selectors: None,
+                    nth: None,
                     relative: false,
                     source_range: range,
                 },
@@ -1107,6 +1109,16 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 next.source_range,
             ));
             if self.stylesheet {
+                if matches!(
+                    name.as_str(),
+                    "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
+                ) {
+                    self.unsupported(
+                        range,
+                        "Structural pseudo-class requires an An+B argument",
+                        Some(name.clone()),
+                    );
+                }
                 // State and structural pseudo-classes are retained for browser
                 // evaluation; no native query capability is requested.
             } else if requires_host_capability(&name) {
@@ -1128,6 +1140,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 CssSelectorSimpleSelector::PseudoClass {
                     name,
                     selectors: None,
+                    nth: None,
                     relative: false,
                     source_range: CssSelectorSourceRange::covering(
                         colon.source_range,
@@ -1153,6 +1166,53 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             return None;
         };
         let relative = name == "has";
+        let is_nth = self.stylesheet
+            && matches!(
+                name.as_str(),
+                "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
+            );
+        let nth = if is_nth {
+            let tokens = &self.tokens[start + 2..close];
+            // cssparser saturates oversized integers. Reject them before parsing
+            // so canonical coefficients cannot change the authored expression.
+            let fits = tokens
+                .iter()
+                .filter(|t| matches!(t.token_kind.as_str(), "ident" | "number" | "dimension"))
+                .all(|t| {
+                    [&t.lexeme, t.value.as_deref().unwrap_or("")]
+                        .into_iter()
+                        .all(|text| {
+                            text.split(|c: char| !c.is_ascii_digit())
+                                .filter(|digits| !digits.is_empty())
+                                .all(|digits| {
+                                    digits.parse::<u32>().is_ok_and(|n| n <= i32::MAX as u32)
+                                })
+                        })
+                });
+            let source: String = tokens.iter().map(|t| t.lexeme.as_str()).collect();
+            let mut input = cssparser::ParserInput::new(&source);
+            let mut parser = cssparser::Parser::new(&mut input);
+            let value = if fits {
+                cssparser::parse_nth(&mut parser)
+                    .ok()
+                    .filter(|_| parser.is_exhausted())
+            } else {
+                None
+            };
+            if value.is_none() {
+                self.unsupported(
+                    Some(CssSelectorSourceRange::covering(
+                        colon.source_range,
+                        self.tokens[close].source_range,
+                    )),
+                    "Structural pseudo-class requires bounded An+B without an of-selector list",
+                    Some(name.clone()),
+                );
+            }
+            value
+        } else {
+            None
+        };
         let selectors = if matches!(name.as_str(), "is" | "where" | "not" | "has")
             || (self.stylesheet && matches!(name.as_str(), "host" | "global"))
         {
@@ -1169,6 +1229,8 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 );
             }
             parsed.map(Box::new)
+        } else if is_nth {
+            None
         } else {
             let range = Some(CssSelectorSourceRange::covering(
                 colon.source_range,
@@ -1197,6 +1259,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             CssSelectorSimpleSelector::PseudoClass {
                 name,
                 selectors,
+                nth,
                 relative,
                 source_range: CssSelectorSourceRange::covering(
                     colon.source_range,

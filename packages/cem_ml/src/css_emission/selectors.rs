@@ -325,6 +325,20 @@ fn emit(
         "pseudo-element" => Ok(format!("::{}", ident(field("name")?))),
         "pseudo-class" => {
             let name = field("name")?;
+            if matches!(
+                name,
+                "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
+            ) {
+                if !node.children.is_empty() {
+                    return Err(invalid(tree, id));
+                }
+                let a: i32 = field("nth-a")?.parse().map_err(|_| invalid(tree, id))?;
+                let b: i32 = field("nth-b")?.parse().map_err(|_| invalid(tree, id))?;
+                if a == i32::MIN || b == i32::MIN {
+                    return Err(invalid(tree, id));
+                }
+                return Ok(format!(":{name}({a}n{b:+})"));
+            }
             if matches!(name, "host" | "root" | "global") {
                 if name != "host" {
                     diagnostics.push(diagnostic(

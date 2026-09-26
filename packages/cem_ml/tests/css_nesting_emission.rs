@@ -132,7 +132,7 @@ fn instance_prefix_and_host_normalization_are_applied_at_the_correct_level() {
 fn nested_api_requires_a_nested_rule_and_preserves_unsupported_diagnostics() {
     let tree = import_data(".card {}", "text/css", "cem", "nested.css").unwrap();
     assert!(emit_css_nested_selectors(&tree, rules(&tree)[0], CssRuleMode::Declaration).is_err());
-    let result = emitted(".card { &:nth-child(2n) {} }", CssRuleMode::Declaration);
+    let result = emitted(".card { &:nth-child(2n of .item) {} }", CssRuleMode::Declaration);
     assert!(result.selectors.is_empty());
     assert_eq!(
         result.diagnostics[0].code,

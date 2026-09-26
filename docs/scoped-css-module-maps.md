@@ -414,7 +414,7 @@ separate within a compound for later manufactured-specificity checks.
 browser feature-support assertion. The profile leaves simple pseudo-class
 matching to the browser. Forms outside the profile, including functional/chained
 pseudo-elements,
-`nth-*` functions, root-level `&`, and unbound namespace prefixes, produce an
+unsupported structural-selector arguments, root-level `&`, and unbound namespace prefixes produce an
 empty list marked `analysis-status="unsupported"`, with no partial specificity
 claim. Import still retains the authored rule; unsupported analysis does not
 make otherwise retained stylesheet adoption fail. The compiler must diagnose
@@ -1025,3 +1025,22 @@ The browser sample includes `animation: 1s linear linear` to show the distinct
 meanings with unchanged visible source. Nested HTML/CEM-ML/CSS source scopes and
 CLI ANSI presentation use the same distinctions. Direct browser CSS export
 continues to produce uncolored CSS.
+
+## Bounded structural nth selectors
+
+The stylesheet importer accepts An+B arguments for `:nth-child()`,
+`:nth-last-child()`, `:nth-of-type()` and `:nth-last-of-type()`. Retained
+`simple-selector` nodes carry numeric `nth-a` and `nth-b` attributes, and the
+emitter writes a canonical expression from those fields without reparsing.
+The original selector range remains available. Structural matching stays with
+the browser, following [Selectors Level 4](https://www.w3.org/TR/selectors-4/#the-nth-child-pseudo)
+and the [An+B grammar](https://www.w3.org/TR/css-syntax-3/#anb-microsyntax).
+
+The initial profile bounds coefficient magnitudes to 2,147,483,647 and rejects
+larger authored integers before cssparser can saturate them. It accepts odd/even,
+signed coefficients and permitted comments/whitespace. Malformed expressions,
+bare nth pseudo-classes and `of <selector-list>` remain unsupported. Missing
+numeric metadata diagnoses without a text fallback. Authored specificity,
+nesting weight, managed scope and the library ceiling remain enforced.
+Standalone selector-query capabilities are unchanged. Native fixtures and four
+Chromium computed-style checks cover these forms.

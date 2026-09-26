@@ -504,3 +504,18 @@ fn host_alias_compounds_cannot_hide_duplicate_weight_in_arguments() {
         );
     }
 }
+
+#[test]
+fn structural_pseudo_classes_require_retained_numeric_coefficients() {
+    let tree = import_data(
+        "<rule xmlns='https://cem.dev/ns/data/css/1' kind='style'><selector-list analysis-status='complete'><selector specificity='0-1-0'><compound-selector><simple-selector kind='pseudo-class' name='nth-child' relative='false'/></compound-selector></selector></selector-list></rule>",
+        "application/xml", "cem", "missing-nth.xml",
+    ).unwrap();
+    let rule = tree.node(0).unwrap().children[0];
+    let result = cem_ml::css_emission::emit_css_declaration_selectors(&tree, rule).unwrap();
+    assert!(result.selectors.is_empty());
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.selector_tree_invalid"
+    );
+}

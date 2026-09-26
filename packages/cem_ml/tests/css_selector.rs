@@ -333,7 +333,12 @@ fn parser_reports_invalid_and_unsupported_features_without_silent_non_matches() 
         .any(|diagnostic| diagnostic.code == "css-selector.feature.unsupported"));
 
     for selector in [
-        "::before", "::MARKER", ":before", ":after", ":first-line", ":first-letter",
+        "::before",
+        "::MARKER",
+        ":before",
+        ":after",
+        ":first-line",
+        ":first-letter",
     ] {
         let (_, diagnostics) = parse_selector(selector, &BTreeMap::new());
         assert!(diagnostics
@@ -342,7 +347,9 @@ fn parser_reports_invalid_and_unsupported_features_without_silent_non_matches() 
     }
     for selector in [":host", ":host(.active)"] {
         let (_, diagnostics) = parse_selector(selector, &BTreeMap::new());
-        assert!(diagnostics.iter().any(|d| d.code == "css-selector.capability.missing"));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.code == "css-selector.capability.missing"));
     }
     let (_, capability) = parse_selector("a:hover", &BTreeMap::new());
     assert!(capability
@@ -543,4 +550,17 @@ fn element_tree_owner_rejects_lifecycle_inputs_without_an_element_view() {
     )
     .expect_err("JSON must not be coerced into an element-tree view");
     assert_eq!(fact.kind, CssSelectorFactKind::InputUnsupported);
+}
+
+#[test]
+fn stylesheet_nth_support_does_not_expand_query_capabilities() {
+    for selector in [
+        ":nth-child(odd)",
+        ":nth-last-child(2n)",
+        ":nth-of-type(1)",
+        ":nth-last-of-type(-n+2)",
+    ] {
+        let (_, diagnostics) = parse_selector(selector, &BTreeMap::new());
+        assert!(!diagnostics.is_empty(), "{selector}");
+    }
 }

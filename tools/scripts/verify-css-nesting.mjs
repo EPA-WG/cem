@@ -19,6 +19,10 @@ try {
   const page = await browser.newPage();
   const markup = '<cem-fixture class="active"><div class="card active"><span class="label">text</span></div><div class="pseudo"></div></cem-fixture>';
   const cases = [
+    ['nth-structural', '.card', null, 'color', 'rgb(255, 165, 0)'],
+    ['nth-structural', '.pseudo', null, 'color', 'rgb(128, 0, 128)'],
+    ['nth-structural', '.card', null, 'backgroundColor', 'rgb(255, 192, 203)'],
+    ['nth-structural', '.pseudo', null, 'backgroundColor', 'rgb(255, 165, 0)'],
     ['global-alias', 'cem-fixture', null, 'color', 'rgb(128, 0, 128)'],
     ['global-alias', 'cem-fixture', null, 'backgroundColor', 'rgb(255, 165, 0)'],
     ['global-alias', '.card', null, 'backgroundColor', 'rgba(0, 0, 0, 0)'],

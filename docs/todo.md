@@ -5972,11 +5972,18 @@ registration identities may reuse an inherited or existing definition.
         - [ ] Connect native closure emission to stable effective stylesheet
               ownership, cache invalidation and browser lifecycle only after
               completing the remaining syntax profiles and diagnostic gates.
-        - [ ] Fixture: retain and emit bounded structural `:nth-child()`,
+        - [x] Fixture: retain and emit bounded structural `:nth-child()`,
               `:nth-last-child()`, `:nth-of-type()` and `:nth-last-of-type()`
               An+B arguments, with typed coefficients, specificity, source ranges,
               invalid-input rejection and native/browser matching checks.
               Start without `of <selector-list>`; keep query capabilities unchanged.
+              Focused native/schema suites, lint and Nx WASM/browser gate pass.
+              Chromium checks all four forms; coefficients reject saturation
+              outside the supported magnitude of 2,147,483,647.
+        - [ ] Fixture: extend `:nth-child()` and `:nth-last-child()` with
+              `of <selector-list>`, retaining the filter tree and adding its
+              maximum specificity to the pseudo-class weight. Cover filtering,
+              nesting, invalid lists and policy limits before browser cutover.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
