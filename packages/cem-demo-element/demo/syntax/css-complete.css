@@ -38,3 +38,8 @@
     from { opacity: 0; }
     to { opacity: 1; }
 }
+
+/* Argument keywords keep a different role from the filter's class name. */
+:nth-child(odd of .odd) {
+    border-width: 1px;
+}

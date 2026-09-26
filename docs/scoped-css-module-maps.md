@@ -1009,7 +1009,7 @@ import with a root animation reference and root cascade override. Runtime
 transport, owner-identity derivation, cache/lifecycle wiring and installation
 remain pending.
 
-## Retained animation roles in source presentation
+## Retained semantic roles in source presentation
 
 The shared import projection refines the lossless CSS event stream with
 `symbol` and `keyword` semantic roles using the retained keyframe and animation
@@ -1025,6 +1025,12 @@ The browser sample includes `animation: 1s linear linear` to show the distinct
 meanings with unchanged visible source. Nested HTML/CEM-ML/CSS source scopes and
 CLI ANSI presentation use the same distinctions. Direct browser CSS export
 continues to produce uncolored CSS.
+
+Retained structural nth selectors also provide argument keyword ranges. The
+prefix before their retained filter list colors identifiers such as `odd`,
+`even` and `of` as keywords; identifiers inside the filter keep selector colors.
+The sample `:nth-child(odd of .odd)` demonstrates the distinction. Escapes and
+comments keep their original source bytes, and invalid filters keep broad roles.
 
 ## Bounded structural nth selectors
 

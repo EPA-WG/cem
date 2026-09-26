@@ -1257,6 +1257,42 @@ mod tests {
     }
 
     #[test]
+    fn css_nth_argument_roles_stop_at_the_retained_filter() {
+        for source in [
+            ":nth-child(odd of .odd) {color:red}",
+            r":nth-last-child(even \6f f .odd) {color:red}",
+            ":nth-of-type(odd /*keep*/) {color:red}",
+        ] {
+            let value = response(
+                &serde_json::json!({"source":source,"contentType":"text/css"}).to_string(),
+            );
+            let argument = source.find('(').unwrap() + 1;
+            assert_eq!(
+                role_at(&value, argument),
+                Some("syntax.keyword"),
+                "{source}"
+            );
+            if let Some(index) = source.find(" of ") {
+                assert_eq!(role_at(&value, index + 1), Some("syntax.keyword"));
+            }
+            if let Some(index) = source.find(r"\6f f") {
+                assert_eq!(role_at(&value, index), Some("syntax.keyword"));
+            }
+            if let Some(index) = source.find(".odd") {
+                assert_eq!(role_at(&value, index + 1), Some("syntax.name"));
+            }
+            assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+        }
+        let source = ":nth-child(odd of > .odd) {color:red}";
+        let value =
+            response(&serde_json::json!({"source":source,"contentType":"text/css"}).to_string());
+        assert_ne!(
+            role_at(&value, source.find("odd").unwrap()),
+            Some("syntax.keyword")
+        );
+    }
+
+    #[test]
     fn css_semantic_coloring_preserves_fallback_and_escaped_source() {
         for source in [
             r".card {animation: 1s linear var(--motion)}",

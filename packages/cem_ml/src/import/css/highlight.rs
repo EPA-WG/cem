@@ -9,6 +9,17 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             && e.value.as_deref().is_some_and(|n| {
                 n.eq_ignore_ascii_case("keyframes") || n.eq_ignore_ascii_case("-webkit-keyframes")
             }))
+            || (e.token_kind == "function-open"
+                && e.value.as_deref().is_some_and(|name| {
+                    [
+                        "nth-child",
+                        "nth-last-child",
+                        "nth-of-type",
+                        "nth-last-of-type",
+                    ]
+                    .iter()
+                    .any(|nth| name.eq_ignore_ascii_case(nth))
+                }))
             || (e.semantic_kind == CssSemanticKindAst::Property
                 && e.value.as_deref().is_some_and(|n| {
                     [
@@ -34,6 +45,7 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             node_id,
             expanded_name,
             attributes,
+            children,
             ..
         } = node
         else {
@@ -51,6 +63,19 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
                     _ => None,
                 })
         };
+        if expanded_name.local_name == "simple-selector" && attr("nth-a").is_some() {
+            if let Some(range) = semantics.ranges.get(node_id) {
+                let mut argument = *range;
+                // The retained filter begins after An+B and `of`. Restrict the
+                // keyword role to that prefix so filter identifiers keep their
+                // selector roles, including nested structural pseudo-classes.
+                if let Some(filter) = children.first().and_then(|id| semantics.ranges.get(id)) {
+                    argument.length = filter.offset.saturating_sub(argument.offset);
+                }
+                roles.push((argument, CssSemanticKindAst::Keyword));
+            }
+            continue;
+        }
         let role = match expanded_name.local_name.as_str() {
             "keyframe-name" if attr("syntax-valid") == Some("true") => CssSemanticKindAst::Symbol,
             "animation-name-slot" if attr("kind") == Some("ident") => CssSemanticKindAst::Symbol,

@@ -507,6 +507,10 @@ export const OfflineDemoDocuments: Story = {
             syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
         ).filter((token) => token.textContent === 'linear');
         await expect(animationTokens.map((token) => token.localName)).toEqual(['strong', 'b', 'b']);
+        const nthTokens = Array.from(
+            syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
+        ).filter((token) => token.textContent === 'odd' || token.textContent === 'of');
+        await expect(nthTokens.map((token) => token.localName)).toEqual(['strong', 'strong', 'b']);
         const select = syntaxDocument.querySelector<HTMLSelectElement>('#theme-mode');
         const description = syntaxDocument.querySelector<HTMLOutputElement>('#theme-description');
         if (!select || !description) throw new Error('Expected syntax theme controls');
@@ -541,6 +545,10 @@ export const OfflineDemoDocuments: Story = {
             await expect(syntaxWindow.getComputedStyle(animationTokens[0]).color)
                 .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'keyword'));
             await expect(syntaxWindow.getComputedStyle(animationTokens[1]).color)
+                .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'name'));
+            await expect(syntaxWindow.getComputedStyle(nthTokens[0]).color)
+                .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'keyword'));
+            await expect(syntaxWindow.getComputedStyle(nthTokens[2]).color)
                 .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'name'));
             const cssSemanticColors = ['property', 'value', 'function'].map((role) =>
                 sourceRoleColor(

@@ -3940,6 +3940,11 @@ registration identities may reuse an inherited or existing definition.
           visible-text parity, parent-scope resumption, and readable fallback
           coloring for unsupported/recovered syntax. Start with native tests,
           then verify WASM/sample browser and real CLI paths.
+    - [x] Fixture: color retained nth-selector argument keywords in native source,
+          embedded CLI output and browser samples; preserve filter selector colors,
+          escaped source, comments and unsupported-syntax fallback.
+          Completed: native source highlighting, real CLI HTML/ANSI output,
+          both lint targets and all 12 rebuilt WASM sample browser tests pass.
     - [ ] Extend retained role coverage for selector arguments and conditional
           group operators as their typed import profiles grow. Keep the existing
           selector/property/function colors and source fallback for other syntax.
