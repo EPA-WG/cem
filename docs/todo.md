@@ -5750,6 +5750,13 @@ registration identities may reuse an inherited or existing definition.
     - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and
           other CSS URL-bearing constructs through the module map from the
           closest scope, using the shared resolver and retained CSS AST.
+        - [x] Fixture: bridge retained CSS import/URL nodes to native resolution;
+              preserve order, import conditions, source ranges, mapped metadata,
+              imported-sheet bases, context isolation and independent failures.
+              Distinguish comment trivia from recovered invalid URL/string tokens.
+        - [ ] Decide unmapped CSS URL fallback before enabling loading: preserve
+              strict bare-specifier rejection or use CSS-relative URL semantics.
+              See the [concrete proposal](scoped-css-module-maps.md#unmapped-css-urls-decision-required).
     - [ ] Include an explicit CSS override entry in the module map; define its
           syntax and precedence and verify the closest-scope override is used
           for stylesheet imports and resource URLs.

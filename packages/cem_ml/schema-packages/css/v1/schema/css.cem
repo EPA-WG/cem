@@ -71,7 +71,7 @@
         {attribute @name="nonce" @type="schema:string"}
         {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
         {attribute @name="href" @type="schema:string"}
-        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal combinator ident function hash string url number percentage dimension delimiter whitespace unicode-range curly square paren unknown"}
+        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal combinator ident function hash string url number percentage dimension delimiter whitespace comment unicode-range curly square paren unknown"}
         {attribute @name="selector" @type="schema:string"}
         {attribute @name="prelude" @type="schema:string"}
         {attribute @name="name" @type="schema:string"}

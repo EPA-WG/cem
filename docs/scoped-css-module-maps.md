@@ -1,7 +1,7 @@
 # Scoped module maps for typed CSS
 
-Status: native CSS URL lookup, semantic tree import and static CEM-ML template
-and DOM-template style adoption implemented. Scoped import loading and
+Status: native CSS URL lookup, retained-tree reference resolution, semantic tree
+import, and static CEM-ML/DOM-template style adoption implemented. Scoped import loading and
 browser integration remain pending. The active work is tracked
 in [todo.md](todo.md). Browser styles must not depend on these capabilities
 until their implementation and integration checks are complete.
@@ -158,3 +158,51 @@ validation, shared adoption, both settlement APIs, unsupported/dynamic types,
 native failure, no-style declarations, reconnect/disposal, and retained hydrated
 output. The stories also run with real WASM in a dedicated worker. The scoped CSS
 demo extension remains pending scoped import and resource URL resolution.
+
+## Retained CSS reference resolution: implemented
+
+`cem_ml::css_resources::resolve_css_resources` walks the retained CSS tree and
+resolves `import` nodes, unquoted URL components and quoted `url()` functions
+through the shared CSS-purpose resolver. It keeps source order, import
+layer/supports/media fields, source maps and byte ranges. The plan owns an `Arc`
+to the original tree and stores each resolution or error independently, including
+mapping MIME/integrity metadata. CSS strings and comments are never re-tokenized. The import boundary labels
+comment components explicitly so recovered invalid tokens cannot be mistaken
+for ignorable trivia inside a quoted URL.
+
+Callers supply the owning template URL for inline styles or the final imported
+stylesheet URL. The synthetic tree source URI is never a resolution base. The
+same retained tree can produce distinct plans under different instance contexts;
+plans must not be reused by declaration identity alone. Tests cover nearest-map
+overrides, ancestor blocks, explicit-relative fallback, current bare misses,
+imported-sheet bases, quoted escapes, nested/custom-property URLs, empty CSS and
+non-CSS rejection.
+
+This native plan does not load imports or produce rewritten browser CSS.
+String-valued resource grammars such as `image-set()` candidates, local-fragment
+semantics, empty URL handling, import condition validation/cycles, shared-loader
+integration and per-context style ownership remain downstream work. The current
+browser import suppression continues to apply.
+
+## Unmapped CSS URLs: decision required
+
+The shared resolver currently accepts explicitly relative URLs (`./icon.svg`)
+but rejects unmapped bare specifiers (`icon.svg`, `icons/check.svg`, `theme`).
+The native CSS resolver tests explicitly retain this behavior. In contrast,
+[CSS relative URL semantics](https://www.w3.org/TR/css-values-4/#relative-urls)
+resolve ordinary path names against the stylesheet base. Connecting the native
+plan to loading makes this difference observable to CSS authors.
+
+Recommended: for CSS only, consult the closest module maps first, then resolve
+an unmapped name as a URL relative to its stylesheet/template base. For a sheet
+at `https://example.test/css/main.css`, unmapped `url(icons/check.svg)` becomes
+`https://example.test/css/icons/check.svg`. A mapped `theme` still uses the closest
+resource override. Explicit blocks and policy failures never trigger fallback,
+and the fallback target must satisfy ancestor policy. Non-CSS lookup is unchanged.
+This also means a misspelled unmapped alias such as `theme` becomes a relative
+resource request rather than an unresolved-alias diagnostic.
+
+Alternative: retain strict module-specifier rules for CSS too. Authors must map
+`icons/check.svg` or write `./icons/check.svg`; missing aliases fail before a load.
+Decide between these behaviors before adding import/resource loading and its
+fallback fixtures.

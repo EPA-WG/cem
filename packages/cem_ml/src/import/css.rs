@@ -367,7 +367,9 @@ impl CssImport<'_> {
                 "parenthesis-open" => "paren",
                 "ident" | "string" | "url" | "number" | "percentage" | "dimension" | "hash"
                 | "whitespace" => e.token_kind.as_str(),
-                "comment" | "presentation-gap" | "bad-url" | "bad-string" => "unknown",
+                "comment" => "comment",
+                "presentation-gap" => "whitespace",
+                "bad-url" | "bad-string" => "unknown",
                 _ => "delimiter",
             };
             self.attr(id, "kind", kind);
