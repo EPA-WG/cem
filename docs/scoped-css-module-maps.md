@@ -419,8 +419,8 @@ forms are invalid CSS. Broader coverage remains required before browser cutover.
 This is an isolated stylesheet profile of the existing native selector parser.
 The selector-query entry point retains its capability restrictions: `:host`,
 `:host(...)`, and host-state queries remain unsupported without query host
-capabilities. Declaration/shared selector emission is implemented below; instance
-rewriting and full scoped rule emission remain pending.
+capabilities. Declaration/shared and instance selector emission are implemented
+below; full scoped rule emission remains pending.
 
 ## Declaration/shared selector fragments: implemented natively
 
@@ -448,10 +448,35 @@ until import support is added. Ordinary selector-list functions and relative
 combinators emit recursively. Decoded identifiers and attribute values are
 escaped when serialized; any-namespace type selectors emit an explicit `*|`.
 
-These are declaration/shared fragments, not installable CSS. Instance selector
-prefixing, remaining selector grammar, declaration policy, keyframes, resource
-rewriting, scope wrappers and complete closure emission remain pending. Browser
-installation continues to use the existing path until that compiler is ready.
+These are declaration/shared fragments, not installable CSS. Remaining selector
+grammar, declaration policy, keyframes, resource rewriting, scope wrappers and
+complete closure emission remain pending. Browser installation continues to use
+the existing path until that compiler is ready.
+
+## Instance selector fragments: implemented natively
+
+`cem_ml::css_emission::emit_css_instance_selectors` uses the same retained tree
+and policy traversal. It rewrites `:host` and diagnosed host aliases to `:scope`,
+keeps functional host arguments attached, and prefixes other top-level selectors
+with `:scope `. Already-leading `:scope` is not doubled. Type/universal host
+arguments use `:scope:is(argument)` to retain valid compound syntax.
+
+Prefix selection inspects the first simple selector in the first compound,
+preserving the existing runtime behavior. A host nested in a function does not
+exempt the outer selector: `:is(:host, .item)` emits
+`:scope :is(:scope, .item)`. Consequently its host branch cannot match the scope
+root; `:where(:host)` likewise emits a selector that matches nothing. Authors
+must use a leading host selector or separate top-level list entry to target the
+root. This migration does not distribute selector functions or change that
+matching contract. Relative selectors inside `:has` receive no extra prefix.
+
+IDs and duplicate specificity-bearing class/attribute tokens remain forbidden,
+and unsupported retained profiles remain suppressed. The authored `0-2-1`
+ceiling applies only to declaration/shared CSS, so instance selectors can exceed
+it. Returned specificity and source ranges describe the authored selector,
+before the generated prefix. Scope wrappers, lower limits, declarations and
+instance ownership still need full compiler/browser integration; these fragments
+alone do not authorize installation.
 
 ## Shared-resolver byte delivery: implemented natively
 

@@ -244,3 +244,91 @@ fn declaration_selectors_emit_pseudo_elements_and_enforce_their_type_weight() {
         "cem.scoped_css.specificity_unsupported"
     );
 }
+
+fn instance_selectors(css: &str) -> cem_ml::css_emission::CssSelectorEmission {
+    let tree = import_data(css, "text/css", "cem", "instance.css").unwrap();
+    let rule = (0..tree.ast().nodes.len() as u32)
+        .find(|id| {
+            tree.node(*id)
+                .unwrap()
+                .name
+                .as_ref()
+                .is_some_and(|n| n.local_name == "rule")
+        })
+        .unwrap();
+    cem_ml::css_emission::emit_css_instance_selectors(&tree, rule).unwrap()
+}
+
+#[test]
+fn instance_selectors_rewrite_hosts_and_prefix_only_top_level_selectors() {
+    let result = instance_selectors(":host, :host(.active) > button, :host(button.active), .item::before, :scope > .item, :ROOT, :global, :scopeful {color:red}");
+    let emitted: Vec<_> = result.selectors.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(
+        emitted,
+        [
+            ":scope",
+            ":scope.active > *|button",
+            ":scope:is(*|button.active)",
+            ":scope .item::before",
+            ":scope > .item",
+            ":scope",
+            ":scope",
+            ":scope :scopeful"
+        ]
+    );
+    assert_eq!(result.diagnostics.len(), 2);
+    assert!(result
+        .diagnostics
+        .iter()
+        .all(|d| d.code == "cem.scoped_css.global_alias"));
+    assert_eq!(result.selectors[0].range.offset, 0);
+    assert_eq!(result.selectors[0].range.length, 5);
+    assert_eq!(result.selectors[3].authored_specificity, (0, 1, 1));
+}
+
+#[test]
+fn instance_selectors_preserve_existing_nested_host_prefix_contract() {
+    let result = instance_selectors(":is(:host, .item), :where(:host), :not(:host), :host:has(> .child), .active:host {color:red}");
+    let emitted: Vec<_> = result.selectors.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(
+        emitted,
+        [
+            ":scope :is(:scope, .item)",
+            ":scope :where(:scope)",
+            ":scope :not(:scope)",
+            ":scope:has( > .child)",
+            ":scope .active:scope"
+        ]
+    );
+    assert!(result.diagnostics.is_empty());
+}
+
+#[test]
+fn instance_selectors_keep_policy_but_do_not_apply_library_specificity_ceiling() {
+    let css = ".a.b.c, #bad, .dup.dup, :not(#bad), .ok {color:red}";
+    let instance = instance_selectors(css);
+    let declaration = selectors(css);
+    let emitted: Vec<_> = instance.selectors.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(emitted, [":scope .a.b.c", ":scope .ok"]);
+    assert_eq!(instance.selectors[0].authored_specificity, (0, 3, 0));
+    let codes: Vec<_> = instance.diagnostics.iter().map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        [
+            "cem.scoped_css.id_selector_unsupported",
+            "cem.scoped_css.manufactured_specificity_unsupported",
+            "cem.scoped_css.id_selector_unsupported"
+        ]
+    );
+    assert_eq!(declaration.selectors.len(), 1);
+    assert_eq!(
+        declaration.diagnostics[0].code,
+        "cem.scoped_css.specificity_unsupported"
+    );
+    let unsupported = instance_selectors("::part(control) {}");
+    assert!(unsupported.selectors.is_empty());
+    assert_eq!(
+        unsupported.diagnostics[0].code,
+        "cem.scoped_css.selector_unsupported"
+    );
+}

@@ -5785,10 +5785,14 @@ registration identities may reuse an inherited or existing definition.
               normalize legacy colon forms and stylesheet pseudo names, count
               type specificity, preserve source ranges, and keep unsupported
               placements and selector-query behavior isolated.
-        - [ ] Extend retained selector grammar and implement native instance
-              host rewriting/prefixing, then complete rule emission from typed
-              selector/declaration nodes before browser cutover, without
-              downstream CSS parsing.
+        - [x] Fixture: emit native instance selectors with host/alias rewriting,
+              one top-level descendant prefix, existing nested-host behavior,
+              source retention and shared ID/duplicate policy; keep the authored
+              specificity ceiling exclusive to declaration/shared selectors.
+        - [ ] Complete native declaration policy and rule-body emission from
+              typed CEM nodes, then extend remaining selector grammar and assemble
+              managed scope wrappers before browser cutover, without downstream
+              CSS parsing.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
               media entries with diagnostics/source ranges, suppress layered

@@ -1,4 +1,4 @@
-//! Declaration/shared selector fragments; no source-text parsing or installation.
+//! Managed selector fragments; no source-text parsing or installation.
 use super::{diagnostic, CssEmissionDiagnostic};
 use crate::{
     css_resources::{attribute, named},
@@ -33,6 +33,25 @@ pub struct CssSelectorEmission {
 pub fn emit_css_declaration_selectors(
     tree: &RetainedCemTree,
     rule: AstNodeId,
+) -> Result<CssSelectorEmission, CssEmissionDiagnostic> {
+    emit_selectors(tree, rule, false)
+}
+
+/// Emit instance selector fragments for a managed implicit @scope. Host aliases
+/// become :scope; other top-level selectors receive a :scope descendant prefix.
+/// ID/duplicate policy still applies, but the declaration specificity ceiling
+/// does not. The caller must validate declarations and apply the scope limits.
+pub fn emit_css_instance_selectors(
+    tree: &RetainedCemTree,
+    rule: AstNodeId,
+) -> Result<CssSelectorEmission, CssEmissionDiagnostic> {
+    emit_selectors(tree, rule, true)
+}
+
+fn emit_selectors(
+    tree: &RetainedCemTree,
+    rule: AstNodeId,
+    instance: bool,
 ) -> Result<CssSelectorEmission, CssEmissionDiagnostic> {
     if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("style") {
         return Err(invalid(tree, rule));
@@ -75,7 +94,7 @@ pub fn emit_css_declaration_selectors(
             result.diagnostics.push(d);
             continue;
         }
-        if weight > (0, 2, 1) {
+        if !instance && weight > (0, 2, 1) {
             result.diagnostics.push(diagnostic(
                 tree,
                 id,
@@ -85,8 +104,11 @@ pub fn emit_css_declaration_selectors(
             continue;
         }
         let mut aliases = Vec::new();
-        match emit(tree, id, &mut aliases) {
-            Ok(text) => {
+        match emit(tree, id, instance, &mut aliases) {
+            Ok(mut text) => {
+                if instance && !starts_with_scope(tree, id) {
+                    text = format!(":scope {text}");
+                }
                 let node = tree.node(id).unwrap();
                 result.selectors.push(CssEmittedSelector {
                     text,
@@ -100,6 +122,25 @@ pub fn emit_css_declaration_selectors(
         }
     }
     Ok(result)
+}
+
+// Mirror the existing instance contract using retained structure, not a regex:
+// only an initial explicit scope/host alias avoids the top-level prefix. A host
+// nested inside :is/:where/:not does not change that decision.
+fn starts_with_scope(tree: &RetainedCemTree, selector: AstNodeId) -> bool {
+    let Some(&compound) = tree.node(selector).and_then(|n| n.children.first()) else {
+        return false;
+    };
+    let Some(&simple) = tree.node(compound).and_then(|n| n.children.first()) else {
+        return false;
+    };
+    named(tree, compound, "compound-selector")
+        && named(tree, simple, "simple-selector")
+        && attribute(tree, simple, "kind") == Some("pseudo-class")
+        && matches!(
+            attribute(tree, simple, "name"),
+            Some("host" | "scope" | "root" | "global")
+        )
 }
 
 fn specificity(
@@ -163,6 +204,7 @@ fn policy(
 fn emit(
     tree: &RetainedCemTree,
     id: AstNodeId,
+    instance: bool,
     diagnostics: &mut Vec<CssEmissionDiagnostic>,
 ) -> Result<String, CssEmissionDiagnostic> {
     let node = tree.node(id).ok_or_else(|| invalid(tree, id))?;
@@ -173,7 +215,7 @@ fn emit(
         return node
             .children
             .iter()
-            .map(|child| emit(tree, *child, diagnostics))
+            .map(|child| emit(tree, *child, instance, diagnostics))
             .collect::<Result<Vec<_>, _>>()
             .map(|items| items.join(", "));
     }
@@ -181,7 +223,7 @@ fn emit(
         return node
             .children
             .iter()
-            .map(|child| emit(tree, *child, diagnostics))
+            .map(|child| emit(tree, *child, instance, diagnostics))
             .collect();
     }
     if named(tree, id, "combinator") {
@@ -249,9 +291,9 @@ fn emit(
                         "global selector contained as a host alias",
                     ));
                 }
-                let mut output = ":where(:scope)".to_owned();
+                let mut output = if instance { ":scope" } else { ":where(:scope)" }.to_owned();
                 if let Some(&list) = node.children.first() {
-                    let arg = emit(tree, list, diagnostics)?;
+                    let arg = emit(tree, list, instance, diagnostics)?;
                     // A type/universal argument cannot follow a pseudo-class in
                     // a compound. :is preserves its weight and intersection.
                     let has_type = tree.node(list).unwrap().children.iter().any(|s| {
@@ -272,7 +314,7 @@ fn emit(
                 Ok(format!(
                     ":{}({})",
                     ident(name),
-                    emit(tree, list, diagnostics)?
+                    emit(tree, list, instance, diagnostics)?
                 ))
             } else {
                 Ok(format!(":{}", ident(name)))
