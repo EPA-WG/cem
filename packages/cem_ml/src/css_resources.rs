@@ -140,13 +140,17 @@ pub fn resolve_css_resources(
     Ok(CssResourcePlan { tree, references })
 }
 
-fn named(tree: &RetainedCemTree, id: AstNodeId, local: &str) -> bool {
+pub(crate) fn named(tree: &RetainedCemTree, id: AstNodeId, local: &str) -> bool {
     tree.node(id)
         .and_then(|node| node.name.as_ref())
         .is_some_and(|name| name.namespace_uri == CSS_SCHEMA_URI && name.local_name == local)
 }
 
-fn attribute<'a>(tree: &'a RetainedCemTree, id: AstNodeId, local: &str) -> Option<&'a str> {
+pub(crate) fn attribute<'a>(
+    tree: &'a RetainedCemTree,
+    id: AstNodeId,
+    local: &str,
+) -> Option<&'a str> {
     tree.node(id)?.attributes.iter().find_map(|id| {
         let node = tree.node(*id)?;
         let name = node.name.as_ref()?;

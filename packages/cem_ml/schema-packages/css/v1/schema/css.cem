@@ -37,7 +37,7 @@
         {element @name="style-scope" @required-attributes="scope-kind" @optional-attributes="scope-id host-schema host-selector root-selector shadow-mode layer media condition source-id byte-offset byte-length" @children="rule* declaration*"}
         {element @name="charset" @required-attributes="encoding" @optional-attributes="source-id byte-offset byte-length"}
         {element @name="import" @required-attributes="href" @optional-attributes="media layer supports source-id byte-offset byte-length"}
-        {element @name="rule" @required-attributes="kind" @optional-attributes="selector prelude name media layer condition source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
+        {element @name="rule" @required-attributes="kind" @optional-attributes="selector prelude name media layer condition has-block source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
         {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="rule* declaration* component-value* comment*"}
         {element @name="selector-list" @children="selector*"}
         {element @name="selector" @optional-attributes="text specificity source-id byte-offset byte-length" @children="simple-selector* combinator*"}
@@ -77,6 +77,7 @@
         {attribute @name="name" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="important" @type="schema:boolean"}
+        {attribute @name="has-block" @type="schema:boolean"}
         {attribute @name="custom-property" @type="schema:boolean"}
         {attribute @name="text" @type="schema:string"}
         {attribute @name="specificity" @type="schema:string"}

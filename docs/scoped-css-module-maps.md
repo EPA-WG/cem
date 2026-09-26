@@ -265,10 +265,24 @@ loader/validation failures make the closure terminal; stale/duplicate delivery
 IDs are rejected without consuming a different outstanding request.
 
 `Ready` describes a complete import graph only. It does not authorize installation
-or prove that media/supports/layer grammar and import placement are valid. Native byte delivery now enforces MIME/integrity/size limits as described below.
-Import validation rules, resource rewriting, scoped emission and browser/worker
+or prove that media/supports/layer grammar is valid. Native byte delivery now
+enforces MIME/integrity/size limits as described below.
+Import condition validation, resource rewriting, scoped emission and browser/worker
 loader and ownership integration remain pending. Resource URL references are resolved but not fetched by this
 state machine. No browser `@import` fallback is introduced.
+
+## Import placement: implemented natively
+
+The closure validates each retained sheet before queueing its imports. Imports
+must be top-level and precede other rules; comments, charset nodes and layer-order
+statements may appear in the import prefix. A layer statement after another rule
+does not reopen that prefix. The importer retains `has-block` on semantic at-rule
+wrappers so even an empty layer block ends the prefix without reparsing source.
+This follows the [CSS cascade import placement rules](https://www.w3.org/TR/css-cascade-5/#at-import).
+Misplaced imports produce `cem.css.import_placement_invalid`. A delivered sheet
+with misplaced imports fails the closure before attaching the sheet or queueing
+its dependencies. Unknown/unsupported rules conservatively end the prefix;
+full condition grammar validation remains pending.
 
 ## Shared-resolver byte delivery: implemented natively
 

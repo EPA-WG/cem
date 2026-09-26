@@ -8,7 +8,7 @@
 //! Ready means the import closure is complete, not that CSS is ready to install:
 //! condition validation, resource rewriting and scoped compilation still follow.
 use crate::{
-    css_resources::{resolve_css_resources, CssResourceKind, CssResourcePlan},
+    css_resources::{attribute, named, resolve_css_resources, CssResourceKind, CssResourcePlan},
     module_resolution::{
         CemModuleUrlReferrer, CemModuleUrlResolution, CemModuleUrlResolutionCapability,
         CemModuleUrlResolutionPurpose,
@@ -134,6 +134,7 @@ impl CssImportClosure {
         let url = canonical_url(url)?;
         let resources = resolve_css_resources(tree, &capability, &url)
             .map_err(|e| failure("cem.css.import_tree_invalid", e))?;
+        validate_import_placement(&resources)?;
         let mut closure = Self {
             capability,
             limits,
@@ -275,6 +276,7 @@ impl CssImportClosure {
             }
             let resources = resolve_css_resources(tree, &self.capability, &final_url)
                 .map_err(|e| failure("cem.css.import_tree_invalid", e))?;
+            validate_import_placement(&resources)?;
             let mut ancestry = parent.ancestry.clone();
             ancestry.push(canonical_url(&request.resolution.resolved_url)?);
             if !ancestry.contains(&final_url) {
@@ -536,4 +538,46 @@ fn failure(code: &str, message: impl Into<String>) -> CssImportFailure {
         message: message.into(),
         source: SourceMapStack::default(),
     }
+}
+
+/// Placement is read from semantic nodes, never reparsed from CSS source.
+/// Reject a whole sheet before any of its imports can reach the host loader.
+fn validate_import_placement(plan: &CssResourcePlan) -> Result<(), CssImportFailure> {
+    let tree = &plan.tree;
+    // resolve_css_resources has already checked the single CSS root.
+    let root = tree.node(tree.node(0).unwrap().children[0]).unwrap();
+    let mut prefix = true;
+    let mut allowed = std::collections::HashSet::new();
+    for &id in &root.children {
+        if named(tree, id, "import") {
+            if prefix {
+                allowed.insert(id);
+            }
+        } else if named(tree, id, "comment") || named(tree, id, "charset") {
+            continue;
+        } else if named(tree, id, "rule")
+            && attribute(tree, id, "kind") == Some("at")
+            && attribute(tree, id, "name").is_some_and(|name| name.eq_ignore_ascii_case("layer"))
+            && attribute(tree, id, "has-block") == Some("false")
+        {
+            // A layer-order statement may interleave imports; a layer block,
+            // including an empty block, ends the import prefix.
+            continue;
+        } else {
+            prefix = false;
+        }
+    }
+    for reference in &plan.references {
+        if matches!(reference.kind, CssResourceKind::Import { .. })
+            && !allowed.contains(&reference.node_id)
+        {
+            let mut error = failure(
+                "cem.css.import_placement_invalid",
+                "CSS imports must be top-level and precede rules other than charset and layer-order statements",
+            );
+            error.source = reference.source.clone();
+            return Err(error);
+        }
+    }
+    Ok(())
 }

@@ -2,13 +2,13 @@
 use super::{ImportBuilder, MAX_DEPTH, MAX_VALUES};
 use crate::{
     parser::{
-        AstNodeId,
         document::CemDocument,
         tree::{CemTreeRange, CemTreeSemantics},
+        AstNodeId,
     },
     schema::registry::CSS_SCHEMA_URI,
     validation::css::{
-        CssDocumentAst, CssEntryMode, CssEventAst, CssSemanticKindAst, validate_css_document_ast,
+        validate_css_document_ast, CssDocumentAst, CssEntryMode, CssEventAst, CssSemanticKindAst,
     },
 };
 
@@ -27,7 +27,7 @@ pub(super) fn parse(
     source_uri: &str,
     content_type: &str,
 ) -> Result<CssDocumentAst, String> {
-    use crate::validation::css::{CssSourceValidationRequest, css_document_ast_from_source_bytes};
+    use crate::validation::css::{css_document_ast_from_source_bytes, CssSourceValidationRequest};
     let (document, diagnostics) = css_document_ast_from_source_bytes(CssSourceValidationRequest {
         bytes,
         source_uri,
@@ -240,6 +240,11 @@ impl CssImport<'_> {
                 } else {
                     let id = self.node(parent, "rule", pos, next);
                     self.attr(id, "kind", "at");
+                    self.attr(
+                        id,
+                        "has-block",
+                        if open.is_some() { "true" } else { "false" },
+                    );
                     self.attr(id, "name", name);
                     self.attr(id, "prelude", self.text(pos + 1, prelude_end).trim());
                     let at_rule = self.node(id, "at-rule", pos, next);

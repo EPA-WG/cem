@@ -5773,6 +5773,9 @@ registration identities may reuse an inherited or existing definition.
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+        - [x] Fixture: reject late and nested CSS imports before loading; allow
+              comments, charset and layer-order statements in the import prefix,
+              distinguish empty layer blocks, and fail imported sheets atomically.
         - [x] Fixture: deliver shared-resolver CSS byte responses into the native
               closure; verify MIME hints/responses, supported integrity digests,
               response/aggregate bounds, final URL checks, cancellation and loader

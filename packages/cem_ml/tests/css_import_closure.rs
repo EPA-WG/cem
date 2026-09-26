@@ -36,6 +36,14 @@ fn closure_with_mapping(
     abort: AbortSignal,
     mapping: Option<cem_ml::module_resolution::CemModuleUrlMapping>,
 ) -> CssImportClosure {
+    try_closure(css, limits, abort, mapping).unwrap()
+}
+fn try_closure(
+    css: &str,
+    limits: CssImportLimits,
+    abort: AbortSignal,
+    mapping: Option<cem_ml::module_resolution::CemModuleUrlMapping>,
+) -> Result<CssImportClosure, cem_ml::css_imports::CssImportFailure> {
     let mut frame = CemModuleUrlFrame::new("root", "https://example.test/main.css");
     if let Some(mapping) = mapping {
         frame.specifiers.resources.insert("a.css".into(), mapping);
@@ -61,7 +69,6 @@ fn closure_with_mapping(
         limits,
         abort,
     )
-    .unwrap()
 }
 #[test]
 fn css_import_closure_retains_order_conditions_and_final_sheet_bases() {
@@ -548,4 +555,66 @@ fn css_import_response_metadata_fails_before_read_or_parse() {
     );
     assert_eq!(c.received_bytes(), 0);
     assert_eq!(c.sheets().len(), 1);
+}
+
+#[test]
+fn css_import_placement_preserves_the_top_level_import_prefix() {
+    let mut c = closure(
+        "@charset 'UTF-8'; /* before */ @layer base, theme; @import 'a.css'; \
+         /* between */ @LAYER extra; @import 'b.css'; a {}",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    for path in ["a.css", "b.css"] {
+        let request = c.next_import().unwrap().unwrap();
+        assert_eq!(
+            request.resolution.resolved_url,
+            format!("https://example.test/{path}")
+        );
+        c.complete_import(request.id, tree("a {}"), &request.resolution.resolved_url)
+            .unwrap();
+    }
+    assert_eq!(c.state(), CssImportState::Ready);
+}
+
+#[test]
+fn css_import_placement_rejects_late_and_nested_imports_before_loading() {
+    for css in [
+        "a {} @import 'late.css';",
+        "@layer base {} @import 'late.css';",
+        "@media screen {} @import 'late.css';",
+        "@namespace svg 'http://www.w3.org/2000/svg'; @import 'late.css';",
+        "a {} @layer base; @import 'late.css';",
+        "@import 'first.css'; a {} @import 'late.css';",
+        "@media screen { @import 'nested.css'; }",
+        "@layer base { @import 'nested.css'; }",
+        "a { @import 'nested.css'; }",
+    ] {
+        let error = try_closure(css, CssImportLimits::default(), AbortSignal::new(), None)
+            .err()
+            .unwrap_or_else(|| panic!("accepted misplaced import: {css}"));
+        assert_eq!(error.code, "cem.css.import_placement_invalid", "{css}");
+    }
+}
+
+#[test]
+fn css_import_placement_failure_does_not_attach_or_queue_a_delivered_sheet() {
+    let mut c = closure(
+        "@import 'a.css'; @import 'b.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    let request = c.next_import().unwrap().unwrap();
+    let error = c
+        .complete_import(
+            request.id,
+            tree("a {} @import 'late.css';"),
+            &request.resolution.resolved_url,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "cem.css.import_placement_invalid");
+    assert_eq!(c.state(), CssImportState::Failed);
+    assert_eq!(c.sheets().len(), 1);
+    assert!(c.edges().is_empty());
+    assert!(c.next_import().is_err());
 }
