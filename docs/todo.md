@@ -5803,11 +5803,17 @@ registration identities may reuse an inherited or existing definition.
               [wishlist](wishlist.md#cem-elements-runtime); the
               [binding design](scoped-css-fragment-bindings.md) is an archive,
               not the active implementation plan.
-        - [ ] Introduce the explicit DCE property used by a URL-valued CSS custom
-              property sample; do not implement automatic `url(#id)` handling.
-        - [ ] Fixture: demonstrate matching explicit resource IDs and complete
+        - [x] Expose `$instanceID` as a DCE template binding; allocate new IDs
+              with UUIDs and reuse snapshot IDs on hydration. Do not generate
+              CSS properties unless authored or implement automatic `url(#id)`.
+        - [x] Fixture: native attribute interpolation of matching IDs and URL
+              custom properties; browser identity stability across updates,
+              reconnect and hydration, and distinct IDs across runtimes.
+        - [x] Fixture: demonstrate matching explicit resource IDs and complete
               CSS custom-property URL values in DCE; verify independent instances
               with different resource payloads sharing a static stylesheet.
+              Include standalone/source-loaded inventory and layout coverage;
+              allow exact-path demo verification with cache-isolated inputs.
         - [ ] Rewrite declaration resource URLs through the retained resolution
               plan, then assemble ordered rule bodies, remaining selector grammar,
               keyframes and managed scope wrappers before browser cutover, without

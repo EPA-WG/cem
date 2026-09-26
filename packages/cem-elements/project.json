@@ -464,6 +464,7 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                { "env": "CEM_DEMO_PATH" },
                 "{workspaceRoot}/tools/scripts/verify-cem-elements-demo-fixtures.mjs",
                 "{projectRoot}/index.html",
                 "{projectRoot}/demo/**/*",

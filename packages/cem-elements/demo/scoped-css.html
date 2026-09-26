@@ -381,6 +381,35 @@
                 </template>
             </cem-demo-element>
 
+            <cem-demo-element
+                legend="13. Instance IDs in URL-valued custom properties"
+                description="Each instance authors its own filter URL using $instanceID. One shared static rule consumes the complete URL through var(); different blur values use different SVG filters. No CSS property is generated automatically.">
+                <template>
+<cem-element tag="cem-css-resource">
+    <template type="text/cem-ml">
+{attribute @name=blur | 0}
+{style |```
+    [part~="preview"] { filter: var(--sample-filter); }
+    svg { position: absolute; width: 0; height: 0; }
+```}
+{div @part=preview
+     @style='--sample-filter: url("#{$instanceID}-filter")' |
+    {slot | Filter preview}}
+{cem:variable @name=svgNS @select='"http://www.w3.org/2000/svg"' }
+{cem:element @name=svg @namespace="{$svgNS}" |
+    {cem:attribute @name=aria-hidden @value=true}
+    {cem:element @name=filter @namespace="{$svgNS}" |
+        {cem:attribute @name=id @value="{$instanceID}-filter"}
+        {cem:element @name=feGaussianBlur @namespace="{$svgNS}" |
+            {cem:attribute @name=stdDeviation @value="{$blur}"}
+}   }   }
+    </template>
+</cem-element>
+<cem-css-resource blur="0">Sharp text</cem-css-resource>
+<cem-css-resource blur="2">Blurred text</cem-css-resource>
+                </template>
+            </cem-demo-element>
+
             <p class="status-note">
                 Private CSS uses native <code>@scope (&lt;cem-tag&gt;)</code>; named shared CSS uses the public
                 declaration-owned <code>scope="name"</code>; payload CSS uses an implicit parent-rooted

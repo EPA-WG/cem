@@ -1666,7 +1666,6 @@ export class CemElementRuntime {
     private readonly uidSeedFallback: NonNullable<CemElementRuntimeOptions['uidSeedFallback']>;
     private readonly validateGeneratedIds: boolean;
     private readonly generatedIdOwners = new Map<string, HTMLElement>();
-    private instanceSequence = 0;
     private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
@@ -6166,8 +6165,7 @@ export class CemElementRuntime {
         if (existing) {
             return existing;
         }
-        this.instanceSequence += 1;
-        const id = `cem-instance-${this.instanceSequence}`;
+        const id = `cem-instance-${crypto.randomUUID()}`;
         this.instanceIds.set(instance, id);
         return id;
     }
@@ -8565,6 +8563,8 @@ function templateValues(
     for (const [name, value] of Object.entries(snapshot.slices)) {
         values[name] = toTemplateValue(value);
     }
+    // Runtime identity is available without adding a DOM attribute or CSS property.
+    values.instanceID = snapshot.instanceId;
     addTemplateValuePaths(values, 'datadom', dataDocumentFromSnapshot(snapshot));
     addTemplateValuePaths(values, 'island', snapshot.dataIsland ?? emptySerializedPayload());
     return values;

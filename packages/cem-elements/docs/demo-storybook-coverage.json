@@ -421,7 +421,8 @@
       "9. Anonymous declaration CSS uses its generated tag",
       "10. uid-seed stabilizes keyframe names",
       "11. Descendant selectors stay inside the component",
-      "12. CSS from an external template fragment"
+      "12. CSS from an external template fragment",
+      "13. Instance IDs in URL-valued custom properties"
     ]
   },
   {

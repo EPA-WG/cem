@@ -34,6 +34,45 @@ populate both their named bindings and `datadom.slices`. Boolean defaults stay
 boolean, and host-provided values take precedence, including empty strings. Defaults inside body
 content or uncalled named templates do not initialize the outer instance.
 
+DCE templates can use `$instanceID` to read the current instance's identity.
+New instances receive a `cem-instance-` UUID; updates and reconnects keep it,
+and hydration reuses the serialized snapshot's `instanceId`. Treat it as opaque
+and reserve the `instanceID` binding name for the runtime. Authors importing or
+cloning serialized instances must preserve document-wide uniqueness themselves;
+restoring the same snapshot twice does not allocate a fresh identity.
+
+The binding creates no DOM attribute or CSS custom property. When needed, author
+a complete URL-valued property and matching target explicitly:
+
+````cem-ml
+{style |```
+    [part~="preview"] { filter: var(--sample-filter); }
+    svg { position: absolute; width: 0; height: 0; }
+```}
+{div @part=preview
+     @style='--sample-filter: url("#{$instanceID}-filter")' | Preview}
+{cem:variable @name=svgNS @select='"http://www.w3.org/2000/svg"' }
+{cem:element @name=svg @namespace="{$svgNS}" |
+    {cem:attribute @name=aria-hidden @value=true}
+    {cem:element @name=filter @namespace="{$svgNS}" |
+        {cem:attribute @name=id @value="{$instanceID}-filter"}
+        {cem:element @name=feGaussianBlur @namespace="{$svgNS}" |
+            {cem:attribute @name=stdDeviation @value="2"}
+}   }   }
+````
+
+The example's dynamic inline value carries instance data; the presentation rule
+stays in the shared static stylesheet. CSS `var()` consumes the complete
+`url(...)` value, not an ID to concatenate inside `url()`. Suffix IDs further
+inside loops so each rendered target remains unique. See the
+[scoped CSS demo](demo/scoped-css.html) for two instances with different filters.
+Automatic contextual `url(#id)` substitution is deferred to the
+[wishlist](../../docs/wishlist.md#cem-elements-runtime).
+
+For focused standalone and source-loaded verification, run
+`CEM_DEMO_PATH=/packages/cem-elements/demo/scoped-css.html yarn nx run cem-elements:verify-demo-fixtures`.
+Omit `CEM_DEMO_PATH` to verify the complete gallery.
+
 External declaration loading through `src="#id"`, `src="url"`, and `src="url#id"`, plus `<http-request url="...">`
 resource loading, uses the [CEM-ML resource lifecycle](../../docs/cem-ml-resource-lifecycle.md) as the base contract and
 the [`cem-element` external resource loading contract](../../docs/cem-element-src-loading-contract.md) as the CEM Elements

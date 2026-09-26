@@ -5131,6 +5131,38 @@ mod tests {
     }
 
     #[test]
+    fn instance_id_host_binding_interpolates_explicit_resource_values() {
+        let source = r##"{style |```[part~=preview] { filter: var(--sample-filter); }```}
+            {div @part=preview @style='--sample-filter: url("#{$instanceID}-filter")' | Preview}
+{cem:variable @name=svgNS @select='"http://www.w3.org/2000/svg"' }
+{cem:element @name=svg @namespace="{$svgNS}" |
+    {cem:attribute @name=aria-hidden @value=true}
+    {cem:element @name=filter @namespace="{$svgNS}" |
+        {cem:attribute @name=id @value="{$instanceID}-filter"}
+        {cem:element @name=feGaussianBlur @namespace="{$svgNS}" |
+            {cem:attribute @name=stdDeviation @value="{$blur}"}
+}   }   }"##;
+        let artifact = compile_template(source, &CompileTemplateOptions {
+            host_bindings: vec!["instanceID".into(), "blur".into()],
+            ..Default::default()
+        });
+        assert!(artifact.diagnostics.is_empty(), "{:?}", artifact.diagnostics);
+        assert_eq!(artifact.stylesheets.len(), 1);
+        for (id, blur) in [("cem-instance-first", "0"), ("cem-instance-second", "3")] {
+            let data = TemplateData::default()
+                .with_binding("instanceID", ItemStream::once(Item::Atomic(AtomValue::String(id.into()))))
+                .with_binding("blur", ItemStream::once(Item::Atomic(AtomValue::String(blur.into()))));
+            let plan = render_compiled_template(&artifact, &data);
+            assert!(plan.diagnostics.is_empty(), "{:?}", plan.diagnostics);
+            let html = render_plan_to_html(&plan);
+            assert!(html.contains(&format!("id=\"{id}-filter\"")), "{html}");
+            assert!(html.contains(&format!("url(&quot;#{id}-filter&quot;)")), "{html}");
+            assert!(html.contains(&format!("stdDeviation=\"{blur}\"")), "{html}");
+            assert!(!html.contains("<style"));
+        }
+    }
+
+    #[test]
     fn compile_extracts_static_stylesheets_from_render_nodes() {
         let artifact = compile_template(
             r#"{module |

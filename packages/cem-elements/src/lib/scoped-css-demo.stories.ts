@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor } from 'storybook/test';
+import { createCemDeclarationScope } from './declaration-scope.js';
+import { CemElementRuntime, writeDataIslandHydrationData } from './cem-elements.js';
 import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-scoped-css-demo-document';
@@ -17,6 +19,7 @@ const EXPECTED_LEGENDS = [
     '10. uid-seed stabilizes keyframe names',
     '11. Descendant selectors stay inside the component',
     '12. CSS from an external template fragment',
+    '13. Instance IDs in URL-valued custom properties',
 ] as const;
 
 const meta: Meta = {
@@ -32,7 +35,7 @@ export const EveryAuthoredSample: Story = {
     play: async ({ canvasElement, step }) => {
         const host = requiredElement(canvasElement, SOURCE_TAG);
         await waitForCondition(() => host.querySelectorAll('cem-demo-element[legend]').length === EXPECTED_LEGENDS.length,
-            'all twelve scoped-CSS samples render from the HTML source');
+            'all scoped-CSS samples render from the HTML source');
         expect(sampleLegends(host)).toEqual([...EXPECTED_LEGENDS]);
         await whenCemSourceRendered(host);
         const samples = EXPECTED_LEGENDS.map(legend => sampleByLegend(host, legend));
@@ -173,6 +176,37 @@ export const EveryAuthoredSample: Story = {
             expect(produced.querySelector('style')).toBeNull();
             expect((requiredElement(produced, 'a') as HTMLAnchorElement).href).toBe(new URL('./external-template-templates.html', DEMO_URL).href);
         });
+        await step(EXPECTED_LEGENDS[12], async () => {
+            const sample = samples[12];
+            const instances = Array.from(sample.querySelectorAll<HTMLElement>('cem-css-resource'));
+            expect(instances).toHaveLength(2);
+            const ids = instances.map(instance => {
+                const filter = requiredElement(instance, 'filter');
+                const preview = requiredElement(instance, '[part~=preview]');
+                expect(filter.namespaceURI).toBe('http://www.w3.org/2000/svg');
+                expect(filter.id).toMatch(/^cem-instance-[0-9a-f-]+-filter$/);
+                expect(document.getElementById(filter.id)).toBe(filter);
+                expect(preview.style.getPropertyValue('--sample-filter')).toBe(`url("#${filter.id}")`);
+                expect(getComputedStyle(preview).filter).toContain(`#${filter.id}`);
+                expect(instance.hasAttribute('style')).toBe(false);
+                return filter.id;
+            });
+            expect(new Set(ids).size).toBe(2);
+            expect(instances.map(instance => requiredElement(instance, 'feGaussianBlur').getAttribute('stdDeviation')))
+                .toEqual(['0', '2']);
+            expect(managed(sample, 'cem-css-resource', 'private')).toHaveLength(1);
+            instances[1].setAttribute('blur', '4');
+            await waitFor(() => expect(requiredElement(instances[1], 'feGaussianBlur').getAttribute('stdDeviation')).toBe('4'));
+            expect(requiredElement(instances[1], 'filter').id).toBe(ids[1]);
+            const parent = instances[1].parentElement;
+            if (!parent) throw new Error('Missing demo output parent');
+            instances[1].remove();
+            parent.append(instances[1]);
+            await whenCemSourceRendered(host);
+            expect(requiredElement(instances[1], 'filter').id).toBe(ids[1]);
+            instances[1].setAttribute('blur', '2');
+            await waitFor(() => expect(requiredElement(instances[1], 'feGaussianBlur').getAttribute('stdDeviation')).toBe('2'));
+        });
         for (const relative of ['../index.html', './external-template.html', './hex-grid.html']) {
             expect(Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a, main > section a'), link => link.href))
                 .toContain(new URL(relative, DEMO_URL).href);
@@ -191,6 +225,67 @@ export const EveryAuthoredSample: Story = {
                 expect(cemDiagnosticCodes(instance)).toEqual(tag === 'cem-css-dynamic' ? expected : []);
             }
         }
+    },
+};
+
+export const InstanceIdentityLifecycle: Story = {
+    render: () => document.createElement('section'),
+    play: async ({ canvasElement }) => {
+        const instances: HTMLElement[] = [];
+        for (const lane of ['main-thread', 'worker'] as const) {
+            const tag = `story-instance-id-${lane}`;
+            let workerCalls = 0;
+            const runtime = new CemElementRuntime({
+                declarationTag: `story-instance-declaration-${lane}`,
+                declarationScope: createCemDeclarationScope({ document }),
+                processingWorkerFactory: lane === 'main-thread' ? () => {
+                    throw new Error('Exercise the main-thread fallback');
+                } : ({ scriptUrl, name, type }) => {
+                    workerCalls += 1;
+                    return new Worker(scriptUrl, { name, type });
+                },
+                processingPoolPolicy: { workerCount: 1, maxWorkers: 1 },
+            });
+            const declaration = document.createElement('div');
+            declaration.setAttribute('tag', tag);
+            declaration.setAttribute('version', '1.0.0');
+            const template = document.createElement('template');
+            template.type = 'text/cem-ml';
+            template.textContent = '{attribute @name=label | Initial}{p @id="{$instanceID}-label" | {$label}}';
+            declaration.append(template);
+            runtime.registerDeclaration(declaration);
+            const instance = document.createElement(tag);
+            canvasElement.append(instance);
+            await runtime.whenRenderSettled(instance);
+            const snapshot = runtime.snapshotInstance(instance);
+            expect(requiredElement(instance, 'p').id).toBe(`${snapshot.instanceId}-label`);
+            expect(snapshot.instanceId).toMatch(/^cem-instance-[0-9a-f-]{36}$/);
+            expect(instance.hasAttribute('style')).toBe(false);
+            instances.push(instance);
+
+            // Resume the serialized owner on a replacement host after removing the old one.
+            // snapshotInstance advances the counter; this fixture resumes the retained DOM revision.
+            const renderedRevision = requiredElement(instance, 'p').getAttribute('data-cem-data-revision');
+            if (!renderedRevision) throw new Error('Missing rendered revision');
+            snapshot.dataRevision = renderedRevision;
+            const markup = instance.innerHTML;
+            instance.remove();
+            const restored = document.createElement(tag);
+            for (const [name, value] of Object.entries(snapshot.hostAttributes)) restored.setAttribute(name, value);
+            restored.innerHTML = markup;
+            const island = requiredElement(restored, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+            writeDataIslandHydrationData(island, snapshot);
+            canvasElement.append(restored);
+            await runtime.whenRenderSettled(restored);
+            expect(runtime.snapshotInstance(restored).instanceId).toBe(snapshot.instanceId);
+            expect(runtime.diagnosticsFor(restored)).toEqual([]);
+            restored.setAttribute('label', 'Resumed');
+            await waitFor(() => expect(requiredElement(restored, 'p').textContent).toBe('Resumed'));
+            expect(requiredElement(restored, 'p').id).toBe(`${snapshot.instanceId}-label`);
+            expect(runtime.diagnosticsFor(restored)).toEqual([]);
+            if (lane === 'worker') expect(workerCalls).toBeGreaterThan(0);
+        }
+        expect(requiredElement(instances[0], 'p').id).not.toBe(requiredElement(instances[1], 'p').id);
     },
 };
 

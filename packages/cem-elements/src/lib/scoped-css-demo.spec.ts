@@ -21,6 +21,7 @@ const SAMPLE_CONTRACTS = [
     ['10. uid-seed stabilizes keyframe names', ['@keyframes seeded-pulse', 'uid-seed="demo/css/keyframes"']],
     ['11. Descendant selectors stay inside the component', ['input:checked + b', '{input @type=checkbox @checked=true}']],
     ['12. CSS from an external template fragment', ['./external-template-templates.html#scoped-css-external-template', 'cem-css-external-fragment', 'link-base="source"']],
+    ['13. Instance IDs in URL-valued custom properties', ['$instanceID', '--sample-filter: url(', 'filter: var(--sample-filter)', '@name=id @value="{$instanceID}-filter"']],
 ] as const;
 
 const samples = Array.from(

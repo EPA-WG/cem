@@ -8,6 +8,13 @@ explicit matching target ID in the template body. CSS consumes that property
 with `filter: var(--filter-url)`; a property containing only an ID cannot be
 concatenated inside `url()`.
 
+DCE now exposes `$instanceID` as a template binding; it does not install a CSS
+property. See the [explicit authoring sample](../packages/cem-elements/README.md)
+and [scoped CSS demo](../packages/cem-elements/demo/scoped-css.html).
+The audit below describes the earlier counter-based allocator; new identities
+now use UUIDs. Restored identities remain caller-owned, and automatic admission
+and collision handling remain deferred.
+
 The remaining sections preserve the proposed automatic binding design for
 future consideration. They do not require URL rewriting, generated resource
 slots, or an automatic ID/reference binding service in the current runtime.

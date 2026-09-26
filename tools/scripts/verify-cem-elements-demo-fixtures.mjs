@@ -2180,6 +2180,13 @@ const scopedCssSamples = [
         countExactly('cem-element[tag="cem-css-external-fragment"] > style[data-cem-declaration-style="private"]', 1),
         countExactly('cem-css-external-fragment style', 0),
     ]),
+    sampleContract('13. Instance IDs in URL-valued custom properties', [
+        countExactly('cem-css-resource filter', 2),
+        countExactly('cem-element[tag="cem-css-resource"] > style[data-cem-declaration-style="private"]', 1),
+        computedStyleNot('cem-css-resource [part~=preview]', 'filter', 'none'),
+        attributeEquals('cem-css-resource:first-of-type feGaussianBlur', 'stdDeviation', '0'),
+        attributeEquals('cem-css-resource:last-of-type feGaussianBlur', 'stdDeviation', '2'),
+    ]),
 ];
 
 const scopedCssNavigationChecks = [
@@ -3471,6 +3478,14 @@ const sourceHarnessHtml = `<!doctype html>
 <body></body>
 </html>`;
 
+// Optional exact path keeps focused demo checks on both standalone and source-loaded lanes.
+const fixturePath = process.env.CEM_DEMO_PATH;
+const selectedFixtures = fixtureSpecs.filter(fixture => !fixturePath || fixture.path === fixturePath);
+const selectedSources = sourceDocumentSpecs.filter(fixture => !fixturePath || fixture.path === fixturePath);
+if (fixturePath && (!selectedFixtures.length || !selectedSources.length)) {
+    throw new Error(`No standalone/source-loaded fixture pair for ${fixturePath}`);
+}
+
 const server = createServer(async (request, response) => {
     try {
         const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -3510,7 +3525,7 @@ const browser = await chromium.launch({ headless: true });
 
 try {
     await verifySourceDocumentInventory();
-    for (const fixture of fixtureSpecs) {
+    for (const fixture of selectedFixtures) {
         const pageErrors = [];
         const context = await browser.newContext();
         const page = await context.newPage();
@@ -3629,7 +3644,7 @@ try {
             );
         }
     }
-    for (const [index, fixture] of sourceDocumentSpecs.entries()) {
+    for (const [index, fixture] of selectedSources.entries()) {
         const pageErrors = [];
         const page = await browser.newPage();
         const resolutionRequests = observeModuleUrlRequests(page, fixture);
@@ -3767,7 +3782,7 @@ try {
 }
 
 console.log(
-    `cem-elements demo fixtures verified (${fixtureSpecs.length} standalone pages, ${sourceDocumentSpecs.length} source-loaded documents).`,
+    `cem-elements demo fixtures verified (${selectedFixtures.length} standalone pages, ${selectedSources.length} source-loaded documents).`,
 );
 
 async function verifyLocalStorageLifecycle(page) {
@@ -5478,11 +5493,26 @@ function contentType(filePath) {
 }
 
 async function verifyScopedCssPresentation(page) {
+    await poll(page, () => {
+        const instances = Array.from(document.querySelectorAll('cem-css-resource'));
+        const targets = instances.map(instance => instance.querySelector('filter'));
+        return instances.length === 2 && targets.every(Boolean)
+            && new Set(targets.map(target => target.id)).size === 2
+            && instances.every((instance, index) => {
+                const target = targets[index];
+                const preview = instance.querySelector('[part~=preview]');
+                return target.namespaceURI === 'http://www.w3.org/2000/svg'
+                    && document.getElementById(target.id) === target
+                    && preview.style.getPropertyValue('--sample-filter') === `url("#${target.id}")`
+                    && getComputedStyle(preview).filter.includes(`#${target.id}`)
+                    && !instance.hasAttribute('style');
+            });
+    });
     for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await poll(page, width => {
             const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
-            return cards.length === 12 && document.documentElement.scrollWidth <= width
+            return cards.length === 13 && document.documentElement.scrollWidth <= width
                 && cards.every(card => {
                     const box = card.getBoundingClientRect();
                     const output = card.querySelector('[slot="demo"]');
@@ -5491,7 +5521,7 @@ async function verifyScopedCssPresentation(page) {
                 });
         }, width);
         const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
-            sources.length === 12 && sources.every(pre => {
+            sources.length === 13 && sources.every(pre => {
                 const end = pre.scrollWidth - pre.clientWidth;
                 pre.scrollLeft = end;
                 const reached = Math.abs(pre.scrollLeft - end) <= 1;
@@ -5500,7 +5530,7 @@ async function verifyScopedCssPresentation(page) {
             }));
         if (!reachable) throw new Error('Scoped CSS source cannot be scrolled to its end');
     }
-    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 12);
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 13);
 }
 
 async function verifyScopedCssDiagnostics(page, tag) {
