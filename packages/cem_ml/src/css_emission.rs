@@ -8,6 +8,11 @@ pub use declarations::{
 };
 mod resources;
 
+mod grouping;
+pub use grouping::{
+    emit_css_grouping_rule, CssGroupingContext, CssGroupingRule, CssGroupingRuleEmission,
+};
+
 mod rules;
 pub use rules::{
     emit_css_scope_wrapper, emit_css_style_rule, CssDeferredRule, CssManagedScope, CssRuleBodyItem,
@@ -128,51 +133,58 @@ pub fn emit_css_import_conditions(
         wrappers.push(wrapper(tree, supports, format!("@supports {condition} {{")));
     }
     if let Some(media) = media {
-        let queries = &tree.node(media).unwrap().children;
-        if queries.is_empty() {
-            return Err(invalid(tree, media, "empty typed media list"));
-        }
-        let mut output = Vec::new();
-        for &query in queries {
-            if !named(tree, query, "media-query") {
-                return Err(invalid(tree, query, "expected a typed media query"));
-            }
-            match attribute(tree, query, "syntax-valid") {
-                Some("true") => {
-                    let text = components(tree, query)?;
-                    if text.is_empty() {
-                        return Err(invalid(tree, query, "empty valid media query"));
-                    }
-                    output.push(text);
-                }
-                Some("false") => {
-                    output.push("not all".to_owned());
-                    diagnostics.push(diagnostic(
-                        tree,
-                        query,
-                        "cem.scoped_css.media_query_recovered",
-                        "invalid media query emitted as not all",
-                    ));
-                }
-                _ => {
-                    return Err(invalid(
-                        tree,
-                        query,
-                        "missing or invalid media query syntax status",
-                    ))
-                }
-            }
-        }
-        wrappers.push(wrapper(
-            tree,
-            media,
-            format!("@media {} {{", output.join(", ")),
-        ));
+        let (text, media_diagnostics) = media_condition(tree, media)?;
+        diagnostics.extend(media_diagnostics);
+        wrappers.push(wrapper(tree, media, format!("@media {text} {{")));
     }
     Ok(CssImportConditionEmission::Emit {
         wrappers,
         diagnostics,
     })
+}
+
+fn media_condition(
+    tree: &RetainedCemTree,
+    media: AstNodeId,
+) -> Result<(String, Vec<CssEmissionDiagnostic>), CssEmissionDiagnostic> {
+    use crate::css_resources::{attribute, named};
+    let mut diagnostics = Vec::new();
+    let queries = &tree.node(media).unwrap().children;
+    if queries.is_empty() {
+        return Err(invalid(tree, media, "empty typed media list"));
+    }
+    let mut output = Vec::new();
+    for &query in queries {
+        if !named(tree, query, "media-query") {
+            return Err(invalid(tree, query, "expected a typed media query"));
+        }
+        match attribute(tree, query, "syntax-valid") {
+            Some("true") => {
+                let text = components(tree, query)?;
+                if text.is_empty() {
+                    return Err(invalid(tree, query, "empty valid media query"));
+                }
+                output.push(text);
+            }
+            Some("false") => {
+                output.push("not all".to_owned());
+                diagnostics.push(diagnostic(
+                    tree,
+                    query,
+                    "cem.scoped_css.media_query_recovered",
+                    "invalid media query emitted as not all",
+                ));
+            }
+            _ => {
+                return Err(invalid(
+                    tree,
+                    query,
+                    "missing or invalid media query syntax status",
+                ))
+            }
+        }
+    }
+    Ok((output.join(", "), diagnostics))
 }
 
 fn components(tree: &RetainedCemTree, id: AstNodeId) -> Result<String, CssEmissionDiagnostic> {

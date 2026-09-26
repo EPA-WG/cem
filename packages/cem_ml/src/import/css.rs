@@ -251,7 +251,24 @@ impl CssImport<'_> {
                     let at_rule = self.node(id, "at-rule", pos, next);
                     self.attr(at_rule, "name", name);
                     self.attr(at_rule, "prelude", self.text(pos + 1, prelude_end).trim());
-                    self.components(at_rule, pos + 1, prelude_end);
+                    match name.to_ascii_lowercase().as_str() {
+                        "media" => {
+                            self.media_list(at_rule, "group-media", pos + 1, prelude_end, true)
+                        }
+                        "supports" => {
+                            let condition =
+                                self.node(at_rule, "group-supports", pos + 1, prelude_end);
+                            let valid =
+                                self.supports_form(pos + 1, prelude_end) == Some("condition");
+                            self.attr(
+                                condition,
+                                "syntax-valid",
+                                if valid { "true" } else { "false" },
+                            );
+                            self.components(condition, pos + 1, prelude_end);
+                        }
+                        _ => self.components(at_rule, pos + 1, prelude_end),
+                    }
                     if let Some(open) = open {
                         match name.to_ascii_lowercase().as_str() {
                             "media"
@@ -560,7 +577,22 @@ impl CssImport<'_> {
     }
 
     fn import_media(&mut self, parent: AstNodeId, start: usize, end: usize) {
-        let media = self.node(parent, "import-media", start, end);
+        self.media_list(parent, "import-media", start, end, false);
+    }
+
+    fn media_list(
+        &mut self,
+        parent: AstNodeId,
+        name: &str,
+        start: usize,
+        end: usize,
+        allow_empty: bool,
+    ) {
+        let media = self.node(parent, name, start, end);
+        if allow_empty && self.significant(start, end).is_none() {
+            self.attr(media, "empty", "true");
+            return;
+        }
         let depth = self.events[start].depth;
         let separators: Vec<_> = (start..end)
             .filter(|i| self.events[*i].depth == depth && self.events[*i].token_kind == "comma")

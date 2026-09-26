@@ -9,7 +9,10 @@ use super::{
 };
 use crate::{
     css_resources::CssResourcePlan,
-    parser::{tree::CemTreeRange, AstNodeId},
+    parser::{
+        tree::{CemTreeRange, RetainedCemTree},
+        AstNodeId,
+    },
     source_map::SourceMapStack,
     transform_template::transform_template_encode_css_string,
 };
@@ -74,27 +77,13 @@ pub fn emit_css_style_rule(
             diagnostics,
         });
     }
-    let mut accepted: BTreeMap<_, _> = declarations
-        .declarations
-        .into_iter()
-        .map(|declaration| (declaration.node_id, declaration))
-        .collect();
-    let deferred: BTreeSet<_> = declarations.deferred_children.into_iter().collect();
-    // The two emitters above validated the rule and its direct child structure.
     let node = plan.tree.node(rule).unwrap();
-    let mut body = Vec::new();
-    for &child in &node.children {
-        if let Some(declaration) = accepted.remove(&child) {
-            body.push(CssRuleBodyItem::Declaration(declaration));
-        } else if deferred.contains(&child) {
-            let child_node = plan.tree.node(child).unwrap();
-            body.push(CssRuleBodyItem::Deferred(CssDeferredRule {
-                node_id: child,
-                source: child_node.source.clone(),
-                range: child_node.range,
-            }));
-        }
-    }
+    let body = ordered_body(
+        &plan.tree,
+        rule,
+        declarations.declarations,
+        declarations.deferred_children,
+    );
     Ok(CssStyleRuleEmission {
         rule: (!body.is_empty()).then_some(CssStyleRule {
             node_id: rule,
@@ -105,6 +94,35 @@ pub fn emit_css_style_rule(
         }),
         diagnostics,
     })
+}
+
+pub(super) fn ordered_body(
+    tree: &RetainedCemTree,
+    rule: AstNodeId,
+    declarations: Vec<CssEmittedDeclaration>,
+    deferred_children: Vec<AstNodeId>,
+) -> Vec<CssRuleBodyItem> {
+    let mut accepted: BTreeMap<_, _> = declarations
+        .into_iter()
+        .map(|declaration| (declaration.node_id, declaration))
+        .collect();
+    let deferred: BTreeSet<_> = deferred_children.into_iter().collect();
+    // The two emitters above validated the rule and its direct child structure.
+    let node = tree.node(rule).unwrap();
+    let mut body = Vec::new();
+    for &child in &node.children {
+        if let Some(declaration) = accepted.remove(&child) {
+            body.push(CssRuleBodyItem::Declaration(declaration));
+        } else if deferred.contains(&child) {
+            let child_node = tree.node(child).unwrap();
+            body.push(CssRuleBodyItem::Deferred(CssDeferredRule {
+                node_id: child,
+                source: child_node.source.clone(),
+                range: child_node.range,
+            }));
+        }
+    }
+    body
 }
 
 /// Semantic names from an already validated declaration/ownership context, not

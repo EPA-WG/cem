@@ -5826,6 +5826,10 @@ registration identities may reuse an inherited or existing definition.
               slots, suppression diagnostics and source ranges. Emit private,
               named-shared and implicit instance scope wrappers with accepted
               context qualification and unchanged lower limits.
+        - [x] Fixture: retain and emit native media/supports grouping conditions,
+              including empty/recovered media lists, invalid supports suppression,
+              source maps and declaration order around nested constructs; allow
+              direct declarations only when a containing style rule supplies context.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

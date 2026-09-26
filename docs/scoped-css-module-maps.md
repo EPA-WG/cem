@@ -594,6 +594,38 @@ strings, not interpolated as raw selectors; empty names/context IDs fail with
 context assignment and lifecycle remain the owning runtime's responsibility.
 The wrapper helper does not install CSS or add a context attribute to hosts.
 
+## Media/supports grouping fragments: implemented natively
+
+Shared CSS import now retains `group-media` and `group-supports` nodes separately
+from an at-rule's body. Media groups use the same typed `media-query` entries as
+import conditions; supports groups retain component tokens and a `syntax-valid`
+flag. The raw `prelude` attribute remains metadata, not an emission fallback.
+
+`emit_css_grouping_rule` emits these two grouping kinds from the retained
+resource plan. It preserves valid query spelling and browser-owned feature
+evaluation. Invalid media-list entries emit as `not all` with source diagnostics,
+while valid siblings remain. An empty/comment-only list emits `all`, preserving
+[empty media-list semantics](https://www.w3.org/TR/mediaqueries-4/).
+An invalid supports condition suppresses the whole group with
+`cem.scoped_css.supports_condition_invalid`. Unlike import `supports(...)`, a
+bare declaration is not a valid grouping condition; see
+[CSS Conditional Rules](https://www.w3.org/TR/css-conditional-3/).
+
+The ordered body reuses resolved declaration emission and explicit deferred
+child positions. `CssGroupingContext::StyleRule` permits declarations whose
+selector comes from the enclosing style rule. `Stylesheet` diagnoses and omits
+such declarations with `cem.scoped_css.group_declaration_unsupported`, preserving
+valid child rules. The full compiler must propagate that context through nested
+groups and must not move declarations across a child rule or invent a selector
+for them. Empty bodies are omitted. Rules without a block diagnose as
+`cem.scoped_css.group_block_required`; inconsistent or missing group structure
+fails with `cem.scoped_css.group_tree_invalid` and no raw-prelude fallback.
+
+This API returns grouping fragments with original source maps and byte ranges,
+not a complete stylesheet. Deferred selector nesting, other grouping kinds,
+keyframe names/references and recursive whole-stylesheet composition remain
+pending before browser cutover.
+
 ## Shared-resolver byte delivery: implemented natively
 
 `CssImportClosure::load_imports` uses `ResolverRegistry` input reads with the

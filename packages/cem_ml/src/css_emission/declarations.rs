@@ -40,7 +40,7 @@ pub fn emit_css_rule_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
-    emit_declarations(tree, rule, None)
+    emit_declarations(tree, rule, None, false)
 }
 
 /// Emit explicit external URLs using a context-specific resolution plan. Local
@@ -54,20 +54,40 @@ pub fn emit_css_rule_declarations_with_resources(
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let resources = ResourceRewriter::new(plan)?;
-    emit_declarations(&plan.tree, rule, Some(&resources))
+    emit_declarations(&plan.tree, rule, Some(&resources), false)
+}
+
+pub(super) fn emit_group_declarations(
+    plan: &CssResourcePlan,
+    container: AstNodeId,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    let resources = ResourceRewriter::new(plan)?;
+    emit_declarations(&plan.tree, container, Some(&resources), true)
 }
 
 fn emit_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
     resources: Option<&ResourceRewriter<'_>>,
+    group: bool,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
-    if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("style") {
+    let valid = if group {
+        named(tree, rule, "at-rule")
+            && attribute(tree, rule, "name").is_some_and(|name| {
+                name.eq_ignore_ascii_case("media") || name.eq_ignore_ascii_case("supports")
+            })
+    } else {
+        named(tree, rule, "rule") && attribute(tree, rule, "kind") == Some("style")
+    };
+    if !valid {
         return Err(invalid(tree, rule));
     }
     let mut result = CssRuleDeclarations::default();
     for &id in &tree.node(rule).unwrap().children {
-        if named(tree, id, "selector-list") || named(tree, id, "comment") {
+        if named(tree, id, "selector-list")
+            || named(tree, id, "comment")
+            || (group && (named(tree, id, "group-media") || named(tree, id, "group-supports")))
+        {
             continue;
         }
         if ["rule", "at-rule", "import"]
