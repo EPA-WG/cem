@@ -178,7 +178,8 @@ overrides, ancestor blocks, CSS-relative fallback, invalid/blocked references,
 imported-sheet bases, quoted escapes, nested/custom-property URLs, empty CSS and
 non-CSS rejection.
 
-This native plan does not load imports or produce rewritten browser CSS.
+This native plan does not load imports or install browser CSS. The declaration
+emitter below can consume it to rewrite explicit external URL components.
 String-valued resource grammars such as `image-set()` candidates, local-fragment
 semantics, empty URL handling, import condition validation/cycles, shared-loader
 integration and per-context style ownership remain downstream work. The current
@@ -523,10 +524,39 @@ compiler must traverse the retained rule's original child order rather than
 concatenate declarations across a deferred construct. Comments between
 declarations need no emitted fragment; comments within values are preserved.
 
-These fragments still contain authored resource URLs. Module-map resolution,
-URL rewriting, keyframe-reference rewriting, nested construct policy and full
-scope assembly are required before installation. This helper does not turn a
-ready import closure into an installable stylesheet.
+The unresolved helper retains authored resource URLs. Use the resource-aware
+variant below when emitting from a resolution plan. Keyframe-reference rewriting,
+nested construct policy and full scope assembly are still required before
+installation; neither helper turns a ready import closure into an installable
+stylesheet.
+
+## External declaration resource emission: implemented natively
+
+`cem_ml::css_emission::emit_css_rule_declarations_with_resources` takes a
+`CssResourcePlan` and a style-rule node ID. The plan owns its retained tree and
+context-specific resolutions. The helper replaces explicit external URL nodes
+using import-owned byte ranges within retained component tokens, including URLs
+inside nested functions, blocks and custom-property values. It does not reparse
+CSS, inspect parser ASTs, or mutate the retained tree. The same tree can therefore
+emit different results under different module-map contexts.
+
+Quoted and unquoted URLs emit as `url("resolved URL")`, with quotes, backslashes
+and control characters escaped as CSS string content. Non-resource token text,
+ordinary strings, surrounding comments and escaped token boundaries remain
+unchanged. Fragment-only references retain their authored spelling, including
+escapes and trivia; this is not contextual local-ID binding or substitution.
+
+An external resolution error suppresses its entire containing declaration with
+`cem.scoped_css.resource_resolution_failed` at the original URL source range.
+Valid sibling declarations remain in order. A missing, duplicate or inconsistent
+plan entry fails with `cem.scoped_css.resource_plan_invalid`, rather than emitting
+an unresolved URL. Existing important/recovered-value suppression and deferred
+nested-rule boundaries still apply. The retained plan remains the source of
+mapping metadata, policy stamps and detailed resolver errors.
+
+This covers explicit `url()` components, not string-valued resource grammars
+such as `image-set("image.png" 1x)`. Native ordered rule assembly, keyframe
+references, managed scope wrappers and browser integration remain pending.
 
 ## Shared-resolver byte delivery: implemented natively
 

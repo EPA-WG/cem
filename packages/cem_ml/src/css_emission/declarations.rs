@@ -1,8 +1,11 @@
 //! Direct declaration fragments. Resource URLs and nested rules still require
 //! full managed compilation; these fragments are not installable stylesheets.
-use super::{components, diagnostic, selectors::ident, CssEmissionDiagnostic};
+use super::{
+    components, components_with, diagnostic, resources::ResourceRewriter, selectors::ident,
+    CssEmissionDiagnostic,
+};
 use crate::{
-    css_resources::{attribute, named},
+    css_resources::{attribute, named, CssResourcePlan},
     parser::{
         tree::{CemTreeRange, RetainedCemTree},
         AstNodeId,
@@ -36,6 +39,28 @@ pub struct CssRuleDeclarations {
 pub fn emit_css_rule_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    emit_declarations(tree, rule, None)
+}
+
+/// Emit explicit external URLs using a context-specific resolution plan. Local
+/// fragments remain authored; no ID binding/substitution or fetch is performed.
+/// Failed external resolutions suppress the containing declaration with a source
+/// diagnostic. Missing/inconsistent plan entries are errors, never raw fallback.
+/// The plan owns the tree, so node IDs cannot be applied to a different tree.
+/// Like the unresolved helper, this is not a complete installable stylesheet.
+pub fn emit_css_rule_declarations_with_resources(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    let resources = ResourceRewriter::new(plan)?;
+    emit_declarations(&plan.tree, rule, Some(&resources))
+}
+
+fn emit_declarations(
+    tree: &RetainedCemTree,
+    rule: AstNodeId,
+    resources: Option<&ResourceRewriter<'_>>,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("style") {
         return Err(invalid(tree, rule));
@@ -84,7 +109,19 @@ pub fn emit_css_rule_declarations(
             ));
             continue;
         }
-        let value = components(tree, id).map_err(|_| invalid(tree, id))?;
+        let value = match resources {
+            None => components(tree, id).map_err(|_| invalid(tree, id))?,
+            Some(resources) => {
+                match components_with(tree, id, |child, token| resources.token(child, token)) {
+                    Ok(value) => value,
+                    Err(error) if error.code == "cem.scoped_css.resource_resolution_failed" => {
+                        result.diagnostics.push(error);
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        };
         if value.is_empty() && attribute(tree, id, "custom-property") != Some("true") {
             result.diagnostics.push(diagnostic(
                 tree,

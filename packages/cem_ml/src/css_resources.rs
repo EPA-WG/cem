@@ -68,56 +68,7 @@ pub fn resolve_css_resources(
     let mut references = Vec::new();
     while let Some(id) = pending.pop() {
         let node = tree.node(id).ok_or("CSS tree contains an invalid node")?;
-        let reference = if named(&tree, id, "import") {
-            Some((
-                attribute(&tree, id, "href")
-                    .ok_or("CSS import has no href")?
-                    .to_owned(),
-                CssResourceKind::Import {
-                    layer: attribute(&tree, id, "layer").map(str::to_owned),
-                    supports: attribute(&tree, id, "supports").map(str::to_owned),
-                    media: attribute(&tree, id, "media").map(str::to_owned),
-                },
-            ))
-        } else if named(&tree, id, "component-value") && attribute(&tree, id, "kind") == Some("url")
-        {
-            Some((
-                attribute(&tree, id, "value")
-                    .ok_or("CSS URL has no value")?
-                    .to_owned(),
-                CssResourceKind::Url,
-            ))
-        } else if named(&tree, id, "function")
-            && attribute(&tree, id, "name").is_some_and(|s| s.eq_ignore_ascii_case("url"))
-        {
-            // Import has already decoded strings and escapes and identified trivia.
-            // Recovered bad tokens remain unknown, never ignorable comments.
-            let values: Vec<_> = node
-                .children
-                .iter()
-                .copied()
-                .filter(|child| {
-                    !matches!(
-                        attribute(&tree, *child, "kind"),
-                        Some("whitespace" | "comment")
-                    )
-                })
-                .collect();
-            if values.len() != 1 || attribute(&tree, values[0], "kind") != Some("string") {
-                return Err(format!(
-                    "CSS url() at byte {} requires one static string",
-                    node.range.offset
-                ));
-            }
-            Some((
-                attribute(&tree, values[0], "value")
-                    .ok_or("CSS URL string has no value")?
-                    .to_owned(),
-                CssResourceKind::Url,
-            ))
-        } else {
-            None
-        };
+        let reference = resource_reference(&tree, id)?;
         if let Some((authored_specifier, kind)) = reference {
             let resolution = capability.resolve_with_referrer(
                 CemModuleUrlResolutionPurpose::Css,
@@ -138,6 +89,63 @@ pub fn resolve_css_resources(
         }
     }
     Ok(CssResourcePlan { tree, references })
+}
+
+/// Decode a resource reference only from import-owned typed fields.
+pub(crate) fn resource_reference(
+    tree: &RetainedCemTree,
+    id: AstNodeId,
+) -> Result<Option<(String, CssResourceKind)>, String> {
+    let node = tree.node(id).ok_or("CSS tree contains an invalid node")?;
+    Ok(if named(tree, id, "import") {
+        Some((
+            attribute(tree, id, "href")
+                .ok_or("CSS import has no href")?
+                .to_owned(),
+            CssResourceKind::Import {
+                layer: attribute(tree, id, "layer").map(str::to_owned),
+                supports: attribute(tree, id, "supports").map(str::to_owned),
+                media: attribute(tree, id, "media").map(str::to_owned),
+            },
+        ))
+    } else if named(tree, id, "component-value") && attribute(tree, id, "kind") == Some("url") {
+        Some((
+            attribute(tree, id, "value")
+                .ok_or("CSS URL has no value")?
+                .to_owned(),
+            CssResourceKind::Url,
+        ))
+    } else if named(tree, id, "function")
+        && attribute(tree, id, "name").is_some_and(|s| s.eq_ignore_ascii_case("url"))
+    {
+        // Import has already decoded strings and escapes and identified trivia.
+        // Recovered bad tokens remain unknown, never ignorable comments.
+        let values: Vec<_> = node
+            .children
+            .iter()
+            .copied()
+            .filter(|child| {
+                !matches!(
+                    attribute(tree, *child, "kind"),
+                    Some("whitespace" | "comment")
+                )
+            })
+            .collect();
+        if values.len() != 1 || attribute(tree, values[0], "kind") != Some("string") {
+            return Err(format!(
+                "CSS url() at byte {} requires one static string",
+                node.range.offset
+            ));
+        }
+        Some((
+            attribute(tree, values[0], "value")
+                .ok_or("CSS URL string has no value")?
+                .to_owned(),
+            CssResourceKind::Url,
+        ))
+    } else {
+        None
+    })
 }
 
 pub(crate) fn named(tree: &RetainedCemTree, id: AstNodeId, local: &str) -> bool {

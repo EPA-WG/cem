@@ -2,7 +2,11 @@
 //! This is not an installable stylesheet compiler or a validator for arbitrary
 //! user-constructed token attributes. No CSS is reparsed downstream.
 mod declarations;
-pub use declarations::{emit_css_rule_declarations, CssEmittedDeclaration, CssRuleDeclarations};
+pub use declarations::{
+    emit_css_rule_declarations, emit_css_rule_declarations_with_resources, CssEmittedDeclaration,
+    CssRuleDeclarations,
+};
+mod resources;
 
 mod selectors;
 pub use selectors::{
@@ -166,6 +170,14 @@ pub fn emit_css_import_conditions(
 }
 
 fn components(tree: &RetainedCemTree, id: AstNodeId) -> Result<String, CssEmissionDiagnostic> {
+    components_with(tree, id, |_, token| Ok(token.to_owned()))
+}
+
+fn components_with(
+    tree: &RetainedCemTree,
+    id: AstNodeId,
+    mut emit: impl FnMut(AstNodeId, &str) -> Result<String, CssEmissionDiagnostic>,
+) -> Result<String, CssEmissionDiagnostic> {
     use crate::css_resources::{attribute, named};
     let children = &tree.node(id).unwrap().children;
     let mut tokens = Vec::new();
@@ -179,7 +191,10 @@ fn components(tree: &RetainedCemTree, id: AstNodeId) -> Result<String, CssEmissi
         }
         let token = attribute(tree, child, "token")
             .ok_or_else(|| invalid(tree, child, "CSS component has no retained token"))?;
-        tokens.push((attribute(tree, child, "kind") == Some("whitespace"), token));
+        tokens.push((
+            attribute(tree, child, "kind") == Some("whitespace"),
+            emit(child, token)?,
+        ));
     }
     // Do not String::trim(): an identifier token may end with an escaped space.
     let start = tokens
@@ -190,7 +205,10 @@ fn components(tree: &RetainedCemTree, id: AstNodeId) -> Result<String, CssEmissi
         .iter()
         .rposition(|(space, _)| !space)
         .map_or(start, |i| i + 1);
-    Ok(tokens[start..end].iter().map(|(_, token)| *token).collect())
+    Ok(tokens[start..end]
+        .iter()
+        .map(|(_, token)| token.as_str())
+        .collect())
 }
 
 fn wrapper(tree: &RetainedCemTree, id: AstNodeId, opening: String) -> CssConditionWrapper {

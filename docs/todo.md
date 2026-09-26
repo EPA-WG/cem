@@ -5814,9 +5814,15 @@ registration identities may reuse an inherited or existing definition.
               with different resource payloads sharing a static stylesheet.
               Include standalone/source-loaded inventory and layout coverage;
               allow exact-path demo verification with cache-isolated inputs.
-        - [ ] Rewrite declaration resource URLs through the retained resolution
-              plan, then assemble ordered rule bodies, remaining selector grammar,
-              keyframes and managed scope wrappers before browser cutover, without
+        - [x] Fixture: emit external declaration URLs from the retained resource
+              plan with closest-map overrides and imported-sheet bases; cover
+              nested/custom-property URLs, quoting, failed and missing resolutions,
+              source retention, immutable context reuse and unchanged local fragments.
+        - [x] Emit external declaration resource URLs through the retained
+              resolution plan without downstream parsing or tree mutation;
+              preserve authored local fragments and suppress failed declarations.
+        - [ ] Assemble ordered rule bodies, remaining selector grammar, keyframes
+              and managed scope wrappers before browser cutover, without
               downstream CSS parsing.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
