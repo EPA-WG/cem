@@ -5921,3 +5921,86 @@ Observation wiring is verified. Worker and HTTP startup timeouts did not recur;
 retain their existing waits and capture a traced failure under the established
 workload before proposing a correction. Historical stock-timeout attribution
 also remains separate and open.
+
+
+### Concurrent startup probe maintenance
+
+Continuation 2026-09-25 (UTC 2026-09-26) added focused, uncached Nx targets
+that retain complete traces rather than truncating console output:
+
+```sh
+yarn nx run-many --targets=diagnose:stock-startup,diagnose:worker-startup --projects=cem-elements --parallel=2 --skipNxCache
+```
+
+Build `cem-elements` and `cem-demo-element` before probing, as required by the
+stock diagnostic script. The stock target runs eight concurrent pages in four
+batches, alternating helper and real demo components. The worker target runs
+the seven selected stories listed above with readiness tracing enabled and
+ordinary runner concurrency. Reports and complete logs are saved under
+`/tmp/cem-worker-readiness-{stock,workload}.{json,log}`; copy them before another
+run if retaining multiple observations. These targets do not publish artifacts.
+
+The first paired run passed all seven stories but the stock probe timed out
+on all eight initial pages. Investigation found stale packaged QL WASM and
+an outdated probe contract. A scoped `cem-elements:build` refreshed the
+packaged runtime without rebuilding native/WASM sources. Two isolated cases
+still failed with the refreshed binary: both HTTP resources reached `loaded`
+with status 200, worker jobs succeeded, and no runtime diagnostics or network
+errors appeared, but the tables and stock warning were absent. The probe's
+static server served JSON/XML as `text/plain`. After supplying their correct
+media types, both helper and real-component cases produced the stock warning.
+This is a diagnostic-server mismatch, not evidence explaining the historical
+intermittent startup timeout.
+
+The probe now compares the packaged QL JS/WASM hashes against their build
+outputs before launching a browser, records HTTP lifecycle control fields,
+and checks the current sample inventory: three live cards, three source
+previews, one imported declaration style and one stock warning. Source previews
+do not need the helper's live-template mounting behavior. The 45-second stock
+budget and all story waits remain unchanged. The stale-binary and refreshed-
+binary failure reports are retained locally as
+`/tmp/cem-worker-readiness-stock-stale.json` and
+`/tmp/cem-worker-readiness-stock-content-type-before.json`.
+
+
+The corrected paired run **reproduced the worker first-span timeout**:
+**32/32 stock cases passed**, **6/7 selected stories passed**, and 88 unrelated
+stories were skipped. Stock warning latency ranged from 4,010.1 to 7,879.9 ms.
+The stock process ran from `03:19:45.659Z` through `03:20:12.292Z`; the worker
+story's traced interval `03:19:58.003Z`–`03:20:00.713Z` lies inside it, proving
+actual overlap. The HTTP authored-sample story passed.
+
+| Worker-story observation | Elapsed from trace start |
+| --- | ---: |
+| Initial worker span wait starts | 2.0 ms |
+| Primary declaration settles | 1,267.2 ms |
+| Construction fallback render settles | 1,403.9 ms |
+| Execution fallback render settles | 1,414.2 ms |
+| Existing 120-frame span wait fails | 2,320.6 ms |
+| Primary worker render settles with one span | 2,676.0 ms |
+| Pooled worker render settles with one span | 2,710.0 ms |
+
+At failure, both worker declarations were settled, both worker renders were
+pending with no spans or diagnostics, and exactly one worker factory had been
+called. The scheduling trace showed primary compile job 1 dispatched and
+pooled compile job 2 enqueued. Both fallback instances had already rendered,
+with only their expected fallback warnings. The primary and pooled workers
+then rendered without diagnostics, 355.4 ms and 389.4 ms after the wait failed.
+The trace therefore locates this failure before completion of asynchronous
+worker processing; it does not establish whether worker loading, compilation,
+or CPU scheduling accounts for the remaining latency. It is not evidence of
+a missing declaration, failed resource, or permanently lost render. Later
+interaction assertions did not run because the initial wait had already failed.
+
+Captured reports/logs are preserved locally at
+`/tmp/cem-worker-readiness-{stock,workload}-captured.{json,log}`.
+No runtime change, wait extension, or global test was made. Syntax and diff
+checks pass. Historical HTTP and stock timeout attribution remains open.
+
+**Decision before the next correction:** should this functional story await
+its owning declaration/render lifecycle under an explicit bounded timeout
+before checking the initial spans (recommended), or should 120 animation
+frames remain a startup performance requirement? The latter needs worker-phase
+latency measurements before choosing a runtime optimization. The current
+capture justifies separating functional readiness from frame-count timing;
+it does not select a new startup performance budget.

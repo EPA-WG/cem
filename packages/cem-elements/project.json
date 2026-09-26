@@ -4,6 +4,25 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "diagnose:stock-startup": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node tools/scripts/diagnose-cem-stock-startup.mjs --concurrency 8 --batches 4 --label worker-readiness --output /tmp/cem-worker-readiness-stock.json > /tmp/cem-worker-readiness-stock.log 2>&1",
+                "cwd": "{workspaceRoot}"
+            },
+            "outputs": []
+        },
+        "diagnose:worker-startup": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/cem-elements.stories.ts packages/cem-elements/src/lib/data-table-demo.stories.ts packages/cem-elements/src/lib/table-inspector-demo.stories.ts packages/cem-elements/src/lib/cell-overrides-demo.stories.ts packages/cem-elements/src/lib/http-request-demo.stories.ts packages/cem-elements/src/lib/local-storage-demo.stories.ts -t 'Processing.*Worker.*Fallback|Every.*Authored.*Sample|Columns.*And.*Text|Native.*Xslt.*Viewer|Conditional.*Stock.*Fallback' --reporter=json --outputFile=/tmp/cem-worker-readiness-workload.json > /tmp/cem-worker-readiness-workload.log 2>&1",
+                "cwd": "{workspaceRoot}",
+                "env": { "STORYBOOK_CEM_TREE_TRACE": "1" }
+            },
+            "outputs": []
+        },
         "test:url-integration": {
             "cache": true,
             "executor": "nx:run-commands",

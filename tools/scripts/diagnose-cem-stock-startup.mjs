@@ -40,9 +40,18 @@ const identityFiles = [
     'packages/cem-elements/dist/lib/internal/runtime-support/processing-worker.js',
     'packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql_bg.wasm',
     'packages/cem-demo-element/dist/cem-demo-element.js',
+    'packages/cem_ql/dist/wasm/cem_ql_bg.wasm',
+    'packages/cem_ql/dist/wasm/cem_ql.js',
+    'packages/cem-elements/dist/lib/internal/runtime-support/vendor/cem_ql.js',
 ];
 const hashes = Object.fromEntries(await Promise.all(identityFiles.map(async path =>
     [path, createHash('sha256').update(await readFile(resolve(root, path))).digest('hex')])));
+for (const asset of ['cem_ql.js', 'cem_ql_bg.wasm']) {
+    if (hashes[`packages/cem_ql/dist/wasm/${asset}`]
+        !== hashes[`packages/cem-elements/dist/lib/internal/runtime-support/vendor/${asset}`]) {
+        throw new Error(`Stale packaged ${asset}; run yarn nx run cem-elements:build --excludeTaskDependencies before probing`);
+    }
+}
 const verifier = await readFile(resolve(root, identityFiles[1]), 'utf8');
 const helper = verifier.match(/const htmlDemoElementModule = `([\s\S]*?)`;/)?.[1];
 if (!helper) throw new Error('Cannot locate the gallery card helper');
@@ -79,6 +88,11 @@ function installProbe(installCemElementRuntime) {
                 const job = {
                     worker: name, jobId: message.jobId, operation: message.operation, sent: now(),
                     tag: message.payload?.producedTag ?? tags.get(`${name}:${message.payload?.artifact?.artifactId}`),
+                    httpResources: message.operation === 'render-diff'
+                        ? Object.entries(message.payload.snapshot.slices).flatMap(([slice, value]) =>
+                            value?.kind === 'http-request' ? [{ slice, state: value.state,
+                                status: value.response?.status, resourceRevision: value.resourceRevision }] : [])
+                        : [],
                 };
                 jobs.set(`${name}:${message.jobId}`, job);
                 trace.jobs.push(job);
@@ -116,10 +130,12 @@ function installProbe(installCemElementRuntime) {
             stock: {
                 defined: !!customElements.get('cem-stock-cells'),
                 warnings: document.querySelectorAll('cem-stock-cells strong').length,
+                status: document.querySelector('cem-stock-cells [role="status"]')?.textContent ?? null,
+                alert: document.querySelector('cem-stock-cells [role="alert"]')?.textContent ?? null,
                 styles: document.querySelectorAll('cem-element[tag="cem-stock-cells"] style[data-cem-declaration-style]').length,
             },
             cards: Array.from(document.querySelectorAll('cem-demo-element'), card => ({
-                legend: card.getAttribute('legend'), template: !!card.querySelector(':scope > template'),
+                legend: card.getAttribute('legend'), demo: card.getAttribute('demo') !== 'false', template: !!card.querySelector(':scope > template'),
                 mounted: !!card.querySelector(':scope > [slot=demo]'),
             })),
             diagnostics: Array.from(document.querySelectorAll('cem-element[tag],cem-stock-cells'), element => ({
@@ -140,6 +156,7 @@ import {installCemElementRuntime} from '/packages/cem-elements/dist/index.js';
 </script></body></html>`;
 }
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
+    '.json': 'application/json', '.xml': 'application/xml',
     '.cemt': 'text/cem-ml', '.svg': 'image/svg+xml', '.css': 'text/css', '.png': 'image/png' };
 const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://local');
@@ -213,8 +230,9 @@ try {
                 await page.waitForFunction(() => window.stockSettled, null, { timeout });
             } catch (error) { failure = error.message; }
             const trace = await page.evaluate(() => window.readProbe?.() ?? null);
-            if (!trace || trace.stock.warnings !== 1 || trace.stock.styles !== 2 || trace.cards.length !== 3
-                || trace.cards.some(card => !card.mounted || !card.template)
+            if (!trace || trace.stock.warnings !== 1 || trace.stock.styles !== 1 || trace.cards.length !== 6
+                || trace.cards.filter(card => card.demo).length !== 3
+                || trace.cards.some(card => card.demo && (!card.mounted || !card.template))
                 || trace.diagnostics.some(entry => entry.diagnostics.length) || errors.length) {
                 failure ??= 'Startup state or diagnostics failed';
             }

@@ -2567,7 +2567,15 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           launches repeatable. No timeout reproduced; attribution remains open.
           The separate standalone stock probe is still blocked by local binding
           restrictions and is not counted as passing.
-    - [ ] Fixture: capture the worker/fallback story's 120-frame first-span
+    - [x] Fixture: run the seven-story startup workload concurrently with the
+          established eight-page/four-batch stock probe through focused Nx
+          targets. Retain complete traces and reports, verify actual overlap,
+          and attribute any failure before proposing wait or runtime changes.
+      - [x] Fixture: reject stale packaged WASM before stock probing, align
+            static-server media types and live-card/style checks with the
+            current authored sample contract,
+            and rerun helper/real stock cases after the required package build.
+    - [x] Fixture: capture the worker/fallback story's 120-frame first-span
           timeout with observations from its owning declaration and runtime
           before changing the wait. During input-value validation on 2026-09-24,
           `ProcessingWorkerAndMainThreadFallback` timed out at its first worker
@@ -2577,6 +2585,17 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           unattributed. The full rerun with existing readiness tracing enabled
           passes all 237 tests without code or wait changes. That tracing does
           not observe this story's owning runtime; capture it on recurrence.
+          Captured on continuation 2026-09-25: paired diagnostic targets pass
+          32/32 stock cases and six of seven stories. The worker's span wait
+          fails at 2,320.6 ms while both worker renders remain pending; they
+          settle with spans and no diagnostics at 2,676.0/2,710.0 ms. Both
+          fallback renders had already settled. See
+          [concurrent startup evidence](browser-stabilization-review.tmp.md#concurrent-startup-probe-maintenance).
+    - [ ] Decide whether worker/fallback functional startup should await its
+          owning runtime lifecycle under an explicit bounded timeout before
+          initial DOM assertions, or retain 120 frames as a performance
+          requirement needing worker-phase profiling. Preserve all subsequent
+          interaction assertions; do not choose a new latency budget implicitly.
     - [x] Native fixture: attribute local-storage's initial fruit-watcher
           arithmetic diagnostics and the JSON sample's
           `cem.render_plan_apply.replace_scope` warning. Distinguish absent
