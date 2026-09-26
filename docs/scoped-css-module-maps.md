@@ -449,7 +449,7 @@ combinators emit recursively. Decoded identifiers and attribute values are
 escaped when serialized; any-namespace type selectors emit an explicit `*|`.
 
 These are declaration/shared fragments, not installable CSS. Remaining selector
-grammar, declaration policy, keyframes, resource rewriting, scope wrappers and
+grammar, complete rule bodies, keyframes, resource rewriting, scope wrappers and
 complete closure emission remain pending. Browser installation continues to use
 the existing path until that compiler is ready.
 
@@ -477,6 +477,36 @@ it. Returned specificity and source ranges describe the authored selector,
 before the generated prefix. Scope wrappers, lower limits, declarations and
 instance ownership still need full compiler/browser integration; these fragments
 alone do not authorize installation.
+
+## Direct declaration fragments: implemented natively
+
+`cem_ml::css_emission::emit_css_rule_declarations` collects a retained style
+rule's direct declarations in order. It applies the existing managed declaration
+policy to both declaration and instance CSS: typed `important="true"` suppresses
+the declaration with `cem.scoped_css.important_unsupported`. Comments, escaped
+keyword spellings and case are already handled at import. The emitter does not
+search value text for `!important`; literal strings and nested custom-property
+values retain their meaning.
+
+Property names serialize as escaped identifiers, and values serialize from
+retained component tokens, including nested function/block tokens. The raw
+`value` attribute is never a fallback. Empty custom-property values are retained;
+empty ordinary values and recovered unknown components are suppressed with
+`cem.scoped_css.declaration_value_unsupported`. Recovery checks include nested
+components. Missing typed value structure produces
+`cem.scoped_css.declaration_tree_invalid`. Ordinary property/value support remains
+browser-owned; this helper is not a property grammar validator.
+
+Each accepted declaration retains its node ID and source/range. Nested rules,
+at-rules and imports are returned as explicit `deferred_children`. The complete
+compiler must traverse the retained rule's original child order rather than
+concatenate declarations across a deferred construct. Comments between
+declarations need no emitted fragment; comments within values are preserved.
+
+These fragments still contain authored resource URLs. Module-map resolution,
+URL rewriting, keyframe-reference rewriting, nested construct policy and full
+scope assembly are required before installation. This helper does not turn a
+ready import closure into an installable stylesheet.
 
 ## Shared-resolver byte delivery: implemented natively
 

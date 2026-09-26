@@ -5789,10 +5789,14 @@ registration identities may reuse an inherited or existing definition.
               one top-level descendant prefix, existing nested-host behavior,
               source retention and shared ID/duplicate policy; keep the authored
               specificity ceiling exclusive to declaration/shared selectors.
-        - [ ] Complete native declaration policy and rule-body emission from
-              typed CEM nodes, then extend remaining selector grammar and assemble
-              managed scope wrappers before browser cutover, without downstream
-              CSS parsing.
+        - [x] Fixture: emit ordered direct declaration fragments from retained
+              components, suppress typed important/recovered values, preserve
+              custom properties, escapes and source diagnostics, defer nested
+              constructs explicitly, and reject missing typed values.
+        - [ ] Rewrite declaration resource URLs through the retained resolution
+              plan, then assemble ordered rule bodies, remaining selector grammar,
+              keyframes and managed scope wrappers before browser cutover, without
+              downstream CSS parsing.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
               media entries with diagnostics/source ranges, suppress layered

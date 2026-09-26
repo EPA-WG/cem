@@ -332,3 +332,107 @@ fn instance_selectors_keep_policy_but_do_not_apply_library_specificity_ceiling()
         "cem.scoped_css.selector_unsupported"
     );
 }
+
+fn declarations(css: &str) -> cem_ml::css_emission::CssRuleDeclarations {
+    let tree = import_data(css, "text/css", "cem", "body.css").unwrap();
+    let rule = (0..tree.ast().nodes.len() as u32)
+        .find(|id| {
+            tree.node(*id)
+                .unwrap()
+                .name
+                .as_ref()
+                .is_some_and(|n| n.local_name == "rule")
+        })
+        .unwrap();
+    cem_ml::css_emission::emit_css_rule_declarations(&tree, rule).unwrap()
+}
+
+#[test]
+fn rule_declarations_suppress_important_without_scanning_value_text() {
+    let result = declarations(
+        r#".item { color:red !/**/IMPORTANT; content:"!important"; --nested: { value: !important }; width:1px !\69mportant; opacity:.5; }"#,
+    );
+    let emitted: Vec<_> = result
+        .declarations
+        .iter()
+        .map(|d| d.text.as_str())
+        .collect();
+    assert_eq!(
+        emitted,
+        [
+            r#"content:"!important";"#,
+            "--nested:{ value: !important };",
+            "opacity:.5;"
+        ]
+    );
+    assert_eq!(result.diagnostics.len(), 2);
+    assert!(result
+        .diagnostics
+        .iter()
+        .all(|d| d.code == "cem.scoped_css.important_unsupported"));
+    assert_eq!(result.diagnostics[0].range.offset, 8);
+    assert!(result.deferred_children.is_empty());
+}
+
+#[test]
+fn rule_declarations_preserve_typed_tokens_order_and_escaped_boundaries() {
+    let css = r#".item { --empty:; --name:foo\ ; c\6flor: red; width:calc(1px + var(--gap)); background:url("icon.svg"); color:blue; }"#;
+    let result = declarations(css);
+    let emitted: Vec<_> = result
+        .declarations
+        .iter()
+        .map(|d| d.text.as_str())
+        .collect();
+    assert_eq!(
+        emitted,
+        [
+            "--empty:;",
+            r"--name:foo\ ;",
+            "color:red;",
+            "width:calc(1px + var(--gap));",
+            r#"background:url("icon.svg");"#,
+            "color:blue;"
+        ]
+    );
+    assert!(result.diagnostics.is_empty());
+    let range = result.declarations[2].range;
+    assert_eq!(
+        &css[range.offset as usize..(range.offset + range.length) as usize],
+        r"c\6flor: red;"
+    );
+}
+
+#[test]
+fn rule_declarations_defer_nested_constructs_and_keep_adjacent_declarations() {
+    let result =
+        declarations(".item {color:red; @media screen { .child {color:blue} } color:green;}");
+    assert_eq!(result.declarations.len(), 2);
+    assert_eq!(result.deferred_children.len(), 1);
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.declarations[0].text, "color:red;");
+    assert_eq!(result.declarations[1].text, "color:green;");
+    assert!(result.declarations[0].node_id < result.deferred_children[0]);
+    assert!(result.deferred_children[0] < result.declarations[1].node_id);
+}
+
+#[test]
+fn rule_declarations_reject_raw_fallback_and_recovered_value_tokens() {
+    let xml = "<rule xmlns='https://cem.dev/ns/data/css/1' kind='style'><declaration name='color' value='red'/></rule>";
+    let tree = import_data(xml, "application/xml", "cem", "legacy.xml").unwrap();
+    let rule = tree.node(0).unwrap().children[0];
+    assert_eq!(
+        cem_ml::css_emission::emit_css_rule_declarations(&tree, rule)
+            .unwrap_err()
+            .code,
+        "cem.scoped_css.declaration_tree_invalid"
+    );
+    for value in ["url(bad value)", "image-set(url(bad value) 1x)"] {
+        let result = declarations(&format!(".item {{background:{value}; color:green;}}"));
+        assert_eq!(result.declarations.len(), 1);
+        assert_eq!(result.declarations[0].text, "color:green;");
+        assert_eq!(
+            result.diagnostics[0].code,
+            "cem.scoped_css.declaration_value_unsupported"
+        );
+    }
+}

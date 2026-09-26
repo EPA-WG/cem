@@ -1,6 +1,9 @@
 //! Native managed-CSS emission helpers for trees from the shared CSS importer.
 //! This is not an installable stylesheet compiler or a validator for arbitrary
 //! user-constructed token attributes. No CSS is reparsed downstream.
+mod declarations;
+pub use declarations::{emit_css_rule_declarations, CssEmittedDeclaration, CssRuleDeclarations};
+
 mod selectors;
 pub use selectors::{
     emit_css_declaration_selectors, emit_css_instance_selectors, CssEmittedSelector,

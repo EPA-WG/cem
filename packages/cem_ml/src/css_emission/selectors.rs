@@ -325,7 +325,7 @@ fn emit(
 }
 
 // CSS identifier serialization, including escaped leading digits and -digit.
-fn ident(value: &str) -> String {
+pub(super) fn ident(value: &str) -> String {
     let mut output = String::new();
     for (index, ch) in value.chars().enumerate() {
         let escape = ch.is_control()
