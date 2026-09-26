@@ -25070,7 +25070,7 @@ mod tests {
         };
         let (document, diagnostics) = crate::validation::css::css_document_ast_from_source_bytes(
             crate::validation::css::CssSourceValidationRequest {
-                bytes: b".card { color: currentColor; }\n",
+                bytes: b".card { color: currentColor; animation:1s linear linear; }\n",
                 source_uri: "builtin:css-color-output",
                 content_type: Some(CSS_CONTENT_TYPE),
             },
@@ -25106,6 +25106,17 @@ mod tests {
             assert_eq!(colored.value["category"], "css-document");
             assert_eq!(colored.value["colorProfile"], profile);
             assert_eq!(colored.value["nodes"][2]["style"][style_key], style_value);
+            let names: Vec<_> = colored.value["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|n| n["text"] == "linear")
+                .collect();
+            assert_eq!(names.len(), 2);
+            assert_eq!(names[0]["style"]["colorRole"], "syntax.keyword");
+            assert_eq!(names[1]["style"]["colorRole"], "syntax.name");
+            assert_ne!(names[0]["sourceMap"], Value::Null);
+            assert_ne!(names[1]["sourceMap"], Value::Null);
         }
     }
 

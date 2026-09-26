@@ -1125,7 +1125,7 @@ mod tests {
         let source = concat!(
             "<cem-element><template>{section @class=plain | Plain}</template>",
             "<template type=\"text/cem-ml\">{style |```\n",
-            ".card { color: red; width: 12px; }\n",
+            ".card { color: red; width: 12px; animation:1s linear linear; }\n",
             "```}{section @class=card | Scoped}</template></cem-element>",
             "<p id=after>Done</p>"
         );
@@ -1158,6 +1158,14 @@ mod tests {
             role_at(&value, source.rfind("section @class=card").unwrap()),
             Some("syntax.name"),
             "the parent CEM-ML scope resumes after CSS"
+        );
+        assert_eq!(
+            role_at(&value, source.find("linear linear").unwrap()),
+            Some("syntax.keyword")
+        );
+        assert_eq!(
+            role_at(&value, source.find("linear linear").unwrap() + 7),
+            Some("syntax.name")
         );
         assert_eq!(
             role_at(&value, source.rfind("p id=after").unwrap()),
@@ -1210,6 +1218,73 @@ mod tests {
         assert!(html.contains("<dfn>color</dfn>"));
         assert!(html.contains("<kbd>var(</kbd>"));
         assert_eq!(semantic_html_text(html), source);
+    }
+
+    #[test]
+    fn css_animation_roles_come_from_retained_name_and_value_slots() {
+        let source = r#".card {animation: 1s linear linear; animation-name: "linear", none} @keyframes linear {from {opacity:0} 100% {opacity:1}}"#;
+        let value =
+            response(&serde_json::json!({"source":source,"contentType":"text/css"}).to_string());
+        assert_eq!(
+            role_at(&value, source.find("1s").unwrap()),
+            Some("syntax.number")
+        );
+        assert_eq!(
+            role_at(&value, source.find("linear").unwrap()),
+            Some("syntax.keyword")
+        );
+        assert_eq!(
+            role_at(&value, source.find("linear linear").unwrap() + 7),
+            Some("syntax.name")
+        );
+        assert_eq!(
+            role_at(&value, source.find("\"linear\"").unwrap()),
+            Some("syntax.string")
+        );
+        assert_eq!(
+            role_at(&value, source.find("none").unwrap()),
+            Some("syntax.keyword")
+        );
+        assert_eq!(
+            role_at(&value, source.find("from").unwrap()),
+            Some("syntax.keyword")
+        );
+        assert_eq!(
+            role_at(&value, source.find("100%").unwrap()),
+            Some("syntax.number")
+        );
+        assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+    }
+
+    #[test]
+    fn css_semantic_coloring_preserves_fallback_and_escaped_source() {
+        for source in [
+            r".card {animation: 1s linear var(--motion)}",
+            r".card {animation: 1s linear future()}",
+            r".card {animation: 1s linear linear;",
+        ] {
+            let value = response(
+                &serde_json::json!({"source":source,"contentType":"text/css"}).to_string(),
+            );
+            assert_eq!(
+                role_at(&value, source.find("linear").unwrap()),
+                Some("syntax.value")
+            );
+            assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+        }
+        let source =
+            r".card {animation-name: p\75 lse /*keep*/} @keyframes p\75 lse {to {opacity:1}}";
+        let value =
+            response(&serde_json::json!({"source":source,"contentType":"text/css"}).to_string());
+        assert_eq!(
+            role_at(&value, source.find(r"p\75 lse").unwrap()),
+            Some("syntax.name")
+        );
+        assert_eq!(
+            role_at(&value, source.find("/*keep*/").unwrap()),
+            Some("syntax.comment")
+        );
+        assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
     }
 
     #[test]

@@ -1,7 +1,9 @@
 //! CSS syntax is interpreted at import, never by retained-tree consumers.
 mod animation_names;
 mod animation_shorthand;
+mod highlight;
 mod keyframes;
+pub(crate) use highlight::annotate_retained_css_roles;
 mod selectors;
 use super::{ImportBuilder, MAX_DEPTH, MAX_VALUES};
 use crate::{

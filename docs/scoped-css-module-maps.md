@@ -1008,3 +1008,20 @@ pending/cancelled closure rejection. Chromium verifies a two-level conditional
 import with a root animation reference and root cascade override. Runtime
 transport, owner-identity derivation, cache/lifecycle wiring and installation
 remain pending.
+
+## Retained animation roles in source presentation
+
+The shared import projection refines the lossless CSS event stream with
+`symbol` and `keyword` semantic roles using the retained keyframe and animation
+slots. Source highlighting and schema formatter/colorizer profiles consume
+those roles directly. No sample-side or CLI-side CSS parsing is added, and the
+projection reuses the already-tokenized events.
+
+Only identifier roles change: keyframe definitions/references use the existing
+name palette; shorthand keywords and `from`/`to` use the existing keyword
+palette. Strings, numbers, comments and functions retain their lexical roles.
+Unsupported, recovered or over-limit projections retain broad source roles.
+The browser sample includes `animation: 1s linear linear` to show the distinct
+meanings with unchanged visible source. Nested HTML/CEM-ML/CSS source scopes and
+CLI ANSI presentation use the same distinctions. Direct browser CSS export
+continues to produce uncolored CSS.

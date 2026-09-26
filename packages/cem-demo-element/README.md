@@ -87,6 +87,13 @@ definitions and `var()` references retain the bold variable role. The CSS
 parser records selector, property, custom-property, value, and function context
 on its lossless AST events; the source view does not infer those roles from
 token spelling alone.
+
+Retained CSS import slots also distinguish keyframe names and references from
+animation keywords. In `animation: 1s linear linear`, easing uses the keyword
+color and the animation name uses the name color. Frame keywords `from`/`to`
+use the keyword role; quoted names, numeric offsets, times and comments keep
+their lexical colors. Unsupported or recovered grammar keeps the existing
+fallback coloring. The CLI formatter consumes the same source roles.
 Highlighted source keeps classes on the enclosing `code.cem-source-code` only.
 Its compact native vocabulary is `b` for tag/name, `var` for
 attribute/variable, `dfn` for CSS property, `data` for CSS value, `kbd` for CSS

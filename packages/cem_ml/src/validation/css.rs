@@ -104,6 +104,8 @@ pub enum CssSemanticKindAst {
     CustomProperty,
     Value,
     Function,
+    Symbol,
+    Keyword,
 }
 
 impl CssSemanticKindAst {
@@ -115,6 +117,8 @@ impl CssSemanticKindAst {
             Self::CustomProperty => "custom-property",
             Self::Value => "value",
             Self::Function => "function",
+            Self::Symbol => "symbol",
+            Self::Keyword => "keyword",
         }
     }
 }
@@ -131,7 +135,8 @@ pub(crate) fn css_event_semantic_role(event: &CssEventAst) -> &'static str {
         "number" | "percentage" | "dimension" => "syntax.number",
         "whitespace" | "presentation-gap" => "syntax.text",
         _ => match event.semantic_kind {
-            CssSemanticKindAst::Selector => "syntax.name",
+            CssSemanticKindAst::Selector | CssSemanticKindAst::Symbol => "syntax.name",
+            CssSemanticKindAst::Keyword => "syntax.keyword",
             CssSemanticKindAst::Property => "syntax.property",
             CssSemanticKindAst::CustomProperty => "syntax.attribute",
             CssSemanticKindAst::Value => "syntax.value",
@@ -490,7 +495,7 @@ pub fn css_document_ast_from_source_bytes(
         });
     }
 
-    let ast = CssDocumentAst {
+    let mut ast = CssDocumentAst {
         source: source_info,
         entry_mode,
         encoding_report: CssEncodingReportAst {
@@ -505,6 +510,7 @@ pub fn css_document_ast_from_source_bytes(
         line_ending: detect_line_ending(source),
         recovery_count,
     };
+    crate::import::annotate_retained_css_roles(&mut ast);
     let diagnostics = validate_css_document_ast(&ast);
     (Some(ast), diagnostics)
 }

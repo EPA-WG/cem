@@ -126,6 +126,8 @@
         {body |
             {$ match($event.semanticKind, {
                 selector: "syntax.name",
+                symbol: "syntax.name",
+                keyword: "syntax.keyword",
                 property: "syntax.property",
                 "custom-property": "syntax.attribute",
                 value: "syntax.value",

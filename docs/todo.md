@@ -3927,19 +3927,27 @@ registration identities may reuse an inherited or existing definition.
       CLI coloring. Existing source coloring uses broad lossless-event roles;
       feed the new import-owned selector, grouping, keyframe and animation-slot
       distinctions into the shared syntax stream without downstream CSS parsing.
-    - [ ] Map supported retained roles to shared formatter/colorizer roles,
+    - [x] Map retained keyframe and animation roles to shared formatter/colorizer roles,
           distinguishing keyframe definitions/references, frame offsets and
           animation names from easing, duration, delay and other shorthand slots.
           Preserve string, number, comment and diagnostic roles where they win.
-    - [ ] Use the same roles in `cem-demo-element` CSS samples and the CLI
+    - [x] Use the same roles in `cem-demo-element` CSS samples and the CLI
           terminal formatter, including embedded HTML → CEM-ML → CSS scopes;
           reuse existing palettes and generic presentation hooks.
-    - [ ] Fixture: compare `animation: 1s linear linear`, escaped/quoted names,
+    - [x] Fixture: compare `animation: 1s linear linear`, escaped/quoted names,
           keyframe offsets, nesting and conditional groups across native source
           spans, rendered samples and ANSI CLI output. Assert source-range and
           visible-text parity, parent-scope resumption, and readable fallback
           coloring for unsupported/recovered syntax. Start with native tests,
           then verify WASM/sample browser and real CLI paths.
+    - [ ] Extend retained role coverage for selector arguments and conditional
+          group operators as their typed import profiles grow. Keep the existing
+          selector/property/function colors and source fallback for other syntax.
+    - Validation: full `cem_ml:test` and its five prerequisites pass; native
+      source/formatter and real CLI ANSI regressions pass. All 12 demo browser
+      tests pass across the sample themes after rebuilding WASM. Rust lint
+      retains its existing warnings; demo lint passes. Selector/group extensions
+      remain pending.
 - [x] Make every source formatter/colorizer follow AST-owned content-type
       switches through one generic syntax stream.
     - [x] Extract the HTML, CEM-ML, and CSS scope dispatcher from the browser
@@ -5887,10 +5895,11 @@ registration identities may reuse an inherited or existing definition.
               Nx WASM build, Rust lint (existing warnings), and script lint pass.
         - [x] Audit remaining selector grammar and native keyframe compilation;
               select the next bounded retained-tree fixture before browser cutover.
-              The native stylesheet profile still rejects functional global
-              aliases, nth/language/state argument grammars and functional
-              pseudo-elements. Keyframes retain generic rules/components only;
-              animation references have no typed slot classification yet.
+              At audit time the profile rejected functional global aliases,
+              nth/language/state argument grammars and functional pseudo-elements.
+              Keyframes and animation references lacked typed classification.
+              Subsequent fixtures below implement global aliases and keyframes;
+              the other selector argument grammars remain pending.
               Recommended: finish the existing functional host-alias contract
               for one compound before extending argument grammars or keyframes.
         - [x] Fixture: retain functional `:global()` as a diagnosed host alias
@@ -5963,6 +5972,11 @@ registration identities may reuse an inherited or existing definition.
         - [ ] Connect native closure emission to stable effective stylesheet
               ownership, cache invalidation and browser lifecycle only after
               completing the remaining syntax profiles and diagnostic gates.
+        - [ ] Fixture: retain and emit bounded structural `:nth-child()`,
+              `:nth-last-child()`, `:nth-of-type()` and `:nth-last-of-type()`
+              An+B arguments, with typed coefficients, specificity, source ranges,
+              invalid-input rejection and native/browser matching checks.
+              Start without `of <selector-list>`; keep query capabilities unchanged.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

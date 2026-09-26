@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 pub mod documents;
 mod css;
+pub(crate) use css::annotate_retained_css_roles;
 mod strings;
 mod string_options;
 pub use string_options::{resolve_string_import, ImportStringConfig, ImportStringOption};

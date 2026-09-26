@@ -13793,7 +13793,7 @@ This document has **strong** text and a link.
     fn convert_html_colorizer_switches_typed_template_and_css_ast_scopes() {
         let source = r#"<template type="text/cem-ml">
 {style |```
-:host { --accent: #312e81; color: var(--accent); }
+:host { --accent: #312e81; color: var(--accent); animation:1s linear linear; }
 ```}
 {p @class=note |Hello}
 </template>"#;
@@ -13846,6 +13846,28 @@ This document has **strong** text and a link.
             html_text_content(written.strip_suffix('\n').unwrap_or(&written)),
             source
         );
+        assert!(written.contains("data-role=\"syntax.keyword\""));
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-color-profile",
+                "terminal",
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains("\x1b["));
+        assert_eq!(strip_ansi_codes(&stdout).trim_end_matches('\n'), source);
     }
 
     #[test]

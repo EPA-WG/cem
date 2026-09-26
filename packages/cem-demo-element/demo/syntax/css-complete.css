@@ -13,6 +13,7 @@
     background-image: linear-gradient(135deg, #f5f3ff 0%, rgb(224 231 255) 100%);
     inline-size: calc(100% - var(--space));
     opacity: 0.85;
+    animation: 1s linear linear;
     content: "CSS value";
 
     & > .child:hover,
@@ -30,4 +31,10 @@
     from { translate: 0 1rem; }
     50% { opacity: 0.5; }
     to { translate: 0; }
+}
+
+/* The first linear is easing; the second is a keyframe reference. */
+@keyframes linear {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
