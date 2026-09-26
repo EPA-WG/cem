@@ -401,8 +401,39 @@ coverage must expand before browser cutover.
 This is an isolated stylesheet profile of the existing native selector parser.
 The selector-query entry point retains its capability restrictions: `:host`,
 `:host(...)`, and host-state queries remain unsupported without query host
-capabilities. Host rewriting, the managed specificity budget, duplicate-selector
-policy, and full scoped rule emission remain pending.
+capabilities. Declaration/shared selector emission is implemented below; instance
+rewriting and full scoped rule emission remain pending.
+
+## Declaration/shared selector fragments: implemented natively
+
+`cem_ml::css_emission::emit_css_declaration_selectors` consumes a retained style
+rule and returns accepted selector fragments plus source-aware diagnostics.
+It traverses only typed CEM selector nodes; the raw rule selector is never a
+fallback. Missing structure is an error, and an unsupported analysis profile
+suppresses the list with `cem.scoped_css.selector_unsupported`.
+
+The helper enforces the authored `0-2-1` ceiling before rewriting, rejects IDs
+(including IDs inside `:where`), and rejects repeated decoded class/attribute
+tokens within a specificity-bearing compound. Attribute identity includes its
+namespace, name, operator, value and modifier, so equivalent quoting/escape
+spellings cannot bypass the check. Compounds under `:where` have zero weight;
+repetition there is not manufactured specificity. A failure inside a functional
+selector suppresses its entire top-level selector rather than dropping a nested
+branch and changing matching semantics. Other top-level selectors survive.
+
+`:host` becomes `:where(:scope)` and functional host arguments remain attached.
+When an argument contains a type/universal selector, the helper uses
+`:where(:scope):is(argument)` to preserve a valid compound and the argument's
+weight. Simple `:root` and `:global` become diagnosed host aliases. Functional
+`:global(...)` remains outside the initial retained profile and is suppressed
+until import support is added. Ordinary selector-list functions and relative
+combinators emit recursively. Decoded identifiers and attribute values are
+escaped when serialized; any-namespace type selectors emit an explicit `*|`.
+
+These are declaration/shared fragments, not installable CSS. Instance selector
+prefixing, remaining selector grammar, declaration policy, keyframes, resource
+rewriting, scope wrappers and complete closure emission remain pending. Browser
+installation continues to use the existing path until that compiler is ready.
 
 ## Shared-resolver byte delivery: implemented natively
 

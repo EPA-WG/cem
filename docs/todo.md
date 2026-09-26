@@ -5777,10 +5777,14 @@ registration identities may reuse an inherited or existing definition.
               decoded simple selectors, functional host arguments and specificity;
               preserve source ranges, mark unsupported grammar explicitly, and
               preserve the separate selector-query capability boundary.
-        - [ ] Implement native host rewriting, selector specificity/duplication
-              checks and rule emission from the retained stylesheet selector
-              profile; extend unsupported selector forms before browser cutover,
-              without downstream CSS parsing.
+        - [x] Fixture: emit declaration/shared selector fragments from retained
+              nodes; rewrite host aliases, enforce IDs, decoded duplicate tokens
+              and authored specificity, preserve valid siblings/source diagnostics,
+              and reject unsupported or missing structure without raw parsing.
+        - [ ] Extend retained selector grammar and implement native instance
+              host rewriting/prefixing, then complete rule emission from typed
+              selector/declaration nodes before browser cutover, without
+              downstream CSS parsing.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
               media entries with diagnostics/source ranges, suppress layered

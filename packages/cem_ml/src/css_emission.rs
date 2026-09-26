@@ -1,6 +1,9 @@
 //! Native managed-CSS emission helpers for trees from the shared CSS importer.
 //! This is not an installable stylesheet compiler or a validator for arbitrary
 //! user-constructed token attributes. No CSS is reparsed downstream.
+mod selectors;
+pub use selectors::{emit_css_declaration_selectors, CssEmittedSelector, CssSelectorEmission};
+
 use crate::{
     parser::{
         tree::{CemTreeRange, RetainedCemTree},
