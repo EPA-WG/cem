@@ -2544,6 +2544,19 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             overlap and all resource assertions. Observe later settlement only
             after a retained failure during diagnosis, then remove that probe;
             keep read-only lifecycle/per-card observations for future failures.
+      - [x] Fixture: expose the established HTTP/storage/three-viewer diagnostic
+            workload as an uncached Nx target with complete lifecycle logs and
+            a JSON test report. Run alongside the eight-page/four-batch stock
+            probe, verify actual overlap and retain HTTP startup evidence;
+            change no wait without a captured failure.
+            Verified on continuation 2026-09-25: the five files now contain
+            18 tests, all passing alongside 32/32 stock cases. HTTP's initial
+            article wait passes in 143/300 frames (3,098.4 ms), and all request,
+            recovery and preview assertions pass during actual stock overlap.
+            No timeout recurred; retain HTTP/location/stock attribution as
+            recurrence-dependent follow-up rather than repeatedly running
+            unchanged passing workloads. See
+            [focused HTTP target](browser-stabilization-review.tmp.md#repeatable-focused-http-diagnostic).
       - [ ] On a traced HTTP failure, distinguish declaration/library startup,
             current rendering and future HTTP completion before changing the
             fixture. If startup polling is premature, use existing lifecycle

@@ -6039,3 +6039,37 @@ Diff checks pass. No global tests ran because shared production modules did
 not change. Next: continue the remaining readiness audit, retaining HTTP's
 300-frame initial-article timeout and historical stock-timeout attribution as
 open until a traced recurrence supports a correction.
+
+
+### Repeatable focused HTTP diagnostic
+
+Continuation 2026-09-25 (UTC 2026-09-26) exposes the previously documented
+HTTP/storage/three-viewer workload as the uncached `diagnose:http-startup`
+Nx target. It enables existing lifecycle and story timing, retains the complete
+console trace at `/tmp/cem-http-readiness-workload.log`, and writes the test
+report to `/tmp/cem-http-readiness-workload.json`.
+
+```sh
+yarn nx run-many --targets=diagnose:http-startup,diagnose:stock-startup --projects=cem-elements --parallel=2 --skipNxCache
+```
+
+The current five-file inventory has **18 tests**, all passing: six data-table,
+five data-tree, one HTTP, two local-storage and four table-inspector tests.
+The earlier 15-test count described the older inventory. All **32 stock cases**
+pass too. Stock runs from `03:30:00.031Z` through `03:30:30.186Z`; HTTP's initial
+article predicate succeeds at `03:30:13.781Z` after **143/300 frames**, taking
+**3,098.4 ms**, and its final request-envelope state check succeeds at
+`03:30:20.755Z`. Thus initial startup and the traced request interactions
+actually overlap stock activity. All GET, response replacement, invalid-JSON,
+recovery, empty-URL reset, Pokémon and request-envelope assertions pass; source
+preview checks pass as part of the same story. The stock report/log are copied
+to `/tmp/cem-http-readiness-stock.{json,log}` before later probes overwrite them.
+
+The existing HTTP observation already covers per-card article counts and
+owning lifecycle state at failure. No timeout recurred and no wait or production
+module changed. Whitespace checks pass; no global tests ran. Keep historical
+HTTP/location/stock attribution open for a traced recurrence. The static
+inventory audit is already reconciled, so further unchanged passing stress
+runs add little evidence. Recommended next independent work is the
+Storybook-owned accessible theme switcher in the declarative UI migration
+backlog; retain the diagnostic targets for recurrence investigation.

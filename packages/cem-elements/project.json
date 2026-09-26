@@ -13,6 +13,16 @@
             },
             "outputs": []
         },
+        "diagnose:http-startup": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/http-request-demo.stories.ts packages/cem-elements/src/lib/local-storage-demo.stories.ts packages/cem-elements/src/lib/data-table-demo.stories.ts packages/cem-elements/src/lib/data-tree-demo.stories.ts packages/cem-elements/src/lib/table-inspector-demo.stories.ts --reporter=json --outputFile=/tmp/cem-http-readiness-workload.json > /tmp/cem-http-readiness-workload.log 2>&1",
+                "cwd": "{workspaceRoot}",
+                "env": { "STORYBOOK_CEM_TREE_TRACE": "1", "STORYBOOK_CEM_STORY_TIMING": "1" }
+            },
+            "outputs": []
+        },
         "diagnose:worker-startup": {
             "executor": "nx:run-commands",
             "cache": false,
