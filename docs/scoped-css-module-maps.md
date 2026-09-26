@@ -346,6 +346,32 @@ Existing hard stylesheet parse errors and import bounds still reject the source.
 The closure retains imported sheets without evaluating these conditions; native
 scoped emission and browser installation remain pending.
 
+## Import condition emission: implemented natively
+
+`css_emission::emit_css_import_conditions` consumes the retained import node and
+emits ordered supports/media wrapper openings, each with source provenance. Bare
+supports declarations gain the parentheses needed by `@supports`; complete
+conditions keep their structure. Invalid media entries become `not all` with
+`cem.scoped_css.media_query_recovered` diagnostics at their source ranges. Output
+uses retained component tokens, trimming only separate whitespace components so
+escaped whitespace within an identifier cannot be lost. It never reparses the
+raw `supports` or `media` metadata attributes.
+
+Under the existing managed-CSS policy, either a named or anonymous layer clause
+returns suppression with `cem.scoped_css.layer_unsupported`; the caller must omit
+the complete import occurrence, including its body. Missing, duplicate or
+inconsistent typed condition structure returns
+`cem.scoped_css.condition_tree_invalid` rather than a raw-text fallback.
+
+This helper expects trees produced by the shared CSS import boundary. It emits
+conditional fragments, not installable stylesheets. The caller must supply the
+compiled body, preserve closure order, and close each emitted wrapper. Full
+native selector/host rewriting, specificity enforcement, keyframe handling,
+resource-URL rewriting, managed scope wrapping and browser integration remain
+pending. The native importer currently retains rule selector text; the next
+step is to retain the selector structure those transformations require, keeping
+format parsing at import.
+
 ## Shared-resolver byte delivery: implemented natively
 
 `CssImportClosure::load_imports` uses `ResolverRegistry` input reads with the

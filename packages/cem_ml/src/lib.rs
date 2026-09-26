@@ -29,6 +29,7 @@ pub mod ai_context;
 pub mod api;
 pub mod ast;
 pub mod content_cache;
+pub mod css_emission;
 pub mod css_imports;
 pub mod css_resources;
 pub mod events;

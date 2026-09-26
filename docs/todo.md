@@ -5773,6 +5773,13 @@ registration identities may reuse an inherited or existing definition.
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+        - [ ] Retain the selector structure needed by native managed-CSS emission
+              at the shared import boundary; implement host rewriting, selector
+              specificity checks and rule emission without downstream CSS parsing.
+        - [x] Fixture: emit native import condition wrappers from retained CEM
+              components; parenthesize bare supports declarations, recover invalid
+              media entries with diagnostics/source ranges, suppress layered
+              imports under managed-CSS policy, and reject incomplete condition trees.
         - [x] Fixture: retain native import media lists with per-query syntax
               status and source components; recover invalid entries as `not all`
               without discarding valid siblings, preserve nested commas and
