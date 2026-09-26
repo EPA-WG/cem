@@ -18,6 +18,7 @@ use crate::{
 use std::sync::Arc;
 
 pub mod documents;
+mod css;
 mod strings;
 mod string_options;
 pub use string_options::{resolve_string_import, ImportStringConfig, ImportStringOption};
@@ -398,6 +399,7 @@ fn parse_bytes(
 ) -> Result<LoadedInputAstStream, String> {
     let (format, content_type) = import_content_type(content_type)?;
     Ok(match format {
+        "css" => LoadedInputAstStream::CssDocument(css::parse(bytes, source_uri, &content_type)?),
         "xml" | "application/xml" | "text/xml" => {
             let doc = checked(xml::xml_document_ast_from_source_bytes(
                 xml::XmlSourceValidationRequest {
@@ -458,6 +460,7 @@ fn import_content_type(value: &str) -> Result<(&'static str, String), String> {
             ("yaml", "application/yaml")
         }
         "csv" | "text/csv" => ("csv", "text/csv"),
+        "text/css" => ("css", "text/css"),
         mime if mime.ends_with("+json") => ("json", "application/json"),
         mime if mime.ends_with("+xml") => ("xml", "application/xml"),
         _ => return Err(format!("Unsupported CEM import content type `{value}`.")),
@@ -572,6 +575,7 @@ pub fn try_retain_lifecycle(
             | LoadedInputAstStream::JsonDocument(_)
             | LoadedInputAstStream::CsvDocument(_)
             | LoadedInputAstStream::YamlDocument(_)
+            | LoadedInputAstStream::CssDocument(_)
     ) {
         retain_lifecycle(native).map(Some)
     } else {
@@ -582,6 +586,9 @@ pub fn try_retain_lifecycle(
 /// Import a retained parser AST into the same tree used by the data reader.
 pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<RetainedCemTree>, String> {
     let (uri, format, length) = match native.as_ref() {
+        LoadedInputAstStream::CssDocument(doc) => (
+            doc.source.uri.clone(), doc.source.content_type.clone(), doc.source.byte_length,
+        ),
         LoadedInputAstStream::XmlDocument(doc) => (
             doc.source.uri.clone(),
             doc.source.media_type.clone(),
@@ -690,6 +697,7 @@ fn project_native(
 ) -> Result<Arc<RetainedCemTree>, String> {
     validate_data_ast(native.as_ref()).map_err(|e| e.to_string())?;
     let (ast, mut semantics) = match (projection, native.as_ref()) {
+        ("cem", LoadedInputAstStream::CssDocument(doc)) => css::project(doc)?,
         ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) =>
             json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values: MAX_VALUES, ..Default::default() }).map_err(|e| e.to_string())?,
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),

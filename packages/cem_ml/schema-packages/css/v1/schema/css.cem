@@ -32,13 +32,13 @@
 
     {elements |
         {element @name="stylesheet" @required-attributes="encoding" @optional-attributes="charset source-id byte-offset byte-length" @children="charset? import* rule* comment*"}
-        {element @name="style-block" @required-attributes="host-kind" @optional-attributes="host-schema host-selector media nonce policy source-id byte-offset byte-length" @children="style-scope? rule* declaration* comment*"}
+        {element @name="style-block" @required-attributes="host-kind" @optional-attributes="host-schema host-selector media nonce policy source-id byte-offset byte-length" @children="style-scope? import* rule* declaration* comment*"}
         {element @name="style-attribute" @required-attributes="host-kind" @optional-attributes="host-schema owner-selector source-id byte-offset byte-length" @children="declaration* component-value*"}
         {element @name="style-scope" @required-attributes="scope-kind" @optional-attributes="scope-id host-schema host-selector root-selector shadow-mode layer media condition source-id byte-offset byte-length" @children="rule* declaration*"}
         {element @name="charset" @required-attributes="encoding" @optional-attributes="source-id byte-offset byte-length"}
         {element @name="import" @required-attributes="href" @optional-attributes="media layer supports source-id byte-offset byte-length"}
         {element @name="rule" @required-attributes="kind" @optional-attributes="selector prelude name media layer condition source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
-        {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="rule* declaration* component-value*"}
+        {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="rule* declaration* component-value* comment*"}
         {element @name="selector-list" @children="selector*"}
         {element @name="selector" @optional-attributes="text specificity source-id byte-offset byte-length" @children="simple-selector* combinator*"}
         {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace source-id byte-offset byte-length"}

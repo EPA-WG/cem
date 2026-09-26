@@ -1,7 +1,7 @@
 # External data enters through CEM AST import
 
 This is the normative external-data boundary, directed by the user on
-2026-09-17. It applies to XML, JSON, YAML, CSV and future document formats.
+2026-09-17. It applies to XML, JSON, YAML, CSV, CSS and future document formats.
 
 External document syntax is parsed, decoded and mapped into a retained typed
 CEM tree at the import boundary. Downstream CEM-QL, XPath, transformations and
@@ -41,7 +41,7 @@ the JSON wire protocol for compiler diagnostics or scalar host parameters.
 
 ## Current implementation and audit
 
-`cem_ml::import` owns the native XML/JSON/YAML/CSV data-reader parsing and mapping.
+`cem_ml::import` owns the native XML/JSON/YAML/CSV/CSS data-reader parsing and mapping.
 Its typed `import_string` API also serves XPath `parse-xml`, `json-to-xml` and
 the explicit `urn:cem:import` CSV/YAML functions. The string profile owns BOMs,
 XML declaration handling, JSON codepoint/duplicate/escape policy and URI metadata.
@@ -93,6 +93,17 @@ import. No XML/JSON/YAML/CSV parser-AST traversal remains in that reader or the
 XPath evaluator. The native source owner is retained as provenance, not
 consulted to evaluate a path or compute a value. Import rejects parser ASTs
 carrying hard errors, including partial XML, YAML and CSV documents.
+
+CSS imports use the registered CSS semantic vocabulary, retaining the native
+token owner and source locations. `text/css` supports stylesheet,
+`mode=scoped-style-block`, and `mode=style-attribute` roots. Import is a
+non-executing retention boundary: unresolved import/URL policy facts remain on
+the owner but do not prevent retaining references. All other hard CSS diagnostics
+still reject import. Retention authorizes no fetch or style installation; the
+resolver/loader must enforce resource policy before either. CSS imports are
+bounded to 4096 source events and 64 nested component-value levels in addition
+to the shared byte limits. Browser style adoption and scoped loading remain
+tracked separately in [todo.md](todo.md).
 
 Native coverage must include all supported import formats, both JSON tree
 vocabularies, node identity/order, source locations, null/empty values, XML

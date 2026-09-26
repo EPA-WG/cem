@@ -16,6 +16,17 @@ and output profiles.
 
 Scoped style content is represented as metadata on style blocks and style attributes. The scope can point at an HTML, SVG, MathML, custom-element, or shadow-root host without changing the `text/css` content identity.
 
+The shared `cem_ml::import` boundary also projects CSS directly into retained
+CSS-namespace CEM trees: `stylesheet`, `style-block`, or `style-attribute`, with
+semantic imports, rules, declarations and nested component values. Style blocks
+admit imports. The native token owner retains exact lexical source and policy
+facts; the runtime tree is distinct from the generic inspection vocabulary.
+This import path retains unresolved references without fetching them. Resource
+policy diagnostics remain effective in validation and must be enforced before
+loading or installing styles. Other hard diagnostics reject import.
+`inspect ast` preserves the lexical CSS inspection vocabulary; `inspect tree`
+shows the retained semantic nodes through the shared tree inspector.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.

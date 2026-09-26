@@ -1440,6 +1440,14 @@ fn inspect_cem_presentation_stream(
             )));
         }
         if let Some(native) = loaded.ast_stream.as_ref() {
+            // AST inspection is the named lexical presentation boundary. Tree
+            // inspection below uses the newly imported semantic CSS tree.
+            if let (InspectView::Ast, LoadedInputAstStream::CssDocument(css)) = (show, native) {
+                return Ok((
+                    projection::css_ast_cem_presentation_stream(css),
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                ));
+            }
             let imported = crate::import::try_retain_lifecycle(Arc::new(native.clone())).map_err(
                 |message| {
                     EngineError::Internal(format!(
@@ -1456,16 +1464,10 @@ fn inspect_cem_presentation_stream(
         }
     }
     Ok(match show {
-        InspectView::Ast => match loaded.ast_stream.as_ref() {
-            Some(LoadedInputAstStream::CssDocument(css)) => (
-                projection::css_ast_cem_presentation_stream(css),
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-            _ => (
-                projection::cem_document_inspection(document, display_uri),
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-        },
+        InspectView::Ast => (
+            projection::cem_document_inspection(document, display_uri),
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ),
         InspectView::Events => match loaded.ast_stream.as_ref() {
             Some(LoadedInputAstStream::CssDocument(css)) => (
                 projection::css_events_cem_presentation_stream(css),
@@ -1480,19 +1482,10 @@ fn inspect_cem_presentation_stream(
                 CEM_EVENTS_PROJECTION_SCHEMA_URI,
             ),
         },
-        InspectView::Tree => match loaded.ast_stream.as_ref() {
-            // CSS has a native syntax AST but no CEM DOM projection. Keep that
-            // distinction visible instead of pretending the CSS source is a
-            // generic CEM DOM.
-            Some(LoadedInputAstStream::CssDocument(css)) => (
-                projection::css_ast_cem_presentation_stream(css),
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-            _ => (
-                projection::cem_document_inspection(document, display_uri),
-                CEM_AST_PROJECTION_SCHEMA_URI,
-            ),
-        },
+        InspectView::Tree => (
+            projection::cem_document_inspection(document, display_uri),
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ),
         InspectView::Summary => (
             inspect_records_presentation_stream(
                 "summary",
@@ -21782,6 +21775,38 @@ mod tests {
         assert!(presentation.contains("{token "), "{presentation}");
         assert!(!presentation.trim_start().starts_with(['{', '[']));
         assert!(!presentation.contains("\"kind\":"));
+    }
+
+    #[test]
+    fn inspect_css_tree_presents_retained_semantic_nodes() {
+        let mut source = input(b".card { color: red; }", "component.css");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let response = RealCemMlEngine::new()
+            .inspect(InspectRequest {
+                input: source,
+                show: InspectView::Tree,
+                presentation_scope: Some(ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    ..ScopeConfig::default()
+                }),
+                context: ctx(),
+            })
+            .unwrap();
+        let primary = response.primary_bytes.unwrap();
+        assert_eq!(primary.content_type, CEM_ML_CONTENT_TYPE);
+        let text = String::from_utf8(primary.bytes).unwrap();
+        for expected in [
+            "@name=stylesheet",
+            "@name=declaration",
+            "@namespace=https://cem.dev/ns/data/css/1",
+        ] {
+            assert!(text.contains(expected), "{text}");
+        }
+        assert!(!text.contains("{token "), "{text}");
     }
 
     #[test]

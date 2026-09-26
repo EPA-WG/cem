@@ -5709,14 +5709,20 @@ registration identities may reuse an inherited or existing definition.
     - [x] Audit the retained CSS import boundary: CSS registration and token AST
           exist, but shared retained-tree import and template style extraction
           do not yet produce a CSS-namespace tree.
-    - [ ] Decide the runtime CSS tree representation: use the existing semantic
+    - [x] Decide the runtime CSS tree representation: use the existing semantic
           CSS schema (recommended), including imports in `style-block`, or add
           an interim token-oriented vocabulary. See the
-          [retained-tree proposal](scoped-css-module-maps.md#retained-tree-boundary-decision-required).
-    - [ ] Fixture: import standalone CSS and adopted style blocks into retained
+          [retained-tree contract](scoped-css-module-maps.md#retained-tree-boundary-accepted-and-implemented).
+          Accepted: the semantic CSS schema, with imports inside style blocks.
+    - [x] Fixture: import standalone CSS and explicit style-block inputs into retained
           trees; assert CSS expanded names, semantic structure, lexical/source
           retention, quoted/unquoted URLs, escapes, comments, empty input and
-          recovery before template or browser integration.
+          recovery, declaration-list mode, at-rule component preservation and
+          import limits before template or browser integration.
+    - [x] Fixture: extend the external-format consumer guard to CSS parser ASTs
+          and verify existing shared import boundary checks still pass.
+    - [x] Fixture: preserve CSS lexical `inspect ast` presentation while
+          `inspect tree` exposes the retained semantic CSS nodes.
     - [ ] Register the CSS content type (`text/css`) as its default namespace so
           template DOM adoption recognizes `<style>` as CSS-namespace content
           and invokes the shared CSS content-type parser to produce a retained

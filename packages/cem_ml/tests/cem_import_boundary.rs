@@ -78,6 +78,8 @@ fn query_consumers_do_not_interpret_external_document_formats() {
             "JsonDocumentAst",
             "YamlDocumentAst",
             "CsvDocumentAst",
+            "CssDocumentAst",
+            "CssEventAst",
             "JsonValueAst",
             "JsonNumberKind",
             "YamlNodeAst",

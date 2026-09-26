@@ -1,6 +1,6 @@
 # Scoped module maps for typed CSS
 
-Status: accepted design; native CSS URL lookup implemented. Template adoption,
+Status: accepted design; native CSS URL lookup and semantic tree import implemented. Template adoption,
 scoped import loading, and browser integration remain pending. The active work is tracked
 in [todo.md](todo.md). Browser styles must not depend on these capabilities
 until their implementation and integration checks are complete.
@@ -61,23 +61,25 @@ source-loaded Storybook and standalone checks. Scope-dependent compiled styles
 must retain their resolver context; declaration-only reuse must not cause one
 instance's overrides to leak into another.
 
-## Retained-tree boundary: decision required
+## Retained-tree boundary: accepted and implemented
 
-The adoption audit found a prerequisite beneath template compilation:
+The adoption audit identified the following boundary, now implemented in
+`cem_ml::import::css`:
 
-- `import.rs::import_content_type` accepts JSON, XML, YAML and CSV, but not
-  `text/css`. `project_native` and `try_retain_lifecycle` likewise do not import
-  `LoadedInputAstStream::CssDocument` into a retained CEM tree.
+- `import.rs::import_content_type` now accepts `text/css`. `project_native` and
+  `try_retain_lifecycle` import `LoadedInputAstStream::CssDocument` directly into
+  a retained CSS-namespace CEM tree.
 - `validation/css.rs::CssDocumentAst` retains token/component-value events,
-  source maps and semantic roles. It does not currently expose the schema's
-  complete `stylesheet` / `import` / `rule` / `declaration` tree.
+  source maps and semantic roles. Shared import projects these into semantic
+  `stylesheet` / `import` / `rule` / `declaration` nodes and nested component
+  values, retaining the native owner as lexical provenance.
 - `projection.rs::css_ast_cem_presentation_stream` uses the generic inspection
   vocabulary. Reusing it as the runtime data tree would expose inspection
   records rather than the CSS namespace and semantic elements.
 - `cem_ql/src/render.rs::extract_static_stylesheets` currently extracts CSS text
   into `TemplateStylesheetArtifact`; it does not retain a CSS CEM tree.
 
-**Recommended:** make the existing CSS schema the runtime tree vocabulary.
+**Accepted:** use the existing CSS schema as the runtime tree vocabulary.
 Extend the native shared import boundary to build those semantic nodes directly
 from the parsed CSS events, retaining the native owner, lexical source and source
 maps. Resolve URLs by walking this CEM tree. Keep the inspection vocabulary at
@@ -98,19 +100,20 @@ For example, the semantic portion of an adopted style would be shaped as follows
 }
 ```
 
-Here `css` denotes `https://cem.dev/ns/data/css/1`. The existing schema's
-`style-block` child model does not admit `import`; accepting this design requires
-updating that child model alongside native fixtures. Standalone stylesheets
+Here `css` denotes `https://cem.dev/ns/data/css/1`. The schema's `style-block`
+child model now admits `import`, covered by native fixtures. Standalone stylesheets
 retain the schema's `stylesheet` root. The runtime tree must preserve enough
 lexical information to distinguish URL tokens and quoted `url(...)` functions
 from ordinary strings, comments and custom-property token sequences.
 
-The alternative is a lossless token-oriented runtime vocabulary followed by a
-later semantic-tree migration. That creates an additional public tree shape and
-requires URL consumers to interpret token sequences; it is not recommended.
+Unknown at-rule bodies remain balanced component values because their grammar
+is not known. Quoted `url(...)` is a function containing a string; an unquoted
+URL is a URL component value. Consumers do not re-tokenize strings or comments.
 
-Once the representation is decided, the first native fixtures should import a
-standalone stylesheet and an adopted style block, assert CSS expanded names,
-import/rule/declaration structure and source locations, and cover quoted and
-unquoted URLs, comments, escapes, empty input and recovery. Keep these in the
-shared import layer before adding template or browser wiring.
+Native fixtures cover stylesheet, explicit style-block and declaration-list
+inputs, CSS expanded names, semantic structure, source locations, quoted and
+unquoted URLs, comments, escapes, empty input, hard recovery errors and bounds.
+Import retains unresolved references without access: import/URL policy facts
+stay on the native owner and still fail ordinary validation. Other hard
+diagnostics reject import. Template adoption and authorized scoped loading are
+the next steps; an imported tree alone is not an installable style artifact.
