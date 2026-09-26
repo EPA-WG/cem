@@ -19,6 +19,9 @@ try {
   const page = await browser.newPage();
   const markup = '<cem-fixture class="active"><div class="card active"><span class="label">text</span></div><div class="pseudo"></div></cem-fixture>';
   const cases = [
+    ['container', '.card', null, 'color', 'rgb(255, 165, 0)'],
+    ['container', '.card', null, 'backgroundColor', 'rgb(255, 192, 203)'],
+    ['container-style', '.card', null, 'color', 'rgb(255, 165, 0)'],
     ['parent-list', '.label', null, 'color', 'rgb(255, 165, 0)'],
     ['declarations', '.pseudo', '::before', 'color', 'rgb(0, 128, 0)'],
     ['group-order', '.card', null, 'color', 'rgb(128, 0, 128)'],
@@ -41,6 +44,20 @@ try {
     const actual = await page.evaluate(({ selector, pseudo, property }) =>
       getComputedStyle(document.querySelector(selector), pseudo)[property], { selector, pseudo, property });
     assert.equal(actual, expected, `${name}: ${selector}${pseudo ?? ''} ${property}`);
+  }
+  for (const name of ['container', 'container-style']) {
+    await page.setContent(markup);
+    await page.addStyleTag({ content: await readFile(join(directory, `${name}.css`), 'utf8') });
+    const after = await page.evaluate((name) => {
+      const host = document.querySelector('cem-fixture');
+      const card = host.querySelector('.card');
+      const before = getComputedStyle(card).color;
+      if (name === 'container') host.style.width = '200px';
+      else host.style.setProperty('--theme', 'light');
+      return { before, color: getComputedStyle(card).color };
+    }, name);
+    assert.deepEqual(after, { before: 'rgb(255, 165, 0)', color: 'rgb(0, 0, 0)' },
+      `${name} must re-evaluate changed container state`);
   }
   const startingCss = await readFile(join(directory, 'starting-style.css'), 'utf8');
   await page.setContent('<cem-fixture></cem-fixture>');
@@ -66,7 +83,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

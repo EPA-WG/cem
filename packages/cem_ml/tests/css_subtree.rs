@@ -144,6 +144,8 @@ fn subtree_bounds_traversal_and_rejects_detached_nested_entrypoints() {
 fn browser_fixture_emits_scoped_native_nesting() {
     use cem_ml::css_emission::{emit_css_scope_wrapper, CssManagedScope};
     let cases = [
+        ("container", ":host {display:block; container:panel / inline-size; width:400px;} .card {color:black; @container panel (width > 300px) {color:orange; &.active {background-color:pink}}}", CssRuleMode::Declaration),
+        ("container-style", ":host {--theme:dark;} .card {color:black; @container style(--theme: dark) {color:orange}}", CssRuleMode::Declaration),
         ("starting-style", ".card {opacity:1; transition:opacity 1s linear; @starting-style {opacity:0;}}", CssRuleMode::Declaration),
         ("parent-list", ".card,.strong.extra { & span {color:orange} } .card span {color:black}", CssRuleMode::Declaration),
         ("declarations", ".pseudo::before {content:\"marker\";color:red; @media all {color:blue;} color:green;}", CssRuleMode::Declaration),
@@ -194,5 +196,20 @@ fn starting_style_composition_preserves_nesting_and_rejects_invalid_groups() {
     assert_eq!(
         result.diagnostics[0].code,
         "cem.scoped_css.starting_style_prelude_invalid"
+    );
+}
+
+#[test]
+fn container_composition_carries_parent_specificity_and_declaration_order() {
+    let plan = plan(".card {@container panel (width > 300px) {color:red; &.active {color:orange} color:green;} color:purple;}");
+    let result = emit_css_rule_subtree(&plan, first_rule(&plan), CssRuleMode::Declaration).unwrap();
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.css(), ".card {@container panel (width > 300px) {color:red;&.active {color:orange;}color:green;}color:purple;}");
+    let plan = self::plan(".card.active {@container (width > 300px) {&.label {color:red}}}");
+    let result = emit_css_rule_subtree(&plan, first_rule(&plan), CssRuleMode::Declaration).unwrap();
+    assert!(result.css().is_empty());
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.specificity_unsupported"
     );
 }

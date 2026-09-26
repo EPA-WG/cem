@@ -5862,10 +5862,14 @@ registration identities may reuse an inherited or existing definition.
               Validation: 52 focused native/schema checks, the 10 browser
               computed-style checks and starting-style transition pass. Nx WASM
               build, Rust lint (existing warnings) and script lint pass.
-        - [ ] Fixture: retain and emit container-query grouping conditions,
+        - [x] Fixture: retain and emit container-query grouping conditions,
               preserving optional names, query components, nested style context,
               invalid-condition diagnostics and browser-owned evaluation.
-              Recommended next before typed keyframe compilation.
+              Validation: 62 native/schema tests, 13 computed-style checks, two
+              container-state updates and the starting-style transition pass;
+              Nx WASM build, Rust lint (existing warnings), and script lint pass.
+        - [ ] Audit remaining selector grammar and native keyframe compilation;
+              select the next bounded retained-tree fixture before browser cutover.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

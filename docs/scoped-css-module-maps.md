@@ -631,7 +631,7 @@ pending before browser cutover.
 Accepted: preserve native CSS nesting in the emitted stylesheet, consistent
 with the managed stylesheet's native `@scope` target. Shared import retains the
 selector structure and parent-aware selector emission produces native fragments.
-Style/media/supports/starting-style subtree assembly is implemented; full stylesheet assembly
+Supported grouping subtree assembly is implemented; full stylesheet assembly
 and browser cutover remain pending.
 
 The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
@@ -747,11 +747,34 @@ declarations without a style parent remain suppressed. The browser owns the
 transition lifecycle, following [CSS Transitions Level 2](https://www.w3.org/TR/css-transitions-2/#defining-before-change-style).
 The public CSS schema declares the media/supports/starting-style nodes and the
 existing selector-context, parent-dependent specificity and nesting vocabulary.
-Container-query and keyframe compilation remain pending.
+Keyframe compilation remains pending.
+
+## Container grouping: implemented natively
+
+Shared import retains `group-container` with query components and outer-syntax
+validation. The admitted profile includes optional decoded container names,
+name-only conditions, comma-separated conditions and boolean combinations of
+parenthesized/function atoms. Empty list entries, reserved names, recovered
+tokens and invalid outer boolean structure invalidate the whole group. Escapes,
+comments and commas inside functions remain retained.
+
+The emitter preserves those components and suppresses an invalid group with
+`cem.scoped_css.container_condition_invalid`. It does not interpret individual
+size, style, scroll-state or future feature atoms; query evaluation and feature
+support remain browser-owned. The grammar follows
+[CSS Conditional Rules Level 5](https://drafts.csswg.org/css-conditional-5/#container-rule).
+This is outer-grammar validation, not full feature-grammar conformance.
+
+Container groups propagate parent selector context and ordered declarations
+through the native subtree composer. Chromium fixtures verify named size and
+style queries, nested matching, and changes after resizing the container or
+updating its custom property. Name-only and query-list forms have native
+retention/emission coverage; these fixtures do not claim universal browser
+support for those newer forms.
 
 ## Native rule subtree composition
 
-`emit_css_rule_subtree` composes a top-level retained style, media, supports or starting-style
+`emit_css_rule_subtree` composes a top-level retained style, media, supports, container or starting-style
 rule with its supported descendants. Style rules select root or parent-aware
 selector emission from import-owned context. Grouping rules carry the enclosing
 style context through their bodies. The result keeps ordered text fragments,

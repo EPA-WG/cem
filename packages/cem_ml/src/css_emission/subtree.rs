@@ -31,7 +31,7 @@ impl CssRuleSubtreeEmission {
     }
 }
 
-/// Compose one top-level style/media/supports/starting-style rule and its supported descendants.
+/// Compose one top-level style rule or supported grouping rule and its supported descendants.
 /// Output preserves declaration runs verbatim in order, including pseudo-element
 /// matches after nested rules. Every fragment maps to its retained source node.
 /// Unsupported constructs are diagnosed and omitted, never passed through raw.
@@ -109,6 +109,7 @@ fn compose(
                 n.eq_ignore_ascii_case("media")
                     || n.eq_ignore_ascii_case("supports")
                     || n.eq_ignore_ascii_case("starting-style")
+                    || n.eq_ignore_ascii_case("container")
             })
         {
             let result = emit_css_grouping_rule(plan, id, context)?;

@@ -77,6 +77,7 @@ fn emit_declarations(
                 name.eq_ignore_ascii_case("media")
                     || name.eq_ignore_ascii_case("supports")
                     || name.eq_ignore_ascii_case("starting-style")
+                    || name.eq_ignore_ascii_case("container")
             })
     } else {
         named(tree, rule, "rule") && attribute(tree, rule, "kind") == Some("style")
@@ -91,7 +92,8 @@ fn emit_declarations(
             || (group
                 && (named(tree, id, "group-media")
                     || named(tree, id, "group-supports")
-                    || named(tree, id, "group-starting-style")))
+                    || named(tree, id, "group-starting-style")
+                    || named(tree, id, "group-container")))
         {
             continue;
         }

@@ -269,6 +269,17 @@ impl CssImport<'_> {
                             );
                             self.components(condition, pos + 1, prelude_end);
                         }
+                        "container" => {
+                            let condition =
+                                self.node(at_rule, "group-container", pos + 1, prelude_end);
+                            let valid = self.container_condition_valid(pos + 1, prelude_end);
+                            self.attr(
+                                condition,
+                                "syntax-valid",
+                                if valid { "true" } else { "false" },
+                            );
+                            self.components(condition, pos + 1, prelude_end);
+                        }
                         "starting-style" => {
                             let prelude =
                                 self.node(at_rule, "group-starting-style", pos + 1, prelude_end);
@@ -564,6 +575,43 @@ impl CssImport<'_> {
         top[1..]
             .chunks_exact(2)
             .all(|pair| self.keyword(pair[0], operator) && atom(pair[1]))
+    }
+
+    /// Retain query atoms for browser evaluation, validating only the outer
+    /// name/list/boolean grammar. Commas inside atoms never split the list.
+    fn container_condition_valid(&self, start: usize, end: usize) -> bool {
+        let Some(top) = self.condition_tokens(start, end) else {
+            return false;
+        };
+        top.split(|i| self.events[*i].token_kind == "comma")
+            .all(|condition| {
+                let Some(&first) = condition.first() else {
+                    return false;
+                };
+                let named = self.events[first].token_kind == "ident" && !self.keyword(first, "not");
+                let query = if named {
+                    if [
+                        "none",
+                        "and",
+                        "or",
+                        "initial",
+                        "inherit",
+                        "unset",
+                        "revert",
+                        "revert-layer",
+                        "default",
+                    ]
+                    .iter()
+                    .any(|word| self.keyword(first, word))
+                    {
+                        return false;
+                    }
+                    &condition[1..]
+                } else {
+                    condition
+                };
+                (named && query.is_empty()) || self.boolean_condition(query, true)
+            })
     }
 
     fn media_query_valid(&self, start: usize, end: usize) -> bool {

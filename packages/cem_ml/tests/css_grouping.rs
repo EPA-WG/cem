@@ -188,6 +188,8 @@ fn grouping_omits_empty_bodies_and_does_not_accept_other_at_rules() {
         "@media screen {}",
         "@supports (display:grid) {}",
         "@media {color:red}",
+        "@container panel {}",
+        "@container panel {color:red}",
     ] {
         let plan = plan(source);
         assert!(
@@ -197,7 +199,7 @@ fn grouping_omits_empty_bodies_and_does_not_accept_other_at_rules() {
                 .is_none()
         );
     }
-    let plan = plan("@container card (width > 10px) { .item {color:red} }");
+    let plan = plan("@layer local { .item {color:red} }");
     assert_eq!(
         emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet)
             .unwrap_err()
@@ -257,4 +259,71 @@ fn starting_style_rejects_nonempty_preludes_and_missing_blocks() {
         result.diagnostics[0].code,
         "cem.scoped_css.group_block_required"
     );
+}
+
+#[test]
+fn container_groups_preserve_named_boolean_and_future_queries() {
+    for condition in [
+        "(width > 300px)",
+        "panel (width > 300px)",
+        "panel",
+        "only",
+        "not (width > 300px)",
+        "panel not (width > 300px)",
+        "(width > 300px) and (height > 100px)",
+        "(width > 300px) or style(--theme: dark)",
+        "panel (width > 300px), style(--theme: dark)",
+        "future(a,b)",
+        "scroll-state(stuck: top)",
+        "p\\61 nel /* name */ (width > 300px)",
+    ] {
+        let plan = plan(&format!("@container {condition} {{ .card {{color:red}} }}"));
+        let result =
+            emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet).unwrap();
+        assert!(result.diagnostics.is_empty(), "{condition}");
+        let rule = result.rule.unwrap();
+        assert_eq!(rule.opening, format!("@container {condition} {{"));
+        assert_eq!(rule.body.len(), 1);
+        assert!(rule.source.origin().is_some());
+    }
+}
+
+#[test]
+fn container_groups_reject_invalid_lists_names_and_boolean_structure() {
+    for condition in [
+        "",
+        "/* empty */",
+        ",",
+        "panel,",
+        ",panel",
+        "panel,,other",
+        "panel, none",
+        "none",
+        "inherit",
+        "initial (width)",
+        "default",
+        "revert-layer",
+        "n\\6f ne",
+        "and (width)",
+        "or (width)",
+        "not",
+        "not panel",
+        "panel other",
+        "panel and (width)",
+        "(width) (height)",
+        "(width) and",
+        "(width) and (height) or (orientation)",
+        "screen and (width)",
+        "[width]",
+        "(width) invalid",
+    ] {
+        let plan = plan(&format!("@container {condition} {{ .card {{color:red}} }}"));
+        let result =
+            emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet).unwrap();
+        assert!(result.rule.is_none(), "{condition}");
+        assert_eq!(
+            result.diagnostics[0].code, "cem.scoped_css.container_condition_invalid",
+            "{condition}"
+        );
+    }
 }
