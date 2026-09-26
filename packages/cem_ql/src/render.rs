@@ -260,6 +260,50 @@ impl PartialEq for TemplateStylesheetArtifact {
 
 impl Eq for TemplateStylesheetArtifact {}
 
+/// Named source/control transport for DOM styles; this is not a serialized AST.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DomStylesheetSource {
+    pub css: String,
+    pub scope: Option<String>,
+    pub content_type: Option<String>,
+}
+
+pub fn adopt_dom_stylesheets(sources: &[DomStylesheetSource]) -> TemplateArtifact {
+    let mut artifact = TemplateArtifact {
+        nodes: Vec::new(),
+        stylesheets: Vec::new(),
+        module_map: None,
+        diagnostics: Vec::new(),
+    };
+    for (index, source) in sources.iter().enumerate() {
+        let content_type = source
+            .content_type
+            .as_deref()
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or("text/css");
+        let result = if cem_ml::schema::registry::content_type_essence(content_type) != "text/css" {
+            Err((
+                "cem.ql.template.stylesheet_content_type_unsupported",
+                "declaration styles require the text/css content type".to_owned(),
+            ))
+        } else {
+            TemplateStylesheetArtifact::adopt(source.css.clone(), source.scope.clone())
+                .map_err(|message| ("cem.ql.template.stylesheet_parse_failed", message))
+        };
+        match result {
+            Ok(stylesheet) => artifact.stylesheets.push(stylesheet),
+            Err((code, message)) => artifact.diagnostics.push(render_diagnostic(
+                code,
+                format!("DOM stylesheet {index}: {message}"),
+                0,
+                SourceMapStack::default(),
+            )),
+        }
+    }
+    artifact
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TemplateModuleMapArtifact {
@@ -5025,6 +5069,39 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.render.control_failure"));
+    }
+
+    #[test]
+    fn dom_stylesheet_sources_adopt_independently() {
+        let artifact = adopt_dom_stylesheets(&[
+            DomStylesheetSource {
+                css: ":scope { color: red; }".into(),
+                scope: Some("library".into()),
+                content_type: None,
+            },
+            DomStylesheetSource {
+                css: "a { color: red".into(),
+                scope: None,
+                content_type: None,
+            },
+            DomStylesheetSource {
+                css: "a {}".into(),
+                scope: None,
+                content_type: Some("text/less".into()),
+            },
+        ]);
+        assert_eq!(artifact.stylesheets.len(), 1);
+        assert_eq!(artifact.stylesheets[0].scope.as_deref(), Some("library"));
+        assert_eq!(artifact.diagnostics.len(), 2);
+        assert!(artifact
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.ql.template.stylesheet_parse_failed"));
+        assert!(artifact
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.ql.template.stylesheet_content_type_unsupported"));
+        assert!(artifact.nodes.is_empty());
     }
 
     #[test]

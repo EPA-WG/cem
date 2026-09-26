@@ -1,7 +1,7 @@
 # Scoped module maps for typed CSS
 
 Status: native CSS URL lookup, semantic tree import and static CEM-ML template
-style adoption implemented. DOM-template adoption, scoped import loading and
+and DOM-template style adoption implemented. Scoped import loading and
 browser integration remain pending. The active work is tracked
 in [todo.md](todo.md). Browser styles must not depend on these capabilities
 until their implementation and integration checks are complete.
@@ -118,22 +118,13 @@ inputs, CSS expanded names, semantic structure, source locations, quoted and
 unquoted URLs, comments, escapes, empty input, hard recovery errors and bounds.
 Import retains unresolved references without access: import/URL policy facts
 stay on the native owner and still fail ordinary validation. Other hard
-diagnostics reject import. Browser DOM-template adoption and authorized scoped
-loading are the next steps; an imported tree alone does not authorize resource
+diagnostics reject import. Authorized scoped loading is the next step; an imported tree alone does not authorize resource
 access. The canonical CEM-ML compile path now retains its styles as native trees.
 
-## DOM-template readiness: decision required
+## DOM-template readiness: accepted and implemented
 
-The browser DOM path currently differs from canonical CEM-ML:
-`extractDomDeclarationStylesheets` in `cem-elements.ts` collects authored style
-text synchronously, `compileInlineDeclaration` sets `stylesheetsReady` for DOM
-templates immediately, and registration/connection can install styles before
-the first synchronous DOM projection. `whenDeclarationSettled` explicitly
-documents immediate settlement for this path. Native CSS adoption requires an
-asynchronous processing-host/WASM operation, so this timing cannot remain
-identical for declarations containing styles.
-
-**Recommended first-render contract:**
+DOM declarations with static styles now wait for native CSS adoption before
+committing their first render. The accepted contract is:
 
 1. Register the produced custom element and perform the existing synchronous
    lifecycle capture normally. Declarations without styles keep their current
@@ -155,14 +146,15 @@ identical for declarations containing styles.
    work from committing after disconnect, replacement or disposal. Preserve
    current instance state when the deferred render resumes.
 
-The alternative is to render DOM content immediately and install styles after
-native adoption. It preserves immediate markup availability but allows an
-unstyled first render and requires a separate style-readiness contract. The
-recommended approach instead makes existing settlement APIs cover styled
-readiness. This timing choice needs acceptance before runtime changes.
+The processing host's `css` compile operation carries a named JSON source/control
+batch (`css`, optional `scope` and `contentType`) to `adoptDomStylesheets`. Native
+CSS trees stay in the template artifact registry and follow its cache/disposal
+lifecycle. Source-only results carry installable CSS and diagnostics back to the
+host. Scope disposal settles the declaration and render waits even if an
+interrupted worker request cannot reply.
 
-Fixtures after the decision must cover shared adoption across two instances,
-pending and failed native adoption, unsupported/dynamic style types, a
-declaration without styles, reconnect/disposal during adoption, hydrated output,
-and both settlement APIs. Extend the existing scoped CSS demo once the shared
-runtime behavior is implemented.
+Native batch tests and `dom-stylesheet-adoption.stories.ts` cover independent
+validation, shared adoption, both settlement APIs, unsupported/dynamic types,
+native failure, no-style declarations, reconnect/disposal, and retained hydrated
+output. The stories also run with real WASM in a dedicated worker. The scoped CSS
+demo extension remains pending scoped import and resource URL resolution.

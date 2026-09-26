@@ -37,6 +37,7 @@ import {
     type CemMlTemplateModuleLoader,
     type CemMlTemplateModuleClosure,
     type CemQlStylesheetArtifact,
+    type CemDomStylesheetSource,
     type RuntimeSupportDiagnostic,
 } from './internal/runtime-support/cem-ql-render.js';
 import {
@@ -767,6 +768,8 @@ interface CompiledDeclaration {
     declaredSlices: SliceDeclaration[];
     stylesheets: CemQlStylesheetArtifact[];
     stylesheetsReady: boolean;
+    domStylesheetSources?: CemDomStylesheetSource[];
+    domStyleAdoption?: Promise<void>;
     diagnostics: CemElementDiagnostic[];
     behavior?: CemProducedElementBehavior;
 }
@@ -2061,6 +2064,14 @@ export class CemElementRuntime {
         }
         this.installDeclarationStylesheets(effectiveDeclaration);
 
+        if (effectiveDeclaration.mode === 'dom') {
+            return this.ensureDomStylesheets(effectiveDeclaration).then(() => {
+                if (declarationElement !== effectiveDeclaration.declarationElement) {
+                    this.recordDiagnostics(declarationElement, effectiveDeclaration.diagnostics);
+                }
+            });
+        }
+
         // Preserve established synchronous browser registration for ordinary CEM-ML
         // declarations; their best-effort diagnostics/stylesheets can settle afterward.
         if (
@@ -2262,8 +2273,8 @@ export class CemElementRuntime {
 
     /**
      * Resolves once a declaration's asynchronous parse diagnostics (from the cem_ql WASM
-     * compile) have been recorded. Synchronous (DOM / legacy) declarations resolve
-     * immediately.
+     * compile or DOM stylesheet adoption) have been recorded. DOM declarations
+     * without styles retain immediate settlement.
      */
     whenDeclarationSettled(declaration: object): Promise<void> {
         return this.declarationSettled.get(declaration) ?? Promise.resolve();
@@ -2479,8 +2490,16 @@ export class CemElementRuntime {
                     this.renderInstance(instance, compiled);
                     return;
                 }
-                this.renderSettled.set(instance, Promise.resolve());
-                compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                if (compiled.mode === 'dom' && !compiled.stylesheetsReady) {
+                    const token = this.nextRenderToken(instance);
+                    this.renderSettled.set(instance, this.ensureDomStylesheets(compiled).then(() => {
+                        if (this.renderTokens.get(instance) !== token || !instance.isConnected || compiled.declarationScope.disposed) return;
+                        compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                    }));
+                } else {
+                    this.renderSettled.set(instance, Promise.resolve());
+                    compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
+                }
                 return;
             }
             this.hydratedServerRenders.delete(instance);
@@ -2604,6 +2623,17 @@ export class CemElementRuntime {
             return;
         }
         this.ensureInstanceState(instance, compiled, island);
+        if (compiled.mode === 'dom' && !compiled.stylesheetsReady) {
+            const token = this.nextRenderToken(instance);
+            const pending = this.ensureDomStylesheets(compiled).then(async () => {
+                if (this.renderTokens.get(instance) !== token || !instance.isConnected || compiled.declarationScope.disposed) return;
+                // Capture current state on resume, rather than a pre-adoption snapshot.
+                this.renderInstance(instance, compiled, formRefreshPass);
+                await this.renderSettled.get(instance);
+            });
+            this.renderSettled.set(instance, pending);
+            return;
+        }
         compiled.behavior?.beforeRender?.(instance, this.behaviorContext(instance));
         const snapshot = this.createSnapshot(instance, compiled, island);
         const token = this.nextRenderToken(instance);
@@ -2826,6 +2856,44 @@ export class CemElementRuntime {
             poolPolicy: this.processingPoolPolicy,
             onTrace: this.onProcessingTrace,
         });
+    }
+
+    private ensureDomStylesheets(compiled: CompiledDeclaration): Promise<void> {
+        if (compiled.stylesheetsReady) return Promise.resolve();
+        return compiled.domStyleAdoption ??= (async () => {
+            let removeDisposeListener: (() => void) | undefined;
+            const disposed = new Promise<null>(resolve => {
+                removeDisposeListener = onCemDeclarationScopeDispose(compiled.declarationScope, () => resolve(null));
+            });
+            try {
+                const registrationIdentity = compiled.registrationIdentity;
+                if (!registrationIdentity) throw new Error('DOM stylesheet adoption requires a registration identity');
+                const result = await Promise.race([disposed, this.processingHost(compiled).compile({
+                    language: 'css', producedTag: compiled.producedTag,
+                    templateArtifactId: `${compiled.artifactId}:dom-styles`,
+                    registrationIdentity,
+                    source: createCemProcessingTextSource(JSON.stringify(compiled.domStylesheetSources ?? [])),
+                    sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity,
+                    scopePolicyStamp: this.scopePolicyStamp, sourceMapMode: 'dev',
+                }).result]);
+                if (!result || compiled.declarationScope.disposed) return;
+                compiled.stylesheets = result.stylesheets ?? [];
+                const diagnostics = result.diagnostics.map(d => declarationRuntimeSupportDiagnostic(d, compiled.producedTag));
+                compiled.diagnostics.push(...diagnostics);
+                this.recordDiagnostics(compiled.declarationElement, diagnostics);
+            } catch (error) {
+                if (compiled.declarationScope.disposed) return;
+                compiled.stylesheets = [];
+                const diagnostic = declarationDiagnostic('cem-element.stylesheet_adoption_failed',
+                    error instanceof Error ? error.message : String(error), compiled.producedTag);
+                compiled.diagnostics.push(diagnostic);
+                this.recordDiagnostics(compiled.declarationElement, [diagnostic]);
+            } finally {
+                removeDisposeListener?.();
+            }
+            compiled.stylesheetsReady = true;
+            this.installDeclarationStylesheets(compiled);
+        })();
     }
 
     private ensureProcessingArtifact(
@@ -6375,8 +6443,9 @@ function compileInlineDeclaration(
         wasmEligible,
         declaredAttributes,
         declaredSlices,
-        stylesheets: domStyles.stylesheets,
-        stylesheetsReady: mode === 'dom',
+        stylesheets: [],
+        stylesheetsReady: mode === 'dom' && domStyles.stylesheets.length === 0,
+        domStylesheetSources: mode === 'dom' ? domStyles.stylesheets : undefined,
         diagnostics,
         behavior: options.behavior,
     };
@@ -6410,10 +6479,10 @@ function extractDomDeclarationStylesheets(
     producedTag: string,
 ): {
     nodes: TemplateSourceNode[];
-    stylesheets: CemQlStylesheetArtifact[];
+    stylesheets: CemDomStylesheetSource[];
     diagnostics: CemElementDiagnostic[];
 } {
-    const stylesheets: CemQlStylesheetArtifact[] = [];
+    const stylesheets: CemDomStylesheetSource[] = [];
     const diagnostics: CemElementDiagnostic[] = [];
     const visit = (sourceNodes: readonly TemplateSourceNode[]): TemplateSourceNode[] => {
         const retained: TemplateSourceNode[] = [];
@@ -6428,8 +6497,9 @@ function extractDomDeclarationStylesheets(
             }
             if (node.tag === 'style' && node.namespace === null) {
                 const scope = node.attributes.find((attribute) => attribute.name === 'scope')?.value ?? null;
+                const contentType = node.attributes.find((attribute) => attribute.name === 'type')?.value ?? null;
                 const dynamic =
-                    scope?.includes('{$') ||
+                    scope?.includes('{$') || contentType?.includes('{$') ||
                     node.children.some(
                         (child) => child.kind === 'element' || (child.kind === 'text' && child.text.includes('{$')),
                     );
@@ -6437,7 +6507,7 @@ function extractDomDeclarationStylesheets(
                     diagnostics.push(
                         declarationDiagnostic(
                             'cem-element.stylesheet_dynamic_unsupported',
-                            'declaration stylesheet content and its `scope` attribute must be static',
+                            'declaration stylesheet content, `scope`, and `type` must be static',
                             producedTag,
                         ),
                     );
@@ -6445,6 +6515,7 @@ function extractDomDeclarationStylesheets(
                 }
                 stylesheets.push({
                     scope,
+                    contentType,
                     css: node.children
                         .map((child) =>
                             child.kind === 'text' ? child.text : child.kind === 'comment' ? `/*${child.text}*/` : '',

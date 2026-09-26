@@ -5723,7 +5723,7 @@ registration identities may reuse an inherited or existing definition.
           and verify existing shared import boundary checks still pass.
     - [x] Fixture: preserve CSS lexical `inspect ast` presentation while
           `inspect tree` exposes the retained semantic CSS nodes.
-    - [ ] Register the CSS content type (`text/css`) as its default namespace so
+    - [x] Register the CSS content type (`text/css`) as its default namespace so
           template DOM adoption recognizes `<style>` as CSS-namespace content
           and invokes the shared CSS content-type parser to produce a retained
           CEM AST, rather than leaving its body as untyped text.
@@ -5733,14 +5733,18 @@ registration identities may reuse an inherited or existing definition.
               and malformed CSS before producing installable style artifacts.
         - [x] Fixture: reload portable template artifacts with retained CSS trees
               and verify native adoption rejects malformed serialized CSS.
-        - [ ] Route browser DOM-template style adoption through the same native
+        - [x] Route browser DOM-template style adoption through the same native
               importer; retain CSS owners and diagnostics without adding a
               browser-local CSS parser or serialized AST handoff.
             - [x] Audit synchronous DOM style installation and settlement;
-                  record the [readiness proposal](scoped-css-module-maps.md#dom-template-readiness-decision-required).
-            - [ ] Decide whether the first DOM render waits for native style
+                  record the [readiness proposal](scoped-css-module-maps.md#dom-template-readiness-accepted-and-implemented).
+            - [x] Decide whether the first DOM render waits for native style
                   adoption (recommended) or styles arrive after immediate markup.
-            - [ ] Fixture: verify shared adoption, both settlement APIs, malformed
+                  Accepted: wait for adoption; registration stays synchronous.
+            - [x] Fixture: adopt a batch of DOM-authored CSS source strings through
+                  the native stylesheet importer, retaining valid owners and
+                  diagnosing malformed CSS and unsupported content types.
+            - [x] Fixture: verify shared adoption, both settlement APIs, malformed
                   and unsupported/dynamic styles, native failure, no-style
                   declarations, reconnect/disposal and retained hydrated output.
     - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and

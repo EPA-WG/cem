@@ -45,6 +45,8 @@ vi.mock('./cem-ql-render.js', () => {
     }),
     retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn() })),
     retainLoadedCemDocument: vi.fn(async () => 101),
+    retainDomStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
+        stylesheets: [{ css: ':scope { color: red; }', scope: null }], moduleMap: null })),
     disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
     processRetainedCemMlTemplate: vi.fn(async (artifactId: number, input: {
@@ -150,6 +152,7 @@ vi.mock('./cem-ql-render.js', () => {
 import { CemProcessingEngine } from './processing-engine.js';
 import {
     retainLoadedCemDocument,
+    retainDomStylesheetSources,
     retainXsltComponentSource,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
@@ -161,6 +164,25 @@ import {
 import { createCemProcessingTextSource } from './processing-host.js';
 
 describe('Phase 3A retained processing engine', () => {
+    it('retains a CSS source batch once, rejects unrelated compile options, and releases its native owner', async () => {
+        const engine = new CemProcessingEngine();
+        const source = JSON.stringify([{ css: ':scope { color: red; }', scope: null, contentType: 'text/css' }]);
+        const input = { language: 'css' as const, producedTag: 'dom-css', templateArtifactId: 'dom-css-styles',
+            registrationIdentity: 'dom-css-registration', source: createCemProcessingTextSource(source),
+            sourceRef: { kind: 'inline' as const, value: 'dom-css-source' }, resolverIdentity: 'test',
+            scopePolicyStamp: 'css-test', sourceMapMode: 'dev' as const };
+        const adoption = vi.mocked(retainDomStylesheetSources);
+        adoption.mockClear();
+        const first = await engine.compile(input);
+        expect(await engine.compile(input)).toEqual(first);
+        expect(adoption).toHaveBeenCalledTimes(1);
+        expect(adoption).toHaveBeenCalledWith(source);
+        expect(first.stylesheets).toEqual([{ css: ':scope { color: red; }', scope: null }]);
+        await expect(engine.compile({ ...input, exportCompiledArtifact: true })).rejects.toThrow('CSS adoption accepts only');
+        const owner = (await adoption.mock.results[0].value).artifactId;
+        engine.dispose({});
+        expect(disposeRetainedCemMlTemplate).toHaveBeenCalledWith(owner);
+    });
     it('separates source-link policy and final bases in retained artifact identity', async () => {
         const engine = new CemProcessingEngine();
         const input = {

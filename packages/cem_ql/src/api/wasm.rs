@@ -74,6 +74,28 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
     .to_string()
 }
 
+/// Adopt authored DOM CSS sources and retain their native trees in the existing
+/// artifact registry. The control payload contains source strings, never an AST.
+#[wasm_bindgen(js_name = "adoptDomStylesheets")]
+pub fn wasm_adopt_dom_stylesheets(source_json: &str) -> String {
+    if source_json.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
+        return error_json(
+            "cem.ql.stylesheet_source_limit",
+            "stylesheet source batch exceeds the import byte limit".to_owned(),
+        );
+    }
+    let sources: Vec<crate::render::DomStylesheetSource> = match serde_json::from_str(source_json) {
+        Ok(sources) => sources,
+        Err(error) => return error_json("cem.ql.stylesheet_source_invalid", error.to_string()),
+    };
+    let artifact = crate::render::adopt_dom_stylesheets(&sources);
+    let diagnostics = diagnostics_json(&artifact.diagnostics);
+    let stylesheets = stylesheets_json(&artifact);
+    let artifact_id = retain_artifact(artifact);
+    json!({"artifactId": artifact_id, "stylesheets": stylesheets, "diagnostics": diagnostics})
+        .to_string()
+}
+
 /// Inspect static CEMT imports without resolving or loading them. The host uses this to construct
 /// the immutable module closure through its scope-aware URL resolver.
 #[wasm_bindgen(js_name = "templateModuleImports")]

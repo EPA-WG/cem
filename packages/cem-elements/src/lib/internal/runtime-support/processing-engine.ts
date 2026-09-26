@@ -13,6 +13,7 @@ import {
 import {
     processNativeCemValue,
     retainLoadedCemDocument,
+    retainDomStylesheetSources,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     cemMlTemplateArtifactPayloadKey,
@@ -140,6 +141,10 @@ export class CemProcessingEngine {
         if (input.language === 'xslt') {
             if (!input.xslt || input.moduleClosure || input.xpathFunctionLibrary || input.precompiledArtifact || input.exportCompiledArtifact) {
                 throw new Error('XSLT compilation requires its explicit source/options contract');
+            }
+        } else if (input.language === 'css') {
+            if (input.xslt || input.moduleClosure || input.xpathFunctionLibrary || input.precompiledArtifact || input.exportCompiledArtifact || input.hostBindings?.length) {
+                throw new Error('CSS adoption accepts only its stylesheet source/control batch');
             }
         } else if (input.language !== 'cem-ml' || input.xslt) {
             throw new Error('invalid processing language or XSLT options');
@@ -337,6 +342,10 @@ export class CemProcessingEngine {
         source: string
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
+        if (input.language === 'css') {
+            const retained = await retainDomStylesheetSources(source);
+            return { wasmArtifactId: retained.artifactId, diagnostics: retained.diagnostics, stylesheets: retained.stylesheets };
+        }
         if (input.xslt) {
             const xslt = await retainXsltComponentSource(source, input.xslt.sourceUri, input.xslt.options, hostBindings, input.xslt.controlPolicy);
             return { xslt, wasmArtifactId: 0, diagnostics: xslt.diagnostics, stylesheets: xslt.stylesheets };

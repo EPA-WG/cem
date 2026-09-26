@@ -21,6 +21,7 @@ import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type
 import initCemQlWasm, {
     cemQlVersion,
     compileTemplate,
+    adoptDomStylesheets,
     compileTemplateArtifact,
     compileTemplateModuleClosure,
     convertLegacyCustomElementTemplate,
@@ -80,6 +81,24 @@ export interface CemQlRenderResult {
 export interface CemQlStylesheetArtifact {
     css: string;
     scope: string | null;
+}
+
+export interface CemDomStylesheetSource extends CemQlStylesheetArtifact {
+    contentType?: string | null;
+}
+
+/** Retain native CSS owners; sourceJson is the named DOM stylesheet source batch. */
+export async function retainDomStylesheetSources(sourceJson: string): Promise<RetainedCemMlTemplate> {
+    await ensureRuntimeReady();
+    const result = JSON.parse(adoptDomStylesheets(sourceJson)) as {
+        artifactId?: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[];
+    };
+    if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
+        throw new Error(result.diagnostics?.[0]?.message ?? 'DOM stylesheet adoption did not retain an artifact');
+    }
+    return { artifactId: result.artifactId as number,
+        stylesheets: (result.stylesheets ?? []).map(mapStylesheet), moduleMap: null,
+        diagnostics: (result.diagnostics ?? []).map(mapDiagnostic) };
 }
 
 export interface CemMlTemplateCompileResult {
@@ -395,7 +414,7 @@ export async function compileCemMlTemplate(source: string): Promise<CemMlTemplat
             .filter((diagnostic) => {
                 const code = diagnostic.code ?? '';
                 return code.startsWith('cem.tokenizer.')
-                    || code === 'cem.ql.template.stylesheet_dynamic_unsupported'
+                    || code.startsWith('cem.ql.template.stylesheet_')
                     || code.startsWith('cem.ql.template.module_map_');
             })
             .map(mapDiagnostic),

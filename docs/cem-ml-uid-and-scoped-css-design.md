@@ -144,8 +144,12 @@ from the template resolver context, never the synthetic CSS source URI.
 Artifact clones share the retained tree. The existing portable template format
 continues to carry authored CSS and scope; reload adopts CSS once, without
 re-tokenizing CEM-ML or recompiling CEM-QL. Invalid serialized CSS rejects reload.
-Browser DOM-template adoption and scoped resource loading are separate pending
-integration steps; this does not authorize loading retained references.
+Browser DOM templates send static stylesheet sources through the same native
+importer and retain their trees under the processing host artifact lifecycle.
+The first render and both settlement APIs wait for adoption; hydrated output
+stays intact. See the [readiness contract](scoped-css-module-maps.md#dom-template-readiness-accepted-and-implemented).
+Scoped resource loading remains pending; adoption does not authorize loading
+retained references.
 
 Declaration-local keyframes receive a deterministic stylesheet suffix and all
 local animation references are rewritten. `@import` and document-global
