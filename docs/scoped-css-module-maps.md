@@ -626,6 +626,56 @@ not a complete stylesheet. Deferred selector nesting, other grouping kinds,
 keyframe names/references and recursive whole-stylesheet composition remain
 pending before browser cutover.
 
+## Nested style rules: proposed, awaiting output-format decision
+
+The next compiler step needs a choice between preserving native CSS nesting in
+the emitted stylesheet and lowering nested rules into flat selectors. The
+recommendation is to preserve nesting, consistent with the managed stylesheet's
+native `@scope` target. This proposal is not an implemented or accepted extension.
+
+The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
+assigns `&` the maximum specificity of the parent selector list. Simple textual
+expansion into separate parent/child combinations can change the cascade.
+Additionally, [nested declaration runs](https://drafts.csswg.org/css-nesting-1/#nested-declarations-rule)
+retain the parent's pseudo-element matches; substituting an `&` rule for such a
+run does not preserve those matches. These distinctions make native nesting the
+recommended output format. Flat output remains an alternative if compatibility
+requires it, but needs semantic lowering and its own equivalence fixtures.
+
+Proposed implementation after that decision:
+
+- Extend shared CSS import with a typed nesting selector and explicit nested-rule
+  context, including implicit descendant and leading-combinator forms. Keep
+  standalone selector-query capabilities unchanged. Emission consumes retained
+  CEM nodes only, with no raw-selector parsing fallback.
+- Carry parent selector context through grouping rules. Preserve authored rule
+  and declaration order, including declarations following a nested rule.
+  Rewrite host aliases using the existing declaration/instance rules; never
+  substitute `&` for `:host`. Apply the instance root prefix at the outer rule,
+  not independently to every nested child.
+- Evaluate the declaration/shared `0-2-1` ceiling against composed authored
+  specificity, including the parent contribution, before host normalization.
+  For example, `.card { & .label { color: red; } }` has child specificity
+  `0-2-0`; `.card.active { & .label { color: red; } }` reaches `0-3-0` and
+  should diagnose and suppress that child selector. Recompute parent context
+  from admitted branches so rejected branches do not contribute to emitted
+  descendants. Suppress descendants when no parent branch remains.
+- Preserve existing ID and manufactured-specificity restrictions. Add explicit
+  checks for repeated specificity-bearing nesting selectors in one compound and
+  duplicate class/attribute weighting introduced into that compound across a
+  nesting boundary. Repeating a class in separate descendant compounds remains
+  distinct from manufacturing weight in one compound.
+- Keep unsupported forms diagnosed with source ranges. Native output still
+  requires retained selector validation and policy checks; it does not authorize
+  passing arbitrary authored selector strings through to the browser.
+
+Before browser cutover, fixtures must establish parent-list specificity,
+multi-level context, `:where()` zero specificity, host normalization, instance
+prefixing, rejected parent/child branches, duplicate weighting, pseudo-elements,
+and declaration order through media/supports groups. Rebuild WASM after native
+fixtures pass and verify computed browser behavior for the emitted nesting,
+including nested declaration runs. Automatic `url(#id)` handling stays deferred.
+
 ## Shared-resolver byte delivery: implemented natively
 
 `CssImportClosure::load_imports` uses `ResolverRegistry` input reads with the

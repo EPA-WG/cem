@@ -5830,6 +5830,16 @@ registration identities may reuse an inherited or existing definition.
               including empty/recovered media lists, invalid supports suppression,
               source maps and declaration order around nested constructs; allow
               direct declarations only when a containing style rule supplies context.
+        - [x] Audit native nested-selector compilation requirements and record
+              the [output-format proposal](scoped-css-module-maps.md#nested-style-rules-proposed-awaiting-output-format-decision).
+        - [ ] Decide nested-rule output: preserve native CSS nesting (recommended)
+              or lower to flat selectors with equivalent cascade behavior.
+              Implementation waits for this decision.
+        - [ ] Fixture: native nested selectors with parent-list/composed
+              specificity, implicit and explicit nesting, grouping context,
+              host/instance handling, rejected branches, manufactured weighting,
+              pseudo-elements and interleaved declaration order; verify emitted
+              nesting and nested declaration runs in the browser after WASM rebuild.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
