@@ -203,7 +203,7 @@ The behavior matches ordinary [CSS relative URL semantics](https://www.w3.org/TR
 after CEM's module-map lookup. Native resolver and retained-tree fixtures verify
 both import and resource fallback and unchanged non-CSS behavior.
 
-## Context-dependent stylesheet ownership: decision required
+## Context-dependent stylesheet ownership: accepted
 
 The current [normative CSS ownership contract](cem-ml-uid-and-scoped-css-design.md#2-declaration-owned-css)
 requires one managed stylesheet set per effective declaration, rooted at the
@@ -214,7 +214,7 @@ instances. The accepted requirement above forbids leaking one instance's module
 map overrides into another. Loading imports must not proceed to installation
 until ownership and root qualification cover that distinction.
 
-Recommended extension:
+Accepted extension (implementation pending):
 
 1. Keep the immutable native source tree shared. Retain derived stylesheet sets
    per effective declaration and consuming module-map/policy context, including
@@ -240,9 +240,33 @@ Recommended extension:
    or committing styles. Extend render/declaration readiness and hydration
    checks to cover the derived set's lifecycle.
 
-This changes the normative one-set ownership rule and adds an internal CSS root
-qualifier. Accept the extension before changing runtime installation. The
-alternative is to defer instance-context CSS loading and retain the current
-single-set contract; declaration-only resolution cannot satisfy independent
-instance overrides. After acceptance, write the native import-closure and
-browser ownership fixtures before enabling imports in the scoped CSS demo.
+This extends the normative one-set ownership rule for context-dependent CSS and
+adds an internal CSS root qualifier. Implementation must retain the existing
+single set for context-independent styles. Native import-closure and browser
+ownership fixtures precede enabling imports in the scoped CSS demo.
+
+## Native import closure: implemented
+
+`cem_ml::css_imports::CssImportClosure` owns a root reference plan and accepts
+imported retained CSS trees through one outstanding request at a time. Requests
+carry native resolution metadata (including MIME hints and integrity), the import
+node/source map and layer/supports/media conditions. They are loader control
+records, not AST exports. A host must validate the response through shared-loader
+transport policy and the shared CSS importer before delivering a tree.
+
+The state machine walks imports depth-first in source order, preserving repeated
+occurrences and anonymous-layer distinctions while allowing the loader to reuse
+the same immutable tree. Each imported plan resolves its resources against the
+final response URL. Requested and final URLs participate in ancestor-cycle
+checks, ignoring fragments. Final URLs are rechecked against the active resolver
+policy and cannot silently be replaced by another mapped URL. Default bounds are
+64 sheet occurrences including the root and 16 import levels. Cancellation and
+loader/validation failures make the closure terminal; stale/duplicate delivery
+IDs are rejected without consuming a different outstanding request.
+
+`Ready` describes a complete import graph only. It does not authorize installation
+or prove that media/supports/layer grammar and import placement are valid. Shared
+loader byte/MIME/integrity/aggregate-size enforcement, those validation rules,
+resource rewriting, scoped emission and browser/worker ownership integration
+remain pending. Resource URL references are resolved but not fetched by this
+state machine. No browser `@import` fallback is introduced.

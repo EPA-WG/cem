@@ -83,6 +83,21 @@ A component MUST NOT clone
 static CSS into instances, inject CSS from component JavaScript, add selectors
 to package-global CSS, or own a standalone `<cem-tag>.css` file.
 
+### Context-dependent resources (accepted extension; implementation pending)
+
+Styles whose imports or resource URLs depend on the consuming module-map context
+must use one derived managed set per effective declaration and context. The
+runtime shares immutable native sources and qualifies derived `@scope` roots
+with an internal `data-cem-css-context` host marker. It must preserve named shared
+membership by deriving shared sources for each consuming context and must never
+copy declaration styles into each instance. Context-independent CSS keeps the
+existing one-set ownership rule. The marker is reserved runtime state, not a
+public styling hook; `data-cem-render-scope` remains forbidden as a CSS hook.
+
+The [accepted ownership extension](scoped-css-module-maps.md#context-dependent-stylesheet-ownership-accepted)
+defines qualification, reuse, disposal, readiness and hydration requirements.
+This extension must not be relied on before its implementation checks pass.
+
 ### 2.1 Private compilation
 
 For a declaration producing `cem-select`, private CSS compiles to:
