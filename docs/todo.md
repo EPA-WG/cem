@@ -5693,6 +5693,29 @@ registration identities may reuse an inherited or existing definition.
           `@keyframes` rule, its animation reference, and the computed animation
           name. All 15 browser demo fixtures pass.
 
+
+- [ ] Support scoped module maps inside `cem-element` styles through typed CSS
+      adoption into the CEM AST.
+    - [ ] Register the CSS content type (`text/css`) as its default namespace so
+          template DOM adoption recognizes `<style>` as CSS-namespace content
+          and invokes the shared CSS content-type parser to produce a retained
+          CEM AST, rather than leaving its body as untyped text.
+    - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and
+          other CSS URL-bearing constructs through the module map from the
+          closest scope, using the shared resolver and retained CSS AST.
+    - [ ] Include an explicit CSS override entry in the module map; define its
+          syntax and precedence and verify the closest-scope override is used
+          for stylesheet imports and resource URLs.
+    - [ ] Fixture: add native tests first for style namespace adoption, typed
+          CSS AST production, scoped import/URL resolution, override precedence,
+          fallback and unresolved-reference diagnostics. Reconcile resolved CSS
+          imports with the existing scoped-CSS import policy explicitly.
+    - [ ] Fixture: extend
+          [`packages/cem-elements/demo/scoped-css.html`](../packages/cem-elements/demo/scoped-css.html)
+          as the demonstration page, showing internal styles, CSS imports and
+          resource URLs with a nested module-map CSS override; cover the authored
+          samples in the source-loaded Storybook and standalone demo checks.
+
 ### Remaining declarative UI migration
 
 - [x] Add a Storybook-owned accessible theme switcher composed from production
