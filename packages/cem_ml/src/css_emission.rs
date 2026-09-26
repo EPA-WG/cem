@@ -14,6 +14,10 @@ pub use keyframes::{
     emit_css_keyframes, CssEmittedKeyframeOffset, CssKeyframeBlock, CssKeyframesEmission,
     CssKeyframesRule,
 };
+mod closure;
+pub use closure::{
+    emit_css_import_closure, CssClosureDiagnostic, CssClosureEmission, CssClosureFragment,
+};
 mod stylesheet;
 pub use stylesheet::{emit_css_stylesheet, CssStylesheetEmission};
 mod subtree;
@@ -57,6 +61,7 @@ pub struct CssEmissionDiagnostic {
 
 #[derive(Debug)]
 pub struct CssConditionWrapper {
+    pub node_id: AstNodeId,
     /// Complete opening at-rule, including its opening brace.
     pub opening: String,
     pub source: SourceMapStack,
@@ -251,6 +256,7 @@ fn components_with(
 fn wrapper(tree: &RetainedCemTree, id: AstNodeId, opening: String) -> CssConditionWrapper {
     let node = tree.node(id).unwrap();
     CssConditionWrapper {
+        node_id: id,
         opening,
         source: node.source.clone(),
         range: node.range,

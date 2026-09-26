@@ -95,7 +95,7 @@ pub fn emit_css_stylesheet(
     })
 }
 
-fn collect(
+pub(super) fn collect(
     plan: &CssResourcePlan,
     id: AstNodeId,
     suffix: &str,

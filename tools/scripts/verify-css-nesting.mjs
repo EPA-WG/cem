@@ -10,8 +10,8 @@ import { chromium } from 'playwright';
 const directory = await mkdtemp(join(tmpdir(), 'cem-css-nesting-'));
 let browser;
 try {
-  const native = spawnSync('cargo', ['test', '-p', 'cem-ml', '--test', 'css_subtree',
-    '--target-dir', 'dist/target/cem_ml', 'browser_fixture_emits_scoped_native_nesting'], {
+  const native = spawnSync('cargo', ['test', '-p', 'cem-ml', '--test', 'css_subtree', '--test', 'css_import_closure',
+    '--target-dir', 'dist/target/cem_ml', 'browser_fixture_emits_'], {
     env: { ...process.env, CEM_CSS_SUBTREE_FIXTURE_DIR: directory }, stdio: 'inherit',
   });
   assert.equal(native.status, 0, 'native CSS fixture must pass');
@@ -81,6 +81,18 @@ try {
       frameCount: name === 'keyframes-empty' ? 0 : 2,
     }, `${name} must preserve scoped animation identity and lifecycle`);
   }
+  await page.setContent(markup);
+  await page.addStyleTag({ content: await readFile(join(directory, 'import-closure.css'), 'utf8') });
+  const importedAnimation = await page.evaluate(() => {
+    const card = document.querySelector('.card');
+    const animation = card.getAnimations().find((item) => item instanceof CSSAnimation);
+    if (!animation) return null;
+    animation.currentTime = 500;
+    return { name: animation.animationName, opacity: getComputedStyle(card).opacity,
+      color: getComputedStyle(card).color };
+  });
+  assert.deepEqual(importedAnimation, { name: 'pulse-cem-66697874757265', opacity: '0.5', color: 'rgb(0, 128, 0)' },
+    'nested imports preserve cross-sheet animation names and cascade order');
   const startingCss = await readFile(join(directory, 'starting-style.css'), 'utf8');
   await page.setContent('<cem-fixture></cem-fixture>');
   const transition = await page.evaluate((css) => {
@@ -105,7 +117,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, five keyframe animations and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

@@ -714,3 +714,146 @@ fn css_import_media_recovery_retains_downloaded_sheet_and_valid_siblings() {
         .unwrap();
     assert_eq!(c.state(), CssImportState::Ready);
 }
+
+#[test]
+fn emission_compiles_import_occurrences_with_shared_names_and_final_url_bases() {
+    use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
+    let mut c = closure("@import 'a.css' supports(display:grid) screen; @import 'a.css'; .card {animation:pulse 1s linear; color:green} @keyframes root-motion {}", Default::default(), AbortSignal::new());
+    let imported = tree("@keyframes pulse {from {opacity:0} to {opacity:1}} .card {background:url(icon.svg);color:red;animation-name:root-motion}");
+    for _ in 0..2 {
+        let request = c.next_import().unwrap().unwrap();
+        c.complete_import(
+            request.id,
+            imported.clone(),
+            "https://example.test/cdn/a.css",
+        )
+        .unwrap();
+    }
+    assert!(c.next_import().unwrap().is_none());
+    let scope = CssManagedScope::Private {
+        tag: "cem-fixture".into(),
+        context: None,
+    };
+    let result = emit_css_import_closure(&c, &scope, "owner").unwrap();
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(result.namespace, "cem-6f776e6572");
+    let css = result.css();
+    assert!(
+        css.contains("@supports (display:grid) {@media screen {@keyframes pulse-cem-6f776e6572")
+    );
+    assert_eq!(css.matches("@keyframes pulse-cem-6f776e6572").count(), 2);
+    assert_eq!(css.matches("https://example.test/cdn/icon.svg").count(), 2);
+    assert_eq!(
+        css.matches("animation-name:\"root-motion-cem-6f776e6572\"")
+            .count(),
+        2
+    );
+    for fragment in &result.fragments {
+        let node = c.sheets()[fragment.sheet]
+            .resources
+            .tree
+            .node(fragment.fragment.node_id)
+            .unwrap();
+        assert_eq!(
+            (node.range.offset, node.range.length),
+            (
+                fragment.fragment.range.offset,
+                fragment.fragment.range.length
+            )
+        );
+        assert_eq!(node.source, fragment.fragment.source);
+    }
+    assert!(css.contains("animation:\"pulse-cem-6f776e6572\" 1s linear;color:green;"));
+    assert!(css.rfind("color:red").unwrap() < css.find("color:green").unwrap());
+    assert!(!css.contains("@import"));
+    assert!(result.fragments.iter().any(|f| f.sheet == 1));
+    assert!(result.fragments.iter().any(|f| f.sheet == 2));
+    assert!(result
+        .fragments
+        .iter()
+        .all(|f| f.fragment.source.origin().is_some()));
+    assert_eq!(
+        css,
+        emit_css_import_closure(&c, &scope, "owner").unwrap().css()
+    );
+    assert_ne!(
+        css,
+        emit_css_import_closure(&c, &scope, "other").unwrap().css()
+    );
+    assert!(emit_css_import_closure(&c, &scope, "").is_err());
+}
+
+#[test]
+fn emission_excludes_suppressed_import_symbols_and_rejects_unready_closures() {
+    use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
+    let abort = AbortSignal::new();
+    let mut c = closure(
+        "@import 'a.css' layer; .card {animation-name:hidden}",
+        Default::default(),
+        abort.clone(),
+    );
+    assert!(emit_css_import_closure(&c, &CssManagedScope::Instance, "owner").is_err());
+    let request = c.next_import().unwrap().unwrap();
+    c.complete_import(
+        request.id,
+        tree("@keyframes hidden {}"),
+        &request.resolution.resolved_url,
+    )
+    .unwrap();
+    assert!(c.next_import().unwrap().is_none());
+    let result = emit_css_import_closure(&c, &CssManagedScope::Instance, "owner").unwrap();
+    assert!(result.animation_names.is_empty());
+    assert!(result
+        .css()
+        .contains(":scope .card {animation-name:hidden;}"));
+    assert!(!result.css().contains("@keyframes"));
+    assert_eq!(
+        result.diagnostics[0].diagnostic.code,
+        "cem.scoped_css.layer_unsupported"
+    );
+    assert_eq!(result.diagnostics[0].sheet, 0);
+    abort.abort();
+    assert!(emit_css_import_closure(&c, &CssManagedScope::Instance, "owner").is_err());
+}
+
+#[test]
+fn browser_fixture_emits_import_closure() {
+    use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
+    let mut c = closure("@import 'a.css' supports(display:grid) screen; .card {animation:pulse 1s linear paused; color:green}", Default::default(), AbortSignal::new());
+    let a = c.next_import().unwrap().unwrap();
+    c.complete_import(
+        a.id,
+        tree("@import 'b.css'; .card {color:red}"),
+        "https://example.test/cdn/a.css",
+    )
+    .unwrap();
+    let b = c.next_import().unwrap().unwrap();
+    c.complete_import(
+        b.id,
+        tree("@keyframes pulse {from {opacity:0} to {opacity:1}}"),
+        &b.resolution.resolved_url,
+    )
+    .unwrap();
+    assert!(c.next_import().unwrap().is_none());
+    let result = emit_css_import_closure(
+        &c,
+        &CssManagedScope::Private {
+            tag: "cem-fixture".into(),
+            context: None,
+        },
+        "fixture",
+    )
+    .unwrap();
+    assert!(result.diagnostics.is_empty());
+    assert_eq!(
+        result.animation_names.get("pulse").map(String::as_str),
+        Some("pulse-cem-66697874757265")
+    );
+    if let Some(dir) = std::env::var_os("CEM_CSS_SUBTREE_FIXTURE_DIR") {
+        std::fs::write(
+            std::path::Path::new(&dir).join("import-closure.css"),
+            result.css(),
+        )
+        .unwrap();
+    }
+}

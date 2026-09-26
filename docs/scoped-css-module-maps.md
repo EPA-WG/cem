@@ -978,3 +978,33 @@ explicitly diagnosed and omitted until closure compilation is connected; this
 API does not authorize runtime installation. Browser fixtures now compile
 references and definitions from the same retained source, including forward
 references and a later conditional duplicate definition.
+
+## Native import-closure emission
+
+`emit_css_import_closure` compiles a ready, uncancelled `CssImportClosure` under
+one explicit private, shared or instance scope. It expands each import at its
+authored position, preserves supports/media wrappers, and uses each occurrence's
+resource plan and final-response URL base. Layered imports remain suppressed by
+the managed-CSS policy; their descendants contribute neither rules nor symbols.
+No browser `@import` or downstream CSS parsing is introduced.
+
+The caller supplies a nonempty stable owner identity covering the effective
+stylesheet/declaration and resolution context. The compiler encodes its UTF-8
+bytes as `cem-` followed by hexadecimal digits. This deterministic namespace is
+independent of loading order or process-local handles. Callers must use distinct
+identities for distinct ownership contexts; this API does not derive lifecycle
+identity or register stylesheet ownership.
+
+All admitted definitions across the import tree share one animation symbol map,
+collected before rule emission. References work in either direction across file
+boundaries. Repeated imports and duplicate definitions retain cascade order.
+Each output fragment and diagnostic carries its sheet occurrence index, so local
+node IDs remain unambiguous even when occurrences reuse the same retained tree.
+Import wrapper fragments point to their original condition nodes.
+
+Native fixtures cover repeated imports, forward references to root definitions,
+final-URL resources, namespace determinism, provenance, suppressed imports and
+pending/cancelled closure rejection. Chromium verifies a two-level conditional
+import with a root animation reference and root cascade override. Runtime
+transport, owner-identity derivation, cache/lifecycle wiring and installation
+remain pending.

@@ -5950,11 +5950,19 @@ registration identities may reuse an inherited or existing definition.
               ownership and browser installation pending.
               Focused native suites, Nx WASM build, lint and five browser
               animation cases pass, including conditional duplicate precedence.
-        - [ ] Fixture: compile loaded import closures with one explicit managed
+        - [x] Fixture: compile loaded import closures with one explicit managed
               ownership context, preserving import occurrence order, condition
               wrappers, final-response URL bases and keyframe references across
               sheet boundaries. Define and test deterministic namespace identity
               before connecting this output to runtime installation.
+              Native tests cover stable caller-owned namespaces, cross-sheet
+              forward references, repeated occurrences, final URL bases, exact
+              fragment provenance and pending/cancelled closure rejection.
+              Nx lint/WASM/browser checks pass, including nested conditional
+              imports and root cascade order. Runtime ownership remains pending.
+        - [ ] Connect native closure emission to stable effective stylesheet
+              ownership, cache invalidation and browser lifecycle only after
+              completing the remaining syntax profiles and diagnostic gates.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
