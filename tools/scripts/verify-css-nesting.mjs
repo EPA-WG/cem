@@ -64,6 +64,23 @@ try {
     assert.deepEqual(after, { before: 'rgb(255, 165, 0)', color: 'rgb(0, 0, 0)' },
       `${name} must re-evaluate changed container state`);
   }
+  for (const name of ['keyframes', 'keyframes-empty', 'keyframes-string']) {
+    await page.setContent(markup);
+    await page.addStyleTag({ content: await readFile(join(directory, `${name}.css`), 'utf8') });
+    const state = await page.evaluate(() => {
+      const card = document.querySelector('.card');
+      const animation = card.getAnimations().find((item) => item instanceof CSSAnimation);
+      if (!animation) return null;
+      animation.currentTime = 500;
+      return { name: animation.animationName, opacity: getComputedStyle(card).opacity,
+        frameCount: animation.effect.getKeyframes().length };
+    });
+    assert.deepEqual(state, {
+      name: name === 'keyframes-string' ? 'quoted name-fixture' : 'pulse-fixture',
+      opacity: name === 'keyframes-empty' ? '1' : '0.5',
+      frameCount: name === 'keyframes-empty' ? 0 : 2,
+    }, `${name} must preserve scoped animation identity and lifecycle`);
+  }
   const startingCss = await readFile(join(directory, 'starting-style.css'), 'utf8');
   await page.setContent('<cem-fixture></cem-fixture>');
   const transition = await page.evaluate((css) => {
@@ -88,7 +105,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, three keyframe animations and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

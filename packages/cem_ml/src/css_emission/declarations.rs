@@ -40,7 +40,7 @@ pub fn emit_css_rule_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
-    emit_declarations(tree, rule, None, false)
+    emit_declarations(tree, rule, None, DeclarationContext::Style)
 }
 
 /// Emit explicit external URLs using a context-specific resolution plan. Local
@@ -54,7 +54,12 @@ pub fn emit_css_rule_declarations_with_resources(
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let resources = ResourceRewriter::new(plan)?;
-    emit_declarations(&plan.tree, rule, Some(&resources), false)
+    emit_declarations(
+        &plan.tree,
+        rule,
+        Some(&resources),
+        DeclarationContext::Style,
+    )
 }
 
 pub(super) fn emit_group_declarations(
@@ -62,15 +67,41 @@ pub(super) fn emit_group_declarations(
     container: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let resources = ResourceRewriter::new(plan)?;
-    emit_declarations(&plan.tree, container, Some(&resources), true)
+    emit_declarations(
+        &plan.tree,
+        container,
+        Some(&resources),
+        DeclarationContext::Group,
+    )
+}
+
+pub(super) fn emit_keyframe_declarations(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    let resources = ResourceRewriter::new(plan)?;
+    emit_declarations(
+        &plan.tree,
+        rule,
+        Some(&resources),
+        DeclarationContext::Keyframe,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum DeclarationContext {
+    Style,
+    Group,
+    Keyframe,
 }
 
 fn emit_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
     resources: Option<&ResourceRewriter<'_>>,
-    group: bool,
+    context: DeclarationContext,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    let group = matches!(context, DeclarationContext::Group);
     let valid = if group {
         named(tree, rule, "at-rule")
             && attribute(tree, rule, "name").is_some_and(|name| {
@@ -80,7 +111,13 @@ fn emit_declarations(
                     || name.eq_ignore_ascii_case("container")
             })
     } else {
-        named(tree, rule, "rule") && attribute(tree, rule, "kind") == Some("style")
+        named(tree, rule, "rule")
+            && attribute(tree, rule, "kind")
+                == Some(if matches!(context, DeclarationContext::Keyframe) {
+                    "keyframe"
+                } else {
+                    "style"
+                })
     };
     if !valid {
         return Err(invalid(tree, rule));
@@ -88,6 +125,8 @@ fn emit_declarations(
     let mut result = CssRuleDeclarations::default();
     for &id in &tree.node(rule).unwrap().children {
         if named(tree, id, "selector-list")
+            || (matches!(context, DeclarationContext::Keyframe)
+                && named(tree, id, "keyframe-selector-list"))
             || named(tree, id, "comment")
             || (group
                 && (named(tree, id, "group-media")

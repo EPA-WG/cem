@@ -843,11 +843,34 @@ unsupported in this first profile. These forms follow the
 [CSS Animations keyframe grammar](https://www.w3.org/TR/css-animations-1/#keyframes).
 
 A keyframe body does not inherit a surrounding style selector. Its offsets
-never receive host rewriting, specificity or instance-prefix policy. This is
-retention only: scoped name emission, typed animation-reference classification,
-closure symbol ownership and browser installation remain pending. The subtree
+never receive host rewriting, specificity or instance-prefix policy. The definition emitter below consumes this representation; typed animation-reference
+classification, closure symbol ownership and browser installation remain pending. The subtree
 composer continues to diagnose and omit keyframe constructs until that
 compilation path is complete.
+
+## Scoped keyframe definition emission
+
+`emit_css_keyframes` emits a retained definition using a nonempty, caller-owned
+stylesheet/context suffix. It exposes the original and scoped names and emits
+the scoped name as an escaped CSS identifier, including for quoted source names.
+The caller remains responsible for stable namespace ownership across its import
+closure and for rewriting animation references to the same name.
+
+Frame offsets bypass DOM selector rules: no host rewriting, instance prefix or
+specificity policy applies. The emitter preserves authored offset tokens,
+normalized offsets, frame/declaration order and source locations. Declaration
+emission resolves resource URLs and suppresses important/recovered values using
+the shared policy. Invalid names suppress a definition; unsupported offset lists
+and body constructs diagnose at their retained sources. Missing typed structure
+fails without a raw-prelude fallback.
+
+Empty definitions and valid empty frame blocks are preserved. An empty named
+animation still has a browser animation object and lifecycle; dropping its
+`@keyframes` rule would change that behavior. Browser fixtures cover ordinary,
+quoted-name and empty animations. They explicitly supply the emitted name to
+the animation declaration, isolating definition emission from the still-pending
+reference compiler. The general subtree composer continues to reject keyframes
+until namespace and animation-reference compilation are integrated.
 
 ## Shared-resolver byte delivery: implemented natively
 

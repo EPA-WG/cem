@@ -184,6 +184,54 @@ fn browser_fixture_emits_scoped_native_nesting() {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
         }
     }
+    // This fixture supplies the emitted symbol explicitly. It does not claim
+    // that authored animation references are already rewritten by the compiler.
+    for (file, source) in [
+        (
+            "keyframes",
+            "@keyframes pulse {from {opacity:0} to {opacity:1}}",
+        ),
+        ("keyframes-empty", "@keyframes pulse {}"),
+        (
+            "keyframes-string",
+            "@keyframes \"quoted name\" {from {opacity:0} to {opacity:1}}",
+        ),
+    ] {
+        let definition_plan = plan(source);
+        let definition = cem_ml::css_emission::emit_css_keyframes(
+            &definition_plan,
+            first_rule(&definition_plan),
+            "fixture",
+        )
+        .unwrap()
+        .rule
+        .unwrap();
+        let reference_plan = plan(&format!(
+            r#".card {{animation-name:"{}"; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}"#,
+            definition.scoped_name
+        ));
+        let references = emit_css_rule_subtree(
+            &reference_plan,
+            first_rule(&reference_plan),
+            CssRuleMode::Declaration,
+        )
+        .unwrap();
+        let scope = emit_css_scope_wrapper(&CssManagedScope::Private {
+            tag: "cem-fixture".into(),
+            context: None,
+        })
+        .unwrap();
+        let css = format!(
+            "{}{}{}{}",
+            scope.opening,
+            definition.css(),
+            references.css(),
+            scope.closing
+        );
+        if let Some(dir) = &output {
+            std::fs::write(dir.join(format!("{file}.css")), css).unwrap();
+        }
+    }
 }
 
 #[test]

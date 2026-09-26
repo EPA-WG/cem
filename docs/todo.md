@@ -5896,10 +5896,20 @@ registration identities may reuse an inherited or existing definition.
               fixtures passing. The full Nx test target and its five prerequisites
               also pass. Offset range checks use the original numeric
               token, avoiding f32 rounding of values slightly above 100%.
-        - [ ] Fixture: emit scoped static keyframe names and ordered frame
+        - [x] Fixture: emit scoped static keyframe names and ordered frame
               declarations from retained nodes, preserving URL resolution,
               suppression diagnostics and source ranges. Keep animation-name
               slot classification and complete closure integration separate.
+              Preserve empty definitions/frames and verify ordinary, quoted-name
+              and empty animation identity/lifecycle in Chromium. Native tests,
+              Nx WASM build, browser fixtures and lint (existing warnings) pass.
+        - [ ] Fixture: retain and emit static `animation-name` references from
+              typed import-owned slots, preserving literal/string identity,
+              comma order, keyword semantics, source maps and external names.
+              Recommended: classify the longhand before the shorthand, where
+              timing keywords can also be animation names. Dynamic local-name
+              substitution needs a separate authoring contract; variables used
+              for duration/easing do not imply dynamic keyframe names.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

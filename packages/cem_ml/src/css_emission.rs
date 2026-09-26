@@ -6,7 +6,12 @@ pub use declarations::{
     emit_css_rule_declarations, emit_css_rule_declarations_with_resources, CssEmittedDeclaration,
     CssRuleDeclarations,
 };
+mod keyframes;
 mod resources;
+pub use keyframes::{
+    emit_css_keyframes, CssEmittedKeyframeOffset, CssKeyframeBlock, CssKeyframesEmission,
+    CssKeyframesRule,
+};
 mod subtree;
 pub use subtree::{emit_css_rule_subtree, CssRuleSubtreeEmission, CssSubtreeFragment};
 
