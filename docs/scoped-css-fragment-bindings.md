@@ -81,6 +81,54 @@ for one revision but does not promise persistence across reordering. Duplicate
 keys or multiple targets for one reference are ambiguous and must not pick the
 first DOM match.
 
+## Owner identity audit: allocator decision pending
+
+The audit found no existing document-unique instance identity to reuse as-is:
+
+- `CemElementRuntime.instanceId()` in
+  `packages/cem-elements/src/lib/cem-elements.ts` allocates `cem-instance-N` from
+  `this.instanceSequence`, a counter on each runtime object.
+- Declaration `scopeUid` derives from produced tag, seed and declaration
+  occurrence. It identifies a declaration and is shared across its instances;
+  it cannot qualify a repeated instance by itself.
+- Hydration restores `snapshot.instanceId` into the per-runtime WeakMap. The
+  allocator has no document-wide reservation/admission registry. Restored and
+  newly allocated IDs therefore need coordinated admission before they can serve
+  as resource-owner prefixes.
+- Native `cem_ml`/`cem_ql` currently has no corresponding instance-owner identity
+  allocator to enforce uniqueness independently of these host inputs.
+
+Combining declaration identity with the runtime-local counter does not establish
+a document-wide guarantee across equivalent registrations, separately created
+runtimes or separately produced SSR fragments. Native tuple encoding can preserve
+uniqueness only after ownership inputs themselves are admitted.
+
+**Recommended decision:** upgrade the existing `instanceId` allocation contract,
+not add a parallel resource identity. New instances receive document-unique IDs
+from the shared admission service. Browser allocation may use a UUID candidate
+with an actual document-registry collision check; deterministic SSR may use an
+explicit document/render namespace plus stable occurrence identity. Both paths
+populate the same existing semantic `instanceId` field. The precise allocator
+must be documented and tested with the selected host lifecycle.
+
+Restore already serialized IDs unchanged when admission succeeds. Reconnecting
+the same owner reuses its reservation. Two distinct live owners claiming the same
+restored ID fail admission; do not rewrite only CSS resources, silently reroll the
+restored instance, or invalidate unrelated hosts. Fresh allocation must reserve
+against all restored owners before their IDs are used for bindings. Native
+binding inputs receive only admitted ownership identities.
+
+**Alternative:** keep runtime-local allocation and require every host/SSR caller
+to provide a unique namespace, persisted with instance identity. This exposes a
+new caller obligation and needs defined behavior when namespaces are absent or
+reused; it cannot be implemented as an optional best-effort prefix.
+
+The choice changes the identity/lifecycle contract and may require a coordinated
+hydration schema/version extension for admission state or deterministic namespaces.
+Implementation is paused before allocation, serialization or browser behavior
+changes. First add collision/restoration fixtures after this decision; do not
+claim document-wide binding safety from the hex-encoding helper alone.
+
 ## Shared CSS and per-owner values
 
 Compile a local URL occurrence into a reserved custom-property slot. Slot names

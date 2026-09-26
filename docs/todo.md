@@ -5800,7 +5800,13 @@ registration identities may reuse an inherited or existing definition.
               identities as prefixes; preserve shared CSS through reserved
               resource-value slots. The [binding design](scoped-css-fragment-bindings.md)
               is the active implementation plan, not current runtime behavior.
-        - [ ] Fixture: audit/qualify existing owner identity and admit it across
+        - [x] Audit existing owner identity: the current instance counter is
+              runtime-local; declaration IDs and restored snapshot IDs have no
+              document-wide admission service.
+        - [ ] Decide whether to upgrade the existing `instanceId` allocator
+              (recommended) or require caller-supplied namespaces; see the
+              [identity audit](scoped-css-fragment-bindings.md#owner-identity-audit-allocator-decision-pending).
+        - [ ] Fixture: qualify existing owner identity and admit it across
               runtimes in one document; verify deterministic collision-safe
               resource IDs, duplicate-owner rejection and SSR identity reuse.
         - [ ] Fixture: retain local target/reference manifests and produce native
