@@ -25,5 +25,31 @@ fn main() {
             function.name, arity, function.tier, function.implementation
         );
     }
-    println!("\nThese entries describe implemented native query calls. Browser/CLI/SSR parity and remaining URL conformance gaps are tracked separately in the repository checklist.");
+    println!("\nThese entries describe implemented native query calls. Remaining URL conformance gaps are tracked separately in the repository checklist.");
+    println!("\n## Executable examples\n");
+    println!("Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies 27 expression rows. Two module rows await module mode; nonfatal setter-warning propagation is a separately tracked CLI regression. JSON below is the explicitly requested typed query-result projection.\n");
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../fixtures/url/query-matrix.json"))
+            .expect("URL matrix");
+    for id in [
+        "href-relative",
+        "mapping",
+        "import-alias",
+        "sort-utf16",
+        "setter-warning",
+        "invalid-base",
+    ] {
+        let case = cases
+            .iter()
+            .find(|case| case["id"] == id)
+            .expect("documented example");
+        println!(
+            "### {id}\n\n```cem-ql\n{}\n```\n",
+            case["query"].as_str().expect("query")
+        );
+        println!("```json\n{}\n```\n", serde_json::to_string_pretty(&serde_json::json!({
+            "items": case["items"], "diagnosticCodes": case["diagnosticCodes"], "error": case["error"]
+        })).expect("control result"));
+    }
+    println!("The matrix also covers empty results, duplicate entries, optional values and upstream failures.");
 }

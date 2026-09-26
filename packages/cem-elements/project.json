@@ -4,6 +4,27 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "test:url-integration": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ql"
+                    ],
+                    "target": "build:wasm"
+                }
+            ],
+            "options": {
+                "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run packages/cem-elements/src/lib/cem-ql-url-integration.stories.ts"
+            },
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem_ql/fixtures/url/**/*"
+            ],
+            "outputs": []
+        },
         "build": {
             "cache": true,
             "executor": "nx:run-commands",

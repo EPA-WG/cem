@@ -1,0 +1,556 @@
+[
+  {
+    "id": "href-relative",
+    "query": "url:href(\"../b\", \"https://h/a/c\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "any-uri",
+        "value": "https://h/b"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "href-roundtrip",
+    "query": "url:href(url:href(\"https://EXAMPLE.org:443/a/../b\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "any-uri",
+        "value": "https://example.org/b"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "can-parse",
+    "query": "url:can_parse(\"https://h\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "invalid-base-suppressed",
+    "query": "url:can_parse(\"https://h\", \"bad\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "boolean",
+        "value": false
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "parse-invalid",
+    "query": "url:parse(\"bad\")",
+    "items": [],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "parse-record",
+    "query": "url:parse(\"https://h/?a=1&a=2\")",
+    "items": [
+      {
+        "kind": "record",
+        "fields": {
+          "origin": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "https://h"
+            }
+          ],
+          "protocol": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "https:"
+            }
+          ],
+          "username": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": ""
+            }
+          ],
+          "password": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": ""
+            }
+          ],
+          "host": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "h"
+            }
+          ],
+          "hostname": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "h"
+            }
+          ],
+          "port": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": ""
+            }
+          ],
+          "pathname": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "/"
+            }
+          ],
+          "search": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "?a=1&a=2"
+            }
+          ],
+          "hash": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": ""
+            }
+          ],
+          "href": [
+            {
+              "kind": "atomic",
+              "type": "any-uri",
+              "value": "https://h/?a=1&a=2"
+            }
+          ],
+          "query": [
+            {
+              "kind": "record",
+              "fields": {
+                "name": [
+                  {
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "a"
+                  }
+                ],
+                "value": [
+                  {
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "1"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "record",
+              "fields": {
+                "name": [
+                  {
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "a"
+                  }
+                ],
+                "value": [
+                  {
+                    "kind": "atomic",
+                    "type": "string",
+                    "value": "2"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "assemble",
+    "query": "url:assemble({href: \"https://h\", hash: \"f\"})",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "any-uri",
+        "value": "https://h/#f"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "with-parts",
+    "query": "url:with_parts(\"https://h\", {query: url:params(\"a=1&a=2\")})",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "any-uri",
+        "value": "https://h/?a=1&a=2"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "empty-params",
+    "query": "url:params()",
+    "items": [],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "entries",
+    "query": "url:params_entries(url:params(\"a=1&a=2\"))",
+    "items": [
+      {
+        "kind": "record",
+        "fields": {
+          "name": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "a"
+            }
+          ],
+          "value": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      {
+        "kind": "record",
+        "fields": {
+          "name": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "a"
+            }
+          ],
+          "value": [
+            {
+              "kind": "atomic",
+              "type": "string",
+              "value": "2"
+            }
+          ]
+        }
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "mapping",
+    "query": "url:params_string(url:params({b: \"2\", a: \"1\"}))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "a=1&b=2"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "size",
+    "query": "url:params_size(url:params(\"a=1&a=2\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "integer",
+        "value": 2
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "keys",
+    "query": "url:params_keys(url:params(\"a=1&a=2\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "a"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "a"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "values",
+    "query": "url:params_values(url:params(\"a=1&a=2\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "1"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "2"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "get",
+    "query": "url:params_get(url:params(\"a=1&a=2\"), \"a\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "1"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "get-missing",
+    "query": "url:params_get((), \"missing\")",
+    "items": [],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "get-all",
+    "query": "url:params_get_all(url:params(\"a=1&a=2\"), \"a\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "1"
+      },
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "2"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "has-value",
+    "query": "url:params_has(url:params(\"a=1&a=2\"), \"a\", \"2\")",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "boolean",
+        "value": true
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "append",
+    "query": "url:params_string(url:params_append(url:params(\"b=0&a=1&a=2\"), \"a\", \"3\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "b=0&a=1&a=2&a=3"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "set",
+    "query": "url:params_string(url:params_set(url:params(\"b=0&a=1&a=2\"), \"a\", \"3\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "b=0&a=3"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "delete",
+    "query": "url:params_string(url:params_delete(url:params(\"b=0&a=1&a=2\"), \"a\", \"1\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "b=0&a=2"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "sort-utf16",
+    "query": "url:params_string(url:params_sort(url:params(\"=last&😀=first&😀=second\")))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "%F0%9F%98%80=first&%F0%9F%98%80=second&%EE%80%80=last"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "form-encoding",
+    "query": "url:params_string(url:params(\"?x=+&x=%2B&bare&bad=%zz\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "x=+&x=%2B&bare=&bad=%25zz"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "import-alias",
+    "query": "import \"cem:stdlib/url\" as u\nu:params_string(u:params(\"x=1\"))",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "string",
+        "value": "x=1"
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "module"
+  },
+  {
+    "id": "user-name-isolation",
+    "query": "declare function url:params_size(x) { x } url:params_size(42)",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "integer",
+        "value": 42
+      }
+    ],
+    "diagnosticCodes": [],
+    "error": false,
+    "sourceKind": "module"
+  },
+  {
+    "id": "setter-warning",
+    "query": "url:with_parts(\"https://h:8443/a\", {protocol: \"mailto:\", host: \"other:70000\", hash: \"done\"})",
+    "items": [
+      {
+        "kind": "atomic",
+        "type": "any-uri",
+        "value": "https://other:8443/a#done"
+      }
+    ],
+    "diagnosticCodes": [
+      "cem.ql.url_setter_ignored",
+      "cem.ql.url_setter_ignored"
+    ],
+    "error": false,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "invalid-base",
+    "query": "url:href(\"https://h\", \"bad\")",
+    "items": [],
+    "diagnosticCodes": [
+      "cem.ql.url_base_invalid"
+    ],
+    "error": true,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "invalid-url",
+    "query": "url:href(\"bad\")",
+    "items": [],
+    "diagnosticCodes": [
+      "cem.ql.url_invalid"
+    ],
+    "error": true,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "empty-value",
+    "query": "url:params_has((), \"x\", ())",
+    "items": [],
+    "diagnosticCodes": [
+      "cem.ql.type_error"
+    ],
+    "error": true,
+    "sourceKind": "expression"
+  },
+  {
+    "id": "upstream",
+    "query": "url:params_string(report:raise(\"test.upstream\", \"failed\"))",
+    "items": [],
+    "diagnosticCodes": [
+      "test.upstream"
+    ],
+    "error": true,
+    "sourceKind": "expression"
+  }
+]

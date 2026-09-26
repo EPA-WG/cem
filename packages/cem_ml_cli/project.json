@@ -4,6 +4,19 @@
     "projectType": "application",
     "sourceRoot": "packages/cem_ml_cli/src",
     "targets": {
+        "test:url-integration": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ml-cli --test query_cli query_url_ --target-dir dist/target/cem_ml_cli"
+            },
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem_ql/fixtures/url/**/*"
+            ],
+            "outputs": []
+        },
         "build": {
             "cache": true,
             "executor": "@monodon/rust:build",

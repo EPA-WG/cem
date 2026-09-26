@@ -565,3 +565,102 @@ fn query_negative_fixtures_cover_identity_input_context_resolver_budget_and_expo
     assert!(!unavailable_exporter.status.success());
     assert!(String::from_utf8_lossy(&unavailable_exporter.stderr).contains("invalid value"));
 }
+
+#[test]
+fn query_url_matrix_expression_subset_matches_native_results_and_preserves_reports() {
+    let cases: Vec<serde_json::Value> =
+        serde_json::from_str(include_str!("../../cem_ql/fixtures/url/query-matrix.json")).unwrap();
+    let (temp, data) = query_data();
+    // Module rows await explicit module mode. The warning row has a separate
+    // ignored regression below; both gaps are tracked in docs/todo.md.
+    for case in cases
+        .into_iter()
+        .filter(|case| case["sourceKind"] == "expression" && case["id"] != "setter-warning")
+    {
+        let id = case["id"].as_str().unwrap();
+        let report_path = temp.join(format!("{id}.report.json"));
+        let output = run_query(
+            &data,
+            &[
+                "--query",
+                case["query"].as_str().unwrap(),
+                "--query-content-type",
+                CEM_QL_CONTENT_TYPE,
+                "--query-schema",
+                CEM_QL_SCHEMA,
+                "--output",
+                "json",
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+        let codes = diagnostic_codes(&report);
+        let mut expected_codes = case["diagnosticCodes"].as_array().unwrap().clone();
+        if case["error"] == true {
+            expected_codes.push(serde_json::json!("cem.ql.query_evaluation_failed"));
+        }
+        assert_eq!(
+            serde_json::json!(codes),
+            serde_json::json!(expected_codes),
+            "{id}: {report}"
+        );
+        if case["error"] == true {
+            assert!(!output.status.success(), "{id}");
+            assert!(output.stdout.is_empty(), "{id}");
+        } else {
+            assert!(
+                output.status.success(),
+                "{id}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(result["result"]["items"], case["items"], "{id}");
+            assert_eq!(result["result"]["error"], serde_json::Value::Null, "{id}");
+        }
+        for diagnostic in report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|d| d["code"] != "cem.ql.query_evaluation_failed")
+        {
+            assert!(
+                diagnostic["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty()),
+                "{id}: {diagnostic}"
+            );
+        }
+    }
+    fs::remove_dir_all(temp).unwrap();
+}
+
+#[test]
+#[ignore = "URL-INTEGRATION: the CLI bridge currently drops nonfatal evaluator diagnostics; fix tracked in docs/todo.md"]
+fn query_url_setter_warnings_reach_the_cli_report() {
+    let (temp, data) = query_data();
+    let report = temp.join("warnings.json");
+    let output = run_query(
+        &data,
+        &[
+            "--query",
+            r#"url:with_parts("https://h:8443/a", {protocol: "mailto:", host: "other:70000"})"#,
+            "--query-content-type",
+            CEM_QL_CONTENT_TYPE,
+            "--query-schema",
+            CEM_QL_SCHEMA,
+            "--output",
+            "json",
+            "--report-json",
+            report.to_str().unwrap(),
+        ],
+    );
+    assert!(output.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+    assert_eq!(
+        diagnostic_codes(&report),
+        vec!["cem.ql.url_setter_ignored", "cem.ql.url_setter_ignored"]
+    );
+    fs::remove_dir_all(temp).unwrap();
+}

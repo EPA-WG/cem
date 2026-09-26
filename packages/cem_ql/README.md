@@ -112,7 +112,20 @@ Known parser/setter compatibility gaps remain tracked and prioritized in
 [the wishlist](../../docs/wishlist.md#rust-url-compatibility-gaps).
 Focused coverage: `cargo test -p cem-ql --test url_query --test url_params --test url_params_query`.
 WASM query execution is checked with `node packages/cem_ql/tests/url-query-wasm.mjs`
-after the package WASM build. Browser execution parity is pending.
+after the package WASM build.
+
+The shared [30-case matrix](fixtures/url/query-matrix.json) runs through native,
+Node WASM and browser query APIs. The same [CEMT fixture](fixtures/url/render.cemt)
+proves native server HTML and browser DOM output with changed bindings. This is
+native renderer evidence, separate from the legacy Edge/SSR transport fixture.
+Focused targets are `cem_ql:test:url-integration`,
+`cem-elements:test:url-integration` and `cem_ml_cli:test:url-integration`.
+
+The CLI currently verifies 27 expression rows. Its two module rows require the
+[explicit module-query mode design](../../docs/cem-ql-cli-module-query-design.md);
+one nonfatal setter-warning row is a tracked CLI bridge regression with an
+ignored test. Complete CLI parity remains open. The CLI's existing fatal-error
+summary is checked separately from the original language diagnostic.
 
 ## Native data import and presentation dispatch
 

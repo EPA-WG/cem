@@ -4,6 +4,19 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ql/src",
     "targets": {
+        "test:url-integration": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ql --test url_integration --test url_query --test url_params_query --test url_parse --test url_params --test url_setters --target-dir dist/target/cem_ql"
+            },
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem_ql/fixtures/url/**/*"
+            ],
+            "outputs": []
+        },
         "build": {
             "cache": true,
             "executor": "@monodon/rust:check",

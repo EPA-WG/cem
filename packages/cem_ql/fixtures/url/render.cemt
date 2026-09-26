@@ -1,0 +1,1 @@
+{a @href="{url:with_parts(url:href(path, base), {query: url:params(search)})}" | {$ url:params_string(url:params_sort(url:params(search)))}}

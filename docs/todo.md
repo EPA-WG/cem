@@ -5438,6 +5438,33 @@ registration identities may reuse an inherited or existing definition.
               cem-url dependency; Cargo packaging cannot publish this local-only
               patch as an ordinary registry dependency.
 
+    - [ ] Fixture: run one URL query/result matrix through native evaluation,
+          CLI, Node WASM and browser WASM; compare native server-rendered and
+          browser template output with changed bindings, escaping and diagnostics.
+          Keep this focused gate separate from the legacy Edge/SSR transport host.
+        - [x] Native and Node/browser WASM: all 30 matrix cases, plus shared
+              native-server/browser template rendering with changed bindings,
+              escaping and invalid-base diagnostics. All 44 focused native URL
+              tests and both browser stories pass. No common runtime modules
+              changed; no full test or workspace-wide verification task ran.
+        - [x] CLI expression subset: 27 matrix rows pass, including exact typed
+              results and the existing fatal-error summary envelope. Focused
+              story lint and generated-reference/link checks pass.
+        - [x] Fixture: retain an explicit ignored regression for CLI setter
+              warnings dropped by the bridge before result/report construction.
+        - [ ] Preserve nonfatal native diagnostics through the CLI query bridge;
+              activate `query_url_setter_warnings_reach_the_cli_report` and
+              restore the setter-warning row to the passing CLI matrix.
+        - [x] Design explicit CLI module-query mode using the existing module
+              media type/schema, leaving standalone-expression behavior intact.
+              User selected design before continuation on 2026-09-25. See
+              [module-query design](cem-ql-cli-module-query-design.md).
+        - [ ] Decision D1: choose built-in `cem:` imports and local declarations
+              for first delivery (recommended), or include external module
+              loading/linking and define its import-closure contract first.
+              Stop module-mode implementation until answered.
+        - [ ] Implement and test the selected module-query contract, then run
+              imported-alias and user-declaration matrix rows through the CLI.
     - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
           user-function name isolation, diagnostic propagation and CLI/SSR/WASM
           parity, then generate implemented reference tables and query examples.

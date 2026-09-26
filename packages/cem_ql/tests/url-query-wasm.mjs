@@ -92,3 +92,16 @@ for (const input of [['one'], [['x', '1']], {$stream: [['x', '1'], 'bad']}]) {
     assert.deepEqual(result.diagnostics.map(d => d.code), ['cem.ql.type_error']);
     assert.equal(result.diagnostics[0].byteOffset, 0);
 }
+
+const matrix = JSON.parse(await readFile(new URL('../fixtures/url/query-matrix.json', import.meta.url), 'utf8'));
+for (const row of matrix) {
+    const result = evaluate(row.query);
+    assert.deepEqual(result.items, row.items, row.id);
+    assert.deepEqual(result.diagnostics.map(d => d.code), row.diagnosticCodes, row.id);
+    assert.equal(result.error !== null, row.error, row.id);
+    for (const diagnostic of result.diagnostics) {
+        assert.equal(typeof diagnostic.byteOffset, 'number', row.id);
+        assert.ok(diagnostic.sourceMap.frames.length, row.id);
+    }
+}
+console.log(`Shared URL matrix: ${matrix.length} Node WASM cases passed.`);

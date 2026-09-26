@@ -27,4 +27,130 @@ See the [value contract](../../../../../docs/cem-ql-url-contract.md) for exact a
 | `url:params_sort` | 1 | A | Native |
 | `url:params_string` | 1 | A | Native |
 
-These entries describe implemented native query calls. Browser/CLI/SSR parity and remaining URL conformance gaps are tracked separately in the repository checklist.
+These entries describe implemented native query calls. Remaining URL conformance gaps are tracked separately in the repository checklist.
+
+## Executable examples
+
+Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies 27 expression rows. Two module rows await module mode; nonfatal setter-warning propagation is a separately tracked CLI regression. JSON below is the explicitly requested typed query-result projection.
+
+### href-relative
+
+```cem-ql
+url:href("../b", "https://h/a/c")
+```
+
+```json
+{
+  "diagnosticCodes": [],
+  "error": false,
+  "items": [
+    {
+      "kind": "atomic",
+      "type": "any-uri",
+      "value": "https://h/b"
+    }
+  ]
+}
+```
+
+### mapping
+
+```cem-ql
+url:params_string(url:params({b: "2", a: "1"}))
+```
+
+```json
+{
+  "diagnosticCodes": [],
+  "error": false,
+  "items": [
+    {
+      "kind": "atomic",
+      "type": "string",
+      "value": "a=1&b=2"
+    }
+  ]
+}
+```
+
+### import-alias
+
+```cem-ql
+import "cem:stdlib/url" as u
+u:params_string(u:params("x=1"))
+```
+
+```json
+{
+  "diagnosticCodes": [],
+  "error": false,
+  "items": [
+    {
+      "kind": "atomic",
+      "type": "string",
+      "value": "x=1"
+    }
+  ]
+}
+```
+
+### sort-utf16
+
+```cem-ql
+url:params_string(url:params_sort(url:params("=last&😀=first&😀=second")))
+```
+
+```json
+{
+  "diagnosticCodes": [],
+  "error": false,
+  "items": [
+    {
+      "kind": "atomic",
+      "type": "string",
+      "value": "%F0%9F%98%80=first&%F0%9F%98%80=second&%EE%80%80=last"
+    }
+  ]
+}
+```
+
+### setter-warning
+
+```cem-ql
+url:with_parts("https://h:8443/a", {protocol: "mailto:", host: "other:70000", hash: "done"})
+```
+
+```json
+{
+  "diagnosticCodes": [
+    "cem.ql.url_setter_ignored",
+    "cem.ql.url_setter_ignored"
+  ],
+  "error": false,
+  "items": [
+    {
+      "kind": "atomic",
+      "type": "any-uri",
+      "value": "https://other:8443/a#done"
+    }
+  ]
+}
+```
+
+### invalid-base
+
+```cem-ql
+url:href("https://h", "bad")
+```
+
+```json
+{
+  "diagnosticCodes": [
+    "cem.ql.url_base_invalid"
+  ],
+  "error": true,
+  "items": []
+}
+```
+
+The matrix also covers empty results, duplicate entries, optional values and upstream failures.
