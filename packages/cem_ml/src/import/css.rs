@@ -1,4 +1,5 @@
 //! CSS syntax is interpreted at import, never by retained-tree consumers.
+mod keyframes;
 mod selectors;
 use super::{ImportBuilder, MAX_DEPTH, MAX_VALUES};
 use crate::{
@@ -81,9 +82,16 @@ pub(super) fn project(doc: &CssDocumentAst) -> Result<(CemDocument, CemTreeSeman
         0,
         doc.events.len(),
         doc.entry_mode == CssEntryMode::DeclarationList,
-        false,
+        CssSelectorContext::Root,
     )?;
     Ok((p.b.ast, p.b.semantics))
+}
+
+#[derive(Clone, Copy)]
+enum CssSelectorContext {
+    Root,
+    Nested,
+    Keyframe,
 }
 
 struct CssImport<'a> {
@@ -155,8 +163,9 @@ impl CssImport<'_> {
         mut pos: usize,
         end: usize,
         body: bool,
-        nested: bool,
+        context: CssSelectorContext,
     ) -> Result<(), String> {
+        let nested = matches!(context, CssSelectorContext::Nested);
         while pos < end {
             let e = &self.events[pos];
             match e.token_kind.as_str() {
@@ -269,6 +278,9 @@ impl CssImport<'_> {
                             );
                             self.components(condition, pos + 1, prelude_end);
                         }
+                        "keyframes" | "-webkit-keyframes" => {
+                            self.keyframe_name(at_rule, pos + 1, prelude_end);
+                        }
                         "container" => {
                             let condition =
                                 self.node(at_rule, "group-container", pos + 1, prelude_end);
@@ -296,14 +308,21 @@ impl CssImport<'_> {
                     if let Some(open) = open {
                         match name.to_ascii_lowercase().as_str() {
                             "media" | "supports" | "layer" | "container" | "starting-style" => {
-                                self.items(at_rule, open + 1, close, true, nested)?;
+                                self.items(at_rule, open + 1, close, true, context)?;
                             }
                             // Authored @scope changes the meaning of & to its
                             // scoping root; it cannot inherit a style-rule parent.
                             // Scope-relative selector support remains deferred.
+                            "keyframes" | "-webkit-keyframes" => {
+                                self.items(
+                                    at_rule,
+                                    open + 1,
+                                    close,
+                                    true,
+                                    CssSelectorContext::Keyframe,
+                                )?;
+                            }
                             "scope"
-                            | "keyframes"
-                            | "-webkit-keyframes"
                             | "font-face"
                             | "page"
                             | "property"
@@ -312,7 +331,13 @@ impl CssImport<'_> {
                             | "font-palette-values"
                             | "position-try"
                             | "view-transition" => {
-                                self.items(at_rule, open + 1, close, true, false)?;
+                                self.items(
+                                    at_rule,
+                                    open + 1,
+                                    close,
+                                    true,
+                                    CssSelectorContext::Root,
+                                )?;
                             }
                             // Unknown at-rule bodies have no known declaration
                             // grammar. Preserve their balanced component values.
@@ -324,15 +349,21 @@ impl CssImport<'_> {
                 }
             } else if let Some(open) = open {
                 let id = self.node(parent, "rule", pos, next);
-                self.attr(id, "kind", "style");
                 self.attr(id, "selector", self.text(pos, open).trim());
-                self.attr(
-                    id,
-                    "selector-context",
-                    if nested { "nested" } else { "root" },
-                );
-                self.selectors(id, pos, open, nested);
-                self.items(id, open + 1, close, true, true)?;
+                if matches!(context, CssSelectorContext::Keyframe) {
+                    self.attr(id, "kind", "keyframe");
+                    self.keyframe_selectors(id, pos, open);
+                    self.items(id, open + 1, close, true, CssSelectorContext::Root)?;
+                } else {
+                    self.attr(id, "kind", "style");
+                    self.attr(
+                        id,
+                        "selector-context",
+                        if nested { "nested" } else { "root" },
+                    );
+                    self.selectors(id, pos, open, nested);
+                    self.items(id, open + 1, close, true, CssSelectorContext::Nested)?;
+                }
             } else {
                 return Err(format!(
                     "CSS statement at byte {} has no rule block.",

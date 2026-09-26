@@ -44,11 +44,9 @@ fn css_import_retains_semantic_structure_urls_and_native_source() {
         source.find("@import").unwrap() as u64
     );
     assert_eq!(elements(&tree, "declaration").len(), 4);
-    assert!(
-        elements(&tree, "declaration")
-            .iter()
-            .any(|id| attr(&tree, *id, "important").as_deref() == Some("true"))
-    );
+    assert!(elements(&tree, "declaration")
+        .iter()
+        .any(|id| attr(&tree, *id, "important").as_deref() == Some("true")));
     let urls: Vec<_> = elements(&tree, "component-value")
         .into_iter()
         .filter(|id| attr(&tree, *id, "kind").as_deref() == Some("url"))
@@ -92,11 +90,9 @@ fn css_import_style_block_empty_escapes_nested_rules_and_recovery() {
     assert_eq!(elements(&tree, "comment").len(), 1);
     let function = elements(&tree, "function")[0];
     assert_eq!(attr(&tree, function, "name").as_deref(), Some("url"));
-    assert!(
-        elements(&tree, "component-value")
-            .iter()
-            .any(|id| attr(&tree, *id, "value").as_deref() == Some("a b.svg"))
-    );
+    assert!(elements(&tree, "component-value")
+        .iter()
+        .any(|id| attr(&tree, *id, "value").as_deref() == Some("a b.svg")));
     assert_eq!(
         elements(
             &import_data("", "text/css", "cem", "empty.css").unwrap(),
@@ -112,7 +108,7 @@ fn css_import_style_block_empty_escapes_nested_rules_and_recovery() {
 
 #[test]
 fn css_import_bounds_and_resource_policy_facts_are_preserved() {
-    use cem_ml::validation::css::{CssFactKind, validate_css_document_ast};
+    use cem_ml::validation::css::{validate_css_document_ast, CssFactKind};
     let tree = import_data(
         "@import 'https://example.test/style.css';",
         "text/css",
@@ -128,27 +124,22 @@ fn css_import_bounds_and_resource_policy_facts_are_preserved() {
     let LoadedInputAstStream::CssDocument(doc) = owner else {
         panic!("missing CSS owner")
     };
-    assert!(
-        doc.facts
-            .iter()
-            .any(|f| f.kind == CssFactKind::ImportRejected)
-    );
-    assert!(
-        validate_css_document_ast(doc)
-            .iter()
-            .any(|d| d.code == "cem.css.import_rejected" && d.severity.is_hard_violation())
-    );
+    assert!(doc
+        .facts
+        .iter()
+        .any(|f| f.kind == CssFactKind::ImportRejected));
+    assert!(validate_css_document_ast(doc)
+        .iter()
+        .any(|d| d.code == "cem.css.import_rejected" && d.severity.is_hard_violation()));
     assert!(
         import_data(&"/**/".repeat(4097), "text/css", "cem", "large.css")
             .unwrap_err()
             .contains("4096-event")
     );
     let deep = format!("a {{ color: {}red{}; }}", "f(".repeat(66), ")".repeat(66));
-    assert!(
-        import_data(&deep, "text/css", "cem", "deep.css")
-            .unwrap_err()
-            .contains("64-level")
-    );
+    assert!(import_data(&deep, "text/css", "cem", "deep.css")
+        .unwrap_err()
+        .contains("64-level"));
 }
 
 #[test]
@@ -156,11 +147,9 @@ fn css_import_preserves_at_rule_components_and_declaration_list_mode() {
     let source = "@namespace svg url(https://example.test/svg); @unknown test { color: red; }";
     let tree = import_data(source, "text/css", "cem", "rules.css").unwrap();
     assert_eq!(elements(&tree, "at-rule").len(), 2);
-    assert!(
-        elements(&tree, "component-value")
-            .iter()
-            .any(|id| attr(&tree, *id, "value").as_deref() == Some("https://example.test/svg"))
-    );
+    assert!(elements(&tree, "component-value")
+        .iter()
+        .any(|id| attr(&tree, *id, "value").as_deref() == Some("https://example.test/svg")));
     assert_eq!(elements(&tree, "block").len(), 1);
     let tree = import_data(
         "color: red; --x: 'url(fake)';",
@@ -171,11 +160,9 @@ fn css_import_preserves_at_rule_components_and_declaration_list_mode() {
     .unwrap();
     assert_eq!(elements(&tree, "style-attribute").len(), 1);
     assert_eq!(elements(&tree, "declaration").len(), 2);
-    assert!(
-        elements(&tree, "component-value")
-            .iter()
-            .all(|id| attr(&tree, *id, "kind").as_deref() != Some("url"))
-    );
+    assert!(elements(&tree, "component-value")
+        .iter()
+        .all(|id| attr(&tree, *id, "kind").as_deref() != Some("url")));
 }
 
 #[test]
@@ -584,5 +571,94 @@ fn css_import_marks_unimplemented_pseudo_element_contexts_unsupported() {
             "{selector}"
         );
         assert!(tree.node(list).unwrap().children.is_empty());
+    }
+}
+
+#[test]
+fn css_import_retains_keyframe_names_offsets_and_source_components() {
+    let css = r#".card { @keyframes p\75 lse { from, 25%, TO {opacity:0} 1e2% {opacity:1} } } @-webkit-keyframes "quoted name" {0% {opacity:0}}"#;
+    let tree = import_data(css, "text/css", "cem", "frames.css").unwrap();
+    let names = elements(&tree, "keyframe-name");
+    assert_eq!(names.len(), 2);
+    assert_eq!(attr(&tree, names[0], "value").as_deref(), Some("pulse"));
+    assert_eq!(
+        attr(&tree, names[1], "value").as_deref(),
+        Some("quoted name")
+    );
+    assert_eq!(attr(&tree, names[1], "kind").as_deref(), Some("string"));
+    assert!(names
+        .iter()
+        .all(|id| attr(&tree, *id, "syntax-valid").as_deref() == Some("true")));
+    let offsets = elements(&tree, "keyframe-selector");
+    assert_eq!(
+        offsets
+            .iter()
+            .map(|id| attr(&tree, *id, "value").unwrap())
+            .collect::<Vec<_>>(),
+        ["0", "0.25", "1", "1", "0"]
+    );
+    assert_eq!(attr(&tree, offsets[3], "token").as_deref(), Some("1e2%"));
+    assert!(offsets
+        .iter()
+        .all(|id| tree.node(*id).unwrap().source.origin().is_some()));
+    assert_eq!(
+        elements(&tree, "selector-list").len(),
+        1,
+        "frame offsets must not become DOM selector lists"
+    );
+}
+
+#[test]
+fn css_import_marks_invalid_keyframe_names_and_offset_lists_explicitly() {
+    for name in [
+        "",
+        "none",
+        "inherit",
+        "initial",
+        "default",
+        "two names",
+        "var(--name)",
+    ] {
+        let tree = import_data(
+            &format!("@keyframes {name} {{from {{opacity:0}}}}"),
+            "text/css",
+            "cem",
+            "frames.css",
+        )
+        .unwrap();
+        assert_eq!(
+            attr(&tree, elements(&tree, "keyframe-name")[0], "syntax-valid").as_deref(),
+            Some("false"),
+            "{name}"
+        );
+    }
+    for selector in [
+        "-1%",
+        "101%",
+        "100.000001%",
+        "0",
+        ".card",
+        "entry 25%",
+        "from,",
+        "from,,to",
+        "from to",
+    ] {
+        let tree = import_data(
+            &format!("@keyframes pulse {{{selector} {{opacity:0}}}}"),
+            "text/css",
+            "cem",
+            "frames.css",
+        )
+        .unwrap();
+        let list = elements(&tree, "keyframe-selector-list")[0];
+        assert_eq!(
+            attr(&tree, list, "syntax-valid").as_deref(),
+            Some("false"),
+            "{selector}"
+        );
+        assert!(
+            elements(&tree, "keyframe-selector").is_empty(),
+            "invalid lists must not expose partial offsets"
+        );
     }
 }

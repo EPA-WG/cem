@@ -244,7 +244,15 @@ fn non_grouping_bodies_do_not_inherit_parent_selector_context() {
         .into_iter()
         .filter(|id| attr(&tree, *id, "kind").as_deref() == Some("style"))
         .collect();
-    assert_eq!(styles.len(), 3);
+    assert_eq!(styles.len(), 1);
+    let frames: Vec<_> = elements(&tree, "rule")
+        .into_iter()
+        .filter(|id| attr(&tree, *id, "kind").as_deref() == Some("keyframe"))
+        .collect();
+    assert_eq!(frames.len(), 2);
+    assert!(frames
+        .iter()
+        .all(|id| attr(&tree, *id, "selector-context").is_none()));
     for rule in styles {
         assert_eq!(
             attr(&tree, rule, "selector-context").as_deref(),

@@ -825,6 +825,30 @@ Separate descendant compounds and zero-weight `:where()` arguments remain
 allowed. Browser fixtures verify private and instance host matching without
 matching a descendant merely because it has the same class.
 
+## Retained keyframes: import boundary implemented
+
+Shared CSS import now gives `@keyframes` and `@-webkit-keyframes` a typed
+`keyframe-name` containing the decoded identifier or string, syntax status and
+source components. Reserved identifier names and malformed/multiple name tokens
+are marked invalid without inventing a usable name. Quoted names retain their
+string identity. Frame blocks use `rule kind="keyframe"` and a
+`keyframe-selector-list`, independently of DOM selector analysis.
+
+The initial offset profile accepts `from`, `to` and percentage lists, preserving
+source tokens/ranges and normalized offsets from zero through one. Invalid
+lists expose no partial offsets. Import checks the original percentage number
+before normalization so the tokenizer's f32 projection cannot round an
+out-of-range value into admission. Timeline-range selectors remain explicitly
+unsupported in this first profile. These forms follow the
+[CSS Animations keyframe grammar](https://www.w3.org/TR/css-animations-1/#keyframes).
+
+A keyframe body does not inherit a surrounding style selector. Its offsets
+never receive host rewriting, specificity or instance-prefix policy. This is
+retention only: scoped name emission, typed animation-reference classification,
+closure symbol ownership and browser installation remain pending. The subtree
+composer continues to diagnose and omit keyframe constructs until that
+compilation path is complete.
+
 ## Shared-resolver byte delivery: implemented natively
 
 `CssImportClosure::load_imports` uses `ResolverRegistry` input reads with the

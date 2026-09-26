@@ -5886,6 +5886,20 @@ registration identities may reuse an inherited or existing definition.
               Validation: 67 native checks and 18 computed-style checks, two
               container updates and the starting-style transition pass. Nx WASM
               build, Rust lint (existing warnings), and script lint pass.
+        - [x] Fixture: retain native keyframe names and frame offsets through
+              shared CSS import, separating frame selectors from DOM selectors.
+              Cover decoded identifier/string names, from/to/percentage lists,
+              source components/ranges, unsupported/recovered forms and nested
+              style-context isolation before name/reference emission.
+              Validation: 69 focused native/schema tests pass, with Nx WASM
+              build, lint (existing warnings) and all existing CSS browser
+              fixtures passing. The full Nx test target and its five prerequisites
+              also pass. Offset range checks use the original numeric
+              token, avoiding f32 rounding of values slightly above 100%.
+        - [ ] Fixture: emit scoped static keyframe names and ordered frame
+              declarations from retained nodes, preserving URL resolution,
+              suppression diagnostics and source ranges. Keep animation-name
+              slot classification and complete closure integration separate.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
