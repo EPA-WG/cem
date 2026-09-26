@@ -1,10 +1,16 @@
 # Scoped CSS fragment bindings
 
-Status: implementation design; not implemented. The accepted requirements are
-scoped generated-DOM references, reuse of existing owner identities as prefixes,
-and shared declaration stylesheets. This design is tracked by
-[the active todo list](todo.md) and extends the
-[light-DOM CSS contract](cem-ml-uid-and-scoped-css-design.md).
+Status: deferred design; not implemented. Automatic contextual `url(#id)`
+handling is on the [wishlist](wishlist.md#cem-elements-runtime), not the active
+implementation path. The immediate authoring approach uses an explicit CSS
+custom property containing a complete `url("#unique-target")` value and an
+explicit matching target ID in the template body. CSS consumes that property
+with `filter: var(--filter-url)`; a property containing only an ID cannot be
+concatenated inside `url()`.
+
+The remaining sections preserve the proposed automatic binding design for
+future consideration. They do not require URL rewriting, generated resource
+slots, or an automatic ID/reference binding service in the current runtime.
 
 ## Binding model
 

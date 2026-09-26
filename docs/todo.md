@@ -5796,35 +5796,18 @@ registration identities may reuse an inherited or existing definition.
         - [x] Decide fragment-only CSS URL semantics: treat `url(#local)` as
               scoped; in a `cem-element` template bind to generated DOM from the
               template body, retaining template-source/module provenance.
-        - [x] Design retained scoped-fragment bindings using existing owner
-              identities as prefixes; preserve shared CSS through reserved
-              resource-value slots. The [binding design](scoped-css-fragment-bindings.md)
-              is the active implementation plan, not current runtime behavior.
-        - [x] Audit existing owner identity: the current instance counter is
-              runtime-local; declaration IDs and restored snapshot IDs have no
-              document-wide admission service.
-        - [ ] Decide whether to upgrade the existing `instanceId` allocator
-              (recommended) or require caller-supplied namespaces; see the
-              [identity audit](scoped-css-fragment-bindings.md#owner-identity-audit-allocator-decision-pending).
-        - [ ] Fixture: qualify existing owner identity and admit it across
-              runtimes in one document; verify deterministic collision-safe
-              resource IDs, duplicate-owner rejection and SSR identity reuse.
-        - [ ] Fixture: retain local target/reference manifests and produce native
-              instance bindings, including external-template provenance, escaped
-              fragments, missing/ambiguous targets and repeated-ID rejection.
-        - [ ] Fixture: emit shared stylesheet slots and typed per-owner resource
-              values; verify two instances share CSS but use different targets,
-              nested missing bindings cannot inherit parent resources, and
-              normal module-map external URLs retain their source base.
-        - [ ] Fixture: rewrite enrolled HTML/SVG local references consistently
-              with target IDs; preserve projected/nested ownership and diagnose
-              unsupported/public reference conflicts before DOM commit.
-        - [ ] Fixture: carry bindings through browser/worker/SSR render commits,
-              DOM-native hydration, reconnect, disposal and document adoption;
-              verify invalidation on target removal and version/revision mismatch.
-        - [ ] Integrate the runtime-owned reserved resource-property channel and
-              binding-state serialization into the CSS/lifecycle contracts;
-              leave authored inline presentation and per-instance CSS clones forbidden.
+        - [x] Record the proposed automatic scoped-fragment binding design and
+              audit existing owner identity (the instance counter is runtime-local).
+              Automatic URL/ID substitution, owner admission, resource manifests,
+              shared slots and lifecycle integration are deferred to the
+              [wishlist](wishlist.md#cem-elements-runtime); the
+              [binding design](scoped-css-fragment-bindings.md) is an archive,
+              not the active implementation plan.
+        - [ ] Introduce the explicit DCE property used by a URL-valued CSS custom
+              property sample; do not implement automatic `url(#id)` handling.
+        - [ ] Fixture: demonstrate matching explicit resource IDs and complete
+              CSS custom-property URL values in DCE; verify independent instances
+              with different resource payloads sharing a static stylesheet.
         - [ ] Rewrite declaration resource URLs through the retained resolution
               plan, then assemble ordered rule bodies, remaining selector grammar,
               keyframes and managed scope wrappers before browser cutover, without

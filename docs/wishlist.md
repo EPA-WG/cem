@@ -196,6 +196,17 @@ parity, tracked in
 
 ## CEM Elements Runtime
 
+- [ ] **Context-aware `url(#id)` substitution in CSS and template bodies.**
+      Automatically bind local references to generated DOM owned by the correct
+      DCE declaration, instance, or repeated template context, including matching
+      target IDs and HTML/SVG references. Preserve external-template provenance
+      and closest-scope module-map resolution for explicit external URLs.
+      Design owner identity admission, shared stylesheet resource slots,
+      missing/ambiguous targets, nested ownership, and browser/worker/SSR
+      hydration and lifecycle behavior before implementation. The
+      [deferred binding design](scoped-css-fragment-bindings.md) records prior
+      proposals. For now authors supply matching IDs and complete URL-valued
+      CSS custom properties explicitly; no automatic `#id` substitution.
 - [ ] **Dynamic internal `<textarea>` merge and hydration handling.** Deferred out of the immediate release queue.
       Implement and cross-browser validate the hidden child-node merge model plus explicit `.value` projection, including
       SSR loader conversion from a loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder

@@ -184,42 +184,25 @@ semantics, empty URL handling, import condition validation/cycles, shared-loader
 integration and per-context style ownership remain downstream work. The current
 browser import suppression continues to apply.
 
-## Scoped CSS fragment references: binding requirement accepted
+## Scoped CSS fragment references: automatic binding deferred
 
-Accepted user direction: treat `url(#local)` as a scoped reference. In a
-`cem-element` template, it resolves to the generated DOM from that template's
-body. A template-related source reference is relative to its template source;
-that source can be external when the template comes from its own module.
+Automatic contextual `url(#local)` handling is deferred to the
+[wishlist](wishlist.md#cem-elements-runtime). The immediate approach is explicit
+matching IDs in generated template content and an authored CSS custom property
+containing the complete URL value, consumed through `var(--filter-url)`.
+Declaration styles remain static and shared. No automatic fragment substitution
+or ID/reference rewriting is required for this approach.
 
-This replaces the earlier proposed choice between generic map-first URL
-resolution and page-local fragment preservation. A scoped generated-DOM target
-must not be reduced to either an absolute stylesheet URL or an unqualified
-page-wide ID lookup. The owning template/render context is part of its meaning.
-Template-source provenance must remain available separately from the produced
-DOM binding, including external module provenance.
+CSS `@scope` does not make fragment lookup private to a DCE instance. Authors
+must supply distinct target IDs when resource content can differ per instance.
+An ID string alone cannot be concatenated inside CSS `url()`; the custom
+property must carry the entire `url("#unique-target")` value.
 
-For example, a `cem-element` template body containing an SVG filter authored as
-`id="local"` and a style using `filter:url(#local)` requires a reference to that
-template's generated filter. CSS's [local URL semantics](https://www.w3.org/TR/css-values-4/#local-urls)
-do not by themselves provide this template-specific binding in a light-DOM
-runtime. Native compilation must retain the scoped reference and connect it to
-rendered resource identity rather than infer the destination from the CSS text
-or the hosting page URL. Existing owner identities are reused; declaration styles
-remain shared and no generated instance CSS scope selectors are introduced.
-
-The binding design now reuses existing admitted owner identities as resource-ID
-prefixes. Rendered-template references bind to generated output, including output
-from an imported template; explicit source-document URLs retain their source
-base and module-map resolution. See
-[Scoped CSS fragment bindings](scoped-css-fragment-bindings.md) for the native
-manifest, collision-safe encoding, shared custom-property slots, ownership,
-IDREF consistency, lifecycle and hydration design. It is not implemented yet.
-
-The first binding profile has one target per instance. Repeat-local carriers,
-public resource exports and broader resource grammars remain explicit extensions.
-The current runtime-local instance counter must not be mistaken for an already
-admitted document-wide owner identity; identity qualification/admission is the
-first implementation prerequisite.
+The [deferred binding design](scoped-css-fragment-bindings.md) preserves the
+proposed future treatment of generated-DOM targets, imported template
+provenance, owner identity, native manifests, shared resource slots and
+hydration. Explicit external resource URLs continue to belong to the separate
+module-map resolution work below.
 
 ## Unmapped CSS URLs: accepted and implemented
 
