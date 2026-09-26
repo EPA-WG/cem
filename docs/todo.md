@@ -3923,7 +3923,7 @@ registration identities may reuse an inherited or existing definition.
       formatter/colorizer tests, lint and typecheck targets, all 10 demo-element
       and 148 cem-elements Storybook cases, and the 17-page/23-document browser
       fixture matrix pass.
-- [ ] Reuse retained CSS semantic analysis for sample highlighting and formatted
+- [x] Reuse retained CSS semantic analysis for sample highlighting and formatted
       CLI coloring. Existing source coloring uses broad lossless-event roles;
       feed the new import-owned selector, grouping, keyframe and animation-slot
       distinctions into the shared syntax stream without downstream CSS parsing.
@@ -3950,17 +3950,23 @@ registration identities may reuse an inherited or existing definition.
           invalid-query fallback and source parity in native, CLI and sample views.
           Completed: 11 native highlighting tests, CLI HTML/ANSI regression, both
           lint targets and all 12 browser tests after the WASM rebuild pass.
-    - [ ] Fixture: retain nested conditional operator roles at shared CSS import
+    - [x] Fixture: retain nested conditional operator roles at shared CSS import
           before extending their coloring; distinguish nested boolean expressions
           from feature declarations, custom values and general-enclosed syntax.
-    - [ ] Extend retained role coverage for selector arguments and conditional
+          Cover imports, source ranges, escaped keywords and mixed-operator
+          fallback; verify shared coloring in native, CLI and browser samples.
+          Completed: retained `condition-role` metadata owns outer/nested and
+          import-condition coloring; 41 import/grouping/schema tests, 11 native
+          highlighting tests, CLI, lint and all 12 rebuilt browser tests pass.
+    - [x] Extend retained role coverage for selector arguments and conditional
           group operators as their typed import profiles grow. Keep the existing
           selector/property/function colors and source fallback for other syntax.
     - Validation: full `cem_ml:test` and its five prerequisites pass; native
       source/formatter and real CLI ANSI regressions pass. All 12 demo browser
       tests pass across the sample themes after rebuilding WASM. Rust lint
-      retains its existing warnings; demo lint passes. Selector/group extensions
-      remain pending.
+      retains its existing warnings; demo lint passes. Current retained selector
+      and conditional-group profiles are covered; opaque feature values retain
+      broad source roles until additional grammar is explicitly supported.
 - [x] Make every source formatter/colorizer follow AST-owned content-type
       switches through one generic syntax stream.
     - [x] Extract the HTML, CEM-ML, and CSS scope dispatcher from the browser
@@ -5999,6 +6005,10 @@ registration identities may reuse an inherited or existing definition.
               nesting, invalid lists and policy limits before browser cutover.
               Completed: 84 native tests, Nx lint and WASM/browser checks pass;
               Chromium verifies both filtered forms, including a parent reference.
+        - [ ] Fixture: align retained compiler suppression diagnostics for authored
+              scopes, document-global at-rules and layers with the accepted scoped
+              CSS contract; cover nested rules and imported sheets, retain source
+              locations and keep unrelated declarations in output.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

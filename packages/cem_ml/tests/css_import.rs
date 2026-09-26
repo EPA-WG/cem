@@ -662,3 +662,26 @@ fn css_import_marks_invalid_keyframe_names_and_offset_lists_explicitly() {
         );
     }
 }
+
+#[test]
+fn nested_condition_operators_have_import_owned_roles_and_ranges() {
+    for (source, expected) in [
+        ("@supports ((display:grid) or (not (display:flex))) and (color:and) {}", vec!["or", "not", "and"]),
+        (r"@media only screen and ((width > 1px) \6f r (height > 1px)) {}", vec!["only", "and", r"\6f r"]),
+        ("@container card ((width > 1px) or (height > 1px)) and style(--x:and) {}", vec!["or", "and"]),
+        ("@supports future((display:grid) and (display:flex)) {}", vec![]),
+        ("@supports ((display:grid) and (display:flex) or (color:red)) {}", vec![]),
+        ("@supports (color: (not (red))) {}", vec![]),
+        ("@supports ((display:grid) or (display:flex)) garbage {}", vec![]),
+        ("@import 'a.css' supports((display:grid) or (display:flex)) screen and ((width > 1px) or (height > 1px));", vec!["or", "and", "or"]),
+    ] {
+        let tree = import_data(source, "text/css", "cem", "conditions.css").unwrap();
+        let actual: Vec<_> = elements(&tree, "component-value").into_iter()
+            .filter(|&id| attr(&tree, id, "condition-role").as_deref() == Some("operator"))
+            .map(|id| {
+                let range = tree.node(id).unwrap().range;
+                source[range.offset as usize..(range.offset + range.length) as usize].to_owned()
+            }).collect();
+        assert_eq!(actual, expected, "{source}");
+    }
+}

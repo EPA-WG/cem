@@ -13795,7 +13795,7 @@ This document has **strong** text and a link.
 {style |```
 :host { --accent: #312e81; color: var(--accent); animation:1s linear linear; }
 :nth-child(odd of .odd) {color:red}
-@supports not (display:grid) {.card {display:block}}
+@supports (not (display:grid)) {.card {display:block}}
 ```}
 {p @class=note |Hello}
 </template>"#;

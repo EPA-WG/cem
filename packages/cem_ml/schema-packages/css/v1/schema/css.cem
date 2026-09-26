@@ -60,7 +60,7 @@
         {element @name="animation-name-list" @required-attributes="analysis-status" @optional-attributes="source-id byte-offset byte-length" @children="(animation-name-slot | animation-value-slot)*"}
         {element @name="animation-value-slot" @required-attributes="kind value token" @optional-attributes="source-id byte-offset byte-length"}
         {element @name="animation-name-slot" @required-attributes="kind value token" @optional-attributes="source-id byte-offset byte-length"}
-        {element @name="component-value" @required-attributes="kind" @optional-attributes="value unit token source-id byte-offset byte-length" @children="component-value* function? block?"}
+        {element @name="component-value" @required-attributes="kind" @optional-attributes="value unit token condition-role source-id byte-offset byte-length" @children="component-value* function? block?"}
         {element @name="function" @required-attributes="name" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="block" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length" @children="component-value* declaration* rule*"}
         {element @name="comment" @optional-attributes="value source-id byte-offset byte-length"}
@@ -97,6 +97,7 @@
         {attribute @name="specificity-kind" @type="schema:string" @values="parent-dependent"}
         {attribute @name="empty" @type="schema:boolean"}
         {attribute @name="syntax-valid" @type="schema:boolean"}
+        {attribute @name="condition-role" @type="schema:string" @values="operator"}
         {attribute @name="condition-form" @type="schema:string" @values="declaration condition"}
         {attribute @name="anonymous" @type="schema:boolean"}
         {attribute @name="has-block" @type="schema:boolean"}

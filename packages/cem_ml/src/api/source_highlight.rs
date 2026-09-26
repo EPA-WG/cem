@@ -1298,6 +1298,14 @@ mod tests {
             ("@media screen and (width > 1px) {}", "and"),
             ("@media only screen {}", "only"),
             ("@supports not (display:grid) {}", "not"),
+            (
+                "@import 'a.css' supports((display:grid) or (display:flex));",
+                "or",
+            ),
+            (r"@media ((width > 1px) \6f r (height > 1px)) {}", r"\6f r"),
+            ("@supports ((display:grid) or (display:flex)) {}", "or"),
+            ("@media ((width > 1px) and (height > 1px)) {}", "and"),
+            ("@container card ((width > 1px) or (height > 1px)) {}", "or"),
             ("@supports (display:grid) or (display:flex) {}", "or"),
             (
                 "@container card (width > 1px) and style(--theme:dark) {}",
@@ -1319,6 +1327,8 @@ mod tests {
             "@media screen or (width > 1px) {}",
             "@supports (color:and) {}",
             "@supports future(and) {}",
+            "@supports (color:(and)) {}",
+            "@supports ((display:grid) and (color:red) or (display:flex)) {}",
             "@container only {}",
             "@container card style(--theme:and) {}",
         ] {

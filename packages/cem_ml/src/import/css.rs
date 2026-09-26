@@ -291,7 +291,13 @@ impl CssImport<'_> {
                                 "syntax-valid",
                                 if valid { "true" } else { "false" },
                             );
-                            self.components(condition, pos + 1, prelude_end);
+                            self.condition_components(
+                                condition,
+                                pos + 1,
+                                prelude_end,
+                                valid,
+                                false,
+                            );
                         }
                         "keyframes" | "-webkit-keyframes" => {
                             self.keyframe_name(at_rule, pos + 1, prelude_end);
@@ -305,7 +311,13 @@ impl CssImport<'_> {
                                 "syntax-valid",
                                 if valid { "true" } else { "false" },
                             );
-                            self.components(condition, pos + 1, prelude_end);
+                            self.condition_components(
+                                condition,
+                                pos + 1,
+                                prelude_end,
+                                valid,
+                                false,
+                            );
                         }
                         "starting-style" => {
                             let prelude =
@@ -527,7 +539,7 @@ impl CssImport<'_> {
         })?;
         let supports = self.node(parent, "import-supports", open, close + 1);
         self.attr(supports, "condition-form", form);
-        self.components(supports, open + 1, close);
+        self.condition_components(supports, open + 1, close, form == "condition", false);
         Ok(())
     }
 
@@ -736,12 +748,72 @@ impl CssImport<'_> {
                 );
             }
             self.attr(query, "syntax-valid", if valid { "true" } else { "false" });
-            self.components(query, query_start, query_end);
+            self.condition_components(query, query_start, query_end, valid, true);
             query_start = query_end + 1;
         }
     }
 
-    fn components(&mut self, parent: AstNodeId, mut pos: usize, end: usize) {
+    fn condition_components(
+        &mut self,
+        parent: AstNodeId,
+        start: usize,
+        end: usize,
+        valid: bool,
+        media: bool,
+    ) {
+        let mut operators = std::collections::BTreeSet::new();
+        if valid {
+            self.condition_operators(start, end, media, 0, &mut operators);
+        }
+        self.components_with_roles(parent, start, end, &operators);
+    }
+
+    fn condition_operators(
+        &self,
+        start: usize,
+        end: usize,
+        media: bool,
+        depth: usize,
+        operators: &mut std::collections::BTreeSet<usize>,
+    ) {
+        if depth >= MAX_DEPTH {
+            return;
+        }
+        let Some(top) = self.condition_tokens(start, end) else {
+            return;
+        };
+        for index in top {
+            if ["not", "and", "or"]
+                .iter()
+                .any(|word| self.keyword(index, word))
+                || (media && self.keyword(index, "only"))
+            {
+                operators.insert(index);
+            } else if self.events[index].token_kind == "parenthesis-open" {
+                let close = self.close(index, end);
+                // Declarations/features and general-enclosed atoms must remain
+                // opaque. Only a recognized nested boolean expression is visited.
+                if self
+                    .condition_tokens(index + 1, close)
+                    .is_some_and(|inner| self.boolean_condition(&inner, true))
+                {
+                    self.condition_operators(index + 1, close, false, depth + 1, operators);
+                }
+            }
+        }
+    }
+
+    fn components(&mut self, parent: AstNodeId, pos: usize, end: usize) {
+        self.components_with_roles(parent, pos, end, &std::collections::BTreeSet::new());
+    }
+
+    fn components_with_roles(
+        &mut self,
+        parent: AstNodeId,
+        mut pos: usize,
+        end: usize,
+        operators: &std::collections::BTreeSet<usize>,
+    ) {
         while pos < end {
             let e = &self.events[pos];
             let close = if e.kind == "block-open" {
@@ -764,6 +836,9 @@ impl CssImport<'_> {
                 _ => "delimiter",
             };
             self.attr(id, "kind", kind);
+            if operators.contains(&pos) {
+                self.attr(id, "condition-role", "operator");
+            }
             self.attr(id, "token", &self.text(pos, next));
             if let Some(value) = &e.value {
                 self.attr(id, "value", value);
@@ -788,7 +863,7 @@ impl CssImport<'_> {
                         kind
                     },
                 );
-                self.components(inner, pos + 1, close);
+                self.components_with_roles(inner, pos + 1, close, operators);
             }
             pos = next;
         }

@@ -13,6 +13,7 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
                     "media",
                     "supports",
                     "container",
+                    "import",
                 ]
                 .iter()
                 .any(|name| n.eq_ignore_ascii_case(name))
@@ -59,50 +60,6 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             continue;
         };
         let attr = |name| attribute(&ast.nodes, *node_id, name);
-        let media = expanded_name.local_name == "group-media";
-        if media
-            || matches!(
-                expanded_name.local_name.as_str(),
-                "group-supports" | "group-container"
-            )
-        {
-            let conditions = if media {
-                children.as_slice()
-            } else {
-                std::slice::from_ref(node_id)
-            };
-            for &condition in conditions {
-                if attribute(&ast.nodes, condition, "syntax-valid") != Some("true") {
-                    continue;
-                }
-                let CemAstNode::Element {
-                    children: components,
-                    ..
-                } = &ast.nodes[condition as usize]
-                else {
-                    continue;
-                };
-                // Only outer components have been validated as operators. Atom
-                // contents stay opaque: `and` can also be a custom value/name.
-                for &component in components {
-                    if attribute(&ast.nodes, component, "kind") != Some("ident") {
-                        continue;
-                    }
-                    let Some(value) = attribute(&ast.nodes, component, "value") else {
-                        continue;
-                    };
-                    if ["not", "and", "or"]
-                        .iter()
-                        .any(|word| value.eq_ignore_ascii_case(word))
-                        || (media && value.eq_ignore_ascii_case("only"))
-                    {
-                        if let Some(range) = semantics.ranges.get(&component) {
-                            roles.push((*range, CssSemanticKindAst::Keyword));
-                        }
-                    }
-                }
-            }
-        }
         if expanded_name.local_name == "simple-selector" && attr("nth-a").is_some() {
             if let Some(range) = semantics.ranges.get(node_id) {
                 let mut argument = *range;
@@ -117,6 +74,9 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             continue;
         }
         let role = match expanded_name.local_name.as_str() {
+            "component-value" if attr("condition-role") == Some("operator") => {
+                CssSemanticKindAst::Keyword
+            }
             "keyframe-name" if attr("syntax-valid") == Some("true") => CssSemanticKindAst::Symbol,
             "animation-name-slot" if attr("kind") == Some("ident") => CssSemanticKindAst::Symbol,
             "animation-name-slot" if attr("kind") == Some("keyword") => CssSemanticKindAst::Keyword,

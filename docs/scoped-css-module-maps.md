@@ -1032,13 +1032,20 @@ prefix before their retained filter list colors identifiers such as `odd`,
 The sample `:nth-child(odd of .odd)` demonstrates the distinction. Escapes and
 comments keep their original source bytes, and invalid filters keep broad roles.
 
-Validated outer components of `@media`, `@supports` and `@container` conditions
-provide keyword roles for `not`, `and` and `or`; media's `only` modifier also
-uses the keyword palette. Each media query must pass its own syntax check.
-Feature expressions and unknown function contents remain opaque, so values
-such as `style(--theme: and)` retain their existing colors. Nested boolean
-operators inside those opaque atoms require additional import-owned structure
-before presentation can distinguish them. Samples and CLI use the same roles.
+The importer marks recognized conditional operators on `component-value` nodes
+with `condition-role="operator"`. This includes outer and nested parenthesized
+boolean expressions in media, supports and container groups, plus import
+conditions. Media's `only` modifier receives the same role. A condition must
+pass its outer grammar check before annotation; each media-list entry is checked
+separately. Recursion follows recognized boolean expressions within the existing
+64-level import bound, following [media condition grouping](https://www.w3.org/TR/mediaqueries-4/#mq-syntax).
+
+Feature declarations, custom values and unknown functions remain opaque, so
+`style(--theme: and)` and `future((x) and (y))` keep their existing colors.
+Mixed boolean operators without grouping receive no nested operator metadata.
+This metadata describes recognized syntax; it does not evaluate feature support
+or expand the compiler's condition-admission profile. Source presentation uses
+the retained roles and ranges directly, including in samples and CLI output.
 
 ## Bounded structural nth selectors
 
