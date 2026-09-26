@@ -5815,3 +5815,45 @@ Final untraced verification passes **3/3 changed stories** in **13.42 s**
 same two existing warnings (`/tmp/cem-readiness-final-lint.log`); whitespace
 checks pass. Package typecheck passed from cache earlier in this audit. All
 changes are limited to three stories and the investigation/checklist documents.
+
+
+### Worker/fallback startup observation preparation
+
+Prepared 2026-09-25. `ProcessingWorkerAndMainThreadFallback` now emits opt-in
+`[cem-worker-readiness]` observations with `STORYBOOK_CEM_TREE_TRACE=1`. Each
+of the worker, pooled-worker, construction-fallback and execution-fallback
+instances is paired with its actual runtime and declaration. Observations
+record declaration/render promise settlement or rejection, definition state,
+child/span counts, diagnostic codes/severities, worker-factory call count and
+the existing scheduling trace's control fields. They contain no source text,
+rendered values, document payloads, native handles or serialized snapshots.
+The observation states describe promises observed from the play function;
+they do not reconstruct earlier startup phases.
+
+The first-span waits retain their original order and 120-frame limit. Success
+and failure checkpoints capture all owners; failures rethrow the original
+error. The subsequent lifecycle waits and all worker/fallback interaction
+assertions remain unchanged. These observations do not establish the cause of
+the historical timeout.
+
+Package lint passes (`/tmp/cem-worker-readiness-lint.log`). The focused Nx test
+command was restricted to this one story with task dependencies excluded:
+
+```sh
+STORYBOOK_CEM_TREE_TRACE=1 yarn nx run cem-elements:test --excludeTaskDependencies --skipNxCache --args='packages/cem-elements/src/lib/cem-elements.stories.ts -t Processing.*Worker.*Fallback'
+```
+
+The Nx wrapper exited without diagnostic output. Running the same Vitest
+invocation directly exposed `listen EPERM` on `127.0.0.1:63315`: the current
+sandbox forbids opening its local browser-test server. No test executed, so
+neither trace correctness nor later interaction assertions are claimed as
+browser-verified. No full/global test or native/WASM rebuild ran. Git staging
+was initially blocked by a read-only `.git` mount. One staging attempt in the
+continuation succeeded, but the subsequent add/commit attempt again failed to
+create `.git/index.lock` on the read-only filesystem. The focused browser retry
+still fails before executing any tests (`/tmp/cem-worker-readiness-retry.log`).
+
+Next: in an environment allowing the browser server, run the focused story
+with tracing enabled and disabled. Then use the existing concurrent workload
+to capture any recurrence before proposing a readiness correction. Keep HTTP
+and historical stock-warning attribution separate.

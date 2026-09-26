@@ -6,6 +6,11 @@ belong in `package.metadata.cem-upstream` and `CEM-PATCH.md`; they do not contro
 the fork version. It is excluded from CEM's synchronized platform version group.
 Its Rust library remains `url`, preserving existing imports and features.
 
+Publication is deferred into release work by user decision on 2026-09-25.
+Run this checklist when the planned release includes dependent CEM-QL Cargo
+publication; it does not block ordinary development. The owning release contract
+is [the CEM Cargo release prerequisite](https://github.com/EPA-WG/cem/blob/develop/docs/cem-ml-deployment-contract.md#cargo-source-release-prerequisite).
+
 ## Local preparation
 
 From the CEM repository root:

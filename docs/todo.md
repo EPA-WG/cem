@@ -2549,6 +2549,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             fixture. If startup polling is premature, use existing lifecycle
             settlement before checking each authored instance; preserve the
             resource assertions and 30-second story deadline.
+    - [ ] Fixture: add opt-in worker/fallback startup observations for each owning
+          runtime, declaration and instance, including existing scheduling events
+          and the unchanged first-span success/failure boundaries. Verify this
+          story with tracing enabled and disabled before attempting attribution.
+          Prepared 2026-09-25: the story records all four owning runtimes'
+          declaration/render observations, control-only scheduling events and
+          first-span boundaries, preserving the original waits and errors.
+          Package lint passes. Browser validation remains blocked by sandbox
+          `listen EPERM` before any tests run; no timeout attribution is claimed.
+          See [worker observation preparation](browser-stabilization-review.tmp.md#workerfallback-startup-observation-preparation).
     - [ ] Fixture: capture the worker/fallback story's 120-frame first-span
           timeout with observations from its owning declaration and runtime
           before changing the wait. During input-value validation on 2026-09-24,
@@ -5137,7 +5147,7 @@ registration identities may reuse an inherited or existing definition.
       preserves both ends with the default `…`, arbitrary multi-codepoint, or
       empty markers. All 234 CEM-QL tests and the CEM-QL schema-package
       generation/verification target pass.
-- [ ] Add a pure Tier A `url:` function family (`cem:stdlib/url`) for parsing,
+- [x] Add a pure Tier A `url:` function family (`cem:stdlib/url`) for parsing,
       normalizing, assembling, and disassembling URLs according to the
       [WHATWG URL Standard](https://url.spec.whatwg.org/) and the browser
       [URL API](https://developer.mozilla.org/en-US/docs/Web/API/URL).
@@ -5452,9 +5462,11 @@ registration identities may reuse an inherited or existing definition.
               and module tests pass. No full/global test ran. The packaged
               visualizer's missing upstream file is now pinned and included.
               See [release order and prerequisites](../vendor/url/RELEASING.md).
-        - [ ] Before publishing CEM-QL, publish the reviewed `cem-url` archive and
-              verify registry resolution. External publication remains a separate
-              action after local preparation.
+        - [x] Move `cem-url` publication into the release checklist rather than
+              blocking development. Deferred by the user on 2026-09-25; the
+              fork must be published and registry-verified before CEM-QL crate
+              publication. See [release prerequisites](cem-ml-deployment-contract.md#cargo-source-release-prerequisite)
+              and [deferred publication](wishlist.md#distribution-and-publication).
 
     - [x] Fixture: run one URL query/result matrix through native evaluation,
           CLI, Node WASM and browser WASM; compare native server-rendered and

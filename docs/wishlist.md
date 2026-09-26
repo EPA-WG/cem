@@ -94,6 +94,15 @@ parity, tracked in
 
 ## Distribution and Publication
 
+- [ ] **CEM URL fork and dependent Cargo releases.** Deferred by the user on
+      2026-09-25 into release work. Publish the reviewed `cem-url` release before
+      any `cem-ql` crate release that depends on it: confirm registry name and
+      maintainer access, rerun the clean archive gates, publish, verify exact
+      registry resolution in a clean consumer, then verify/package dependent
+      crates. Follow [the fork release checklist](../vendor/url/RELEASING.md)
+      and [the Cargo release prerequisite](cem-ml-deployment-contract.md#cargo-source-release-prerequisite).
+      This is not a blocker for ordinary development or local package checks.
+
 - [ ] **CEM web npm family publication.** Publish and remotely verify the fixed
       `@epa-wg/cem`, `@epa-wg/cem-theme`, `@epa-wg/cem-components`,
       `@epa-wg/cem-elements`, and `@epa-wg/custom-element` family from one new

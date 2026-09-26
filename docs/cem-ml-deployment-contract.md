@@ -87,6 +87,30 @@ The sync target may write during an intentional version-preparation change. The
 verification and release gates never repair drift. Failed publication may retry
 the same immutable version and bytes; changed bytes require a new version.
 
+## Cargo source release prerequisite
+
+When a release includes publication of `cem-ql` to crates.io, release preparation
+must include the separately versioned `cem-url` fork. The user deferred this
+publication into release work on 2026-09-25; it is not an ordinary development
+prerequisite. The fork remains outside the synchronized platform version group
+and is not an additional GitHub Release unit.
+
+Before publishing a dependent CEM-QL crate:
+
+1. Confirm registry name/ownership and publishing access for the exact fork
+   version selected by CEM-QL.
+2. Run the clean archive and focused consumer gates in
+   [the fork release checklist](../vendor/url/RELEASING.md), retaining its source
+   commit and archive checksum with release evidence.
+3. Publish the reviewed fork as part of the authorized release, or verify the
+   exact version is already published and matches the reviewed source.
+4. Verify registry resolution outside the workspace without a path override,
+   then package and verify CEM-QL against its published dependencies before
+   publishing CEM-QL and subsequent dependent crates.
+
+Track this work under [Distribution and Publication](wishlist.md#distribution-and-publication).
+Local development continues using the exact path/version dependency.
+
 ## Supported runtime matrix
 
 The first npm release supports Node `^22.12.0 || ^24.0.0`. At acceptance

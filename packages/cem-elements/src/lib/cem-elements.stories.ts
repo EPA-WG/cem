@@ -1139,6 +1139,63 @@ interface WorkerFallbackStoryState {
 
 const workerFallbackStoryStates = new WeakMap<HTMLElement, WorkerFallbackStoryState>();
 
+/** Observe each fixture's actual owner without introducing readiness waits. */
+function observeWorkerFallbackStartup(root: HTMLElement, state: WorkerFallbackStoryState) {
+    if (import.meta.env.STORYBOOK_CEM_TREE_TRACE !== '1') return (_event: string, _tag: string) => undefined;
+    const owners = [
+        [state.workerRuntime, state.workerDeclaration, 'story-processing-worker-card'],
+        [state.pooledWorkerRuntime, state.pooledWorkerDeclaration, 'story-processing-pooled-worker-card'],
+        [state.fallbackRuntime, state.fallbackDeclaration, 'story-processing-fallback-card'],
+        [state.executionFallbackRuntime, state.executionFallbackDeclaration, 'story-processing-execution-fallback-card'],
+    ] as const;
+    const observations = owners.map(([runtime, declaration, tag]) => ({
+        runtime, declaration, tag, instance: requiredElement(root, tag) as HTMLElement,
+        declarationObservation: 'pending', renderObservation: 'awaiting-definition',
+    }));
+    const started = performance.now();
+    const emit = (event: string, tag: string) => {
+        if (!root.isConnected) return;
+        const now = performance.now();
+        console.warn('[cem-worker-readiness]', JSON.stringify({
+            story: 'runtime/ProcessingWorkerAndMainThreadFallback', event, tag,
+            at: new Date(performance.timeOrigin + now).toISOString(), elapsedMs: now - started,
+            workerFactoryCalls: state.workerFactoryCalls,
+            scheduling: state.processingTrace.map(({ sequence, kind, ownerScopeId, workerSlot, jobId, operation }) =>
+                ({ sequence, kind, ownerScopeId, workerSlot, jobId, operation })),
+            owners: observations.map(owner => ({
+                tag: owner.tag, registered: !!customElements.get(owner.tag),
+                declarationObservation: owner.declarationObservation,
+                renderObservation: owner.renderObservation,
+                children: owner.instance.childElementCount, spans: owner.instance.querySelectorAll('span').length,
+                declarationDiagnostics: owner.runtime.diagnosticsFor(owner.declaration).map(({ code, severity }) => ({ code, severity })),
+                instanceDiagnostics: owner.runtime.diagnosticsFor(owner.instance).map(({ code, severity }) => ({ code, severity })),
+            })),
+        }));
+    };
+    for (const owner of observations) {
+        void owner.runtime.whenDeclarationSettled(owner.declaration).then(() => {
+            owner.declarationObservation = 'settled';
+            emit('declaration-settled', owner.tag);
+        }, () => {
+            owner.declarationObservation = 'rejected';
+            emit('declaration-rejected', owner.tag);
+        });
+        void customElements.whenDefined(owner.tag).then(async () => {
+            if (!root.isConnected) return;
+            owner.renderObservation = 'pending';
+            emit('defined', owner.tag);
+            await owner.runtime.whenRenderSettled(owner.instance);
+            owner.renderObservation = 'settled';
+            emit('render-settled', owner.tag);
+        }).catch(() => {
+            owner.renderObservation = 'rejected';
+            emit('render-rejected', owner.tag);
+        });
+    }
+    emit('start', 'all');
+    return emit;
+}
+
 export const ProcessingWorkerAndMainThreadFallback: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -1251,10 +1308,22 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             canvasElement,
             'story-processing-execution-fallback-card'
         ) as HTMLElement;
-        const workerLabel = await waitForElement(workerInstance, 'span');
-        const fallbackLabel = await waitForElement(fallbackInstance, 'span');
-        const pooledWorkerLabel = await waitForElement(pooledWorkerInstance, 'span');
-        const executionFallbackLabel = await waitForElement(executionFallbackInstance, 'span');
+        const checkpoint = observeWorkerFallbackStartup(storyRoot, state);
+        const initialLabel = async (instance: HTMLElement) => {
+            checkpoint('first-span-start', instance.localName);
+            try {
+                const label = await waitForElement(instance, 'span');
+                checkpoint('first-span-ready', instance.localName);
+                return label;
+            } catch (error) {
+                checkpoint('first-span-failed', instance.localName);
+                throw error;
+            }
+        };
+        const workerLabel = await initialLabel(workerInstance);
+        const fallbackLabel = await initialLabel(fallbackInstance);
+        const pooledWorkerLabel = await initialLabel(pooledWorkerInstance);
+        const executionFallbackLabel = await initialLabel(executionFallbackInstance);
         await state.workerRuntime.whenRenderSettled(workerInstance);
         await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
         await state.pooledWorkerRuntime.whenRenderSettled(pooledWorkerInstance);
