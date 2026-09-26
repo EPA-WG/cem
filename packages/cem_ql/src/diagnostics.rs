@@ -299,7 +299,13 @@ pub fn spanned(
         message: message.into(),
         node: None,
         details: None,
-        source_map: None,
+        source_map: Some(cem_ml::source_map::SourceMapStack {
+            frames: vec![cem_ml::source_map::SourceMapFrame {
+                source_id: cem_ml::source::SourceId(0),
+                span: cem_ml::source_map::FrameSpan::Single(range),
+                transform: cem_ml::source_map::TransformKind::Query,
+            }],
+        }),
     }
 }
 

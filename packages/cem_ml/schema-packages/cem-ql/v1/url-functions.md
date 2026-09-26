@@ -31,7 +31,7 @@ These entries describe implemented native query calls. Remaining URL conformance
 
 ## Executable examples
 
-Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies 27 expression rows. Two module rows await module mode; nonfatal setter-warning propagation is a separately tracked CLI regression. JSON below is the explicitly requested typed query-result projection.
+Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies all 30 rows using explicit expression/module identities and preserves nonfatal setter warnings. JSON below is the explicitly requested typed query-result projection.
 
 ### href-relative
 

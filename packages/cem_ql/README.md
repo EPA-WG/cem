@@ -121,11 +121,12 @@ native renderer evidence, separate from the legacy Edge/SSR transport fixture.
 Focused targets are `cem_ql:test:url-integration`,
 `cem-elements:test:url-integration` and `cem_ml_cli:test:url-integration`.
 
-The CLI currently verifies 27 expression rows. Its two module rows require the
-[explicit module-query mode design](../../docs/cem-ql-cli-module-query-design.md);
-one nonfatal setter-warning row is a tracked CLI bridge regression with an
-ignored test. Complete CLI parity remains open. The CLI's existing fatal-error
-summary is checked separately from the original language diagnostic.
+The CLI verifies all 30 rows, including imported aliases, local declarations and
+ordered nonfatal warnings. Its [explicit module-query mode](../../docs/cem-ql-cli-module-query-design.md)
+selects compilation from the declared media type and matching schema. Modules
+require a URI header and one final expression; imports are limited to registered
+built-ins. The CLI fatal-error summary is checked separately from the original
+language diagnostic.
 
 ## Native data import and presentation dispatch
 

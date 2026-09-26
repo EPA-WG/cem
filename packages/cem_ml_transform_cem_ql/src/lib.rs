@@ -5424,10 +5424,25 @@ fn lifecycle_query_stream(owner: Arc<LoadedInputAstStream>) -> Result<ItemStream
 
 #[derive(Debug, Clone)]
 pub struct CemQlQueryAstOwner {
-    compiled: CompiledExpression,
+    compiled: CemQlPreparedQuery,
     identity: FormatIdentity,
     source_uri: String,
     source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone)]
+enum CemQlPreparedQuery {
+    Expression(CompiledExpression),
+    Module(cem_ql::ir::CompiledQuery),
+}
+
+impl CemQlPreparedQuery {
+    fn query(&self) -> &cem_ql::ir::CompiledQuery {
+        match self {
+            Self::Expression(compiled) => &compiled.query,
+            Self::Module(query) => query,
+        }
+    }
 }
 
 impl CemQlQueryAstOwner {
@@ -5437,32 +5452,16 @@ impl CemQlQueryAstOwner {
         identity: FormatIdentity,
         resolver_policy_stamp: &str,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let source = std::str::from_utf8(bytes).map_err(|error| {
-            vec![cem_ql_query_diagnostic(
-                source_uri,
-                "cem.ql.query_invalid_utf8",
-                format!("CEM-QL query source is not valid UTF-8: {error}"),
-            )]
-        })?;
-        let context = StandaloneExpressionContext {
-            source_uri: Some(source_uri.to_owned()),
-            resolver_policy_stamp: Some(resolver_policy_stamp.to_owned()),
-            host_capability_profile: Some("cem-ml-query".to_owned()),
-            ..StandaloneExpressionContext::default()
-        }
-        .with_input(ItemStream::empty(), Type::Any);
-        let compiled = compile_expression(source, &context).map_err(|error| {
-            let diagnostics = diagnostics_with_uri(&error.diagnostics, source_uri);
-            if diagnostics.is_empty() {
+        let mut identity = identity;
+        let kind =
+            cem_ml::query::CemQlQuerySourceKind::from_identity(&identity).ok_or_else(|| {
                 vec![cem_ql_query_diagnostic(
                     source_uri,
-                    error.code,
-                    error.message,
+                    "cem.ql.query_contract_invalid",
+                    "CEM-QL source kind and schema must match",
                 )]
-            } else {
-                diagnostics
-            }
-        })?;
+            })?;
+        identity.schema = Some(kind.schema_uri().to_owned());
         let source_map = SourceMapStack {
             frames: vec![SourceMapFrame {
                 source_id: SourceId(1),
@@ -5478,6 +5477,58 @@ impl CemQlQueryAstOwner {
                 },
             }],
         };
+        let source = std::str::from_utf8(bytes).map_err(|error| {
+            vec![Diagnostic {
+                byte_offset: Some(error.valid_up_to() as u64),
+                source_map: Some(source_map.clone()),
+                ..cem_ql_query_diagnostic(
+                    source_uri,
+                    "cem.ql.query_invalid_utf8",
+                    format!("CEM-QL query source is not valid UTF-8: {error}"),
+                )
+            }]
+        })?;
+        let attach_source = |mut diagnostics: Vec<Diagnostic>| {
+            for diagnostic in &mut diagnostics {
+                diagnostic.uri = Some(source_uri.to_owned());
+                let map = diagnostic
+                    .source_map
+                    .get_or_insert_with(SourceMapStack::default);
+                map.frames.splice(0..0, source_map.frames.clone());
+            }
+            diagnostics
+        };
+        let mut compiled = match kind {
+            cem_ml::query::CemQlQuerySourceKind::Expression => {
+                let context = StandaloneExpressionContext {
+                    source_uri: Some(source_uri.to_owned()),
+                    resolver_policy_stamp: Some(resolver_policy_stamp.to_owned()),
+                    host_capability_profile: Some("cem-ml-query".to_owned()),
+                    ..StandaloneExpressionContext::default()
+                }
+                .with_input(ItemStream::empty(), Type::Any);
+                CemQlPreparedQuery::Expression(
+                    compile_expression(source, &context)
+                        .map_err(|error| attach_source(error.diagnostics))?,
+                )
+            }
+            cem_ml::query::CemQlQuerySourceKind::Module => {
+                let context = CompileContext {
+                    policy_bindings: BTreeMap::from([("input".into(), ItemStream::empty())]),
+                    ..CompileContext::default()
+                };
+                CemQlPreparedQuery::Module(
+                    cem_ql::api::compile_module(source, &context).map_err(attach_source)?,
+                )
+            }
+        };
+        let query = match &mut compiled {
+            CemQlPreparedQuery::Expression(compiled) => &mut compiled.query,
+            CemQlPreparedQuery::Module(query) => query,
+        };
+        for map in &mut query.tree.source_maps {
+            map.frames.splice(0..0, source_map.frames.clone());
+        }
         Ok(Self {
             compiled,
             identity,
@@ -5616,6 +5667,9 @@ impl QueryNativeResult for CemQlQueryResultArtifact {
     fn language(&self) -> QueryLanguage {
         QueryLanguage::CemQl
     }
+    fn diagnostics(&self) -> &[Diagnostic] {
+        &self.stream.diagnostics
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -5645,7 +5699,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 vec![cem_ql_query_diagnostic(
                     request.query_ast_owner.source_uri(),
                     "cem.ql.query_ast_unsupported",
-                    "CEM-QL query evaluator requires the package-owned compiled expression",
+                    "CEM-QL query evaluator requires the package-owned compiled CEM-QL query",
                 )]
             })?;
         let input = request
@@ -5667,7 +5721,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
             )]);
         }
         let mut stream = evaluate_with_control(
-            &query.compiled.query,
+            query.compiled.query(),
             &EvaluationContext {
                 scope: QueryContextScope(0),
                 scope_policy: *request.scope_policy,
@@ -5729,7 +5783,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 ),
             )]);
         }
-        stream.diagnostics.clear();
+        stream.diagnostics = diagnostics;
         let source_map = query.source_map.clone();
         let native_result: Arc<dyn QueryNativeResult> = Arc::new(CemQlQueryResultArtifact {
             stream,

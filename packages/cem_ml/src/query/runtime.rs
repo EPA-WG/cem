@@ -472,6 +472,11 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
         return Err(execution_failure(language, inputs, diagnostics));
     }
 
+    diagnostics.extend_from_slice(result.native_result.diagnostics());
+    if has_hard_violation(&diagnostics) {
+        return Err(execution_failure(language, inputs, diagnostics));
+    }
+
     Ok(QueryRunResponse {
         language,
         inputs,

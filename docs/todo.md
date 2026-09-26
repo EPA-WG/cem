@@ -5438,7 +5438,7 @@ registration identities may reuse an inherited or existing definition.
               cem-url dependency; Cargo packaging cannot publish this local-only
               patch as an ordinary registry dependency.
 
-    - [ ] Fixture: run one URL query/result matrix through native evaluation,
+    - [x] Fixture: run one URL query/result matrix through native evaluation,
           CLI, Node WASM and browser WASM; compare native server-rendered and
           browser template output with changed bindings, escaping and diagnostics.
           Keep this focused gate separate from the legacy Edge/SSR transport host.
@@ -5452,26 +5452,45 @@ registration identities may reuse an inherited or existing definition.
               story lint and generated-reference/link checks pass.
         - [x] Fixture: retain an explicit ignored regression for CLI setter
               warnings dropped by the bridge before result/report construction.
-        - [ ] Preserve nonfatal native diagnostics through the CLI query bridge;
+        - [x] Preserve nonfatal native diagnostics through the CLI query bridge;
               activate `query_url_setter_warnings_reach_the_cli_report` and
               restore the setter-warning row to the passing CLI matrix.
         - [x] Design explicit CLI module-query mode using the existing module
               media type/schema, leaving standalone-expression behavior intact.
               User selected design before continuation on 2026-09-25. See
               [module-query design](cem-ql-cli-module-query-design.md).
-        - [ ] Decision D1: choose built-in `cem:` imports and local declarations
+        - [x] Decision D1: choose built-in `cem:` imports and local declarations
               for first delivery (recommended), or include external module
               loading/linking and define its import-closure contract first.
-              Stop module-mode implementation until answered.
-        - [ ] Implement and test the selected module-query contract, then run
+              Accepted 2026-09-25: user requested the recommendation. First
+              delivery uses registered built-in imports and local declarations;
+              external module loading/linking remains deferred.
+        - [x] Fixture: refresh the CLI cross-language catalog query to use retained
+              CEM-tree descendants and compare source-node provenance.
+        - [x] Fixture: cover strict module/expression identities, inline/file
+              modules, declared input access and shadowing, structured source
+              diagnostics, denied external imports, cancellation and result
+              budgets; prove warning retention and complete URL CLI parity.
+        - [x] Implement and test the selected module-query contract, then run
               imported-alias and user-declaration matrix rows through the CLI.
-    - [ ] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
+              Completed 2026-09-25: explicit module media/schema selection,
+              built-in imports, local declarations and native input ownership;
+              nonfatal warnings survive result export and shared reports.
+              All 12 CLI query tests pass, including all 30 URL matrix rows.
+              The cross-language fixture now queries retained CEM descendants
+              and compares source maps across adapter-specific node identities.
+              Verification: CEM-QL, CEM-ML and bridge package suites pass;
+              48 focused URL/module tests, rebuilt Node WASM and both browser
+              stories pass. Affected-package Clippy passes with existing warnings.
+              CLI schema artifacts and generated command types pass. No
+              workspace-wide test task ran.
+    - [x] Fixture URL-INTEGRATION: prove registry/alias/type/evaluation behavior,
           user-function name isolation, diagnostic propagation and CLI/SSR/WASM
           parity, then generate implemented reference tables and query examples.
-    - [ ] Implement one native semantic path shared by CLI, SSR, WASM, and
+    - [x] Implement one native semantic path shared by CLI, SSR, WASM, and
           browser execution; do not delegate conformance to the embedding
           platform's JavaScript `URL` implementation.
-    - [ ] Add registry/type-checking/evaluation tests plus selected
+    - [x] Add registry/type-checking/evaluation tests plus selected
           Web Platform Test vectors for parse/serialize/setter/query behavior,
           round-trip idempotence, invalid bases, and cross-runtime parity; add
           generated schema-package reference tables and an executable

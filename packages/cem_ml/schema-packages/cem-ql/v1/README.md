@@ -38,6 +38,11 @@ errors, and `seq:difference(a, b)` remains only a named helper alias.
 Standalone expression files use the dashed `*.cem-ql` extension by convention,
 while query modules keep the existing `*.cemql` extension.
 
+The CLI `query` command selects expression/module compilation from these declared
+identities and requires matching schemas. Executable modules need a URI header
+and one final expression; the first delivery supports local declarations and
+registered built-in imports. See the [CLI module contract](../../../../../docs/cem-ql-cli-module-query-design.md).
+
 ## Shared Expression Contract
 
 CEM-QL owns the shared expression schema used by CEM-native templates,

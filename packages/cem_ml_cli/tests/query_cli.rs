@@ -319,7 +319,7 @@ fn query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape(
         ),
         ("xpath", "catalog.xpath", XPATH_CONTENT_TYPE, XPATH_SCHEMA),
     ];
-    let mut ids_by_language = std::collections::BTreeMap::new();
+    let mut sources_by_language = std::collections::BTreeMap::new();
     let mut report_shapes = Vec::new();
 
     for (language, query_name, content_type, schema) in cases {
@@ -368,7 +368,13 @@ fn query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape(
                 .is_some_and(|frames| !frames.is_empty())),
             "{language} items retain source maps: {items:#?}"
         );
-        ids_by_language.insert(language, ids);
+        sources_by_language.insert(
+            language,
+            items
+                .iter()
+                .map(|item| item["sourceMap"].clone())
+                .collect::<Vec<_>>(),
+        );
 
         let report: serde_json::Value =
             serde_json::from_slice(&fs::read(&report).expect("query report fixture output"))
@@ -381,8 +387,14 @@ fn query_fixture_runs_all_languages_with_the_same_native_nodes_and_report_shape(
         ));
     }
 
-    assert_eq!(ids_by_language["css-selector"], ids_by_language["cem-ql"]);
-    assert_eq!(ids_by_language["css-selector"], ids_by_language["xpath"]);
+    assert_eq!(
+        sources_by_language["css-selector"],
+        sources_by_language["cem-ql"]
+    );
+    assert_eq!(
+        sources_by_language["css-selector"],
+        sources_by_language["xpath"]
+    );
     assert!(report_shapes.windows(2).all(|pair| pair[0] == pair[1]));
 }
 
@@ -567,27 +579,39 @@ fn query_negative_fixtures_cover_identity_input_context_resolver_budget_and_expo
 }
 
 #[test]
-fn query_url_matrix_expression_subset_matches_native_results_and_preserves_reports() {
+fn query_url_matrix_matches_native_results_and_preserves_reports() {
     let cases: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../../cem_ql/fixtures/url/query-matrix.json")).unwrap();
     let (temp, data) = query_data();
-    // Module rows await explicit module mode. The warning row has a separate
-    // ignored regression below; both gaps are tracked in docs/todo.md.
-    for case in cases
-        .into_iter()
-        .filter(|case| case["sourceKind"] == "expression" && case["id"] != "setter-warning")
-    {
+    for case in cases {
         let id = case["id"].as_str().unwrap();
+        let module = case["sourceKind"] == "module";
+        let source = if module {
+            format!(
+                "module \"urn:test:url:{id}\"\n{}",
+                case["query"].as_str().unwrap()
+            )
+        } else {
+            case["query"].as_str().unwrap().to_owned()
+        };
+        let (content_type, schema) = if module {
+            (
+                "application/vnd.cem.query+cem-ql",
+                "https://cem.dev/ns/query/cem-ql/1",
+            )
+        } else {
+            (CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA)
+        };
         let report_path = temp.join(format!("{id}.report.json"));
         let output = run_query(
             &data,
             &[
                 "--query",
-                case["query"].as_str().unwrap(),
+                &source,
                 "--query-content-type",
-                CEM_QL_CONTENT_TYPE,
+                content_type,
                 "--query-schema",
-                CEM_QL_SCHEMA,
+                schema,
                 "--output",
                 "json",
                 "--report-json",
@@ -637,7 +661,6 @@ fn query_url_matrix_expression_subset_matches_native_results_and_preserves_repor
 }
 
 #[test]
-#[ignore = "URL-INTEGRATION: the CLI bridge currently drops nonfatal evaluator diagnostics; fix tracked in docs/todo.md"]
 fn query_url_setter_warnings_reach_the_cli_report() {
     let (temp, data) = query_data();
     let report = temp.join("warnings.json");
@@ -662,5 +685,70 @@ fn query_url_setter_warnings_reach_the_cli_report() {
         diagnostic_codes(&report),
         vec!["cem.ql.url_setter_ignored", "cem.ql.url_setter_ignored"]
     );
+    fs::remove_dir_all(temp).unwrap();
+}
+
+#[test]
+fn query_url_modules_work_inline_and_from_files_without_changing_expression_mode() {
+    let (temp, data) = query_data();
+    let module_file = temp.join("links.cemql");
+    let source = r#"module "urn:test:links"
+import "cem:stdlib/url" as u
+declare let base = "https://h/"
+declare function local:link(path as string) { u:href(path, base) }
+(local:link("next"), input)"#;
+    fs::write(&module_file, source).unwrap();
+    for media in ["application/vnd.cem.query+cem-ql", "text/cem-ql"] {
+        for (flag, value) in [
+            ("--query", source),
+            ("--query-file", module_file.to_str().unwrap()),
+        ] {
+            let result = assert_success(&run_query(
+                &data,
+                &[
+                    flag,
+                    value,
+                    "--query-content-type",
+                    media,
+                    "--output",
+                    "json",
+                ],
+            ));
+            assert_eq!(result["result"]["items"][0]["type"], "any-uri");
+            assert_eq!(result["result"]["items"][0]["value"], "https://h/next");
+            assert_eq!(result["result"]["items"].as_array().unwrap().len(), 2);
+        }
+    }
+    let denied = run_query(
+        &data,
+        &[
+            "--query",
+            source,
+            "--query-content-type",
+            CEM_QL_CONTENT_TYPE,
+            "--output",
+            "json",
+        ],
+    );
+    assert!(!denied.status.success());
+    assert!(denied.stdout.is_empty());
+    for (media, schema) in [
+        (CEM_QL_CONTENT_TYPE, "https://cem.dev/ns/query/cem-ql/1"),
+        ("application/vnd.cem.query+cem-ql", CEM_QL_SCHEMA),
+    ] {
+        let mismatch = run_query(
+            &data,
+            &[
+                "--query",
+                "1",
+                "--query-content-type",
+                media,
+                "--query-schema",
+                schema,
+            ],
+        );
+        assert!(!mismatch.status.success());
+        assert!(String::from_utf8_lossy(&mismatch.stderr).contains("did not match"));
+    }
     fs::remove_dir_all(temp).unwrap();
 }

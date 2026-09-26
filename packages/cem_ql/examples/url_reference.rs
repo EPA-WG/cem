@@ -27,7 +27,7 @@ fn main() {
     }
     println!("\nThese entries describe implemented native query calls. Remaining URL conformance gaps are tracked separately in the repository checklist.");
     println!("\n## Executable examples\n");
-    println!("Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies 27 expression rows. Two module rows await module mode; nonfatal setter-warning propagation is a separately tracked CLI regression. JSON below is the explicitly requested typed query-result projection.\n");
+    println!("Generated from the shared [query/result matrix](../../../../cem_ql/fixtures/url/query-matrix.json), exercised by native, Node WASM and browser tests. The CLI verifies all 30 rows using explicit expression/module identities and preserves nonfatal setter warnings. JSON below is the explicitly requested typed query-result projection.\n");
     let cases: Vec<serde_json::Value> =
         serde_json::from_str(include_str!("../fixtures/url/query-matrix.json"))
             .expect("URL matrix");

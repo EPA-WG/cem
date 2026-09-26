@@ -1,29 +1,19 @@
 # CLI CEM-QL module-query mode
 
-Status: design requested by the user on 2026-09-25 after URL integration exposed
-an expression/module boundary. This document proposes the module execution
-contract; it does not authorize implementation of the unresolved import scope
-below. The execution checklist remains in [todo.md](todo.md).
+Status: implemented with the accepted first-delivery scope (2026-09-25).
+Registered built-in `cem:` imports and local declarations are supported;
+external module loading/linking remains deferred. The execution checklist is
+[todo.md](todo.md).
 
-## Problem and current evidence
+## Problem and implementation
 
-`cem-ml query` accepts explicit query identity and a lifecycle-owned data input.
-Its CEM-QL language contract lists both expression and module media types, but
-`CemQlQueryAstOwner::from_source_bytes` always invokes `compile_expression`.
-Consequently, changing the declared media type does not select module execution:
-`import` and `declare` still receive the standalone-expression parse rejection.
-
-The shared [URL matrix](../packages/cem_ql/fixtures/url/query-matrix.json) exposes
-this with imported aliases and a user declaration named `url:params_size`.
-Those rows pass through native module compilation and Node/browser WASM. The
-CLI expression subset is separately testable; module rows remain pending.
-A second integration failure shows the CLI bridge clears nonfatal evaluator
-warnings before constructing its result, so the setter-warning report is empty.
-A separately ignored regression records the desired warning behavior; it must be
-fixed before claiming complete CLI diagnostic parity.
-Native server rendering and browser rendering of the same CEMT template pass.
-This evidence does not establish the legacy Edge/SSR transport host's support
-for executing query modules.
+Previously the CEM-QL CLI bridge compiled every source as a standalone
+expression, despite advertising module identities. It also discarded nonfatal
+evaluator diagnostics. The bridge now selects a typed expression or module
+artifact from the declared identity and preserves warnings in results and
+reports. All 30 shared URL matrix cases execute through the CLI, including
+imported aliases and user-function isolation. Native server/browser rendering
+remains separate evidence from the legacy Edge/SSR transport host.
 
 Relevant existing owners:
 
@@ -59,7 +49,7 @@ Module media types currently listed as accepted gain their advertised semantics;
 callers using them for headerless expressions must use the expression identity.
 Record this compatibility correction in CLI help and package documentation.
 
-Illustrative invocation after implementation:
+Module invocation:
 
 ```sh
 cem-ml query catalog.xml --content-type application/xml \
@@ -112,9 +102,9 @@ The explicit JSON result contains an `any-uri` item whose value is
   lifetime. The root module URI is an authored module identity, not an implicit
   network fetch or a substitute for the query source URI.
 
-## Imports: decision required before implementation
+## Accepted import scope
 
-**Recommended first delivery:** registered built-in `cem:` imports, including
+**Accepted first delivery:** registered built-in `cem:` imports, including
 `cem:stdlib/url`, plus declarations local to the entry module. Unknown built-ins
 and all external/plugin imports fail before evaluation through existing import
 policy diagnostics. Do not enable a URI scheme merely to bypass validation.
@@ -125,7 +115,7 @@ it does not fetch, compile or link that module's declarations into an executable
 closure. Existing policy acceptance is therefore insufficient implementation
 proof for external imports.
 
-**Alternative:** include external query-library loading in the first delivery.
+**Deferred follow-up:** external query-library loading.
 That requires a separate, reviewable import-closure contract: source-relative
 resolution for inline and file-backed roots, lifecycle loader ownership, scheme
 and resource-policy grants, source/hash identity, cycle/depth/byte limits,
@@ -133,9 +123,8 @@ deterministic alias/export linking, cancellation, retained source maps and
 atomic failure before execution. It must use the shared import/load boundaries.
 Do not add a CLI-local file/HTTP loader or concatenate imported source strings.
 
-Decision D1: choose the first delivery's import scope. Stop module-mode
-implementation until this is answered. External loading can be a later phase
-without changing the explicit expression/module identity split.
+Decision D1: the user accepted built-in imports and local declarations on
+2026-09-25. External loading requires a separate design before implementation.
 
 ## Results, reports and execution controls
 
@@ -152,8 +141,8 @@ mistaking it for a duplicate language diagnostic. Setter warnings remain
 nonfatal and ordered.
 
 The low-level module `compile()` currently reduces failures to a compact
-`CompileError`. Before wiring the CLI, provide or reuse a module compilation
-result that retains structured native diagnostics. Do not reconstruct byte
+`CompileError`. The executable-module `compile_module()` API retains structured native
+diagnostics for the CLI. Do not reconstruct byte
 ranges by parsing error messages, silently lose declaration/import diagnostics,
 or add a second parser in the CLI. Test this at the native compiler/bridge layer
 before adding CLI fixtures.
@@ -184,4 +173,4 @@ separate future work.
 
 This implementation will touch shared query/bridge/compiler modules. Run their
 appropriate package suites at that point, in addition to focused URL checks.
-The present design and fixture-only checkpoint requires no full test suite.
+No workspace-wide test task is required.

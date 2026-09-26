@@ -896,7 +896,7 @@ pub struct QueryArgs {
         long = "query-content-type",
         value_name = "TYPE",
         required = true,
-        help = "Explicit query content type used to select the registered language adapter"
+        help = "Explicit query content type; CEM-QL query-expression selects an expression, query+cem-ql selects an executable module"
     )]
     pub query_content_type: String,
 

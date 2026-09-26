@@ -69,52 +69,138 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     compile_with_type_check(source, context, |module| type_check(module, context))
 }
 
+/// Compile an executable, explicitly declared module while retaining structured
+/// diagnostics. This executable module boundary accepts built-in imports only.
+pub fn compile_module(
+    source: &str,
+    context: &CompileContext,
+) -> Result<CompiledQuery, Vec<Diagnostic>> {
+    compile_with_diagnostics(source, context, |module| type_check(module, context), true)
+}
+
 fn compile_with_type_check(
     source: &str,
     context: &CompileContext,
     check: impl FnOnce(&SurfaceModule) -> Vec<Diagnostic>,
 ) -> Result<CompiledQuery, CompileError> {
+    compile_with_diagnostics(source, context, check, false).map_err(|diagnostics| {
+        CompileError::diagnostic(
+            diagnostics
+                .iter()
+                .find(|d| d.severity.is_hard_violation())
+                .expect("failed compilation"),
+        )
+    })
+}
+
+fn compile_with_diagnostics(
+    source: &str,
+    context: &CompileContext,
+    check: impl FnOnce(&SurfaceModule) -> Vec<Diagnostic>,
+    require_entrypoint: bool,
+) -> Result<CompiledQuery, Vec<Diagnostic>> {
     #[cfg(test)]
     let mut profile = crate::compile_profile::Span::new("query/parse");
     let parsed = parse(source);
-    if let Some(diagnostic) = parsed
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(CompileError::diagnostic(diagnostic));
+    let mut diagnostics = parsed.diagnostics;
+    if has_hard_diagnostics(&diagnostics) {
+        return Err(diagnostics);
+    }
+    if require_entrypoint {
+        diagnostics.extend(module_entrypoint_diagnostics(&parsed.module));
+        if has_hard_diagnostics(&diagnostics) {
+            return Err(diagnostics);
+        }
     }
     #[cfg(test)]
     profile.next("query/imports");
-    let import_report = resolve_imports(&parsed.module, &context.import_policy);
-    if let Some(diagnostic) = import_report
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(CompileError::diagnostic(diagnostic));
+    if require_entrypoint {
+        for node in &parsed.module.nodes {
+            if let SurfaceNode::Import(import) = node {
+                match context.import_policy.resolve_import(import) {
+                    Ok(resolved) if resolved.kind == crate::resolve::ImportKind::PlatformStdlib => {
+                    }
+                    Ok(_) => diagnostics.push(ql_diagnostics::spanned(
+                        ql_diagnostics::IMPORT_DENIED,
+                        "executable modules currently accept registered built-in imports only",
+                        import.range,
+                        cem_ml::diagnostics::Severity::Error,
+                    )),
+                    Err(mut diagnostic) => {
+                        diagnostic.severity = cem_ml::diagnostics::Severity::Error;
+                        diagnostics.push(*diagnostic);
+                    }
+                }
+            }
+        }
+    } else {
+        diagnostics.extend(resolve_imports(&parsed.module, &context.import_policy));
+    }
+    if has_hard_diagnostics(&diagnostics) {
+        return Err(diagnostics);
     }
     #[cfg(test)]
     profile.next("query/type-check");
-    let type_report = check(&parsed.module);
-    if let Some(diagnostic) = type_report
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(CompileError::diagnostic(diagnostic));
+    diagnostics.extend(check(&parsed.module));
+    if has_hard_diagnostics(&diagnostics) {
+        return Err(diagnostics);
     }
     #[cfg(test)]
     profile.next("query/lower");
     let lowered = IrLowerer::new()
         .with_policy_bindings(context.policy_bindings.keys().cloned())
         .lower_module(&parsed.module);
-    if let Some(diagnostic) = lowered
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(CompileError::diagnostic(diagnostic));
+    diagnostics.extend(lowered.diagnostics);
+    if has_hard_diagnostics(&diagnostics) {
+        return Err(diagnostics);
     }
     Ok(lowered.query)
+}
+
+fn module_entrypoint_diagnostics(module: &SurfaceModule) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let range = module
+        .nodes
+        .first()
+        .map(surface_node_range)
+        .unwrap_or(ByteRange::new(0, 0));
+    if !matches!(module.nodes.first(), Some(SurfaceNode::Module(decl)) if !decl.uri.trim().is_empty())
+    {
+        diagnostics.push(ql_diagnostics::spanned(
+            ql_diagnostics::DiagnosticCode("cem.ql.module_uri_missing"),
+            "executable module requires an initial module URI declaration",
+            range,
+            cem_ml::diagnostics::Severity::Error,
+        ));
+    }
+    for node in module
+        .nodes
+        .iter()
+        .skip(1)
+        .filter(|node| matches!(node, SurfaceNode::Module(_)))
+    {
+        diagnostics.push(ql_diagnostics::spanned_default(
+            PARSE_ERROR,
+            "executable module requires exactly one module declaration",
+            surface_node_range(node),
+        ));
+    }
+    let expressions = module
+        .nodes
+        .iter()
+        .filter(|node| matches!(node, SurfaceNode::Expression(_)))
+        .collect::<Vec<_>>();
+    if expressions.len() != 1 || !matches!(module.nodes.last(), Some(SurfaceNode::Expression(_))) {
+        diagnostics.push(ql_diagnostics::spanned_default(
+            PARSE_ERROR,
+            "executable module requires exactly one final root expression",
+            expressions
+                .get(1)
+                .map(|node| surface_node_range(node))
+                .unwrap_or(ByteRange::new(module.source.len() as u64, 0)),
+        ));
+    }
+    diagnostics
 }
 
 /// Evaluate a compiled query against a query context scope.

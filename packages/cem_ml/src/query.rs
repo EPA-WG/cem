@@ -167,8 +167,49 @@ pub struct QueryLanguageContract {
     pub namespace_policy: QueryNamespacePolicy,
 }
 
+/// Source kind is selected from declared identity, never from source text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CemQlQuerySourceKind {
+    Expression,
+    Module,
+}
+
+impl CemQlQuerySourceKind {
+    pub fn from_identity(identity: &FormatIdentity) -> Option<Self> {
+        let media = identity.content_type.as_deref().map(content_type_essence);
+        let kind = match media.as_deref() {
+            Some(CEM_QL_EXPRESSION_CONTENT_TYPE) => Self::Expression,
+            Some(CEM_QL_CONTENT_TYPE | "text/cem-ql") => Self::Module,
+            Some(_) => return None,
+            None => match identity.schema.as_deref() {
+                Some(CEM_QL_EXPRESSION_SCHEMA_URI) => Self::Expression,
+                Some(CEM_QL_SCHEMA_URI) => Self::Module,
+                _ => return None,
+            },
+        };
+        if identity
+            .schema
+            .as_deref()
+            .is_some_and(|schema| schema != kind.schema_uri())
+        {
+            return None;
+        }
+        Some(kind)
+    }
+
+    pub const fn schema_uri(self) -> &'static str {
+        match self {
+            Self::Expression => CEM_QL_EXPRESSION_SCHEMA_URI,
+            Self::Module => CEM_QL_SCHEMA_URI,
+        }
+    }
+}
+
 impl QueryLanguageContract {
     pub fn matches_query_identity(self, identity: &FormatIdentity) -> bool {
+        if self.language == QueryLanguage::CemQl {
+            return CemQlQuerySourceKind::from_identity(identity).is_some();
+        }
         let content_type_matches = identity.content_type.as_deref().map(|content_type| {
             let essence = content_type_essence(content_type);
             self.accepted_content_types
@@ -214,6 +255,10 @@ pub trait QueryInputOwner: QueryNativeArtifact {
 
 pub trait QueryNativeResult: QueryNativeArtifact {
     fn language(&self) -> QueryLanguage;
+    /// Evaluation reports retained by the native result, in emission order.
+    fn diagnostics(&self) -> &[Diagnostic] {
+        &[]
+    }
 }
 
 pub type QueryNativeBindings<'a> = BTreeMap<String, &'a dyn QueryNativeArtifact>;

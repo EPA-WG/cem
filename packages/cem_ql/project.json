@@ -8,7 +8,7 @@
             "cache": true,
             "executor": "nx:run-commands",
             "options": {
-                "command": "cargo test --package cem-ql --test url_integration --test url_query --test url_params_query --test url_parse --test url_params --test url_setters --target-dir dist/target/cem_ql"
+                "command": "cargo test --package cem-ql --test module_query --test url_integration --test url_query --test url_params_query --test url_parse --test url_params --test url_setters --target-dir dist/target/cem_ql"
             },
             "inputs": [
                 "default",
