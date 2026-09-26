@@ -184,6 +184,46 @@ semantics, empty URL handling, import condition validation/cycles, shared-loader
 integration and per-context style ownership remain downstream work. The current
 browser import suppression continues to apply.
 
+## Fragment-only CSS URLs: decision pending
+
+Declaration URL rewriting reaches an unresolved interaction between the
+closest-module-map requirement and CSS local references. [CSS Values 4](https://www.w3.org/TR/css-values-4/#local-urls)
+assigns a local URL flag to values beginning with `#`; element-ID fragments then
+resolve in the associated node tree. Serializing such a reference as an absolute
+stylesheet URL loses that local-reference form. The current native resource plan
+uses the general CSS-purpose resolver and does not yet represent this distinction.
+
+**Recommended proposal, not yet accepted:** consult the closest CSS module maps
+first for a decoded fragment-only URL. Honor selected mappings and ancestor
+blocks using the existing precedence rules. If no mapping applies, retain a
+local-reference result and emit the decoded fragment as an escaped CSS URL,
+without making it absolute against the template or imported stylesheet URL.
+An explicit mapped external target remains external; a mapped fragment-only
+target remains local. Mapping errors/blocks must not fall through to local
+fallback. Local references are not network fetch requests.
+
+For example, `filter:url(#filter)` with no mapping stays `url("#filter")`, even
+when the declaration came from another stylesheet URL. A selected map entry
+`"#filter": "./filters.svg#replacement"` instead resolves relative to that map's
+base and emits the absolute external SVG URL. A selected block rejects the
+reference and suppresses its containing declaration, preserving sibling
+declarations. Full external references such as `filters.svg#filter` keep normal
+CSS resource resolution and are not local-reference exceptions.
+
+**Alternative:** always keep fragment-only values local and bypass module maps.
+This follows ordinary CSS local lookup directly, but prevents CSS mappings and
+blocks from overriding those references. It is an exception to the requested
+closest-map behavior and needs an explicit choice.
+
+Implementation is paused at this choice. Neither option changes render identity,
+introduces generated instance CSS selectors, or adds ID-renaming behavior. After
+the choice, add native fixtures for quoted/unquoted and escaped fragments,
+selected overrides, blocks, unmapped local fallback, mapped local/external
+targets, imported-sheet bases and context isolation. Keep local-reference state
+in the retained resolution plan; do not recover it by reparsing emitted CSS.
+Empty URL failure behavior and string-valued resource grammars remain separately
+tracked work; this decision does not broaden their support.
+
 ## Unmapped CSS URLs: accepted and implemented
 
 For CSS only, consult the closest module maps first, then resolve an unmapped

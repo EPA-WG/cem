@@ -5793,6 +5793,10 @@ registration identities may reuse an inherited or existing definition.
               components, suppress typed important/recovered values, preserve
               custom properties, escapes and source diagnostics, defer nested
               constructs explicitly, and reject missing typed values.
+        - [ ] Decide fragment-only CSS URL precedence before URL emission:
+              consult closest maps and preserve unmapped local references
+              (recommended), or exempt local references from mapping; see the
+              [pending proposal](scoped-css-module-maps.md#fragment-only-css-urls-decision-pending).
         - [ ] Rewrite declaration resource URLs through the retained resolution
               plan, then assemble ordered rule bodies, remaining selector grammar,
               keyframes and managed scope wrappers before browser cutover, without
