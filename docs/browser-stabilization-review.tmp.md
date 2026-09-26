@@ -5857,3 +5857,67 @@ Next: in an environment allowing the browser server, run the focused story
 with tracing enabled and disabled. Then use the existing concurrent workload
 to capture any recurrence before proposing a readiness correction. Keep HTTP
 and historical stock-warning attribution separate.
+
+
+### Worker/fallback browser verification
+
+Verified 2026-09-25 (UTC runs crossed into 2026-09-26). Chrome DevTools MCP
+connected successfully and the ordinary Nx Storybook target started. The
+existing story completed with tracing disabled and enabled, with Storybook's
+render phase `finished`. Final labels were `Final`, `Pooled`, `After`, `After`,
+covering the existing patch identity, focus/selection, inert island,
+cancellation and stale-response recovery assertions. The enabled run had no
+window errors or unhandled rejections.
+
+The enabled DevTools run recorded 21 control-only observations. All four
+owning declarations and renders settled; the primary worker's first span
+arrived at 439.1 ms and all four first-span checks completed by 450.4 ms from
+the observation start. Exactly one worker factory call served both logical
+worker roots. Only the expected construction/execution fallback declarations
+reported their respective warnings; both worker declarations and all four
+instances had no diagnostics. The observation summary is retained locally at
+`/tmp/cem-worker-readiness-devtools.json`. This is a successful run, not an
+attribution of the previous intermittent timeout.
+
+Added the named `readiness-trace` configuration to both `storybook` and `test`:
+
+```sh
+yarn nx run cem-elements:storybook:readiness-trace --excludeTaskDependencies
+yarn nx run cem-elements:test:readiness-trace --excludeTaskDependencies --skipNxCache --args='packages/cem-elements/src/lib/cem-elements.stories.ts -t Processing.*Worker.*Fallback'
+```
+
+The ordinary focused test passes **1/1** in 2.51 s; the traced focused test
+passes **1/1** in 2.18 s. Both preserve all original assertions and deadlines.
+The earlier shell-prefixed launch attempts were rejected at local port binding;
+the named Nx configuration supplies the existing flag as a string and starts
+successfully through the available task runner.
+
+The final parallel check uses the six existing runtime, data-table,
+table-inspector, cell-overrides, HTTP and local-storage story files. Its name
+filter selects exactly these seven stories; the report confirms **7 passed,
+0 failed, 88 skipped**:
+
+| Selected story | Result | Interaction duration |
+| --- | --- | --- |
+| Processing Worker And Main Thread Fallback | Pass | 1.736 s |
+| Conditional Stock Fallback | Pass | 4.040 s |
+| Data-table Every Authored Sample | Pass | 9.246 s |
+| Native Xslt Viewer | Pass | 1.131 s |
+| HTTP Every Authored Sample | Pass | 4.415 s |
+| Local-storage Every Authored Sample | Pass | 5.829 s |
+| Table-inspector Columns And Text | Pass | 3.155 s |
+
+The report is `/tmp/cem-worker-readiness-workload.json`. An earlier filter
+omitted the stock story and passed only six tests; it is not stock coverage.
+The corrected run explicitly selects `Conditional.*Stock.*Fallback` alongside
+`Processing.*Worker.*Fallback|Every.*Authored.*Sample|Columns.*And.*Text|Native.*Xslt.*Viewer`.
+The ordinary runner concurrency and story budgets are unchanged. This focused
+Storybook workload is not the historical full-suite or 32-page stock probe.
+The separate eight-concurrent/four-batch stock process failed to bind localhost
+with `EPERM` before exercising pages, so no standalone stock pass or overlap is
+claimed. No full/global tests or native/WASM rebuilds ran.
+
+Observation wiring is verified. Worker and HTTP startup timeouts did not recur;
+retain their existing waits and capture a traced failure under the established
+workload before proposing a correction. Historical stock-timeout attribution
+also remains separate and open.

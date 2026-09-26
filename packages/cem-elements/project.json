@@ -64,6 +64,11 @@
             "options": {
                 "command": "yarn storybook dev --config-dir packages/cem-elements/.storybook --host 127.0.0.1 --port 4400 --no-open",
                 "cwd": "{workspaceRoot}"
+            },
+            "configurations": {
+                "readiness-trace": {
+                    "env": { "STORYBOOK_CEM_TREE_TRACE": "1" }
+                }
             }
         },
         "build-storybook": {
@@ -161,6 +166,11 @@
             "options": {
                 "command": "yarn vitest --config packages/cem-elements/vitest.config.mts --project=storybook --run",
                 "cwd": "{workspaceRoot}"
+            },
+            "configurations": {
+                "readiness-trace": {
+                    "env": { "STORYBOOK_CEM_TREE_TRACE": "1" }
+                }
             },
             "inputs": [
                 "{projectRoot}/docs/demo-storybook-coverage.json",

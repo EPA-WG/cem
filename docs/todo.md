@@ -2549,7 +2549,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             fixture. If startup polling is premature, use existing lifecycle
             settlement before checking each authored instance; preserve the
             resource assertions and 30-second story deadline.
-    - [ ] Fixture: add opt-in worker/fallback startup observations for each owning
+    - [x] Fixture: add opt-in worker/fallback startup observations for each owning
           runtime, declaration and instance, including existing scheduling events
           and the unchanged first-span success/failure boundaries. Verify this
           story with tracing enabled and disabled before attempting attribution.
@@ -2559,6 +2559,14 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           Package lint passes. Browser validation remains blocked by sandbox
           `listen EPERM` before any tests run; no timeout attribution is claimed.
           See [worker observation preparation](browser-stabilization-review.tmp.md#workerfallback-startup-observation-preparation).
+          Verified on continuation 2026-09-25: Chrome DevTools runs finish with
+          tracing disabled/enabled; both focused Vitest modes pass 1/1. A
+          six-file parallel workload passes seven selected stories, including
+          worker/fallback, stock fallback, HTTP, storage and viewers. Named
+          `readiness-trace` configurations make both Storybook and focused test
+          launches repeatable. No timeout reproduced; attribution remains open.
+          The separate standalone stock probe is still blocked by local binding
+          restrictions and is not counted as passing.
     - [ ] Fixture: capture the worker/fallback story's 120-frame first-span
           timeout with observations from its owning declaration and runtime
           before changing the wait. During input-value validation on 2026-09-24,
