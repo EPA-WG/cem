@@ -5868,8 +5868,24 @@ registration identities may reuse an inherited or existing definition.
               Validation: 62 native/schema tests, 13 computed-style checks, two
               container-state updates and the starting-style transition pass;
               Nx WASM build, Rust lint (existing warnings), and script lint pass.
-        - [ ] Audit remaining selector grammar and native keyframe compilation;
+        - [x] Audit remaining selector grammar and native keyframe compilation;
               select the next bounded retained-tree fixture before browser cutover.
+              The native stylesheet profile still rejects functional global
+              aliases, nth/language/state argument grammars and functional
+              pseudo-elements. Keyframes retain generic rules/components only;
+              animation references have no typed slot classification yet.
+              Recommended: finish the existing functional host-alias contract
+              for one compound before extending argument grammars or keyframes.
+        - [x] Fixture: retain functional `:global()` as a diagnosed host alias
+              using the existing one-compound `:host()` profile. Verify authored
+              specificity, type arguments, nesting, policy rejection, unchanged
+              query capabilities and browser host containment. Reject duplicate class
+              or attribute weighting hidden by host/alias/intersection arguments
+              in root compounds as well as nested ones; leave complex
+              and list-valued aliases explicitly unsupported.
+              Validation: 67 native checks and 18 computed-style checks, two
+              container updates and the starting-style transition pass. Nx WASM
+              build, Rust lint (existing warnings), and script lint pass.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

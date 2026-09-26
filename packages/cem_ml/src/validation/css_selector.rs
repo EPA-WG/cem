@@ -1154,17 +1154,17 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
         };
         let relative = name == "has";
         let selectors = if matches!(name.as_str(), "is" | "where" | "not" | "has")
-            || (self.stylesheet && name == "host")
+            || (self.stylesheet && matches!(name.as_str(), "host" | "global"))
         {
             let parsed = self.parse_selector_list(start + 2, close, relative);
-            if name == "host"
+            if matches!(name.as_str(), "host" | "global")
                 && parsed.as_ref().is_some_and(|list| {
                     list.selectors.len() != 1 || list.selectors[0].compounds.len() != 1
                 })
             {
                 self.unsupported(
                     Some(next.source_range),
-                    "Stylesheet :host() requires one compound selector",
+                    "Stylesheet host aliases require one compound selector",
                     Some(name.clone()),
                 );
             }
@@ -1432,8 +1432,8 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
                         })
                         .unwrap_or((0, 1, 0));
                     specificity.0 += nested.0;
-                    // Only the stylesheet profile parses functional host arguments.
-                    if name == "host" && selectors.is_some() {
+                    // Only the stylesheet profile parses functional host-alias arguments.
+                    if matches!(name.as_str(), "host" | "global") && selectors.is_some() {
                         specificity.1 += 1;
                     }
                     specificity.1 += nested.1;

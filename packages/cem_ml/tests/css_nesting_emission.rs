@@ -186,3 +186,23 @@ fn pseudo_element_parent_branches_contribute_weight_but_not_duplicate_subject_to
     assert_eq!(result.selectors[0].authored_specificity, (0, 2, 1));
     assert_eq!(result.selectors[0].text, "&.label");
 }
+
+#[test]
+fn functional_global_alias_retains_parent_weight_and_subject_intersections() {
+    let result = emitted(
+        ":global(.active) { :where(&) .label {} }",
+        CssRuleMode::Declaration,
+    );
+    assert_eq!(result.selectors[0].text, ":where(&) .label");
+    assert_eq!(result.selectors[0].authored_specificity, (0, 1, 0));
+    assert_eq!(result.diagnostics[0].code, "cem.scoped_css.global_alias");
+    let result = emitted(".card { :global(&) {} }", CssRuleMode::Declaration);
+    assert_eq!(result.selectors[0].text, ":where(:scope)&");
+    assert_eq!(result.selectors[0].authored_specificity, (0, 2, 0));
+    let result = emitted(":global(.card) { &.card {} }", CssRuleMode::Instance);
+    assert!(result.selectors.is_empty());
+    assert!(result
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.scoped_css.manufactured_specificity_unsupported"));
+}

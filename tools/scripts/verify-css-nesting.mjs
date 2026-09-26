@@ -19,6 +19,11 @@ try {
   const page = await browser.newPage();
   const markup = '<cem-fixture class="active"><div class="card active"><span class="label">text</span></div><div class="pseudo"></div></cem-fixture>';
   const cases = [
+    ['global-alias', 'cem-fixture', null, 'color', 'rgb(128, 0, 128)'],
+    ['global-alias', 'cem-fixture', null, 'backgroundColor', 'rgb(255, 165, 0)'],
+    ['global-alias', '.card', null, 'backgroundColor', 'rgba(0, 0, 0, 0)'],
+    ['global-instance', 'cem-fixture', null, 'backgroundColor', 'rgb(255, 165, 0)'],
+    ['global-instance', '.card', null, 'backgroundColor', 'rgba(0, 0, 0, 0)'],
     ['container', '.card', null, 'color', 'rgb(255, 165, 0)'],
     ['container', '.card', null, 'backgroundColor', 'rgb(255, 192, 203)'],
     ['container-style', '.card', null, 'color', 'rgb(255, 165, 0)'],
@@ -40,7 +45,7 @@ try {
       const style = document.createElement('style');
       style.textContent = css;
       (instance ? document.querySelector('cem-fixture') : document.head).append(style);
-    }, { css, instance: name === 'instance' });
+    }, { css, instance: name === 'instance' || name === 'global-instance' });
     const actual = await page.evaluate(({ selector, pseudo, property }) =>
       getComputedStyle(document.querySelector(selector), pseudo)[property], { selector, pseudo, property });
     assert.equal(actual, expected, `${name}: ${selector}${pseudo ?? ''} ${property}`);

@@ -436,3 +436,71 @@ fn rule_declarations_reject_raw_fallback_and_recovered_value_tokens() {
         );
     }
 }
+
+#[test]
+fn functional_global_alias_uses_host_compound_policy_and_specificity() {
+    let css = ":global(.active), :global(button.active) {color:red}";
+    let result = selectors(css);
+    assert_eq!(
+        result
+            .selectors
+            .iter()
+            .map(|s| (s.text.as_str(), s.authored_specificity))
+            .collect::<Vec<_>>(),
+        [
+            (":where(:scope).active", (0, 2, 0)),
+            (":where(:scope):is(*|button.active)", (0, 2, 1))
+        ]
+    );
+    assert_eq!(result.diagnostics.len(), 2);
+    assert!(result
+        .diagnostics
+        .iter()
+        .all(|d| d.code == "cem.scoped_css.global_alias"));
+    let result = instance_selectors(":global(.active) {color:red}");
+    assert_eq!(result.selectors[0].text, ":scope.active");
+    for selector in [":global(.a,.b)", ":global(.a > .b)", ":global()"] {
+        assert!(
+            selectors(&format!("{selector} {{color:red}}"))
+                .selectors
+                .is_empty(),
+            "{selector}"
+        );
+    }
+    for selector in [":global(#bad)", ":global(.a.a)", ":global(.a.b)"] {
+        assert!(
+            selectors(&format!("{selector} {{color:red}}"))
+                .selectors
+                .is_empty(),
+            "{selector}"
+        );
+    }
+}
+
+#[test]
+fn host_alias_compounds_cannot_hide_duplicate_weight_in_arguments() {
+    for selector in [
+        ":global(.active).active",
+        ":host(.active).active",
+        ":is(.active,.other).active",
+    ] {
+        let result = instance_selectors(&format!("{selector} {{color:red}}"));
+        assert!(result.selectors.is_empty(), "{selector}");
+        assert_eq!(
+            result.diagnostics[0].code,
+            "cem.scoped_css.manufactured_specificity_unsupported"
+        );
+    }
+    for selector in [
+        ":global(.active) .active",
+        ":global(:where(.active)).active",
+    ] {
+        assert_eq!(
+            instance_selectors(&format!("{selector} {{color:red}}"))
+                .selectors
+                .len(),
+            1,
+            "{selector}"
+        );
+    }
+}

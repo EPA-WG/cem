@@ -126,11 +126,12 @@ fn emit_with_parent(
             result.diagnostics.push(d);
             continue;
         }
-        if let Some(parent) = parent {
-            if let Err(d) = nesting::check(tree, id, parent, true) {
-                result.diagnostics.push(d);
-                continue;
-            }
+        // Functional host aliases serialize into the outer compound. Apply
+        // subject-intersection checks even when there is no nesting parent.
+        let root_context = nesting::ParentContext::default();
+        if let Err(d) = nesting::check(tree, id, parent.unwrap_or(&root_context), true) {
+            result.diagnostics.push(d);
+            continue;
         }
         if !instance && weight > (0, 2, 1) {
             result.diagnostics.push(diagnostic(

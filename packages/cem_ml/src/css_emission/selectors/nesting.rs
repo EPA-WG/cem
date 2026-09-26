@@ -167,7 +167,9 @@ fn weight(
         Some("pseudo-class") => match (attribute(tree, id, "name"), node.children.first()) {
             (Some("where"), _) => (0, 0, 0),
             (Some("is" | "not" | "has"), Some(c)) => weight(tree, *c, parent)?,
-            (Some("host"), Some(c)) => add(tree, id, (0, 1, 0), weight(tree, *c, parent)?)?,
+            (Some("host" | "global"), Some(c)) => {
+                add(tree, id, (0, 1, 0), weight(tree, *c, parent)?)?
+            }
             (_, None) => (0, 1, 0),
             _ => return Err(invalid(tree, id)),
         },
@@ -210,13 +212,16 @@ fn simple_keys(tree: &RetainedCemTree, id: AstNodeId, parent: &ParentContext) ->
     match attribute(tree, id, "kind") {
         Some("class" | "attribute") => BTreeSet::from([key(tree, id)]),
         Some("nesting") => parent.keys.clone(),
-        Some("pseudo-class") if matches!(attribute(tree, id, "name"), Some("is" | "host")) => tree
-            .node(id)
-            .into_iter()
-            .flat_map(|n| &n.children)
-            .flat_map(|list| &tree.node(*list).unwrap().children)
-            .flat_map(|selector| terminal_keys(tree, *selector, parent))
-            .collect(),
+        Some("pseudo-class")
+            if matches!(attribute(tree, id, "name"), Some("is" | "host" | "global")) =>
+        {
+            tree.node(id)
+                .into_iter()
+                .flat_map(|n| &n.children)
+                .flat_map(|list| &tree.node(*list).unwrap().children)
+                .flat_map(|selector| terminal_keys(tree, *selector, parent))
+                .collect()
+        }
         _ => BTreeSet::new(),
     }
 }
@@ -227,23 +232,26 @@ fn simple_keys(tree: &RetainedCemTree, id: AstNodeId, parent: &ParentContext) ->
 fn parent_intersections(tree: &RetainedCemTree, id: AstNodeId) -> u32 {
     match attribute(tree, id, "kind") {
         Some("nesting") => 1,
-        Some("pseudo-class") if matches!(attribute(tree, id, "name"), Some("is" | "host")) => tree
-            .node(id)
-            .into_iter()
-            .flat_map(|n| &n.children)
-            .flat_map(|list| &tree.node(*list).unwrap().children)
-            .filter_map(|selector| tree.node(*selector)?.children.last())
-            .map(|compound| {
-                tree.node(*compound)
-                    .unwrap()
-                    .children
-                    .iter()
-                    .map(|simple| parent_intersections(tree, *simple))
-                    .sum::<u32>()
-                    .min(2)
-            })
-            .max()
-            .unwrap_or(0),
+        Some("pseudo-class")
+            if matches!(attribute(tree, id, "name"), Some("is" | "host" | "global")) =>
+        {
+            tree.node(id)
+                .into_iter()
+                .flat_map(|n| &n.children)
+                .flat_map(|list| &tree.node(*list).unwrap().children)
+                .filter_map(|selector| tree.node(*selector)?.children.last())
+                .map(|compound| {
+                    tree.node(*compound)
+                        .unwrap()
+                        .children
+                        .iter()
+                        .map(|simple| parent_intersections(tree, *simple))
+                        .sum::<u32>()
+                        .min(2)
+                })
+                .max()
+                .unwrap_or(0)
+        }
         _ => 0,
     }
 }

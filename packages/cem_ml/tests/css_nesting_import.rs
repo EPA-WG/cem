@@ -207,11 +207,19 @@ fn context_free_emitters_suppress_nested_rules_even_without_ampersands() {
 }
 
 #[test]
-fn standalone_query_profile_still_rejects_nesting() {
+fn standalone_query_profile_still_rejects_nesting_and_host_aliases() {
     use cem_ml::validation::css_selector::{
         css_selector_expression_ast_from_source_bytes, CssSelectorSourceRequest,
     };
-    for selector in ["&", "&.active", ":is(&, .card)", ":where(&)", "> .child"] {
+    for selector in [
+        "&",
+        "&.active",
+        ":is(&, .card)",
+        ":where(&)",
+        "> .child",
+        ":global(.active)",
+        ":host(.active)",
+    ] {
         let (_, diagnostics) =
             css_selector_expression_ast_from_source_bytes(CssSelectorSourceRequest {
                 bytes: selector.as_bytes(),

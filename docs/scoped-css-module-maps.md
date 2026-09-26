@@ -463,9 +463,9 @@ branch and changing matching semantics. Other top-level selectors survive.
 `:host` becomes `:where(:scope)` and functional host arguments remain attached.
 When an argument contains a type/universal selector, the helper uses
 `:where(:scope):is(argument)` to preserve a valid compound and the argument's
-weight. Simple `:root` and `:global` become diagnosed host aliases. Functional
-`:global(...)` remains outside the initial retained profile and is suppressed
-until import support is added. Ordinary selector-list functions and relative
+weight. Simple `:root` and `:global` become diagnosed host aliases. Functional `:global(...)` uses the same single-compound argument profile as
+`:host(...)`, with a host-alias diagnostic. Complex and list-valued arguments
+remain unsupported. Ordinary selector-list functions and relative
 combinators emit recursively. Decoded identifiers and attribute values are
 escaped when serialized; any-namespace type selectors emit an explicit `*|`.
 
@@ -710,7 +710,9 @@ selectors inherit their parent's generated prefix without receiving another one.
 Every emitted selector now carries its retained node ID alongside source/range.
 
 Compound checks include admitted parents' terminal class/attribute tokens and
-subject intersections through `:is()` and functional `:host()`. If any admitted
+subject intersections through `:is()` and functional `:host()`/`:global()`.
+These intersection checks also apply to root compounds: `:global(.a).a`
+cannot hide repeated class weighting behind its argument boundary. If any admitted
 parent alternative would repeat a weighted token in the child's compound, the
 whole child selector is suppressed. Descendant compounds remain separate;
 `:where()` contributes no weight. Pseudo-element parent branches contribute to
@@ -804,6 +806,24 @@ host normalization, duplicate weighting and zero-weight nesting. It also
 checks an entering element’s opacity transition from native `@starting-style`
 output at the start, midpoint and end. This verifies
 the native output's browser semantics, not WASM runtime integration.
+
+## Functional global host aliases
+
+Shared stylesheet import admits `:global()` with the same single-compound
+argument grammar as `:host()`. Its authored specificity includes the host
+pseudo-class weight plus the argument's weight. The emitter produces the same
+private/instance root intersection as `:host()` and reports
+`cem.scoped_css.global_alias` at the original source. Type arguments use `:is()`
+to keep valid compound syntax. ID, duplicate-token and authored-ceiling checks
+remain active; selector lists, complex arguments and empty arguments remain
+unsupported. Standalone selector-query capabilities are unchanged.
+
+Parent-dependent arguments participate in nesting weight and inherited subject
+checks. Root compounds now apply those same subject-intersection checks, so
+class/attribute repetition hidden inside host aliases or `:is()` is rejected.
+Separate descendant compounds and zero-weight `:where()` arguments remain
+allowed. Browser fixtures verify private and instance host matching without
+matching a descendant merely because it has the same class.
 
 ## Shared-resolver byte delivery: implemented natively
 

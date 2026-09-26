@@ -144,6 +144,8 @@ fn subtree_bounds_traversal_and_rejects_detached_nested_entrypoints() {
 fn browser_fixture_emits_scoped_native_nesting() {
     use cem_ml::css_emission::{emit_css_scope_wrapper, CssManagedScope};
     let cases = [
+        ("global-alias", ":global(cem-fixture.active) {color:purple; :where(&) {background-color:orange}}", CssRuleMode::Declaration),
+        ("global-instance", ":global(.active) {background-color:orange}", CssRuleMode::Instance),
         ("container", ":host {display:block; container:panel / inline-size; width:400px;} .card {color:black; @container panel (width > 300px) {color:orange; &.active {background-color:pink}}}", CssRuleMode::Declaration),
         ("container-style", ":host {--theme:dark;} .card {color:black; @container style(--theme: dark) {color:orange}}", CssRuleMode::Declaration),
         ("starting-style", ".card {opacity:1; transition:opacity 1s linear; @starting-style {opacity:0;}}", CssRuleMode::Declaration),
