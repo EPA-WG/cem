@@ -416,3 +416,108 @@ fn css_import_media_recovers_each_list_entry_and_preserves_nested_commas() {
     assert!(elements(&tree, "import-media").is_empty());
     assert!(elements(&tree, "media-query").is_empty());
 }
+
+#[test]
+fn css_import_retains_selector_structure_host_arguments_and_specificity() {
+    let css = "/* lead */\n:host(.active) > button.primary[data-state=\"on\" i]:is(:hover, :focus-visible), :where(#ignored) .child {color:red}";
+    let tree = import_data(css, "text/css", "cem", "selectors.css").unwrap();
+    let rule = elements(&tree, "rule")[0];
+    let list = tree.node(rule).unwrap().children[0];
+    assert_eq!(
+        attr(&tree, list, "analysis-status").as_deref(),
+        Some("complete")
+    );
+    let selectors = &tree.node(list).unwrap().children;
+    assert_eq!(selectors.len(), 2);
+    assert_eq!(
+        attr(&tree, selectors[0], "specificity").as_deref(),
+        Some("0-5-1")
+    );
+    assert_eq!(
+        attr(&tree, selectors[1], "specificity").as_deref(),
+        Some("0-1-0")
+    );
+    let host = elements(&tree, "simple-selector")
+        .into_iter()
+        .find(|id| attr(&tree, *id, "name").as_deref() == Some("host"))
+        .unwrap();
+    assert_eq!(attr(&tree, host, "kind").as_deref(), Some("pseudo-class"));
+    assert_eq!(tree.node(host).unwrap().children.len(), 1);
+    let range = tree.node(host).unwrap().range;
+    assert_eq!(range.line, 2);
+    assert_eq!(
+        &css[range.offset as usize..(range.offset + range.length) as usize],
+        ":host(.active)"
+    );
+    assert!(elements(&tree, "combinator")
+        .iter()
+        .any(|id| attr(&tree, *id, "kind").as_deref() == Some("child")));
+    let attribute = elements(&tree, "simple-selector")
+        .into_iter()
+        .find(|id| attr(&tree, *id, "kind").as_deref() == Some("attribute"))
+        .unwrap();
+    assert_eq!(
+        attr(&tree, attribute, "name").as_deref(),
+        Some("data-state")
+    );
+    assert_eq!(attr(&tree, attribute, "value").as_deref(), Some("on"));
+    assert_eq!(attr(&tree, attribute, "modifier").as_deref(), Some("i"));
+}
+
+#[test]
+fn css_import_selector_analysis_keeps_unsupported_forms_without_false_specificity() {
+    for selector in [
+        "::before",
+        ":nth-child(2n of .item)",
+        "& .child",
+        ":host(.a,.b)",
+        ":host(.a > .b)",
+    ] {
+        let css = format!("{selector} {{color:red}}");
+        let tree = import_data(&css, "text/css", "cem", "selectors.css").unwrap();
+        let rule = elements(&tree, "rule")[0];
+        assert_eq!(attr(&tree, rule, "selector").as_deref(), Some(selector));
+        let list = tree.node(rule).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, list, "analysis-status").as_deref(),
+            Some("unsupported"),
+            "{selector}"
+        );
+        assert!(tree.node(list).unwrap().children.is_empty());
+    }
+}
+
+#[test]
+fn css_import_selector_structure_preserves_duplicates_escapes_and_relative_has() {
+    let css = r".a/**/.\61 [part=x][part=x]:has(> .child) { color:red }";
+    let tree = import_data(css, "text/css", "cem", "selectors.css").unwrap();
+    let classes: Vec<_> = elements(&tree, "simple-selector")
+        .into_iter()
+        .filter(|id| attr(&tree, *id, "kind").as_deref() == Some("class"))
+        .map(|id| attr(&tree, id, "value").unwrap())
+        .collect();
+    assert_eq!(classes, ["a", "a", "child"]);
+    let compounds = elements(&tree, "compound-selector");
+    assert_eq!(compounds.len(), 2);
+    assert_eq!(tree.node(compounds[0]).unwrap().children.len(), 5);
+    let child = elements(&tree, "combinator")
+        .into_iter()
+        .find(|id| attr(&tree, *id, "kind").as_deref() == Some("child"))
+        .unwrap();
+    let range = tree.node(child).unwrap().range;
+    assert_eq!(
+        css[range.offset as usize..(range.offset + range.length) as usize].trim(),
+        ">"
+    );
+
+    assert_eq!(
+        elements(&tree, "simple-selector")
+            .iter()
+            .filter(|id| attr(&tree, **id, "kind").as_deref() == Some("attribute"))
+            .count(),
+        2
+    );
+    assert!(elements(&tree, "combinator")
+        .iter()
+        .any(|id| attr(&tree, *id, "kind").as_deref() == Some("child")));
+}

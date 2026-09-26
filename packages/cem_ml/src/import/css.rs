@@ -1,4 +1,5 @@
 //! CSS syntax is interpreted at import, never by retained-tree consumers.
+mod selectors;
 use super::{ImportBuilder, MAX_DEPTH, MAX_VALUES};
 use crate::{
     parser::{
@@ -283,6 +284,7 @@ impl CssImport<'_> {
                 let id = self.node(parent, "rule", pos, next);
                 self.attr(id, "kind", "style");
                 self.attr(id, "selector", self.text(pos, open).trim());
+                self.selectors(id, pos, open);
                 self.items(id, open + 1, close, true)?;
             } else {
                 return Err(format!(

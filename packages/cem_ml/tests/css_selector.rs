@@ -332,6 +332,10 @@ fn parser_reports_invalid_and_unsupported_features_without_silent_non_matches() 
         .iter()
         .any(|diagnostic| diagnostic.code == "css-selector.feature.unsupported"));
 
+    for selector in [":host", ":host(.active)"] {
+        let (_, diagnostics) = parse_selector(selector, &BTreeMap::new());
+        assert!(diagnostics.iter().any(|d| d.code == "css-selector.capability.missing"));
+    }
     let (_, capability) = parse_selector("a:hover", &BTreeMap::new());
     assert!(capability
         .iter()

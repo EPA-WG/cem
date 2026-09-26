@@ -368,9 +368,41 @@ conditional fragments, not installable stylesheets. The caller must supply the
 compiled body, preserve closure order, and close each emitted wrapper. Full
 native selector/host rewriting, specificity enforcement, keyframe handling,
 resource-URL rewriting, managed scope wrapping and browser integration remain
-pending. The native importer currently retains rule selector text; the next
-step is to retain the selector structure those transformations require, keeping
-format parsing at import.
+pending. The retained selector profile below supplies the initial structure for
+those transformations; unsupported forms must not fall back to raw parsing.
+
+## Retained stylesheet selectors: initial profile implemented
+
+The CSS importer projects a rule's existing native token events into a
+`css:selector-list`, ordered `css:selector` and `css:compound-selector` nodes,
+typed simple selectors and combinators. No selector text is retokenized by this
+path. Decoded names/values, attribute operators/modifiers, nested selector lists,
+relative combinators and source ranges remain in the retained tree. Authored
+rule selector text and the native lexical owner remain available as provenance.
+
+The initial stylesheet profile supports type/universal, class, ID and attribute
+selectors, ordinary simple pseudo-classes, `:is`, `:where`, `:not`, relative
+`:has`, and functional `:host` with a single compound argument. It records
+specificity as `a-b-c`, including the pseudo-class plus argument weight for
+[functional host selectors](https://drafts.csswg.org/css-scoping/#host-selector).
+Comments do not create descendant combinators; repeated decoded selectors remain
+separate within a compound for later manufactured-specificity checks.
+
+`analysis-status="complete"` marks structure available to the compiler, not a
+browser feature-support assertion. The profile leaves simple pseudo-class
+matching to the browser. Forms outside the profile, including pseudo-elements,
+`nth-*` functions, CSS nesting `&`, and unbound namespace prefixes, produce an
+empty list marked `analysis-status="unsupported"`, with no partial specificity
+claim. Import still retains the authored rule; unsupported analysis does not
+make otherwise retained stylesheet adoption fail. The compiler must diagnose
+unsupported structure rather than parse raw selector text downstream, and
+coverage must expand before browser cutover.
+
+This is an isolated stylesheet profile of the existing native selector parser.
+The selector-query entry point retains its capability restrictions: `:host`,
+`:host(...)`, and host-state queries remain unsupported without query host
+capabilities. Host rewriting, the managed specificity budget, duplicate-selector
+policy, and full scoped rule emission remain pending.
 
 ## Shared-resolver byte delivery: implemented natively
 

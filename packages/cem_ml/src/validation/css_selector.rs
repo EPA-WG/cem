@@ -503,10 +503,36 @@ pub fn css_selector_expression_ast_from_source_bytes(
     (Some(ast), diagnostics)
 }
 
+/// Import-only stylesheet profile. Query parsing/execution keeps its own
+/// capability restrictions. Unsupported structure is never exposed as complete.
+pub(crate) fn stylesheet_selector_structure(events: &[CssEventAst]) -> Option<CssSelectorListAst> {
+    if events.iter().any(|e| e.recovered || e.token_kind == "hash") {
+        return None;
+    }
+    // CSS comments do not introduce descendant combinators.
+    let tokens: Vec<_> = events
+        .iter()
+        .filter(|e| e.token_kind != "comment")
+        .cloned()
+        .map(CssSelectorTokenAst::from)
+        .collect();
+    let namespaces = BTreeMap::new();
+    let mut facts = Vec::new();
+    let mut parser = SelectorParser::new(&tokens, &namespaces, &mut facts);
+    parser.stylesheet = true;
+    let list = parser.parse_selector_list(0, tokens.len(), false);
+    if facts.is_empty() {
+        list
+    } else {
+        None
+    }
+}
+
 struct SelectorParser<'a, 'f> {
     tokens: &'a [CssSelectorTokenAst],
     namespaces: &'a BTreeMap<String, String>,
     facts: &'f mut Vec<CssSelectorFact>,
+    stylesheet: bool,
 }
 
 impl<'a, 'f> SelectorParser<'a, 'f> {
@@ -519,6 +545,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             tokens,
             namespaces,
             facts,
+            stylesheet: false,
         }
     }
 
@@ -631,7 +658,11 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             cursor = next_cursor;
         }
         let source_range = CssSelectorSourceRange::covering(
-            compounds.first().unwrap().source_range,
+            if self.stylesheet && leading_combinator.is_some() {
+                self.tokens[start].source_range
+            } else {
+                compounds.first().unwrap().source_range
+            },
             compounds.last().unwrap().source_range,
         );
         let specificity = selector_specificity(&compounds);
@@ -988,7 +1019,10 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 colon.source_range,
                 next.source_range,
             ));
-            if requires_host_capability(&name) {
+            if self.stylesheet {
+                // State and structural pseudo-classes are retained for browser
+                // evaluation; no native query capability is requested.
+            } else if requires_host_capability(&name) {
                 self.capability_missing(
                     range,
                     format!("Pseudo-class `:{name}` requires lifecycle host-state capabilities"),
@@ -1032,9 +1066,22 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             return None;
         };
         let relative = name == "has";
-        let selectors = if matches!(name.as_str(), "is" | "where" | "not" | "has") {
-            self.parse_selector_list(start + 2, close, relative)
-                .map(Box::new)
+        let selectors = if matches!(name.as_str(), "is" | "where" | "not" | "has")
+            || (self.stylesheet && name == "host")
+        {
+            let parsed = self.parse_selector_list(start + 2, close, relative);
+            if name == "host"
+                && parsed.as_ref().is_some_and(|list| {
+                    list.selectors.len() != 1 || list.selectors[0].compounds.len() != 1
+                })
+            {
+                self.unsupported(
+                    Some(next.source_range),
+                    "Stylesheet :host() requires one compound selector",
+                    Some(name.clone()),
+                );
+            }
+            parsed.map(Box::new)
         } else {
             let range = Some(CssSelectorSourceRange::covering(
                 colon.source_range,
@@ -1294,6 +1341,10 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
                         })
                         .unwrap_or((0, 1, 0));
                     specificity.0 += nested.0;
+                    // Only the stylesheet profile parses functional host arguments.
+                    if name == "host" && selectors.is_some() {
+                        specificity.1 += 1;
+                    }
                     specificity.1 += nested.1;
                     specificity.2 += nested.2;
                 }
