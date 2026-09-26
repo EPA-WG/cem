@@ -5730,10 +5730,33 @@ registration identities may reuse an inherited or existing definition.
           retain the default non-submitting command type. Native form ownership,
           validation, submission and reset stay with the rendered native button.
           The accepted attribute contract is in the migration plan.
-    - [ ] Decide native-pointer test placement: permit browser-driver checks in
+    - [x] Decide native-pointer test placement: permit browser-driver checks in
           colocated stories (recommended), or explicitly retain separate browser
           integration coverage. Synthetic `storybook/test` pointer events do not
           activate native CSS hover/active states; do not drop existing coverage.
+          Accepted: guarded dynamic Vitest browser-driver imports in colocated
+          plays; regular Storybook labels the native checks as runner-only.
+    - [x] Decide XHTML asset delivery before action cutover: extend the existing
+          worker-safe module-map v3 with deployment-only XHTML resources;
+          preserve v1/v2 behavior. See the [accepted design](module-map-v3-xhtml-assets.md).
+    - [ ] Implement v3 XHTML deployment before resuming the action cutover.
+        - [ ] Fixture: add native v3 XHTML lowering and rejection cases first,
+              including v2 rejection, MIME/extension, unsafe destinations,
+              mismatched pairs, module-edge rejection and byte/digest identity.
+        - [ ] Make resource validation schema-aware and update v3's schema-owned
+              examples, manifest/projections and documentation; preserve existing
+              JavaScript/JSON module behavior.
+        - [ ] Fixture: prove CLI atomic publication, deterministic reports and
+              cache invalidation when only the declared XHTML bytes change.
+        - [ ] Adopt typed v3 maps and exact module edges in Site, then prove
+              static search/interactive XHTML delivery before registry removal.
+    - [ ] Investigate the legacy component suite failures before claiming a
+          green package gate: the cutover trial reports 80 passing / 49 failing;
+          empty disabled state and collapsible navigation failures reproduce
+          with committed legacy sources. Establish the remaining baseline and
+          repair shared semantics or migrate owners without weakening tests.
+    - [ ] Fixture: verify canonical action loading in workflow/demo and Site
+          search/interactive consumers, including packaged XHTML asset delivery.
     - [ ] Fixture: cover explicit submit/reset, required-input validation,
           submitter name/value and form overrides, external form ownership,
           disabled suppression and cancellation, while preserving default

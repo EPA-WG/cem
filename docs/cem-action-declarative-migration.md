@@ -1,7 +1,7 @@
 # cem-action declarative migration
 
-Status: explicit submit/reset support accepted; native-pointer test placement
-decision pending before migration cutover.
+Status: explicit submit/reset support and colocated native-pointer tests accepted;
+v3 XHTML deployment design accepted; implementation precedes migration cutover.
 
 `cem-action` is the next migration candidate in the accepted
 [component MVP](component-mvp.md) order. It has no component-specific behavior
@@ -45,17 +45,40 @@ synthetic `userEvent.hover` dispatches events but leaves `button.matches(':hover
 false in Chromium. Synthetic pointer presses likewise cannot prove native
 `:active` paint. The legacy action suite uses the real `vitest/browser` driver.
 
-Recommended: permit browser-driver imports in colocated stories for automated
-native-pointer checks, retaining `storybook/test` assertions and ordinary
-interactions. Define explicitly how browser-only checks run in Vitest and how
-interactive Storybook exposes the same fixture without claiming automated
-native-pointer coverage there. This requires a narrow update to the normative
-policy and declarative gate before implementation.
+Accepted: permit a guarded dynamic `vitest/browser` import inside colocated
+plays solely for native input checks. Assertions and ordinary interactions keep
+using `storybook/test`. An `import.meta.env.MODE !== 'test'` early return protects
+ordinary Storybook from loading the browser driver. Story descriptions identify
+which native-pointer assertions run only in Vitest; the same rendered fixture
+remains available for manual interaction in regular Storybook. The normative
+policy and declarative gate now permit this narrow test-only exception.
 
-Alternative: keep real-pointer checks as separate browser integration tests.
-That needs an explicit exception to the requirement that all component unit
-assertions live in colocated plays. Do not silently drop hover/held-active,
-geometry, disabled, focus, or release-time event coverage.
+The prototype passes trusted hover, held pointer/Space active colors, contrast,
+geometry, focus, node/payload identity, disabled suppression, and release-time
+activation checks. Its static Storybook build also passes without loading the
+Vitest driver.
+
+## XHTML asset-delivery decision
+
+CEM Site deploys runtime assets through paired module-map v2 documents. The
+canonical action declaration must be delivered to its search and interactive
+pages, and those pages must explicitly load `cem-action.xhtml#cem-action`.
+Removing the registry entry before providing this asset would break both pages.
+
+A trial v2 resource with `contentType: "application/xhtml+xml"` fails Site's
+build with `cem.module_map.resource_type_unsupported`. The
+[module-map v2 schema](../packages/cem_ml/schema-packages/module-map-v2/v1/schema/module-map-v2.cem)
+allows only JavaScript, CSS and WASM resources and explicitly declares future
+asset kinds `reject-unless-a-later-schema-version-declares-it`. Expanding v2
+silently or adding an application-local JavaScript copy workaround is not the
+accepted contract.
+
+Accepted: extend the existing worker-safe module-map v3 with deployment-only
+XHTML resources. The [v3 XHTML design](module-map-v3-xhtml-assets.md) defines the
+narrow MIME/extension contract, v1/v2 compatibility, native acceptance sequence,
+Site adoption and cutover order. V3 already owns typed JavaScript/JSON imports
+and declared module-edge rewriting; the XHTML addition preserves those rules.
+No separate application asset-copy path is planned.
 
 ## Existing behavior to preserve
 
@@ -122,7 +145,8 @@ counts or claim the action migration is complete.
 The focused Chromium prototype passed three stories: fallback/rich labels,
 state reflection, and explicit native forms (validation, submitter name/value,
 external form overrides, disabled suppression, and canceled/normal reset).
-The fourth, native-pointer story remains blocked on the decision above.
+After the test-policy decision, all five prototype stories pass, including
+native pointer/keyboard states and live type/disabled attribute updates.
 No global tests were run. Presence checks must use
 `if seq:count(datadom.attributes.disabled) > 0 { true } else { null }` (and the
 same pattern for `formnovalidate`), following canonical `cem-select`. Binding an
@@ -135,6 +159,24 @@ active selector. Without `:where`, the selectors exceed the accepted `0-2-1`
 specificity ceiling and are suppressed with a diagnostic. This is existing
 runtime policy, not a missing CSS capability.
 
-The migration remains unshipped until the test-placement decision is resolved
+The migration remains unshipped until v3 XHTML deployment is implemented
 and consumer/gate cutover is complete. No legacy registry or global style has
 been removed by the planning change.
+
+## Cutover trial verification
+
+The unshipped cutover draft passed the declarative gate (2 canonical / 47 legacy),
+style contract, state matrix, Figma inventory, Material parity, catalog build,
+package build/typecheck, packed-XHTML check, and five focused action stories.
+The ordinary static Storybook build passed. The legacy source remains in place
+until Site's XHTML deployment path is resolved; these draft results do not claim
+a completed migration.
+
+The affected component package suite reported 80 passing and 49 failing tests.
+Two representative failures reproduce using the committed pre-migration registry
+and state tests: `cem-icon-button[disabled]` leaves its native button enabled,
+and `cem-nav[collapsible]` lacks its disclosure. Other failures include legacy
+required/boolean state and datepicker cases; their individual baseline status
+has not yet been established. Preserve these failures as follow-up work rather
+than weakening assertions or changing frozen behavior modules. No workspace-wide
+tests were run.
