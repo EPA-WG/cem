@@ -174,7 +174,7 @@ Callers supply the owning template URL for inline styles or the final imported
 stylesheet URL. The synthetic tree source URI is never a resolution base. The
 same retained tree can produce distinct plans under different instance contexts;
 plans must not be reused by declaration identity alone. Tests cover nearest-map
-overrides, ancestor blocks, explicit-relative fallback, current bare misses,
+overrides, ancestor blocks, CSS-relative fallback, invalid/blocked references,
 imported-sheet bases, quoted escapes, nested/custom-property URLs, empty CSS and
 non-CSS rejection.
 
@@ -184,25 +184,65 @@ semantics, empty URL handling, import condition validation/cycles, shared-loader
 integration and per-context style ownership remain downstream work. The current
 browser import suppression continues to apply.
 
-## Unmapped CSS URLs: decision required
+## Unmapped CSS URLs: accepted and implemented
 
-The shared resolver currently accepts explicitly relative URLs (`./icon.svg`)
-but rejects unmapped bare specifiers (`icon.svg`, `icons/check.svg`, `theme`).
-The native CSS resolver tests explicitly retain this behavior. In contrast,
-[CSS relative URL semantics](https://www.w3.org/TR/css-values-4/#relative-urls)
-resolve ordinary path names against the stylesheet base. Connecting the native
-plan to loading makes this difference observable to CSS authors.
+For CSS only, consult the closest module maps first, then resolve an unmapped
+name as a URL relative to its stylesheet/template base. For a sheet at
+`https://example.test/css/main.css`, unmapped `url(icons/check.svg)` becomes
+`https://example.test/css/icons/check.svg`. The same fallback applies to imports
+such as `@import "theme.css"`. A mapped `theme` still uses the closest resource
+override. Explicit matching blocks and mapped-target errors never trigger
+fallback, and the fallback target must satisfy ancestor scheme policy. Non-CSS
+lookup retains strict unmapped bare-specifier errors.
 
-Recommended: for CSS only, consult the closest module maps first, then resolve
-an unmapped name as a URL relative to its stylesheet/template base. For a sheet
-at `https://example.test/css/main.css`, unmapped `url(icons/check.svg)` becomes
-`https://example.test/css/icons/check.svg`. A mapped `theme` still uses the closest
-resource override. Explicit blocks and policy failures never trigger fallback,
-and the fallback target must satisfy ancestor policy. Non-CSS lookup is unchanged.
-This also means a misspelled unmapped alias such as `theme` becomes a relative
-resource request rather than an unresolved-alias diagnostic.
+A misspelled unmapped alias such as `theme` becomes a relative resource request
+rather than an unresolved-alias diagnostic. Fallback results retain the authored
+specifier and stylesheet referrer, use the absolute URL as the normalized
+specifier, and carry no invented mapping, content-type or integrity metadata.
+The behavior matches ordinary [CSS relative URL semantics](https://www.w3.org/TR/css-values-4/#relative-urls)
+after CEM's module-map lookup. Native resolver and retained-tree fixtures verify
+both import and resource fallback and unchanged non-CSS behavior.
 
-Alternative: retain strict module-specifier rules for CSS too. Authors must map
-`icons/check.svg` or write `./icons/check.svg`; missing aliases fail before a load.
-Decide between these behaviors before adding import/resource loading and its
-fallback fixtures.
+## Context-dependent stylesheet ownership: decision required
+
+The current [normative CSS ownership contract](cem-ml-uid-and-scoped-css-design.md#2-declaration-owned-css)
+requires one managed stylesheet set per effective declaration, rooted at the
+produced tag or public shared-scope name. `styleOwnership(compiled)` and
+`installDeclarationStylesheets` implement that model. They cannot install two
+resolved variants of the same declaration without both variants matching both
+instances. The accepted requirement above forbids leaking one instance's module
+map overrides into another. Loading imports must not proceed to installation
+until ownership and root qualification cover that distinction.
+
+Recommended extension:
+
+1. Keep the immutable native source tree shared. Retain derived stylesheet sets
+   per effective declaration and consuming module-map/policy context, including
+   the source stylesheet's base URL in the derived artifact key.
+2. Let the runtime assign produced hosts an internal
+   `data-cem-css-context="<opaque-context-id>"` marker. Hosts in the same effective
+   resolution context reuse the marker; it is not a unique instance identifier.
+   It is reserved runtime state, not an author-facing styling hook.
+3. Qualify a derived private root as
+   `@scope (cem-card[data-cem-css-context="ctx"])` and a derived shared root as
+   `@scope ([scope="controls"][data-cem-css-context="ctx"]:has(> template[data-cem-island="instance"]))`.
+   Preserve the existing lower bounds and authored selector specificity. Do not
+   use `data-cem-render-scope`, reintroduce `data-cem-instance-scope`, or copy
+   declaration styles into every instance.
+4. For shared rules, retain the registered shared style sources and derive the
+   applicable set for each consuming context. A host with the same public scope
+   but another context receives its own resolved variant; it must not lose
+   shared membership merely because its context differs. Styles without resource
+   references keep the existing single declaration-owned set.
+5. Own the derived sets centrally, reuse them among matching connected hosts,
+   and detach/release them when their context has no live consumers or is
+   disposed. Context changes invalidate pending work before changing the marker
+   or committing styles. Extend render/declaration readiness and hydration
+   checks to cover the derived set's lifecycle.
+
+This changes the normative one-set ownership rule and adds an internal CSS root
+qualifier. Accept the extension before changing runtime installation. The
+alternative is to defer instance-context CSS loading and retain the current
+single-set contract; declaration-only resolution cannot satisfy independent
+instance overrides. After acceptance, write the native import-closure and
+browser ownership fixtures before enabling imports in the scoped CSS demo.

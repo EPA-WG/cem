@@ -89,7 +89,7 @@ fn retained_css_resources_preserve_order_conditions_metadata_and_source() {
 #[test]
 fn retained_css_resources_keep_failures_and_contexts_independent() {
     let tree = import_data(
-        "@import 'theme'; a { mask:url(missing); background:url(./ok.svg) }",
+        "@import 'theme'; a { mask:url(\"\"); background:url(ok.svg) }",
         "text/css",
         "cem",
         "urn:css:owner",
@@ -107,7 +107,7 @@ fn retained_css_resources_keep_failures_and_contexts_independent() {
     );
     assert_eq!(
         first.references[1].resolution.as_ref().unwrap_err().reason,
-        CemModuleUrlResolutionErrorReason::Unresolved
+        CemModuleUrlResolutionErrorReason::Invalid
     );
     assert_eq!(
         first.references[2]
@@ -156,7 +156,7 @@ fn retained_css_resources_keep_failures_and_contexts_independent() {
 
 #[test]
 fn retained_css_resources_cover_nested_urls_import_variants_and_empty_trees() {
-    let source = "@import url(\"./first.css\") layer; @import url(./second.css); @media screen { a { mask: url( './mask.svg' /* gap */); --image: { image: url(./custom.svg) }; } }";
+    let source = "@import url(\"./first.css\") layer; @import url(second.css); @media screen { a { mask: url( './mask.svg' /* gap */); --image: { image: url(./custom.svg) }; } }";
     let tree = cem_ml::import::import_data_bytes(
         source.as_bytes(),
         "text/css; mode=scoped-style-block",
@@ -175,7 +175,7 @@ fn retained_css_resources_cover_nested_urls_import_variants_and_empty_trees() {
             .iter()
             .map(|r| r.authored_specifier.as_str())
             .collect::<Vec<_>>(),
-        ["./first.css", "./second.css", "./mask.svg", "./custom.svg"]
+        ["./first.css", "second.css", "./mask.svg", "./custom.svg"]
     );
     assert_eq!(
         plan.references[0].kind,
@@ -192,6 +192,10 @@ fn retained_css_resources_cover_nested_urls_import_variants_and_empty_trees() {
             supports: None,
             media: None
         }
+    );
+    assert_eq!(
+        plan.references[1].resolution.as_ref().unwrap().resolved_url,
+        "https://example.test/css/second.css"
     );
     for reference in &plan.references {
         assert!(reference.resolution.is_ok());

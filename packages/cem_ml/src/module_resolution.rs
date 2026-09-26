@@ -763,7 +763,28 @@ impl CemScopedModuleUrlResolver {
             });
         }
 
+        // CSS checks authored module-map names before treating an unmapped name
+        // as a relative URL. Mapped blocks/errors have already returned above.
+        let normalized_url =
+            if normalized_url.is_none() && request.purpose == CemModuleUrlResolutionPurpose::Css {
+                Some(active_base.join(authored).map_err(|error| {
+                    context_error_with_provenance(
+                        request,
+                        current_context,
+                        context,
+                        CemModuleUrlResolutionErrorReason::Invalid,
+                        format!("invalid CSS relative URL `{authored}`: {error}"),
+                        Some(normalized_specifier.clone()),
+                        None,
+                        None,
+                        provenance.clone(),
+                    )
+                })?)
+            } else {
+                normalized_url
+            };
         if let Some(url) = normalized_url {
+            let normalized_specifier = url.as_str().to_owned();
             enforce_scheme(
                 request,
                 current_context,
@@ -1266,8 +1287,88 @@ mod tests {
         let mut query = request("missing");
         query.purpose = CemModuleUrlResolutionPurpose::Css;
         assert_eq!(
+            resolver.resolve_module_url(&query).unwrap().resolved_url,
+            "https://example.test/card/missing"
+        );
+    }
+
+    #[test]
+    fn css_unmapped_names_fall_back_relative_after_mapping_lookup() {
+        let mut frame = CemModuleUrlFrame::new("component", "https://example.test/card.cem");
+        frame
+            .specifiers
+            .resources
+            .insert("theme".into(), CemModuleUrlMapping::target("./mapped.css"));
+        frame
+            .specifiers
+            .resources
+            .insert("blocked".into(), CemModuleUrlMapping::blocked());
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            CemResolutionContextHandle::new("test"),
+            context(vec![frame]),
+        );
+        for (specifier, expected, mapped) in [
+            (
+                "icons/check.svg",
+                "https://example.test/css/icons/check.svg",
+                false,
+            ),
+            ("tile.png", "https://example.test/css/tile.png", false),
+            (
+                "missing-theme",
+                "https://example.test/css/missing-theme",
+                false,
+            ),
+            ("a b.svg", "https://example.test/css/a%20b.svg", false),
+            ("theme", "https://example.test/mapped.css", true),
+        ] {
+            let mut query = request_with_referrer(
+                specifier,
+                CemModuleUrlReferrer::Url("https://example.test/css/main.css".into()),
+            );
+            query.purpose = CemModuleUrlResolutionPurpose::Css;
+            let result = resolver.resolve_module_url(&query).unwrap();
+            assert_eq!(result.resolved_url, expected);
+            assert_eq!(result.authored_specifier, specifier);
+            assert_eq!(result.matched_frame_id.is_some(), mapped);
+            assert_eq!(
+                result.resolved_referrer_url.as_deref(),
+                Some("https://example.test/css/main.css")
+            );
+            if !mapped {
+                assert_eq!(result.normalized_specifier, expected);
+                assert!(result.content_type_hint.is_none());
+                assert!(result.integrity.is_none());
+                for purpose in [
+                    CemModuleUrlResolutionPurpose::CemQl,
+                    CemModuleUrlResolutionPurpose::XPath,
+                    CemModuleUrlResolutionPurpose::TemplateSlice,
+                ] {
+                    query.purpose = purpose;
+                    assert_eq!(
+                        resolver.resolve_module_url(&query).unwrap_err().reason,
+                        CemModuleUrlResolutionErrorReason::Unresolved
+                    );
+                }
+            }
+        }
+        let mut query = request("blocked");
+        query.purpose = CemModuleUrlResolutionPurpose::Css;
+        assert_eq!(
             resolver.resolve_module_url(&query).unwrap_err().reason,
-            CemModuleUrlResolutionErrorReason::Unresolved
+            CemModuleUrlResolutionErrorReason::Blocked
+        );
+        let mut outer = CemModuleUrlFrame::new("page", "http://example.test/page.html");
+        outer.allowed_schemes = Some(BTreeSet::from(["https".into()]));
+        let inner = CemModuleUrlFrame::new("component", "http://example.test/card.cem");
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            CemResolutionContextHandle::new("test"),
+            context(vec![outer, inner]),
+        );
+        query.authored_specifier = "tile.png".into();
+        assert_eq!(
+            resolver.resolve_module_url(&query).unwrap_err().reason,
+            CemModuleUrlResolutionErrorReason::PolicyDenied
         );
     }
 

@@ -5754,9 +5754,15 @@ registration identities may reuse an inherited or existing definition.
               preserve order, import conditions, source ranges, mapped metadata,
               imported-sheet bases, context isolation and independent failures.
               Distinguish comment trivia from recovered invalid URL/string tokens.
-        - [ ] Decide unmapped CSS URL fallback before enabling loading: preserve
+        - [x] Decide unmapped CSS URL fallback before enabling loading: preserve
               strict bare-specifier rejection or use CSS-relative URL semantics.
-              See the [concrete proposal](scoped-css-module-maps.md#unmapped-css-urls-decision-required).
+              Accepted: CSS-relative fallback after map lookup.
+        - [x] Fixture: resolve unmapped CSS paths and aliases against the owning
+              stylesheet URL; preserve mapped overrides, ancestor blocks/policies,
+              resolution metadata and strict non-CSS bare-specifier behavior.
+        - [ ] Decide context-dependent stylesheet ownership before browser
+              import installation; approve or revise the [context-qualified
+              stylesheet proposal](scoped-css-module-maps.md#context-dependent-stylesheet-ownership-decision-required).
     - [ ] Include an explicit CSS override entry in the module map; define its
           syntax and precedence and verify the closest-scope override is used
           for stylesheet imports and resource URLs.
