@@ -6004,3 +6004,38 @@ frames remain a startup performance requirement? The latter needs worker-phase
 latency measurements before choosing a runtime optimization. The current
 capture justifies separating functional readiness from frame-count timing;
 it does not select a new startup performance budget.
+
+
+### Worker startup lifecycle correction
+
+The user accepted bounded runtime readiness on continuation 2026-09-25.
+`ProcessingWorkerAndMainThreadFallback` now starts all four owner waits
+concurrently: custom-element definition, owning declaration settlement, then
+owning render settlement. Each initial span is required immediately after those
+signals; a settled render without its span fails rather than polling further.
+A shared 10-second wall-clock deadline bounds the entire startup phase inside
+the existing 30-second story budget. This is a functional-test guard, not a
+worker performance requirement. The timer is cleared on success or failure,
+and opt-in observations retain per-owner start/ready/failure events plus an
+explicit startup-timeout checkpoint.
+
+Only this story's initial readiness changes. Its worker pooling, fallback
+warnings, patch identity, focus/selection, data islands, cancellation and
+stale-response recovery assertions remain intact. Production runtime and
+shared frame-count helpers are unchanged. The tracing-disabled focused Nx test
+passes 1/1 (73 unrelated stories skipped), taking 2.19 seconds overall.
+
+
+The same paired diagnostic command now passes **7/7 selected stories** (88
+skipped) and **32/32 stock cases**. The stock interval was
+`03:25:35.449Z`–`03:26:02.927Z`; the primary and pooled worker spans became ready
+at `03:25:51.454Z` and `03:25:51.473Z`, confirming overlap. Their startup times
+were 2,974.3 and 2,994.0 ms; both fallbacks were ready by 1,736.8 ms. All later
+worker interaction assertions executed and passed. Reports/logs are preserved
+locally at `/tmp/cem-worker-readiness-{stock,workload}-lifecycle.{json,log}`;
+the earlier failing `-captured` files remain available for comparison.
+
+Diff checks pass. No global tests ran because shared production modules did
+not change. Next: continue the remaining readiness audit, retaining HTTP's
+300-frame initial-article timeout and historical stock-timeout attribution as
+open until a traced recurrence supports a correction.

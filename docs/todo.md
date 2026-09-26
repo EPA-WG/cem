@@ -2591,11 +2591,23 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           settle with spans and no diagnostics at 2,676.0/2,710.0 ms. Both
           fallback renders had already settled. See
           [concurrent startup evidence](browser-stabilization-review.tmp.md#concurrent-startup-probe-maintenance).
-    - [ ] Decide whether worker/fallback functional startup should await its
+    - [x] Decide whether worker/fallback functional startup should await its
           owning runtime lifecycle under an explicit bounded timeout before
           initial DOM assertions, or retain 120 frames as a performance
           requirement needing worker-phase profiling. Preserve all subsequent
           interaction assertions; do not choose a new latency budget implicitly.
+          Accepted on continuation: use bounded owning-runtime readiness.
+    - [x] Fixture: await definition, declaration and render settlement for all
+          four worker/fallback owners concurrently under a shared 10-second
+          startup deadline, then assert initial spans immediately. Preserve
+          later interaction assertions and verify tracing off plus the paired
+          seven-story/32-page diagnostic workload. The deadline is a functional
+          test guard within the existing 30-second test budget, not a startup
+          performance target.
+          Verified: tracing-disabled story 1/1; paired traced workload 7/7 and
+          stock probe 32/32. Worker/pooled spans are ready at 2,974.3/2,994.0 ms;
+          all later interaction assertions pass. See
+          [lifecycle correction](browser-stabilization-review.tmp.md#worker-startup-lifecycle-correction).
     - [x] Native fixture: attribute local-storage's initial fruit-watcher
           arithmetic diagnostics and the JSON sample's
           `cem.render_plan_apply.replace_scope` warning. Distinguish absent

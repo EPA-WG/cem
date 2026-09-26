@@ -1309,10 +1309,30 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
             'story-processing-execution-fallback-card'
         ) as HTMLElement;
         const checkpoint = observeWorkerFallbackStartup(storyRoot, state);
-        const initialLabel = async (instance: HTMLElement) => {
+        // Functional readiness has its own wall-clock guard inside the runner's
+        // 30-second budget; animation frames do not measure worker progress.
+        const startupTimeoutMs = 10_000;
+        let startupTimer: ReturnType<typeof setTimeout> | undefined;
+        const startupDeadline = new Promise<never>((_resolve, reject) => {
+            startupTimer = setTimeout(() => {
+                checkpoint('startup-timeout', 'all');
+                reject(new Error(`worker/fallback startup did not settle within ${startupTimeoutMs} ms`));
+            }, startupTimeoutMs);
+        });
+        const initialLabel = async (
+            runtime: CemElementRuntime, declaration: HTMLElement, instance: HTMLElement
+        ) => {
             checkpoint('first-span-start', instance.localName);
             try {
-                const label = await waitForElement(instance, 'span');
+                await Promise.race([
+                    (async () => {
+                        await customElements.whenDefined(instance.localName);
+                        await runtime.whenDeclarationSettled(declaration);
+                        await runtime.whenRenderSettled(instance);
+                    })(),
+                    startupDeadline,
+                ]);
+                const label = requiredElement(instance, 'span');
                 checkpoint('first-span-ready', instance.localName);
                 return label;
             } catch (error) {
@@ -1320,14 +1340,18 @@ export const ProcessingWorkerAndMainThreadFallback: Story = {
                 throw error;
             }
         };
-        const workerLabel = await initialLabel(workerInstance);
-        const fallbackLabel = await initialLabel(fallbackInstance);
-        const pooledWorkerLabel = await initialLabel(pooledWorkerInstance);
-        const executionFallbackLabel = await initialLabel(executionFallbackInstance);
-        await state.workerRuntime.whenRenderSettled(workerInstance);
-        await state.fallbackRuntime.whenRenderSettled(fallbackInstance);
-        await state.pooledWorkerRuntime.whenRenderSettled(pooledWorkerInstance);
-        await state.executionFallbackRuntime.whenRenderSettled(executionFallbackInstance);
+        const [workerLabel, fallbackLabel, pooledWorkerLabel, executionFallbackLabel] = await (async () => {
+            try {
+                return await Promise.all([
+                    initialLabel(state.workerRuntime, state.workerDeclaration, workerInstance),
+                    initialLabel(state.fallbackRuntime, state.fallbackDeclaration, fallbackInstance),
+                    initialLabel(state.pooledWorkerRuntime, state.pooledWorkerDeclaration, pooledWorkerInstance),
+                    initialLabel(state.executionFallbackRuntime, state.executionFallbackDeclaration, executionFallbackInstance),
+                ]);
+            } finally {
+                clearTimeout(startupTimer);
+            }
+        })();
 
         assertEqual(state.workerFactoryCalls, 1, 'two logical roots share one policy-bounded worker slot');
         assertEqual(pooledWorkerLabel.textContent, 'Pooled', 'the shared worker slot renders the second root');
