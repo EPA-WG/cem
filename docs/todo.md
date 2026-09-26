@@ -5699,6 +5699,14 @@ registration identities may reuse an inherited or existing definition.
       `cem-select`, with exact five-mode global switching on the preview root and
       per-mode interaction/token-resolution evidence. Stories must not own or
       persist global theme state.
+    - [x] Audit the shared Storybook host and production select contract; record
+          [placement and integration design](storybook-theme-switcher-design.md).
+    - [ ] Decide switcher placement: manager toolbar (recommended, preserves
+          canvas focus/DOM, requires a separate manager runtime) or preview
+          toolbar (reuses runtime, adds a preview focus boundary).
+    - [ ] Fixture: verify all five choices, global/root synchronization,
+          keyboard access, focus and resolved theme tokens in the chosen host;
+          retain production select interactions and story-navigation behavior.
 - [ ] Migrate every legacy `cem-components` member into its own
       `src/components/<cem-tag>/<cem-tag>.xhtml` folder with embedded,
       once-per-declaration scope-contract CEM-token `<style>` and colocated
