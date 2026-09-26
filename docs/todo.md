@@ -5736,6 +5736,13 @@ registration identities may reuse an inherited or existing definition.
         - [ ] Route browser DOM-template style adoption through the same native
               importer; retain CSS owners and diagnostics without adding a
               browser-local CSS parser or serialized AST handoff.
+            - [x] Audit synchronous DOM style installation and settlement;
+                  record the [readiness proposal](scoped-css-module-maps.md#dom-template-readiness-decision-required).
+            - [ ] Decide whether the first DOM render waits for native style
+                  adoption (recommended) or styles arrive after immediate markup.
+            - [ ] Fixture: verify shared adoption, both settlement APIs, malformed
+                  and unsupported/dynamic styles, native failure, no-style
+                  declarations, reconnect/disposal and retained hydrated output.
     - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and
           other CSS URL-bearing constructs through the module map from the
           closest scope, using the shared resolver and retained CSS AST.

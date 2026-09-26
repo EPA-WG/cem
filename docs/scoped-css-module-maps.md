@@ -121,3 +121,48 @@ stay on the native owner and still fail ordinary validation. Other hard
 diagnostics reject import. Browser DOM-template adoption and authorized scoped
 loading are the next steps; an imported tree alone does not authorize resource
 access. The canonical CEM-ML compile path now retains its styles as native trees.
+
+## DOM-template readiness: decision required
+
+The browser DOM path currently differs from canonical CEM-ML:
+`extractDomDeclarationStylesheets` in `cem-elements.ts` collects authored style
+text synchronously, `compileInlineDeclaration` sets `stylesheetsReady` for DOM
+templates immediately, and registration/connection can install styles before
+the first synchronous DOM projection. `whenDeclarationSettled` explicitly
+documents immediate settlement for this path. Native CSS adoption requires an
+asynchronous processing-host/WASM operation, so this timing cannot remain
+identical for declarations containing styles.
+
+**Recommended first-render contract:**
+
+1. Register the produced custom element and perform the existing synchronous
+   lifecycle capture normally. Declarations without styles keep their current
+   path and incur no CSS processing operation.
+2. For declarations with styles, share one pending native adoption operation
+   across instances. Send authored CSS and static type/scope metadata as named
+   source/control inputs through the shared processing host. Retain native
+   owners under its artifact lifecycle, including worker routing and disposal;
+   do not move a CSS AST through JSON or add a browser CSS parser.
+3. Delay the first DOM render commit until adoption settles. Include the work
+   in `whenDeclarationSettled` and each affected instance's render-settlement
+   promise. Keep any existing hydrated output intact while waiting.
+4. Install successfully adopted styles once through declaration style ownership.
+   A malformed style is omitted with a declaration diagnostic. A native engine
+   failure diagnoses and installs no unvalidated styles; settlement must still
+   complete so the DOM content can render. Styles are never installed as a raw
+   text fallback after failed adoption.
+5. Use the existing render generation and scope-disposal checks to prevent stale
+   work from committing after disconnect, replacement or disposal. Preserve
+   current instance state when the deferred render resumes.
+
+The alternative is to render DOM content immediately and install styles after
+native adoption. It preserves immediate markup availability but allows an
+unstyled first render and requires a separate style-readiness contract. The
+recommended approach instead makes existing settlement APIs cover styled
+readiness. This timing choice needs acceptance before runtime changes.
+
+Fixtures after the decision must cover shared adoption across two instances,
+pending and failed native adoption, unsupported/dynamic style types, a
+declaration without styles, reconnect/disposal during adoption, hydrated output,
+and both settlement APIs. Extend the existing scoped CSS demo once the shared
+runtime behavior is implemented.
