@@ -358,6 +358,7 @@ impl CssImport<'_> {
         }
         if let Some(i) = self.significant(pos, end) {
             self.attr(id, "media", self.text(i, end).trim());
+            self.import_media(id, i, end);
         }
         Ok(())
     }
@@ -440,31 +441,9 @@ impl CssImport<'_> {
     /// their contents must be retained even when this implementation cannot
     /// interpret a feature. The emitting browser evaluates the unchanged query.
     fn supports_form(&self, start: usize, end: usize) -> Option<&'static str> {
-        if self.events[start..end].iter().any(|e| e.recovered) {
-            return None;
-        }
-        let mut top = Vec::new();
-        let mut pos = start;
-        while let Some(i) = self.significant(pos, end) {
-            top.push(i);
-            pos = if self.events[i].kind == "block-open" {
-                let close = self.close(i, end);
-                if close == end {
-                    return None;
-                }
-                close + 1
-            } else {
-                i + 1
-            };
-        }
+        let top = self.condition_tokens(start, end)?;
         let first = *top.first()?;
-        let keyword = |i: usize, value: &str| {
-            self.events[i].token_kind == "ident"
-                && self.events[i]
-                    .value
-                    .as_deref()
-                    .is_some_and(|v| v.eq_ignore_ascii_case(value))
-        };
+        let keyword = |i, value| self.keyword(i, value);
         let bang = |i: usize| {
             self.events[i].token_kind == "delimiter" && self.events[i].value.as_deref() == Some("!")
         };
@@ -487,27 +466,132 @@ impl CssImport<'_> {
                 .all(|i| self.events[*i].token_kind != "semicolon" && !bang(*i))
                 .then_some("declaration");
         }
+        self.boolean_condition(&top, true).then_some("condition")
+    }
+
+    fn keyword(&self, i: usize, value: &str) -> bool {
+        self.events[i].token_kind == "ident"
+            && self.events[i]
+                .value
+                .as_deref()
+                .is_some_and(|v| v.eq_ignore_ascii_case(value))
+    }
+
+    /// Top-level component indices, with nested blocks retained as single operands.
+    fn condition_tokens(&self, start: usize, end: usize) -> Option<Vec<usize>> {
+        if self.events[start..end].iter().any(|e| e.recovered) {
+            return None;
+        }
+        let mut top = Vec::new();
+        let mut pos = start;
+        while let Some(i) = self.significant(pos, end) {
+            top.push(i);
+            pos = if self.events[i].kind == "block-open" {
+                let close = self.close(i, end);
+                if close == end {
+                    return None;
+                }
+                close + 1
+            } else {
+                i + 1
+            };
+        }
+        Some(top)
+    }
+
+    fn boolean_condition(&self, top: &[usize], allow_or: bool) -> bool {
+        let Some(&first) = top.first() else {
+            return false;
+        };
         let atom = |i: usize| {
             matches!(
                 self.events[i].token_kind.as_str(),
                 "parenthesis-open" | "function-open"
             )
         };
-        if keyword(first, "not") {
-            return (top.len() == 2 && atom(top[1])).then_some("condition");
+        if self.keyword(first, "not") {
+            return top.len() == 2 && atom(top[1]);
         }
         if !atom(first) || top.len() % 2 == 0 {
-            return None;
+            return false;
         }
-        let operator = top
-            .get(1)
-            .map(|i| if keyword(*i, "and") { "and" } else { "or" });
-        for pair in top[1..].chunks_exact(2) {
-            if !keyword(pair[0], operator.unwrap()) || !atom(pair[1]) {
-                return None;
+        let operator = if top.get(1).is_some_and(|i| self.keyword(*i, "or")) {
+            if !allow_or {
+                return false;
             }
+            "or"
+        } else {
+            "and"
+        };
+        top[1..]
+            .chunks_exact(2)
+            .all(|pair| self.keyword(pair[0], operator) && atom(pair[1]))
+    }
+
+    fn media_query_valid(&self, start: usize, end: usize) -> bool {
+        let Some(top) = self.condition_tokens(start, end) else {
+            return false;
+        };
+        if self.boolean_condition(&top, true) {
+            return true;
         }
-        Some("condition")
+        let mut pos = 0;
+        if top
+            .first()
+            .is_some_and(|i| self.keyword(*i, "not") || self.keyword(*i, "only"))
+        {
+            pos += 1;
+        }
+        let Some(&media_type) = top.get(pos) else {
+            return false;
+        };
+        if self.events[media_type].token_kind != "ident"
+            || ["not", "only", "and", "or", "layer"]
+                .iter()
+                .any(|word| self.keyword(media_type, word))
+        {
+            return false;
+        }
+        pos += 1;
+        pos == top.len()
+            || (self.keyword(top[pos], "and") && self.boolean_condition(&top[pos + 1..], false))
+    }
+
+    fn import_media(&mut self, parent: AstNodeId, start: usize, end: usize) {
+        let media = self.node(parent, "import-media", start, end);
+        let depth = self.events[start].depth;
+        let separators: Vec<_> = (start..end)
+            .filter(|i| self.events[*i].depth == depth && self.events[*i].token_kind == "comma")
+            .chain(std::iter::once(end))
+            .collect();
+        let mut query_start = start;
+        for query_end in separators {
+            let valid = self.media_query_valid(query_start, query_end);
+            let anchor = query_start.min(self.events.len() - 1);
+            let query = self.node(media, "media-query", anchor, query_end);
+            if query_start == query_end {
+                // Empty entries are invalid, with a zero-width diagnostic range.
+                // At EOF the preceding event is the final comma.
+                let event = &self.events[anchor];
+                let extra = if query_start == self.events.len() {
+                    event.source_range.byte_length
+                } else {
+                    0
+                };
+                self.b.semantics.ranges.insert(
+                    query,
+                    CemTreeRange {
+                        line: event.source_range.start.line,
+                        column: event.source_range.start.column + extra as u32,
+                        offset: event.source_range.start.byte_offset + extra,
+                        length: 0,
+                    },
+                );
+            }
+            self.attr(query, "syntax-valid", if valid { "true" } else { "false" });
+            self.components(query, query_start, query_end);
+            query_start = query_end + 1;
+        }
     }
 
     fn components(&mut self, parent: AstNodeId, mut pos: usize, end: usize) {

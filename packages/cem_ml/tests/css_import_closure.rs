@@ -669,3 +669,48 @@ fn css_import_invalid_supports_response_fails_before_attaching_dependencies() {
     assert_eq!(c.received_bytes(), 0);
     assert!(c.next_import().is_err());
 }
+
+#[test]
+fn css_import_media_recovery_retains_downloaded_sheet_and_valid_siblings() {
+    let mut c = closure(
+        "@import 'a.css';",
+        CssImportLimits::default(),
+        AbortSignal::new(),
+    );
+    let request = c.next_import().unwrap().unwrap();
+    c.complete_response(
+        request.id,
+        response(b"@import 'child.css' &bad, screen;", Some("text/css")),
+        &CssImportResponsePolicy::default(),
+    )
+    .unwrap();
+    let child = c.next_import().unwrap().unwrap();
+    assert_eq!(
+        child.resolution.resolved_url,
+        "https://example.test/cdn/child.css"
+    );
+    let retained = &c.sheets()[1].resources.tree;
+    let queries: Vec<_> = (0..retained.ast().nodes.len() as u32)
+        .filter_map(|id| retained.node(id))
+        .filter(|node| {
+            node.name
+                .as_ref()
+                .is_some_and(|name| name.local_name == "media-query")
+        })
+        .collect();
+    assert_eq!(queries.len(), 2);
+    for (query, expected) in queries.iter().zip(["false", "true"]) {
+        assert!(query
+            .attributes
+            .iter()
+            .filter_map(|id| retained.node(*id))
+            .any(|attr| attr
+                .name
+                .as_ref()
+                .is_some_and(|name| name.local_name == "syntax-valid")
+                && attr.value == expected));
+    }
+    c.complete_import(child.id, tree("a {}"), &child.resolution.resolved_url)
+        .unwrap();
+    assert_eq!(c.state(), CssImportState::Ready);
+}

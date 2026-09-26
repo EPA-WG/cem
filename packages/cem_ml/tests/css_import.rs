@@ -332,3 +332,87 @@ fn css_import_supports_preserves_form_tokens_and_future_compatible_queries() {
         assert_eq!(attr(&tree, import, "media").as_deref(), Some("screen"));
     }
 }
+
+#[test]
+fn css_import_media_checks_outer_grammar_without_evaluating_features() {
+    for (query, valid) in [
+        ("screen", true),
+        ("not print", true),
+        ("ONLY screen", true),
+        ("screen and (color)", true),
+        ("screen and not (color)", true),
+        ("(400px < width <= 1000px)", true),
+        ("not (hover)", true),
+        ("(color) or (hover)", true),
+        ("screen and ((color) or (hover))", true),
+        (r"s\63 reen a\6e d (color)", true),
+        ("unknown-medium", true),
+        ("not unknown-medium", true),
+        ("future-feature(a, b)", true),
+        ("(future syntax; !)", true),
+        ("()", true),
+        ("screen or (color)", false),
+        ("screen and (color) or (hover)", false),
+        ("(color) and (hover) or (grid)", false),
+        ("not (color) and (hover)", false),
+        ("only", false),
+        ("not", false),
+        ("and", false),
+        ("or", false),
+        ("layer", false),
+        ("only (color)", false),
+        ("not only screen", false),
+        ("screen and", false),
+        ("screen print", false),
+        ("&bad", false),
+        ("(background:url(bad url))", false),
+    ] {
+        let css = format!("@import 'theme.css' supports(display:grid) {query};");
+        let tree = import_data(&css, "text/css", "cem", "media.css").unwrap();
+        let nodes = elements(&tree, "media-query");
+        assert_eq!(nodes.len(), 1, "{query}");
+        assert_eq!(
+            attr(&tree, nodes[0], "syntax-valid").as_deref(),
+            Some(if valid { "true" } else { "false" }),
+            "{query}"
+        );
+        let retained: String = tree
+            .node(nodes[0])
+            .unwrap()
+            .children
+            .iter()
+            .map(|id| attr(&tree, *id, "token").unwrap())
+            .collect();
+        assert_eq!(retained, query);
+        let range = tree.node(nodes[0]).unwrap().range;
+        assert_eq!(
+            &css[range.offset as usize..(range.offset + range.length) as usize],
+            query
+        );
+    }
+}
+
+#[test]
+fn css_import_media_recovers_each_list_entry_and_preserves_nested_commas() {
+    let css = "@import 'theme.css' screen, &bad, future(a,b),, print,";
+    let tree = import_data(css, "text/css", "cem", "media.css").unwrap();
+    assert_eq!(elements(&tree, "import-media").len(), 1);
+    let queries = elements(&tree, "media-query");
+    let status: Vec<_> = queries
+        .iter()
+        .map(|id| attr(&tree, *id, "syntax-valid").unwrap())
+        .collect();
+    assert_eq!(status, ["true", "false", "true", "false", "true", "false"]);
+    let last = tree.node(*queries.last().unwrap()).unwrap().range;
+    assert_eq!(last.offset, css.len() as u64);
+    assert_eq!(last.length, 0);
+    let tree = import_data(
+        "@import 'theme.css' /* no media */;",
+        "text/css",
+        "cem",
+        "media.css",
+    )
+    .unwrap();
+    assert!(elements(&tree, "import-media").is_empty());
+    assert!(elements(&tree, "media-query").is_empty());
+}

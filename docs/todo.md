@@ -5773,6 +5773,10 @@ registration identities may reuse an inherited or existing definition.
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+        - [x] Fixture: retain native import media lists with per-query syntax
+              status and source components; recover invalid entries as `not all`
+              without discarding valid siblings, preserve nested commas and
+              unknown features, and verify downloaded-sheet closure retention.
         - [x] Fixture: validate native import supports clauses; retain declaration
               versus condition form and typed components, preserve future-compatible
               feature queries and source ranges, reject malformed boolean syntax,

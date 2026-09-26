@@ -36,7 +36,9 @@
         {element @name="style-attribute" @required-attributes="host-kind" @optional-attributes="host-schema owner-selector source-id byte-offset byte-length" @children="declaration* component-value*"}
         {element @name="style-scope" @required-attributes="scope-kind" @optional-attributes="scope-id host-schema host-selector root-selector shadow-mode layer media condition source-id byte-offset byte-length" @children="rule* declaration*"}
         {element @name="charset" @required-attributes="encoding" @optional-attributes="source-id byte-offset byte-length"}
-        {element @name="import" @required-attributes="href" @optional-attributes="media layer supports source-id byte-offset byte-length" @children="import-layer? import-supports?"}
+        {element @name="import" @required-attributes="href" @optional-attributes="media layer supports source-id byte-offset byte-length" @children="import-layer? import-supports? import-media?"}
+        {element @name="import-media" @optional-attributes="source-id byte-offset byte-length" @children="media-query*"}
+        {element @name="media-query" @required-attributes="syntax-valid" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="import-supports" @required-attributes="condition-form" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="import-layer" @required-attributes="anonymous" @optional-attributes="source-id byte-offset byte-length" @children="layer-segment*"}
         {element @name="layer-segment" @required-attributes="value" @optional-attributes="source-id byte-offset byte-length"}
@@ -80,6 +82,7 @@
         {attribute @name="name" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="important" @type="schema:boolean"}
+        {attribute @name="syntax-valid" @type="schema:boolean"}
         {attribute @name="condition-form" @type="schema:string" @values="declaration condition"}
         {attribute @name="anonymous" @type="schema:boolean"}
         {attribute @name="has-block" @type="schema:boolean"}

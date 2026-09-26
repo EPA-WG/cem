@@ -264,10 +264,10 @@ policy and cannot silently be replaced by another mapped URL. Default bounds are
 loader/validation failures make the closure terminal; stale/duplicate delivery
 IDs are rejected without consuming a different outstanding request.
 
-`Ready` describes a complete import graph only. It does not authorize installation
-or prove that media-query grammar is valid. Native byte delivery now
-enforces MIME/integrity/size limits as described below.
-Import condition validation, resource rewriting, scoped emission and browser/worker
+`Ready` describes a complete import graph only. It does not authorize installation.
+The shared CSS import boundary validates condition structure as described below;
+feature evaluation remains with the browser. Native byte delivery enforces
+MIME/integrity/size limits. Resource rewriting, scoped emission and browser/worker
 loader and ownership integration remain pending. Resource URL references are resolved but not fetched by this
 state machine. No browser `@import` fallback is introduced.
 
@@ -282,7 +282,7 @@ This follows the [CSS cascade import placement rules](https://www.w3.org/TR/css-
 Misplaced imports produce `cem.css.import_placement_invalid`. A delivered sheet
 with misplaced imports fails the closure before attaching the sheet or queueing
 its dependencies. Unknown/unsupported rules conservatively end the prefix;
-Media-query grammar validation remains pending.
+Condition structure is checked at the shared CSS import boundary.
 
 ## Import layer clauses: implemented natively
 
@@ -301,8 +301,8 @@ The existing `layer` attribute retains authored text for control metadata.
 Absence of a layer clause remains distinct from an anonymous clause, whose
 identity belongs to its import occurrence rather than its reusable source tree.
 Malformed downloaded clauses fail byte delivery with `cem.css.import_parse_failed`
-before the sheet or its dependencies enter the closure. Media-query grammar,
-condition emission and the complete scoped compiler remain pending.
+before the sheet or its dependencies enter the closure. Condition emission and
+the complete scoped compiler remain pending.
 
 ## Import supports clauses: implemented natively
 
@@ -322,8 +322,29 @@ Balanced parenthesized and functional operands preserve the grammar's
 future-compatible general-enclosed syntax, including unknown feature queries.
 Validation does not determine browser feature support, simplify conditions, or
 interpret property/selector feature semantics. Their original structure must
-survive emission for the browser to evaluate. Media-query validation and scoped
-emission remain pending.
+survive emission for the browser to evaluate. Scoped emission remains pending.
+
+## Import media lists: implemented natively
+
+The CSS import boundary splits media lists at top-level commas and checks each
+entry against the outer media-type/boolean grammar. Nested commas remain inside
+their component blocks. Media types with optional `not`/`only`, condition-only
+queries, and the restricted condition after a media type are distinguished.
+Unknown types, features and future-compatible enclosed syntax remain unevaluated;
+this is structural validation, not a browser capability or viewport check.
+
+A `css:import-media` child contains ordered `css:media-query` children with
+`syntax-valid` boolean attributes and retained component values. Each preserves
+its authored tokens and source range, including zero-width ranges for empty
+entries. An omitted/empty entire media list has no `import-media` child and is
+unconditional. Invalid entries retain their source for diagnostics; the emitter
+**must replace each `syntax-valid="false"` entry with `not all`**, preserving valid
+siblings and list order, following the
+[media-query recovery rules](https://www.w3.org/TR/mediaqueries-5/#error-handling).
+The raw import `media` attribute is control metadata, not normalized output.
+Existing hard stylesheet parse errors and import bounds still reject the source.
+The closure retains imported sheets without evaluating these conditions; native
+scoped emission and browser installation remain pending.
 
 ## Shared-resolver byte delivery: implemented natively
 
