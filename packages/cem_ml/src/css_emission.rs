@@ -3,8 +3,8 @@
 //! user-constructed token attributes. No CSS is reparsed downstream.
 mod declarations;
 pub use declarations::{
-    emit_css_rule_declarations, emit_css_rule_declarations_with_resources, CssEmittedDeclaration,
-    CssRuleDeclarations,
+    emit_css_rule_declarations, emit_css_rule_declarations_with_resources,
+    emit_css_rule_declarations_with_symbols, CssEmittedDeclaration, CssRuleDeclarations,
 };
 mod animation_names;
 mod keyframes;
@@ -15,7 +15,10 @@ pub use keyframes::{
     CssKeyframesRule,
 };
 mod subtree;
-pub use subtree::{emit_css_rule_subtree, CssRuleSubtreeEmission, CssSubtreeFragment};
+pub use subtree::{
+    emit_css_rule_subtree, emit_css_rule_subtree_with_symbols, CssRuleSubtreeEmission,
+    CssSubtreeFragment,
+};
 
 mod grouping;
 pub use grouping::{

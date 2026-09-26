@@ -184,8 +184,8 @@ fn browser_fixture_emits_scoped_native_nesting() {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
         }
     }
-    // Compose native definition/name-value helpers. Whole-stylesheet symbol
-    // collection and general declaration integration remain separate work.
+    // Compose native definitions and reference subtrees. Whole-stylesheet
+    // symbol collection remains separate work.
     for (file, source) in [
         (
             "keyframes",
@@ -221,47 +221,24 @@ fn browser_fixture_emits_scoped_native_nesting() {
         } else {
             cem_ml::transform_template::transform_template_encode_css_string(&definition.name)
         };
-        let authored_names = plan(&format!(".card {{{property}:{authored_value}}}"));
-        let declaration = authored_names
-            .tree
-            .node(first_rule(&authored_names))
-            .unwrap()
-            .children
-            .iter()
-            .copied()
-            .find(|id| {
-                authored_names
-                    .tree
-                    .node(*id)
-                    .unwrap()
-                    .name
-                    .as_ref()
-                    .is_some_and(|n| n.local_name == "declaration")
-            })
-            .unwrap();
+        let timing = if shorthand {
+            ""
+        } else {
+            ";animation-duration:1s;animation-timing-function:linear;animation-play-state:paused"
+        };
+        let reference_plan = plan(&format!(".card {{{property}:{authored_value}{timing}}}"));
         let names = std::collections::BTreeMap::from([(
             definition.name.clone(),
             definition.scoped_name.clone(),
         )]);
-        let value = cem_ml::css_emission::emit_css_animation_names(
-            &authored_names.tree,
-            declaration,
-            &names,
-        )
-        .unwrap()
-        .value
-        .unwrap();
-        let reference_plan = plan(&if shorthand {
-            format!(".card {{animation:{value}}}")
-        } else {
-            format!(".card {{animation-name:{value}; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}")
-        });
-        let references = emit_css_rule_subtree(
+        let references = cem_ml::css_emission::emit_css_rule_subtree_with_symbols(
             &reference_plan,
             first_rule(&reference_plan),
             CssRuleMode::Declaration,
+            &names,
         )
         .unwrap();
+        assert!(references.diagnostics.is_empty());
         let scope = emit_css_scope_wrapper(&CssManagedScope::Private {
             tag: "cem-fixture".into(),
             context: None,
@@ -308,4 +285,61 @@ fn container_composition_carries_parent_specificity_and_declaration_order() {
         result.diagnostics[0].code,
         "cem.scoped_css.specificity_unsupported"
     );
+}
+
+#[test]
+fn subtree_rewrites_animation_symbols_across_nested_declaration_runs() {
+    let plan = plan(
+        r#"@media all {.card {animation:pulse 1s linear; background:url(icon.svg); @supports(display:grid) {animation-name:pulse, external; &.active {animation-name:"pulse"} animation-name:var(--motion);} animation:var(--motion) !important; --animation:pulse; animation:1s linear linear;}}"#,
+    );
+    let names = std::collections::BTreeMap::from([
+        ("pulse".into(), "pulse-owner".into()),
+        ("linear".into(), "linear-owner".into()),
+    ]);
+    let result = cem_ml::css_emission::emit_css_rule_subtree_with_symbols(
+        &plan,
+        first_rule(&plan),
+        CssRuleMode::Instance,
+        &names,
+    )
+    .unwrap();
+    assert_eq!(result.css(), "@media all {:scope .card {animation:\"pulse-owner\" 1s linear;background:url(\"https://example.test/styles/icon.svg\");@supports (display:grid) {animation-name:\"pulse-owner\", external;&.active {animation-name:\"pulse-owner\";}}--animation:pulse;animation:1s linear \"linear-owner\";}}");
+    assert_eq!(
+        result
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect::<Vec<_>>(),
+        [
+            "cem.scoped_css.important_unsupported",
+            "cem.scoped_css.animation_name_dynamic_unsupported",
+        ]
+    );
+    assert!(result
+        .fragments
+        .iter()
+        .all(|f| f.source.origin().is_some() && f.range.length > 0));
+    let declaration = result
+        .fragments
+        .iter()
+        .find(|f| f.text.starts_with("animation:"))
+        .unwrap();
+    assert!(plan
+        .tree
+        .node(declaration.node_id)
+        .unwrap()
+        .name
+        .as_ref()
+        .is_some_and(|n| n.local_name == "declaration"));
+    // The resource plan and retained names are reusable in another ownership context.
+    let other = std::collections::BTreeMap::from([("pulse".into(), "pulse-other".into())]);
+    let result = cem_ml::css_emission::emit_css_rule_subtree_with_symbols(
+        &plan,
+        first_rule(&plan),
+        CssRuleMode::Declaration,
+        &other,
+    )
+    .unwrap();
+    assert!(result.css().contains("animation:\"pulse-other\" 1s linear"));
+    assert!(result.css().contains("animation:1s linear linear;"));
 }

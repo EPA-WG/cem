@@ -5938,10 +5938,16 @@ registration identities may reuse an inherited or existing definition.
               four Chromium animation cases and lint (existing warnings) pass.
               Initial timing functions: cubic-bezier() and steps(); calc(),
               linear() and dynamic substitutions remain unsupported.
-        - [ ] Fixture: apply native animation symbol maps during declaration
+        - [x] Fixture: apply native animation symbol maps during declaration
               and nested-subtree emission, preserving declaration suppression,
               resource rewriting, order and source provenance. Replace browser
               fixture value reconstruction with direct subtree integration.
+              Focused native suites, Nx WASM/browser gate and lint pass.
+        - [ ] Fixture: assemble one retained stylesheet with a caller-owned
+              keyframe suffix, collecting forward references before emission,
+              preserving duplicate-definition order and conditional groups,
+              and diagnosing unsupported constructs. Keep import-closure symbol
+              ownership and browser installation pending.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

@@ -918,9 +918,9 @@ renamed; quoted strings with the same spelling remain symbol references.
 Dynamic name expressions and unsupported lists produce diagnostics without a
 partial value. Missing typed slots fail without reparsing declaration text.
 The helper emits a value fragment; ordinary declaration policy still applies.
-General declaration/subtree integration and closure namespace ownership remain
-pending. Browser fixtures now resolve original
-longhand names through the same map used to emit their keyframe definitions.
+The integrated declaration/subtree path below uses these slots. Closure
+namespace ownership remains pending. Browser fixtures resolve original names
+through the same map used to emit their keyframe definitions.
 
 ## Static animation shorthand references
 
@@ -941,3 +941,20 @@ custom property alone cannot prove which slot it fills. This restriction does
 not establish a dynamic-name authoring contract. Browser coverage verifies that
 the rewritten second `linear` selects the scoped definition and retains linear
 midpoint interpolation.
+
+## Animation references in native rule subtrees
+
+`emit_css_rule_declarations_with_symbols` and
+`emit_css_rule_subtree_with_symbols` accept a caller-owned native symbol map.
+They apply name rewriting in ordinary and nested grouping declarations, while
+preserving declaration order, URL resolution, source provenance and existing
+selector policies. Important/recovered declaration suppression runs before
+animation rewriting; unsupported animation values diagnose without suppressing
+unrelated declarations. Custom-property contents retain their authored tokens.
+
+The resource plan can be reused with different maps for different ownership
+contexts. The older fragment APIs still leave names authored when no map is
+supplied; the symbol-aware path validates even an empty map. Browser animation
+fixtures now pass original source declarations directly through this path,
+without reconstructing and reimporting emitted value fragments. Symbol
+collection, complete stylesheet/closure assembly and installation remain pending.

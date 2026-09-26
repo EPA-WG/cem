@@ -1,5 +1,7 @@
 //! Direct declaration fragments. Resource URLs and nested rules still require
 //! full managed compilation; these fragments are not installable stylesheets.
+use std::collections::BTreeMap;
+
 use super::{
     components, components_with, diagnostic, resources::ResourceRewriter, selectors::ident,
     CssEmissionDiagnostic,
@@ -40,7 +42,7 @@ pub fn emit_css_rule_declarations(
     tree: &RetainedCemTree,
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
-    emit_declarations(tree, rule, None, DeclarationContext::Style)
+    emit_declarations(tree, rule, None, DeclarationContext::Style, None)
 }
 
 /// Emit explicit external URLs using a context-specific resolution plan. Local
@@ -53,18 +55,40 @@ pub fn emit_css_rule_declarations_with_resources(
     plan: &CssResourcePlan,
     rule: AstNodeId,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    emit_style_declarations(plan, rule, None)
+}
+
+/// Emit resolved declarations with a compiler-owned original-to-scoped animation
+/// symbol map. Dynamic/unsupported animation references are suppressed with source
+/// diagnostics; !important and recovery policy applies before name rewriting.
+/// An empty map preserves external static names while still checking typed slots.
+pub fn emit_css_rule_declarations_with_symbols(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    names: &BTreeMap<String, String>,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
+    emit_style_declarations(plan, rule, Some(names))
+}
+
+pub(super) fn emit_style_declarations(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    names: Option<&BTreeMap<String, String>>,
+) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let resources = ResourceRewriter::new(plan)?;
     emit_declarations(
         &plan.tree,
         rule,
         Some(&resources),
         DeclarationContext::Style,
+        names,
     )
 }
 
 pub(super) fn emit_group_declarations(
     plan: &CssResourcePlan,
     container: AstNodeId,
+    names: Option<&BTreeMap<String, String>>,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let resources = ResourceRewriter::new(plan)?;
     emit_declarations(
@@ -72,6 +96,7 @@ pub(super) fn emit_group_declarations(
         container,
         Some(&resources),
         DeclarationContext::Group,
+        names,
     )
 }
 
@@ -85,6 +110,7 @@ pub(super) fn emit_keyframe_declarations(
         rule,
         Some(&resources),
         DeclarationContext::Keyframe,
+        None,
     )
 }
 
@@ -100,6 +126,7 @@ fn emit_declarations(
     rule: AstNodeId,
     resources: Option<&ResourceRewriter<'_>>,
     context: DeclarationContext,
+    names: Option<&BTreeMap<String, String>>,
 ) -> Result<CssRuleDeclarations, CssEmissionDiagnostic> {
     let group = matches!(context, DeclarationContext::Group);
     let valid = if group {
@@ -175,16 +202,35 @@ fn emit_declarations(
             ));
             continue;
         }
-        let value = match resources {
-            None => components(tree, id).map_err(|_| invalid(tree, id))?,
-            Some(resources) => {
-                match components_with(tree, id, |child, token| resources.token(child, token)) {
-                    Ok(value) => value,
-                    Err(error) if error.code == "cem.scoped_css.resource_resolution_failed" => {
-                        result.diagnostics.push(error);
-                        continue;
+        let animation_names = names.filter(|_| {
+            [
+                "animation-name",
+                "-webkit-animation-name",
+                "animation",
+                "-webkit-animation",
+            ]
+            .iter()
+            .any(|property| name.eq_ignore_ascii_case(property))
+        });
+        let value = if let Some(names) = animation_names {
+            let emitted = super::emit_css_animation_names(tree, id, names)?;
+            result.diagnostics.extend(emitted.diagnostics);
+            let Some(value) = emitted.value else {
+                continue;
+            };
+            value
+        } else {
+            match resources {
+                None => components(tree, id).map_err(|_| invalid(tree, id))?,
+                Some(resources) => {
+                    match components_with(tree, id, |child, token| resources.token(child, token)) {
+                        Ok(value) => value,
+                        Err(error) if error.code == "cem.scoped_css.resource_resolution_failed" => {
+                            result.diagnostics.push(error);
+                            continue;
+                        }
+                        Err(error) => return Err(error),
                     }
-                    Err(error) => return Err(error),
                 }
             }
         };

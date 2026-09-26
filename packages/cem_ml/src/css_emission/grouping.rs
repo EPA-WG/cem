@@ -1,5 +1,7 @@
 //! Conditional grouping fragments. Child rules keep their inherited context and
 //! original positions; recursive selector/keyframe compilation remains explicit.
+use std::collections::BTreeMap;
+
 use super::{
     components, declarations::emit_group_declarations, diagnostic, media_condition,
     rules::ordered_body, CssEmissionDiagnostic, CssRuleBodyItem,
@@ -43,6 +45,15 @@ pub fn emit_css_grouping_rule(
     plan: &CssResourcePlan,
     rule: AstNodeId,
     context: CssGroupingContext,
+) -> Result<CssGroupingRuleEmission, CssEmissionDiagnostic> {
+    emit_grouping_rule_with_symbols(plan, rule, context, None)
+}
+
+pub(super) fn emit_grouping_rule_with_symbols(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    context: CssGroupingContext,
+    names: Option<&BTreeMap<String, String>>,
 ) -> Result<CssGroupingRuleEmission, CssEmissionDiagnostic> {
     let tree = &plan.tree;
     if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("at") {
@@ -147,7 +158,7 @@ pub fn emit_css_grouping_rule(
         }
         (text, Vec::new())
     };
-    let mut declarations = emit_group_declarations(plan, container)?;
+    let mut declarations = emit_group_declarations(plan, container, names)?;
     diagnostics.append(&mut declarations.diagnostics);
     if context == CssGroupingContext::Stylesheet {
         for declaration in declarations.declarations.drain(..) {

@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    emit_css_declaration_selectors, emit_css_instance_selectors, emit_css_nested_selectors,
-    emit_css_rule_declarations_with_resources, selectors::ident, CssEmissionDiagnostic,
-    CssEmittedDeclaration, CssEmittedSelector,
+    declarations::emit_style_declarations, emit_css_declaration_selectors,
+    emit_css_instance_selectors, emit_css_nested_selectors, selectors::ident,
+    CssEmissionDiagnostic, CssEmittedDeclaration, CssEmittedSelector,
 };
 use crate::{
     css_resources::CssResourcePlan,
@@ -66,6 +66,15 @@ pub fn emit_css_style_rule(
     rule: AstNodeId,
     mode: CssRuleMode,
 ) -> Result<CssStyleRuleEmission, CssEmissionDiagnostic> {
+    emit_style_rule_with_symbols(plan, rule, mode, None)
+}
+
+pub(super) fn emit_style_rule_with_symbols(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    mode: CssRuleMode,
+    names: Option<&BTreeMap<String, String>>,
+) -> Result<CssStyleRuleEmission, CssEmissionDiagnostic> {
     let selectors = if crate::css_resources::attribute(&plan.tree, rule, "selector-context")
         == Some("nested")
     {
@@ -76,7 +85,7 @@ pub fn emit_css_style_rule(
             CssRuleMode::Instance => emit_css_instance_selectors(&plan.tree, rule)?,
         }
     };
-    let declarations = emit_css_rule_declarations_with_resources(plan, rule)?;
+    let declarations = emit_style_declarations(plan, rule, names)?;
     let mut diagnostics = selectors.diagnostics;
     diagnostics.extend(declarations.diagnostics);
     if selectors.selectors.is_empty() {

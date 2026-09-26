@@ -1,7 +1,9 @@
 //! Compose the supported rule subset, keeping native nesting and declaration runs.
+use std::collections::BTreeMap;
+
 use super::{
-    diagnostic, emit_css_grouping_rule, emit_css_style_rule, CssEmissionDiagnostic,
-    CssGroupingContext, CssRuleBodyItem, CssRuleMode,
+    diagnostic, grouping::emit_grouping_rule_with_symbols, rules::emit_style_rule_with_symbols,
+    CssEmissionDiagnostic, CssGroupingContext, CssRuleBodyItem, CssRuleMode,
 };
 use crate::{
     css_resources::{attribute, named, CssResourcePlan},
@@ -43,6 +45,28 @@ pub fn emit_css_rule_subtree(
     rule: AstNodeId,
     mode: CssRuleMode,
 ) -> Result<CssRuleSubtreeEmission, CssEmissionDiagnostic> {
+    emit_subtree(plan, rule, mode, None)
+}
+
+/// Compose a supported subtree with animation-reference rewriting throughout
+/// its nested declarations. The caller owns the complete symbol map; definition
+/// collection, namespace ownership and full stylesheet compilation remain separate.
+/// The resource plan is reusable with another map without changing its retained tree.
+pub fn emit_css_rule_subtree_with_symbols(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    mode: CssRuleMode,
+    names: &BTreeMap<String, String>,
+) -> Result<CssRuleSubtreeEmission, CssEmissionDiagnostic> {
+    emit_subtree(plan, rule, mode, Some(names))
+}
+
+fn emit_subtree(
+    plan: &CssResourcePlan,
+    rule: AstNodeId,
+    mode: CssRuleMode,
+    names: Option<&BTreeMap<String, String>>,
+) -> Result<CssRuleSubtreeEmission, CssEmissionDiagnostic> {
     let tree = &plan.tree;
     let parent = tree.node(rule).and_then(|n| n.parent);
     if !named(tree, rule, "rule")
@@ -61,6 +85,7 @@ pub fn emit_css_rule_subtree(
         rule,
         mode,
         CssGroupingContext::Stylesheet,
+        names,
         0,
         &mut output,
     )?;
@@ -72,6 +97,7 @@ fn compose(
     id: AstNodeId,
     mode: CssRuleMode,
     context: CssGroupingContext,
+    names: Option<&BTreeMap<String, String>>,
     depth: usize,
     output: &mut CssRuleSubtreeEmission,
 ) -> Result<(), CssEmissionDiagnostic> {
@@ -86,7 +112,7 @@ fn compose(
     }
     let (opening, body, child_context) =
         if named(tree, id, "rule") && attribute(tree, id, "kind") == Some("style") {
-            let result = emit_css_style_rule(plan, id, mode)?;
+            let result = emit_style_rule_with_symbols(plan, id, mode, names)?;
             append_diagnostics(output, result.diagnostics);
             let Some(rule) = result.rule else {
                 return Ok(());
@@ -112,7 +138,7 @@ fn compose(
                     || n.eq_ignore_ascii_case("container")
             })
         {
-            let result = emit_css_grouping_rule(plan, id, context)?;
+            let result = emit_grouping_rule_with_symbols(plan, id, context, names)?;
             append_diagnostics(output, result.diagnostics);
             let Some(rule) = result.rule else {
                 return Ok(());
@@ -140,9 +166,15 @@ fn compose(
                 source: d.source,
                 range: d.range,
             }),
-            CssRuleBodyItem::Deferred(d) => {
-                compose(plan, d.node_id, mode, child_context, depth + 1, output)?
-            }
+            CssRuleBodyItem::Deferred(d) => compose(
+                plan,
+                d.node_id,
+                mode,
+                child_context,
+                names,
+                depth + 1,
+                output,
+            )?,
         }
     }
     if output.fragments.len() == start + 1 {
