@@ -3,6 +3,7 @@
 import { installCemElementRuntime, type CemElementRuntime } from '../src/index.js';
 import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
+import { themeMode } from './theme.js';
 import { definePreview } from '@storybook/web-components-vite';
 import { treeProcessingTimingOptions } from './tree-processing-timing.js';
 import { startReadinessTiming } from './readiness-timing.js';
@@ -58,6 +59,14 @@ function withSearch(input: URL, name: string, value: string): string {
 }
 
 const preview = definePreview({
+    globalTypes: { cemTheme: { description: 'CEM theme mode' } },
+    initialGlobals: { cemTheme: 'native' },
+    decorators: [(story, context) => {
+        // Public theme selectors are nested below :root, so the preview body
+        // owns the mode rather than the document element itself.
+        document.body.setAttribute('data-theme', `cem-theme-${themeMode(context.globals.cemTheme)}`);
+        return story();
+    }],
     parameters: {
         controls: {
             disable: true,

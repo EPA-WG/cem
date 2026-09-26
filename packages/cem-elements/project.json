@@ -4,6 +4,14 @@
     "sourceRoot": "packages/cem-elements/src",
     "projectType": "library",
     "targets": {
+        "verify:theme-switcher": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "options": {
+                "command": "node tools/scripts/verify-storybook-theme-switcher.mjs",
+                "cwd": "{workspaceRoot}"
+            }
+        },
         "diagnose:stock-startup": {
             "executor": "nx:run-commands",
             "cache": false,
@@ -90,6 +98,7 @@
         },
         "storybook": {
             "executor": "nx:run-commands",
+            "dependsOn": ["build", { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }],
             "options": {
                 "command": "yarn storybook dev --config-dir packages/cem-elements/.storybook --host 127.0.0.1 --port 4400 --no-open",
                 "cwd": "{workspaceRoot}"
@@ -102,13 +111,15 @@
         },
         "build-storybook": {
             "executor": "nx:run-commands",
-            "dependsOn": [{ "projects": ["@epa-wg/cem-demo-element"], "target": "build" }],
+            "dependsOn": ["build", { "projects": ["@epa-wg/cem-theme"], "target": "build:css" }, { "projects": ["@epa-wg/cem-demo-element"], "target": "build" }],
             "outputs": ["{projectRoot}/storybook-static"],
             "options": {
                 "command": "yarn storybook build --config-dir packages/cem-elements/.storybook --output-dir packages/cem-elements/storybook-static",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{projectRoot}/dist/**/*",
+                "{workspaceRoot}/packages/cem-theme/dist/**/*",
                 "{projectRoot}/.storybook/**/*",
                 "{projectRoot}/src/**/*.ts",
                 "{workspaceRoot}/packages/custom-element/demo/http-request.html",

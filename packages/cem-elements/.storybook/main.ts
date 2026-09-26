@@ -5,6 +5,11 @@ import { defineMain } from '@storybook/web-components-vite/node';
 import { mergeConfig } from 'vite';
 
 const config = defineMain({
+    staticDirs: [
+        { from: '../dist', to: '/cem-manager-assets/runtime' },
+        { from: '../../cem-theme/dist', to: '/cem-manager-assets/theme' },
+        { from: '../../cem-components/src/components', to: '/cem-manager-assets/components' },
+    ],
     stories: [
         '../src/**/!(*.edge-ssr).stories.@(js|jsx|mjs|ts|tsx)',
         '../../cem-components/src/components/**/*.stories.ts',
@@ -18,6 +23,8 @@ const config = defineMain({
         disableTelemetry: true,
     },
     viteFinal: async (config) => mergeConfig(config, {
+        // CEM uses native @scope and light-dark(); preserve the public CSS.
+        build: { cssTarget: 'esnext' },
         plugins: [{
             name: 'cem-demo-static-resources',
             configureServer(server) {

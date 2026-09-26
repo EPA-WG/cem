@@ -5695,18 +5695,29 @@ registration identities may reuse an inherited or existing definition.
 
 ### Remaining declarative UI migration
 
-- [ ] Add a Storybook-owned accessible theme switcher composed from production
+- [x] Add a Storybook-owned accessible theme switcher composed from production
       `cem-select`, with exact five-mode global switching on the preview root and
       per-mode interaction/token-resolution evidence. Stories must not own or
       persist global theme state.
     - [x] Audit the shared Storybook host and production select contract; record
           [placement and integration design](storybook-theme-switcher-design.md).
-    - [ ] Decide switcher placement: manager toolbar (recommended, preserves
+    - [x] Decide switcher placement: manager toolbar (recommended, preserves
           canvas focus/DOM, requires a separate manager runtime) or preview
           toolbar (reuses runtime, adds a preview focus boundary).
-    - [ ] Fixture: verify all five choices, global/root synchronization,
+          Accepted: manager toolbar.
+    - [x] Fixture: verify all five choices, global/root synchronization,
           keyboard access, focus and resolved theme tokens in the chosen host;
           retain production select interactions and story-navigation behavior.
+    - [x] Fixture: serve the built Storybook under a nested URL and repeat the
+          manager/global/token checks. Preserve modern public CSS syntax in
+          the Storybook build; default CSS lowering produced invalid concatenated
+          light-dark palette values in the first static run.
+    - Completed 2026-09-25: manager popover uses production `cem-select` and
+      one Storybook global; preview body owns the public theme selector.
+      Development and nested-path static fixtures pass all five modes,
+      keyboard/focus, global synchronization and token-resolution checks.
+      Shared preview regression passes 258/258; package lint and declarative
+      gate pass. See the [implementation evidence](storybook-theme-switcher-design.md#verification-and-repeatable-commands).
 - [ ] Migrate every legacy `cem-components` member into its own
       `src/components/<cem-tag>/<cem-tag>.xhtml` folder with embedded,
       once-per-declaration scope-contract CEM-token `<style>` and colocated
