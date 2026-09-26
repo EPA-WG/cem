@@ -5706,6 +5706,17 @@ registration identities may reuse an inherited or existing definition.
     - [x] Fixture: verify the native CSS resolver purpose selects the closest
           mapping, preserves scope/key specificity and metadata, falls back to
           outer maps, and retains ancestor blocks/policies and non-CSS behavior.
+    - [x] Audit the retained CSS import boundary: CSS registration and token AST
+          exist, but shared retained-tree import and template style extraction
+          do not yet produce a CSS-namespace tree.
+    - [ ] Decide the runtime CSS tree representation: use the existing semantic
+          CSS schema (recommended), including imports in `style-block`, or add
+          an interim token-oriented vocabulary. See the
+          [retained-tree proposal](scoped-css-module-maps.md#retained-tree-boundary-decision-required).
+    - [ ] Fixture: import standalone CSS and adopted style blocks into retained
+          trees; assert CSS expanded names, semantic structure, lexical/source
+          retention, quoted/unquoted URLs, escapes, comments, empty input and
+          recovery before template or browser integration.
     - [ ] Register the CSS content type (`text/css`) as its default namespace so
           template DOM adoption recognizes `<style>` as CSS-namespace content
           and invokes the shared CSS content-type parser to produce a retained
