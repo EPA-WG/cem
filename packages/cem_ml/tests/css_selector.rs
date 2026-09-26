@@ -556,6 +556,7 @@ fn element_tree_owner_rejects_lifecycle_inputs_without_an_element_view() {
 fn stylesheet_nth_support_does_not_expand_query_capabilities() {
     for selector in [
         ":nth-child(odd)",
+        ":nth-child(1 of .item)",
         ":nth-last-child(2n)",
         ":nth-of-type(1)",
         ":nth-last-of-type(-n+2)",

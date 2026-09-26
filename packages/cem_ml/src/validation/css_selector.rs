@@ -1171,8 +1171,21 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 name.as_str(),
                 "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
             );
+        let nth_of = if is_nth && matches!(name.as_str(), "nth-child" | "nth-last-child") {
+            (start + 2..close).find(|&index| {
+                let token = &self.tokens[index];
+                token.depth == next.depth + 1
+                    && token.token_kind == "ident"
+                    && token
+                        .value
+                        .as_deref()
+                        .is_some_and(|value| value.eq_ignore_ascii_case("of"))
+            })
+        } else {
+            None
+        };
         let nth = if is_nth {
-            let tokens = &self.tokens[start + 2..close];
+            let tokens = &self.tokens[start + 2..nth_of.unwrap_or(close)];
             // cssparser saturates oversized integers. Reject them before parsing
             // so canonical coefficients cannot change the authored expression.
             let fits = tokens
@@ -1205,7 +1218,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                         colon.source_range,
                         self.tokens[close].source_range,
                     )),
-                    "Structural pseudo-class requires bounded An+B without an of-selector list",
+                    "Structural pseudo-class requires bounded An+B",
                     Some(name.clone()),
                 );
             }
@@ -1230,7 +1243,9 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             }
             parsed.map(Box::new)
         } else if is_nth {
-            None
+            nth_of
+                .and_then(|index| self.parse_selector_list(index + 1, close, false))
+                .map(Box::new)
         } else {
             let range = Some(CssSelectorSourceRange::covering(
                 colon.source_range,
@@ -1495,8 +1510,12 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
                         })
                         .unwrap_or((0, 1, 0));
                     specificity.0 += nested.0;
-                    // Only the stylesheet profile parses functional host-alias arguments.
-                    if matches!(name.as_str(), "host" | "global") && selectors.is_some() {
+                    // Host aliases and filtered child indices retain their own pseudo-class weight.
+                    if matches!(
+                        name.as_str(),
+                        "host" | "global" | "nth-child" | "nth-last-child"
+                    ) && selectors.is_some()
+                    {
                         specificity.1 += 1;
                     }
                     specificity.1 += nested.1;

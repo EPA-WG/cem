@@ -5980,10 +5980,12 @@ registration identities may reuse an inherited or existing definition.
               Focused native/schema suites, lint and Nx WASM/browser gate pass.
               Chromium checks all four forms; coefficients reject saturation
               outside the supported magnitude of 2,147,483,647.
-        - [ ] Fixture: extend `:nth-child()` and `:nth-last-child()` with
+        - [x] Fixture: extend `:nth-child()` and `:nth-last-child()` with
               `of <selector-list>`, retaining the filter tree and adding its
               maximum specificity to the pseudo-class weight. Cover filtering,
               nesting, invalid lists and policy limits before browser cutover.
+              Completed: 84 native tests, Nx lint and WASM/browser checks pass;
+              Chromium verifies both filtered forms, including a parent reference.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

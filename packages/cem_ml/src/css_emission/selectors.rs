@@ -329,7 +329,10 @@ fn emit(
                 name,
                 "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
             ) {
-                if !node.children.is_empty() {
+                if node.children.len() > 1
+                    || (!node.children.is_empty()
+                        && !matches!(name, "nth-child" | "nth-last-child"))
+                {
                     return Err(invalid(tree, id));
                 }
                 let a: i32 = field("nth-a")?.parse().map_err(|_| invalid(tree, id))?;
@@ -337,7 +340,15 @@ fn emit(
                 if a == i32::MIN || b == i32::MIN {
                     return Err(invalid(tree, id));
                 }
-                return Ok(format!(":{name}({a}n{b:+})"));
+                let filter = if let Some(&list) = node.children.first() {
+                    if !named(tree, list, "selector-list") {
+                        return Err(invalid(tree, id));
+                    }
+                    format!(" of {}", emit(tree, list, instance, diagnostics)?)
+                } else {
+                    String::new()
+                };
+                return Ok(format!(":{name}({a}n{b:+}{filter})"));
             }
             if matches!(name, "host" | "root" | "global") {
                 if name != "host" {

@@ -1039,8 +1039,20 @@ and the [An+B grammar](https://www.w3.org/TR/css-syntax-3/#anb-microsyntax).
 The initial profile bounds coefficient magnitudes to 2,147,483,647 and rejects
 larger authored integers before cssparser can saturate them. It accepts odd/even,
 signed coefficients and permitted comments/whitespace. Malformed expressions,
-bare nth pseudo-classes and `of <selector-list>` remain unsupported. Missing
-numeric metadata diagnoses without a text fallback. Authored specificity,
-nesting weight, managed scope and the library ceiling remain enforced.
-Standalone selector-query capabilities are unchanged. Native fixtures and four
-Chromium computed-style checks cover these forms.
+and bare nth pseudo-classes remain unsupported. Missing numeric metadata
+produces a diagnostic without a text fallback.
+
+`:nth-child()` and `:nth-last-child()` also accept `of <selector-list>`.
+The importer retains the filter as a child selector list alongside the numeric
+coefficients; the emitter serializes that tree. Specificity includes the
+pseudo-class weight plus the maximum filter weight, with parent references
+resolved through the existing nesting context. Same-subject filters participate
+in repeated-class, attribute and parent-reference checks. `:where()` retains
+zero weight. Invalid or relative filter lists, pseudo-elements, IDs and filters
+above the declaration specificity ceiling are rejected. The type-indexed nth
+forms still reject `of` filters.
+
+Standalone selector-query capabilities are unchanged. Native fixtures cover
+canonical output, source ranges, escaped keywords, nesting and policy limits.
+Chromium checks all four numeric forms and both filtered child-index forms,
+including a nested filter referencing its parent selector.

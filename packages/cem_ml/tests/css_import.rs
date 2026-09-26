@@ -455,7 +455,7 @@ fn css_import_retains_selector_structure_host_arguments_and_specificity() {
 fn css_import_selector_analysis_keeps_unsupported_forms_without_false_specificity() {
     for selector in [
         "::part(control)",
-        ":nth-child(2n of .item)",
+        ":nth-of-type(2n of .item)",
         "& .child",
         ":host(.a,.b)",
         ":host(.a > .b)",

@@ -157,6 +157,7 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("host", ":host {color:purple; &.active {background-color:orange}}", CssRuleMode::Declaration),
         ("duplicates", ".card {color:green; &.card {color:red} && {color:red}}", CssRuleMode::Declaration),
         ("zero-weight", ".card.active {:where(&) {.label {color:orange}}}", CssRuleMode::Declaration),
+        ("nth-filter", ":nth-child(1 of .pseudo) {color:purple} .card { :nth-last-child(1 of &) {background-color:pink} }", CssRuleMode::Declaration),
         ("nth-structural", ".card {color:black; &:nth-child(odd) {color:orange}} .pseudo:nth-last-child(1) {color:purple} .card:nth-of-type(1) {background-color:pink} .pseudo:nth-last-of-type(1) {background-color:orange}", CssRuleMode::Declaration),
     ];
     let output = std::env::var_os("CEM_CSS_SUBTREE_FIXTURE_DIR").map(std::path::PathBuf::from);
@@ -435,7 +436,7 @@ fn structural_nth_rejects_invalid_out_of_profile_and_untyped_arguments() {
         "1.5n",
         "2 n",
         "n+-1",
-        "2n of .item",
+        "2n of > .item",
         "var(--n)",
         "999999999999",
         "n-999999999999",
@@ -447,6 +448,51 @@ fn structural_nth_rejects_invalid_out_of_profile_and_untyped_arguments() {
         assert!(
             result.css().is_empty() && !result.diagnostics.is_empty(),
             "{argument}"
+        );
+    }
+}
+
+#[test]
+fn child_index_filters_are_retained_and_emitted() {
+    for name in ["nth-child", "nth-last-child"] {
+        for (arg, expected) in [
+            ("odd of .item", "2n+1 of .item"),
+            (
+                "2n OF .item999999999999, span",
+                "2n+0 of .item999999999999, *|span",
+            ),
+            ("1 of :is(.item, .other)", "0n+1 of :is(.item, .other)"),
+            ("1/**/of/**/.item", "0n+1 of .item"),
+            (r"1 \6f f .item", "0n+1 of .item"),
+        ] {
+            let p = plan(&format!(":{name}({arg}) {{color:red}}"));
+            let result =
+                emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+            assert!(
+                result.diagnostics.is_empty(),
+                "{arg}: {:?}",
+                result.diagnostics
+            );
+            assert_eq!(result.css(), format!(":{name}({expected}) {{color:red;}}"));
+            assert!(result.fragments.iter().all(|f| f.source.origin().is_some()));
+        }
+    }
+    for selector in [
+        ":nth-child(1 of)",
+        ":nth-child(1 of , .x)",
+        ":nth-child(1 of .x,)",
+        ":nth-child(1 of > .x)",
+        ":nth-child(1 of ::before)",
+        ":nth-child(1 of #id)",
+        ":nth-child(1 of .a.b)",
+        ":nth-of-type(1 of .x)",
+        ":nth-last-of-type(1 of .x)",
+    ] {
+        let p = plan(&format!("{selector} {{color:red}}"));
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.css().is_empty() && !result.diagnostics.is_empty(),
+            "{selector}"
         );
     }
 }

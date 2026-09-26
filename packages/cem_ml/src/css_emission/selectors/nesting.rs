@@ -167,7 +167,7 @@ fn weight(
         Some("pseudo-class") => match (attribute(tree, id, "name"), node.children.first()) {
             (Some("where"), _) => (0, 0, 0),
             (Some("is" | "not" | "has"), Some(c)) => weight(tree, *c, parent)?,
-            (Some("host" | "global"), Some(c)) => {
+            (Some("host" | "global" | "nth-child" | "nth-last-child"), Some(c)) => {
                 add(tree, id, (0, 1, 0), weight(tree, *c, parent)?)?
             }
             (_, None) => (0, 1, 0),
@@ -213,7 +213,10 @@ fn simple_keys(tree: &RetainedCemTree, id: AstNodeId, parent: &ParentContext) ->
         Some("class" | "attribute") => BTreeSet::from([key(tree, id)]),
         Some("nesting") => parent.keys.clone(),
         Some("pseudo-class")
-            if matches!(attribute(tree, id, "name"), Some("is" | "host" | "global")) =>
+            if matches!(
+                attribute(tree, id, "name"),
+                Some("is" | "host" | "global" | "nth-child" | "nth-last-child")
+            ) =>
         {
             tree.node(id)
                 .into_iter()
@@ -233,7 +236,10 @@ fn parent_intersections(tree: &RetainedCemTree, id: AstNodeId) -> u32 {
     match attribute(tree, id, "kind") {
         Some("nesting") => 1,
         Some("pseudo-class")
-            if matches!(attribute(tree, id, "name"), Some("is" | "host" | "global")) =>
+            if matches!(
+                attribute(tree, id, "name"),
+                Some("is" | "host" | "global" | "nth-child" | "nth-last-child")
+            ) =>
         {
             tree.node(id)
                 .into_iter()

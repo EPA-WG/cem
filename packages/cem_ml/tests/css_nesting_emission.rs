@@ -132,7 +132,10 @@ fn instance_prefix_and_host_normalization_are_applied_at_the_correct_level() {
 fn nested_api_requires_a_nested_rule_and_preserves_unsupported_diagnostics() {
     let tree = import_data(".card {}", "text/css", "cem", "nested.css").unwrap();
     assert!(emit_css_nested_selectors(&tree, rules(&tree)[0], CssRuleMode::Declaration).is_err());
-    let result = emitted(".card { &:nth-child(2n of .item) {} }", CssRuleMode::Declaration);
+    let result = emitted(
+        ".card { &:nth-of-type(2n of .item) {} }",
+        CssRuleMode::Declaration,
+    );
     assert!(result.selectors.is_empty());
     assert_eq!(
         result.diagnostics[0].code,
@@ -205,4 +208,41 @@ fn functional_global_alias_retains_parent_weight_and_subject_intersections() {
         .diagnostics
         .iter()
         .any(|d| d.code == "cem.scoped_css.manufactured_specificity_unsupported"));
+}
+
+#[test]
+fn nth_filters_retain_parent_weight_and_subject_policy() {
+    for (selector, weight) in [
+        (":nth-child(odd of &)", (0, 2, 0)),
+        (":nth-last-child(2 of :where(&), .other)", (0, 2, 0)),
+        (":nth-child(1 of & > span)", (0, 2, 1)),
+        ("&:nth-child(1 of :where(.card))", (0, 2, 0)),
+    ] {
+        let result = emitted(
+            &format!(".card {{ {selector} {{}} }}"),
+            CssRuleMode::Declaration,
+        );
+        assert!(
+            result.diagnostics.is_empty(),
+            "{selector}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.selectors[0].authored_specificity, weight);
+    }
+    for selector in [
+        "&:nth-child(1 of &)",
+        "&:nth-child(1 of .card)",
+        ":nth-child(1 of &.card)",
+    ] {
+        let result = emitted(
+            &format!(".card {{ {selector} {{}} }}"),
+            CssRuleMode::Instance,
+        );
+        assert!(result.selectors.is_empty(), "{selector}");
+    }
+    let result = emitted(
+        ".card { &:nth-child(1 of .other) {} }",
+        CssRuleMode::Declaration,
+    );
+    assert!(result.selectors.is_empty());
 }
