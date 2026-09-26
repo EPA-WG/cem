@@ -5172,7 +5172,7 @@ registration identities may reuse an inherited or existing definition.
           of construction and writable URL-property setters, with specified
           precedence or diagnostics for conflicting `href`, `host`/`hostname`,
           `port`, `search`, and query-entry inputs.
-    - [ ] Cover the complete pure
+    - [x] Cover the complete pure
           [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
           surface with an ordered `stream<record(name, value)>` parameter value:
         - `url:params(init?) -> stream<record(name, value)>` mirrors construction
@@ -5414,9 +5414,25 @@ registration identities may reuse an inherited or existing definition.
               registry-count assertions from 18/76 to 19/81 for the new alias
               and five functions.
               Browser/CLI/SSR parity and parameter registration remain open.
-        - [ ] Register the native parameter operations as url:params* with
+        - [x] Fixture: cover all parameter query functions, initializer forms,
+              exact entry/string types, duplicates, immutable updates, optional
+              values, stable UTF-16 ordering and native/WASM diagnostics.
+        - [x] Register the native parameter operations as url:params* with
               precise types and query fixtures; extend cross-runtime coverage
               and generated implemented reference output.
+              Completed 2026-09-25: all 13 parameter functions resolve through
+              default/imported URL aliases, with precise scalar and entry-stream
+              types and the existing strict native adapter. Eight query fixtures
+              cover constructors, typed pair bindings, every operation, exact
+              types/cardinality, duplicates, UTF-16 order, immutable bound inputs,
+              user-function isolation and complete diagnostic source maps.
+              The WASM query fixture covers every operation and pair bindings;
+              the schema-package implemented reference is generated from the
+              registry. Browser/CLI/SSR parity remains in URL-INTEGRATION below.
+              Validation: package test execution passes 807 tests (nine ignored),
+              package WASM build and Node query fixture pass, and package lint
+              completes with existing warnings. Shared registry/type/evaluator
+              integration required package-wide tests; no workspace-wide task ran.
 
         - [ ] Before CEM-QL crate publication, resolve distribution of the private
               cem-url dependency; Cargo packaging cannot publish this local-only

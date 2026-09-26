@@ -1,6 +1,6 @@
 //! Typed, pure URL parsing and projection into CEM-QL control records.
 //!
-//! No ambient base, resource loading, query registration or document conversion.
+//! No ambient base, resource loading or document conversion.
 //! The pinned Rust parser's remaining file/IDNA limitations are in wishlist.md.
 use std::{collections::BTreeMap, fmt};
 
@@ -124,7 +124,7 @@ fn to_record(url: &Url) -> Item {
     Item::Record(fields)
 }
 
-/// The first registered URL surface; parameter query operations follow separately.
+/// Pure URL and immutable parameter query functions.
 pub const MODULE_URI: &str = "cem:stdlib/url";
 pub const FUNCTIONS: &[super::StdlibFunction] = &[
     super::StdlibFunction::native_range(MODULE_URI, "can_parse", 1, 2, super::Tier::A),
@@ -132,4 +132,17 @@ pub const FUNCTIONS: &[super::StdlibFunction] = &[
     super::StdlibFunction::native_range(MODULE_URI, "href", 1, 2, super::Tier::A),
     super::StdlibFunction::native_range(MODULE_URI, "assemble", 1, 2, super::Tier::A),
     super::StdlibFunction::native(MODULE_URI, "with_parts", 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params", 0, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_size", 1, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_entries", 1, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_keys", 1, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_values", 1, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_get", 2, 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_get_all", 2, 2, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_has", 2, 3, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_append", 3, 3, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_delete", 2, 3, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_set", 3, 3, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_sort", 1, 1, super::Tier::A),
+    super::StdlibFunction::native_range(MODULE_URI, "params_string", 1, 1, super::Tier::A),
 ];

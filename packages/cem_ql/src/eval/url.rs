@@ -2,7 +2,7 @@
 use super::{AtomValue, EvalCtx, Item, ItemStream};
 use crate::{
     ir::IrId,
-    stdlib::{url, url_parts},
+    stdlib::{url, url_params, url_parts},
 };
 use cem_ml::diagnostics::Severity;
 
@@ -27,6 +27,15 @@ pub(super) fn apply(name: &str, args: &[IrId], ctx: &mut EvalCtx<'_>, source: Ir
         .any(|function| function.name == name && function.accepts_arity(args.len()))
     {
         ctx.unknown_function(source, "unknown URL call")
+    } else if name == "params" || name.starts_with("params_") {
+        let arguments = streams
+            .into_iter()
+            .map(|stream| stream.items)
+            .collect::<Vec<_>>();
+        match url_params::call(name, &arguments) {
+            Ok(items) => ItemStream::from_items(items),
+            Err(error) => ctx.raise(source, "cem.ql.type_error".into(), error.to_string()),
+        }
     } else {
         let input = streams[0].items.as_slice();
         let second = streams.get(1).map(|stream| stream.items.as_slice());

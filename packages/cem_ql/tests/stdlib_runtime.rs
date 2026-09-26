@@ -32,7 +32,7 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 81);
+    assert_eq!(registry.functions.len(), 94);
     for (module, name, arity) in [
         ("cem:stdlib/dom", "chain", 1),
         ("cem:stdlib/dom", "text", 0), ("cem:stdlib/dom", "text", 1),

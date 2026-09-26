@@ -213,3 +213,49 @@ pub(super) fn fields(item: &Item) -> Result<BTreeMap<String, Vec<Item>>> {
         _ => Err(ParamsTypeError("expected a record")),
     }
 }
+
+/// Dispatch registered parameter calls through the same typed native core.
+/// The caller validates arity and attaches diagnostics to the call source.
+pub(crate) fn call(name: &str, args: &[Vec<Item>]) -> Result<Vec<Item>> {
+    if name == "params" {
+        return UrlParams::from_initializer(args.first().map(Vec::as_slice))
+            .map(|params| params.to_entries());
+    }
+    let params = UrlParams::from_entries(&args[0])?;
+    let key = args
+        .get(1)
+        .map(|items| singleton_string(items))
+        .transpose()?;
+    let value = args
+        .get(2)
+        .map(|items| singleton_string(items))
+        .transpose()?;
+    let key = key.as_deref().unwrap_or_default();
+    let strings = |values: Vec<&str>| {
+        values
+            .into_iter()
+            .map(|value| Item::Atomic(AtomValue::String(value.into())))
+            .collect()
+    };
+    Ok(match name {
+        "params_size" => vec![Item::Atomic(AtomValue::Integer(params.len() as i64))],
+        "params_entries" => params.to_entries(),
+        "params_keys" => strings(params.keys().collect()),
+        "params_values" => strings(params.values().collect()),
+        "params_get" => strings(params.get(key).into_iter().collect()),
+        "params_get_all" => strings(params.get_all(key).collect()),
+        "params_has" => vec![Item::Atomic(AtomValue::Boolean(
+            params.has(key, value.as_deref()),
+        ))],
+        "params_append" => params
+            .append(key, value.as_deref().expect("validated arity"))
+            .to_entries(),
+        "params_delete" => params.delete(key, value.as_deref()).to_entries(),
+        "params_set" => params
+            .set(key, value.as_deref().expect("validated arity"))
+            .to_entries(),
+        "params_sort" => params.sorted().to_entries(),
+        "params_string" => vec![Item::Atomic(AtomValue::String(params.serialize()))],
+        _ => unreachable!("registered parameter function"),
+    })
+}

@@ -1043,6 +1043,18 @@ impl TypeChecker {
             return signature.ret;
         }
         if let Some(function) = self.url_functions.get(&signature.key()).copied() {
+            if function == "params" || function.starts_with("params_") {
+                for (index, actual) in args.iter().enumerate() {
+                    if !valid_url_params_argument(function, index, actual) {
+                        self.emit(
+                            TYPE_ERROR,
+                            format!("invalid URL parameter argument {} for {function}", index + 1),
+                            range,
+                        );
+                    }
+                }
+                return signature.ret;
+            }
             for (index, actual) in args.iter().enumerate() {
                 let record = (function == "assemble" && index == 0)
                     || (function == "with_parts" && index == 1);
@@ -1264,7 +1276,14 @@ impl TypeChecker {
 
     fn register_url_function(&mut self, name: QNameKey, function: &crate::stdlib::StdlibFunction) {
         let ret = match function.name {
-            "can_parse" => boolean_type(),
+            "can_parse" | "params_has" => boolean_type(),
+            "params_size" => Type::atom(AtomType::Integer),
+            "params_string" => Type::atom(AtomType::String),
+            "params_keys" | "params_values" | "params_get" | "params_get_all" => {
+                Type::stream(Type::atom(AtomType::String))
+            }
+            "params" | "params_entries" | "params_append" | "params_delete" | "params_set"
+            | "params_sort" => url_params_type(),
             "parse" => {
                 let mut fields = vec![RecordField { name: "href".into(), ty: Type::atom(AtomType::AnyUri) }];
                 for name in ["origin", "protocol", "username", "password", "host", "hostname",
@@ -1420,4 +1439,41 @@ fn type_error_details(
         "expectedType": expected.map(|ty| format!("{ty:?}")),
         "range": range,
     })
+}
+
+fn url_params_type() -> Type {
+    Type::stream(Type::Record(
+        ["name", "value"]
+            .into_iter()
+            .map(|name| RecordField {
+                name: name.into(),
+                ty: Type::atom(AtomType::String),
+            })
+            .collect(),
+    ))
+}
+
+fn valid_url_params_argument(function: &str, index: usize, ty: &Type) -> bool {
+    // Cardinality and unknown values are validated by the native adapter.
+    let mut item = ty;
+    while let Type::Stream(inner) = item {
+        item = inner;
+    }
+    if matches!(item, Type::Any | Type::Empty) {
+        return true;
+    }
+    let string = |ty: &Type| valid_url_params_argument("params_get", 1, ty);
+    if index > 0 {
+        return matches!(item, Type::Atom(AtomType::String));
+    }
+    if function == "params" {
+        return match item {
+            Type::Atom(AtomType::String) => true,
+            Type::Array(inner) => string(inner),
+            Type::Record(fields) => fields.iter().all(|field| string(&field.ty)),
+            _ => false,
+        };
+    }
+    matches!(item, Type::Record(fields) if fields.len() == 2
+        && ["name", "value"].iter().all(|name| fields.iter().any(|field| field.name == *name && string(&field.ty))))
 }

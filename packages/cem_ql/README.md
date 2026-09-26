@@ -96,10 +96,21 @@ host changes survive an invalid port. No ambient base or host URL service is use
 )
 ```
 
-The parameter core is not yet exposed as `url:params*` query functions.
+All 13 `url:params*` operations are registered: `params`, `params_size`,
+`params_entries`, `params_keys`, `params_values`, `params_get`, `params_get_all`,
+`params_has`, `params_append`, `params_delete`, `params_set`, `params_sort`, and
+`params_string`. Parameter arguments require exact `{name: string, value: string}`
+entry streams; names and values require strings (not anyURI). An omitted optional
+value differs from an explicitly empty stream. Updates return new streams.
+
+`url:params` accepts form text, a mapping record, or typed two-string arrays from
+bindings; CEM-QL has no square-bracket array literal syntax. Mapping keys use Rust
+string order; ordered pair streams preserve duplicates and caller order.
+For example, `url:params_string(url:params_set(url:params("a=1&a=2"), "a", "3"))`
+returns `"a=3"`. See the [generated implemented reference](../cem_ml/schema-packages/cem-ql/v1/url-functions.md).
 Known parser/setter compatibility gaps remain tracked and prioritized in
 [the wishlist](../../docs/wishlist.md#rust-url-compatibility-gaps).
-Focused coverage: `cargo test -p cem-ql --test url_query --test url_params`.
+Focused coverage: `cargo test -p cem-ql --test url_query --test url_params --test url_params_query`.
 WASM query execution is checked with `node packages/cem_ql/tests/url-query-wasm.mjs`
 after the package WASM build. Browser execution parity is pending.
 

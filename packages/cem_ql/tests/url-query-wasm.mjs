@@ -35,3 +35,60 @@ assert.ok(upstream.error);
 assert.deepEqual(upstream.diagnostics.map(d => d.code), ['test.upstream']);
 assert.equal(evaluate('declare function url:href(x) { x } url:href(42)').items[0].value, 42);
 console.log('URL query WASM: typed results, aliases, warnings, errors and user-function isolation passed.');
+
+// Parameter operations execute in Rust through the same public WASM query API.
+const parameterCases = [
+    ['url:params_size(url:params("a=1&a=2"))', 'integer', 2],
+    ['url:params_string(url:params({b: "2", a: "1"}))', 'string', 'a=1&b=2'],
+    ['url:params_get(url:params("a=1&a=2"), "a")', 'string', '1'],
+    ['url:params_has(url:params("a=1&a=2"), "a", "2")', 'boolean', true],
+    ['url:params_string(url:params_append(url:params("a=1"), "a", "2"))', 'string', 'a=1&a=2'],
+    ['url:params_string(url:params_set(url:params("b=0&a=1&a=2"), "a", "3"))', 'string', 'b=0&a=3'],
+    ['url:params_string(url:params_delete(url:params("a=1&a=2"), "a", "1"))', 'string', 'a=2'],
+    ['url:params_string(url:params_delete(url:params("a=1&a=2"), "a"))', 'string', ''],
+    ['url:params_string(url:params_sort(url:params("=last&😀=first&😀=second")))', 'string', '%F0%9F%98%80=first&%F0%9F%98%80=second&%EE%80%80=last'],
+    ['import "cem:stdlib/url" as u\nu:params_string(u:params("?x=+&x=%2B&bare"))', 'string', 'x=+&x=%2B&bare='],
+];
+for (const [source, type, value] of parameterCases) {
+    const result = evaluate(source);
+    assert.equal(result.error, null, source);
+    assert.deepEqual(result.diagnostics, [], source);
+    assert.deepEqual(result.items, [{kind: 'atomic', type, value}], source);
+}
+for (const [operation, expected] of [
+    ['params_keys', ['a', 'a', 'b']], ['params_values', ['1', '2', '3']],
+    ['params_get_all', ['1', '2']],
+]) {
+    const source = `url:${operation}(url:params("a=1&a=2&b=3")${operation === 'params_get_all' ? ', "a"' : ''})`;
+    const result = evaluate(source);
+    assert.equal(result.error, null);
+    assert.deepEqual(result.items, expected.map(value => ({kind: 'atomic', type: 'string', value})));
+}
+for (const source of ['url:params()', 'url:params(())', 'url:params_get((), "missing")']) {
+    const result = evaluate(source);
+    assert.equal(result.error, null);
+    assert.deepEqual(result.items, []);
+}
+assert.deepEqual(evaluate('url:params_entries(url:params("a=1&a=2"))'), evaluate('url:params("a=1&a=2")'));
+for (const source of ['url:params_has((), "x", ())', 'url:params_get((), ())', 'url:params({a: ()})']) {
+    const result = evaluate(source);
+    assert.ok(result.error, source);
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.diagnostics.map(d => d.code), ['cem.ql.type_error']);
+    assert.equal(result.diagnostics[0].byteOffset, 0);
+}
+assert.equal(evaluate('declare function url:params_size(x) { x } url:params_size(42)').items[0].value, 42);
+const parameterFailure = evaluate('url:params_string(report:raise("test.upstream", "failed"))');
+assert.deepEqual(parameterFailure.diagnostics.map(d => d.code), ['test.upstream']);
+console.log('URL parameters WASM: all 13 operations, exact types, duplicate order and diagnostics passed.');
+
+const evaluateBound = (source, input) => JSON.parse(evaluateQuerySource(source, JSON.stringify({input})));
+const pairs = evaluateBound('url:params_string(url:params($input))', {$stream: [['b', '2'], ['a', '1'], ['b', '3']]});
+assert.equal(pairs.error, null);
+assert.deepEqual(pairs.items, [{kind: 'atomic', type: 'string', value: 'b=2&a=1&b=3'}]);
+for (const input of [['one'], [['x', '1']], {$stream: [['x', '1'], 'bad']}]) {
+    const result = evaluateBound('url:params($input)', input);
+    assert.ok(result.error);
+    assert.deepEqual(result.diagnostics.map(d => d.code), ['cem.ql.type_error']);
+    assert.equal(result.diagnostics[0].byteOffset, 0);
+}
