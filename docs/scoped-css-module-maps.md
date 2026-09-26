@@ -414,7 +414,7 @@ separate within a compound for later manufactured-specificity checks.
 browser feature-support assertion. The profile leaves simple pseudo-class
 matching to the browser. Forms outside the profile, including functional/chained
 pseudo-elements,
-`nth-*` functions, CSS nesting `&`, and unbound namespace prefixes, produce an
+`nth-*` functions, root-level `&`, and unbound namespace prefixes, produce an
 empty list marked `analysis-status="unsupported"`, with no partial specificity
 claim. Import still retains the authored rule; unsupported analysis does not
 make otherwise retained stylesheet adoption fail. The compiler must diagnose
@@ -626,12 +626,12 @@ not a complete stylesheet. Deferred selector nesting, other grouping kinds,
 keyframe names/references and recursive whole-stylesheet composition remain
 pending before browser cutover.
 
-## Nested style rules: proposed, awaiting output-format decision
+## Nested style rules: native output accepted; import implemented
 
-The next compiler step needs a choice between preserving native CSS nesting in
-the emitted stylesheet and lowering nested rules into flat selectors. The
-recommendation is to preserve nesting, consistent with the managed stylesheet's
-native `@scope` target. This proposal is not an implemented or accepted extension.
+Accepted: preserve native CSS nesting in the emitted stylesheet, consistent
+with the managed stylesheet's native `@scope` target. Shared import now retains
+the required selector structure; context-aware emission and browser cutover
+remain pending.
 
 The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
 assigns `&` the maximum specificity of the parent selector list. Simple textual
@@ -639,10 +639,9 @@ expansion into separate parent/child combinations can change the cascade.
 Additionally, [nested declaration runs](https://drafts.csswg.org/css-nesting-1/#nested-declarations-rule)
 retain the parent's pseudo-element matches; substituting an `&` rule for such a
 run does not preserve those matches. These distinctions make native nesting the
-recommended output format. Flat output remains an alternative if compatibility
-requires it, but needs semantic lowering and its own equivalence fixtures.
+accepted output format. Flat output is outside this implementation plan.
 
-Proposed implementation after that decision:
+Implementation contract:
 
 - Extend shared CSS import with a typed nesting selector and explicit nested-rule
   context, including implicit descendant and leading-combinator forms. Keep
@@ -668,6 +667,32 @@ Proposed implementation after that decision:
 - Keep unsupported forms diagnosed with source ranges. Native output still
   requires retained selector validation and policy checks; it does not authorize
   passing arbitrary authored selector strings through to the browser.
+
+Implemented import boundary: style rules carry `selector-context="root"` or
+`"nested"`. Media, supports, layer, container and starting-style groups
+carry an existing parent context through their bodies; they do not create one.
+Other recognized at-rule bodies, including keyframes, start without inherited
+selector context. Authored `@scope` also resets it: its body uses a
+[scope-relative reference](https://drafts.csswg.org/css-nesting-1/#nesting-at-scope),
+not the enclosing style selector. Retaining that additional reference kind is
+deferred; `&` directly inside authored `@scope` stays unsupported. This metadata
+does not authorize otherwise forbidden at-rules.
+
+Nested lists retain explicit `simple-selector kind="nesting"` nodes with their
+source ranges, leading combinators, and implicit descendant forms. Their outer
+selectors carry `specificity-kind="parent-dependent"` instead of a context-free
+`specificity` tuple. Functional selector arguments containing `&` receive the
+same conservative marker, including `:where(&)`; downstream evaluation must
+apply the pseudo-class's weight rules. Root selectors and parent-independent
+functional arguments keep their existing specificity metadata. Unsupported
+nested grammar remains an unsupported list without partial structure.
+
+Until parent-aware emission is implemented, declaration and instance selector
+helpers suppress any nested rule with
+`cem.scoped_css.nesting_context_required`, even when its text contains no `&`.
+Ordered parent-rule assembly continues to retain the child as a deferred slot.
+Standalone selector queries still reject nesting. This step adds no installable
+stylesheet or browser behavior.
 
 Before browser cutover, fixtures must establish parent-list specificity,
 multi-level context, `:where()` zero specificity, host normalization, instance

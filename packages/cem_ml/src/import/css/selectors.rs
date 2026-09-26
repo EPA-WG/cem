@@ -7,9 +7,9 @@ use crate::validation::css_selector::{
 };
 
 impl CssImport<'_> {
-    pub(super) fn selectors(&mut self, parent: AstNodeId, start: usize, end: usize) {
-        if let Some(list) = stylesheet_selector_structure(&self.events[start..end]) {
-            self.selector_list(parent, &list);
+    pub(super) fn selectors(&mut self, parent: AstNodeId, start: usize, end: usize, nested: bool) {
+        if let Some(list) = stylesheet_selector_structure(&self.events[start..end], nested) {
+            self.selector_list(parent, &list, nested);
         } else {
             let id = self.node(parent, "selector-list", start, end);
             self.attr(id, "analysis-status", "unsupported");
@@ -37,13 +37,23 @@ impl CssImport<'_> {
         id
     }
 
-    fn selector_list(&mut self, parent: AstNodeId, list: &CssSelectorListAst) {
+    fn selector_list(&mut self, parent: AstNodeId, list: &CssSelectorListAst, nested: bool) {
         let id = self.selector_node(parent, "selector-list", list.source_range);
         self.attr(id, "analysis-status", "complete");
         for selector in &list.selectors {
             let node = self.selector_node(id, "selector", selector.source_range);
-            let (a, b, c) = selector.specificity;
-            self.attr(node, "specificity", &format!("{a}-{b}-{c}"));
+            if nested
+                || selector
+                    .compounds
+                    .iter()
+                    .flat_map(|c| &c.simple_selectors)
+                    .any(contains_nesting)
+            {
+                self.attr(node, "specificity-kind", "parent-dependent");
+            } else {
+                let (a, b, c) = selector.specificity;
+                self.attr(node, "specificity", &format!("{a}-{b}-{c}"));
+            }
             let mut previous = selector.source_range.start.byte_offset;
             for (index, compound) in selector.compounds.iter().enumerate() {
                 let combinator = if index == 0 {
@@ -95,7 +105,8 @@ impl CssImport<'_> {
 
     fn simple_selector(&mut self, parent: AstNodeId, simple: &CssSelectorSimpleSelector) {
         let range = match simple {
-            CssSelectorSimpleSelector::Type { source_range, .. }
+            CssSelectorSimpleSelector::Nesting { source_range }
+            | CssSelectorSimpleSelector::Type { source_range, .. }
             | CssSelectorSimpleSelector::Id { source_range, .. }
             | CssSelectorSimpleSelector::Class { source_range, .. }
             | CssSelectorSimpleSelector::Attribute { source_range, .. }
@@ -104,6 +115,9 @@ impl CssImport<'_> {
         };
         let id = self.selector_node(parent, "simple-selector", range);
         match simple {
+            CssSelectorSimpleSelector::Nesting { .. } => {
+                self.attr(id, "kind", "nesting");
+            }
             CssSelectorSimpleSelector::Type {
                 namespace,
                 local_name,
@@ -180,9 +194,25 @@ impl CssImport<'_> {
                 self.attr(id, "name", name);
                 self.attr(id, "relative", if *relative { "true" } else { "false" });
                 if let Some(selectors) = selectors {
-                    self.selector_list(id, selectors);
+                    self.selector_list(id, selectors, false);
                 }
             }
         }
+    }
+}
+
+fn contains_nesting(simple: &CssSelectorSimpleSelector) -> bool {
+    match simple {
+        CssSelectorSimpleSelector::Nesting { .. } => true,
+        CssSelectorSimpleSelector::PseudoClass {
+            selectors: Some(list),
+            ..
+        } => list
+            .selectors
+            .iter()
+            .flat_map(|s| &s.compounds)
+            .flat_map(|c| &c.simple_selectors)
+            .any(contains_nesting),
+        _ => false,
     }
 }

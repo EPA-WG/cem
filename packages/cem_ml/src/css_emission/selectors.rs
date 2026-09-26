@@ -56,6 +56,17 @@ fn emit_selectors(
     if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("style") {
         return Err(invalid(tree, rule));
     }
+    if attribute(tree, rule, "selector-context") == Some("nested") {
+        return Ok(CssSelectorEmission {
+            selectors: Vec::new(),
+            diagnostics: vec![diagnostic(
+                tree,
+                rule,
+                "cem.scoped_css.nesting_context_required",
+                "nested selectors require an enclosing style-rule context",
+            )],
+        });
+    }
     let lists: Vec<_> = tree
         .node(rule)
         .unwrap()

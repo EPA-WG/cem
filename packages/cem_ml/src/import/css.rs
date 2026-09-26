@@ -81,6 +81,7 @@ pub(super) fn project(doc: &CssDocumentAst) -> Result<(CemDocument, CemTreeSeman
         0,
         doc.events.len(),
         doc.entry_mode == CssEntryMode::DeclarationList,
+        false,
     )?;
     Ok((p.b.ast, p.b.semantics))
 }
@@ -154,6 +155,7 @@ impl CssImport<'_> {
         mut pos: usize,
         end: usize,
         body: bool,
+        nested: bool,
     ) -> Result<(), String> {
         while pos < end {
             let e = &self.events[pos];
@@ -271,12 +273,13 @@ impl CssImport<'_> {
                     }
                     if let Some(open) = open {
                         match name.to_ascii_lowercase().as_str() {
-                            "media"
-                            | "supports"
-                            | "layer"
-                            | "container"
-                            | "scope"
-                            | "starting-style"
+                            "media" | "supports" | "layer" | "container" | "starting-style" => {
+                                self.items(at_rule, open + 1, close, true, nested)?;
+                            }
+                            // Authored @scope changes the meaning of & to its
+                            // scoping root; it cannot inherit a style-rule parent.
+                            // Scope-relative selector support remains deferred.
+                            "scope"
                             | "keyframes"
                             | "-webkit-keyframes"
                             | "font-face"
@@ -287,7 +290,7 @@ impl CssImport<'_> {
                             | "font-palette-values"
                             | "position-try"
                             | "view-transition" => {
-                                self.items(at_rule, open + 1, close, true)?;
+                                self.items(at_rule, open + 1, close, true, false)?;
                             }
                             // Unknown at-rule bodies have no known declaration
                             // grammar. Preserve their balanced component values.
@@ -301,8 +304,13 @@ impl CssImport<'_> {
                 let id = self.node(parent, "rule", pos, next);
                 self.attr(id, "kind", "style");
                 self.attr(id, "selector", self.text(pos, open).trim());
-                self.selectors(id, pos, open);
-                self.items(id, open + 1, close, true)?;
+                self.attr(
+                    id,
+                    "selector-context",
+                    if nested { "nested" } else { "root" },
+                );
+                self.selectors(id, pos, open, nested);
+                self.items(id, open + 1, close, true, true)?;
             } else {
                 return Err(format!(
                     "CSS statement at byte {} has no rule block.",

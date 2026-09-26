@@ -295,6 +295,10 @@ pub enum CssSelectorCombinator {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CssSelectorSimpleSelector {
+    /// Stylesheet-only parent reference. Its weight requires enclosing rule context.
+    Nesting {
+        source_range: CssSelectorSourceRange,
+    },
     Type {
         namespace: CssSelectorNamespace,
         local_name: String,
@@ -332,7 +336,8 @@ pub enum CssSelectorSimpleSelector {
 impl CssSelectorSimpleSelector {
     fn source_range(&self) -> CssSelectorSourceRange {
         match self {
-            Self::Type { source_range, .. }
+            Self::Nesting { source_range }
+            | Self::Type { source_range, .. }
             | Self::Id { source_range, .. }
             | Self::Class { source_range, .. }
             | Self::Attribute { source_range, .. }
@@ -353,6 +358,9 @@ pub struct CssSelectorAst {
     pub leading_combinator: Option<CssSelectorCombinator>,
     pub compounds: Vec<CssSelectorCompoundAst>,
     pub combinators: Vec<CssSelectorCombinator>,
+    /// Query specificity. For import-only nesting, this omits parent weight and
+    /// must not be used as effective specificity; retained import marks the
+    /// selector parent-dependent instead of exposing this tuple.
     pub specificity: (u32, u32, u32),
     pub source_range: CssSelectorSourceRange,
 }
@@ -510,7 +518,10 @@ pub fn css_selector_expression_ast_from_source_bytes(
 
 /// Import-only stylesheet profile. Query parsing/execution keeps its own
 /// capability restrictions. Unsupported structure is never exposed as complete.
-pub(crate) fn stylesheet_selector_structure(events: &[CssEventAst]) -> Option<CssSelectorListAst> {
+pub(crate) fn stylesheet_selector_structure(
+    events: &[CssEventAst],
+    nested: bool,
+) -> Option<CssSelectorListAst> {
     if events.iter().any(|e| e.recovered || e.token_kind == "hash") {
         return None;
     }
@@ -525,7 +536,8 @@ pub(crate) fn stylesheet_selector_structure(events: &[CssEventAst]) -> Option<Cs
     let mut facts = Vec::new();
     let mut parser = SelectorParser::new(&tokens, &namespaces, &mut facts);
     parser.stylesheet = true;
-    let list = parser.parse_selector_list(0, tokens.len(), false);
+    parser.nesting = nested;
+    let list = parser.parse_selector_list(0, tokens.len(), nested);
     if facts.is_empty() {
         list.filter(|list| stylesheet_pseudo_element_positions(list, true))
     } else {
@@ -564,6 +576,7 @@ struct SelectorParser<'a, 'f> {
     namespaces: &'a BTreeMap<String, String>,
     facts: &'f mut Vec<CssSelectorFact>,
     stylesheet: bool,
+    nesting: bool,
 }
 
 impl<'a, 'f> SelectorParser<'a, 'f> {
@@ -577,6 +590,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             namespaces,
             facts,
             stylesheet: false,
+            nesting: false,
         }
     }
 
@@ -728,6 +742,12 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             }
             let token = &self.tokens[cursor];
             match token.token_kind.as_str() {
+                "delimiter" if self.nesting && token.value.as_deref() == Some("&") => {
+                    simple_selectors.push(CssSelectorSimpleSelector::Nesting {
+                        source_range: token.source_range,
+                    });
+                    cursor += 1;
+                }
                 "id-hash" | "hash" => {
                     simple_selectors.push(CssSelectorSimpleSelector::Id {
                         value: token.value.clone().unwrap_or_default(),
@@ -1029,7 +1049,11 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 if let Some(feature) = feature.filter(|token| token.token_kind == "ident") {
                     return Some((
                         CssSelectorSimpleSelector::PseudoElement {
-                            name: feature.value.clone().unwrap_or_default().to_ascii_lowercase(),
+                            name: feature
+                                .value
+                                .clone()
+                                .unwrap_or_default()
+                                .to_ascii_lowercase(),
                             source_range: CssSelectorSourceRange::covering(
                                 colon.source_range,
                                 feature.source_range,
@@ -1062,7 +1086,10 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             let mut name = next.value.clone().unwrap_or_default();
             if self.stylesheet {
                 name.make_ascii_lowercase();
-                if matches!(name.as_str(), "before" | "after" | "first-line" | "first-letter") {
+                if matches!(
+                    name.as_str(),
+                    "before" | "after" | "first-line" | "first-letter"
+                ) {
                     return Some((
                         CssSelectorSimpleSelector::PseudoElement {
                             name,
@@ -1384,6 +1411,9 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
         .flat_map(|compound| &compound.simple_selectors)
     {
         match simple {
+            // Import marks these selectors parent-dependent rather than exposing
+            // this context-free subtotal as their specificity.
+            CssSelectorSimpleSelector::Nesting { .. } => {}
             CssSelectorSimpleSelector::PseudoElement { .. } => specificity.2 += 1,
             CssSelectorSimpleSelector::Id { .. } => specificity.0 += 1,
             CssSelectorSimpleSelector::Class { .. }
@@ -2365,7 +2395,8 @@ fn matches_simple(
             Ok(false)
         }
         CssSelectorSimpleSelector::PseudoClass { .. }
-        | CssSelectorSimpleSelector::PseudoElement { .. } => Ok(false),
+        | CssSelectorSimpleSelector::PseudoElement { .. }
+        | CssSelectorSimpleSelector::Nesting { .. } => Ok(false),
     }
 }
 
