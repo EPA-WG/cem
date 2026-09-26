@@ -1,5 +1,6 @@
 //! CSS syntax is interpreted at import, never by retained-tree consumers.
 mod animation_names;
+mod animation_shorthand;
 mod keyframes;
 mod selectors;
 use super::{ImportBuilder, MAX_DEPTH, MAX_VALUES};
@@ -235,6 +236,11 @@ impl CssImport<'_> {
                         || name.eq_ignore_ascii_case("-webkit-animation-name")
                 }) {
                     self.animation_names(id, colon + 1, value_end);
+                } else if e.value.as_deref().is_some_and(|name| {
+                    name.eq_ignore_ascii_case("animation")
+                        || name.eq_ignore_ascii_case("-webkit-animation")
+                }) {
+                    self.animation_shorthand(id, colon + 1, value_end);
                 }
                 pos = (semi + 1).min(end);
                 continue;

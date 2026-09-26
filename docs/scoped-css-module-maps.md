@@ -844,7 +844,7 @@ unsupported in this first profile. These forms follow the
 
 A keyframe body does not inherit a surrounding style selector. Its offsets
 never receive host rewriting, specificity or instance-prefix policy. The definition and longhand-reference helpers below consume this representation.
-Shorthand classification, closure symbol ownership and browser installation remain pending. The subtree
+Closure symbol ownership and browser installation remain pending. The subtree
 composer continues to diagnose and omit keyframe constructs until that
 compilation path is complete.
 
@@ -918,6 +918,26 @@ renamed; quoted strings with the same spelling remain symbol references.
 Dynamic name expressions and unsupported lists produce diagnostics without a
 partial value. Missing typed slots fail without reparsing declaration text.
 The helper emits a value fragment; ordinary declaration policy still applies.
-General declaration/subtree integration, shorthand classification and closure
-namespace ownership remain pending. Browser fixtures now resolve original
+General declaration/subtree integration and closure namespace ownership remain
+pending. Browser fixtures now resolve original
 longhand names through the same map used to emit their keyframe definitions.
+
+## Static animation shorthand references
+
+The same reference helper accepts `animation` and `-webkit-animation`. Import
+classifies each comma group in authored order, filling duration, delay, easing,
+iteration, direction, fill and play-state slots before assigning an ambiguous
+keyword to the name slot. For example, `1s linear linear` rewrites only the
+second `linear`. Non-name values are retained as `animation-value-slot` nodes;
+the emitter preserves their original tokens. This follows the
+[CSS Animations shorthand parsing order](https://www.w3.org/TR/css-animations-1/#animation).
+
+The first profile supports literal times/counts, standard keyword slots,
+`cubic-bezier()` and `steps()`, with bounds and duplicate-slot checks. Unsupported
+functions (including `calc()` and `linear()`) diagnose the whole declaration.
+Any `var()`, `env()` or `attr()` substitution also diagnoses the whole shorthand:
+a substitution can supply multiple tokens or comma groups, so the spelling of a
+custom property alone cannot prove which slot it fills. This restriction does
+not establish a dynamic-name authoring contract. Browser coverage verifies that
+the rewritten second `linear` selects the scoped definition and retains linear
+midpoint interpolation.

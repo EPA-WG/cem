@@ -193,6 +193,10 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ),
         ("keyframes-empty", "@keyframes pulse {}"),
         (
+            "keyframes-shorthand",
+            "@keyframes linear {from {opacity:0} to {opacity:1}}",
+        ),
+        (
             "keyframes-string",
             "@keyframes \"quoted name\" {from {opacity:0} to {opacity:1}}",
         ),
@@ -206,10 +210,18 @@ fn browser_fixture_emits_scoped_native_nesting() {
         .unwrap()
         .rule
         .unwrap();
-        let authored_names = plan(&format!(
-            ".card {{animation-name:{}}}",
+        let shorthand = file == "keyframes-shorthand";
+        let property = if shorthand {
+            "animation"
+        } else {
+            "animation-name"
+        };
+        let authored_value = if shorthand {
+            "1s linear linear paused".to_owned()
+        } else {
             cem_ml::transform_template::transform_template_encode_css_string(&definition.name)
-        ));
+        };
+        let authored_names = plan(&format!(".card {{{property}:{authored_value}}}"));
         let declaration = authored_names
             .tree
             .node(first_rule(&authored_names))
@@ -239,9 +251,11 @@ fn browser_fixture_emits_scoped_native_nesting() {
         .unwrap()
         .value
         .unwrap();
-        let reference_plan = plan(&format!(
-            ".card {{animation-name:{value}; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}"
-        ));
+        let reference_plan = plan(&if shorthand {
+            format!(".card {{animation:{value}}}")
+        } else {
+            format!(".card {{animation-name:{value}; animation-duration:1s; animation-timing-function:linear; animation-play-state:paused;}}")
+        });
         let references = emit_css_rule_subtree(
             &reference_plan,
             first_rule(&reference_plan),

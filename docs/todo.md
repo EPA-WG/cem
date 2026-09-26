@@ -3923,6 +3923,23 @@ registration identities may reuse an inherited or existing definition.
       formatter/colorizer tests, lint and typecheck targets, all 10 demo-element
       and 148 cem-elements Storybook cases, and the 17-page/23-document browser
       fixture matrix pass.
+- [ ] Reuse retained CSS semantic analysis for sample highlighting and formatted
+      CLI coloring. Existing source coloring uses broad lossless-event roles;
+      feed the new import-owned selector, grouping, keyframe and animation-slot
+      distinctions into the shared syntax stream without downstream CSS parsing.
+    - [ ] Map supported retained roles to shared formatter/colorizer roles,
+          distinguishing keyframe definitions/references, frame offsets and
+          animation names from easing, duration, delay and other shorthand slots.
+          Preserve string, number, comment and diagnostic roles where they win.
+    - [ ] Use the same roles in `cem-demo-element` CSS samples and the CLI
+          terminal formatter, including embedded HTML → CEM-ML → CSS scopes;
+          reuse existing palettes and generic presentation hooks.
+    - [ ] Fixture: compare `animation: 1s linear linear`, escaped/quoted names,
+          keyframe offsets, nesting and conditional groups across native source
+          spans, rendered samples and ANSI CLI output. Assert source-range and
+          visible-text parity, parent-scope resumption, and readable fallback
+          coloring for unsupported/recovered syntax. Start with native tests,
+          then verify WASM/sample browser and real CLI paths.
 - [x] Make every source formatter/colorizer follow AST-owned content-type
       switches through one generic syntax stream.
     - [x] Extract the HTML, CEM-ML, and CSS scope dispatcher from the browser
@@ -5912,11 +5929,19 @@ registration identities may reuse an inherited or existing definition.
               for duration/easing do not imply dynamic keyframe names.
               Validation: 70 focused native/schema tests, Nx WASM build,
               Chromium animation fixtures and lint (existing warnings) pass.
-        - [ ] Fixture: classify static `animation` shorthand name slots at
+        - [x] Fixture: classify static `animation` shorthand name slots at
               import, respecting timing/count/direction/fill/play keyword
               precedence, comma groups and source retention. Preserve external
               names and reject ambiguous dynamic shorthand until its contract
               is defined; verify rewritten names against browser animations.
+              Validation: 72 focused native/schema tests, Nx WASM build,
+              four Chromium animation cases and lint (existing warnings) pass.
+              Initial timing functions: cubic-bezier() and steps(); calc(),
+              linear() and dynamic substitutions remain unsupported.
+        - [ ] Fixture: apply native animation symbol maps during declaration
+              and nested-subtree emission, preserving declaration suppression,
+              resource rewriting, order and source provenance. Replace browser
+              fixture value reconstruction with direct subtree integration.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

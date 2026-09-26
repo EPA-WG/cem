@@ -160,3 +160,95 @@ fn animation_name_fragments_require_import_owned_slots() {
     let error = emit_css_animation_names(&tree, declaration, &Default::default()).unwrap_err();
     assert_eq!(error.code, "cem.scoped_css.animation_name_tree_invalid");
 }
+
+#[test]
+fn shorthand_classifies_name_after_non_name_keyword_slots() {
+    let names = [
+        "linear",
+        "backwards",
+        "infinite",
+        "reverse",
+        "paused",
+        "pulse",
+        "none",
+    ]
+    .map(|name| (name.to_owned(), format!("{name}-owner")))
+    .into_iter()
+    .collect();
+    for (value, expected) in [
+        ("1s linear linear", "1s linear \"linear-owner\""),
+        ("3s none backwards", "3s none \"backwards-owner\""),
+        ("1s infinite infinite", "1s infinite \"infinite-owner\""),
+        ("1s reverse reverse", "1s reverse \"reverse-owner\""),
+        ("1s paused paused", "1s paused \"paused-owner\""),
+        ("1s none none", "1s none none"),
+        ("1s linear", "1s linear"),
+        (r"pulse 1\73", r#""pulse-owner" 1\73"#),
+        ("pulse 1e2ms", "\"pulse-owner\" 1e2ms"),
+        ("inherit", "inherit"),
+        ("1s \"none\"", "1s \"none-owner\""),
+        (
+            "p\\75 lse 2s ease -10ms 2 alternate both paused /*keep*/, external 1s",
+            "\"pulse-owner\" 2s ease -10ms 2 alternate both paused /*keep*/, external 1s",
+        ),
+        (
+            "pulse 1s cubic-bezier(0, .2, 1, 1), pulse 2s steps(2, end)",
+            "\"pulse-owner\" 1s cubic-bezier(0, .2, 1, 1), \"pulse-owner\" 2s steps(2, end)",
+        ),
+    ] {
+        let plan = plan(&format!(".card {{animation:{value};}}"));
+        let result = emit_css_animation_names(&plan.tree, declaration(&plan), &names).unwrap();
+        assert!(
+            result.diagnostics.is_empty(),
+            "{value}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.value.as_deref(), Some(expected), "{value}");
+        assert!(result
+            .names
+            .iter()
+            .all(|n| n.range.length > 0 && n.source.origin().is_some()));
+    }
+}
+
+#[test]
+fn shorthand_rejects_unsupported_or_dynamic_groups_atomically() {
+    for value in [
+        "",
+        "pulse,",
+        "pulse other",
+        "-1s pulse",
+        "-1e-50s pulse",
+        "1s 2s 3s pulse",
+        "1s -2 pulse",
+        "inherit 1s",
+        "1s default",
+        "1px pulse",
+        "pulse 1s future()",
+        "pulse 1s steps(0)",
+        "pulse 1s cubic-bezier(2,0,1,1)",
+        "pulse 1s, other 1s 2s 3s",
+    ] {
+        let plan = plan(&format!(".card {{animation:{value};}}"));
+        let result =
+            emit_css_animation_names(&plan.tree, declaration(&plan), &Default::default()).unwrap();
+        assert!(
+            result.value.is_none() && !result.diagnostics.is_empty(),
+            "{value}"
+        );
+    }
+    for value in [
+        "pulse var(--duration) linear",
+        "var(--animation)",
+        "pulse 1s steps(var(--count))",
+    ] {
+        let plan = plan(&format!(".card {{animation:{value};}}"));
+        let result =
+            emit_css_animation_names(&plan.tree, declaration(&plan), &Default::default()).unwrap();
+        assert!(result.value.is_none(), "{value}");
+        assert_eq!(
+            result.diagnostics[0].code,
+            "cem.scoped_css.animation_name_dynamic_unsupported"
+        );
+    }
+}
