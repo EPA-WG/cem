@@ -127,10 +127,25 @@ instance data island.
 
 ### 2.2 Static artifacts and contained at-rules
 
-Declaration stylesheet content and its `scope` attribute MUST be statically
+Declaration stylesheet content and its `scope` and `type` attributes MUST be statically
 extractable. Runtime expressions, conditionals, or loops that generate
 declaration styles diagnose as
 `cem.ql.template.stylesheet_dynamic_unsupported` and produce no fallback style.
+
+Native CEM-ML template compilation adopts static CSS through the shared import
+boundary into a retained CSS-namespace `style-block` tree. An absent or empty
+`type` defaults to `text/css`; other MIME essences are rejected. Inline CSS is
+already decoded template text and is imported as UTF-8. Invalid CSS produces
+`cem.ql.template.stylesheet_parse_failed` and no installable artifact.
+Trees retain CSS-local source coordinates under a content-derived source URI;
+template diagnostics keep the owning style's source map. URL bases must come
+from the template resolver context, never the synthetic CSS source URI.
+
+Artifact clones share the retained tree. The existing portable template format
+continues to carry authored CSS and scope; reload adopts CSS once, without
+re-tokenizing CEM-ML or recompiling CEM-QL. Invalid serialized CSS rejects reload.
+Browser DOM-template adoption and scoped resource loading are separate pending
+integration steps; this does not authorize loading retained references.
 
 Declaration-local keyframes receive a deterministic stylesheet suffix and all
 local animation references are rewritten. `@import` and document-global
@@ -390,7 +405,9 @@ identity rules.
 
 | Condition | Required result | Diagnostic |
 | --- | --- | --- |
-| declaration style content or `scope` is dynamic | omit the style artifact | `cem.ql.template.stylesheet_dynamic_unsupported` |
+| declaration style content, `scope`, or `type` is dynamic | omit the style artifact | `cem.ql.template.stylesheet_dynamic_unsupported` |
+| declaration style has a non-CSS content type | omit the style artifact | `cem.ql.template.stylesheet_content_type_unsupported` |
+| declaration CSS fails shared native import | omit the style artifact | `cem.ql.template.stylesheet_parse_failed` |
 | declaration `scope` is empty, multiple, or not one CSS identifier | expose no named shared surface | `cem-element.stylesheet_scope_invalid` |
 | explicit style scope does not match the declaration | do not install that style | `cem-element.stylesheet_scope_mismatch` |
 | produced-host `scope` is added, changed, or removed contrary to its declaration | diagnose and restore declaration state | `cem-element.scope_mutation_restored` |

@@ -403,7 +403,7 @@ fn stylesheets_json(artifact: &TemplateArtifact) -> Value {
             .iter()
             .map(|stylesheet| {
                 json!({
-                    "css": stylesheet.css,
+                    "css": stylesheet.css(),
                     "scope": stylesheet.scope,
                 })
             })

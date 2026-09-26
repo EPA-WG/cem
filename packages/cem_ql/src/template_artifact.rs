@@ -3,6 +3,8 @@
 //! The envelope carries stable identity stamps plus binary serialized template
 //! IR. Embedded expressions contain the already-lowered [`CompiledQuery`] IR,
 //! so reload never invokes the CEM-ML tokenizer or CEM-QL parser.
+//! Authored CSS remains a source field in this wire version; deserialization
+//! adopts it once through the shared CSS importer into a retained native tree.
 
 use std::collections::BTreeSet;
 

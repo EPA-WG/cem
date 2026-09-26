@@ -5727,6 +5727,15 @@ registration identities may reuse an inherited or existing definition.
           template DOM adoption recognizes `<style>` as CSS-namespace content
           and invokes the shared CSS content-type parser to produce a retained
           CEM AST, rather than leaving its body as untyped text.
+        - [x] Fixture: compile static CEM-ML styles into retained CSS-namespace
+              style-block trees; preserve scope and lexical CSS, share owners
+              across artifact clones, and diagnose invalid/dynamic content types
+              and malformed CSS before producing installable style artifacts.
+        - [x] Fixture: reload portable template artifacts with retained CSS trees
+              and verify native adoption rejects malformed serialized CSS.
+        - [ ] Route browser DOM-template style adoption through the same native
+              importer; retain CSS owners and diagnostics without adding a
+              browser-local CSS parser or serialized AST handoff.
     - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and
           other CSS URL-bearing constructs through the module map from the
           closest scope, using the shared resolver and retained CSS AST.

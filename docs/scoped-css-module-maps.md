@@ -1,7 +1,8 @@
 # Scoped module maps for typed CSS
 
-Status: accepted design; native CSS URL lookup and semantic tree import implemented. Template adoption,
-scoped import loading, and browser integration remain pending. The active work is tracked
+Status: native CSS URL lookup, semantic tree import and static CEM-ML template
+style adoption implemented. DOM-template adoption, scoped import loading and
+browser integration remain pending. The active work is tracked
 in [todo.md](todo.md). Browser styles must not depend on these capabilities
 until their implementation and integration checks are complete.
 
@@ -76,8 +77,10 @@ The adoption audit identified the following boundary, now implemented in
 - `projection.rs::css_ast_cem_presentation_stream` uses the generic inspection
   vocabulary. Reusing it as the runtime data tree would expose inspection
   records rather than the CSS namespace and semantic elements.
-- `cem_ql/src/render.rs::extract_static_stylesheets` currently extracts CSS text
-  into `TemplateStylesheetArtifact`; it does not retain a CSS CEM tree.
+- `cem_ql/src/render.rs::extract_static_stylesheets` adopts CSS into a
+  `TemplateStylesheetArtifact` retaining both authored text and an immutable
+  CSS CEM tree. Clones share the tree. Existing binary artifacts retain their
+  source-CSS wire fields and reconstruct the native tree once on reload.
 
 **Accepted:** use the existing CSS schema as the runtime tree vocabulary.
 Extend the native shared import boundary to build those semantic nodes directly
@@ -115,5 +118,6 @@ inputs, CSS expanded names, semantic structure, source locations, quoted and
 unquoted URLs, comments, escapes, empty input, hard recovery errors and bounds.
 Import retains unresolved references without access: import/URL policy facts
 stay on the native owner and still fail ordinary validation. Other hard
-diagnostics reject import. Template adoption and authorized scoped loading are
-the next steps; an imported tree alone is not an installable style artifact.
+diagnostics reject import. Browser DOM-template adoption and authorized scoped
+loading are the next steps; an imported tree alone does not authorize resource
+access. The canonical CEM-ML compile path now retains its styles as native trees.

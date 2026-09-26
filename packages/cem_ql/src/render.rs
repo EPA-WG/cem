@@ -197,11 +197,68 @@ pub struct TemplateModuleClosure {
     pub modules: Vec<TemplateModuleSource>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(try_from = "SerializedTemplateStylesheet")]
 pub struct TemplateStylesheetArtifact {
-    pub css: String,
+    css: String,
     pub scope: Option<String>,
+    #[serde(skip)]
+    css_tree: std::sync::Arc<cem_ml::parser::tree::RetainedCemTree>,
 }
+
+// The existing binary artifact transports authored CSS, not a serialized AST.
+// Reload adopts it once into a native owner; clones share that immutable owner.
+#[derive(serde::Deserialize)]
+struct SerializedTemplateStylesheet {
+    css: String,
+    scope: Option<String>,
+}
+
+impl TryFrom<SerializedTemplateStylesheet> for TemplateStylesheetArtifact {
+    type Error = String;
+
+    fn try_from(value: SerializedTemplateStylesheet) -> Result<Self, Self::Error> {
+        Self::adopt(value.css, value.scope)
+    }
+}
+
+impl TemplateStylesheetArtifact {
+    pub fn adopt(css: String, scope: Option<String>) -> Result<Self, String> {
+        let source_uri = format!(
+            "urn:cem:template-style:{}",
+            cem_ml::content_cache::ContentHash::from_blake3(css.as_bytes()).header_value()
+        );
+        let css_tree = cem_ml::import::import_data_bytes(
+            css.as_bytes(),
+            "text/css; mode=scoped-style-block",
+            "cem",
+            &source_uri,
+        )?;
+        Ok(Self {
+            css,
+            scope,
+            css_tree,
+        })
+    }
+
+    pub fn css(&self) -> &str {
+        &self.css
+    }
+
+    /// CSS-local coordinates and content identity; URL bases come from the
+    /// owning template's resolver context, never this synthetic source URI.
+    pub fn css_tree(&self) -> &std::sync::Arc<cem_ml::parser::tree::RetainedCemTree> {
+        &self.css_tree
+    }
+}
+
+impl PartialEq for TemplateStylesheetArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        self.css == other.css && self.scope == other.scope
+    }
+}
+
+impl Eq for TemplateStylesheetArtifact {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -873,16 +930,32 @@ fn extract_static_stylesheets(
             } if local_template_name(tag) == "style" => {
                 let scope = static_stylesheet_scope(attributes);
                 let css = static_stylesheet_text(children);
-                if dynamic_ancestor || scope.is_err() || css.is_none() {
+                let content_type = static_stylesheet_content_type(attributes);
+                if dynamic_ancestor || scope.is_err() || css.is_none() || content_type.is_err() {
                     diagnostics.push(render_diagnostic(
                         "cem.ql.template.stylesheet_dynamic_unsupported",
-                        "declaration stylesheet content and its `scope` attribute must be static"
+                        "declaration stylesheet content, `scope`, and `type` must be static"
                             .to_owned(),
                         source_map_start(source_map),
                         source_map.clone(),
                     ));
+                } else if content_type.as_deref() != Ok("text/css") {
+                    diagnostics.push(render_diagnostic(
+                        "cem.ql.template.stylesheet_content_type_unsupported",
+                        "declaration styles require the text/css content type".to_owned(),
+                        source_map_start(source_map),
+                        source_map.clone(),
+                    ));
                 } else if let (Ok(scope), Some(css)) = (scope, css) {
-                    stylesheets.push(TemplateStylesheetArtifact { css, scope });
+                    match TemplateStylesheetArtifact::adopt(css, scope) {
+                        Ok(stylesheet) => stylesheets.push(stylesheet),
+                        Err(message) => diagnostics.push(render_diagnostic(
+                            "cem.ql.template.stylesheet_parse_failed",
+                            message,
+                            source_map_start(source_map),
+                            source_map.clone(),
+                        )),
+                    }
                 }
             }
             TemplateNode::Element { children, .. } => {
@@ -920,6 +993,23 @@ fn static_stylesheet_scope(attributes: &[TemplateAttribute]) -> Result<Option<St
     match &attribute.value {
         Some(TemplateAttributeValue::Literal(value)) => Ok(Some(value.trim().to_owned())),
         None => Ok(Some(String::new())),
+        _ => Err(()),
+    }
+}
+
+fn static_stylesheet_content_type(attributes: &[TemplateAttribute]) -> Result<String, ()> {
+    match attributes
+        .iter()
+        .find(|attribute| attribute.name == "type")
+        .map(|a| &a.value)
+    {
+        None | Some(None) => Ok("text/css".to_owned()),
+        Some(Some(TemplateAttributeValue::Literal(value))) if value.trim().is_empty() => {
+            Ok("text/css".to_owned())
+        }
+        Some(Some(TemplateAttributeValue::Literal(value))) => {
+            Ok(cem_ml::schema::registry::content_type_essence(value))
+        }
         _ => Err(()),
     }
 }
@@ -4938,6 +5028,32 @@ mod tests {
     }
 
     #[test]
+    fn compile_rejects_invalid_static_stylesheet_content() {
+        for (source, code) in [
+            (
+                "{style |```a { color: red```}",
+                "cem.ql.template.stylesheet_parse_failed",
+            ),
+            (
+                "{style @type=text/less |```a { color: red; }```}",
+                "cem.ql.template.stylesheet_content_type_unsupported",
+            ),
+            (
+                "{style @type=\"{$type}\" |```a { color: red; }```}",
+                "cem.ql.template.stylesheet_dynamic_unsupported",
+            ),
+        ] {
+            let artifact = compile_template(source, &CompileTemplateOptions::default());
+            assert!(artifact.stylesheets.is_empty(), "{source}");
+            assert!(
+                artifact.diagnostics.iter().any(|d| d.code == code),
+                "{:?}",
+                artifact.diagnostics
+            );
+        }
+    }
+
+    #[test]
     fn compile_extracts_static_stylesheets_from_render_nodes() {
         let artifact = compile_template(
             r#"{module |
@@ -4956,17 +5072,55 @@ mod tests {
 
         assert_eq!(artifact.stylesheets.len(), 2);
         assert_eq!(artifact.stylesheets[0].scope, None);
-        assert!(artifact.stylesheets[0]
-            .css
-            .contains(":host { display: block; }"));
+        assert!(
+            artifact.stylesheets[0]
+                .css
+                .contains(":host { display: block; }")
+        );
         assert_eq!(artifact.stylesheets[1].scope.as_deref(), Some("abc-lib"));
-        assert!(artifact.stylesheets[1]
-            .css
-            .contains(".shared { color: green; }"));
+        assert!(
+            artifact.stylesheets[1]
+                .css
+                .contains(".shared { color: green; }")
+        );
+
+        for stylesheet in &artifact.stylesheets {
+            let tree = stylesheet.css_tree();
+            let root = tree.node(tree.node(0).unwrap().children[0]).unwrap();
+            let name = root.name.as_ref().unwrap();
+            assert_eq!(name.namespace_uri, cem_ml::schema::registry::CSS_SCHEMA_URI);
+            assert_eq!(name.local_name, "style-block");
+            assert!(std::sync::Arc::ptr_eq(tree, stylesheet.clone().css_tree()));
+        }
 
         let plan = render_compiled_template(&artifact, &TemplateData::default());
         assert!(!render_plan_to_html(&plan).contains("<style"));
         assert!(render_plan_to_html(&plan).contains("<button>Save</button>"));
+    }
+
+    #[test]
+    fn compile_adopts_default_and_explicit_css_with_unresolved_imports() {
+        for attribute in ["", "@type=\"\"", "@type=\"TEXT/CSS; charset=utf-8\""] {
+            let source = format!(
+                "{{style {attribute} |```@import 'theme'; :scope {{ background: url(icon); }}```}}"
+            );
+            let artifact = compile_template(&source, &CompileTemplateOptions::default());
+            assert!(
+                artifact.diagnostics.is_empty(),
+                "{:?}",
+                artifact.diagnostics
+            );
+            assert_eq!(artifact.stylesheets.len(), 1);
+            let stylesheet = &artifact.stylesheets[0];
+            assert!(stylesheet.css().starts_with("@import"));
+            let tree = stylesheet.css_tree();
+            assert!((0..tree.ast().nodes.len() as u32).any(|id| {
+                tree.node(id).unwrap().name.as_ref().is_some_and(|n| {
+                    n.local_name == "import"
+                        && n.namespace_uri == cem_ml::schema::registry::CSS_SCHEMA_URI
+                })
+            }));
+        }
     }
 
     #[test]

@@ -81,8 +81,45 @@ fn precompiled_template_preserves_static_declaration_stylesheets() {
 
     assert_eq!(reloaded.stylesheets, source_driven.stylesheets);
     assert_eq!(reloaded.stylesheets.len(), 2);
+    for stylesheet in &reloaded.stylesheets {
+        let tree = stylesheet.css_tree();
+        let root = tree.node(tree.node(0).unwrap().children[0]).unwrap();
+        let name = root.name.as_ref().unwrap();
+        assert_eq!(name.namespace_uri, cem_ml::schema::registry::CSS_SCHEMA_URI);
+        assert_eq!(name.local_name, "style-block");
+    }
     let rendered = render_compiled_template(&reloaded, &TemplateData::default());
     assert!(!render_plan_to_html(&rendered).contains("<style"));
+}
+
+#[test]
+fn stylesheet_binary_transport_adopts_css_and_rejects_malformed_source() {
+    use cem_ql::render::TemplateStylesheetArtifact;
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct WireStyle {
+        css: String,
+        scope: Option<String>,
+    }
+    let source = ":scope { color: red; }";
+    let stylesheet =
+        TemplateStylesheetArtifact::adopt(source.into(), Some("library".into())).unwrap();
+    let bytes = rmp_serde::to_vec_named(&stylesheet).unwrap();
+    let wire: WireStyle = rmp_serde::from_slice(&bytes).unwrap();
+    assert_eq!(wire.css, source);
+    assert_eq!(wire.scope.as_deref(), Some("library"));
+    let restored: TemplateStylesheetArtifact = rmp_serde::from_slice(&bytes).unwrap();
+    assert_eq!(restored, stylesheet);
+    assert!(!std::sync::Arc::ptr_eq(
+        restored.css_tree(),
+        stylesheet.css_tree()
+    ));
+    let invalid = rmp_serde::to_vec_named(&WireStyle {
+        css: "a { color: red".into(),
+        scope: None,
+    })
+    .unwrap();
+    assert!(rmp_serde::from_slice::<TemplateStylesheetArtifact>(&invalid).is_err());
 }
 
 #[test]
