@@ -31,7 +31,7 @@ impl CssRuleSubtreeEmission {
     }
 }
 
-/// Compose one top-level style/media/supports rule and its supported descendants.
+/// Compose one top-level style/media/supports/starting-style rule and its supported descendants.
 /// Output preserves declaration runs verbatim in order, including pseudo-element
 /// matches after nested rules. Every fragment maps to its retained source node.
 /// Unsupported constructs are diagnosed and omitted, never passed through raw.
@@ -84,49 +84,51 @@ fn compose(
             "CSS rule nesting exceeds 64 levels",
         ));
     }
-    let (opening, body, child_context) = if named(tree, id, "rule")
-        && attribute(tree, id, "kind") == Some("style")
-    {
-        let result = emit_css_style_rule(plan, id, mode)?;
-        append_diagnostics(output, result.diagnostics);
-        let Some(rule) = result.rule else {
+    let (opening, body, child_context) =
+        if named(tree, id, "rule") && attribute(tree, id, "kind") == Some("style") {
+            let result = emit_css_style_rule(plan, id, mode)?;
+            append_diagnostics(output, result.diagnostics);
+            let Some(rule) = result.rule else {
+                return Ok(());
+            };
+            (
+                format!(
+                    "{} {{",
+                    rule.selectors
+                        .iter()
+                        .map(|s| s.text.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                rule.body,
+                CssGroupingContext::StyleRule,
+            )
+        } else if named(tree, id, "rule")
+            && attribute(tree, id, "kind") == Some("at")
+            && attribute(tree, id, "name").is_some_and(|n| {
+                n.eq_ignore_ascii_case("media")
+                    || n.eq_ignore_ascii_case("supports")
+                    || n.eq_ignore_ascii_case("starting-style")
+            })
+        {
+            let result = emit_css_grouping_rule(plan, id, context)?;
+            append_diagnostics(output, result.diagnostics);
+            let Some(rule) = result.rule else {
+                return Ok(());
+            };
+            (rule.opening, rule.body, context)
+        } else {
+            append_diagnostics(
+                output,
+                vec![diagnostic(
+                    tree,
+                    id,
+                    "cem.scoped_css.subtree_construct_unsupported",
+                    "construct requires compilation outside the supported grouping subset",
+                )],
+            );
             return Ok(());
         };
-        (
-            format!(
-                "{} {{",
-                rule.selectors
-                    .iter()
-                    .map(|s| s.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            rule.body,
-            CssGroupingContext::StyleRule,
-        )
-    } else if named(tree, id, "rule")
-        && attribute(tree, id, "kind") == Some("at")
-        && attribute(tree, id, "name")
-            .is_some_and(|n| n.eq_ignore_ascii_case("media") || n.eq_ignore_ascii_case("supports"))
-    {
-        let result = emit_css_grouping_rule(plan, id, context)?;
-        append_diagnostics(output, result.diagnostics);
-        let Some(rule) = result.rule else {
-            return Ok(());
-        };
-        (rule.opening, rule.body, context)
-    } else {
-        append_diagnostics(
-            output,
-            vec![diagnostic(
-                tree,
-                id,
-                "cem.scoped_css.subtree_construct_unsupported",
-                "construct requires compilation outside the style/media/supports subset",
-            )],
-        );
-        return Ok(());
-    };
     let start = output.fragments.len();
     push_fragment(plan, output, id, opening);
     for item in body {

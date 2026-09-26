@@ -74,7 +74,9 @@ fn emit_declarations(
     let valid = if group {
         named(tree, rule, "at-rule")
             && attribute(tree, rule, "name").is_some_and(|name| {
-                name.eq_ignore_ascii_case("media") || name.eq_ignore_ascii_case("supports")
+                name.eq_ignore_ascii_case("media")
+                    || name.eq_ignore_ascii_case("supports")
+                    || name.eq_ignore_ascii_case("starting-style")
             })
     } else {
         named(tree, rule, "rule") && attribute(tree, rule, "kind") == Some("style")
@@ -86,7 +88,10 @@ fn emit_declarations(
     for &id in &tree.node(rule).unwrap().children {
         if named(tree, id, "selector-list")
             || named(tree, id, "comment")
-            || (group && (named(tree, id, "group-media") || named(tree, id, "group-supports")))
+            || (group
+                && (named(tree, id, "group-media")
+                    || named(tree, id, "group-supports")
+                    || named(tree, id, "group-starting-style")))
         {
             continue;
         }

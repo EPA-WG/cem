@@ -631,7 +631,7 @@ pending before browser cutover.
 Accepted: preserve native CSS nesting in the emitted stylesheet, consistent
 with the managed stylesheet's native `@scope` target. Shared import retains the
 selector structure and parent-aware selector emission produces native fragments.
-Style/media/supports subtree assembly is implemented; full stylesheet assembly
+Style/media/supports/starting-style subtree assembly is implemented; full stylesheet assembly
 and browser cutover remain pending.
 
 The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
@@ -732,9 +732,26 @@ and declaration order through media/supports groups. Rebuild WASM after native
 fixtures pass and verify computed browser behavior for the emitted nesting,
 including nested declaration runs. Automatic `url(#id)` handling stays deferred.
 
+## Starting-style grouping: implemented natively
+
+Shared import retains `group-starting-style` with a `syntax-valid` flag and
+original prelude components. Only an empty or comment/whitespace-only prelude
+is accepted. The grouping emitter diagnoses and suppresses nonempty preludes
+with `cem.scoped_css.starting_style_prelude_invalid`; a missing block uses the
+existing `cem.scoped_css.group_block_required` diagnostic. No raw-prelude
+fallback is used.
+
+The emitted group carries its containing style context, so direct declarations
+and nested selectors retain their order and parent specificity. Top-level
+declarations without a style parent remain suppressed. The browser owns the
+transition lifecycle, following [CSS Transitions Level 2](https://www.w3.org/TR/css-transitions-2/#defining-before-change-style).
+The public CSS schema declares the media/supports/starting-style nodes and the
+existing selector-context, parent-dependent specificity and nesting vocabulary.
+Container-query and keyframe compilation remain pending.
+
 ## Native rule subtree composition
 
-`emit_css_rule_subtree` composes a top-level retained style, media or supports
+`emit_css_rule_subtree` composes a top-level retained style, media, supports or starting-style
 rule with its supported descendants. Style rules select root or parent-aware
 selector emission from import-owned context. Grouping rules carry the enclosing
 style context through their bodies. The result keeps ordered text fragments,
@@ -760,7 +777,9 @@ the native composer and checks computed styles in Chromium. The fixture uses
 explicit temporary CSS files; it does not serialize a retained AST or invoke a
 new browser runtime API. It covers parent-list specificity, nested declaration
 runs on pseudo-elements, media/supports order, rejected parents, instance scope,
-host normalization, duplicate weighting and zero-weight nesting. This verifies
+host normalization, duplicate weighting and zero-weight nesting. It also
+checks an entering element’s opacity transition from native `@starting-style`
+output at the start, midpoint and end. This verifies
 the native output's browser semantics, not WASM runtime integration.
 
 ## Shared-resolver byte delivery: implemented natively

@@ -35,7 +35,7 @@ pub struct CssGroupingRuleEmission {
     pub diagnostics: Vec<CssEmissionDiagnostic>,
 }
 
-/// Emit only retained @media/@supports groups. Does not flatten groups or invent
+/// Emit retained @media/@supports/@starting-style groups. Does not flatten groups or invent
 /// selectors for their declarations. The caller must propagate style-rule context
 /// through nested groups, compile deferred children and close each emitted block.
 /// No raw prelude parsing/fallback or browser feature evaluation is performed.
@@ -53,6 +53,8 @@ pub fn emit_css_grouping_rule(
         "group-media"
     } else if name.eq_ignore_ascii_case("supports") {
         "group-supports"
+    } else if name.eq_ignore_ascii_case("starting-style") {
+        "group-starting-style"
     } else {
         return Err(invalid(tree, rule));
     };
@@ -82,7 +84,11 @@ pub fn emit_css_grouping_rule(
         .children
         .iter()
         .copied()
-        .filter(|child| named(tree, *child, "group-media") || named(tree, *child, "group-supports"))
+        .filter(|child| {
+            named(tree, *child, "group-media")
+                || named(tree, *child, "group-supports")
+                || named(tree, *child, "group-starting-style")
+        })
         .collect();
     if conditions.len() != 1 || !named(tree, conditions[0], local) {
         return Err(invalid(tree, container));
@@ -97,6 +103,20 @@ pub fn emit_css_grouping_rule(
         } else {
             media_condition(tree, condition)?
         }
+    } else if local == "group-starting-style" {
+        match attribute(tree, condition, "syntax-valid") {
+            Some("false") => {
+                return Ok(suppressed(diagnostic(
+                    tree,
+                    condition,
+                    "cem.scoped_css.starting_style_prelude_invalid",
+                    "@starting-style requires an empty prelude",
+                )))
+            }
+            Some("true") => {}
+            _ => return Err(invalid(tree, condition)),
+        }
+        (String::new(), Vec::new())
     } else {
         match attribute(tree, condition, "syntax-valid") {
             Some("false") => {
@@ -137,7 +157,11 @@ pub fn emit_css_grouping_rule(
     Ok(CssGroupingRuleEmission {
         rule: (!body.is_empty()).then_some(CssGroupingRule {
             node_id: rule,
-            opening: format!("@{} {text} {{", name.to_ascii_lowercase()),
+            opening: if local == "group-starting-style" {
+                "@starting-style {".into()
+            } else {
+                format!("@{} {text} {{", name.to_ascii_lowercase())
+            },
             body,
             source: node.source.clone(),
             range: node.range,

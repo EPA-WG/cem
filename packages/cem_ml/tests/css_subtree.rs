@@ -144,6 +144,7 @@ fn subtree_bounds_traversal_and_rejects_detached_nested_entrypoints() {
 fn browser_fixture_emits_scoped_native_nesting() {
     use cem_ml::css_emission::{emit_css_scope_wrapper, CssManagedScope};
     let cases = [
+        ("starting-style", ".card {opacity:1; transition:opacity 1s linear; @starting-style {opacity:0;}}", CssRuleMode::Declaration),
         ("parent-list", ".card,.strong.extra { & span {color:orange} } .card span {color:black}", CssRuleMode::Declaration),
         ("declarations", ".pseudo::before {content:\"marker\";color:red; @media all {color:blue;} color:green;}", CssRuleMode::Declaration),
         ("group-order", ".card {color:red; @media all {@supports (display:grid) {color:blue; &.active {background-color:orange;} color:green;}} color:purple;}", CssRuleMode::Declaration),
@@ -179,4 +180,19 @@ fn browser_fixture_emits_scoped_native_nesting() {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
         }
     }
+}
+
+#[test]
+fn starting_style_composition_preserves_nesting_and_rejects_invalid_groups() {
+    let plan = plan(".card {@starting-style {opacity:0; &.active {color:red} opacity:0.5;} @starting-style invalid {opacity:0.9} opacity:1;}");
+    let result = emit_css_rule_subtree(&plan, first_rule(&plan), CssRuleMode::Declaration).unwrap();
+    assert_eq!(
+        result.css(),
+        ".card {@starting-style {opacity:0;&.active {color:red;}opacity:0.5;}opacity:1;}"
+    );
+    assert_eq!(result.diagnostics.len(), 1);
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.starting_style_prelude_invalid"
+    );
 }

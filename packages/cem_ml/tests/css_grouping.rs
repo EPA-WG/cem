@@ -205,3 +205,56 @@ fn grouping_omits_empty_bodies_and_does_not_accept_other_at_rules() {
         "cem.scoped_css.group_tree_invalid"
     );
 }
+
+#[test]
+fn starting_style_validates_empty_prelude_and_preserves_group_context() {
+    for prelude in ["", " /* retained comment */ "] {
+        let source = format!(".card {{ @STARTING-STYLE {prelude} {{opacity:0; &.active {{color:red}} opacity:0.5;}} }}");
+        let plan = plan(&source);
+        let result =
+            emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::StyleRule).unwrap();
+        assert!(result.diagnostics.is_empty());
+        let rule = result.rule.unwrap();
+        assert_eq!(rule.opening, "@starting-style {");
+        assert_eq!(rule.body.len(), 3);
+        assert!(matches!(&rule.body[0], CssRuleBodyItem::Declaration(d) if d.text == "opacity:0;"));
+        assert!(matches!(&rule.body[1], CssRuleBodyItem::Deferred(_)));
+        assert!(
+            matches!(&rule.body[2], CssRuleBodyItem::Declaration(d) if d.text == "opacity:0.5;")
+        );
+        assert!(rule.source.origin().is_some());
+    }
+    let plan = plan("@starting-style {opacity:0; .card {opacity:0}} ");
+    let result =
+        emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet).unwrap();
+    assert_eq!(result.rule.unwrap().body.len(), 1);
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.group_declaration_unsupported"
+    );
+}
+
+#[test]
+fn starting_style_rejects_nonempty_preludes_and_missing_blocks() {
+    for prelude in ["screen", "(width:1px)", "future()", "/* comment */ invalid"] {
+        let plan = plan(&format!(
+            "@starting-style {prelude} {{.card {{opacity:0}}}}"
+        ));
+        let result =
+            emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet).unwrap();
+        assert!(result.rule.is_none());
+        assert_eq!(
+            result.diagnostics[0].code,
+            "cem.scoped_css.starting_style_prelude_invalid"
+        );
+        assert!(result.diagnostics[0].source.origin().is_some());
+    }
+    let plan = plan("@starting-style;");
+    let result =
+        emit_css_grouping_rule(&plan, group(&plan), CssGroupingContext::Stylesheet).unwrap();
+    assert!(result.rule.is_none());
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.group_block_required"
+    );
+}

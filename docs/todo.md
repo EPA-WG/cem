@@ -5855,11 +5855,17 @@ registration identities may reuse an inherited or existing definition.
               Nx WASM build and lint (existing warnings).
               The fixture exercises native-emitted CSS after the WASM build;
               runtime WASM API integration and browser cutover remain pending.
-        - [ ] Fixture: retain and emit `@starting-style` with empty-prelude
+        - [x] Fixture: retain and emit `@starting-style` with empty-prelude
               validation, source diagnostics, inherited nesting context, ordered
-              declaration runs and native/browser coverage. Recommended next:
-              this completes a bounded grouping case before container queries
-              and typed keyframe-name/reference compilation.
+              declaration runs and native/browser coverage. Align the public CSS schema
+              with the retained grouping and nesting fields.
+              Validation: 52 focused native/schema checks, the 10 browser
+              computed-style checks and starting-style transition pass. Nx WASM
+              build, Rust lint (existing warnings) and script lint pass.
+        - [ ] Fixture: retain and emit container-query grouping conditions,
+              preserving optional names, query components, nested style context,
+              invalid-condition diagnostics and browser-owned evaluation.
+              Recommended next before typed keyframe compilation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

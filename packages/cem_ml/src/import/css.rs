@@ -269,6 +269,17 @@ impl CssImport<'_> {
                             );
                             self.components(condition, pos + 1, prelude_end);
                         }
+                        "starting-style" => {
+                            let prelude =
+                                self.node(at_rule, "group-starting-style", pos + 1, prelude_end);
+                            let valid = self.significant(pos + 1, prelude_end).is_none();
+                            self.attr(
+                                prelude,
+                                "syntax-valid",
+                                if valid { "true" } else { "false" },
+                            );
+                            self.components(prelude, pos + 1, prelude_end);
+                        }
                         _ => self.components(at_rule, pos + 1, prelude_end),
                     }
                     if let Some(open) = open {

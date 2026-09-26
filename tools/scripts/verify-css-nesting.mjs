@@ -42,7 +42,31 @@ try {
       getComputedStyle(document.querySelector(selector), pseudo)[property], { selector, pseudo, property });
     assert.equal(actual, expected, `${name}: ${selector}${pseudo ?? ''} ${property}`);
   }
-  console.log(`Native nested CSS: ${cases.length} computed-style checks passed.`);
+  const startingCss = await readFile(join(directory, 'starting-style.css'), 'utf8');
+  await page.setContent('<cem-fixture></cem-fixture>');
+  const transition = await page.evaluate((css) => {
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.append(style);
+    const host = document.querySelector('cem-fixture');
+    host.getBoundingClientRect();
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.textContent = 'appearing';
+    host.append(card);
+    const initial = getComputedStyle(card).opacity;
+    const animation = card.getAnimations().find((item) => item instanceof CSSTransition);
+    if (!animation) return null;
+    animation.pause();
+    animation.currentTime = 500;
+    const midpoint = getComputedStyle(card).opacity;
+    const keyframes = animation.effect.getKeyframes().map((frame) => frame.opacity);
+    animation.finish();
+    return { initial, midpoint, keyframes, final: getComputedStyle(card).opacity };
+  }, startingCss);
+  assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
+    'native @starting-style must supply the initial transition value');
+  console.log(`Native nested CSS: ${cases.length} computed-style checks and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

@@ -42,10 +42,13 @@
         {element @name="import-supports" @required-attributes="condition-form" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="import-layer" @required-attributes="anonymous" @optional-attributes="source-id byte-offset byte-length" @children="layer-segment*"}
         {element @name="layer-segment" @required-attributes="value" @optional-attributes="source-id byte-offset byte-length"}
-        {element @name="rule" @required-attributes="kind" @optional-attributes="selector prelude name media layer condition has-block source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
-        {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="rule* declaration* component-value* comment*"}
+        {element @name="rule" @required-attributes="kind" @optional-attributes="selector selector-context prelude name media layer condition has-block source-id byte-offset byte-length" @children="selector-list? declaration* rule* at-rule* comment*"}
+        {element @name="at-rule" @required-attributes="name" @optional-attributes="prelude source-id byte-offset byte-length" @children="group-media? group-supports? group-starting-style? rule* declaration* component-value* comment*"}
+        {element @name="group-media" @optional-attributes="empty source-id byte-offset byte-length" @children="media-query*"}
+        {element @name="group-supports" @required-attributes="syntax-valid" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
+        {element @name="group-starting-style" @required-attributes="syntax-valid" @optional-attributes="source-id byte-offset byte-length" @children="component-value*"}
         {element @name="selector-list" @optional-attributes="analysis-status source-id byte-offset byte-length" @children="selector*"}
-        {element @name="selector" @optional-attributes="text specificity source-id byte-offset byte-length" @children="simple-selector* compound-selector* combinator*"}
+        {element @name="selector" @optional-attributes="text specificity specificity-kind source-id byte-offset byte-length" @children="simple-selector* compound-selector* combinator*"}
         {element @name="compound-selector" @optional-attributes="source-id byte-offset byte-length" @children="simple-selector*"}
         {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace operator modifier relative source-id byte-offset byte-length" @children="selector-list?"}
         {element @name="combinator" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length"}
@@ -77,12 +80,15 @@
         {attribute @name="nonce" @type="schema:string"}
         {attribute @name="policy" @type="schema:identifier" @values="preserve sanitize reject delegate"}
         {attribute @name="href" @type="schema:string"}
-        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal combinator descendant child next-sibling subsequent-sibling ident function hash string url number percentage dimension delimiter whitespace comment unicode-range curly square paren unknown"}
+        {attribute @name="kind" @type="schema:identifier" @values="qualified at style media supports container layer scope keyframes font-face page property import namespace charset margin selector class id type attribute pseudo-class pseudo-element universal nesting combinator descendant child next-sibling subsequent-sibling ident function hash string url number percentage dimension delimiter whitespace comment unicode-range curly square paren unknown"}
         {attribute @name="selector" @type="schema:string"}
         {attribute @name="prelude" @type="schema:string"}
         {attribute @name="name" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="important" @type="schema:boolean"}
+        {attribute @name="selector-context" @type="schema:string" @values="root nested"}
+        {attribute @name="specificity-kind" @type="schema:string" @values="parent-dependent"}
+        {attribute @name="empty" @type="schema:boolean"}
         {attribute @name="syntax-valid" @type="schema:boolean"}
         {attribute @name="condition-form" @type="schema:string" @values="declaration condition"}
         {attribute @name="anonymous" @type="schema:boolean"}
