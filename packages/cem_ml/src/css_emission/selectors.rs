@@ -10,9 +10,12 @@ use crate::{
     transform_template::transform_template_encode_css_string,
 };
 use std::collections::BTreeSet;
+mod nesting;
+pub use nesting::emit_css_nested_selectors;
 
 #[derive(Debug)]
 pub struct CssEmittedSelector {
+    pub node_id: AstNodeId,
     pub text: String,
     /// Authored weight, before host rewriting. Used for the library ceiling.
     pub authored_specificity: (u32, u32, u32),
@@ -53,10 +56,19 @@ fn emit_selectors(
     rule: AstNodeId,
     instance: bool,
 ) -> Result<CssSelectorEmission, CssEmissionDiagnostic> {
+    emit_with_parent(tree, rule, instance, None)
+}
+
+fn emit_with_parent(
+    tree: &RetainedCemTree,
+    rule: AstNodeId,
+    instance: bool,
+    parent: Option<&nesting::ParentContext>,
+) -> Result<CssSelectorEmission, CssEmissionDiagnostic> {
     if !named(tree, rule, "rule") || attribute(tree, rule, "kind") != Some("style") {
         return Err(invalid(tree, rule));
     }
-    if attribute(tree, rule, "selector-context") == Some("nested") {
+    if attribute(tree, rule, "selector-context") == Some("nested") && parent.is_none() {
         return Ok(CssSelectorEmission {
             selectors: Vec::new(),
             diagnostics: vec![diagnostic(
@@ -100,10 +112,25 @@ fn emit_selectors(
         if !named(tree, id, "selector") {
             return Err(invalid(tree, id));
         }
-        let weight = specificity(tree, id)?;
+        let weight = match parent {
+            Some(parent) => match nesting::composed_weight(tree, id, parent) {
+                Ok(weight) => weight,
+                Err(d) => {
+                    result.diagnostics.push(d);
+                    continue;
+                }
+            },
+            None => specificity(tree, id)?,
+        };
         if let Err(d) = policy(tree, id, true) {
             result.diagnostics.push(d);
             continue;
+        }
+        if let Some(parent) = parent {
+            if let Err(d) = nesting::check(tree, id, parent, true) {
+                result.diagnostics.push(d);
+                continue;
+            }
         }
         if !instance && weight > (0, 2, 1) {
             result.diagnostics.push(diagnostic(
@@ -117,11 +144,14 @@ fn emit_selectors(
         let mut aliases = Vec::new();
         match emit(tree, id, instance, &mut aliases) {
             Ok(mut text) => {
-                if instance && !starts_with_scope(tree, id) {
+                if parent.is_some() && nesting::implicit(tree, id) {
+                    text = format!("& {}", text.trim_start());
+                } else if parent.is_none() && instance && !starts_with_scope(tree, id) {
                     text = format!(":scope {text}");
                 }
                 let node = tree.node(id).unwrap();
                 result.selectors.push(CssEmittedSelector {
+                    node_id: id,
                     text,
                     authored_specificity: weight,
                     source: node.source.clone(),
@@ -252,6 +282,7 @@ fn emit(
     }
     let field = |name| attribute(tree, id, name).ok_or_else(|| invalid(tree, id));
     match field("kind")? {
+        "nesting" => Ok("&".to_owned()),
         "class" => Ok(format!(".{}", ident(field("value")?))),
         "type" | "universal" => {
             let prefix = match field("namespace")? {

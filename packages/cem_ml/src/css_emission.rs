@@ -21,8 +21,8 @@ pub use rules::{
 
 mod selectors;
 pub use selectors::{
-    emit_css_declaration_selectors, emit_css_instance_selectors, CssEmittedSelector,
-    CssSelectorEmission,
+    emit_css_declaration_selectors, emit_css_instance_selectors, emit_css_nested_selectors,
+    CssEmittedSelector, CssSelectorEmission,
 };
 
 use crate::{

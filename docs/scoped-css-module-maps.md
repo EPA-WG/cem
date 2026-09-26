@@ -626,12 +626,12 @@ not a complete stylesheet. Deferred selector nesting, other grouping kinds,
 keyframe names/references and recursive whole-stylesheet composition remain
 pending before browser cutover.
 
-## Nested style rules: native output accepted; import implemented
+## Nested style rules: native output accepted
 
 Accepted: preserve native CSS nesting in the emitted stylesheet, consistent
-with the managed stylesheet's native `@scope` target. Shared import now retains
-the required selector structure; context-aware emission and browser cutover
-remain pending.
+with the managed stylesheet's native `@scope` target. Shared import retains the
+selector structure and parent-aware selector emission produces native fragments.
+Recursive stylesheet assembly and browser cutover remain pending.
 
 The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
 assigns `&` the maximum specificity of the parent selector list. Simple textual
@@ -687,12 +687,42 @@ apply the pseudo-class's weight rules. Root selectors and parent-independent
 functional arguments keep their existing specificity metadata. Unsupported
 nested grammar remains an unsupported list without partial structure.
 
-Until parent-aware emission is implemented, declaration and instance selector
-helpers suppress any nested rule with
+The context-free declaration and instance selector helpers suppress nested rules with
 `cem.scoped_css.nesting_context_required`, even when its text contains no `&`.
 Ordered parent-rule assembly continues to retain the child as a deferred slot.
-Standalone selector queries still reject nesting. This step adds no installable
-stylesheet or browser behavior.
+Standalone selector queries still reject nesting.
+
+`emit_css_nested_selectors(tree, rule, mode)` now emits native nested-selector
+fragments using the actual retained ancestor chain. It admits each ancestor's
+selector list using the same declaration or instance policy, then computes the
+child's authored specificity with the maximum admitted parent weight. Rejected
+parent branches contribute neither weight nor inherited compound tokens. A child
+of an entirely suppressed parent is omitted with
+`cem.scoped_css.nesting_parent_suppressed`. The result includes ancestor
+diagnostics; a recursive stylesheet compiler should avoid reporting them twice.
+
+The helper retains explicit `&` and makes implicit nesting explicit (`.label`
+becomes `& .label`, `> .label` becomes `& > .label`). It evaluates functional
+selector weight from retained nodes, including zero-weight `:where()`, and
+applies the declaration/shared `0-2-1` ceiling before host normalization. Instance
+selectors inherit their parent's generated prefix without receiving another one.
+Every emitted selector now carries its retained node ID alongside source/range.
+
+Compound checks include admitted parents' terminal class/attribute tokens and
+subject intersections through `:is()` and functional `:host()`. If any admitted
+parent alternative would repeat a weighted token in the child's compound, the
+whole child selector is suppressed. Descendant compounds remain separate;
+`:where()` contributes no weight. Pseudo-element parent branches contribute to
+the maximum specificity but not to duplicate subject tokens, since `&` cannot
+match their pseudo-elements. Repeated weighted parent intersections such
+as `&&` and `:is(&):is(&)` diagnose as manufactured specificity. Checked arithmetic
+suppresses overflowing weights with `cem.scoped_css.specificity_overflow`.
+Ancestor traversal is bounded and stops at unsupported/reference-resetting
+boundaries, including authored `@scope`.
+
+These fragments must stay nested beneath the same admitted parent selectors.
+The helper does not validate grouping conditions, assemble declarations, emit
+complete stylesheets, or install browser CSS. Those steps remain pending.
 
 Before browser cutover, fixtures must establish parent-list specificity,
 multi-level context, `:where()` zero specificity, host normalization, instance

@@ -5831,12 +5831,16 @@ registration identities may reuse an inherited or existing definition.
               source maps and declaration order around nested constructs; allow
               direct declarations only when a containing style rule supplies context.
         - [x] Audit native nested-selector compilation requirements and record
-              the [native nesting contract](scoped-css-module-maps.md#nested-style-rules-native-output-accepted-import-implemented).
+              the [native nesting contract](scoped-css-module-maps.md#nested-style-rules-native-output-accepted).
         - [x] Decide nested-rule output: preserve native CSS nesting. Accepted;
               implement the retained import model before context-aware emission.
         - [x] Fixture: retain explicit/implicit nested selectors and their source
               ranges through grouping rules, distinguish parent-dependent
               specificity, preserve query rejection and reject context-free emission.
+        - [x] Fixture: emit native nested-selector fragments from actual retained
+              ancestors; enforce composed specificity and inherited compound
+              duplication, preserve aliases/source ranges, and cover empty parents,
+              multi-level/group contexts and instance prefixing.
         - [ ] Fixture: native nested selectors with parent-list/composed
               specificity, implicit and explicit nesting, grouping context,
               host/instance handling, rejected branches, manufactured weighting,
