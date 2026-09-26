@@ -180,3 +180,9 @@ required/boolean state and datepicker cases; their individual baseline status
 has not yet been established. Preserve these failures as follow-up work rather
 than weakening assertions or changing frozen behavior modules. No workspace-wide
 tests were run.
+
+After restoring the pre-cutover Site sources, its build also fails before asset
+deployment at `transform:token-browser-page`: `cem.transform_template.adapter_failed`
+reports `JSON exceeds the 64-level / 4096-value import limit.` This is independent
+of the trial XHTML resource entry and must be resolved before Site can provide
+a passing end-to-end cutover check.

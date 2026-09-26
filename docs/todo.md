@@ -5755,6 +5755,10 @@ registration identities may reuse an inherited or existing definition.
           empty disabled state and collapsible navigation failures reproduce
           with committed legacy sources. Establish the remaining baseline and
           repair shared semantics or migrate owners without weakening tests.
+    - [ ] Diagnose the restored Site build's token-browser failure:
+          `cem.transform_template.adapter_failed` reports the 64-level / 4096-value
+          JSON import limit before asset deployment. Resolve before end-to-end
+          XHTML cutover verification; do not attribute it to the new resource.
     - [ ] Fixture: verify canonical action loading in workflow/demo and Site
           search/interactive consumers, including packaged XHTML asset delivery.
     - [ ] Fixture: cover explicit submit/reset, required-input validation,
