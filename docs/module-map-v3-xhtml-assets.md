@@ -1,6 +1,7 @@
 # Module-map v3 XHTML deployment resources
 
-Status: design selected for the `cem-action` migration; implementation pending.
+Status: native v3 XHTML resource support implemented; Site adoption and component
+cutover remain pending.
 The active checklist is in [todo.md](todo.md). This document specifies an
 additive extension to the existing worker-safe
 [module-map v3 contract](../packages/cem_ml/schema-packages/module-map-v3/v1/schema/module-map-v3.cem),
@@ -130,6 +131,33 @@ consumer loading, and reduce the legacy count. The package trial also exposed
 legacy suite failures recorded in the action migration plan; do not claim a
 fully green package gate until that baseline is resolved.
 
-There are no remaining API questions in this narrow design. The next task is
-the native tests-first v3 XHTML implementation, followed by Site adoption and
-the component cutover.
+The native implementation permits XHTML only on the v3 resource path. The
+regression fixture first reproduced `cem.module_map.resource_type_unsupported`,
+then passed with schema-aware validation. It covers XHTML alongside existing
+JavaScript, CSS and WASM, MIME/extension normalization, byte/digest identity,
+deterministic manifests, and the resource's absence from the browser import map.
+Rejection coverage retains v1/v2 behavior and rejects mixed schemas, import-map
+XHTML modules, unsupported types, unsafe destinations, mismatched pairs and
+JavaScript edges to/from XHTML.
+
+CLI coverage proves byte-preserving publication, deterministic reports, a changed
+cache key when only XHTML changes, and no partial output for a missing XHTML
+source. The schema-owned cache fixture now includes an XHTML resource.
+
+The next task is Site adoption. Resolve the recorded token-browser import-limit
+failure before claiming end-to-end Site verification, then complete the component
+cutover. No publishing is included in this implementation.
+
+## Verification
+
+- `cargo test -p cem-ml module_map --lib`: 27 focused module-map tests passed.
+- `cargo test -p cem-ml-cli transform_config_module_map --lib`: v1/v2/v3
+  publication tests passed.
+- `yarn nx run cem_ml_schema_package_module_map_v3_v1:verify`: package/schema
+  examples, lowering/rejection fixtures, CLI publication, cache-key projection,
+  TypeScript projections and native/WASM builds passed.
+- `yarn nx run cem_ml_schema_package_module_map_v3_v1:samples2readme`: generated
+  documentation updated from the manifest-owned examples.
+
+The verification target selects its library tests and schema-example integration
+test explicitly; it does not run workspace-wide tests.

@@ -1654,12 +1654,14 @@ impl TransformGraphRequestLowerer<'_> {
                 name,
                 &source.path,
                 &source.content_type,
+                v3,
             )?;
             let target_content_type = validate_module_resource_content_type(
                 self.config_uri,
                 name,
                 &target.path,
                 &target.content_type,
+                v3,
             )?;
             if source_content_type != target_content_type {
                 return Err(config_error(
@@ -1676,6 +1678,7 @@ impl TransformGraphRequestLowerer<'_> {
                 name,
                 &target.path,
                 &target_content_type,
+                v3,
             )?;
             if !v3 && !source.module_imports.is_empty() {
                 return Err(config_error(
@@ -2608,18 +2611,21 @@ fn validate_module_resource_content_type(
     name: &str,
     path: &str,
     content_type: &str,
+    v3: bool,
 ) -> Result<String, TransformGraphRequestError> {
     let content_type = content_type_essence(content_type);
     let expected_extensions: &[&str] = match content_type.as_str() {
         "text/javascript" => &["js", "mjs"],
         "text/css" => &["css"],
         "application/wasm" => &["wasm"],
+        "application/xhtml+xml" if v3 => &["xhtml"],
         _ => {
             return Err(config_error(
                 config_uri,
                 "cem.module_map.resource_type_unsupported",
                 format!(
-                    "module-map resource `{name}` content type `{content_type}` is unsupported; expected `text/javascript`, `text/css`, or `application/wasm`"
+                    "module-map resource `{name}` content type `{content_type}` is unsupported; expected `text/javascript`, `text/css`, or `application/wasm`{}",
+                    if v3 { ", or `application/xhtml+xml`" } else { "" }
                 ),
             ));
         }
@@ -2648,6 +2654,7 @@ fn validate_module_resource_target(
     name: &str,
     target: &str,
     content_type: &str,
+    v3: bool,
 ) -> Result<(), TransformGraphRequestError> {
     let relative = target.strip_prefix("./").ok_or_else(|| {
         config_error(
@@ -2676,7 +2683,7 @@ fn validate_module_resource_target(
             ),
         ));
     }
-    validate_module_resource_content_type(config_uri, name, target, content_type).map(|_| ())
+    validate_module_resource_content_type(config_uri, name, target, content_type, v3).map(|_| ())
 }
 
 fn validate_module_specifier(
@@ -3609,6 +3616,9 @@ mod tests {
     "@pkg/runtime": {"path":"../runtime/runtime.js","contentType":"text/javascript"}
   },
   "resources": {
+    "@pkg/template": {"path":"../runtime/action.XHTML","contentType":"application/xhtml+xml; charset=utf-8"},
+    "@pkg/styles": {"path":"../runtime/styles.css","contentType":"text/css"},
+    "@pkg/wasm": {"path":"../runtime/runtime.wasm","contentType":"application/wasm"},
     "@pkg/worker": {"path":"../runtime/worker.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}}
   }
 }"#,
@@ -3623,6 +3633,9 @@ mod tests {
     "@pkg/runtime": {"path":"./assets/runtime/runtime.js","contentType":"text/javascript"}
   },
   "resources": {
+    "@pkg/template": {"path":"./components/action.xhtml","contentType":"application/xhtml+xml"},
+    "@pkg/styles": {"path":"./styles.css","contentType":"text/css"},
+    "@pkg/wasm": {"path":"./runtime.wasm","contentType":"application/wasm"},
     "@pkg/worker": {"path":"./workers/worker.js","contentType":"text/javascript","moduleImports":{"@pkg/runtime":"@pkg/runtime"}}
   }
 }"#,
@@ -3642,6 +3655,10 @@ export { metadata };
             "runtime/worker.js",
             b"import { runtime } from '@pkg/runtime';\nself.postMessage(runtime);\n",
         );
+        let xhtml = "<cem-element xmlns=\"http://www.w3.org/1999/xhtml\" tag=\"cem-action\">\n<!-- Keep é and whitespace -->\n<template id=\"cem-action\" type=\"text/cem-ml\">{button | Save &amp; close}</template></cem-element>\n".as_bytes();
+        let template_uri = fixture.write("runtime/action.XHTML", xhtml);
+        fixture.write("runtime/styles.css", b"button { color: inherit; }\n");
+        fixture.write("runtime/runtime.wasm", &[0, 97, 115, 109]);
         let graph = graph(&config_uri, graph_bytes);
         let context = EngineContext::default();
         let provider = FilesystemTransformGraphResourceProvider::new(&context, &config_uri);
@@ -3687,6 +3704,36 @@ export { metadata };
         );
         assert_ne!(app_asset.source_sha256, app_asset.sha256);
         assert_eq!(request.module_asset_manifest.contract_version, 2);
+        let template = request
+            .imports
+            .iter()
+            .find(|import| import.input.uri == template_uri)
+            .unwrap();
+        assert!(template.opaque);
+        assert_eq!(template.input.bytes.as_slice(), xhtml);
+        assert!(!request.importmap_rewrites[0]
+            .target_imports
+            .contains_key("@pkg/template"));
+        let asset = request
+            .module_asset_manifest
+            .assets
+            .iter()
+            .find(|asset| asset.specifier == "@pkg/template")
+            .unwrap();
+        assert_eq!(asset.content_type, "application/xhtml+xml");
+        assert_eq!(asset.target, "./components/action.xhtml");
+        assert_eq!(asset.source_byte_length, xhtml.len() as u64);
+        assert_eq!(
+            asset.source_sha256,
+            crate::command_service::sha256_hex(xhtml)
+        );
+        assert_eq!(asset.source_sha256, asset.sha256);
+        let repeated =
+            lower_transform_graph_request(&context, &graph, &provider, &config_uri, true).unwrap();
+        assert_eq!(
+            request.module_asset_manifest,
+            repeated.module_asset_manifest
+        );
     }
 
     #[test]
@@ -3739,6 +3786,113 @@ export { metadata };
                 b"import '@pkg/runtime';\n"
             ),
             "cem.module_map.module_imports_mismatch"
+        );
+    }
+
+    #[test]
+    fn module_map_v3_xhtml_rejects_invalid_resource_boundaries() {
+        fn error(source: &serde_json::Value, target: &serde_json::Value) -> String {
+            let fixture = FixtureDir::new();
+            let bytes = br#"{run | {import @id=page @src="page.html" @content-type="text/html" | {rewrite-importmap @id=modules @source-map="source.json" @target-map="target.json" | {export @id=html @out="dist/page.html" @content-type="text/html"}}}}"#;
+            let uri = fixture.write("graph.cem", bytes);
+            fixture.write("page.html", b"<html></html>");
+            fixture.write("source.json", &serde_json::to_vec(source).unwrap());
+            fixture.write("target.json", &serde_json::to_vec(target).unwrap());
+            fixture.write(
+                "action.xhtml",
+                b"<template id='action'>Keep bytes</template>",
+            );
+            fixture.write("app.js", b"import '@pkg/action';");
+            let context = EngineContext::default();
+            let provider = FilesystemTransformGraphResourceProvider::new(&context, &uri);
+            lower_transform_graph_request(&context, &graph(&uri, bytes), &provider, &uri, true)
+                .unwrap_err()
+                .code()
+                .to_owned()
+        }
+        let source = serde_json::json!({"$schema": MODULE_MAP_V3_SCHEMA_URI, "imports": {},
+            "resources": {"@pkg/action": {"path":"action.xhtml", "contentType":"application/xhtml+xml"}}});
+        let mut target = source.clone();
+        target["resources"]["@pkg/action"]["path"] = "./action.xhtml".into();
+        for version in [MODULE_MAP_SCHEMA_URI, MODULE_MAP_V2_SCHEMA_URI] {
+            let mut old_source = source.clone();
+            let mut old_target = target.clone();
+            old_source["$schema"] = version.into();
+            old_target["$schema"] = version.into();
+            assert_eq!(
+                error(&old_source, &old_target),
+                if version == MODULE_MAP_SCHEMA_URI {
+                    "cem.module_map.resources_unsupported"
+                } else {
+                    "cem.module_map.resource_type_unsupported"
+                }
+            );
+        }
+        let mut old_target = target.clone();
+        old_target["$schema"] = MODULE_MAP_V2_SCHEMA_URI.into();
+        assert_eq!(
+            error(&source, &old_target),
+            "cem.transform_config.module_map_identity_mismatch"
+        );
+        let mut unsupported_source = source.clone();
+        let mut unsupported_target = target.clone();
+        unsupported_source["resources"]["@pkg/action"]["contentType"] = "text/html".into();
+        unsupported_target["resources"]["@pkg/action"]["contentType"] = "text/html".into();
+        assert_eq!(
+            error(&unsupported_source, &unsupported_target),
+            "cem.module_map.resource_type_unsupported"
+        );
+        for (path, code) in [
+            ("./action.html", "cem.module_map.resource_type_mismatch"),
+            (
+                "./../action.xhtml",
+                "cem.module_map.resource_target_invalid",
+            ),
+            ("/action.xhtml", "cem.module_map.resource_target_invalid"),
+        ] {
+            let mut changed = target.clone();
+            changed["resources"]["@pkg/action"]["path"] = path.into();
+            assert_eq!(error(&source, &changed), code);
+        }
+        let mut missing = target.clone();
+        missing["resources"] = serde_json::json!({});
+        assert_eq!(
+            error(&source, &missing),
+            "cem.module_map.resource_entries_mismatch"
+        );
+        let mut mismatch = target.clone();
+        mismatch["resources"]["@pkg/action"] =
+            serde_json::json!({"path":"./action.css", "contentType":"text/css"});
+        assert_eq!(
+            error(&source, &mismatch),
+            "cem.module_map.resource_type_mismatch"
+        );
+        let mut module_source = source.clone();
+        let mut module_target = target.clone();
+        module_source["imports"] = module_source["resources"].take();
+        module_target["imports"] = module_target["resources"].take();
+        module_source.as_object_mut().unwrap().remove("resources");
+        module_target.as_object_mut().unwrap().remove("resources");
+        assert_eq!(
+            error(&module_source, &module_target),
+            "cem.module_map.import_type_unsupported"
+        );
+        let edge = serde_json::json!({"@pkg/action":"@pkg/action"});
+        let mut edge_source = source.clone();
+        let mut edge_target = target.clone();
+        edge_source["resources"]["@pkg/action"]["moduleImports"] = edge.clone();
+        edge_target["resources"]["@pkg/action"]["moduleImports"] = edge.clone();
+        assert_eq!(
+            error(&edge_source, &edge_target),
+            "cem.module_map.module_import_target_invalid"
+        );
+        edge_source = source.clone();
+        edge_target = target.clone();
+        edge_source["imports"]["@pkg/app"] = serde_json::json!({"path":"app.js", "contentType":"text/javascript", "moduleImports":edge});
+        edge_target["imports"]["@pkg/app"] = serde_json::json!({"path":"./app.js", "contentType":"text/javascript", "moduleImports":edge});
+        assert_eq!(
+            error(&edge_source, &edge_target),
+            "cem.module_map.module_import_target_invalid"
         );
     }
 

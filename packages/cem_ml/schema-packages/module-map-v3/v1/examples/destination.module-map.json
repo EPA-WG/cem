@@ -20,6 +20,10 @@
             "moduleImports": {
                 "@example/app": "@example/app"
             }
+        },
+        "@example/action": {
+            "path": "./components/action.xhtml",
+            "contentType": "application/xhtml+xml"
         }
     }
 }

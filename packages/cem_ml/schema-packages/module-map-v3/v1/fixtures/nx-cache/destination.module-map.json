@@ -12,5 +12,11 @@
             "path": "./assets/runtime.json",
             "contentType": "application/json"
         }
+    },
+    "resources": {
+        "@example/action": {
+            "path": "./components/action.xhtml",
+            "contentType": "application/xhtml+xml"
+        }
     }
 }

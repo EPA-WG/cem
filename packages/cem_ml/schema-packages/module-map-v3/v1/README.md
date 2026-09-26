@@ -9,7 +9,10 @@ asset identity. CEM-ML rewrites only those declared static import, export-from,
 and quoted dynamic-import edges to relative deployed URLs.
 
 JSON is supported as a browser import-map module target. CSS and WASM remain
-explicit deployment resources. Relative and URL JavaScript specifiers remain
+explicit deployment resources. V3 also accepts `application/xhtml+xml` resources
+with `.xhtml` paths. They are copied byte-for-byte, stay out of the browser import
+map, cannot declare or receive JavaScript module edges, and are not scanned for
+dependencies. V1/v2 continue to reject XHTML. Relative and URL JavaScript specifiers remain
 unchanged. Undeclared bare specifiers, unused rewrite declarations, computed
 dynamic imports, dependency discovery, package-export selection, and undeclared
 file copying are outside the contract.
@@ -68,6 +71,10 @@ previews are not used.
             "moduleImports": {
                 "@example/app": "@example/app"
             }
+        },
+        "@example/action": {
+            "path": "../runtime/action.xhtml",
+            "contentType": "application/xhtml+xml"
         }
     }
 }
@@ -107,6 +114,10 @@ previews are not used.
             "moduleImports": {
                 "@example/app": "@example/app"
             }
+        },
+        "@example/action": {
+            "path": "./components/action.xhtml",
+            "contentType": "application/xhtml+xml"
         }
     }
 }

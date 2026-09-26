@@ -38,6 +38,7 @@
     {constraints |
         {constraint @kind="module-map-schema-identity" @target="module-map" @policy="the JSON $schema member must equal https://cem.dev/ns/data/module-map/3"}
         {constraint @kind="module-map-typed-imports" @target="import" @policy="imports values are objects with exactly path, contentType, and optional moduleImports; text/javascript and application/json are supported"}
+        {constraint @kind="module-map-resource-types" @target="resource" @policy="resources permit text/javascript with .js or .mjs, text/css with .css, application/wasm with .wasm, and application/xhtml+xml with .xhtml; XHTML is deployment-only, byte-preserved, cannot declare moduleImports edges or be their target, and is never scanned for dependencies"}
         {constraint @kind="module-map-explicit-edges" @target="module-import" @policy="moduleImports maps an exact bare source specifier to one declared imports or resources asset identity"}
         {constraint @kind="module-map-pair-complete" @target="module-map" @policy="paired source and destination documents declare identical imports, resources, content types, and moduleImports edges"}
         {constraint @kind="module-map-worker-rewrite" @target="module-import" @policy="CEM-ML rewrites only declared static import, export-from, and quoted dynamic-import specifiers to app-relative deployed URLs"}
@@ -60,6 +61,7 @@
     }
 
     {compatibility |
+        {note @version="3.0.0" @value="XHTML deployment resources are a v3-only additive capability; v1/v2 retain their resource vocabulary and reject XHTML."}
         {note @version="3.0.0" @value="Version 3 replaces string imports values with typed objects and permits exact declared-edge rewrites. Versions 1 and 2 remain byte-preserving and retain their existing syntax."}
         {note @version="3.0.0" @value="Dependency discovery, package-export selection, prefix maps, CommonJS rewriting, computed dynamic imports, fingerprinting, and bundling remain outside this version."}
     }

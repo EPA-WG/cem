@@ -5740,14 +5740,17 @@ registration identities may reuse an inherited or existing definition.
           worker-safe module-map v3 with deployment-only XHTML resources;
           preserve v1/v2 behavior. See the [accepted design](module-map-v3-xhtml-assets.md).
     - [ ] Implement v3 XHTML deployment before resuming the action cutover.
-        - [ ] Fixture: add native v3 XHTML lowering and rejection cases first,
+        - [x] Fixture: add native v3 XHTML lowering and rejection cases first,
               including v2 rejection, MIME/extension, unsafe destinations,
               mismatched pairs, module-edge rejection and byte/digest identity.
-        - [ ] Make resource validation schema-aware and update v3's schema-owned
+        - [x] Make resource validation schema-aware and update v3's schema-owned
               examples, manifest/projections and documentation; preserve existing
               JavaScript/JSON module behavior.
-        - [ ] Fixture: prove CLI atomic publication, deterministic reports and
+        - [x] Fixture: prove CLI atomic publication, deterministic reports and
               cache invalidation when only the declared XHTML bytes change.
+        - Native support complete: the v3 schema gate, 27 focused module-map
+          tests, v1/v2/v3 CLI publication tests, cache-key fixture, TypeScript
+          projections and WASM build pass. Generated examples document XHTML.
         - [ ] Adopt typed v3 maps and exact module edges in Site, then prove
               static search/interactive XHTML delivery before registry removal.
     - [ ] Investigate the legacy component suite failures before claiming a

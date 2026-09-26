@@ -9493,6 +9493,19 @@ mod tests {
 }"#,
         )
         .unwrap();
+        let xhtml_path = root.join("runtime/action.xhtml");
+        let xhtml = "<cem-element xmlns=\"http://www.w3.org/1999/xhtml\" tag=\"cem-action\">\n  <!-- préserver bytes -->\n  <template id=\"cem-action\" type=\"text/cem-ml\">{button | Save &amp; close}</template>\n</cem-element>\n";
+        std::fs::write(&xhtml_path, xhtml.as_bytes()).unwrap();
+        for (file, path) in [
+            ("source.module-map.json", "../runtime/action.xhtml"),
+            ("dist.module-map.json", "./components/action.xhtml"),
+        ] {
+            let map_path = root.join("maps").join(file);
+            let mut map: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&map_path).unwrap()).unwrap();
+            map["resources"] = serde_json::json!({"@pkg/action": {"path":path, "contentType":"application/xhtml+xml"}});
+            std::fs::write(map_path, serde_json::to_vec(&map).unwrap()).unwrap();
+        }
         let config = root.join("rewrite.cem");
         std::fs::write(
             &config,
@@ -9531,7 +9544,7 @@ mod tests {
             br#"{"abi":"v3"}"#
         );
         let report: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(report_path).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
         let manifest = &report["reportAst"]["transformGraph"]["moduleAssetManifest"];
         assert_eq!(manifest["contractVersion"], 2);
         let app = manifest["assets"]
@@ -9542,6 +9555,58 @@ mod tests {
             .unwrap();
         assert_eq!(app["sourceByteLength"], source_bytes.len());
         assert_ne!(app["sourceSha256"], app["sha256"]);
+        assert_eq!(
+            std::fs::read(root.join("dist/components/action.xhtml")).unwrap(),
+            xhtml.as_bytes()
+        );
+        let asset = manifest["assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|asset| asset["specifier"] == "@pkg/action")
+            .unwrap();
+        assert_eq!(asset["contentType"], "application/xhtml+xml");
+        assert_eq!(asset["sourceSha256"], asset["sha256"]);
+        assert_eq!(asset["sourceByteLength"], xhtml.len());
+        let html = std::fs::read_to_string(root.join("dist/page.html")).unwrap();
+        assert!(!html.contains("@pkg/action"));
+        let publish_args = [
+            "--quiet",
+            "transform",
+            "--config",
+            config.to_str().unwrap(),
+            "--report-json",
+            report_path.to_str().unwrap(),
+        ];
+        let (repeated, _, stderr) = run(&RealCemMlEngine::new(), &publish_args);
+        assert_eq!(repeated.exit_code, EXIT_OK, "{stderr}");
+        let repeated_report: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&report_path).unwrap()).unwrap();
+        assert_eq!(
+            manifest,
+            &repeated_report["reportAst"]["transformGraph"]["moduleAssetManifest"]
+        );
+        std::fs::remove_dir_all(root.join("dist")).unwrap();
+        let key_args = [
+            "--quiet",
+            "transform",
+            "--config",
+            config.to_str().unwrap(),
+            "--module-asset-cache-key",
+        ];
+        let (first, first_key, stderr) = run(&RealCemMlEngine::new(), &key_args);
+        assert_eq!(first.exit_code, EXIT_OK, "{stderr}");
+        assert!(!root.join("dist").exists());
+        std::fs::write(&xhtml_path, xhtml.replace("Save", "Send")).unwrap();
+        let (second, second_key, stderr) = run(&RealCemMlEngine::new(), &key_args);
+        assert_eq!(second.exit_code, EXIT_OK, "{stderr}");
+        assert_ne!(first_key, second_key);
+        assert!(!root.join("dist").exists());
+        // A missing declaration must not publish even the valid JavaScript or page.
+        std::fs::remove_file(&xhtml_path).unwrap();
+        let (failed, _, _) = run(&RealCemMlEngine::new(), &publish_args);
+        assert_ne!(failed.exit_code, EXIT_OK);
+        assert!(!root.join("dist").exists());
     }
 
     #[test]

@@ -1,7 +1,7 @@
 # cem-action declarative migration
 
 Status: explicit submit/reset support and colocated native-pointer tests accepted;
-v3 XHTML deployment design accepted; implementation precedes migration cutover.
+native v3 XHTML deployment implemented; Site adoption precedes migration cutover.
 
 `cem-action` is the next migration candidate in the accepted
 [component MVP](component-mvp.md) order. It has no component-specific behavior
@@ -159,7 +159,7 @@ active selector. Without `:where`, the selectors exceed the accepted `0-2-1`
 specificity ceiling and are suppressed with a diagnostic. This is existing
 runtime policy, not a missing CSS capability.
 
-The migration remains unshipped until v3 XHTML deployment is implemented
+The migration remains unshipped until Site adopts v3 XHTML deployment
 and consumer/gate cutover is complete. No legacy registry or global style has
 been removed by the planning change.
 
