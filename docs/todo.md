@@ -5793,10 +5793,15 @@ registration identities may reuse an inherited or existing definition.
               components, suppress typed important/recovered values, preserve
               custom properties, escapes and source diagnostics, defer nested
               constructs explicitly, and reject missing typed values.
-        - [ ] Decide fragment-only CSS URL precedence before URL emission:
-              consult closest maps and preserve unmapped local references
-              (recommended), or exempt local references from mapping; see the
-              [pending proposal](scoped-css-module-maps.md#fragment-only-css-urls-decision-pending).
+        - [x] Decide fragment-only CSS URL semantics: treat `url(#local)` as
+              scoped; in a `cem-element` template bind to generated DOM from the
+              template body, retaining template-source/module provenance.
+        - [ ] Clarify the boundary between generated-DOM and template-source
+              fragment references before URL emission; see the
+              [accepted requirement and open boundary](scoped-css-module-maps.md#scoped-css-fragment-references-binding-requirement-accepted).
+        - [ ] Design retained scoped-fragment bindings to generated resource IDs,
+              preserving shared style ownership, source provenance and instance
+              isolation; cover SSR/hydration and module-map interaction.
         - [ ] Rewrite declaration resource URLs through the retained resolution
               plan, then assemble ordered rule bodies, remaining selector grammar,
               keyframes and managed scope wrappers before browser cutover, without

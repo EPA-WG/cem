@@ -184,45 +184,42 @@ semantics, empty URL handling, import condition validation/cycles, shared-loader
 integration and per-context style ownership remain downstream work. The current
 browser import suppression continues to apply.
 
-## Fragment-only CSS URLs: decision pending
+## Scoped CSS fragment references: binding requirement accepted
 
-Declaration URL rewriting reaches an unresolved interaction between the
-closest-module-map requirement and CSS local references. [CSS Values 4](https://www.w3.org/TR/css-values-4/#local-urls)
-assigns a local URL flag to values beginning with `#`; element-ID fragments then
-resolve in the associated node tree. Serializing such a reference as an absolute
-stylesheet URL loses that local-reference form. The current native resource plan
-uses the general CSS-purpose resolver and does not yet represent this distinction.
+Accepted user direction: treat `url(#local)` as a scoped reference. In a
+`cem-element` template, it resolves to the generated DOM from that template's
+body. A template-related source reference is relative to its template source;
+that source can be external when the template comes from its own module.
 
-**Recommended proposal, not yet accepted:** consult the closest CSS module maps
-first for a decoded fragment-only URL. Honor selected mappings and ancestor
-blocks using the existing precedence rules. If no mapping applies, retain a
-local-reference result and emit the decoded fragment as an escaped CSS URL,
-without making it absolute against the template or imported stylesheet URL.
-An explicit mapped external target remains external; a mapped fragment-only
-target remains local. Mapping errors/blocks must not fall through to local
-fallback. Local references are not network fetch requests.
+This replaces the earlier proposed choice between generic map-first URL
+resolution and page-local fragment preservation. A scoped generated-DOM target
+must not be reduced to either an absolute stylesheet URL or an unqualified
+page-wide ID lookup. The owning template/render context is part of its meaning.
+Template-source provenance must remain available separately from the produced
+DOM binding, including external module provenance.
 
-For example, `filter:url(#filter)` with no mapping stays `url("#filter")`, even
-when the declaration came from another stylesheet URL. A selected map entry
-`"#filter": "./filters.svg#replacement"` instead resolves relative to that map's
-base and emits the absolute external SVG URL. A selected block rejects the
-reference and suppresses its containing declaration, preserving sibling
-declarations. Full external references such as `filters.svg#filter` keep normal
-CSS resource resolution and are not local-reference exceptions.
+For example, a `cem-element` template body containing an SVG filter authored as
+`id="local"` and a style using `filter:url(#local)` requires a reference to that
+template's generated filter. CSS's [local URL semantics](https://www.w3.org/TR/css-values-4/#local-urls)
+do not by themselves provide this template-specific binding in a light-DOM
+runtime. Native compilation must retain the scoped reference and connect it to
+rendered resource identity rather than infer the destination from the CSS text
+or the hosting page URL. This requirement does not authorize a new ID allocation
+scheme, per-instance declaration-style copies, or generated CSS scope selectors.
 
-**Alternative:** always keep fragment-only values local and bypass module maps.
-This follows ordinary CSS local lookup directly, but prevents CSS mappings and
-blocks from overriding those references. It is an exception to the requested
-closest-map behavior and needs an explicit choice.
+**Context boundary still to clarify:** does “related to template source” apply
+to CSS outside the `cem-element` template body, while body-local references keep
+generated-DOM binding, or does an externally imported template change the
+binding context even inside a `cem-element` body? Do not select either behavior
+implicitly. URL emission remains paused at this boundary.
 
-Implementation is paused at this choice. Neither option changes render identity,
-introduces generated instance CSS selectors, or adds ID-renaming behavior. After
-the choice, add native fixtures for quoted/unquoted and escaped fragments,
-selected overrides, blocks, unmapped local fallback, mapped local/external
-targets, imported-sheet bases and context isolation. Keep local-reference state
-in the retained resolution plan; do not recover it by reparsing emitted CSS.
-Empty URL failure behavior and string-valued resource grammars remain separately
-tracked work; this decision does not broaden their support.
+After clarification, define the native reference/context representation and its
+connection to generated resource IDs. Add fixtures for local and external
+sources, multiple produced instances, fragment reuse, source provenance,
+missing/ambiguous targets, SSR/hydration and module-map interaction. Preserve
+shared declaration ownership and the separation between render identity and
+CSS scope identity. The generic resource plan currently does not represent this
+binding; no browser behavior has changed yet.
 
 ## Unmapped CSS URLs: accepted and implemented
 
