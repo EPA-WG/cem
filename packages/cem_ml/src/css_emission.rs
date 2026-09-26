@@ -8,6 +8,12 @@ pub use declarations::{
 };
 mod resources;
 
+mod rules;
+pub use rules::{
+    emit_css_scope_wrapper, emit_css_style_rule, CssDeferredRule, CssManagedScope, CssRuleBodyItem,
+    CssRuleMode, CssScopeWrapper, CssStyleRule, CssStyleRuleEmission,
+};
+
 mod selectors;
 pub use selectors::{
     emit_css_declaration_selectors, emit_css_instance_selectors, CssEmittedSelector,

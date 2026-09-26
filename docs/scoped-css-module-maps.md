@@ -555,8 +555,44 @@ nested-rule boundaries still apply. The retained plan remains the source of
 mapping metadata, policy stamps and detailed resolver errors.
 
 This covers explicit `url()` components, not string-valued resource grammars
-such as `image-set("image.png" 1x)`. Native ordered rule assembly, keyframe
-references, managed scope wrappers and browser integration remain pending.
+such as `image-set("image.png" 1x)`. Whole-stylesheet assembly, nested-rule compilation, keyframe references and
+browser integration remain pending. The ordered rule and wrapper helpers below
+provide the next native building blocks.
+
+## Ordered style rules and scope wrappers: implemented natively
+
+`cem_ml::css_emission::emit_css_style_rule` joins the retained selector and
+resource-aware declaration emitters. `CssRuleMode::Declaration` applies the
+library specificity ceiling and host rewriting; `CssRuleMode::Instance` applies
+the existing instance prefix behavior. Valid selector siblings survive policy
+suppression, and diagnostics retain their original source maps and ranges.
+A rule with no accepted selector or no remaining body is omitted.
+
+The body is an ordered sequence of `CssRuleBodyItem::Declaration` and
+`CssRuleBodyItem::Deferred` entries. Deferred entries retain the original node ID,
+source and range for each nested rule, at-rule or import. A declaration after a
+nested construct remains after that construct; the assembler never concatenates
+all declarations ahead of it. A body consisting only of deferred constructs is
+retained for subsequent compilation. These are structured fragments, not a
+serialized or installable stylesheet. Nested selector context, grouping-rule
+conditions and keyframe references still need native compilation.
+
+`emit_css_scope_wrapper` emits the existing managed boundaries from semantic
+`CssManagedScope` inputs:
+
+- `Private` uses the produced tag as its root.
+- `Shared` uses the public scope attribute qualified by a direct instance data
+  island, avoiding unrelated HTML elements that also carry `scope`.
+- `Instance` omits an explicit root and uses the style element's parent.
+
+Private and shared roots optionally include the accepted `data-cem-css-context`
+qualification. All variants retain the descendant-DCE and projected-descendant
+lower limits. The helper adds no instance UUID selector and never uses
+`data-cem-render-scope` as a CSS hook. Names are encoded as identifiers or CSS
+strings, not interpolated as raw selectors; empty names/context IDs fail with
+`cem.scoped_css.scope_invalid`. Tag registration, public scope-name validation,
+context assignment and lifecycle remain the owning runtime's responsibility.
+The wrapper helper does not install CSS or add a context attribute to hosts.
 
 ## Shared-resolver byte delivery: implemented natively
 

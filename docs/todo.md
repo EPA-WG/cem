@@ -5821,9 +5821,15 @@ registration identities may reuse an inherited or existing definition.
         - [x] Emit external declaration resource URLs through the retained
               resolution plan without downstream parsing or tree mutation;
               preserve authored local fragments and suppress failed declarations.
-        - [ ] Assemble ordered rule bodies, remaining selector grammar, keyframes
-              and managed scope wrappers before browser cutover, without
-              downstream CSS parsing.
+        - [x] Fixture: assemble native style-rule selectors and resolved
+              declarations in authored order, retaining explicit nested-construct
+              slots, suppression diagnostics and source ranges. Emit private,
+              named-shared and implicit instance scope wrappers with accepted
+              context qualification and unchanged lower limits.
+        - [ ] Complete native grouping/nested-rule compilation, remaining
+              selector grammar and keyframe-reference rewriting; compose the
+              ordered rule parts and managed wrappers into complete stylesheets
+              before browser cutover, without downstream CSS parsing.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
               media entries with diagnostics/source ranges, suppress layered
