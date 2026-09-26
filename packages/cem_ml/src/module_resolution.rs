@@ -29,6 +29,8 @@ pub enum CemModuleUrlResolutionPurpose {
     TemplateSlice,
     CemQl,
     XPath,
+    /// CSS references use the closest mapping while retaining ancestor restrictions.
+    Css,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -629,7 +631,8 @@ impl CemScopedModuleUrlResolver {
             .as_ref()
             .map_or_else(|| authored.to_owned(), |url| url.as_str().to_owned());
 
-        for frame in &context.frames {
+        let mut selected_mapping = None;
+        'frames: for frame in &context.frames {
             let map_base = frame
                 .module_map_base_url
                 .as_deref()
@@ -694,55 +697,70 @@ impl CemScopedModuleUrlResolver {
                             provenance.clone(),
                         ));
                     };
-                    let resolved = resolve_mapping_target(
-                        target,
-                        &normalized_key,
-                        &normalized_specifier,
-                        &frame_base,
-                    )
-                    .map_err(|message| {
-                        context_error_with_provenance(
-                            request,
-                            current_context,
-                            context,
-                            CemModuleUrlResolutionErrorReason::Blocked,
-                            message,
-                            Some(normalized_specifier.clone()),
-                            Some(frame.frame_id.clone()),
-                            Some(matched_key.clone()),
-                            provenance.clone(),
-                        )
-                    })?;
-                    enforce_scheme(
-                        request,
-                        current_context,
-                        context,
-                        &context.frames,
-                        &resolved,
-                        &normalized_specifier,
-                        &provenance,
-                    )?;
-                    return Ok(CemModuleUrlResolution {
-                        authored_specifier: authored.to_owned(),
-                        normalized_specifier,
-                        resolved_url: resolved.as_str().to_owned(),
-                        context_identity: context.identity.clone(),
-                        resolver_identity: context.resolver_identity.clone(),
-                        resource_policy_stamp: context.resource_policy_stamp.clone(),
-                        referrer_kind: provenance.kind,
-                        authored_referrer: provenance.authored,
-                        resolved_referrer_url: provenance.resolved_url,
-                        current_context_identity: current_context.identity.clone(),
-                        selected_context_identity: context.identity.clone(),
-                        matched_frame_id: Some(frame.frame_id.clone()),
-                        matched_scope_prefix: scope_prefix,
-                        matched_collection: Some(collection),
-                        matched_key: Some(matched_key),
-                        content_type_hint: mapping.content_type_hint.clone(),
-                        integrity: mapping.integrity.clone(),
-                    });
+                    selected_mapping = Some((
+                        frame, frame_base, scope_prefix, collection, matched_key,
+                        mapping, normalized_key, target,
+                    ));
+                    // Keep only the highest-priority match within a frame. CSS
+                    // continues inward so ancestor blocks still take effect.
+                    if request.purpose != CemModuleUrlResolutionPurpose::Css {
+                        break 'frames;
+                    }
+                    continue 'frames;
                 }
             }
+        }
+
+        if let Some((frame, frame_base, scope_prefix, collection, matched_key,
+            mapping, normalized_key, target)) = selected_mapping
+        {
+            let resolved = resolve_mapping_target(
+                target,
+                &normalized_key,
+                &normalized_specifier,
+                &frame_base,
+            )
+            .map_err(|message| {
+                context_error_with_provenance(
+                    request,
+                    current_context,
+                    context,
+                    CemModuleUrlResolutionErrorReason::Blocked,
+                    message,
+                    Some(normalized_specifier.clone()),
+                    Some(frame.frame_id.clone()),
+                    Some(matched_key.clone()),
+                    provenance.clone(),
+                )
+            })?;
+            enforce_scheme(
+                request,
+                current_context,
+                context,
+                &context.frames,
+                &resolved,
+                &normalized_specifier,
+                &provenance,
+            )?;
+            return Ok(CemModuleUrlResolution {
+                authored_specifier: authored.to_owned(),
+                normalized_specifier,
+                resolved_url: resolved.as_str().to_owned(),
+                context_identity: context.identity.clone(),
+                resolver_identity: context.resolver_identity.clone(),
+                resource_policy_stamp: context.resource_policy_stamp.clone(),
+                referrer_kind: provenance.kind,
+                authored_referrer: provenance.authored,
+                resolved_referrer_url: provenance.resolved_url,
+                current_context_identity: current_context.identity.clone(),
+                selected_context_identity: context.identity.clone(),
+                matched_frame_id: Some(frame.frame_id.clone()),
+                matched_scope_prefix: scope_prefix,
+                matched_collection: Some(collection),
+                matched_key: Some(matched_key),
+                content_type_hint: mapping.content_type_hint.clone(),
+                integrity: mapping.integrity.clone(),
+            });
         }
 
         if let Some(url) = normalized_url {
@@ -1126,6 +1144,179 @@ mod tests {
         let mut request = request(specifier);
         request.referrer = Some(referrer);
         request
+    }
+
+    #[test]
+    fn css_uses_nearest_mapping_and_preserves_non_css_precedence() {
+        let mut outer = CemModuleUrlFrame::new("page", "https://example.test/index.html");
+        outer.specifiers.resources.insert(
+            "theme".to_owned(),
+            CemModuleUrlMapping::target("./default.css"),
+        );
+        let mut inner = CemModuleUrlFrame::new("component", "https://example.test/card/card.cem")
+            .with_module_map_base_url("https://cdn.example.test/maps/card.cem");
+        inner.specifiers.resources.insert(
+            "theme".to_owned(),
+            CemModuleUrlMapping::target("./local.css")
+                .with_content_type("text/css")
+                .with_integrity("sha256-local"),
+        );
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            CemResolutionContextHandle::new("test"),
+            context(vec![outer, inner]),
+        );
+        let mut query = request("theme");
+        for purpose in [
+            CemModuleUrlResolutionPurpose::CemQl,
+            CemModuleUrlResolutionPurpose::XPath,
+            CemModuleUrlResolutionPurpose::TemplateSlice,
+        ] {
+            query.purpose = purpose;
+            assert_eq!(
+                resolver
+                    .resolve_module_url(&query)
+                    .unwrap()
+                    .matched_frame_id
+                    .as_deref(),
+                Some("page")
+            );
+        }
+        query.purpose = CemModuleUrlResolutionPurpose::Css;
+        let result = resolver.resolve_module_url(&query).unwrap();
+        assert_eq!(
+            result.resolved_url,
+            "https://cdn.example.test/maps/local.css"
+        );
+        assert_eq!(result.matched_frame_id.as_deref(), Some("component"));
+        assert_eq!(result.content_type_hint.as_deref(), Some("text/css"));
+        assert_eq!(result.integrity.as_deref(), Some("sha256-local"));
+    }
+
+    #[test]
+    fn css_preserves_scope_specificity_fallback_and_imported_sheet_base() {
+        let mut outer = CemModuleUrlFrame::new("page", "https://example.test/index.html");
+        outer.specifiers.resources.insert(
+            "fallback".to_owned(),
+            CemModuleUrlMapping::target("./fallback.svg"),
+        );
+        outer.specifiers.resources.insert(
+            "icons/special".to_owned(),
+            CemModuleUrlMapping::target("./outer.svg"),
+        );
+        let mut inner = CemModuleUrlFrame::new("component", "https://example.test/card/card.cem");
+        inner.specifiers.resources.insert(
+            "icons/".to_owned(),
+            CemModuleUrlMapping::target("./default/"),
+        );
+        let mut scoped = CemModuleUrlSpecifierMap::default();
+        scoped.resources.insert(
+            "icons/".to_owned(),
+            CemModuleUrlMapping::target("./scoped/"),
+        );
+        scoped.resources.insert(
+            "icons/special".to_owned(),
+            CemModuleUrlMapping::target("./special.svg").with_content_type("image/svg+xml"),
+        );
+        inner.scopes.push(CemModuleUrlScopedMap {
+            prefix: "./css/".to_owned(),
+            specifiers: scoped,
+        });
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            CemResolutionContextHandle::new("test"),
+            context(vec![outer, inner]),
+        );
+        for (specifier, expected, frame) in [
+            (
+                "icons/special",
+                "https://example.test/card/special.svg",
+                Some("component"),
+            ),
+            (
+                "icons/other.svg",
+                "https://example.test/card/scoped/other.svg",
+                Some("component"),
+            ),
+            (
+                "fallback",
+                "https://example.test/fallback.svg",
+                Some("page"),
+            ),
+            (
+                "./relative.svg",
+                "https://example.test/card/css/relative.svg",
+                None,
+            ),
+        ] {
+            let mut query = request_with_referrer(
+                specifier,
+                CemModuleUrlReferrer::Url("./css/imported.css".to_owned()),
+            );
+            query.purpose = CemModuleUrlResolutionPurpose::Css;
+            let result = resolver.resolve_module_url(&query).unwrap();
+            assert_eq!(result.resolved_url, expected);
+            assert_eq!(result.matched_frame_id.as_deref(), frame);
+            if specifier == "icons/special" {
+                assert_eq!(result.content_type_hint.as_deref(), Some("image/svg+xml"));
+                assert_eq!(
+                    result.matched_scope_prefix.as_deref(),
+                    Some("https://example.test/card/css/")
+                );
+            }
+        }
+        let mut query = request("missing");
+        query.purpose = CemModuleUrlResolutionPurpose::Css;
+        assert_eq!(
+            resolver.resolve_module_url(&query).unwrap_err().reason,
+            CemModuleUrlResolutionErrorReason::Unresolved
+        );
+    }
+
+    #[test]
+    fn css_retains_ancestor_blocks_and_validates_only_the_selected_target() {
+        for (outer_target, inner_target, expected_error) in [
+            (
+                None,
+                "./local.css",
+                Some(CemModuleUrlResolutionErrorReason::Blocked),
+            ),
+            (
+                Some("./default.css"),
+                "data:text/css,blocked",
+                Some(CemModuleUrlResolutionErrorReason::PolicyDenied),
+            ),
+            (Some("data:text/css,unused"), "./local.css", None),
+        ] {
+            let mut outer = CemModuleUrlFrame::new("page", "https://example.test/index.html");
+            outer.allowed_schemes = Some(BTreeSet::from(["https".to_owned()]));
+            outer.specifiers.resources.insert(
+                "themes/".to_owned(),
+                outer_target
+                    .map(CemModuleUrlMapping::target)
+                    .unwrap_or_else(CemModuleUrlMapping::blocked),
+            );
+            let mut inner = CemModuleUrlFrame::new("component", "https://example.test/card/card.cem");
+            inner.specifiers.resources.insert(
+                "themes/local".to_owned(),
+                CemModuleUrlMapping::target(inner_target),
+            );
+            let resolver = CemScopedModuleUrlResolver::new().with_context(
+                CemResolutionContextHandle::new("test"),
+                context(vec![outer, inner]),
+            );
+            let mut query = request("themes/local");
+            query.purpose = CemModuleUrlResolutionPurpose::Css;
+            let result = resolver.resolve_module_url(&query);
+            if let Some(reason) = expected_error {
+                let error = result.unwrap_err();
+                assert_eq!(error.reason, reason);
+                assert_eq!(error.matched_frame_id.as_deref(), Some("page"));
+            } else {
+                assert_eq!(
+                    result.unwrap().resolved_url,
+                    "https://example.test/card/local.css"
+                );
+            }
+        }
     }
 
     #[test]

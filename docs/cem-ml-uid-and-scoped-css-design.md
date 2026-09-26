@@ -139,6 +139,14 @@ constructs such as `@font-face`, `@property`, `@counter-style`,
 diagnostics in section 8. Authored outer `@scope` is also unsupported because
 the runtime owns the component boundary.
 
+The accepted [typed CSS module-map extension](scoped-css-module-maps.md) replaces
+blanket import suppression only when shared retained-AST import loading is
+available. Imported rules then receive the importing component's managed scope;
+raw browser `@import` is never a fallback. Existing global-rule and library
+layer restrictions continue to apply, including to imported rules and import
+conditions that require those unsupported constructs. Until the integration
+checklist is complete, the suppression behavior above remains in force.
+
 Dynamic visual state MUST use static selectors over host, state, and ARIA
 attributes plus CEM custom properties.
 
