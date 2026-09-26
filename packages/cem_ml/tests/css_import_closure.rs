@@ -857,3 +857,35 @@ fn browser_fixture_emits_import_closure() {
         .unwrap();
     }
 }
+
+#[test]
+fn imported_global_rules_keep_contract_diagnostics_and_sheet_identity() {
+    use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
+    let mut c = closure(
+        "@import 'a.css'; .root {color:green}",
+        Default::default(),
+        AbortSignal::new(),
+    );
+    let request = c.next_import().unwrap().unwrap();
+    let source = "@font-face {font-family:local} .card {color:red}";
+    c.complete_import(request.id, tree(source), &request.resolution.resolved_url)
+        .unwrap();
+    assert!(c.next_import().unwrap().is_none());
+    let result = emit_css_import_closure(&c, &CssManagedScope::Instance, "owner").unwrap();
+    assert_eq!(result.diagnostics.len(), 1);
+    let d = &result.diagnostics[0];
+    assert_eq!(d.sheet, 1);
+    assert_eq!(
+        d.diagnostic.code,
+        "cem.scoped_css.global_construct_unsupported"
+    );
+    assert!(d.diagnostic.source.origin().is_some());
+    assert_eq!(d.diagnostic.range.offset, 0);
+    assert_eq!(
+        d.diagnostic.range.length as usize,
+        source.find(" .card").unwrap()
+    );
+    assert!(result.css().contains(":scope .card {color:red;}"));
+    assert!(result.css().contains(":scope .root {color:green;}"));
+    assert!(!result.css().contains("@font-face"));
+}

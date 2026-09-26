@@ -1077,3 +1077,17 @@ Standalone selector-query capabilities are unchanged. Native fixtures cover
 canonical output, source ranges, escaped keywords, nesting and policy limits.
 Chromium checks all four numeric forms and both filtered child-index forms,
 including a nested filter referencing its parent selector.
+
+## Retained compiler suppression diagnostics
+
+The retained compiler now uses the contract's diagnostic codes for authored
+`@scope`, the current runtime's document-global at-rule list (`@font-face`,
+`@property`, `@counter-style`, `@font-palette-values`, `@page`, `@namespace`),
+and library `@layer` statements or blocks. Suppression preserves the original
+source range and import occurrence identity. Sibling rules and declarations
+remain in output. Unknown constructs and instance layers retain the generic
+unsupported-profile diagnostic; this change grants no new syntax admission.
+
+Declaration-list inference now checks for a top-level colon token. A colon in
+an import/namespace URI, nested condition or comment cannot select that mode.
+Explicit declaration-list mode and ordinary declarations remain supported.

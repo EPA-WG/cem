@@ -104,7 +104,7 @@ fn subtree_omits_empty_groups_and_diagnoses_unsupported_constructs() {
     assert_eq!(result.css(), ".card {color:red;color:green;}");
     assert_eq!(
         result.diagnostics[0].code,
-        "cem.scoped_css.subtree_construct_unsupported"
+        "cem.scoped_css.layer_unsupported"
     );
 }
 
@@ -495,4 +495,83 @@ fn child_index_filters_are_retained_and_emitted() {
             "{selector}"
         );
     }
+}
+
+#[test]
+fn managed_at_rule_suppression_uses_contract_diagnostics() {
+    for (rule, code) in [
+        (
+            "@scope (.card) {.child {color:blue}}",
+            "cem.scoped_css.authored_scope_unsupported",
+        ),
+        (
+            "@layer local {.child {color:blue}}",
+            "cem.scoped_css.layer_unsupported",
+        ),
+        ("@layer base, local;", "cem.scoped_css.layer_unsupported"),
+        (
+            "@FoNt-FaCe {font-family:local;src:url(font.woff2)}",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@property --color {syntax:'<color>';inherits:false;initial-value:red}",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@counter-style bullets {system:cyclic;symbols:'*'}",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@font-palette-values --colors {font-family:local}",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@page {margin:1cm}",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@namespace svg 'urn:svg';",
+            "cem.scoped_css.global_construct_unsupported",
+        ),
+        (
+            "@future whatever {}",
+            "cem.scoped_css.subtree_construct_unsupported",
+        ),
+    ] {
+        for css in [
+            rule.to_owned(),
+            format!(".card {{color:red; {rule} color:green}}"),
+            format!("@media all {{{rule} .card {{color:red}}}}"),
+        ] {
+            let p = plan(&css);
+            let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration)
+                .unwrap_or_else(|error| panic!("{css}: {error:?}"));
+            assert_eq!(
+                result.diagnostics.len(),
+                1,
+                "{css}: {:?}",
+                result.diagnostics
+            );
+            let d = &result.diagnostics[0];
+            assert_eq!(d.code, code, "{css}");
+            assert_eq!(
+                &css[d.range.offset as usize..(d.range.offset + d.range.length) as usize],
+                rule
+            );
+            assert!(d.source.origin().is_some());
+            assert!(!result.css().contains(rule));
+            if css.starts_with(".card") {
+                assert_eq!(result.css(), ".card {color:red;color:green;}");
+            }
+            if css.starts_with("@media") {
+                assert_eq!(result.css(), "@media all {.card {color:red;}}");
+            }
+        }
+    }
+    let p = plan("@layer local {.card {color:red}}");
+    let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Instance).unwrap();
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.subtree_construct_unsupported"
+    );
 }

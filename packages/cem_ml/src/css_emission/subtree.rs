@@ -193,15 +193,36 @@ pub(super) fn compose(
             };
             (rule.opening, rule.body, context)
         } else {
-            append_diagnostics(
-                output,
-                vec![diagnostic(
-                    tree,
-                    id,
+            let name = attribute(tree, id, "name")
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let (code, message) = match (attribute(tree, id, "kind"), name.as_str()) {
+                (Some("at"), "scope") => (
+                    "cem.scoped_css.authored_scope_unsupported",
+                    "authored scope is suppressed because the runtime owns the managed boundary",
+                ),
+                (
+                    Some("at"),
+                    "font-face"
+                    | "property"
+                    | "counter-style"
+                    | "font-palette-values"
+                    | "page"
+                    | "namespace",
+                ) => (
+                    "cem.scoped_css.global_construct_unsupported",
+                    "document-global at-rule is suppressed in managed CSS",
+                ),
+                (Some("at"), "layer") if options.mode == CssRuleMode::Declaration => (
+                    "cem.scoped_css.layer_unsupported",
+                    "authored cascade layers are suppressed in library CSS",
+                ),
+                _ => (
                     "cem.scoped_css.subtree_construct_unsupported",
                     "construct requires compilation outside the supported grouping subset",
-                )],
-            );
+                ),
+            };
+            append_diagnostics(output, vec![diagnostic(tree, id, code, message)]);
             return Ok(());
         };
     let start = output.fragments.len();

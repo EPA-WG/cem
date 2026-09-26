@@ -6005,10 +6005,20 @@ registration identities may reuse an inherited or existing definition.
               nesting, invalid lists and policy limits before browser cutover.
               Completed: 84 native tests, Nx lint and WASM/browser checks pass;
               Chromium verifies both filtered forms, including a parent reference.
-        - [ ] Fixture: align retained compiler suppression diagnostics for authored
+        - [x] Fixture: infer CSS declaration-list mode from top-level colon tokens,
+              so URI-only namespace/import statements and colon-bearing comments
+              remain stylesheets while real declarations keep their existing mode.
+        - [x] Fixture: align retained compiler suppression diagnostics for authored
               scopes, document-global at-rules and layers with the accepted scoped
               CSS contract; cover nested rules and imported sheets, retain source
               locations and keep unrelated declarations in output.
+              Completed: 64 native import/grouping/subtree/closure tests and all
+              14 CSS validation tests pass, along with Nx lint and the WASM/browser
+              gate (24 computed-style checks plus animation/transition checks).
+        - [ ] Fixture: retain and emit stylesheet `:dir(ltr)` / `:dir(rtl)`
+              arguments, with source ranges, normal pseudo-class specificity,
+              invalid-argument rejection and browser inherited-direction checks;
+              keep native selector-query capabilities unchanged.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

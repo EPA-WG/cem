@@ -990,7 +990,9 @@ fn infer_entry_mode(
     if !events
         .iter()
         .any(|event| event.depth == 0 && event.token_kind == "curly-open")
-        && source.contains(':')
+        && events
+            .iter()
+            .any(|event| event.depth == 0 && event.token_kind == "colon")
     {
         return CssEntryMode::DeclarationList;
     }
@@ -1797,6 +1799,33 @@ mod tests {
             Some("import-rejected")
         );
         assert!(diagnostic.source_map.is_some());
+    }
+
+    #[test]
+    fn css_entry_mode_uses_top_level_colons_not_uri_or_comment_text() {
+        for source in [
+            "@namespace svg 'urn:svg';",
+            "@import 'https://example.test/theme.css';",
+            "@supports (display:grid);",
+            "/* source: stylesheet */",
+        ] {
+            let (document, _) = parse(source, "text/css");
+            assert_eq!(document.entry_mode, CssEntryMode::Stylesheet, "{source}");
+        }
+        for source in [
+            "color:red",
+            "background:url(https://example.test/icon.svg)",
+            "--x: (a:b)",
+        ] {
+            let (document, _) = parse(source, "text/css");
+            assert_eq!(
+                document.entry_mode,
+                CssEntryMode::DeclarationList,
+                "{source}"
+            );
+        }
+        let (document, _) = parse("/* a:b */", "text/css; mode=style-attribute");
+        assert_eq!(document.entry_mode, CssEntryMode::DeclarationList);
     }
 
     #[test]
