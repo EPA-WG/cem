@@ -5723,6 +5723,28 @@ registration identities may reuse an inherited or existing definition.
       once-per-declaration scope-contract CEM-token `<style>` and colocated
       CSF Next `<cem-tag>.stories.ts` `play` tests, moving missing reusable behavior into
       `cem-elements`, until both migration targets are zero.
+    - [x] Audit `cem-action` as the next MVP-ordered migration: legacy behavior,
+          paint ownership, workflow consumers and verification boundaries. See
+          [migration plan](cem-action-declarative-migration.md).
+    - [x] Decide `cem-action` scope: add explicit submit/reset support now;
+          retain the default non-submitting command type. Native form ownership,
+          validation, submission and reset stay with the rendered native button.
+          The accepted attribute contract is in the migration plan.
+    - [ ] Decide native-pointer test placement: permit browser-driver checks in
+          colocated stories (recommended), or explicitly retain separate browser
+          integration coverage. Synthetic `storybook/test` pointer events do not
+          activate native CSS hover/active states; do not drop existing coverage.
+    - [ ] Fixture: cover explicit submit/reset, required-input validation,
+          submitter name/value and form overrides, external form ownership,
+          disabled suppression and cancellation, while preserving default
+          non-submitting command behavior.
+    - [ ] Fixture: migrate action unit coverage to colocated CSF Next plays,
+          retaining exact state reflection, slot/fallback labels, native click,
+          keyboard/disabled behavior, node identity, hover/active token pairs
+          and declaration-owned style installation.
+    - [ ] Remove the legacy action registry member/global styles, migrate
+          affected consumers to canonical XHTML, and update package/catalog/
+          style/state evidence before reducing the migration inventory.
 - [ ] Migrate remaining Studio and Site visible DOM construction, UI listeners,
       and state projection to XHTML/CEM-ML, retaining JavaScript only for non-UI
       services and host adapters.
