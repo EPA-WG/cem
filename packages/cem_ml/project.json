@@ -4,6 +4,15 @@
     "projectType": "library",
     "sourceRoot": "packages/cem_ml/src",
     "targets": {
+        "verify:css-nesting": {
+            "executor": "nx:run-commands",
+            "cache": false,
+            "dependsOn": ["build:wasm"],
+            "options": {
+                "command": "node tools/scripts/verify-css-nesting.mjs",
+                "cwd": ""
+            }
+        },
         "verify:platform": {
             "cache": false,
             "executor": "nx:run-commands",

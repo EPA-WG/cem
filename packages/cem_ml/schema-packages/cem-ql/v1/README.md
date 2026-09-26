@@ -1158,5 +1158,3 @@ declare function value() { "second" }
 
 value
 ```
-
-The [implemented URL function reference](url-functions.md) is generated from the native CEM-QL registry.

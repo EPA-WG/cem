@@ -7,6 +7,8 @@ pub use declarations::{
     CssRuleDeclarations,
 };
 mod resources;
+mod subtree;
+pub use subtree::{emit_css_rule_subtree, CssRuleSubtreeEmission, CssSubtreeFragment};
 
 mod grouping;
 pub use grouping::{

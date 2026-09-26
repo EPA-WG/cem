@@ -1079,7 +1079,7 @@
       "contentType": "application/vnd.cem.module-map+json",
       "schema": "https://cem.dev/ns/data/module-map/3",
       "revision": 1,
-      "sha256": "e35ae5459a636ce30593715ce1901a6d00dcf18721190f7b0b3afece90511dda"
+      "sha256": "af5dcecfb5dc7e2cf636a6dc747e76df3af3117fda48dcc8a2a9fdda9930e006"
     },
     {
       "id": "run-module-map-v3",

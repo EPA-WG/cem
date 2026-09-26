@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    emit_css_declaration_selectors, emit_css_instance_selectors,
+    emit_css_declaration_selectors, emit_css_instance_selectors, emit_css_nested_selectors,
     emit_css_rule_declarations_with_resources, selectors::ident, CssEmissionDiagnostic,
     CssEmittedDeclaration, CssEmittedSelector,
 };
@@ -57,6 +57,8 @@ pub struct CssStyleRuleEmission {
 /// Join selector and resolved declaration emission without flattening nested
 /// rules across surrounding declarations. All node IDs belong to `plan.tree`.
 /// Diagnostics retain the existing selector/declaration policies and source data.
+/// Nested fragments must remain beneath the same admitted ancestor selectors;
+/// their diagnostics also include ancestor policy findings.
 /// This deliberately returns structured parts, not installable CSS: nested rule,
 /// keyframe-reference and whole-stylesheet policies still require compilation.
 pub fn emit_css_style_rule(
@@ -64,9 +66,15 @@ pub fn emit_css_style_rule(
     rule: AstNodeId,
     mode: CssRuleMode,
 ) -> Result<CssStyleRuleEmission, CssEmissionDiagnostic> {
-    let selectors = match mode {
-        CssRuleMode::Declaration => emit_css_declaration_selectors(&plan.tree, rule)?,
-        CssRuleMode::Instance => emit_css_instance_selectors(&plan.tree, rule)?,
+    let selectors = if crate::css_resources::attribute(&plan.tree, rule, "selector-context")
+        == Some("nested")
+    {
+        emit_css_nested_selectors(&plan.tree, rule, mode)?
+    } else {
+        match mode {
+            CssRuleMode::Declaration => emit_css_declaration_selectors(&plan.tree, rule)?,
+            CssRuleMode::Instance => emit_css_instance_selectors(&plan.tree, rule)?,
+        }
     };
     let declarations = emit_css_rule_declarations_with_resources(plan, rule)?;
     let mut diagnostics = selectors.diagnostics;

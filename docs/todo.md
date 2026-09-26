@@ -5841,11 +5841,25 @@ registration identities may reuse an inherited or existing definition.
               ancestors; enforce composed specificity and inherited compound
               duplication, preserve aliases/source ranges, and cover empty parents,
               multi-level/group contexts and instance prefixing.
-        - [ ] Fixture: native nested selectors with parent-list/composed
+        - [x] Fixture: compose retained style/media/supports subtrees with native
+              nesting, bounded traversal, unique source diagnostics, rejected
+              branches and interleaved declarations; verify computed browser
+              behavior after the WASM rebuild without enabling runtime cutover.
+        - [x] Fixture: native nested selectors with parent-list/composed
               specificity, implicit and explicit nesting, grouping context,
               host/instance handling, rejected branches, manufactured weighting,
               pseudo-elements and interleaved declaration order; verify emitted
               nesting and nested declaration runs in the browser after WASM rebuild.
+              Validation: 50 focused native checks and 10 Chromium computed-style
+              checks pass, alongside the full Nx test target and its five prerequisites,
+              Nx WASM build and lint (existing warnings).
+              The fixture exercises native-emitted CSS after the WASM build;
+              runtime WASM API integration and browser cutover remain pending.
+        - [ ] Fixture: retain and emit `@starting-style` with empty-prelude
+              validation, source diagnostics, inherited nesting context, ordered
+              declaration runs and native/browser coverage. Recommended next:
+              this completes a bounded grouping case before container queries
+              and typed keyframe-name/reference compilation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

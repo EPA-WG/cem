@@ -631,7 +631,8 @@ pending before browser cutover.
 Accepted: preserve native CSS nesting in the emitted stylesheet, consistent
 with the managed stylesheet's native `@scope` target. Shared import retains the
 selector structure and parent-aware selector emission produces native fragments.
-Recursive stylesheet assembly and browser cutover remain pending.
+Style/media/supports subtree assembly is implemented; full stylesheet assembly
+and browser cutover remain pending.
 
 The [CSS Nesting specification](https://drafts.csswg.org/css-nesting-1/#nest-selector)
 assigns `&` the maximum specificity of the parent selector list. Simple textual
@@ -730,6 +731,37 @@ prefixing, rejected parent/child branches, duplicate weighting, pseudo-elements,
 and declaration order through media/supports groups. Rebuild WASM after native
 fixtures pass and verify computed browser behavior for the emitted nesting,
 including nested declaration runs. Automatic `url(#id)` handling stays deferred.
+
+## Native rule subtree composition
+
+`emit_css_rule_subtree` composes a top-level retained style, media or supports
+rule with its supported descendants. Style rules select root or parent-aware
+selector emission from import-owned context. Grouping rules carry the enclosing
+style context through their bodies. The result keeps ordered text fragments,
+node IDs, source maps and ranges; `css()` joins those fragments for consumers.
+
+Declarations retain their original positions before, between and after child
+rules. The composer does not wrap later declaration runs in `&`, preserving
+pseudo-element matches under native CSS nesting. Suppressed child rules and
+empty groups disappear; valid siblings remain. Parent selector diagnostics are
+reported once per source occurrence even when multiple descendants revisit them.
+Traversal is bounded at 64 rule levels, alongside the shared import limit.
+Detached nested entrypoints are rejected: a subtree must begin at a top-level
+rule in its retained stylesheet or style block.
+
+Unsupported descendants, including imports, other grouping rules and keyframes,
+produce `cem.scoped_css.subtree_construct_unsupported` and are omitted. This
+subset is not the complete stylesheet compiler and does not enable browser
+runtime installation. Import closure assembly, remaining selector/grouping
+support, keyframe rewriting and context lifecycle integration remain pending.
+
+`yarn nx run cem_ml:verify:css-nesting` rebuilds WASM, exports fixture CSS from
+the native composer and checks computed styles in Chromium. The fixture uses
+explicit temporary CSS files; it does not serialize a retained AST or invoke a
+new browser runtime API. It covers parent-list specificity, nested declaration
+runs on pseudo-elements, media/supports order, rejected parents, instance scope,
+host normalization, duplicate weighting and zero-weight nesting. This verifies
+the native output's browser semantics, not WASM runtime integration.
 
 ## Shared-resolver byte delivery: implemented natively
 

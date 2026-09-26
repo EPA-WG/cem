@@ -6,7 +6,7 @@
     "name": "CEM-ML Feature Tour",
     "version": "1.1.0",
     "project": "./feature-tour.project.json",
-    "projectSha256": "1d21efefc40bf2c0ff2d6f98bf317bd83664bc683a57d467dc26945d7f06098a"
+    "projectSha256": "1b7a06edf7409ac11e1b26ddc995a0c96c45c2f54e13b2734dcbcd5b11ca19a5"
   },
   "capability": {
     "contractVersion": 2,
@@ -440,7 +440,7 @@
       "path": "data/module-map-v3/source-worker-safe-modules.json",
       "asset": "./resources/module-map-v3-source-worker-safe-modules.json",
       "runConfig": "./run-configs/module-map-v3.validate.json",
-      "sha256": "e35ae5459a636ce30593715ce1901a6d00dcf18721190f7b0b3afece90511dda",
+      "sha256": "af5dcecfb5dc7e2cf636a6dc747e76df3af3117fda48dcc8a2a9fdda9930e006",
       "source": "packages/cem_ml/schema-packages/module-map-v3/v1/examples/source.module-map.json",
       "manifest": "packages/cem_ml/schema-packages/module-map-v3/v1/package.cem",
       "dependencies": []

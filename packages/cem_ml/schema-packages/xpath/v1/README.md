@@ -836,7 +836,6 @@ doc("catalog.xml")/catalog
 ```xpath
 /catalog/book[1
 ```
-
 ## Imported CEM trees
 
 `XPathNativeNode::cem_document` and `cem_node` accept an
