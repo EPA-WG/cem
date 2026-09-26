@@ -237,6 +237,7 @@ fn emit(
             text.push(']');
             Ok(text)
         }
+        "pseudo-element" => Ok(format!("::{}", ident(field("name")?))),
         "pseudo-class" => {
             let name = field("name")?;
             if matches!(name, "host" | "root" | "global") {

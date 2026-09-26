@@ -5781,6 +5781,10 @@ registration identities may reuse an inherited or existing definition.
               nodes; rewrite host aliases, enforce IDs, decoded duplicate tokens
               and authored specificity, preserve valid siblings/source diagnostics,
               and reject unsupported or missing structure without raw parsing.
+        - [x] Fixture: retain and emit terminal nonfunctional pseudo-elements,
+              normalize legacy colon forms and stylesheet pseudo names, count
+              type specificity, preserve source ranges, and keep unsupported
+              placements and selector-query behavior isolated.
         - [ ] Extend retained selector grammar and implement native instance
               host rewriting/prefixing, then complete rule emission from typed
               selector/declaration nodes before browser cutover, without

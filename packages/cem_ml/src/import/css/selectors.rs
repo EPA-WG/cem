@@ -99,7 +99,8 @@ impl CssImport<'_> {
             | CssSelectorSimpleSelector::Id { source_range, .. }
             | CssSelectorSimpleSelector::Class { source_range, .. }
             | CssSelectorSimpleSelector::Attribute { source_range, .. }
-            | CssSelectorSimpleSelector::PseudoClass { source_range, .. } => *source_range,
+            | CssSelectorSimpleSelector::PseudoClass { source_range, .. }
+            | CssSelectorSimpleSelector::PseudoElement { source_range, .. } => *source_range,
         };
         let id = self.selector_node(parent, "simple-selector", range);
         match simple {
@@ -164,6 +165,10 @@ impl CssImport<'_> {
                         },
                     );
                 }
+            }
+            CssSelectorSimpleSelector::PseudoElement { name, .. } => {
+                self.attr(id, "kind", "pseudo-element");
+                self.attr(id, "name", name);
             }
             CssSelectorSimpleSelector::PseudoClass {
                 name,

@@ -317,6 +317,10 @@ pub enum CssSelectorSimpleSelector {
         modifier: Option<CssSelectorAttributeModifier>,
         source_range: CssSelectorSourceRange,
     },
+    PseudoElement {
+        name: String,
+        source_range: CssSelectorSourceRange,
+    },
     PseudoClass {
         name: String,
         selectors: Option<Box<CssSelectorListAst>>,
@@ -332,7 +336,8 @@ impl CssSelectorSimpleSelector {
             | Self::Id { source_range, .. }
             | Self::Class { source_range, .. }
             | Self::Attribute { source_range, .. }
-            | Self::PseudoClass { source_range, .. } => *source_range,
+            | Self::PseudoClass { source_range, .. }
+            | Self::PseudoElement { source_range, .. } => *source_range,
         }
     }
 }
@@ -522,10 +527,36 @@ pub(crate) fn stylesheet_selector_structure(events: &[CssEventAst]) -> Option<Cs
     parser.stylesheet = true;
     let list = parser.parse_selector_list(0, tokens.len(), false);
     if facts.is_empty() {
-        list
+        list.filter(|list| stylesheet_pseudo_element_positions(list, true))
     } else {
         None
     }
+}
+
+// Initial stylesheet profile: one terminal nonfunctional pseudo-element, only
+// in the outer selector list. Reject unsupported placement without exposing a
+// partial specificity or changing forgiving selector-list matching semantics.
+fn stylesheet_pseudo_element_positions(list: &CssSelectorListAst, outer: bool) -> bool {
+    list.selectors.iter().all(|selector| {
+        selector.compounds.iter().enumerate().all(|(ci, compound)| {
+            compound
+                .simple_selectors
+                .iter()
+                .enumerate()
+                .all(|(si, simple)| match simple {
+                    CssSelectorSimpleSelector::PseudoElement { .. } => {
+                        outer
+                            && ci + 1 == selector.compounds.len()
+                            && si + 1 == compound.simple_selectors.len()
+                    }
+                    CssSelectorSimpleSelector::PseudoClass {
+                        selectors: Some(nested),
+                        ..
+                    } => stylesheet_pseudo_element_positions(nested, false),
+                    _ => true,
+                })
+        })
+    })
 }
 
 struct SelectorParser<'a, 'f> {
@@ -994,6 +1025,20 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
         let next = self.tokens.get(start + 1)?;
         if next.token_kind == "colon" {
             let feature = self.tokens.get(start + 2);
+            if self.stylesheet {
+                if let Some(feature) = feature.filter(|token| token.token_kind == "ident") {
+                    return Some((
+                        CssSelectorSimpleSelector::PseudoElement {
+                            name: feature.value.clone().unwrap_or_default().to_ascii_lowercase(),
+                            source_range: CssSelectorSourceRange::covering(
+                                colon.source_range,
+                                feature.source_range,
+                            ),
+                        },
+                        start + 3,
+                    ));
+                }
+            }
             let range = feature.map_or(colon.source_range, |token| {
                 CssSelectorSourceRange::covering(colon.source_range, token.source_range)
             });
@@ -1014,7 +1059,22 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             ));
         }
         if next.token_kind == "ident" {
-            let name = next.value.clone().unwrap_or_default();
+            let mut name = next.value.clone().unwrap_or_default();
+            if self.stylesheet {
+                name.make_ascii_lowercase();
+                if matches!(name.as_str(), "before" | "after" | "first-line" | "first-letter") {
+                    return Some((
+                        CssSelectorSimpleSelector::PseudoElement {
+                            name,
+                            source_range: CssSelectorSourceRange::covering(
+                                colon.source_range,
+                                next.source_range,
+                            ),
+                        },
+                        start + 2,
+                    ));
+                }
+            }
             let range = Some(CssSelectorSourceRange::covering(
                 colon.source_range,
                 next.source_range,
@@ -1324,6 +1384,7 @@ fn selector_specificity(compounds: &[CssSelectorCompoundAst]) -> (u32, u32, u32)
         .flat_map(|compound| &compound.simple_selectors)
     {
         match simple {
+            CssSelectorSimpleSelector::PseudoElement { .. } => specificity.2 += 1,
             CssSelectorSimpleSelector::Id { .. } => specificity.0 += 1,
             CssSelectorSimpleSelector::Class { .. }
             | CssSelectorSimpleSelector::Attribute { .. } => specificity.1 += 1,
@@ -2303,7 +2364,8 @@ fn matches_simple(
             }
             Ok(false)
         }
-        CssSelectorSimpleSelector::PseudoClass { .. } => Ok(false),
+        CssSelectorSimpleSelector::PseudoClass { .. }
+        | CssSelectorSimpleSelector::PseudoElement { .. } => Ok(false),
     }
 }
 

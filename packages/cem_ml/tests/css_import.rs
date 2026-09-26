@@ -467,7 +467,7 @@ fn css_import_retains_selector_structure_host_arguments_and_specificity() {
 #[test]
 fn css_import_selector_analysis_keeps_unsupported_forms_without_false_specificity() {
     for selector in [
-        "::before",
+        "::part(control)",
         ":nth-child(2n of .item)",
         "& .child",
         ":host(.a,.b)",
@@ -520,4 +520,69 @@ fn css_import_selector_structure_preserves_duplicates_escapes_and_relative_has()
     assert!(elements(&tree, "combinator")
         .iter()
         .any(|id| attr(&tree, *id, "kind").as_deref() == Some("child")));
+}
+
+#[test]
+fn css_import_retains_terminal_pseudo_elements_with_type_specificity() {
+    for (selector, name, weight) in [
+        (".item::before", "before", "0-1-1"),
+        ("button:AFTER", "after", "0-0-2"),
+        (r"::\62 efore", "before", "0-0-1"),
+        (":first-line", "first-line", "0-0-1"),
+        (":first-letter", "first-letter", "0-0-1"),
+        (":WHERE(.a.b.c)::MARKER", "marker", "0-0-1"),
+    ] {
+        let css = format!("\n{selector} {{color:red}}");
+        let tree = import_data(&css, "text/css", "cem", "pseudo.css").unwrap();
+        let rule = elements(&tree, "rule")[0];
+        let list = tree.node(rule).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, list, "analysis-status").as_deref(),
+            Some("complete"),
+            "{selector}"
+        );
+        let selected = tree.node(list).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, selected, "specificity").as_deref(),
+            Some(weight)
+        );
+        let pseudo = elements(&tree, "simple-selector")
+            .into_iter()
+            .find(|id| attr(&tree, *id, "kind").as_deref() == Some("pseudo-element"))
+            .unwrap();
+        assert_eq!(attr(&tree, pseudo, "name").as_deref(), Some(name));
+        let range = tree.node(pseudo).unwrap().range;
+        assert_eq!(range.line, 2);
+        assert!(
+            css[range.offset as usize..(range.offset + range.length) as usize].starts_with(':')
+        );
+        assert_eq!(range.offset + range.length, 1 + selector.len() as u64);
+    }
+}
+
+#[test]
+fn css_import_marks_unimplemented_pseudo_element_contexts_unsupported() {
+    for selector in [
+        "::part(control)",
+        "::before::marker",
+        "::before:hover",
+        "::before > .child",
+        ":is(::before, .ok)",
+        ":where(::after)",
+        ":not(::before)",
+        ":has(::before)",
+        ":host(::before)",
+        "::before.active",
+    ] {
+        let tree =
+            import_data(&format!("{selector} {{}}"), "text/css", "cem", "pseudo.css").unwrap();
+        let rule = elements(&tree, "rule")[0];
+        let list = tree.node(rule).unwrap().children[0];
+        assert_eq!(
+            attr(&tree, list, "analysis-status").as_deref(),
+            Some("unsupported"),
+            "{selector}"
+        );
+        assert!(tree.node(list).unwrap().children.is_empty());
+    }
 }

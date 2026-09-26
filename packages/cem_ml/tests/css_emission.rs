@@ -194,7 +194,7 @@ fn declaration_selectors_preserve_combinators_and_escape_decoded_values() {
 
 #[test]
 fn declaration_selectors_fail_closed_without_retained_structure() {
-    let result = selectors("::before {color:red}");
+    let result = selectors("::part(control) {color:red}");
     assert!(result.selectors.is_empty());
     assert_eq!(
         result.diagnostics[0].code,
@@ -221,5 +221,26 @@ fn declaration_selectors_fail_closed_without_retained_structure() {
             .unwrap_err()
             .code,
         "cem.scoped_css.selector_tree_invalid"
+    );
+}
+
+#[test]
+fn declaration_selectors_emit_pseudo_elements_and_enforce_their_type_weight() {
+    let result = selectors(".item::before, :HOST(.active)::AFTER, :WHERE(.a.b.c)::before, :HOST::before, .a.b button::before {color:red}");
+    let emitted: Vec<_> = result.selectors.iter().map(|s| s.text.as_str()).collect();
+    assert_eq!(
+        emitted,
+        [
+            ".item::before",
+            ":where(:scope).active::after",
+            ":where(.a.b.c)::before",
+            ":where(:scope)::before"
+        ]
+    );
+    assert_eq!(result.selectors[1].authored_specificity, (0, 2, 1));
+    assert_eq!(result.diagnostics.len(), 1);
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.specificity_unsupported"
     );
 }

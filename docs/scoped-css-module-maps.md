@@ -381,8 +381,9 @@ relative combinators and source ranges remain in the retained tree. Authored
 rule selector text and the native lexical owner remain available as provenance.
 
 The initial stylesheet profile supports type/universal, class, ID and attribute
-selectors, ordinary simple pseudo-classes, `:is`, `:where`, `:not`, relative
-`:has`, and functional `:host` with a single compound argument. It records
+selectors, terminal nonfunctional pseudo-elements, ordinary simple pseudo-classes,
+`:is`, `:where`, `:not`, relative `:has`, and functional `:host` with a single
+compound argument. It records
 specificity as `a-b-c`, including the pseudo-class plus argument weight for
 [functional host selectors](https://drafts.csswg.org/css-scoping/#host-selector).
 Comments do not create descendant combinators; repeated decoded selectors remain
@@ -390,13 +391,30 @@ separate within a compound for later manufactured-specificity checks.
 
 `analysis-status="complete"` marks structure available to the compiler, not a
 browser feature-support assertion. The profile leaves simple pseudo-class
-matching to the browser. Forms outside the profile, including pseudo-elements,
+matching to the browser. Forms outside the profile, including functional/chained
+pseudo-elements,
 `nth-*` functions, CSS nesting `&`, and unbound namespace prefixes, produce an
 empty list marked `analysis-status="unsupported"`, with no partial specificity
 claim. Import still retains the authored rule; unsupported analysis does not
 make otherwise retained stylesheet adoption fail. The compiler must diagnose
 unsupported structure rather than parse raw selector text downstream, and
 coverage must expand before browser cutover.
+
+Nonfunctional pseudo-elements such as `::before` and `::marker` are retained as
+`simple-selector @kind="pseudo-element"`, with decoded lowercase names, original
+source ranges and type-level specificity. The
+[legacy single-colon forms](https://www.w3.org/TR/selectors-4/#pseudo-elements)
+`:before`, `:after`, `:first-line` and `:first-letter` normalize to the same typed
+shape and emit with two colons. Stylesheet pseudo-class names are likewise
+ASCII-normalized, so uppercase host aliases and zero-weight `:WHERE` preserve
+their semantics. This does not change the selector-query parser profile.
+
+This extension accepts only a terminal pseudo-element in the outer selector
+list. Functional forms, chains, trailing selectors/states, and pseudo-elements
+inside selector-list functions remain outside the retained profile. Such a
+list is explicitly unsupported rather than partially emitted. The terminal
+restriction is this implementation's coverage limit, not a claim that all other
+forms are invalid CSS. Broader coverage remains required before browser cutover.
 
 This is an isolated stylesheet profile of the existing native selector parser.
 The selector-query entry point retains its capability restrictions: `:host`,
