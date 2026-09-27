@@ -1,3 +1,4 @@
+import { loadEdgeStylesheets, type EdgeStylesheetLoadOptions, type EdgeStylesheetOutput } from './edge-ssr-stylesheets.js';
 import type {
     DataIslandSnapshot,
     SerializedPayloadElement,
@@ -6,6 +7,7 @@ import {
     advanceEdgeRenderState,
     edgeContentAddress,
     projectTemplate,
+    payloadStylesheetSources,
     readEdgeRenderStateContents,
     renderPlanIdentity,
     scopeRenderPlan,
@@ -80,6 +82,42 @@ export function executeNonBrowserSsrInitialRenderFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
     store: EdgeRenderStateStore
 ): NonBrowserSsrInitialRenderFixtureResult {
+    return renderInitialFixture(request, store);
+}
+
+/** Native payload CSS path. Declaration/shared styles remain owned by the host adapter. */
+export async function executeNativeSsrInitialRenderFixture(
+    request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
+    store: EdgeRenderStateStore,
+    stylesheets: Omit<EdgeStylesheetLoadOptions, 'owner' | 'sources'>,
+): Promise<NonBrowserSsrInitialRenderFixtureResult> {
+    const failure = initialRenderInputFailure(request);
+    if (failure) return failure;
+    const owned = structuredClone(request);
+    try {
+        stylesheets.signal.throwIfAborted();
+        if (!owned.payload.snapshot.scopePolicyStamp.split(':').includes('retained-instance-css')) {
+            return renderInitialFixture(owned, store);
+        }
+        const instanceStyles = await loadEdgeStylesheets({ ...stylesheets,
+            owner: { kind: 'instance', identity: owned.payload.snapshot.instanceId },
+            sources: payloadStylesheetSources(owned.payload.snapshot.payload),
+        });
+        stylesheets.signal.throwIfAborted();
+        return renderInitialFixture(owned, store, instanceStyles);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (stylesheets.signal.aborted) {
+            return createCemEdgeSsrHostFailureEnvelope(owned, 'cancelled', 'cancelled',
+                [fixtureDiagnostic('cem.edge_ssr.stylesheet_cancelled', message)]);
+        }
+        return fixtureFailure(owned, 'render-failed', 'cem.edge_ssr.stylesheet_failed', message);
+    }
+}
+
+function initialRenderInputFailure(
+    request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
+): CemEdgeSsrHostFailureEnvelope<'render-initial'> | undefined {
     assertCemEdgeSsrHostEnvelope(request);
 
     const identityFailure = renderInputIdentityFailure(request.payload);
@@ -103,8 +141,21 @@ export function executeNonBrowserSsrInitialRenderFixture(
         );
     }
 
+    return undefined;
+}
+
+function renderInitialFixture(
+    request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
+    store: EdgeRenderStateStore,
+    instanceStyles?: EdgeStylesheetOutput,
+): NonBrowserSsrInitialRenderFixtureResult {
+    const failure = initialRenderInputFailure(request);
+    if (failure) return failure;
+    // The validation above admits only this source kind.
+    if (request.payload.template.kind !== 'serialized-template-source-v1'
+        || !isCompleteRenderSnapshot(request.payload.snapshot)) throw new Error('invalid render input');
     const cssFailure = retainedCssCapabilityFailure(request.payload);
-    if (cssFailure) {
+    if (cssFailure && !instanceStyles) {
         return fixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.retained_css_unavailable', cssFailure);
     }
 
@@ -119,6 +170,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
             : stripRenderPlanSourceMaps(projected);
         const scoped = scopeRenderPlan(sourceMapped, request.payload.scopeUid, {
             payload: snapshot.payload,
+            payloadStylesInstalled: instanceStyles !== undefined,
         });
         const plan = scoped.renderPlan;
         const identity = renderPlanIdentity(plan);
@@ -135,6 +187,9 @@ export function executeNonBrowserSsrInitialRenderFixture(
         }
 
         const renderedHtml = serializeRenderPlanToHtmlFixture(plan);
+        const instanceStylesheetHtml = instanceStyles?.styles.map(style =>
+            `<style data-cem-instance-style="${style.index}">${serializeStyleChildren([{ kind: 'text', text: style.css }])}</style>`
+        ).join('');
         const stateInput = {
             renderPlan: plan,
             templateArtifact: request.payload.template.source,
@@ -184,6 +239,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
         return createCemEdgeSsrHostSuccessEnvelope(request, {
             kind: 'initial-render',
             renderedHtml,
+            ...(instanceStylesheetHtml === undefined ? {} : { instanceStylesheetHtml }),
             hydrationData: {
                 kind: 'cem-ssr-hydration-v1',
                 snapshot,
@@ -193,6 +249,7 @@ export function executeNonBrowserSsrInitialRenderFixture(
             },
             renderState: write.record,
             diagnostics: [
+                ...(instanceStyles?.diagnostics ?? []),
                 ...scoped.diagnostics.map((diagnostic) => ({
                     code: diagnostic.code,
                     severity: diagnostic.severity,

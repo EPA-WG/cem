@@ -91,6 +91,8 @@ export interface CemEdgeSsrInitialRenderResult {
     kind: 'initial-render';
     /** HTML for the owned light-DOM render range; host adapters own wrapper and hydration-data escaping. */
     renderedHtml: string;
+    /** Direct host style children to place after the render-end marker, outside renderedHtml. */
+    instanceStylesheetHtml?: string;
     hydrationData: CemSsrHydrationData;
     renderState: EdgeRenderStateRecord;
     diagnostics: CemProcessingDiagnostic[];

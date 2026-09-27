@@ -1,3 +1,8 @@
+import { executeNativeSsrInitialRenderFixture } from './edge-ssr-host-fixture.js';
+import { CemEdgeSsrJobSequence, createCemEdgeSsrHostRequestEnvelope } from './edge-ssr-host.js';
+import { exportDataIslandSnapshotForEdge } from './cem-elements.js';
+import { edgeSsrSnapshotFixture, PROCESSING_BOUNDARY_TEMPLATE_SOURCE } from './processing-boundary.fixtures.js';
+import { InMemoryEdgeRenderStateStore, readEdgeRenderStateContents } from './projection.js';
 import { readFile } from 'node:fs/promises';
 import { beforeAll, expect, it, vi } from 'vitest';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- exercise the generated native bindings directly in the Node evidence host.
@@ -109,4 +114,86 @@ it('does not adopt after cancellation and diagnoses invalid instance ownership',
     const invalid = await loadEdgeStylesheets(options({ sources: [{ css: 'p{}', scope: 'shared' }] }));
     expect(invalid.styles).toEqual([]);
     expect(invalid.diagnostics[0].code).toBe('cem.ql.stylesheet_instance_invalid');
+});
+
+function initialRequest(css: string) {
+    const snapshot = edgeSsrSnapshotFixture();
+    snapshot.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
+    snapshot.payload.nodes = [{ kind: 'element', key: 'style-0', tag: 'style', namespace: null, attributes: {}, slot: null,
+        children: [{ kind: 'text', key: 'style-0/0', text: css }] }];
+    snapshot.payload.slots = {};
+    const exported = exportDataIslandSnapshotForEdge(snapshot, { fields: {
+        hostAttributes: 'allow', dataset: 'allow', payload: 'allow', slices: 'allow', formData: 'allow',
+        validationState: 'allow', eventPayloads: 'allow',
+    } });
+    return createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-initial', {
+        template: { kind: 'serialized-template-source-v1', templateArtifactId: snapshot.templateArtifactId,
+            source: PROCESSING_BOUNDARY_TEMPLATE_SOURCE },
+        snapshot: exported, sourceMapMode: 'dev', scopeUid: 'server-scope',
+        revision: { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
+            renderAttempt: snapshot.renderAttempt, templateArtifactId: snapshot.templateArtifactId,
+            scopePolicyStamp: snapshot.scopePolicyStamp, outputTarget: snapshot.outputTarget },
+    });
+}
+
+it('awaits imports before committing initial SSR and emits native instance styles outside the render range', async () => {
+    const request = initialRequest('@import "theme"; @keyframes pulse {} p {animation:pulse 1s}');
+    const stateKey = `edge-state:${request.payload.snapshot.scopePolicyStamp}:${request.payload.snapshot.instanceId}`;
+    const store = new InMemoryEdgeRenderStateStore();
+    const transport = options();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const response = executeNativeSsrInitialRenderFixture(request, store, { ...transport,
+        read: async (...args) => { await gate; return transport.read(...args); },
+    });
+    expect(store.readRecord(stateKey)).toBeUndefined();
+    request.payload.snapshot.hostAttributes = { label: 'mutated during read' };
+    release();
+    const result = await response;
+    expect(result.outcome).toBe('success');
+    if (result.outcome !== 'success') return;
+    expect(result.result.renderedHtml).toContain('Projected');
+    expect(result.result.renderedHtml).not.toContain('<style');
+    expect(result.result.instanceStylesheetHtml).toContain('<style data-cem-instance-style="0">@scope to (');
+    expect(result.result.instanceStylesheetHtml).toContain('https://example.test/inner/local.svg');
+    expect(result.result.instanceStylesheetHtml).toContain('@keyframes pulse-');
+    expect(result.result.diagnostics).toEqual([]);
+    const retained = readEdgeRenderStateContents(store, result.result.renderState);
+    expect(retained.ok).toBe(true);
+    if (retained.ok) expect(retained.contents.renderedHtml).toBe(result.result.renderedHtml);
+    expect(structuredClone(result)).toEqual(result);
+});
+
+it('rejects unsafe native style HTML before storing SSR state', async () => {
+    const request = initialRequest('p::before {content:"</style><script>bad</script>"}');
+    const store = new InMemoryEdgeRenderStateStore();
+    const result = await executeNativeSsrInitialRenderFixture(request, store, options());
+    expect(result).toMatchObject({ outcome: 'failure', reason: 'render-failed' });
+    expect(store.readRecord(`edge-state:${request.payload.snapshot.scopePolicyStamp}:${request.payload.snapshot.instanceId}`)).toBeUndefined();
+});
+
+it('cancels initial native SSR without writing state or returning partial HTML', async () => {
+    const request = initialRequest('@import "theme";');
+    const controller = new AbortController();
+    const store = new InMemoryEdgeRenderStateStore();
+    const result = executeNativeSsrInitialRenderFixture(request, store, options({ signal: controller.signal,
+        read: () => new Promise(() => undefined),
+    }));
+    controller.abort(new Error('cancelled SSR'));
+    expect(await result).toMatchObject({ outcome: 'cancelled', reason: 'cancelled',
+        diagnostics: [{ code: 'cem.edge_ssr.stylesheet_cancelled' }] });
+    expect(store.readRecord(`edge-state:${request.payload.snapshot.scopePolicyStamp}:${request.payload.snapshot.instanceId}`)).toBeUndefined();
+});
+
+
+it('keeps older declaration-only retained policies gated instead of changing their payload placement', async () => {
+    const request = initialRequest('p {color:green}');
+    request.payload.snapshot.scopePolicyStamp = request.payload.snapshot.scopePolicyStamp.replace(':retained-instance-css', '');
+    request.payload.revision.scopePolicyStamp = request.payload.snapshot.scopePolicyStamp;
+    const adopt = vi.fn(wasm.adoptInstanceStylesheets);
+    const result = await executeNativeSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore(),
+        options({ native: { ...wasm, adoptInstanceStylesheets: adopt } }));
+    expect(result).toMatchObject({ outcome: 'failure', reason: 'content-unavailable',
+        diagnostics: [{ code: 'cem.edge_ssr.retained_css_unavailable' }] });
+    expect(adopt).not.toHaveBeenCalled();
 });

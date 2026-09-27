@@ -880,3 +880,23 @@ then extend the same cache contract to other supported languages and formats.
   tree, and concurrent consumers preserve independent runtime state. Add
   cross-window/session and cross-site checksum-matching fixtures when the browser
   cache design is promoted to implementation work.
+
+### CLI scope checksums and directly loadable CEM AST output
+
+- Add a CLI option to compute a content checksum for each scope and emit it as a
+  scope attribute. Use it for content integrity checks and to match scopes in
+  the browser's local cache, reusing a compatible retained CEM AST without
+  parsing the source again.
+- Add a CLI output option that produces a directly loadable CEM AST artifact
+  instead of final HTML DOM. The browser loads the typed tree and renders it
+  without parsing the original CEM source. Build on the native artifact boundary;
+  define a versioned storage format suitable for persistent browser caches.
+- Define the checksum algorithm, exact content covered (including nested scopes),
+  attribute and option names, and how source checksums relate to artifact
+  integrity. Include parser/schema versions, options and relevant consuming
+  contexts in compatibility checks so equal content does not reuse an
+  incompatible tree. Keep per-consumer runtime state independent.
+- Verify CLI-to-browser rendering parity for direct artifact loads and checksum
+  cache hits, with no source parsing in either path. Cover changed content,
+  incompatible versions and corrupt artifacts, including cache invalidation and
+  the behavior when source is available for rebuilding.

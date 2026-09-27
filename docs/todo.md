@@ -6368,6 +6368,18 @@ registration identities may reuse an inherited or existing definition.
           and transport failures, aborts and late delivery. All 27 Edge unit tests
           pass, along with typecheck and lint (two existing warnings). The SSR
           rendering guard remains until integration.
+    - [x] Fixture: add asynchronous native instance CSS to initial SSR responses;
+          keep styles outside the owned render range, reject unsafe style HTML,
+          await imports/cancellation before state writes, and verify real browser
+          hydration reuses server DOM and styles with stable animation identity.
+          Completed: protocol v11 returns `instanceStylesheetHtml` outside the
+          owned render range. The async host waits for native imports, copies the
+          request, rejects unsafe style serialization, and cancels before state
+          writes. Worker/fallback hydration reuses both DOM and stylesheet nodes.
+          Legacy initial rendering and streamed native updates remain guarded.
+          Verification: 31 Edge unit tests, 8 Edge browser stories, 552 regular
+          unit tests and 284 regular browser stories pass, along with typecheck
+          and lint (two existing warnings).
     - [ ] Fixture: add native stylesheet adoption/loading to the Edge host with
           consuming module contexts and persisted instance identities; verify
           imported CSS placement, readiness, cancellation and browser hydration

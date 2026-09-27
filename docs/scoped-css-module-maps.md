@@ -1408,7 +1408,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v10` `stylesheet` operation populates this collection
+The `cem-processing-host-v11` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1500,7 +1500,7 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-Processing-host protocol v10 carries `instanceStylesheetIdentity` only for CSS
+Processing-host protocol v11 carries `instanceStylesheetIdentity` only for CSS
 source adoption. The identity is part of the native compilation cache key and
 same-artifact reuse checks. Instance loads pass this fixed identity through the
 WASM control boundary; declaration loads retain their registration identity.
@@ -1586,7 +1586,7 @@ module resolver or byte reader. It previously accepted the browser's
 payload CSS through the legacy path. Its resulting hydration identity therefore
 claimed a capability the host did not implement.
 
-Initial-render and update requests with either retained policy now return
+The synchronous initial-render and update entry points with either retained policy return
 `content-unavailable` with `cem.edge_ssr.retained_css_unavailable`. They emit no
 HTML or patch frames and leave retained state unchanged. Legacy-policy requests
 keep their existing behavior. This guard applies to the evidence host, not to
@@ -1623,6 +1623,35 @@ the disposed owner. Real WASM tests run in Node without DOM globals and verify
 repeated loads preserve instance output while different contexts/identities stay
 isolated.
 
-This is the loading adapter, not an SSR response extension. Initial HTML, streamed
-updates, host-child placement and browser hydration still need to consume these
-outputs before the retained-policy capability guard can be removed.
+The loading adapter now also supports the asynchronous initial-response path
+below. Streamed updates and declaration/shared placement remain separate gates.
+
+
+### Native instance styles in initial SSR responses
+
+`executeNativeSsrInitialRenderFixture` adds an asynchronous initial-render path
+using the initialized bindings, byte reader, base URL and consuming module context
+supplied by the host. It validates and copies the request before awaiting imports,
+extracts inert payload source strings, and loads them under the snapshot's persisted
+instance ID. Declaration/shared styles remain the surrounding host adapter's
+responsibility; this fixture does not discover declaration sources.
+
+Protocol v11 adds optional `instanceStylesheetHtml` to the initial response.
+Adapters place this string as direct produced-host children after the render-end
+marker. `renderedHtml` and the retained render plan contain only the owned render
+range. The host serializes native CSS without parsing it again, rejecting NUL or
+closing-style text before a state write. Import diagnostics keep native source
+locations; independently valid occurrences retain their output. Cancellation
+returns a cancelled envelope and writes no render state.
+
+A `retained-instance-css` policy is required for this placement. Older
+`retained-declaration-css`-only policies remain rejected by the capability guard.
+The synchronous initial host and streamed update host also retain their guards.
+The async path leaves legacy-policy requests on the existing legacy path.
+
+Node/WASM tests verify import readiness, a copied request during delayed reads,
+HTML serialization and cancellation before state writes. Browser worker/fallback
+fixtures feed native initial responses into hydration, then verify the same
+paragraph and direct style node survive, exactly one instance stylesheet remains,
+and emitted CSS and animation names match. The server context must preserve the
+browser's resolver identity as well as its maps and base URL.
