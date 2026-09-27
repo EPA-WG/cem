@@ -32,7 +32,7 @@ pub struct CssResourceReference {
     pub kind: CssResourceKind,
     pub authored_specifier: String,
     pub source: SourceMapStack,
-    /// Range of the complete import statement or URL component, in source bytes.
+    /// Range of the complete import statement or URL-bearing component, in source bytes.
     pub range: CemTreeRange,
     pub resolution: Result<CemModuleUrlResolution, CemModuleUrlResolutionError>,
 }
@@ -48,7 +48,7 @@ pub struct CssResourcePlan {
 /// `stylesheet_url` is the owning template's URL (inline CSS), or the imported
 /// sheet's final URL. Never use a synthetic retained-tree source URI as its base.
 /// Resolution results are context-specific: do not cache this plan by tree alone.
-/// String-valued grammars such as image-set() candidates are not yet covered.
+/// Import-classified URL strings (including image-set candidates) share this plan.
 pub fn resolve_css_resources(
     tree: Arc<RetainedCemTree>,
     capability: &CemModuleUrlResolutionCapability,
@@ -108,7 +108,11 @@ pub(crate) fn resource_reference(
                 media: attribute(tree, id, "media").map(str::to_owned),
             },
         ))
-    } else if named(tree, id, "component-value") && attribute(tree, id, "kind") == Some("url") {
+    } else if named(tree, id, "component-value")
+        && (attribute(tree, id, "kind") == Some("url")
+            || (attribute(tree, id, "kind") == Some("string")
+                && attribute(tree, id, "resource-role") == Some("url")))
+    {
         Some((
             attribute(tree, id, "value")
                 .ok_or("CSS URL has no value")?

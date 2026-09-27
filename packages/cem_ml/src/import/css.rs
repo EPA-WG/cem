@@ -2,6 +2,7 @@
 mod animation_names;
 mod animation_shorthand;
 mod highlight;
+mod image_candidates;
 mod keyframes;
 pub(crate) use highlight::annotate_retained_css_roles;
 mod selectors;
@@ -810,9 +811,20 @@ impl CssImport<'_> {
     fn components_with_roles(
         &mut self,
         parent: AstNodeId,
+        pos: usize,
+        end: usize,
+        operators: &std::collections::BTreeSet<usize>,
+    ) {
+        self.components_with_resource_roles(parent, pos, end, operators, &Default::default());
+    }
+
+    fn components_with_resource_roles(
+        &mut self,
+        parent: AstNodeId,
         mut pos: usize,
         end: usize,
         operators: &std::collections::BTreeSet<usize>,
+        resources: &std::collections::BTreeSet<usize>,
     ) {
         while pos < end {
             let e = &self.events[pos];
@@ -836,6 +848,9 @@ impl CssImport<'_> {
                 _ => "delimiter",
             };
             self.attr(id, "kind", kind);
+            if resources.contains(&pos) {
+                self.attr(id, "resource-role", "url");
+            }
             if operators.contains(&pos) {
                 self.attr(id, "condition-role", "operator");
             }
@@ -863,7 +878,32 @@ impl CssImport<'_> {
                         kind
                     },
                 );
-                self.components_with_roles(inner, pos + 1, close, operators);
+                if kind == "function"
+                    && e.value.as_deref().is_some_and(|name| {
+                        name.eq_ignore_ascii_case("image-set")
+                            || name.eq_ignore_ascii_case("-webkit-image-set")
+                    })
+                {
+                    let candidates = self.image_candidate_strings(pos + 1, close);
+                    self.attr(
+                        inner,
+                        "resource-analysis",
+                        if candidates.is_some() {
+                            "complete"
+                        } else {
+                            "unsupported"
+                        },
+                    );
+                    self.components_with_resource_roles(
+                        inner,
+                        pos + 1,
+                        close,
+                        operators,
+                        &candidates.unwrap_or_default(),
+                    );
+                } else {
+                    self.components_with_roles(inner, pos + 1, close, operators);
+                }
             }
             pos = next;
         }

@@ -180,10 +180,10 @@ non-CSS rejection.
 
 This native plan does not load imports or install browser CSS. The declaration
 emitter below can consume it to rewrite explicit external URL components.
-String-valued resource grammars such as `image-set()` candidates, local-fragment
-semantics, empty URL handling, import condition validation/cycles, shared-loader
-integration and per-context style ownership remain downstream work. The current
-browser import suppression continues to apply.
+Import-classified `image-set()` strings now use the same plan (see below).
+Automatic local-fragment binding remains deferred; native import condition,
+cycle and byte-delivery checks are implemented. Browser loader integration and
+per-context style ownership remain pending; browser import suppression continues.
 
 ## Scoped CSS fragment references: automatic binding deferred
 
@@ -1141,7 +1141,7 @@ It is a migration-readiness audit, not a claim to support all CSS syntax.
 | Scope boundaries | `css_rule_assembly` covers private/shared/instance wrappers and context qualification. Existing browser scope stories remain the cutover acceptance gate for projection limits, inheritance and cascade. |
 | Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
 | Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
-| Other URL-bearing syntax | Quoted `image-set()` candidates are still ordinary string components. `css_resources::resource_reference` recognizes imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. This is the next resource-coverage blocker. |
+| Other URL-bearing syntax | At audit time, quoted `image-set()` candidates were ordinary string components. The resolver recognized imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. The subsequent [image candidate fixture](#retained-image-candidate-resources) now covers this static profile. |
 | Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `emit_css_import_closure` requires a caller-owned stable identity; it neither derives ownership nor installs CSS. `DeclarationStyleOwnership` maintains one style set and needs the accepted context-qualified derived-set lifecycle. |
 
 The combined regression compares canonical retained output, rather than legacy
@@ -1173,3 +1173,31 @@ Recommended sequence:
 
 Automatic fragment binding remains deferred. Literal functions such as `:dir()`
 and `:lang()` do not participate in URL resolution.
+
+## Retained image candidate resources
+
+Shared import classifies quoted image candidates in `image-set()` and its
+`-webkit-image-set()` alias with `resource-role="url"` on the existing string
+component. This follows the [CSS Images grammar](https://www.w3.org/TR/css-images-4/#image-set-notation).
+The function retains `resource-analysis="complete"` or `"unsupported"`.
+No resource interpretation is added to literal selector functions.
+
+The initial profile admits string/URL candidates and gradient functions, with
+optional static resolution and `type()` descriptors in either order. It leaves
+image selection, MIME support and resolution semantics to the browser. Dynamic
+candidate/descriptor substitutions, calculated resolutions and other image
+function forms remain outside this profile. These diagnose as
+`cem.scoped_css.resource_grammar_unsupported` and suppress their declaration
+while preserving siblings. This classification does not validate gradient bodies.
+
+The existing resource plan resolves classified strings with the nearest map and
+the owning sheet's final URL. The emitter writes their resolved value as `url()`;
+no candidate-specific serializer is needed. Quoted `type()` values, comments,
+ordinary strings and `:lang()` arguments retain their authored text. Local
+fragment candidates remain unchanged under the existing deferred-binding policy.
+Blocked/failed candidate references use the existing declaration suppression.
+
+Native fixtures cover context reuse, escaped strings, exact source ranges,
+redirected/repeated imported sheets, descriptor order, the prefixed alias and
+unsupported forms. The browser gate checks computed candidate URLs from native
+output after rebuilding WASM. Runtime installation remains pending.

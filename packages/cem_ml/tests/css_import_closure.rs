@@ -719,7 +719,7 @@ fn css_import_media_recovery_retains_downloaded_sheet_and_valid_siblings() {
 fn emission_compiles_import_occurrences_with_shared_names_and_final_url_bases() {
     use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
     let mut c = closure("@import 'a.css' supports(display:grid) screen; @import 'a.css'; .card {animation:pulse 1s linear; color:green} @keyframes root-motion {}", Default::default(), AbortSignal::new());
-    let imported = tree("@keyframes pulse {from {opacity:0} to {opacity:1}} .card {background:url(icon.svg);color:red;animation-name:root-motion}");
+    let imported = tree("@keyframes pulse {from {opacity:0} to {opacity:1}} .card {background:url(icon.svg);mask-image:image-set(\"candidate.svg\" 1x);color:red;animation-name:root-motion}");
     for _ in 0..2 {
         let request = c.next_import().unwrap().unwrap();
         c.complete_import(
@@ -743,6 +743,7 @@ fn emission_compiles_import_occurrences_with_shared_names_and_final_url_bases() 
     );
     assert_eq!(css.matches("@keyframes pulse-cem-6f776e6572").count(), 2);
     assert_eq!(css.matches("https://example.test/cdn/icon.svg").count(), 2);
+    assert_eq!(css.matches("https://example.test/cdn/candidate.svg").count(), 2);
     assert_eq!(
         css.matches("animation-name:\"root-motion-cem-6f776e6572\"")
             .count(),

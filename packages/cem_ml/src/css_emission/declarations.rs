@@ -225,7 +225,13 @@ fn emit_declarations(
                 Some(resources) => {
                     match components_with(tree, id, |child, token| resources.token(child, token)) {
                         Ok(value) => value,
-                        Err(error) if error.code == "cem.scoped_css.resource_resolution_failed" => {
+                        Err(error)
+                            if matches!(
+                                error.code,
+                                "cem.scoped_css.resource_resolution_failed"
+                                    | "cem.scoped_css.resource_grammar_unsupported"
+                            ) =>
+                        {
                             result.diagnostics.push(error);
                             continue;
                         }

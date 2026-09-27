@@ -250,3 +250,59 @@ fn resource_emission_preserves_nested_rule_boundaries_and_suppression_policy() {
         ]
     );
 }
+
+#[test]
+fn image_candidates_resolve_strings_without_touching_other_literals() {
+    let css = r#":lang("icon") {background:IMAGE-SET(/* keep */ "icon" 1x type("image/svg+xml"), "./a\20 b.svg" 2x, linear-gradient(red,blue) 3x); content:"icon"; --fallback:"icon";}"#;
+    let p = plan(css);
+    assert_eq!(p.references.len(), 2);
+    assert_eq!(emitted(&p), [
+        "background:IMAGE-SET(/* keep */ url(\"https://example.test/components/inner.svg\") 1x type(\"image/svg+xml\"), url(\"https://example.test/assets/a%20b.svg\") 2x, linear-gradient(red,blue) 3x);",
+        "content:\"icon\";", "--fallback:\"icon\";",
+    ]);
+    for reference in &p.references {
+        let range = reference.range;
+        let token = &css[range.offset as usize..(range.offset + range.length) as usize];
+        assert!(token.starts_with('"') && token.ends_with('"'));
+        assert!(reference.source.origin().is_some());
+    }
+    let other = resolve_css_resources(
+        p.tree.clone(),
+        &capability("./override.svg"),
+        "https://example.test/other/base.css",
+    )
+    .unwrap();
+    assert!(emitted(&other)[0].contains("components/override.svg"));
+    assert!(emitted(&other)[0].contains("other/a%20b.svg"));
+    assert!(emitted(&p)[0].contains("components/inner.svg"));
+}
+
+#[test]
+fn image_candidates_fail_closed_and_preserve_sibling_declarations() {
+    for value in [
+        "image-set(\"blocked\" 1x)",
+        "image-set(\"icon\" 1x,)",
+        "image-set(var(--image) 1x)",
+        "image-set(\"icon\" var(--density))",
+        "image-set(\"icon\" 1x 2x)",
+        "image-set(\"icon\" type(\"image/png\") type(\"image/svg+xml\"))",
+    ] {
+        let p = plan(&format!(".item {{background:{value};color:green}}"));
+        let result = emit_css_rule_declarations_with_resources(&p, rule(&p.tree)).unwrap();
+        assert_eq!(
+            result
+                .declarations
+                .iter()
+                .map(|d| d.text.as_str())
+                .collect::<Vec<_>>(),
+            ["color:green;"],
+            "{value}"
+        );
+        assert_eq!(result.diagnostics.len(), 1, "{value}");
+    }
+    let p = plan(
+        r##".item {background:-webkit-image-set("icon" type("image/svg+xml") 1dppx, "#local" 192dpi)}"##,
+    );
+    assert!(emitted(&p)[0].contains("url(\"https://example.test/components/inner.svg\")"));
+    assert!(emitted(&p)[0].contains("\"#local\" 192dpi"));
+}

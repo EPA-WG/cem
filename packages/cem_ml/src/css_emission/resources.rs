@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use super::{diagnostic, CssEmissionDiagnostic};
 use crate::{
-    css_resources::{resource_reference, CssResourceKind, CssResourcePlan, CssResourceReference},
+    css_resources::{
+        attribute, resource_reference, CssResourceKind, CssResourcePlan, CssResourceReference,
+    },
     parser::{tree::RetainedCemTree, AstNodeId},
 };
 
@@ -42,6 +44,14 @@ impl<'a> ResourceRewriter<'a> {
             let node = tree
                 .node(child)
                 .ok_or_else(|| invalid(tree, child, "missing component child"))?;
+            if attribute(tree, child, "resource-analysis") == Some("unsupported") {
+                return Err(diagnostic(
+                    tree,
+                    child,
+                    "cem.scoped_css.resource_grammar_unsupported",
+                    "resource candidates require the supported static grammar",
+                ));
+            }
             let reference = resource_reference(tree, child)
                 .map_err(|message| invalid(tree, child, &message))?;
             let Some((authored, CssResourceKind::Url)) = reference else {

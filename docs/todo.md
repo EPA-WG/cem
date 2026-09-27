@@ -6055,11 +6055,20 @@ registration identities may reuse an inherited or existing definition.
               identifies quoted image candidates and runtime ownership/transport
               as concrete gaps; no further selector function is required by the
               audited fixtures.
-        - [ ] Fixture: retain URL-bearing `image-set()` string candidates through
+        - [x] Fixture: retain URL-bearing `image-set()` string candidates through
               shared import and resolve/emit them using the resource plan; cover
               imported bases, nearest-map overrides, failed resolution, escaping
               and source ranges. Keep ordinary strings, `type()` strings, comments
               and literal selector arguments unchanged; diagnose unsupported forms.
+              Verify emitted candidate URLs in the rebuilt browser gate.
+              Completed: 84 focused native/schema tests, Nx lint (132 existing
+              warnings), and the rebuilt WASM/browser gate pass, including 25
+              computed-style checks. Dynamic candidates and calculated resolutions
+              remain outside the admitted static profile.
+        - [ ] Fixture: derive effective stylesheet ownership and cache identity
+              from declaration/style occurrence and resolver context; verify stable
+              reuse, context isolation, policy/map invalidation and hydration
+              identity before connecting native emission to browser installation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

@@ -17,8 +17,11 @@ try {
   assert.equal(native.status, 0, 'native CSS fixture must pass');
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  await page.route("https://example.test/**", route => route.fulfill({ contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>' }));
   const markup = '<cem-fixture class="active"><div class="card active"><span class="label">text</span></div><div class="pseudo"></div></cem-fixture>';
   const cases = [
+    ['image-candidates', '.card', null, 'backgroundImage', 'image-set(url("https://example.test/styles/icon.svg") 1dppx, url("https://example.test/styles/double.svg") 2dppx)'],
     ['nth-filter', '.pseudo', null, 'color', 'rgb(128, 0, 128)'],
     ['nth-filter', '.card', null, 'backgroundColor', 'rgb(255, 192, 203)'],
     ['nth-structural', '.card', null, 'color', 'rgb(255, 165, 0)'],

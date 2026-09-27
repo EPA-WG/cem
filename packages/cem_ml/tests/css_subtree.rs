@@ -157,6 +157,7 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("host", ":host {color:purple; &.active {background-color:orange}}", CssRuleMode::Declaration),
         ("duplicates", ".card {color:green; &.card {color:red} && {color:red}}", CssRuleMode::Declaration),
         ("zero-weight", ".card.active {:where(&) {.label {color:orange}}}", CssRuleMode::Declaration),
+        ("image-candidates", r#".card {background-image:image-set("icon.svg" 1x, "double.svg" 2x)}"#, CssRuleMode::Declaration),
         ("language", ".card {color:black; &:lang(en), &:lang(fr) {color:purple} &:lang(de) {color:green}} .pseudo {color:black; &:lang(fr) {color:orange}}", CssRuleMode::Declaration),
         ("language-list", ".card {color:black; &:lang(en, fr) {color:purple}}", CssRuleMode::Declaration),
         ("language-string", ".card {color:black; &:lang(\"en\") {color:purple}}", CssRuleMode::Declaration),
