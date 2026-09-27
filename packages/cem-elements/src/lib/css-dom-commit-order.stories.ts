@@ -4,6 +4,7 @@ import { createCemDeclarationScope } from './declaration-scope.js';
 import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from './declaration-style-ownership.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 import { deferStylesheetNotifications } from './internal/runtime-support/stylesheet-notifications.js';
+import { prepareRetainedStylesheets, type CemPreparedStylesheets } from './internal/runtime-support/stylesheet-installation.js';
 import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange,
     renderPlanIdentity, type RenderPlan } from './projection.js';
 
@@ -43,6 +44,7 @@ function publicationStory(orders: readonly string[]): Story { return {
             const bounds = { start: document.createComment('start'), end: document.createComment('end') };
             host.append(bounds.start, bounds.end);
             const releases: Promise<unknown>[] = [];
+            const preparations: CemPreparedStylesheets[] = [];
             try {
                 const { artifact } = await native.compile(tag, [{ css: ':host { --asset: url(asset); }', scope: null }]);
                 const candidate = async (variant: string): Promise<DeclarationStylesheetCommit> => {
@@ -50,6 +52,21 @@ function publicationStory(orders: readonly string[]): Story { return {
                     const consumer = `ordering-${variant}`;
                     const context = { ...nativeCssStoryContext, frames: [{ frameId: 'page', baseUrl: 'https://example.test/',
                         scopes: [], specifiers: { imports: {}, resources: { asset: { target: `./${variant}.svg` } } } }] };
+                    if (order.startsWith('prepared-') && variant === 'new') {
+                        const prepared = prepareRetainedStylesheets({ host: native.host, artifact, consumer, lease, context,
+                            baseUrl: 'https://example.test/main.css', occurrences: [{ index: 0, scope: { kind: 'private', tag } }],
+                            read: async () => { throw new Error('unexpected import'); } });
+                        preparations.push(prepared);
+                        expect(await prepared.ready).toMatchObject({ status: 'prepared' });
+                        const entry = prepared.takeCommit();
+                        if (!entry) throw new Error('missing prepared commit');
+                        expect(prepared.takeCommit()).toBeUndefined();
+                        expect(prepared.commit()).toBe(false);
+                        if (order === 'prepared-disposed') await prepared.dispose();
+                        if (order === 'prepared-released') entry.release();
+                        if (order === 'prepared-invalid') entry.isCurrent = () => false;
+                        return { ...entry, release() { observe('release'); released.push(variant); entry.release(); } };
+                    }
                     const output = await native.host.stylesheet({ action: 'begin', artifact, consumer, index: 0,
                         baseUrl: 'https://example.test/main.css', context, scope: { kind: 'private', tag } }).result;
                     if (output.status !== 'ready') throw new Error('expected ready CSS');
@@ -76,7 +93,7 @@ function publicationStory(orders: readonly string[]): Story { return {
                 if (!['css-first', 'dom-first', 'deferred-cleanup'].includes(order)) {
                     const controller = new AbortController();
                     let current = renderPlanIdentity(after);
-                    if (order === 'reject-patch') patch.cancel();
+                    if (order === 'reject-patch' || order === 'prepared-rejected') patch.cancel();
                     if (order === 'reject-css') css.outputs = [...css.outputs, ...css.outputs];
                     if (order === 'cancel-before') controller.abort();
                     if (order === 'cancel-during') onMarker = () => controller.abort();
@@ -96,9 +113,10 @@ function publicationStory(orders: readonly string[]): Story { return {
                     }
                     const commit = () => DeclarationStyleOwnership.commitGroupWithPatch([css], patch, () => current, controller.signal);
                     const result = order === 'nested' ? deferStylesheetNotifications(commit) : commit();
-                    const rejected = ['reject-patch', 'reject-css', 'cancel-before', 'foreign-host', 'nested'].includes(order);
-                    const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child'].includes(order);
-                    expect(result.status).toBe(rejected ? 'rejected' : order === 'joint' ? 'applied' : 'recovery-required');
+                    const rejected = ['reject-patch', 'reject-css', 'cancel-before', 'foreign-host', 'nested',
+                        'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released'].includes(order);
+                    const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child', 'prepared-joint'].includes(order);
+                    expect(result.status).toBe(rejected ? 'rejected' : ['joint', 'prepared-joint'].includes(order) ? 'applied' : 'recovery-required');
                     expect(host.querySelector('[data-content]')?.textContent).toBe(completed ? 'After' : 'Before');
                     if (order !== 'disconnect-child') expect(getComputedStyle(host).getPropertyValue('--asset')).toContain(rejected ? '/old.svg' : '/new.svg');
                     expect(old.lease.signal.aborted).toBe(!rejected);
@@ -136,7 +154,8 @@ function publicationStory(orders: readonly string[]): Story { return {
                 expect(getComputedStyle(host).getPropertyValue('--asset')).toContain('/new.svg');
                 expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
             } finally {
-                recording = false; scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren();
+                recording = false; scope.dispose(); await Promise.all(preparations.map(prepared => prepared.dispose()));
+                await Promise.all(releases); native.dispose(); root.replaceChildren();
             }
         }
     },
@@ -147,4 +166,7 @@ export const JointAdmissionAndRecovery = publicationStory([
     'joint', 'reject-patch', 'reject-css', 'cancel-before', 'cancel-during',
     'mutate-target', 'supersede', 'cleanup-error', 'foreign-host',
     'nested', 'supersede-child', 'disconnect-child',
+]);
+export const PreparedLoadsJoinPublication = publicationStory([
+    'prepared-joint', 'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released',
 ]);

@@ -24,9 +24,11 @@ export interface CemStylesheetConsumerLease<TScope = { kind: 'private' } | { kin
     release(): void;
 }
 
-export interface DeclarationStylesheetCommit {
-    lease: CemStylesheetConsumerLease;
-    outputs: readonly CemOwnedStylesheet[];
+export interface DeclarationStylesheetCommit<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
+    lease: CemStylesheetConsumerLease<TScope>;
+    outputs: readonly CemOwnedStylesheet<TScope>[];
+    /** Optional preparation guard; must be synchronous and side-effect free. */
+    isCurrent?(): boolean;
     release(): void;
 }
 
@@ -299,7 +301,7 @@ export class DeclarationStyleOwnership {
             return state && element?.isConnected && element.ownerDocument === state.owner.document
                 && active(state.consumer.scope) && active(state.owner.processingScope)
                 && state.owner.currentConsumers.get(element) === state.consumer
-                && state.owner.consumers.has(state.consumer) && !entry.lease.signal.aborted;
+                && state.owner.consumers.has(state.consumer) && !entry.lease.signal.aborted && entry.isCurrent?.() !== false;
         });
         return { status: started ? applied && live && !signal?.aborted && errors.length === 0
             ? 'applied' : 'recovery-required' : 'rejected', diagnostics, errors };
@@ -322,7 +324,8 @@ export class DeclarationStyleOwnership {
         const contexts = new Set(entries.flatMap(entry => entry.outputs.map(source => source.output.identity.contextMarker))
             .filter((value): value is string => value !== null));
         const valid = admitted && element && owners.size === entries.length && contexts.size <= 1 && members.every(({ state, entry }) =>
-            state && state.consumer.element.deref() === element && state.owner.validConsumer(state.consumer, entry.outputs, replacing));
+            state && entry.isCurrent?.() !== false && state.consumer.element.deref() === element
+                && state.owner.validConsumer(state.consumer, entry.outputs, replacing));
         if (!valid) {
             const notifications: Array<() => void> = [];
             for (const { state } of members) if (state && !state.consumer.committed) state.owner.dropConsumer(state.consumer, notifications);

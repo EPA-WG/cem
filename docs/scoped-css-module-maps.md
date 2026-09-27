@@ -1801,6 +1801,22 @@ coordinate marker changes with the grouped commit below. Connecting preparation
 and grouped publication to a validated Edge DOM patch remains required before
 enabling changed-CSS Edge updates.
 
+`prepareRetainedStylesheets(...).takeCommit()` transfers a ready native candidate
+once into a `DeclarationStylesheetCommit` entry. Pass that entry to
+`commitGroup` or `commitGroupWithPatch`; no individual lease commit runs during
+the transfer. Taking a candidate consumes the same publication opportunity as
+`commit()`, so neither operation can subsequently publish it again. Before
+readiness, `takeCommit()` returns `undefined` without consuming the candidate.
+
+The entry retains a synchronous `isCurrent()` guard for processing-host disposal
+or mode replacement, lease cancellation and explicit native release. Group
+admission checks this guard; joint publication also checks it after cleanup.
+Keep the preparation handle and
+call `dispose()` if an entry is abandoned, or when its published generation is
+no longer needed. Disposal and native release remain idempotent. The transfer
+does not convert instance-style leases into declaration ownership leases;
+prepared instance CSS still needs its own coordinator integration.
+
 
 ### Committing declaration owners together
 
@@ -1869,7 +1885,7 @@ available to the caller; no rollback is claimed.
 
 This primitive coordinates declaration CSS only. The caller must serialize
 managed update requests and provide authoritative recovery. Prepared instance
-CSS, the loading/preparation bridge, and the Edge response/state contract still
+CSS, runtime loader wiring, and the Edge response/state contract still
 need integration before changed-CSS streamed updates can be enabled.
 
 ### Preparing the DOM side of a CSS update

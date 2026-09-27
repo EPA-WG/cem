@@ -138,6 +138,40 @@ it.each(['throw', 'error', 'fatal'] as const)('rejects the complete replacement 
 
 
 describe('prepared stylesheet publication', () => {
+    it('transfers a ready candidate once and releases native ownership only once', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('transferred'));
+        const load = prepareRetainedStylesheets(f.options);
+        expect(load.takeCommit()).toBeUndefined();
+        await load.ready;
+        const entry = load.takeCommit();
+        expect(entry?.lease).toBe(f.lease);
+        expect(entry?.isCurrent?.()).toBe(true);
+        expect(load.takeCommit()).toBeUndefined();
+        expect(load.commit()).toBe(false);
+        expect(f.lease.commit).not.toHaveBeenCalled();
+        entry?.release(); entry?.release();
+        expect(entry?.isCurrent?.()).toBe(false);
+        await load.dispose();
+        await load.dispose();
+        expect(entry?.isCurrent?.()).toBe(false);
+        expect(vi.mocked(f.host.stylesheet).mock.calls.filter(([input]) => input.action === 'release')).toHaveLength(1);
+        expect(f.lease.release).toHaveBeenCalledOnce();
+    });
+
+    it.each(['abort', 'dispose', 'host-dispose', 'host-replace'] as const)('invalidates a transferred candidate after %s', async action => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('transferred'));
+        const load = prepareRetainedStylesheets(f.options);
+        await load.ready;
+        const entry = load.takeCommit();
+        expect(entry?.isCurrent?.()).toBe(true);
+        if (action === 'abort') f.abort.abort();
+        if (action === 'dispose') await load.dispose();
+        if (action === 'host-dispose') Object.defineProperty(f.host.ownerScope, 'disposed', { value: true });
+        if (action === 'host-replace') Object.defineProperty(f.host, 'mode', { value: 'main-thread' });
+        expect(entry?.isCurrent?.()).toBe(false);
+        await load.dispose();
+    });
+
     it('holds native output until an explicit, single commit and releases it on disposal', async () => {
         const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
         const load = prepareRetainedStylesheets(f.options);

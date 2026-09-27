@@ -1,4 +1,4 @@
-import type { CemStylesheetConsumerLease, CemOwnedStylesheet } from '../../declaration-style-ownership.js';
+import type { CemStylesheetConsumerLease, CemOwnedStylesheet, DeclarationStylesheetCommit } from '../../declaration-style-ownership.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import {
     cemProcessingFailureDiagnostics,
@@ -163,18 +163,20 @@ export function installRetainedStylesheets<TScope extends Begin['scope']>(option
     };
 }
 
-export interface CemPreparedStylesheets {
+export interface CemPreparedStylesheets<TScope extends Begin['scope'] = Begin['scope']> {
     /** Loading is complete, but styles and context markers have not been published. */
     ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: Diagnostic[] }>;
     /** Publish once through the original lease, rechecking its current generation. */
     commit(): boolean;
+    /** Transfer one ready candidate to grouped publication; dispose if abandoned. */
+    takeCommit(): DeclarationStylesheetCommit<TScope> | undefined;
     dispose(): Promise<void>;
 }
 
 /** Load a complete candidate set and hold its native owners until an explicit commit. */
 export function prepareRetainedStylesheets<TScope extends Begin['scope']>(
     options: CemStylesheetInstallationOptions<TScope>,
-): CemPreparedStylesheets {
+): CemPreparedStylesheets<TScope> {
     const { lease, host } = options;
     let preparedMode = host.mode;
     const controller = new AbortController();
@@ -182,6 +184,7 @@ export function prepareRetainedStylesheets<TScope extends Begin['scope']>(
     let prepared = false;
     let released = false;
     let committed = false;
+    let candidateReleased = false;
     const abort = () => { candidate = undefined; controller.abort(); };
     lease.signal.addEventListener('abort', abort, { once: true });
     if (lease.signal.aborted) abort();
@@ -202,19 +205,29 @@ export function prepareRetainedStylesheets<TScope extends Begin['scope']>(
             },
         },
     });
+    const isCurrent = () => !candidateReleased && !controller.signal.aborted && !host.ownerScope.disposed && host.mode === preparedMode;
+    const takeCommit = (): DeclarationStylesheetCommit<TScope> | undefined => {
+        if (committed || !prepared || !candidate || controller.signal.aborted) return undefined;
+        if (!isCurrent()) { release(); return undefined; }
+        const current = candidate;
+        candidate = undefined;
+        // Consume before handing control to a publisher that can invoke lifecycle callbacks.
+        committed = true;
+        return { lease, outputs: current.outputs, isCurrent, release() {
+            candidateReleased = true;
+            current.release();
+        } };
+    };
     return {
         ready: installation.ready.then(result => {
             prepared = result.status === 'ready' && !controller.signal.aborted && !host.ownerScope.disposed && host.mode === preparedMode;
             if (!prepared) release();
             return { status: prepared ? 'prepared' : 'cancelled', diagnostics: result.diagnostics };
         }),
+        takeCommit,
         commit() {
-            if (committed || !prepared || !candidate || controller.signal.aborted) return false;
-            if (host.ownerScope.disposed || host.mode !== preparedMode) { release(); return false; }
-            const current = candidate;
-            candidate = undefined;
-            // Mark before calling the lease: its publication can invoke user lifecycle callbacks.
-            committed = true;
+            const current = takeCommit();
+            if (!current) return false;
             try {
                 if (lease.commit(current.outputs, current.release)) return true;
                 release();

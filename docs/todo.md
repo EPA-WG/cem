@@ -6543,6 +6543,16 @@ registration identities may reuse an inherited or existing definition.
                   boundaries and host disconnection. Verification: 575 unit tests,
                   298 browser cases in each default/retained-CSS lane, typecheck
                   and lint pass with two existing warnings.
+            - [x] Fixture: transfer ready native stylesheet loads once into joint
+                  publication; preserve processing-host validity checks and verify
+                  grouped rejection/disposal releases native loads exactly once.
+                  Completed 2026-09-27: `takeCommit()` transfers ready native output
+                  and its original lease once, retaining validity checks for host
+                  disposal/replacement, cancellation and native release. Unit tests
+                  verify idempotent cleanup; worker/fallback fixtures cover joint
+                  publication and rejected, disposed, invalid or released entries.
+                  Verification: 580 unit tests, 299 browser cases in each default/
+                  retained-CSS lane, typecheck and lint pass with two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

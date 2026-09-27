@@ -91,6 +91,10 @@ CSS and a prepared patch, checks that they belong to the same host, and reports
 `applied`, `rejected` or `recovery-required`. It rechecks the revision and live
 ownership after publication and cleanup. Nested joint calls are rejected so a
 call cannot report success before an outer notification boundary finishes.
+Prepared native declaration loads can now transfer their outputs once through
+`takeCommit()` into joint publication. Admission and completion retain the
+preparation's host/cancellation/release validity guard, and disposal still owns
+native cleanup.
 Prepared instance CSS, managed update queuing, authoritative recovery and the
 Edge response/state contract still need integration. Changed-CSS Edge updates
 remain guarded until those requirements are verified.
