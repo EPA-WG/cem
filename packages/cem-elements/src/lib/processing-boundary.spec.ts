@@ -5,6 +5,7 @@ import {
     diffRenderPlansToPatchFrames,
     projectSlotsInRenderPlan,
     projectTemplate,
+    payloadStylesheetSources,
     resolveDeclarationStyleScope,
     resolveDeclarationStylesheetScopes,
     renderPlansHaveDomChanges,
@@ -742,3 +743,32 @@ it('omits native-owned payload CSS without parsing it or removing ordinary resul
     expect(result.renderPlan.nodes).toHaveLength(1);
     expect(result.renderPlan.nodes[0]).toMatchObject({ renderNodeId: 'result-1' });
 });
+
+
+it.each([null, 'http://www.w3.org/1999/xhtml'])(
+    'preserves nested inert payload CSS for its child owner (%s)', namespace => {
+        const css = '@import "child-only.css"; p { color: red }';
+        const payload = { nodes: [{ kind: 'element', key: '0', namespace: null, tag: 'child-card', attributes: {},
+            children: [{ kind: 'element', key: '0/0', namespace, tag: 'template', attributes: {},
+                children: [{ kind: 'element', key: '0/0/0', namespace: null, tag: 'style', attributes: {},
+                    children: [{ kind: 'text', key: '0/0/0/0', text: css }] }] }] }], slots: {} };
+        expect(payloadStylesheetSources(payload)).toEqual([]);
+        const plan: RenderPlan = { producedTag: 'parent-card', instanceId: 'one', templateArtifactId: 'one',
+            dataRevision: '1', outputTarget: 'light-dom', scopePolicyStamp: 'test', nodes: [
+                { kind: 'element', tag: 'child-card', namespace: null, attributes: [], renderNodeId: 'payload-0', children: [
+                    { kind: 'element', tag: 'template', namespace, attributes: [], renderNodeId: 'payload-0/0', children: [
+                        { kind: 'element', tag: 'style', namespace: null, attributes: [], renderNodeId: 'payload-0/0/0',
+                            children: [{ kind: 'text', text: css }] },
+                    ] },
+                ] },
+            ] };
+        for (const payloadStylesInstalled of [false, true]) {
+            const result = scopeRenderPlan(plan, 'scope-parent', { payload, payloadStylesInstalled });
+            expect(result.diagnostics).toEqual([]);
+            expect(result.renderPlan.nodes).toHaveLength(1);
+            expect(result.renderPlan.nodes[0]).toMatchObject({ children: [{ children: [{
+                tag: 'style', children: [{ text: css }],
+            }] }] });
+        }
+    },
+);

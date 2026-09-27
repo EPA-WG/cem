@@ -6280,9 +6280,14 @@ registration identities may reuse an inherited or existing definition.
               payload CSS compilation in render plans and retains result styles.
               All 548 unit tests and 284 browser stories in each runtime lane pass;
               typecheck and lint pass with two existing warnings.
-        - [ ] Fixture: verify nested inert payload styles remain owned by their
+        - [x] Fixture: verify nested inert payload styles remain owned by their
               consuming child instance; prevent parent collection or render-plan
               cleanup from consuming CSS inside a nested inert template.
+              Completed: failing-first tests cover null/XHTML template namespaces
+              and both runtime modes. Collection and cleanup preserve child CSS
+              source, including imports, without processing it for the parent.
+              All 550 unit tests and 284 browser stories in each runtime lane pass;
+              typecheck and lint pass with two existing warnings.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

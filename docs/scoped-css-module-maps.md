@@ -1524,3 +1524,11 @@ stale delivery cannot commit. A failed occurrence reports native source ranges
 without dropping independent valid occurrences. Worker/fallback fixtures cover
 these paths for DOM and CEM-ML declarations. Default compiler cutover remains
 pending.
+
+
+### Nested inert payload ownership
+
+Payload CSS collection and render-plan cleanup stop at HTML templates, including
+explicit XHTML namespace templates. Styles inside those templates remain authored
+source for the eventual child consumer. Boundary tests cover both namespace forms
+in legacy and retained modes, including imports that the parent must not process.

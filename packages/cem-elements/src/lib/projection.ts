@@ -1312,7 +1312,7 @@ function collectPayloadStyles(payload: unknown): RenderPlanNode[] {
     const styles: RenderPlanNode[] = [];
     const visit = (nodes: readonly ProjectionPayloadNode[]): void => {
         for (const node of nodes) {
-            if (node.kind !== 'element') {
+            if (node.kind !== 'element' || isHtmlTemplate(node)) {
                 continue;
             }
             if (node.tag === STYLE_TAG && node.namespace === null) {
@@ -1353,7 +1353,7 @@ function stripPayloadStyleNodes(nodes: readonly RenderPlanNode[]): RenderPlanNod
         }
         stripped.push({
             ...node,
-            children: stripPayloadStyleNodes(node.children),
+            children: isHtmlTemplate(node) ? node.children : stripPayloadStyleNodes(node.children),
         });
     }
     return stripped;
