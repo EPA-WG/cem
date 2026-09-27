@@ -163,23 +163,24 @@ Browser DOM templates send static stylesheet sources through the same native
 importer and retain their trees under the processing host artifact lifecycle.
 The first render and both settlement APIs wait for adoption; hydrated output
 stays intact. See the [readiness contract](scoped-css-module-maps.md#dom-template-readiness-accepted-and-implemented).
-Scoped resource loading remains pending; adoption does not authorize loading
-retained references.
+With `retainedStylesheets: {}`, scoped resource loading now uses those retained
+references through native import closures. Adoption alone does not load them;
+the runtime awaits the native load before installing emitted CSS.
 
 Declaration-local keyframes receive a deterministic stylesheet suffix and all
-local animation references are rewritten. `@import` and document-global
-constructs such as `@font-face`, `@property`, `@counter-style`,
+local animation references are rewritten. In the default runtime, `@import`
+is suppressed. Document-global constructs such as `@font-face`, `@property`, `@counter-style`,
 `@font-palette-values`, `@page`, and `@namespace` are suppressed with the
 diagnostics in section 8. Authored outer `@scope` is also unsupported because
 the runtime owns the component boundary.
 
 The accepted [typed CSS module-map extension](scoped-css-module-maps.md) replaces
-blanket import suppression only when shared retained-AST import loading is
-available. Imported rules then receive the importing component's managed scope;
-raw browser `@import` is never a fallback. Existing global-rule and library
+blanket import suppression in the opt-in retained runtime, where shared
+retained-AST import loading is implemented. Imported rules receive the importing
+component's managed scope; raw browser `@import` is never a fallback. Existing global-rule and library
 layer restrictions continue to apply, including to imported rules and import
-conditions that require those unsupported constructs. Until the integration
-checklist is complete, the suppression behavior above remains in force.
+conditions that require those unsupported constructs. The default runtime
+continues to suppress imports until the remaining cutover checklist is complete.
 
 Dynamic visual state MUST use static selectors over host, state, and ARIA
 attributes plus CEM custom properties.
@@ -433,7 +434,7 @@ identity rules.
 | direct payload template is mixed with non-whitespace siblings | leave payload inert and render no mixed payload | `cem-element.instance_payload_mixed` |
 | bare instance `<style>` is found outside the payload envelope | do not adopt it as instance CSS | `cem-element.instance_style_unenveloped` |
 | authored outer `@scope` appears in managed CSS | suppress the authored scope | `cem.scoped_css.authored_scope_unsupported` |
-| `@import` appears in managed CSS | suppress the import | `cem.scoped_css.import_unsupported` |
+| `@import` appears in managed CSS without retained loading | suppress the import | `cem.scoped_css.import_unsupported` |
 | a document-global at-rule appears | suppress the construct | `cem.scoped_css.global_construct_unsupported` |
 | an authored cascade layer appears in library CSS | suppress the layer | `cem.scoped_css.layer_unsupported` |
 | a selector contains an ID | suppress the selector | `cem.scoped_css.id_selector_unsupported` |

@@ -5791,9 +5791,10 @@ registration identities may reuse an inherited or existing definition.
             - [x] Fixture: verify shared adoption, both settlement APIs, malformed
                   and unsupported/dynamic styles, native failure, no-style
                   declarations, reconnect/disposal and retained hydrated output.
-    - [ ] Resolve CSS import expressions (`@import`), `url(...)` references and
+    - [x] Resolve CSS import expressions (`@import`), `url(...)` references and
           other CSS URL-bearing constructs through the module map from the
           closest scope, using the shared resolver and retained CSS AST.
+          Completed in the opt-in retained runtime; default cutover is separate.
         - [x] Fixture: bridge retained CSS import/URL nodes to native resolution;
               preserve order, import conditions, source ranges, mapped metadata,
               imported-sheet bases, context isolation and independent failures.
@@ -5813,10 +5814,13 @@ registration identities may reuse an inherited or existing definition.
               imported-sheet URL bases, repeated imports and native owners;
               reject cycles, wrong responses, non-CSS trees, denied redirects,
               cancellation and depth/count limits before browser integration.
-        - [ ] Connect the retained import closure to shared-loader byte, MIME,
+        - [x] Connect the retained import closure to shared-loader byte, MIME,
               integrity, redirect and aggregate-size checks; validate import
               placement/conditions and compile the complete closure into scoped
               CSS before context-specific browser installation.
+              Completed: native closure admission/emission, retained-owner loads
+              and opt-in worker/fallback installation now compose this path. See
+              the [gate reconciliation](scoped-css-module-maps.md#migration-gate-reconciliation-2026-09-26).
         - [x] Fixture: retain native stylesheet selector compounds, combinators,
               decoded simple selectors, functional host arguments and specificity;
               preserve source ranges, mark unsupported grammar explicitly, and
@@ -6288,10 +6292,13 @@ registration identities may reuse an inherited or existing definition.
               source, including imports, without processing it for the parent.
               All 550 unit tests and 284 browser stories in each runtime lane pass;
               typecheck and lint pass with two existing warnings.
-        - [ ] Complete native grouping/nested-rule compilation, remaining
+        - [x] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
               before browser cutover, without downstream CSS parsing.
+              Completed for the accepted managed-CSS profile; the compiler audit
+              records deferred grammar explicitly. Native subtree, nesting, rule
+              assembly and import-closure fixtures cover complete emission.
         - [x] Fixture: emit native import condition wrappers from retained CEM
               components; parenthesize bare supports declarations, recover invalid
               media entries with diagnostics/source ranges, suppress layered
@@ -6315,13 +6322,19 @@ registration identities may reuse an inherited or existing definition.
               closure; verify MIME hints/responses, supported integrity digests,
               response/aggregate bounds, final URL checks, cancellation and loader
               failure before retaining imported trees.
-    - [ ] Include an explicit CSS override entry in the module map; define its
+    - [x] Include an explicit CSS override entry in the module map; define its
           syntax and precedence and verify the closest-scope override is used
           for stylesheet imports and resource URLs.
-    - [ ] Fixture: add native tests first for style namespace adoption, typed
+          Completed with ordinary resource entries and nearest-scope CSS lookup;
+          native resolver tests cover metadata, fallback and ancestor restrictions.
+    - [x] Fixture: add native tests first for style namespace adoption, typed
           CSS AST production, scoped import/URL resolution, override precedence,
           fallback and unresolved-reference diagnostics. Reconcile resolved CSS
           imports with the existing scoped-CSS import policy explicitly.
+          Completed across native adoption, resource and closure fixtures; the
+          normative contract now distinguishes default import suppression from
+          opt-in retained loading. Audit rerun: 85 focused native tests pass;
+          retained-owner/WASM checks pass from the Nx cache.
     - [ ] Fixture: extend
           [`packages/cem-elements/demo/scoped-css.html`](../packages/cem-elements/demo/scoped-css.html)
           as the demonstration page, showing internal styles, CSS imports and

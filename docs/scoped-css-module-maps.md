@@ -1,10 +1,9 @@
 # Scoped module maps for typed CSS
 
-Status: native CSS URL lookup, retained-tree reference resolution, semantic tree
-import, and static CEM-ML/DOM-template style adoption implemented. Scoped import loading and
-browser integration remain pending. The active work is tracked
-in [todo.md](todo.md). Browser styles must not depend on these capabilities
-until their implementation and integration checks are complete.
+Status: native typed CSS adoption, scoped import loading, resource resolution and
+browser installation are implemented through `retainedStylesheets: {}`. Both
+runtime test lanes pass. Default runtime cutover and the authored module-map
+import demonstration remain pending; see [todo.md](todo.md).
 
 Template adoption should recognize internal `<style>` content as CSS, dispatch
 through the shared `text/css` parser, and retain the resulting CEM AST and source
@@ -25,9 +24,9 @@ module-map scope. The demonstration belongs in
 - `cem_ql/src/render.rs` accepts static `import`, `resource`, and `scope`
   module-map entries. A resource already supports `specifier`, `target`,
   `content-type`, and `integrity`; there is no separate override entry kind.
-- The [scoped CSS contract](cem-ml-uid-and-scoped-css-design.md) currently
-  suppresses every `@import` with `cem.scoped_css.import_unsupported`.
-  Resolving an import URL alone would not make its rules component-scoped.
+- The [scoped CSS contract](cem-ml-uid-and-scoped-css-design.md) suppresses
+  `@import` in the default runtime. The opt-in retained runtime loads and scopes
+  imported rules; resolving their URLs alone is insufficient.
 
 ## Accepted decisions
 
@@ -51,8 +50,8 @@ module-map scope. The demonstration belongs in
    (`media`, `supports`, `layer`), source locations, and each imported sheet's
    URL base. Diagnose unsupported conditions and cycles rather than emitting
    browser `@import` as a fallback. Existing document-global and library-layer restrictions
-   still apply. Until this loading path is implemented, imports remain
-   suppressed by the current runtime.
+   still apply. The opt-in retained runtime implements this loading path;
+   the default runtime continues to suppress imports.
 
 Update the normative contracts and add focused native tests
 before implementation: typed style adoption, closest-scope mapping/fallback,
@@ -1154,7 +1153,7 @@ It is a migration-readiness audit, not a claim to support all CSS syntax.
 | Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
 | Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
 | Other URL-bearing syntax | At audit time, quoted `image-set()` candidates were ordinary string components. The resolver recognized imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. The subsequent [image candidate fixture](#retained-image-candidate-resources) now covers this static profile. |
-| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` now admits native context-qualified sets and consumer leases. The runtime still needs to route its retained operations and readiness through that path. |
+| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` now admits native context-qualified sets and consumer leases. The opt-in runtime now routes declaration and inert-payload CSS through native loads, consumer leases and render/hydration readiness. Ordinary result styles remain on their separate path. |
 
 The combined regression compares canonical retained output, rather than legacy
 spacing: unqualified type selectors emit with an explicit wildcard namespace,
@@ -1532,3 +1531,30 @@ Payload CSS collection and render-plan cleanup stop at HTML templates, including
 explicit XHTML namespace templates. Styles inside those templates remain authored
 source for the eventual child consumer. Boundary tests cover both namespace forms
 in legacy and retained modes, including imports that the parent must not process.
+
+
+## Migration gate reconciliation (2026-09-26)
+
+The import-loader and compiler implementation gates are complete for the accepted
+managed-CSS profile. Their umbrella checklist entries had not been closed as the
+individual fixtures landed.
+
+| Gate | Implementation and verification |
+| --- | --- |
+| Byte admission and import closure | `css_import_closure` covers MIME, strongest supported integrity digests, per-response and aggregate bounds, redirects, cancellation, placement and import conditions. `retained_stylesheets` exercises load generations through the retained owner; its WASM fixture verifies the public boundary. |
+| Complete scoped emission | `css_subtree`, `css_nesting_emission` and `css_rule_assembly` verify ordered declarations, grouping, nesting, managed wrappers and keyframe references. `emission_compiles_import_occurrences_with_shared_names_and_final_url_bases` combines imports, conditions, cross-sheet animation references, final URL bases and cascade order. |
+| Browser installation | Worker/fallback fixtures and both full browser lanes cover declaration/shared/instance ownership, consuming contexts, readiness, hydration, cancellation and independent failures. Native source trees remain inside the processing host. |
+| Override syntax | The accepted ordinary `resource` entry is implemented. `css_uses_nearest_mapping_and_preserves_non_css_precedence` verifies nearest CSS lookup and metadata while preserving non-CSS precedence; adjacent tests cover URL-scope specificity, fallback and ancestor restrictions. |
+
+These implementation gates do not enable the default runtime. The next authored
+example must demonstrate a stylesheet import and resource URL overridden by a
+nested module map, using repository assets in standalone and source-loaded modes.
+Then verify the default-cutover trial against that example and the existing
+browser lanes. The explicit syntax limits in the compiler coverage audit still
+apply; broader CSS grammar remains fixture-driven work.
+
+Verification: 85 focused native tests passed across CSS adoption, resources,
+resolver precedence, import closures, subtree emission, nesting and rule assembly.
+`cem_ql:test:retained-stylesheets` passed from the Nx cache, including retained-owner
+and real WASM checks. The prior integration run passed 550 unit tests and 284
+browser stories in each lane; this reconciliation changes documentation only.
