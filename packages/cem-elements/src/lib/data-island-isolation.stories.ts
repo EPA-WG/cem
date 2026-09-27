@@ -24,6 +24,7 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
+const stylesheetRuntimes = new WeakMap<HTMLElement, CemElementRuntime>();
 
 export const SelectorsDoNotPierceTheDataIsland: Story = {
     render: () =>
@@ -182,6 +183,7 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
         root.setAttribute('aria-label', 'complete declaration and data island isolation matrix');
 
         const runtime = new CemElementRuntime({ declarationTag: 'cem-element-iso-matrix' });
+        stylesheetRuntimes.set(root, runtime);
         const declaration = document.createElement('cem-element-iso-matrix');
         declaration.setAttribute('tag', 'iso-matrix-el');
         declaration.setAttribute('data-iso', 'matrix-declaration');
@@ -231,6 +233,10 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
         const declaration = requiredElement(root, '[data-iso="matrix-declaration"]');
         const declarationTemplate = requiredElement(declaration, ':scope > template') as HTMLTemplateElement;
         const instance = requiredElement(root, 'iso-matrix-el') as HTMLElement;
+        const runtime = stylesheetRuntimes.get(root);
+        assert(runtime, 'stylesheet fixture runtime is available');
+        await runtime.whenDeclarationSettled(declaration);
+        await runtime.whenRenderSettled(instance);
         const island = requiredElement(
             instance,
             ':scope > template[data-cem-island="instance"]'
@@ -386,6 +392,7 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'declaration and instance stylesheet ownership');
         const runtime = new CemElementRuntime({ declarationTag: 'cem-element-style-contract' });
+        stylesheetRuntimes.set(root, runtime);
 
         const sharedOnly = styleContractDeclaration(
             'cem-element-style-contract',
@@ -431,6 +438,12 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
         const sharedDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-shared-only"]');
         const mixedDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mixed"]');
         const mismatchDeclaration = requiredElement(canvasElement, 'cem-element-style-contract[tag="style-mismatch"]');
+        const root = requiredElement(canvasElement, 'section[aria-label="declaration and instance stylesheet ownership"]');
+        const runtime = stylesheetRuntimes.get(root);
+        assert(runtime, 'stylesheet ownership runtime is available');
+        await Promise.all([sharedDeclaration, mixedDeclaration, mismatchDeclaration].map(declaration =>
+            runtime.whenDeclarationSettled(declaration)));
+        await Promise.all([sharedOnly, mixed].map(instance => runtime.whenRenderSettled(instance)));
 
         assertEqual(sharedOnly.getAttribute('scope'), 'abc-lib', 'a declaration scope marks group membership');
         assertEqual(mixed.getAttribute('scope'), 'abc-lib', 'the same group may span component tags');

@@ -5348,6 +5348,8 @@ export const ScopedCssUidSeedRuntime: Story = {
         );
 
         const declaration = requiredElement(root, 'cem-element-story-scoped-css');
+        await runtime.whenDeclarationSettled(declaration);
+        await runtime.whenRenderSettled(instance);
         const style = requiredElement(declaration, ':scope > style[data-cem-declaration-style="private"]');
         const css = style.textContent ?? '';
         assert(css.includes('@scope (\n    story-scoped-css-card'), 'style rules use the native produced-tag scope');

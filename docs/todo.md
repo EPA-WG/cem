@@ -6130,9 +6130,12 @@ registration identities may reuse an inherited or existing definition.
               selector with `:where()`; no new native grammar was needed.
               All eight scope/adoption stories, typecheck and lint pass (two
               existing lint warnings). Production installation remains pending.
-        - [ ] Fixture: await native DOM stylesheet adoption in existing UID,
+        - [x] Fixture: await native DOM stylesheet adoption in existing UID,
               isolation and ownership browser stories before asserting installed
               styles; replace frame-only readiness assumptions with runtime waits.
+              Completed: all 262 browser stories across 56 files pass, including
+              the three previously premature assertions. Typecheck and lint pass
+              with two existing warnings.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
