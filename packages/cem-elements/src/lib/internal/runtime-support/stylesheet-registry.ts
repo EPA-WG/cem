@@ -1,14 +1,16 @@
 import {
     assertCemDeclarationScopeActive, onCemDeclarationScopeDispose, type CemDeclarationScope,
 } from '../../declaration-scope.js';
-import type { DeclarationStyleOwnership } from '../../declaration-style-ownership.js';
+import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from '../../declaration-style-ownership.js';
 import { cemProcessingFailureDiagnostics } from './processing-host.js';
 import {
-    installRetainedStylesheets, type CemStylesheetInstallation, type CemStylesheetInstallationOptions,
+    installRetainedStylesheets, prepareRetainedStylesheets, type CemPreparedStylesheets,
+    type CemStylesheetInstallation, type CemStylesheetInstallationOptions,
 } from './stylesheet-installation.js';
 
 type Result = Awaited<CemStylesheetInstallation['ready']>;
 type SourceOptions = Pick<CemStylesheetInstallationOptions, 'host' | 'artifact' | 'baseUrl' | 'occurrences' | 'read'>;
+type RegistryScope = CemStylesheetInstallationOptions['occurrences'][number]['scope'];
 
 export interface CemStylesheetSource extends SourceOptions {
     /** Effective declaration identity; tag names alone cannot distinguish logical scopes. */
@@ -32,13 +34,22 @@ export interface CemStylesheetConnection {
     release(): void;
 }
 
+export interface CemPreparedStylesheetConnection {
+    readonly signal: AbortSignal;
+    ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: Result['diagnostics'] }>;
+    takeCommits(): readonly DeclarationStylesheetCommit[] | undefined;
+    /** Adopt an already published group as the live registry connection. */
+    activate(): CemStylesheetConnection | undefined;
+    release(): void;
+}
+
 interface Source {
     options: CemStylesheetSource;
     unobserve: () => void;
 }
 interface Connection {
     options: CemStylesheetConsumer;
-    loads: Map<Source, { installation?: CemStylesheetInstallation; ready: Promise<Result> }>;
+    loads: Map<Source, { installation?: Pick<CemStylesheetInstallation, 'dispose'>; ready: Promise<Result> }>;
     revision: number;
     released: boolean;
     abort: AbortController;
@@ -54,6 +65,100 @@ export class CemStylesheetRegistry {
     private readonly cleanupErrors: unknown[] = [];
     private readonly observer: MutationObserver | undefined;
     private disposed = false;
+    private sourceRevision = 0;
+    private readonly preparations = new Map<HTMLElement, CemPreparedStylesheetConnection>();
+
+    /** Snapshot matching sources while retaining the live connection until activation. */
+    prepareReplacement(input: CemStylesheetConsumer): CemPreparedStylesheetConnection {
+        this.assertActive(input.scope);
+        if (input.element.ownerDocument !== this.document || !input.element.isConnected) throw new Error('stylesheet consumer must be connected');
+        this.reconcile(this.observer?.takeRecords() ?? []);
+        this.preparations.get(input.element)?.release();
+        const options = { ...input, context: structuredClone(input.context) };
+        const previous = this.current.get(options.element);
+        const sourceRevision = this.sourceRevision;
+        const abort = new AbortController();
+        const loads = new Map<Source, { installation: CemPreparedStylesheets<RegistryScope>; ready: Promise<Result> }>();
+        let entries: readonly DeclarationStylesheetCommit[] | undefined;
+        let prepared = false;
+        let taken = false;
+        let activated: Connection | undefined;
+        let unobserve: () => void = () => undefined;
+        const release = () => {
+            if (activated) { this.removeConnection(activated); return; }
+            if (abort.signal.aborted) return;
+            abort.abort(); unobserve();
+            if (this.preparations.get(options.element) === handle) this.preparations.delete(options.element);
+            for (const load of loads.values()) this.clean(load.installation);
+        };
+        const current = () => !abort.signal.aborted && !this.disposed && options.element.isConnected
+            && options.element.ownerDocument === this.document && !options.scope.disposed
+            && (activated ? !activated.released && this.current.get(options.element) === activated
+                : sourceRevision === this.sourceRevision && this.preparations.get(options.element) === handle
+                    && this.current.get(options.element) === previous);
+        const handle: CemPreparedStylesheetConnection = {
+            signal: abort.signal,
+            ready: Promise.resolve({ status: 'cancelled', diagnostics: [] }),
+            takeCommits: () => {
+                if (!prepared || taken) return undefined;
+                if (!current()) { release(); return undefined; }
+                taken = true;
+                const candidates: DeclarationStylesheetCommit[] = [];
+                for (const load of loads.values()) {
+                    const entry = load.installation.takeCommit();
+                    if (!entry) { release(); return undefined; }
+                    // Sources and native hosts must still belong to this preparation.
+                    candidates.push({ ...entry, isCurrent: () => current() && entry.isCurrent?.() !== false });
+                }
+                entries = candidates;
+                return entries;
+            },
+            activate: () => {
+                if (activated || !current() || !entries || !entries.every(entry => DeclarationStyleOwnership.isCurrentCommit(entry))) return undefined;
+                activated = { options, loads, revision: 0, released: false, abort, unobserve };
+                this.preparations.delete(options.element);
+                this.current.set(options.element, activated);
+                this.connections.add(activated);
+                if (previous) this.removeConnection(previous);
+                const connection = activated;
+                if (connection.released) return undefined;
+                return { signal: abort.signal, whenReady: () => this.whenReady(connection), release };
+            },
+            release,
+        };
+        this.preparations.set(options.element, handle);
+        unobserve = observeScopes([options.scope], release);
+        handle.ready = (async () => {
+            const diagnostics: Result['diagnostics'] = [];
+            try {
+                for (const source of this.sources.values()) {
+                    if (!current()) break;
+                    const occurrences = source.options.occurrences.filter(occurrence => occurrence.scope.kind === 'private'
+                        ? source.options.declaration === options.declaration : occurrence.scope.name === options.sharedScope);
+                    if (!occurrences.length && !previous?.loads.has(source)) continue;
+                    const installation = prepareRetainedStylesheets({ ...source.options, occurrences,
+                        consumer: `registry-prepared:${crypto.randomUUID()}`, context: options.context,
+                        lease: source.options.ownership.stageConsumer(options.element, options.scope) });
+                    if (!current()) { this.clean(installation); break; }
+                    loads.set(source, { installation, ready: installation.ready.then(result => {
+                        if (result.status !== 'prepared') release();
+                        return { status: result.status === 'prepared' ? 'ready' : 'cancelled', diagnostics: result.diagnostics,
+                            installed: result.status === 'prepared' ? occurrences.length : 0 };
+                    }) });
+                }
+                const results = await Promise.all(Array.from(loads.values(), load => load.ready));
+                diagnostics.push(...results.flatMap(result => result.diagnostics));
+                prepared = current() && results.every(result => result.status === 'ready');
+            } catch (error) { diagnostics.push(...cemProcessingFailureDiagnostics(error)); }
+            if (!prepared) release();
+            return { status: prepared ? 'prepared' as const : 'cancelled' as const, diagnostics };
+        })();
+        return handle;
+    }
+
+    private cancelPreparations(): void {
+        for (const preparation of Array.from(this.preparations.values())) preparation.release();
+    }
 
     constructor(private readonly document: Document) {
         const Observer = document.defaultView?.MutationObserver;
@@ -67,9 +172,11 @@ export class CemStylesheetRegistry {
         this.assertActive(options.scope);
         this.assertActive(options.host.ownerScope);
         if (this.sources.has(options.declaration)) throw new Error('stylesheet declaration already registered');
+        this.cancelPreparations();
         const source: Source = { options: { ...options,
             ...structuredClone({ artifact: options.artifact, occurrences: options.occurrences }) }, unobserve: () => undefined };
         this.sources.set(options.declaration, source);
+        this.sourceRevision++;
         source.unobserve = observeScopes([options.scope, options.host.ownerScope], () => this.removeSource(source));
         this.reconcile(this.observer?.takeRecords() ?? []);
         for (const connection of this.connections) this.attach(source, connection);
@@ -82,6 +189,7 @@ export class CemStylesheetRegistry {
             throw new Error('stylesheet consumer must be connected to the registry document');
         }
         this.reconcile(this.observer?.takeRecords() ?? []);
+        this.preparations.get(options.element)?.release();
         const connection: Connection = { options: { ...options, context: structuredClone(options.context) },
             loads: new Map(), revision: 0, released: false, abort: new AbortController(), unobserve: () => undefined };
         const previous = this.current.get(options.element);
@@ -104,6 +212,7 @@ export class CemStylesheetRegistry {
 
     async dispose(): Promise<void> {
         this.disposed = true;
+        this.cancelPreparations();
         this.observer?.disconnect();
         for (const connection of this.connections) this.removeConnection(connection);
         for (const source of this.sources.values()) this.removeSource(source);
@@ -147,7 +256,9 @@ export class CemStylesheetRegistry {
 
     private removeSource(source: Source): void {
         if (this.sources.get(source.options.declaration) !== source) return;
+        this.cancelPreparations();
         this.sources.delete(source.options.declaration);
+        this.sourceRevision++;
         source.unobserve();
         for (const connection of this.connections) {
             const load = connection.loads.get(source);
@@ -163,19 +274,26 @@ export class CemStylesheetRegistry {
         connection.released = true;
         connection.revision++;
         connection.unobserve();
-        if (this.current.get(connection.options.element) === connection) this.current.delete(connection.options.element);
+        if (this.current.get(connection.options.element) === connection) {
+            this.current.delete(connection.options.element);
+            this.preparations.get(connection.options.element)?.release();
+        }
         for (const load of connection.loads.values()) if (load.installation) this.clean(load.installation);
         connection.loads.clear();
         connection.abort.abort();
     }
 
-    private clean(installation: CemStylesheetInstallation): void {
+    private clean(installation: Pick<CemStylesheetInstallation, 'dispose'>): void {
         const pending = installation.dispose().catch(error => { this.cleanupErrors.push(error); })
             .finally(() => this.cleanup.delete(pending));
         this.cleanup.add(pending);
     }
 
     private reconcile(records: readonly MutationRecord[]): void {
+        for (const [element, preparation] of this.preparations) {
+            if (!element.isConnected || element.ownerDocument !== this.document || records.some(record =>
+                Array.from(record.removedNodes).some(node => node === element || node.contains(element)))) preparation.release();
+        }
         for (const connection of this.connections) {
             const element = connection.options.element;
             if (!element.isConnected || element.ownerDocument !== this.document || records.some(record =>

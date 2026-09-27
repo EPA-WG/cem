@@ -45,6 +45,101 @@ function heldResponse() {
         finalUrl: 'https://example.test/child.css', contentType: 'text/css' }) };
 }
 
+export const PreparedConnectionReplacement: Story = {
+    render: () => '<section aria-label="Prepared registry replacement"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing prepared registry fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const element = f.instance('registry-prepared');
+                let gate = heldResponse();
+                gate.resolve(':host { --private: url(icon); }');
+                let reads = 0; let fail = false;
+                const own = await f.source(element.localName, [{ css: '@import "./child.css";', scope: null }], async () => {
+                    reads++;
+                    if (fail) throw new Error('replacement import failed');
+                    return gate.promise;
+                });
+                const shared = await f.source('registry-shared', [{ css: ':host { --shared: url(icon); }', scope: 'controls' }]);
+                f.registry.register(own.options); f.registry.register(shared.options);
+                const options = { element, declaration: own.options.declaration, sharedScope: 'controls',
+                    scope: f.consumers, context: context('old') };
+                const active = f.registry.connect(options);
+                expect(await active.whenReady()).toMatchObject({ installed: 2 });
+                const marker = element.getAttribute('data-cem-css-context');
+                const oldStyle = own.element.querySelector('style');
+                gate = heldResponse();
+                const pending = f.registry.prepareReplacement({ ...options, context: context('new') });
+                expect(pending.takeCommits()).toBeUndefined();
+                await waitFor(() => expect(reads).toBe(2));
+                expect(active.signal.aborted).toBe(false);
+                expect(element.getAttribute('data-cem-css-context')).toBe(marker);
+                expect(own.element.querySelector('style')).toBe(oldStyle);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/old.svg');
+                gate.resolve(':host { --private: url(icon); }');
+                expect(await pending.ready).toMatchObject({ status: 'prepared' });
+                const entries = pending.takeCommits();
+                if (!entries) throw new Error('missing prepared entries');
+                expect(entries).toHaveLength(2);
+                expect(pending.takeCommits()).toBeUndefined();
+                expect(pending.activate()).toBeUndefined();
+                expect(DeclarationStyleOwnership.commitGroup(entries)).toBe(true);
+                const current = pending.activate();
+                if (!current) throw new Error('missing activated connection');
+                expect(active.signal.aborted).toBe(true);
+                expect(await current.whenReady()).toMatchObject({ installed: 2 });
+                active.release();
+                for (const name of ['--private', '--shared']) expect(getComputedStyle(element).getPropertyValue(name)).toContain('/new.svg');
+
+                fail = true;
+                const failed = f.registry.prepareReplacement({ ...options, context: context('failed') });
+                expect(await failed.ready).toMatchObject({ status: 'cancelled' });
+                expect(current.signal.aborted).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
+                fail = false;
+                const extra = await f.source('registry-extra', [{ css: ':host { --extra: yes; }', scope: 'unused' }]);
+                const invalidated = f.registry.prepareReplacement({ ...options, context: context('obsolete') });
+                await invalidated.ready;
+                const stale = invalidated.takeCommits();
+                if (!stale) throw new Error('missing stale candidates');
+                f.registry.register(extra.options);
+                expect(invalidated.signal.aborted).toBe(true);
+                expect(DeclarationStyleOwnership.commitGroup(stale)).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
+
+                const clearShared = f.registry.prepareReplacement({ ...options, sharedScope: 'other', context: context('new') });
+                expect(await clearShared.ready).toMatchObject({ status: 'prepared' });
+                const clearing = clearShared.takeCommits();
+                if (!clearing) throw new Error('missing clearing entries');
+                expect(clearing.some(entry => entry.outputs.length === 0)).toBe(true);
+                expect(DeclarationStyleOwnership.commitGroup(clearing)).toBe(true);
+                const remaining = clearShared.activate();
+                if (!remaining) throw new Error('missing remaining connection');
+                expect(await remaining.whenReady()).toMatchObject({ installed: 1 });
+                expect(getComputedStyle(element).getPropertyValue('--shared').trim()).toBe('');
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
+                const abandoned = f.registry.prepareReplacement({ ...options, context: context('abandoned') });
+                await abandoned.ready;
+                abandoned.release();
+                expect(remaining.signal.aborted).toBe(false);
+                expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/new.svg');
+                gate = heldResponse();
+                const previousReads = reads;
+                const cancelled = f.registry.prepareReplacement({ ...options, context: context('cancelled') });
+                await waitFor(() => expect(reads).toBeGreaterThan(previousReads));
+                remaining.release();
+                expect(await cancelled.ready).toMatchObject({ status: 'cancelled' });
+                expect(cancelled.signal.aborted).toBe(true);
+                gate.resolve(':host { --private: late; }');
+                await f.registry.flush();
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { await f.dispose(); }
+        }
+    },
+};
+
 export const SharedSourcesAndContextReadiness: Story = {
     render: () => '<section aria-label="Shared stylesheet source registry"></section>',
     play: async ({ canvasElement }) => {

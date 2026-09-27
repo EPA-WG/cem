@@ -6585,9 +6585,19 @@ registration identities may reuse an inherited or existing definition.
                   while rebuilding content. Verification: 585 unit tests, 302 browser
                   cases in each default/retained-CSS lane, typecheck and lint pass
                   with two existing warnings.
-            - [ ] Stage registry connection replacements without publishing or
+            - [x] Stage registry connection replacements without publishing or
                   retiring the active connection during loading; hand their ready
                   candidates to queued joint publication before runtime adoption.
+                  Fixture: cover held imports, explicit activation, failed loads,
+                  invalidation by source changes and removal of shared membership
+                  with real native worker/fallback output.
+                  Completed 2026-09-27: `prepareReplacement` snapshots source/context
+                  membership, stages native loads, transfers candidates once and
+                  activates only published leases. Source changes and releasing the
+                  active connection cancel pending loads; abandonment preserves live
+                  styles. Verification: 585 unit tests, 303 browser cases in each
+                  default/retained-CSS lane, typecheck and lint pass with two existing
+                  warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

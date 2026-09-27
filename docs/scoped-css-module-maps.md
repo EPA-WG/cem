@@ -1896,6 +1896,27 @@ need integration before changed-CSS streamed updates can be enabled.
 
 ### Scheduling publication and authoritative recovery
 
+`CemStylesheetRegistry.prepareReplacement(consumer)` stages a replacement for
+the current registry connection. It snapshots the consumer context and matching
+sources, including empty candidates for owners whose shared membership is being
+removed. The active connection and its styles remain installed during loading.
+Failed loads cancel sibling preparations. Source registration/removal,
+disconnection, scope disposal, a newer preparation or replacement of the active
+connection invalidates the pending snapshot.
+
+After `ready` reports `prepared`, `takeCommits()` transfers the candidate entries
+once to grouped publication. `activate()` adopts them as the live connection
+only after their leases have actually committed; it then releases the previous
+connection. Later source changes use the normal registry lifecycle. Calling
+`release()` before activation cancels the candidate and preserves the active
+connection; afterward it releases the adopted connection. Await registry
+`flush()` when native cleanup completion matters. If activation fails after CSS
+publication, the caller must recover rather than claim that nothing changed.
+
+This staged API does not change existing immediate `connect()` callers. Runtime
+queue wiring must perform preparation inside the queue and coordinate registry
+activation with publication before enabling changed-CSS updates.
+
 `CemCssDomPublicationQueue.forElement(element)` returns one queue for a host.
 `publish(prepare)` runs its preparation factory only after earlier publication
 and cleanup have finished. Create staged leases inside the factory so a request

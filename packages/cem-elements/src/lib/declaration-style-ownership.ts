@@ -257,6 +257,17 @@ export class DeclarationStyleOwnership {
         return this.publishGroup(entries);
     }
 
+    /** Confirm that a transferred candidate is the live installed generation. */
+    static isCurrentCommit(entry: DeclarationStylesheetCommit): boolean {
+        const state = leases.get(entry.lease);
+        const element = state?.consumer.element.deref();
+        return !!state && !!element?.isConnected && element.ownerDocument === state.owner.document
+            && state.consumer.committed && state.consumer.release === entry.release
+            && state.owner.currentConsumers.get(element) === state.consumer
+            && state.owner.consumers.has(state.consumer) && active(state.consumer.scope)
+            && active(state.owner.processingScope) && !entry.lease.signal.aborted && entry.isCurrent?.() !== false;
+    }
+
     /**
      * Admit declaration CSS, optional instance CSS and a prepared patch together.
      * Publish both CSS candidates before the DOM patch.
