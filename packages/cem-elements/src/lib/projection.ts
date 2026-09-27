@@ -99,7 +99,7 @@ export type RenderPlanNode =
 export const RENDER_ENGINE_VERSION = '1.6.0';
 
 /** Edge render-state record schema version (FF-6 SemVer axis, BR-VC-5). */
-export const EDGE_RENDER_STATE_VERSION = '1.0.0';
+export const EDGE_RENDER_STATE_VERSION = '1.1.0';
 
 const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
 type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
@@ -308,9 +308,11 @@ export type PatchFrame =
 export interface EdgePatchOptions {
     batchSize?: number;
     transactionId?: string;
+    /** HTML restoration preserves element attributes, but not in-memory text/comment IDs. Defaults to true. */
+    textNodeIdsAvailable?: boolean;
 }
 
-export type EdgeContentKind = 'template-artifact' | 'render-plan' | 'rendered-html' | 'sanitized-snapshot';
+export type EdgeContentKind = 'template-artifact' | 'render-plan' | 'rendered-html' | 'sanitized-snapshot' | 'stylesheets';
 
 export interface EdgeContentAddress {
     kind: EdgeContentKind;
@@ -333,6 +335,7 @@ export interface EdgeRenderStateRecord {
     currentRenderPlan: EdgeContentAddress;
     currentSnapshot?: EdgeContentAddress;
     currentHtml?: EdgeContentAddress;
+    currentStylesheets?: EdgeContentAddress;
     etag: string;
 }
 
@@ -341,6 +344,7 @@ export interface EdgeRenderStateInput {
     templateArtifact?: unknown;
     sanitizedSnapshot?: unknown;
     renderedHtml?: string;
+    stylesheetState?: unknown;
     privacyPolicyStamp?: string;
     stateKey?: string;
 }
@@ -359,7 +363,8 @@ export type EdgeRenderStateContentField =
     | 'currentTemplateArtifact'
     | 'currentRenderPlan'
     | 'currentSnapshot'
-    | 'currentHtml';
+    | 'currentHtml'
+    | 'currentStylesheets';
 
 export interface EdgeRenderStateContents {
     record: EdgeRenderStateRecord;
@@ -367,6 +372,7 @@ export interface EdgeRenderStateContents {
     renderPlan: RenderPlan;
     sanitizedSnapshot?: unknown;
     renderedHtml?: string;
+    stylesheetState?: unknown;
 }
 
 export type EdgeRenderStateContentsReadResult =
@@ -571,7 +577,7 @@ export function diffRenderPlansToPatchFrames(
 ): PatchFrame[] {
     const batchSize = options.batchSize ?? 16;
     const transactionId = options.transactionId ?? patchTransactionId(next);
-    const ops = diffRenderPlans(previous, next);
+    const ops = diffRenderPlans(previous, next, options.textNodeIdsAvailable);
     const frames: PatchFrame[] = [
         {
             type: 'begin',
@@ -683,6 +689,7 @@ export function createEdgeRenderStateRecord(input: EdgeRenderStateInput): EdgeRe
                 : undefined,
         currentHtml:
             input.renderedHtml !== undefined ? edgeContentAddress('rendered-html', input.renderedHtml) : undefined,
+        currentStylesheets: input.stylesheetState !== undefined ? edgeContentAddress('stylesheets', input.stylesheetState) : undefined,
     };
     return {
         ...recordWithoutEtag,
@@ -758,6 +765,12 @@ export function readEdgeRenderStateContents(
             return edgeContentFailureToRecordFailure(record, 'currentHtml', renderedHtml);
         }
         contents.renderedHtml = renderedHtml.value;
+    }
+
+    if (record.currentStylesheets) {
+        const stylesheets = readEdgeContent(store, record.currentStylesheets);
+        if (!stylesheets.ok) return edgeContentFailureToRecordFailure(record, 'currentStylesheets', stylesheets);
+        contents.stylesheetState = stylesheets.value;
     }
 
     return { ok: true, contents };
@@ -908,6 +921,7 @@ export class InMemoryEdgeRenderStateStore implements EdgeRenderStateStore {
         if (input.renderedHtml !== undefined) {
             this.putContent('rendered-html', input.renderedHtml);
         }
+        if (input.stylesheetState !== undefined) this.putContent('stylesheets', input.stylesheetState);
         return this.writeRecord(createEdgeRenderStateRecord(input), options);
     }
 }
@@ -3196,7 +3210,7 @@ function valueToText(value: TemplateValue): string {
     return value === null ? '' : String(value);
 }
 
-function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan): DomPatchOp[] {
+function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan, textNodeIdsAvailable = true): DomPatchOp[] {
     if (!previous) {
         return next.nodes.map((node) => ({
             op: 'replaceScope',
@@ -3210,7 +3224,8 @@ function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan): DomPatc
         previous.producedTag !== next.producedTag ||
         previous.templateArtifactId !== next.templateArtifactId ||
         previous.outputTarget !== next.outputTarget ||
-        previous.nodes.length !== next.nodes.length
+        previous.nodes.length !== next.nodes.length ||
+        (!textNodeIdsAvailable && previous.nodes.some((node, index) => changedTextTarget(node, next.nodes[index])))
     ) {
         return next.nodes.map((node) => ({
             op: 'replaceScope',
@@ -3222,12 +3237,17 @@ function diffRenderPlans(previous: RenderPlan | null, next: RenderPlan): DomPatc
 
     const ops: DomPatchOp[] = [];
     for (let index = 0; index < next.nodes.length; index += 1) {
-        diffRenderNode(previous.nodes[index], next.nodes[index], ops);
+        diffRenderNode(previous.nodes[index], next.nodes[index], ops, textNodeIdsAvailable);
     }
     return ops;
 }
 
-function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: DomPatchOp[]): void {
+function changedTextTarget(previous: RenderPlanNode, next: RenderPlanNode): boolean {
+    return previous.kind !== 'element' && (next.kind === 'element' || previous.kind !== next.kind
+        || previous.text !== next.text || renderNodeId(previous) !== renderNodeId(next));
+}
+
+function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: DomPatchOp[], textNodeIdsAvailable: boolean): void {
     if (previous.kind !== next.kind || renderNodeId(previous) !== renderNodeId(next)) {
         ops.push({ op: 'replace', target: renderNodeTarget(previous), node: structuredPatchNode(next) });
         return;
@@ -3254,7 +3274,8 @@ function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: Dom
         }
 
         diffAttributes(previous, next, ops);
-        if (previous.children.length !== next.children.length) {
+        if (previous.children.length !== next.children.length
+            || (!textNodeIdsAvailable && previous.children.some((node, index) => changedTextTarget(node, next.children[index])))) {
             ops.push({
                 op: 'reconcileChildren',
                 target: renderNodeTarget(previous),
@@ -3263,7 +3284,7 @@ function diffRenderNode(previous: RenderPlanNode, next: RenderPlanNode, ops: Dom
             return;
         }
         for (let index = 0; index < next.children.length; index += 1) {
-            diffRenderNode(previous.children[index], next.children[index], ops);
+            diffRenderNode(previous.children[index], next.children[index], ops, textNodeIdsAvailable);
         }
         return;
     }

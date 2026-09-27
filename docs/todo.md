@@ -6403,11 +6403,28 @@ registration identities may reuse an inherited or existing definition.
           supply extracted render sources and select/place declaration batches.
           Verification: 552 unit tests, 285 browser cases, 36 Edge unit tests,
           9 Edge browser cases, typecheck and lint pass (two existing warnings).
-    - [ ] Fixture: support retained native CSS in streamed Edge updates. Preserve
-          unchanged declaration/instance styles outside patch-owned render ranges;
-          define and verify atomic CSS replacement when payloads or consuming
-          contexts change, including cancellation, stale updates and browser
-          ownership cleanup before removing the update capability guard.
+    - [x] Fixture: retain native SSR stylesheet state and stream updates that
+          preserve its inputs; verify content-address checks, context/template/CSS
+          changes, cancellation, stale state and browser style-node preservation.
+          Completed: protocol v13 / Edge state 1.1.0 retain verified stylesheet
+          content. The native update host snapshots inputs at submission, rejects
+          changed CSS/context/template inputs before progress, preserves the CSS
+          address across repeated updates, and honors cancellation until commit.
+          Worker/dev and fallback/prod browser fixtures retain paragraph/style
+          nodes and animation objects without another CSS import read.
+    - [x] Fixture: emit element child reconciliations for HTML-restored text and
+          comment nodes whose in-memory patch IDs are absent; cover nested nodes,
+          root fallback and unchanged content without disturbing native styles.
+          Completed: both Edge hosts use the existing child-reconciliation
+          operation when text/comment IDs were lost during HTML serialization.
+          In-memory callers retain targeted text patches by default.
+          Verification: 558 unit tests, 50 Edge unit tests, 10 Edge browser cases,
+          285 browser cases in each default/retained-CSS lane, typecheck and lint
+          pass (two existing warnings).
+    - [ ] Fixture: support atomic native CSS replacement in streamed Edge updates
+          when payloads or consuming contexts change, including cancellation,
+          stale updates and browser ownership cleanup before removing the update
+          capability guard.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after

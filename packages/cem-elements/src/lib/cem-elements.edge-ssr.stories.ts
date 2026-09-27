@@ -2,9 +2,9 @@ import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, analyzeDeclarationRegistrationIdentity, exportDataIslandSnapshotForEdge, writeDataIslandHydrationData } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { createBrowserModuleUrlContext, createBrowserModuleUrlRoot } from './internal/runtime-support/module-url-resolution.js';
-import { executeNativeSsrInitialRenderFixture } from './edge-ssr-host-fixture.js';
+import { executeNativeSsrInitialRenderFixture, executeNativeEdgeRenderUpdateFixture } from './edge-ssr-host-fixture.js';
 import { CemEdgeSsrJobSequence, createCemEdgeSsrHostRequestEnvelope } from './edge-ssr-host.js';
-import { InMemoryEdgeRenderStateStore, readTemplateSource } from './projection.js';
+import { InMemoryEdgeRenderStateStore, readTemplateSource, applyPatchFramesToRange, type PatchFrame } from './projection.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- verify the same native bindings used by the Node SSR evidence host.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
@@ -38,7 +38,9 @@ export const EdgeRenderStateHybridStorageModel: Story =
 export const NativePayloadStylesFromInitialSsr = nativeInitialStylesStory(false);
 export const NativeDeclarationStylesFromInitialSsr = nativeInitialStylesStory(true);
 
-function nativeInitialStylesStory(includeDeclarations: boolean): Story {
+export const NativeStylesPreservedAcrossEdgeUpdates = nativeInitialStylesStory(true, true);
+
+function nativeInitialStylesStory(includeDeclarations: boolean, includeUpdate = false): Story {
     return {
         render: () => '<section aria-label="Native SSR payload stylesheet hydration"></section>',
         play: async ({ canvasElement }) => {
@@ -47,7 +49,7 @@ function nativeInitialStylesStory(includeDeclarations: boolean): Story {
             if (!root) throw new Error('missing SSR fixture');
             for (const fallback of [false, true]) {
                 const scope = createCemDeclarationScope({ document });
-                const tag = `native-ssr-${includeDeclarations ? 'declarations-' : ''}${fallback ? 'fallback' : 'worker'}`;
+                const tag = `native-ssr-${includeUpdate ? 'updates-' : includeDeclarations ? 'declarations-' : ''}${fallback ? 'fallback' : 'worker'}`;
                 const importedCss = 'p {color:rgb(1,2,3);animation:pulse 20s infinite} @keyframes pulse {from{opacity:.5}to{opacity:1}}';
                 const bytes = new TextEncoder().encode(importedCss).buffer;
                 const response = { bytes, finalUrl: new URL('./ssr-child.css', document.baseURI).href, contentType: 'text/css' };
@@ -70,7 +72,8 @@ function nativeInitialStylesStory(includeDeclarations: boolean): Story {
                 try {
                     const declaration = document.createElement('div');
                     declaration.setAttribute('tag', tag); declaration.setAttribute('version', '1.0.0');
-                    const template = document.createElement('template'); template.innerHTML = '<p>Server content</p>';
+                    const template = document.createElement('template');
+                    template.innerHTML = includeUpdate ? '<attribute name="label">Server content</attribute><p>${$label}</p>' : '<p>Server content</p>';
                     if (includeDeclarations) {
                         declaration.setAttribute('scope', 'ssr-library');
                         template.innerHTML = `<style>${declarationSources[0].css}</style><style scope="ssr-library">${declarationSources[1].css}</style>${template.innerHTML}`;
@@ -82,6 +85,7 @@ function nativeInitialStylesStory(includeDeclarations: boolean): Story {
                     authored.innerHTML = '<template><style>@import "./ssr-child.css";</style></template>';
                     if (includeDeclarations) authored.setAttribute('scope', 'ssr-library');
                     const snapshot = runtime.snapshotInstance(authored);
+                    if (includeUpdate && fallback) snapshot.sourceMapMode = 'prod';
                     const rootContext = createBrowserModuleUrlRoot(document, snapshot.scopePolicyStamp,
                         { baseUrl: document.baseURI, importMap: {} });
                     const context = createBrowserModuleUrlContext(rootContext.context, 'server', document.baseURI,
@@ -101,16 +105,18 @@ function nativeInitialStylesStory(includeDeclarations: boolean): Story {
                     const request = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-initial', {
                         template: { kind: 'serialized-template-source-v1', templateArtifactId: snapshot.templateArtifactId,
                             source: readTemplateSource(renderTemplate) },
-                        snapshot: exported, scopeUid: `server-${tag}`, sourceMapMode: 'dev',
+                        snapshot: exported, scopeUid: `server-${tag}`, sourceMapMode: snapshot.sourceMapMode ?? 'dev',
                         revision: { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
                             templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
                             outputTarget: snapshot.outputTarget, renderAttempt: snapshot.renderAttempt },
                     });
-                    const result = await executeNativeSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore(), {
-                        native: wasm, baseUrl: document.baseURI, context, signal: new AbortController().signal,
-                        read,
+                    const store = new InMemoryEdgeRenderStateStore();
+                    const stylesheetContext = { baseUrl: document.baseURI, context,
                         ...(includeDeclarations ? { declarations: [{ owner: { kind: 'declaration' as const, identity: declarationIdentity, tag },
                             sources: declarationSources, baseUrl: document.baseURI, context }] } : {}),
+                    };
+                    const result = await executeNativeSsrInitialRenderFixture(request, store, {
+                        native: wasm, ...stylesheetContext, signal: new AbortController().signal, read,
                     });
                     expect(result.outcome).toBe('success');
                     if (result.outcome !== 'success') throw new Error(result.diagnostics.map(d => d.message).join('\n'));
@@ -166,6 +172,42 @@ function nativeInitialStylesStory(includeDeclarations: boolean): Story {
                     }
                     const animation = paragraph.getAnimations()[0] as CSSAnimation;
                     expect(serverCss).toContain(`@keyframes ${animation.animationName}`);
+                    if (includeUpdate) {
+                        const previous = result.result.renderState;
+                        const next = structuredClone(request.payload);
+                        next.snapshot.hostAttributes = { ...next.snapshot.hostAttributes, label: 'Updated on Edge' };
+                        next.snapshot.dataRevision = 'next'; next.revision.dataRevision = 'next';
+                        const update = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-update', {
+                            ...next, previousRenderPlan: { stateKey: previous.stateKey, expectedEtag: previous.etag,
+                                identity: previous.renderRevision, address: { ...previous.currentRenderPlan, kind: 'render-plan' } },
+                        });
+                        const frames: PatchFrame[] = [];
+                        let completed = false;
+                        for await (const response of executeNativeEdgeRenderUpdateFixture(update, store, stylesheetContext, new AbortController().signal)) {
+                            if (response.outcome === 'progress') frames.push(response.result.frame);
+                            else {
+                                expect(response.outcome).toBe('success');
+                                if (response.outcome !== 'success') throw new Error('native update failed');
+                                expect(response.result.renderState.currentStylesheets).toEqual(previous.currentStylesheets);
+                                completed = true;
+                            }
+                        }
+                        expect(completed).toBe(true);
+                        const comments = Array.from(restored.childNodes).filter((node): node is Comment => node.nodeType === Node.COMMENT_NODE);
+                        const start = comments.find(node => node.data === 'cem-render-start');
+                        const end = comments.find(node => node.data === 'cem-render-end');
+                        if (!start || !end) throw new Error('missing render bounds');
+                        const applied = applyPatchFramesToRange({ start, end }, frames, next.revision, document);
+                        expect(applied.status, JSON.stringify(applied.diagnostics)).toBe('applied');
+                        expect(restored.querySelector('p')).toBe(paragraph);
+                        expect(paragraph.textContent).toBe('Updated on Edge');
+                        expect(restored.querySelector(':scope > style[data-cem-instance-style]')).toBe(style);
+                        declarationNodes.forEach((node, index) => expect(serverDeclaration?.querySelectorAll(':scope > style')[index]).toBe(node));
+                        expect(paragraph.getAnimations()[0]).toBe(animation);
+                        expect(getComputedStyle(paragraph).color).toBe('rgb(1, 2, 3)');
+                        expect(getComputedStyle(paragraph).borderTopColor).toBe('rgb(4, 5, 6)');
+                        expect(reads).toBe(2);
+                    }
                     expect(runtime.diagnosticsFor(restored).filter(d => !fallback || d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]);
                 } finally { release(); root.replaceChildren(); scope.dispose(); }
             }

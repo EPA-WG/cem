@@ -94,6 +94,17 @@ export interface NativeSsrStylesheetOptions extends Omit<EdgeStylesheetLoadOptio
     }>;
 }
 
+export type NativeSsrStylesheetContext = Pick<NativeSsrStylesheetOptions, 'baseUrl' | 'context' | 'declarations'>;
+
+function stylesheetInputKey(input: CemEdgeSsrRenderInput, source: readonly TemplateSourceNode[], context: NativeSsrStylesheetContext): string {
+    return edgeContentAddress('stylesheets', {
+        scopeUid: input.scopeUid, instanceId: input.snapshot.instanceId, producedTag: input.snapshot.producedTag,
+        templateArtifactId: input.snapshot.templateArtifactId, scopePolicyStamp: input.snapshot.scopePolicyStamp,
+        templateContent: edgeContentAddress('template-artifact', source).key,
+        payloadSources: payloadStylesheetSources(input.snapshot.payload), ...context,
+    }).key;
+}
+
 /** Native CSS path. The host adapter owns source discovery and sidecar placement. */
 export async function executeNativeSsrInitialRenderFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
@@ -128,7 +139,9 @@ export async function executeNativeSsrInitialRenderFixture(
             instanceStyles.diagnostics.push(...loaded.diagnostics);
         }
         signal.throwIfAborted();
-        return renderInitialFixture(owned, store, instanceStyles, declarationStylesheets);
+        if (owned.payload.template.kind !== 'serialized-template-source-v1') throw new Error('expected serialized template source');
+        return renderInitialFixture(owned, store, instanceStyles, declarationStylesheets,
+            stylesheetInputKey(owned.payload, owned.payload.template.source, { baseUrl, context, declarations }));
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (signal.aborted) {
@@ -173,6 +186,7 @@ function renderInitialFixture(
     store: EdgeRenderStateStore,
     instanceStyles?: EdgeStylesheetOutput,
     declarationStylesheets?: CemEdgeSsrInitialRenderResult['declarationStylesheets'],
+    inputKey?: string,
 ): NonBrowserSsrInitialRenderFixtureResult {
     const failure = initialRenderInputFailure(request);
     if (failure) return failure;
@@ -221,6 +235,9 @@ function renderInitialFixture(
             sanitizedSnapshot: snapshot,
             renderedHtml,
             privacyPolicyStamp: snapshot.privacyPolicyStamp,
+            ...(inputKey === undefined ? {} : { stylesheetState: {
+                kind: 'native-ssr-stylesheets-v1', inputKey, instanceStylesheetHtml, declarationStylesheets,
+            } }),
         };
         const write = store.writeRenderState(stateInput, { ifAbsent: true });
         if (!write.ok) {
@@ -311,7 +328,33 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
     store: EdgeRenderStateStore
 ): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
+    yield* renderUpdateFixture(request, store);
+}
+
+/** Preserve already installed native styles. Changed inputs require a future atomic CSS transaction. */
+export function executeNativeEdgeRenderUpdateFixture(
+    request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
+    store: EdgeRenderStateStore,
+    stylesheets: NativeSsrStylesheetContext,
+    signal: AbortSignal,
+): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
+    const { baseUrl, context, declarations } = stylesheets;
+    return renderUpdateFixture(structuredClone(request), store, {
+        context: structuredClone({ baseUrl, context, declarations }), signal,
+    });
+}
+
+async function* renderUpdateFixture(
+    request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
+    store: EdgeRenderStateStore,
+    nativeStyles?: { context: NativeSsrStylesheetContext; signal: AbortSignal },
+): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
     assertCemEdgeSsrHostEnvelope(request);
+    if (nativeStyles?.signal.aborted) {
+        yield createCemEdgeSsrHostFailureEnvelope(request, 'cancelled', 'cancelled',
+            [fixtureDiagnostic('cem.edge_ssr.stylesheet_cancelled', 'native style-preserving update cancelled before commit')]);
+        return;
+    }
 
     const identityFailure = renderInputIdentityFailure(request.payload);
     if (identityFailure) {
@@ -344,7 +387,7 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
     }
 
     const cssFailure = retainedCssCapabilityFailure(request.payload);
-    if (cssFailure) {
+    if (cssFailure && !nativeStyles) {
         yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.retained_css_unavailable', cssFailure);
         return;
     }
@@ -432,6 +475,14 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
     }
 
     try {
+        const stylesheetState = retainedPrevious.contents.stylesheetState;
+        if (nativeStyles && (!isPlainRecord(stylesheetState) || stylesheetState.kind !== 'native-ssr-stylesheets-v1'
+            || !request.payload.snapshot.scopePolicyStamp.split(':').includes('retained-instance-css')
+            || stylesheetState.inputKey !== stylesheetInputKey(request.payload, templateSource.source, nativeStyles.context))) {
+            yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.stylesheet_update_unsupported',
+                'native updates require retained stylesheet state with unchanged sources, template and consuming contexts', current);
+            return;
+        }
         const snapshot = request.payload.snapshot;
         const projected = projectTemplate(templateSource.source, {
             snapshot,
@@ -442,6 +493,7 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
             : stripRenderPlanSourceMaps(projected);
         const scoped = scopeRenderPlan(sourceMapped, request.payload.scopeUid, {
             payload: snapshot.payload,
+            payloadStylesInstalled: nativeStyles !== undefined,
         });
         const plan = scoped.renderPlan;
         const identity = renderPlanIdentity(plan);
@@ -460,6 +512,11 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
         }
 
         const renderedHtml = serializeRenderPlanToHtmlFixture(plan);
+        if (nativeStyles?.signal.aborted) {
+            yield createCemEdgeSsrHostFailureEnvelope(request, 'cancelled', 'cancelled',
+                [fixtureDiagnostic('cem.edge_ssr.stylesheet_cancelled', 'native style-preserving update cancelled before commit')]);
+            return;
+        }
         const advanced = advanceEdgeRenderState(
             store,
             {
@@ -469,8 +526,9 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
                 renderedHtml,
                 privacyPolicyStamp: snapshot.privacyPolicyStamp,
                 stateKey: previous.stateKey,
+                ...(nativeStyles ? { stylesheetState } : {}),
             },
-            { expectedEtag: previous.expectedEtag }
+            { expectedEtag: previous.expectedEtag, patchOptions: { textNodeIdsAvailable: false } }
         );
         if (!advanced.ok) {
             yield advanceFailureEnvelope(request, advanced);

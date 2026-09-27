@@ -1,5 +1,5 @@
 import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
-import { executeNativeSsrInitialRenderFixture } from './edge-ssr-host-fixture.js';
+import { executeNativeSsrInitialRenderFixture, executeNativeEdgeRenderUpdateFixture } from './edge-ssr-host-fixture.js';
 import { CemEdgeSsrJobSequence, createCemEdgeSsrHostRequestEnvelope } from './edge-ssr-host.js';
 import { exportDataIslandSnapshotForEdge } from './cem-elements.js';
 import { edgeSsrSnapshotFixture, PROCESSING_BOUNDARY_TEMPLATE_SOURCE } from './processing-boundary.fixtures.js';
@@ -294,4 +294,120 @@ it('keeps valid declaration output and native diagnostics when another occurrenc
     if (result.outcome !== 'success') return;
     expect(result.result.declarationStylesheets?.[0].html).toContain('color:blue');
     expect(result.result.diagnostics).toEqual([expect.objectContaining({ code: 'cem.ql.template.stylesheet_parse_failed' })]);
+});
+
+async function nativeUpdateFixture() {
+    const initial = initialRequest('p {color:green}');
+    const store = new InMemoryEdgeRenderStateStore();
+    const transport = options();
+    const context = { baseUrl: transport.baseUrl, context: transport.context, declarations: [{
+        owner: { kind: 'declaration' as const, identity: 'source', tag: 'cem-source' },
+        sources: [{ css: 'p{color:blue}', scope: 'library' }], baseUrl: transport.baseUrl, context: transport.context,
+    }] };
+    const seeded = await executeNativeSsrInitialRenderFixture(initial, store, { ...transport, ...context });
+    if (seeded.outcome !== 'success') throw new Error('failed native initial render');
+    const record = seeded.result.renderState;
+    const payload = structuredClone(initial.payload);
+    payload.snapshot.hostAttributes = { ...payload.snapshot.hostAttributes, label: 'Updated' };
+    payload.snapshot.dataRevision = '2'; payload.revision.dataRevision = '2';
+    const request = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-update', {
+        ...payload, previousRenderPlan: { stateKey: record.stateKey, expectedEtag: record.etag,
+            address: { ...record.currentRenderPlan, kind: 'render-plan' as const }, identity: record.renderRevision },
+    });
+    return { store, seeded, record, request, context };
+}
+
+it('streams a data update while retaining native styles outside the render plan and copies inputs before iteration', async () => {
+    const f = await nativeUpdateFixture();
+    const stream = executeNativeEdgeRenderUpdateFixture(f.request, f.store, f.context, new AbortController().signal);
+    f.request.payload.snapshot.hostAttributes = { label: 'Mutated after submission' };
+    f.context.baseUrl = 'https://changed.test/';
+    const responses = await collectNativeUpdates(stream);
+    const progress = responses.filter(response => response.outcome === 'progress');
+    expect(progress.map(response => response.result.frame.type)).toEqual(['begin', 'ops', 'commit']);
+    const result = responses.at(-1);
+    expect(result?.outcome).toBe('success');
+    if (result?.outcome !== 'success') return;
+    expect(result.result.renderState.currentStylesheets).toEqual(f.record.currentStylesheets);
+    const retained = readEdgeRenderStateContents(f.store, result.result.renderState);
+    expect(retained.ok).toBe(true);
+    if (!retained.ok) return;
+    expect(retained.contents.renderedHtml).toContain('Updated');
+    expect(retained.contents.renderedHtml).not.toContain('<style');
+    expect(retained.contents.stylesheetState).toMatchObject({ kind: 'native-ssr-stylesheets-v1',
+        instanceStylesheetHtml: f.seeded.result.instanceStylesheetHtml,
+        declarationStylesheets: f.seeded.result.declarationStylesheets });
+});
+
+it.each(['payload-css', 'context', 'base', 'declaration', 'template', 'scope'] as const)(
+    'rejects changed %s before frames or state writes', async change => {
+        const f = await nativeUpdateFixture();
+        if (change === 'payload-css') f.request.payload.snapshot.payload.nodes = [];
+        if (change === 'context') f.context.context.resolverIdentity = 'different';
+        if (change === 'base') f.context.baseUrl = 'https://different.test/';
+        if (change === 'declaration') f.context.declarations[0].sources[0].css = 'p{color:red}';
+        if (change === 'template' && f.request.payload.template.kind === 'serialized-template-source-v1') f.request.payload.template.source = [];
+        if (change === 'scope') f.request.payload.scopeUid = 'changed';
+        expect(await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(f.request, f.store, f.context, new AbortController().signal)))
+            .toMatchObject([{ outcome: 'failure', reason: 'content-unavailable',
+                diagnostics: [{ code: 'cem.edge_ssr.stylesheet_update_unsupported' }] }]);
+        expect(f.store.readRecord(f.record.stateKey)).toEqual(f.record);
+    },
+);
+
+it.each(['missing', 'corrupt', 'old-state', 'stale', 'cancelled', 'cancel-during-read'] as const)(
+    'does not emit native update frames for %s state', async failure => {
+        const f = await nativeUpdateFixture();
+        const controller = new AbortController();
+        const getContent = f.store.getContent.bind(f.store);
+        if (failure === 'old-state') f.store.writeRecord({ ...f.record, currentStylesheets: undefined });
+        if (failure === 'missing' || failure === 'corrupt' || failure === 'cancel-during-read') {
+            vi.spyOn(f.store, 'getContent').mockImplementation(address => {
+                if (address.kind !== 'stylesheets') return getContent(address);
+                if (failure === 'missing') return undefined;
+                if (failure === 'corrupt') return { changed: true };
+                controller.abort(new Error('cancel before commit'));
+                return getContent(address);
+            });
+        }
+        if (failure === 'stale') f.request.payload.previousRenderPlan.expectedEtag = 'stale';
+        if (failure === 'cancelled') controller.abort();
+        const before = f.store.readRecord(f.record.stateKey);
+        const responses = await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(f.request, f.store, f.context, controller.signal));
+        expect(responses).toHaveLength(1);
+        expect(responses[0]).toMatchObject(failure.startsWith('cancel') ? { outcome: 'cancelled', reason: 'cancelled' }
+            : { outcome: 'failure', reason: failure === 'stale' ? 'render-state-conflict' : 'content-unavailable' });
+        expect(f.store.readRecord(f.record.stateKey)).toEqual(before);
+    },
+);
+
+async function collectNativeUpdates(stream: ReturnType<typeof executeNativeEdgeRenderUpdateFixture>) {
+    const responses = [];
+    for await (const response of stream) responses.push(response);
+    return responses;
+}
+
+it('finishes an already committed stream after abort and preserves stylesheet state on the following update', async () => {
+    const f = await nativeUpdateFixture();
+    const controller = new AbortController();
+    const stream = executeNativeEdgeRenderUpdateFixture(f.request, f.store, f.context, controller.signal);
+    const first = await stream.next();
+    expect(first.value).toMatchObject({ outcome: 'progress', result: { frame: { type: 'begin' } } });
+    expect(f.store.readRecord(f.record.stateKey)?.etag).not.toBe(f.record.etag);
+    controller.abort();
+    const result = (await collectNativeUpdates(stream)).at(-1);
+    expect(result?.outcome).toBe('success');
+    if (result?.outcome !== 'success') return;
+    const record = result.result.renderState;
+    const payload = structuredClone(f.request.payload);
+    payload.snapshot.dataRevision = '3'; payload.revision.dataRevision = '3';
+    payload.previousRenderPlan = { stateKey: record.stateKey, expectedEtag: record.etag,
+        address: { ...record.currentRenderPlan, kind: 'render-plan' }, identity: record.renderRevision };
+    if (!record.currentTemplateArtifact) throw new Error('missing retained template');
+    payload.template = { kind: 'content-addressed-template-artifact-v1', templateArtifactId: payload.snapshot.templateArtifactId,
+        address: { ...record.currentTemplateArtifact, kind: 'template-artifact' } };
+    const request = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-update', payload);
+    const next = (await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(request, f.store, f.context, new AbortController().signal))).at(-1);
+    expect(next?.outcome).toBe('success');
+    if (next?.outcome === 'success') expect(next.result.renderState.currentStylesheets).toEqual(f.record.currentStylesheets);
 });

@@ -1408,7 +1408,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v12` `stylesheet` operation populates this collection
+The `cem-processing-host-v13` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1500,7 +1500,7 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-Processing-host protocol v12 carries `instanceStylesheetIdentity` only for CSS
+Processing-host protocol v13 carries `instanceStylesheetIdentity` only for CSS
 source adoption. The identity is part of the native compilation cache key and
 same-artifact reuse checks. Instance loads pass this fixed identity through the
 WASM control boundary; declaration loads retain their registration identity.
@@ -1646,7 +1646,7 @@ returns a cancelled envelope and writes no render state.
 
 A `retained-instance-css` policy is required for this placement. Older
 `retained-declaration-css`-only policies remain rejected by the capability guard.
-The synchronous initial host and streamed update host also retain their guards.
+The synchronous initial host and legacy streamed update host retain their guards.
 The async path leaves legacy-policy requests on the existing legacy path.
 
 Node/WASM tests verify import readiness, a copied request during delayed reads,
@@ -1690,5 +1690,42 @@ gate; it does not skip browser native compilation or import loading.
 The surrounding SSR adapter still selects declaration sources and consuming
 contexts and places each returned batch under its matching owner. Browser
 worker/fallback fixtures verify private and shared initial-response sidecars
-survive hydration with the same style nodes and computed styles. Streamed native
-updates remain separate integration work.
+survive hydration with the same style nodes and computed styles.
+
+### Streamed updates that preserve native styles
+
+Protocol v13 and Edge render-state schema 1.1.0 add an optional
+`currentStylesheets` content address. Native initial renders retain a
+`native-ssr-stylesheets-v1` record containing the emitted sidecars and an identity
+for their source inputs: template content, instance and declaration identities,
+payload CSS, consuming contexts, base URLs and render scope. Store adapters must
+persist `stylesheetState` under the `stylesheets` content kind and verify it on
+read, alongside the existing render plan and snapshot content. Older records
+remain readable; records without native stylesheet state cannot use this update
+path.
+
+`executeNativeEdgeRenderUpdateFixture(request, store, context, signal)` copies
+the request and stylesheet context when called. It accepts updates only when
+the retained stylesheet inputs match, then patches the owned render range while
+preserving the stylesheet content address. It neither reloads CSS imports nor
+returns replacement style markup. Changed sources, template content or contexts
+fail with `cem.edge_ssr.stylesheet_update_unsupported` before any frame or state
+write. Missing/corrupt content and stale ETags also fail before progress.
+
+Cancellation is honored before the state commit. Once the state is committed,
+the iterator finishes its begin/ops/commit frames and terminal response even if
+the signal is subsequently aborted. A transport that stops reading may still
+interrupt delivery; the browser's existing patch transaction validation rejects
+incomplete frame batches.
+
+Both Edge update hosts use `textNodeIdsAvailable: false` when producing patches:
+HTML preserves element ID attributes, but not the in-memory IDs of text/comment
+nodes. Changes to those children use the nearest element's existing
+`reconcileChildren` operation; changed root text/comments use owned-range
+replacement. In-memory render-plan diffs keep their existing targeted text
+operations by default. Browser fixtures verify the hydrated paragraph, style
+nodes and animation survive a text update in dev/worker and prod/fallback modes.
+
+Atomic stylesheet replacement for changed payloads or consuming contexts remains
+required before removing the remaining native-update guard or changing the
+browser default.

@@ -81,7 +81,7 @@ describe('non-browser edge render-update host fixture', () => {
             'boundary-server-scope',
             { payload: nextSnapshot.payload }
         ).renderPlan;
-        const referenceFrames = diffRenderPlansToPatchFrames(previousPlan, referenceNext);
+        const referenceFrames = diffRenderPlansToPatchFrames(previousPlan, referenceNext, { textNodeIdsAvailable: false });
         const referenceCommit = referenceFrames.at(-1);
         expect(progress.map((response) => response.result.frame)).toEqual(referenceFrames);
         expect(referenceCommit?.type).toBe('commit');

@@ -60,9 +60,8 @@ DOM and animation names. See the [remaining migration gates](../../docs/todo.md)
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
 outside the render range. Worker/fallback hydration preserves its DOM and animation
-identity. The synchronous host and streamed updates still reject retained-CSS
-policies with `cem.edge_ssr.retained_css_unavailable`; native updates remain a
-default-cutover gate.
+identity. The synchronous host and legacy streamed update host still reject
+retained-CSS policies with `cem.edge_ssr.retained_css_unavailable`.
 
 `serializeDeclarationStylesheets` formats native declaration/shared output for
 placement under its declaration owner and returns the consuming context marker.
@@ -72,6 +71,14 @@ deduplicates them, and releases them with their last consumer. See the
 The async initial host accepts caller-selected `declarations` batches and returns
 their `declarationStylesheets` sidecars after all imports and serialization finish.
 Adapters supply extracted render source and place each sidecar under its owner.
+
+`executeNativeEdgeRenderUpdateFixture` streams updates when the stored native CSS
+inputs still match. It preserves installed styles without reloading imports and
+rejects changed CSS, templates or contexts before output/state changes. Edge
+state schema 1.1.0 retains `stylesheetState` through `currentStylesheets`; custom
+stores must persist and verify that optional content. Atomic CSS replacement
+remains a default-cutover gate. See the
+[native update contract](../../docs/scoped-css-module-maps.md#streamed-updates-that-preserve-native-styles).
 
 Run the same Storybook assertions with retained native CSS enabled:
 
