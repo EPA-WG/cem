@@ -1231,8 +1231,19 @@ real worker/fallback hosts for redirects, map snapshots, disposal, reconnect and
 reuse of existing DOM content. This coordinator is ready for main runtime routing;
 it does not yet replace the default declaration installation path.
 
-Next, connect declaration/render readiness and the shared-source registry to this
-coordinator, then add the nested module-map override demo and context restoration/
+`CemStylesheetRegistry` now routes registered native source handles to connected
+consumers. Private occurrences match effective declaration identity; shared
+occurrences match public scope membership, including sources with no produced
+instances. Each connection captures its consuming module context. Readiness
+includes sources added or removed during loading. Source removal, disconnect,
+context replacement and ancestor disposal release exact native generations;
+reentrant cancellation cannot overwrite a newer connection. Real worker/fallback
+browser fixtures cover these transitions and shared style reuse. The runtime must
+register admitted occurrences, release source registrations when their owning
+lifetime ends, and await connection readiness before declaring a render settled.
+
+Next, retain XSLT stylesheet owners and connect main declaration/render readiness
+to the registry, then add the nested module-map override demo and context restoration/
 hydration checks. Instance styles still require their own retained ownership path;
 the declaration protocol deliberately rejects instance scope. The remaining syntax
 profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not

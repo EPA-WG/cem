@@ -6185,6 +6185,19 @@ registration identities may reuse an inherited or existing definition.
               269 browser stories, typecheck and lint pass (existing warnings).
               Redirected child failures retain the child import location; stale
               and wrong-consumer failures cannot alter a newer load.
+        - [x] Fixture: register retained declaration sources independently of
+              produced instances; route private/shared occurrences to matching
+              consumers in their own module contexts. Cover late registration,
+              pending-source removal, reconnect, context replacement and ancestor
+              disposal with real worker/fallback readiness and native cleanup.
+              Completed: all 273 browser stories, typecheck and lint pass (two
+              existing warnings). Readiness includes late sources; stale handles
+              cannot remove replacements, and reentrant cancellation preserves
+              the newest connection. Main runtime registration remains pending.
+        - [ ] Fixture: retain native stylesheet owners for XSLT component sources;
+              keep CSS source trees native and their handles stable across XSLT
+              render-cache eviction. Verify loading, source disposal and shared
+              processing owners before connecting all declaration languages.
         - [ ] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and
