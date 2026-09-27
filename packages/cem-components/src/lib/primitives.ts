@@ -34,14 +34,6 @@ export interface CemComponentPrimitiveInstallResult {
 
 export const CEM_COMPONENT_PRIMITIVES = [
     {
-        tag: 'cem-action',
-        description: 'Native button action with slotted label content.',
-        cemMl:
-            '{attribute @name=label | Action}' +
-            '{attribute @name=variant | primary}' +
-            '{button @type=button @class="cem-action cem-action--{$variant}" @disabled={datadom.attributes.disabled} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" | {slot | {$label}}}',
-    },
-    {
         tag: 'cem-icon-button',
         description: 'Native icon-only button with a required accessible label.',
         cemMl:

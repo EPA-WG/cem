@@ -245,6 +245,10 @@
         "@epa-wg/cem-components/components/cem-select": {
             "path": "./assets/cem-components/cem-select.xhtml",
             "contentType": "application/xhtml+xml"
+        },
+        "@epa-wg/cem-components/components/cem-action": {
+            "path": "./assets/cem-components/cem-action.xhtml",
+            "contentType": "application/xhtml+xml"
         }
     }
 }

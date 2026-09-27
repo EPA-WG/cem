@@ -131,3 +131,8 @@ manifest-owned and verified against a unique rendered heading ID.
 `cem-site:verify:search` covers URL queries, live filtering, CEM component
 composition, import-map scope, and navigation to a stable heading fragment in
 Chromium.
+
+Canonical `cem-action` and `cem-select` XHTML assets are deployed through the
+module-map resource pipeline. Search and interactive routes explicitly load
+`cem-action.xhtml#cem-action`; their browser checks verify light-DOM rendering
+and declaration-owned scoped CSS.

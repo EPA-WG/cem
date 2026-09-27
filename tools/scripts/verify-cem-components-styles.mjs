@@ -45,7 +45,7 @@ const CSS_SPACING_PROPERTY =
     /\b(?:margin|padding|gap|inset|top|right|bottom|left|width|height|min-width|max-width|min-height|max-height|border-radius|border-width|outline-width|font-size|line-height)\s*:[^;{}]*/gi;
 const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
-const ACTION_TAGS = new Set(['cem-action', 'cem-icon-button', 'cem-menu-item']);
+const ACTION_TAGS = new Set(['cem-icon-button', 'cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
@@ -61,27 +61,6 @@ const CHOICE_POPUP_STACKING_SELECTORS = new Set([
 const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
-    [
-        'cem-action > button',
-        new Map([
-            ['background-color', 'var(--cem-action-primary-default-background)'],
-            ['color', 'var(--cem-action-primary-default-text)'],
-        ]),
-    ],
-    [
-        'cem-action > button:enabled:hover',
-        new Map([
-            ['background-color', 'var(--cem-action-primary-hover-background)'],
-            ['color', 'var(--cem-action-primary-hover-text)'],
-        ]),
-    ],
-    [
-        'cem-action > button:enabled:active',
-        new Map([
-            ['background-color', 'var(--cem-action-primary-active-background)'],
-            ['color', 'var(--cem-action-primary-active-text)'],
-        ]),
-    ],
     [
         'cem-icon-button > button',
         new Map([
@@ -994,6 +973,39 @@ function assertNoComponentSpecificStyleLiterals() {
     }
 }
 
+function assertCanonicalActionStyles() {
+    const path = join(componentRoot, 'src/components/cem-action/cem-action.xhtml');
+    const source = readText(path);
+    const css = source.match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1];
+    if (!css) { fail('canonical action must own embedded CSS'); return; }
+    const label = repoPath(path);
+    assertCssUsesTokensOnly(label, css);
+    const rules = parseCssRules(label, css);
+    const normal = new Map(rules.filter(rule => !rule.media).map(rule => [rule.selector, rule.declarations]));
+    for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+        const selector = intent === 'primary' ? ':scope' : `:scope[variant="${intent}"]`;
+        const declarations = normal.get(selector);
+        for (const state of ['default', 'hover', 'active', 'disabled']) {
+            for (const channel of ['background', 'text']) {
+                const property = `--_cem-action-${state}-${channel}`;
+                if (declarations?.get(property) !== `var(--cem-action-${intent}-${state}-${channel})`) {
+                    fail(`${label}: ${intent} must bind ${property} to its matching theme endpoint`);
+                }
+            }
+        }
+    }
+    for (const state of ['default', 'hover', 'active', 'disabled']) {
+        const suffix = state === 'default' ? '' : state === 'disabled' ? ':where(:disabled)' : `:where(:enabled:${state})`;
+        const declarations = normal.get(`:scope > button[part~='control']${suffix}`);
+        if (state !== 'default' && declarations?.size !== 2) fail(`${label}: ${state} changes only the color pair`);
+        for (const [property, channel] of [['background-color', 'background'], ['color', 'text']]) {
+            if (declarations?.get(property) !== `var(--_cem-action-${state}-${channel})`) {
+                fail(`${label}: ${state} must consume its ${channel} binding`);
+            }
+        }
+    }
+}
+
 function assertPublicComponentStyles(components, tokenNames) {
     const pathLabel = repoPath(componentStylesPath);
     const cssText = readText(componentStylesPath);
@@ -1466,6 +1478,7 @@ assertThemeStylesheetExport();
 assertMvpFamiliesResolveToThemeTokens(components, tokenNames, tokenCss);
 assertNoComponentSpecificStyleLiterals();
 assertPublicComponentStyles(components, tokenNames);
+assertCanonicalActionStyles();
 
 if (failures.length > 0) {
     for (const failure of failures) {

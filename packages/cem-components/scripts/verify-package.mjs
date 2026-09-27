@@ -11,7 +11,7 @@ const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
 const builtCatalogPath = join(packageRoot, 'dist', 'catalog', 'cem.components.catalog.json');
 const publicCatalogPath = './dist/catalog/cem.components.catalog.json';
 const publicComponentExport = './src/components/*/*.xhtml';
-const packedSelectDeclaration = 'src/components/cem-select/cem-select.xhtml';
+const packedDeclarations = ['src/components/cem-select/cem-select.xhtml', 'src/components/cem-action/cem-action.xhtml'];
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
@@ -282,8 +282,10 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
-    if (!packedFiles.includes(packedSelectDeclaration)) {
-        throw new Error(`npm pack must contain the public declarative component ${packedSelectDeclaration}`);
+    for (const declaration of packedDeclarations) {
+        if (!packedFiles.includes(declaration)) {
+            throw new Error(`npm pack must contain the public declarative component ${declaration}`);
+        }
     }
 
     if (packedFiles.some((path) => path.startsWith('src/') && !path.endsWith('.xhtml'))) {

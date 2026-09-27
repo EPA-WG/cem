@@ -233,3 +233,49 @@ native disabled states after rebuilding and reloading WASM.
 
 The canonical `cem-components` action cutover remains next. Its migration plan
 now records the user's requested five theme intents as the accepted target.
+
+## Canonical action cutover
+
+`cem-action` now belongs to `cem-components/src/components/cem-action/` as a
+canonical XHTML declaration with six colocated CSF Next stories. The legacy
+registry entry and global styles are removed. Five intents, native hover/active,
+keyboard zebra focus, bend geometry and explicit submit/reset forwarding live
+in the declaration. Mixed legacy fixtures retain their unmigrated controls;
+action unit assertions moved into the stories.
+
+The Material gallery loads the canonical resource using its page-level module
+map. Its compatibility URL stays available. The adapter archive contains 220
+locked files, including the same XHTML asset. Workflow fixtures and Site's
+search/interactive pages load action explicitly; Site deploys it through v3
+resource maps alongside select.
+
+Verification:
+
+- Six action stories and the ordinary static Storybook build pass.
+- Declarative inventory: 2 canonical components, 47 legacy components, 61 legacy
+  authored JS/TS files. Declarative, style, state-matrix and primitive gates pass.
+- Component build, typecheck, lint and packed-XHTML checks pass. Lint reports
+  non-null assertion warnings in the new test file, with no errors.
+- Adapter test and packed-consumer checks pass, including source/dist/installed
+  gallery states, curvature, variations and keyboard zebra/forced colors.
+- Site verification passes, including deterministic builds, deployed XHTML,
+  interactive/search behavior and production routes.
+- DevTools verified the IDE gallery loads the canonical XHTML, all nine cards
+  render their 52 buttons, and the console contains no warnings or errors.
+
+The accepted [component development pattern](../component-development-pattern.md)
+keeps production XHTML separate from a companion property playground and source
+view. The generated combined `#ID` release document is planned. These two new
+artifacts remain explicit TODO work; this cutover does not claim they exist.
+
+Final legacy comparison: **82 passing / 47 failing / 129 total**, with exactly
+the same failed test names as the shared-harness repair baseline and no skipped
+tests. The aggregate component gate remains red for those existing failures.
+
+The broader runtime run reports **311 passing / 1 failing / 312 total**:
+`Payload Css Readiness And Hydration` observed zero styles where one was expected.
+Its complete 12-story file passes in isolation. An earlier concurrent run had
+four other failures (HTTP/local-storage samples and stylesheet staging); all
+seven stories in those three files passed on focused rerun, and the later full
+run passed them. No runtime source changed in this cutover. The runtime aggregate
+is not claimed green; the remaining instability is recorded in TODO.

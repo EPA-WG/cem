@@ -176,19 +176,36 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         - [x] Fixture: preserve the adapter smoke test's native declaration and
               implicit-instance scope checks across CSS emitter whitespace,
               retaining all computed-style and isolation assertions.
-    - [ ] Fixture: verify canonical action loading in workflow/demo and Site
+    - [x] Fixture: verify canonical action loading in workflow/demo and Site
           search/interactive consumers, including packaged XHTML asset delivery.
-    - [ ] Fixture: cover explicit submit/reset, required-input validation,
+    - [x] Fixture: cover explicit submit/reset, required-input validation,
           submitter name/value and form overrides, external form ownership,
           disabled suppression and cancellation, while preserving default
           non-submitting command behavior.
-    - [ ] Fixture: migrate action unit coverage to colocated CSF Next plays,
+    - [x] Fixture: migrate action unit coverage to colocated CSF Next plays,
           retaining exact state reflection, slot/fallback labels, native click,
           keyboard/disabled behavior, node identity, hover/active token pairs
           and declaration-owned style installation.
-    - [ ] Remove the legacy action registry member/global styles, migrate
+    - [x] Remove the legacy action registry member/global styles, migrate
           affected consumers to canonical XHTML, and update package/catalog/
           style/state evidence before reducing the migration inventory.
+          Completed: 2 canonical / 47 legacy components. See
+          [cutover evidence](archive/todo-completed-2026-09-27.md#canonical-action-cutover).
+- [ ] Investigate runtime suite instability: the action-cutover full run passed
+      311/312 stories; `Payload Css Readiness And Hydration` expected one style
+      but observed zero. Its complete 12-story file passed on isolated rerun.
+      Preserve the readiness assertion and reproduce before changing behavior.
+- [ ] Implement the accepted [component development pattern](component-development-pattern.md)
+      first for `cem-action`, then apply it to `cem-select` and future components.
+    - [ ] Fixture: companion property form drives one canonical action instance
+          across intent, bend, label, type, disabled, loading and expanded;
+          native hover/active/keyboard focus remain usable.
+    - [ ] Fixture: source-only view fetches the canonical XHTML without executing
+          another declaration; link the full demo and verify IDE/module-map and
+          packaged preview loading.
+    - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
+          and compare individual versus `#ID` loading, relative dependencies,
+          style ownership and duplicate registration; ship source and playground.
 - [ ] Migrate remaining Studio and Site visible DOM construction, UI listeners,
       and state projection to XHTML/CEM-ML, retaining JavaScript only for non-UI
       services and host adapters.

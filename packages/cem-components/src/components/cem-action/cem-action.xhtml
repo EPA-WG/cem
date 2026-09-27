@@ -1,0 +1,117 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-action">
+  <template id="cem-action" type="text/cem-ml">
+    {attribute @name=label | Action}
+    {attribute @name=variant | primary}
+    {attribute @name=type | button}
+    {style @type="text/css" |```
+
+        :scope {
+            display: inline-block;
+            --_cem-action-default-background: var(--cem-action-primary-default-background);
+            --_cem-action-default-text: var(--cem-action-primary-default-text);
+            --_cem-action-hover-background: var(--cem-action-primary-hover-background);
+            --_cem-action-hover-text: var(--cem-action-primary-hover-text);
+            --_cem-action-active-background: var(--cem-action-primary-active-background);
+            --_cem-action-active-text: var(--cem-action-primary-active-text);
+            --_cem-action-disabled-background: var(--cem-action-primary-disabled-background);
+            --_cem-action-disabled-text: var(--cem-action-primary-disabled-text);
+        }
+        :scope[variant="explicit"] {
+            --_cem-action-default-background: var(--cem-action-explicit-default-background);
+            --_cem-action-default-text: var(--cem-action-explicit-default-text);
+            --_cem-action-hover-background: var(--cem-action-explicit-hover-background);
+            --_cem-action-hover-text: var(--cem-action-explicit-hover-text);
+            --_cem-action-active-background: var(--cem-action-explicit-active-background);
+            --_cem-action-active-text: var(--cem-action-explicit-active-text);
+            --_cem-action-disabled-background: var(--cem-action-explicit-disabled-background);
+            --_cem-action-disabled-text: var(--cem-action-explicit-disabled-text);
+        }
+        :scope[variant="contextual"] {
+            --_cem-action-default-background: var(--cem-action-contextual-default-background);
+            --_cem-action-default-text: var(--cem-action-contextual-default-text);
+            --_cem-action-hover-background: var(--cem-action-contextual-hover-background);
+            --_cem-action-hover-text: var(--cem-action-contextual-hover-text);
+            --_cem-action-active-background: var(--cem-action-contextual-active-background);
+            --_cem-action-active-text: var(--cem-action-contextual-active-text);
+            --_cem-action-disabled-background: var(--cem-action-contextual-disabled-background);
+            --_cem-action-disabled-text: var(--cem-action-contextual-disabled-text);
+        }
+        :scope[variant="alternate"] {
+            --_cem-action-default-background: var(--cem-action-alternate-default-background);
+            --_cem-action-default-text: var(--cem-action-alternate-default-text);
+            --_cem-action-hover-background: var(--cem-action-alternate-hover-background);
+            --_cem-action-hover-text: var(--cem-action-alternate-hover-text);
+            --_cem-action-active-background: var(--cem-action-alternate-active-background);
+            --_cem-action-active-text: var(--cem-action-alternate-active-text);
+            --_cem-action-disabled-background: var(--cem-action-alternate-disabled-background);
+            --_cem-action-disabled-text: var(--cem-action-alternate-disabled-text);
+        }
+        :scope[variant="destructive"] {
+            --_cem-action-default-background: var(--cem-action-destructive-default-background);
+            --_cem-action-default-text: var(--cem-action-destructive-default-text);
+            --_cem-action-hover-background: var(--cem-action-destructive-hover-background);
+            --_cem-action-hover-text: var(--cem-action-destructive-hover-text);
+            --_cem-action-active-background: var(--cem-action-destructive-active-background);
+            --_cem-action-active-text: var(--cem-action-destructive-active-text);
+            --_cem-action-disabled-background: var(--cem-action-destructive-disabled-background);
+            --_cem-action-disabled-text: var(--cem-action-destructive-disabled-text);
+        }
+        :scope > button[part~='control'] {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            gap: var(--cem-dim-x-small);
+            box-sizing: border-box;
+            min-block-size: var(--cem-shape-height, var(--cem-control-height));
+            padding-inline: var(--cem-control-padding-x);
+            padding-block: var(--cem-control-padding-y);
+            border-radius: var(--cem-action-border-radius);
+            background-color: var(--_cem-action-default-background);
+            color: var(--_cem-action-default-text);
+            width: 100%;
+        }
+        :scope.cem-bend-sharp {
+            --cem-bend: var(--cem-bend-sharp);
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope.cem-bend-smooth {
+            --cem-bend: var(--cem-bend-smooth);
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope.cem-bend-round {
+            --cem-bend: var(--cem-bend-round);
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--_cem-action-hover-background);
+            color: var(--_cem-action-hover-text);
+        }
+        :scope > button[part~='control']:where(:enabled:active) {
+            background-color: var(--_cem-action-active-background);
+            color: var(--_cem-action-active-text);
+        }
+        :scope > button[part~='control']:where(:focus-visible) {
+            outline: var(--cem-stroke-focus) solid transparent;
+            outline-offset: var(--cem-stroke-indicator-offset);
+            box-shadow:
+                0 0 0 var(--cem-zebra-strip-size) var(--cem-zebra-color-1),
+                0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
+                0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
+        }
+        :scope > button[part~='control']:where(:disabled) {
+            background-color: var(--_cem-action-disabled-background);
+            color: var(--_cem-action-disabled-text);
+        }
+        @media (forced-colors: active) {
+            :scope > button[part~='control']:where(:focus-visible) {
+                box-shadow: none;
+                outline-color: CanvasText;
+            }
+        }
+        ```}
+    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |
+      {slot | {$label}}
+    }
+  </template>
+</cem-element>

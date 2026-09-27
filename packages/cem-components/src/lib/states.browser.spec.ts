@@ -52,7 +52,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-action loading="true" expanded="false">Sync</cem-action>
                 <cem-icon-button name="settings" label="Open settings" disabled></cem-icon-button>
                 <cem-menu-item expanded="true">Advanced options</cem-menu-item>
                 <cem-tabs label="Sections">
@@ -63,30 +62,19 @@ describe('CEM component primitive states and ARIA behavior', () => {
         `);
         await waitForStateSelector(root, 'cem-tabs [role="tablist"]');
 
-        const actionHost = harness.query<HTMLElement>('cem-action');
-        const action = harness.query<HTMLButtonElement>('cem-action button');
         const iconButton = harness.query<HTMLButtonElement>('cem-icon-button button');
         const menuItem = harness.query<HTMLButtonElement>('cem-menu-item button');
         const tabs = Array.from(harness.root.querySelectorAll<HTMLButtonElement>('cem-tabs [role="tab"]'));
 
-        assertStateHostsRendered(harness.root, 'cem-action, cem-icon-button, cem-menu-item, cem-tabs');
-        expect(action.getAttribute('aria-busy')).toBe('true');
-        expect(action.getAttribute('aria-expanded')).toBe('false');
-        expect(assertAccessibleName(action, 'Sync')).toBe('Sync');
+        assertStateHostsRendered(harness.root, 'cem-icon-button, cem-menu-item, cem-tabs');
         expect(iconButton.disabled).toBe(true);
         expect(assertAccessibleName(iconButton, 'Open settings')).toBe('Open settings');
         expect(menuItem.getAttribute('aria-expanded')).toBe('true');
         expect(assertAccessibleName(menuItem, 'Advanced options')).toBe('Advanced options');
         expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');
-        await assertFocusVisible(action);
 
-        action.click();
         await nextRenderFrame();
 
-        const payload = eventPayload(runtime.snapshotInstance(actionHost), 'pressed');
-        expect(payload.type).toBe('click');
-        expect(payload.sliceValue).toBe('click');
-        expect(payload.target?.tag).toBe('button');
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
@@ -94,10 +82,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack class="cem-theme-light" gap="sm">
-                <cem-action>Save changes</cem-action>
                 <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
                 <cem-menu-item>Open menu</cem-menu-item>
-                <cem-action disabled>Disabled save</cem-action>
                 <cem-icon-button name="settings" label="Disabled settings" disabled></cem-icon-button>
                 <cem-menu-item disabled>Disabled menu</cem-menu-item>
             </cem-stack>
@@ -105,18 +91,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await waitForStateSelector(root, 'cem-menu-item[disabled] button');
 
         const actionCases = [
-            {
-                host: harness.query<HTMLElement>('cem-action:not([disabled])'),
-                button: harness.query<HTMLButtonElement>('cem-action:not([disabled]) button'),
-                name: 'Save changes',
-                role: null,
-                tokens: {
-                    defaultBackground: '--cem-action-primary-default-background',
-                    defaultText: '--cem-action-primary-default-text',
-                    hoverBackground: '--cem-action-primary-hover-background',
-                    hoverText: '--cem-action-primary-hover-text',
-                },
-            },
             {
                 host: harness.query<HTMLElement>('cem-icon-button:not([disabled])'),
                 button: harness.query<HTMLButtonElement>('cem-icon-button:not([disabled]) button'),
@@ -144,25 +118,18 @@ describe('CEM component primitive states and ARIA behavior', () => {
         ] as const;
         const disabledCases = [
             {
-                host: harness.query<HTMLElement>('cem-action[disabled]'),
-                button: harness.query<HTMLButtonElement>('cem-action[disabled] button'),
-                name: 'Disabled save',
-                role: null,
-                tokens: actionCases[0].tokens,
-            },
-            {
                 host: harness.query<HTMLElement>('cem-icon-button[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-icon-button[disabled] button'),
                 name: 'Disabled settings',
                 role: null,
-                tokens: actionCases[1].tokens,
+                tokens: actionCases[0].tokens,
             },
             {
                 host: harness.query<HTMLElement>('cem-menu-item[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item[disabled] button'),
                 name: 'Disabled menu',
                 role: 'menuitem',
-                tokens: actionCases[2].tokens,
+                tokens: actionCases[1].tokens,
             },
         ] as const;
         const activationEvents: string[] = [];
@@ -170,7 +137,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
             harness.root.addEventListener(eventName, () => activationEvents.push(eventName));
         }
 
-        assertStateHostsRendered(harness.root, 'cem-action, cem-icon-button, cem-menu-item');
+        assertStateHostsRendered(harness.root, 'cem-icon-button, cem-menu-item');
 
         for (const actionCase of actionCases) {
             const { button, host, name, role, tokens } = actionCase;
@@ -1315,10 +1282,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack class="cem-theme-light" gap="sm">
-                <cem-action>Save changes</cem-action>
                 <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
                 <cem-menu-item>Open menu</cem-menu-item>
-                <cem-action disabled>Disabled save</cem-action>
                 <cem-icon-button name="settings" label="Disabled settings" disabled></cem-icon-button>
                 <cem-menu-item disabled>Disabled menu</cem-menu-item>
             </cem-stack>
@@ -1326,22 +1291,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await waitForStateSelector(root, 'cem-menu-item[disabled] button');
 
         const actionCases = [
-            {
-                host: harness.query<HTMLElement>('cem-action:not([disabled])'),
-                button: harness.query<HTMLButtonElement>('cem-action:not([disabled]) button'),
-                name: 'Save changes',
-                role: null,
-                slice: 'pressed',
-                targetTag: 'button',
-                tokens: {
-                    activeBackground: '--cem-action-primary-active-background',
-                    activeText: '--cem-action-primary-active-text',
-                    defaultBackground: '--cem-action-primary-default-background',
-                    defaultText: '--cem-action-primary-default-text',
-                    hoverBackground: '--cem-action-primary-hover-background',
-                    hoverText: '--cem-action-primary-hover-text',
-                },
-            },
             {
                 host: harness.query<HTMLElement>('cem-icon-button:not([disabled])'),
                 button: harness.query<HTMLButtonElement>('cem-icon-button:not([disabled]) button'),
@@ -1377,25 +1326,18 @@ describe('CEM component primitive states and ARIA behavior', () => {
         ] as const;
         const disabledCases = [
             {
-                host: harness.query<HTMLElement>('cem-action[disabled]'),
-                button: harness.query<HTMLButtonElement>('cem-action[disabled] button'),
-                name: 'Disabled save',
-                role: null,
-                tokens: actionCases[0].tokens,
-            },
-            {
                 host: harness.query<HTMLElement>('cem-icon-button[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-icon-button[disabled] button'),
                 name: 'Disabled settings',
                 role: null,
-                tokens: actionCases[1].tokens,
+                tokens: actionCases[0].tokens,
             },
             {
                 host: harness.query<HTMLElement>('cem-menu-item[disabled]'),
                 button: harness.query<HTMLButtonElement>('cem-menu-item[disabled] button'),
                 name: 'Disabled menu',
                 role: 'menuitem',
-                tokens: actionCases[2].tokens,
+                tokens: actionCases[1].tokens,
             },
         ] as const;
         const activationEvents: string[] = [];
@@ -1403,7 +1345,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
             harness.root.addEventListener(eventName, () => activationEvents.push(eventName));
         }
 
-        assertStateHostsRendered(harness.root, 'cem-action, cem-icon-button, cem-menu-item');
+        assertStateHostsRendered(harness.root, 'cem-icon-button, cem-menu-item');
 
         for (const [index, actionCase] of actionCases.entries()) {
             const { button, host, name, role, slice, targetTag, tokens } = actionCase;

@@ -19,7 +19,6 @@ import {
 } from './testing/component-harness.js';
 
 const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
-    'cem-action',
     'cem-field',
     'cem-surface',
     'cem-text',
@@ -68,7 +67,6 @@ describe('CEM component primitives', () => {
         harness = substrateHarness;
         await substrateHarness.render(`
             <div data-phase3-minimal-primitives>
-                <cem-action>Save</cem-action>
                 <cem-field name="email" label="Email" value="ada@example.test"></cem-field>
                 <cem-surface label="Workspace"><span>Surface content</span></cem-surface>
                 <cem-text>Ready</cem-text>
@@ -90,7 +88,6 @@ describe('CEM component primitives', () => {
             expect(substrateHarness.snapshot(host).outputTarget).toBe('light-dom');
         }
 
-        expect(assertAccessibleName(substrateHarness.query('cem-action button'), 'Save')).toBe('Save');
         expect(assertAccessibleName(substrateHarness.query('cem-field input'), 'Email')).toBe('Email');
         expect(assertAccessibleName(substrateHarness.query('cem-surface section'), 'Workspace')).toBe('Workspace');
         expect(assertAccessibleName(substrateHarness.query('cem-icon [role="img"]'), 'Complete')).toBe('Complete');
@@ -104,28 +101,23 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-action variant="primary">Save</cem-action>
                 <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
                 <cem-menu-item>Archive</cem-menu-item>
             </cem-stack>
         `);
         await waitForPrimitive(root, 'cem-menu-item button');
 
-        const action = harness.query<HTMLButtonElement>('cem-action button');
         const iconButton = harness.query<HTMLButtonElement>('cem-icon-button button');
         const menuItem = harness.query<HTMLButtonElement>('cem-menu-item button');
         const icon = harness.query<HTMLElement>('cem-icon-button .cem-icon');
 
         for (const host of Array.from(
-            harness.root.querySelectorAll<HTMLElement>('cem-action, cem-icon-button, cem-menu-item'),
+            harness.root.querySelectorAll<HTMLElement>('cem-icon-button, cem-menu-item'),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
         }
 
-        expect(action.type).toBe('button');
-        expect(action.className).toContain('cem-action--primary');
-        expect(assertAccessibleName(action, 'Save')).toBe('Save');
         expect(iconButton.type).toBe('button');
         expect(iconButton.className).toContain('cem-icon-button--quiet');
         expect(assertAccessibleName(iconButton, 'Open settings')).toBe('Open settings');
@@ -449,7 +441,6 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-action variant="primary">Save</cem-action>
                 <cem-text-field name="email" value="a@b.test">
                     <span slot="label">Email</span>
                 </cem-text-field>
@@ -470,12 +461,6 @@ describe('CEM component primitives', () => {
         await waitForPrimitive(root, 'cem-card section');
         await waitForPrimitive(root, 'cem-badge .cem-badge');
 
-        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-action button')), {
-            family: 'action controls',
-            htmlIncludes: ['class="cem-action cem-action--primary"', 'type="button"'],
-            tagName: 'button',
-            text: 'Save',
-        });
         assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-text-field input')), {
             family: 'input controls',
             htmlIncludes: ['class="cem-text-field__control"', 'name="email"', 'value="a@b.test"'],

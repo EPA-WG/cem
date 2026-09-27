@@ -15,8 +15,8 @@ The native enabled `<button>` rendered by each Phase 4 action primitive owns
 - `cem-icon-button > button:enabled:hover`; and
 - `cem-menu-item > button:enabled:hover`.
 
-The selectors and their component-to-token bindings belong to a static,
-author-imported stylesheet published by `@epa-wg/cem-components`. The semantic
+The action selectors and bindings belong to its canonical XHTML declaration.
+The legacy icon/menu selectors remain in the author-imported component stylesheet. The semantic
 default and hover values belong to `@epa-wg/cem-theme`. The JavaScript entry
 point remains style-side-effect free: authors load the theme CSS once, then
 explicitly import the component stylesheet.
@@ -32,8 +32,8 @@ state.
 | `cem-icon-button` | `contextual`          | `--cem-action-contextual-default-background`, `--cem-action-contextual-default-text` | `--cem-action-contextual-hover-background`, `--cem-action-contextual-hover-text` |
 | `cem-menu-item`   | `contextual`          | `--cem-action-contextual-default-background`, `--cem-action-contextual-default-text` | `--cem-action-contextual-hover-background`, `--cem-action-contextual-hover-text` |
 
-`primary` is the only Phase 4 color intent currently accepted for
-`cem-action`. The existing `cem-icon-button` `quiet` variant describes its
+`cem-action` accepts `primary` (default), `explicit`, `contextual`,
+`alternate` and `destructive`. Each maps to its matching theme token family. The existing `cem-icon-button` `quiet` variant describes its
 compact visual treatment; it does not create a sixth theme action intent.
 Icon buttons and menu commands are contextual actions, matching the theme's
 documented toolbar/menu use of the contextual token family. Additional action
@@ -223,3 +223,12 @@ harness without simulating hover or injecting runtime styles.
   `input:hover` recommended next.
 - The uncached aggregate gate passes 16 dependencies and all 39 package tests
   across five files, including the 12-case focused state suite.
+
+## Canonical action ownership
+
+The migrated action owns these rules in
+[`cem-action.xhtml`](../src/components/cem-action/cem-action.xhtml), with all five
+intents exercised in its colocated stories. Its native button exposes
+`part="control"`. Only the unmigrated icon/menu rules remain in global CSS.
+The primary rows above describe the default intent; other supported variants
+substitute their intent name in the same state-token pairs.

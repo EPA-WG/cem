@@ -158,3 +158,12 @@ assertions after it were not exercised successfully.
 ### component-harness.browser.spec.ts
 
 - **proves action and field contracts through real CEM-ML substrate declarations** — `AssertionError: expected true to be false // Object.is equality`
+
+## Canonical action cutover comparison
+
+After moving action to canonical XHTML and colocated stories, the full legacy
+suite still reports **82 passing / 47 failing / 129 total**, with exactly the
+same failing test names and no skipped tests. Six canonical action stories pass
+separately. Workflow fixtures explicitly register the canonical declaration;
+legacy action unit assertions now live in its stories. This establishes no new
+legacy-suite failures, while the existing owner repairs remain open.

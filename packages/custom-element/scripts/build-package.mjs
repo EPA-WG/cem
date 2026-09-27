@@ -38,6 +38,9 @@ await cp(join(workspaceRoot, 'packages/cem-demo-element/dist'), join(vendorRoot,
     recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo'),
 });
 await cp(join(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser'), join(vendorRoot, 'cem-ml/wasm'), { recursive: true });
+await mkdir(join(vendorRoot, 'cem-components'), { recursive: true });
+await cp(join(workspaceRoot, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'),
+    join(vendorRoot, 'cem-components/cem-action.xhtml'));
 await mkdir(join(vendorRoot, 'cem-theme'), { recursive: true });
 await cp(join(workspaceRoot, 'packages/cem-theme/dist/lib/css/cem-combined.css'),
     join(vendorRoot, 'cem-theme/styles.css'));

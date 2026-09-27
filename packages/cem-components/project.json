@@ -146,6 +146,7 @@
                 "{projectRoot}/src/lib/primitives.ts",
                 "{projectRoot}/examples/**/*.html",
                 "{projectRoot}/tests/workflows/**/*.html",
+                "{projectRoot}/src/components/**/*.xhtml",
                 "{projectRoot}/**/*.css",
                 "{projectRoot}/**/*.scss",
                 "{projectRoot}/**/*.less",
@@ -492,6 +493,7 @@
                 "{workspaceRoot}/docs/component-mvp.md",
                 "{projectRoot}/tests/state-matrix-coverage.json",
                 "{projectRoot}/src/lib/**/*.browser.spec.ts",
+                "{projectRoot}/src/components/**/*.stories.ts",
                 "{projectRoot}/tests/workflows/**/*.html"
             ],
             "outputs": ["{projectRoot}/dist/reports/component-state-matrix.{json,md}"]

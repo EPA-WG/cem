@@ -62,7 +62,13 @@ export async function verifyActionDemo(browser, origin, packagePath) {
             return cards.length === counts.length && cards.every((card, index) =>
                 card.getAttribute('data-state') === 'ready'
                 && card.querySelectorAll('[slot=demo] button').length === counts[index]);
-        }, expectedCounts);
+        }, expectedCounts).catch(async error => {
+            const cards = await page.locator('cem-demo-element').evaluateAll(nodes => nodes.map(node => ({
+                legend: node.getAttribute('legend'), state: node.getAttribute('data-state'),
+                buttons: node.querySelectorAll('[slot=demo] button').length,
+            })));
+            throw new Error(`${packagePath}: ${error.message}\n${JSON.stringify({ errors, cards })}`);
+        });
         assert(await page.evaluate(() => Boolean(customElements.get('cem-element'))));
         assert.equal(await page.locator('custom-element, html-demo-element').count(), 0);
         const typical = page.locator('cem-demo-element[legend="Typical use"] [slot=demo]');

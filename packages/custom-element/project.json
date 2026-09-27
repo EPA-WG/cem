@@ -41,6 +41,7 @@
                 "{workspaceRoot}/packages/cem-elements/tsconfig.lib.json",
                 "{workspaceRoot}/packages/cem-elements/dist/**/*",
                 "{workspaceRoot}/packages/cem-theme/dist/lib/css/cem-combined.css",
+                "{workspaceRoot}/packages/cem-components/src/components/cem-action/cem-action.xhtml",
                 "{workspaceRoot}/packages/cem-demo-element/dist/**/*",
                 "{workspaceRoot}/packages/cem-ml-npm/dist/wasm/browser/**/*",
                 "{workspaceRoot}/packages/cem_ql/src/**/*",

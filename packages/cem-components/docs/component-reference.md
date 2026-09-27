@@ -159,14 +159,15 @@ Known deferrals remain outside the Phase 3.2 trigger:
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-action` | Native command button. | Default slot is the visible label. `variant` selects visual treatment. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
+| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
 | `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`.
-The public component stylesheet implements `default`, enabled native-button
-`hover`, and held native-button `active` for all three primitives with paired
-CEM action tokens. Hover and active change only background/text color; they add
+The canonical `cem-action` declaration embeds its scoped styles for all five
+intents. The legacy icon/menu styles remain in the public component stylesheet.
+All three use paired CEM action tokens for default, enabled native-button hover
+and held native-button active states. Hover and active change only background/text color; they add
 no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
 See the [action hover contract](./action-hover-contract.md) and
 [action active contract](./action-active-contract.md).

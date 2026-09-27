@@ -81,6 +81,11 @@
               }
             }
           }
+          {element @name="custom-element" @namespace="http://www.w3.org/1999/xhtml" |
+            {attribute @name="hidden" @value="hidden"}
+            {attribute @name="tag" @value="cem-action"}
+            {attribute @name="src" @value="./assets/cem-components/cem-action.xhtml#cem-action"}
+          }
           {element @name="main" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="id" @value="content"}
             {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |

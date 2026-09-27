@@ -1,11 +1,13 @@
 # cem-action declarative migration
 
-Status: explicit submit/reset support and colocated native-pointer tests accepted;
-native v3 XHTML deployment and Site adoption verified; component cutover remains open.
+Status: canonical XHTML cutover completed. Explicit submit/reset, colocated
+native-pointer tests, demo/package loading and Site adoption are verified.
+The accepted companion playground and release bundle are tracked separately in
+[the component development pattern](component-development-pattern.md).
 
-`cem-action` is the next migration candidate in the accepted
+`cem-action` follows `cem-select` in the accepted
 [component MVP](component-mvp.md) order. It has no component-specific behavior
-module: the legacy registry contains a CEM-ML native button, attribute bindings,
+module: the canonical declaration contains a CEM-ML native button, attribute bindings,
 slot projection and a release-time `pressed` slice. No new runtime capability
 has been identified as necessary for preserving that behavior.
 
@@ -86,10 +88,9 @@ No separate application asset-copy path is planned.
 - `variant` defaults to `primary`. The 2026-09-27 sample review expands the
   accepted target to the five theme intents: `primary`, `explicit`, `contextual`,
   `alternate`, and `destructive` (danger). Each sample uses one intent; a separate
-  matrix compares them. The legacy component registry still implements only
-  primary paint until cutover. Update its hover/active contracts and verification
-  together with the canonical implementation; use each intent's matching state
-  token pair, without adding alert/success aliases absent from the theme mapping.
+  matrix compares them. The canonical implementation and hover/active contracts
+  now use each intent's matching state token pair, without adding alert/success
+  aliases absent from the theme mapping.
 - The generated native button receives disabled, loading/busy and expanded
   state from the existing attributes. Preserve loading/expanded value bindings;
   use an explicit presence query for native boolean attributes as specified above.
@@ -147,7 +148,7 @@ The architecture gate currently reports one migrated component, 48 legacy tags
 and 61 legacy authored code files. This planning change does not alter those
 counts or claim the action migration is complete.
 
-## Prototype findings
+## Historical prototype findings
 
 The focused Chromium prototype passed three stories: fallback/rich labels,
 state reflection, and explicit native forms (validation, submitter name/value,
@@ -169,10 +170,10 @@ runtime policy, not a missing CSS capability.
 Site v3 XHTML deployment is now verified, including canonical select loading
 on search and interactive routes and all 26 production routes. See the
 [deployment closure](archive/todo-completed-2026-09-27.md#site-v3-xhtml-deployment).
-The action migration remains unshipped until its consumer/gate cutover is
-complete. Its legacy registry entry and global styles remain in place.
+At this earlier stage, the action cutover was unshipped and its legacy registry
+entry and global styles remained. The completed cutover below supersedes that status.
 
-## Cutover trial verification
+## Historical cutover trial verification
 
 The unshipped cutover draft passed the declarative gate (2 canonical / 47 legacy),
 style contract, state matrix, Figma inventory, Material parity, catalog build,
@@ -200,3 +201,15 @@ a passing end-to-end cutover check.
 The Site import-limit failure above was resolved by the verified bounded
 document-import profile in the deployment closure. It is historical evidence,
 not a remaining action-cutover blocker.
+
+## Completed cutover
+
+`src/components/cem-action/cem-action.xhtml` now owns the production definition,
+styles, five theme intents and native form forwarding. Six colocated stories
+cover its contract. The registry member and global action styles are removed.
+Workflow fixtures, the Material gallery and Site search/interactive pages load
+that declaration explicitly. The adapter vendors the same XHTML for installed
+previews; the original compatibility gallery URL remains usable.
+
+See [closure evidence](archive/todo-completed-2026-09-27.md#canonical-action-cutover)
+and the [accepted development pattern](component-development-pattern.md).

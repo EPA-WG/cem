@@ -1,5 +1,27 @@
 /** Browser fixture for route-relative, native v3 XHTML deployment. */
 export async function verifyDeployedXhtml(page) {
+    const actionResource = './assets/cem-components/cem-action.xhtml';
+    const actionResponse = await page.request.get(new URL(actionResource, page.url()).href);
+    if (!actionResponse.ok() || !actionResponse.headers()['content-type']?.startsWith('application/xhtml+xml')) {
+        throw new Error('canonical action XHTML resource is missing or has the wrong MIME type');
+    }
+    const action = await page.evaluate(async () => {
+        const { componentRuntime } = await import('./assets/cem-site/components-runtime.js');
+        const declaration = document.querySelector('custom-element[tag="cem-action"]');
+        const host = document.querySelector('cem-action');
+        if (!declaration || !host) throw new Error('route must explicitly load and use canonical action');
+        await componentRuntime.whenDeclarationSettled(declaration);
+        await componentRuntime.whenRenderSettled(host);
+        return {
+            source: declaration.getAttribute('src'),
+            part: host.querySelector('button')?.getAttribute('part'),
+            scoped: declaration.querySelector('style[data-cem-declaration-style]')?.textContent.includes('@scope') === true,
+            shadow: !!host.shadowRoot,
+        };
+    });
+    if (action.source !== `${actionResource}#cem-action` || action.part !== 'control' || !action.scoped || action.shadow) {
+        throw new Error(`canonical action declaration or CSS failed: ${JSON.stringify(action)}`);
+    }
     const resource = './assets/cem-components/cem-select.xhtml';
     const response = await page.request.get(new URL(resource, page.url()).href);
     if (!response.ok() || !response.headers()['content-type']?.startsWith('application/xhtml+xml')) {

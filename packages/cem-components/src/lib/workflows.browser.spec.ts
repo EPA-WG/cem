@@ -1,5 +1,7 @@
 import { CemElementRuntime } from '@epa-wg/cem-elements';
 
+import actionDeclaration from '../components/cem-action/cem-action.xhtml?raw';
+
 import assetBrowserFixture from '../../tests/workflows/asset-browser.html?raw';
 import authFormFixture from '../../tests/workflows/auth-form.html?raw';
 import discussionThreadFixture from '../../tests/workflows/discussion-thread.html?raw';
@@ -39,6 +41,12 @@ describe('CEM component workflow fixtures', () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
         const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
+        const source = document.createElement('div');
+        source.innerHTML = actionDeclaration;
+        const declaration = source.firstElementChild as HTMLElement;
+        expect(runtime.registerDeclaration(declaration)).toBe(true);
+        await runtime.whenDeclarationSettled(declaration);
+        expect(runtime.diagnosticsFor(declaration)).toEqual([]);
     });
 
     afterEach(() => {

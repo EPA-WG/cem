@@ -16,8 +16,8 @@ same engine hand-authored `type="cem-ml; version=0.0"` templates use. A legacy s
 CEM-ML twin therefore render **identically**.
 
 Most sample markup retains the `<custom-element>` declarations; the action page
-now uses `<cem-element>` with explicit legacy template language markers for IDE
-preview. Both routes use the converter. See:
+now loads the canonical `cem-components` action XHTML through `<cem-element>`.
+Its remaining icon and sample templates use the legacy converter. See:
 
 - Converter runtime boundary:
   [`../../cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts`](../../cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts)
@@ -31,12 +31,13 @@ preview. Both routes use the converter. See:
 
 The [action page](components/action.html) runs directly from an IDE HTTP preview.
 It declares its runtime, WASM and demo-helper imports in a page-level import map,
-installs `cem-elements`, and uses local `cem-demo-element` cards. Its legacy
-action/icon templates explicitly select `lang="custom-element-v0"`. The native
+installs `cem-elements`, and uses local `cem-demo-element` cards. The action
+definition resolves through `@epa-wg/cem-components/components/cem-action` and
+`#cem-action`; the icon template still uses `lang="custom-element-v0"`. The native
 module-map transform rewrites these imports to vendored assets in the packed
 package; no development-server aliases are required. Icon fonts remain external
-presentation assets. This is the legacy Material action reference, separate from
-the canonical `cem-components` action migration.
+presentation assets. The compatibility gallery now demonstrates the canonical
+`cem-components` action rather than maintaining another definition.
 
 The same page-level map resolves `@epa-wg/cem-theme/styles.css` through
 `cem-module-url`. Build the generated theme CSS before opening the source page;

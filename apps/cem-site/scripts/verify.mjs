@@ -1097,7 +1097,14 @@ for (const entry of manifest.entries) {
                 }
             }
             for (const tag of fixtureComponentTags) {
-                if (!componentSource.includes(`tag: '${tag}'`) || !output.includes(`<${tag}`)) {
+                const component = componentCatalog.components.find(component => component.tag === tag);
+                const declaration = component.implementation?.kind === 'cem-element-xhtml'
+                    ? await readFile(resolve(workspaceRoot, component.implementation.source), 'utf8')
+                    : componentSource;
+                const ownsTag = component.implementation?.kind === 'cem-element-xhtml'
+                    ? declaration.includes(`tag="${tag}"`) && declaration.includes(`id="${tag}"`)
+                    : declaration.includes(`tag: '${tag}'`);
+                if (!ownsTag || !output.includes(`<${tag}`)) {
                     throw new Error(`interactive component example ${tag} lost canonical provenance`);
                 }
             }

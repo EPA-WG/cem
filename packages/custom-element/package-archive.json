@@ -38,8 +38,8 @@
         "vendor"
     ],
     "archive": {
-        "fileCount": 219,
-        "pathDigestSha256": "6949436dfe1d0eed54046b04f5a5b3a08237e95c1f80423f4ce1e6b80c3db360",
+        "fileCount": 220,
+        "pathDigestSha256": "5db0ac6c8bbaa9840780178a74554ebf33f93d27edf76fa39c161354ce52d8e1",
         "requiredFiles": [
             "LICENSE",
             "README.md",
@@ -82,7 +82,8 @@
             "vendor/@epa-wg/cem-elements/dist/lib/edge-css-publication.js",
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/css-dom-publication-queue.js",
             "vendor/@epa-wg/cem-elements/dist/lib/internal/runtime-support/stylesheet-installation.js",
-            "vendor/@epa-wg/cem-theme/styles.css"
+            "vendor/@epa-wg/cem-theme/styles.css",
+            "vendor/@epa-wg/cem-components/cem-action.xhtml"
         ]
     }
 }

@@ -30,21 +30,39 @@
             "id": "action:default",
             "category": "Action",
             "state": "default",
-            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "components": [
+                "cem-action",
+                "cem-icon-button",
+                "cem-menu-item"
+            ],
             "interaction": "Render enabled action controls and preserve their native button and menuitem semantics.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
             "test": "renders action-family primitives as accessible light DOM",
             "assertions": [
-                "expect(action.type).toBe('button');",
+                "expect(iconButton.type).toBe('button');",
                 "expect(menuItem.getAttribute('role')).toBe('menuitem');"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-action",
+                    "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+                    "test": "LabelsAndStyles",
+                    "assertions": [
+                        "await expect(control.type).toBe('button');"
+                    ]
+                }
             ]
         },
         {
             "id": "action:hover",
             "category": "Action",
             "state": "hover",
-            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "components": [
+                "cem-action",
+                "cem-icon-button",
+                "cem-menu-item"
+            ],
             "interaction": "Move the pointer onto and away from an action without changing layout.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -54,24 +72,43 @@
                 "expectActionStructureAndGeometry(hovered, baseline);",
                 "expect(restored.backgroundColor).toBe(baseline.backgroundColor);",
                 "expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-action",
+                    "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+                    "test": "NativePointerAndKeyboard",
+                    "assertions": [
+                        "await expect(button.matches(':hover')).toBe(true);",
+                        "await expect(colors()).toEqual(paint('hover'));"
+                    ]
+                }
             ]
         },
         {
             "id": "action:focus-visible",
             "category": "Action",
             "state": "focus-visible",
-            "components": ["cem-action"],
+            "components": [
+                "cem-action"
+            ],
             "interaction": "Move keyboard focus to an action and retain a visible focus indicator.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
-            "assertions": ["await assertFocusVisible(action);"]
+            "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+            "test": "VariationsAndFocus",
+            "assertions": [
+                "await expect(button.matches(':focus-visible')).toBe(true);"
+            ]
         },
         {
             "id": "action:active",
             "category": "Action",
             "state": "active",
-            "components": ["cem-action", "cem-icon-button", "cem-menu-item"],
+            "components": [
+                "cem-action",
+                "cem-icon-button",
+                "cem-menu-item"
+            ],
             "interaction": "Activate an action and prove the active treatment preserves readable contrast.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
@@ -84,6 +121,17 @@
                 "expect(held.backgroundColor).toBe(baseline.backgroundColor);",
                 "expect(keyboardActive.backgroundColor).not.toBe(keyboardBaseline.backgroundColor);",
                 "expect(keyboardReleased.backgroundColor).toBe(keyboardBaseline.backgroundColor);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-action",
+                    "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+                    "test": "NativePointerAndKeyboard",
+                    "assertions": [
+                        "await expect(button.matches(':active')).toBe(true);",
+                        "await expect(rect()).toEqual(initial);"
+                    ]
+                }
             ]
         },
         {
@@ -101,14 +149,16 @@
             "id": "action:loading",
             "category": "Action",
             "state": "loading",
-            "components": ["cem-action"],
+            "components": [
+                "cem-action"
+            ],
             "interaction": "Mark an action busy while preserving its accessible name and control dimensions.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
+            "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+            "test": "StatesAndActivation",
             "assertions": [
-                "expect(action.getAttribute('aria-busy')).toBe('true');",
-                "expect(assertAccessibleName(action, 'Sync')).toBe('Sync');"
+                "await expect(control.getAttribute('aria-busy')).toBe('true');",
+                "await expect(control.disabled).toBe(false);"
             ]
         },
         {

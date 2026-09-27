@@ -41,3 +41,10 @@ pattern. Read the normative
 and the linked CSS scope contract before adding another component. The native
 `@scope` behavior is implemented across browser, worker, Edge/SSR, and hydration
 paths.
+
+## Source and development pages
+
+The accepted [component development pattern](../../../../docs/component-development-pattern.md) keeps canonical XHTML
+separate from a companion property playground and source view. A generated
+`#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
+the canonical XHTML and colocated story structure.

@@ -1,18 +1,3 @@
-cem-action > button {
-    background-color: var(--cem-action-primary-default-background);
-    color: var(--cem-action-primary-default-text);
-}
-
-cem-action > button:enabled:hover {
-    background-color: var(--cem-action-primary-hover-background);
-    color: var(--cem-action-primary-hover-text);
-}
-
-cem-action > button:enabled:active {
-    background-color: var(--cem-action-primary-active-background);
-    color: var(--cem-action-primary-active-text);
-}
-
 cem-icon-button > button,
 cem-menu-item > button {
     background-color: var(--cem-action-contextual-default-background);

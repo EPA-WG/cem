@@ -30,9 +30,8 @@ serialized runtime state while the activating input remains held.
 | `cem-menu-item`   | `contextual`   | `--cem-action-contextual-active-background`, `--cem-action-contextual-active-text` |
 
 The default and hover mappings remain those accepted by the
-[`action:hover` contract](./action-hover-contract.md). `primary` remains the
-only accepted Phase 4 intent for `cem-action`; icon and menu actions remain
-contextual. Arbitrary `variant` strings do not create new theme intents.
+[`action:hover` contract](./action-hover-contract.md). `cem-action` supports primary, explicit, contextual, alternate and
+destructive intents; icon and menu actions remain contextual. Arbitrary `variant` strings do not create new theme intents.
 
 ## Pointer interaction and observation
 
@@ -202,3 +201,12 @@ Stop without styling or promoting the audit if:
   0 static-only, and 12 gaps with `input:hover` recommended next.
 - The uncached aggregate component gate passes all 16 dependencies and 39 tests
   across five files.
+
+## Canonical action ownership
+
+The migrated action owns these rules in
+[`cem-action.xhtml`](../src/components/cem-action/cem-action.xhtml), with all five
+intents exercised in its colocated stories. Its native button exposes
+`part="control"`. Only the unmigrated icon/menu rules remain in global CSS.
+The primary rows above describe the default intent; other supported variants
+substitute their intent name in the same state-token pairs.

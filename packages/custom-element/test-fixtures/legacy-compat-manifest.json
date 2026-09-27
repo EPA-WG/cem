@@ -3,7 +3,7 @@
     "materialComponents": [
         {
             "name": "action",
-            "requiredTemplates": [{ "selector": "template#cem-action", "minSourceLength": 1 }],
+            "requiredTemplates": [],
             "allowedDiagnostics": []
         },
         {

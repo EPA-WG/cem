@@ -458,3 +458,10 @@ Known deferrals stay outside this trigger:
 - [Roadmap](../../roadmap.md) — Phase 3 (custom-element runtime) and Phase 4 (component set) define this package's
   delivery sequencing.
 - [Repository documentation index](../../docs/index.md) — full project map.
+
+## Source and development pages
+
+The accepted [component development pattern](../../docs/component-development-pattern.md) keeps canonical XHTML
+separate from a companion property playground and source view. A generated
+`#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
+the canonical XHTML and colocated story structure.

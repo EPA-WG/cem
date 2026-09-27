@@ -128,3 +128,10 @@ and zero legacy authored code files other than the required stories.
 Studio and Site have the same migration direction: app-local visible DOM
 construction, UI listeners, and state projection must disappear. JavaScript may
 remain only behind the non-UI service boundary above.
+
+## Source and development pages
+
+The accepted [component development pattern](component-development-pattern.md) keeps canonical XHTML
+separate from a companion property playground and source view. A generated
+`#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
+the canonical XHTML and colocated story structure.

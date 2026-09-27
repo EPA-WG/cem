@@ -35,6 +35,7 @@ Action variation
     <script type="importmap">
         {
           "imports": {
+            "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml",
             "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
             "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
             "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
@@ -76,140 +77,15 @@ ToDO
 <body class="cem-theme-light">
 <cem-element hidden>
     <template type="text/cem-ml">
+{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.actionUrl" |
+    {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem:if @test="datadom.slices.themeUrl" |
     {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
     </template>
 </cem-element>
-<template id="cem-action" lang="custom-element-v0">
-    <attribute name="text"
-            aria-description="button text content. "
-            ></attribute>
-    <attribute name="dot"
-            aria-description="attribute defines the small dot presentation without visible text. Default 'true' "
-            ></attribute>
-    <attribute name="variant" aria-description="Action intent: primary, explicit, contextual, alternate or destructive.">primary</attribute>
-    <attribute name="align"
-            aria-description="Vertical & horizontal align. Default is 'top right'. Values: top|middle|bottom|left|center|right"
-            ></attribute>
-    <attribute name="invisible"
-            aria-description="Boolean. Default is 'false'. Values: true|false"
-            ></attribute>
-    <style>
-        :scope {
-            --_cem-action-default-background: var(--cem-action-primary-default-background);
-            --_cem-action-default-text: var(--cem-action-primary-default-text);
-            --_cem-action-hover-background: var(--cem-action-primary-hover-background);
-            --_cem-action-hover-text: var(--cem-action-primary-hover-text);
-            --_cem-action-active-background: var(--cem-action-primary-active-background);
-            --_cem-action-active-text: var(--cem-action-primary-active-text);
-            --_cem-action-disabled-background: var(--cem-action-primary-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-primary-disabled-text);
-        }
-        :scope[variant="explicit"] {
-            --_cem-action-default-background: var(--cem-action-explicit-default-background);
-            --_cem-action-default-text: var(--cem-action-explicit-default-text);
-            --_cem-action-hover-background: var(--cem-action-explicit-hover-background);
-            --_cem-action-hover-text: var(--cem-action-explicit-hover-text);
-            --_cem-action-active-background: var(--cem-action-explicit-active-background);
-            --_cem-action-active-text: var(--cem-action-explicit-active-text);
-            --_cem-action-disabled-background: var(--cem-action-explicit-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-explicit-disabled-text);
-        }
-        :scope[variant="contextual"] {
-            --_cem-action-default-background: var(--cem-action-contextual-default-background);
-            --_cem-action-default-text: var(--cem-action-contextual-default-text);
-            --_cem-action-hover-background: var(--cem-action-contextual-hover-background);
-            --_cem-action-hover-text: var(--cem-action-contextual-hover-text);
-            --_cem-action-active-background: var(--cem-action-contextual-active-background);
-            --_cem-action-active-text: var(--cem-action-contextual-active-text);
-            --_cem-action-disabled-background: var(--cem-action-contextual-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-contextual-disabled-text);
-        }
-        :scope[variant="alternate"] {
-            --_cem-action-default-background: var(--cem-action-alternate-default-background);
-            --_cem-action-default-text: var(--cem-action-alternate-default-text);
-            --_cem-action-hover-background: var(--cem-action-alternate-hover-background);
-            --_cem-action-hover-text: var(--cem-action-alternate-hover-text);
-            --_cem-action-active-background: var(--cem-action-alternate-active-background);
-            --_cem-action-active-text: var(--cem-action-alternate-active-text);
-            --_cem-action-disabled-background: var(--cem-action-alternate-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-alternate-disabled-text);
-        }
-        :scope[variant="destructive"] {
-            --_cem-action-default-background: var(--cem-action-destructive-default-background);
-            --_cem-action-default-text: var(--cem-action-destructive-default-text);
-            --_cem-action-hover-background: var(--cem-action-destructive-hover-background);
-            --_cem-action-hover-text: var(--cem-action-destructive-hover-text);
-            --_cem-action-active-background: var(--cem-action-destructive-active-background);
-            --_cem-action-active-text: var(--cem-action-destructive-active-text);
-            --_cem-action-disabled-background: var(--cem-action-destructive-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-destructive-disabled-text);
-        }
-        :scope > button {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-            gap: var(--cem-dim-x-small);
-            box-sizing: border-box;
-            min-block-size: var(--cem-shape-height, var(--cem-control-height));
-            padding-inline: var(--cem-control-padding-x);
-            padding-block: var(--cem-control-padding-y);
-            border-radius: var(--cem-action-border-radius);
-            background-color: var(--_cem-action-default-background);
-            color: var(--_cem-action-default-text);
-            width: 100%;
-        }
-        :scope.cem-bend-sharp {
-            --cem-bend: var(--cem-bend-sharp);
-            --cem-action-border-radius: var(--cem-bend);
-        }
-        :scope.cem-bend-smooth {
-            --cem-bend: var(--cem-bend-smooth);
-            --cem-action-border-radius: var(--cem-bend);
-        }
-        :scope.cem-bend-round {
-            --cem-bend: var(--cem-bend-round);
-            --cem-action-border-radius: var(--cem-bend);
-        }
-        :scope > button:where(:enabled:hover) {
-            background-color: var(--_cem-action-hover-background);
-            color: var(--_cem-action-hover-text);
-        }
-        :scope > button:where(:enabled:active) {
-            background-color: var(--_cem-action-active-background);
-            color: var(--_cem-action-active-text);
-        }
-        :scope > button:where(:focus-visible) {
-            outline: var(--cem-stroke-focus) solid transparent;
-            outline-offset: var(--cem-stroke-indicator-offset);
-            box-shadow:
-                0 0 0 var(--cem-zebra-strip-size) var(--cem-zebra-color-1),
-                0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
-                0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
-        }
-        :scope > button:where(:disabled) {
-            background-color: var(--_cem-action-disabled-background);
-            color: var(--_cem-action-disabled-text);
-        }
-        @media (forced-colors: active) {
-            :scope > button:where(:focus-visible) {
-                box-shadow: none;
-                outline-color: CanvasText;
-            }
-        }
-    </style>
-    <button type="button">
-        <if test="count(//attributes/@disabled) > 0">
-            <attribute name="disabled">disabled</attribute>
-        </if>
-        <slot>{$text}</slot>
-    </button>
 
-</template>
-
-<cem-element hidden src="#cem-action" tag="cem-action"></cem-element>
 <cem-element hidden src="./icon.html#cem-icon" tag="cem-icon"></cem-element>
 
 <header class="cem-theme-teal">
@@ -217,13 +93,13 @@ ToDO
 </header>
 <main>
     <aside>
-        <p><code>cem-action</code> is button-looking component from the legacy Material suite, loaded by &lt;cem-element&gt; based on the
+        <p><code>cem-action</code> is the canonical action from <code>@epa-wg/cem-components</code>, loaded by &lt;cem-element&gt;. This page retains the Material example gallery based on the
             <a href="https://m3.material.io/components/buttons/overview">Material Design specification for buttons</a>.<br/>
             Action triggers the flow by changing the data <var>slice</var> or following the <var>href</var> attribute URL.
             Inspired by <a href="https://mui.com/material-ui/react-button/">MUI</a>
         </p>
         <h1>Attributes</h1>
-        <div> <code>text</code> optional attribute defines the text inside the button.</div>
+        <div> <code>label</code> optional attribute defines the text inside the button.</div>
         <div> <code>class</code> specific: <var>cem-bend-sharp</var>, <var>cem-bend-smooth</var>(default), <var>cem-bend-round</var>.</div>
         <div> <code>variant</code> selects primary, explicit, contextual, alternate or destructive (danger).</div>
         <div> <code>disabled</code> disables the native button by attribute presence.</div>
@@ -233,7 +109,7 @@ ToDO
 
     <cem-demo-element legend="Typical use">
         <template>
-<cem-action variant="primary" text="text in attribute" ></cem-action>
+<cem-action variant="primary" label="text in attribute" ></cem-action>
 <cem-action variant="primary"> with icon <cem-icon image="search" ></cem-icon>  </cem-action>
 <cem-action variant="primary" class="cem-bend-sharp"> square border </cem-action>
 <cem-action variant="primary"  class="cem-bend-round"> round border   </cem-action>
@@ -295,9 +171,9 @@ ToDO
 
         </p>
         <template>
-<cem-action variant="contextual" text="0"   > <cem-icon image="far fa-envelope"></cem-icon> </cem-action>
-<cem-action variant="contextual" text="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
-<cem-action variant="contextual" text="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
+<cem-action variant="contextual" label="0"   > <cem-icon image="far fa-envelope"></cem-icon> </cem-action>
+<cem-action variant="contextual" label="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
+<cem-action variant="contextual" label="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
         </template>
     </cem-demo-element>
 
@@ -306,11 +182,11 @@ ToDO
             Alternate actions use the theme’s enthusiasm palette.
         </p>
         <template>
-<cem-action variant="alternate" text="0"                     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" text="1"     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" text="2"   > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" text="3"     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" text="4"       > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate" label="0"                     > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate" label="1"     > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate" label="2"   > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate" label="3"     > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate" label="4"       > <cem-icon image="✉"></cem-icon> </cem-action>
         </template>
     </cem-demo-element>
 
@@ -332,7 +208,7 @@ ToDO
             <label>
                 <input type="checkbox" slice="is-checked" value="on" />
                 invisible</label>
-<cem-action variant="explicit" text="1"  >
+<cem-action variant="explicit" label="1"  >
     <if test="/datadom/slice/is-checked = 'on'">
         <attribute name="invisible">on</attribute>
     </if>
@@ -357,17 +233,17 @@ ToDO
         </p>
         <template>
 <flex-3x>
-    <cem-action variant="alternate" text="1" align="left top"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="2" align="center top" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="3" align="right top"  ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="1" align="left top"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="2" align="center top" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="3" align="right top"  ><cem-icon image="mail" ></cem-icon></cem-action>
 
-    <cem-action variant="alternate" text="4" align="left middle"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="5" align="center middle" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="6" align="right middle"  ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="4" align="left middle"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="5" align="center middle" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="6" align="right middle"  ><cem-icon image="mail" ></cem-icon></cem-action>
 
-    <cem-action variant="alternate" text="7" align="left bottom"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="8" align="center bottom" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" text="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="7" align="left bottom"   ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="8" align="center bottom" ><cem-icon image="mail" ></cem-icon></cem-action>
+    <cem-action variant="alternate" label="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-action>
 </flex-3x>
         </template>
     </cem-demo-element>
