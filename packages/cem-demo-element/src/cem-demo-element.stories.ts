@@ -515,6 +515,10 @@ export const OfflineDemoDocuments: Story = {
             syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
         ).filter((token) => token.textContent === 'rtl');
         await expect(directionTokens.map((token) => token.localName)).toEqual(['strong', 'b']);
+        const languageTokens = Array.from(
+            syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
+        ).filter((token) => token.textContent === '"fr-CA"');
+        await expect(languageTokens.map((token) => token.localName)).toEqual(['i']);
         const conditionTokens = Array.from(
             syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
         ).filter((token) => token.textContent === 'and' || token.textContent === 'or');

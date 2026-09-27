@@ -6027,10 +6027,25 @@ registration identities may reuse an inherited or existing definition.
               names, escaped text and unsupported-profile fallback.
               Completed: all 12 native highlighting tests, real CLI HTML/ANSI
               regression, both lint targets and all 12 rebuilt browser tests pass.
-        - [ ] Fixture: retain stylesheet `:lang()` literal language-range lists,
+        - [x] Fixture: replace direction-specific storage/emission with shared
+              literal pseudo-class argument lists; preserve source ranges,
+              specificity, validation and direction coloring without URL logic.
+              Cover generic literal metadata errors, no resource references from
+              quoted text, and shared native/CLI/sample name and string coloring.
+        - [x] Fixture: retain stylesheet `:lang()` literal language-range lists,
               preserving identifier/string syntax, escapes and source ranges;
               verify specificity, invalid inputs and inherited-language browser
               matching without expanding native selector-query capabilities.
+              Compare authored/emitted browser behavior for lists, quoted ranges,
+              wildcards and empty strings; report browser syntax support.
+              Completed: 91 focused native tests, 13 source-highlight tests, CLI
+              HTML/ANSI regression, both lint targets, 12 sample browser tests
+              and the rebuilt compiler browser gate pass. Chromium 148 rejects
+              advanced language forms; authored/emitted behavior remains equal.
+        - [ ] Audit retained compiler coverage against managed-CSS fixtures and
+              the accepted contract; identify concrete blockers before wiring
+              import-closure ownership, caching and browser lifecycle. Prefer
+              shared argument representations over new per-function emitters.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

@@ -13797,6 +13797,7 @@ This document has **strong** text and a link.
 :nth-child(odd of .odd) {color:red}
 @supports (not (display:grid)) {.card {display:block}}
 .card:dir(RTL) {text-align:start}
+.card:lang(en, "fr-CA") {color:red}
 ```}
 {p @class=note |Hello}
 </template>"#;
@@ -13850,6 +13851,7 @@ This document has **strong** text and a link.
             source
         );
         assert!(written.contains("data-role=\"syntax.keyword\""));
+        assert!(written.split("</span>").any(|span| span.contains("data-role=\"syntax.name\"") && span.ends_with(">en")));
         for keyword in ["odd", "of", "not", "RTL"] {
             assert!(
                 written.split("</span>").any(|span| {

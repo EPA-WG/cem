@@ -1323,6 +1323,22 @@ mod tests {
     }
 
     #[test]
+    fn css_literal_language_arguments_preserve_name_and_string_roles() {
+        let source = r#":lang(en, "fr-CA") .en {}"#;
+        let value =
+            response(&serde_json::json!({"source":source,"contentType":"text/css"}).to_string());
+        assert_eq!(
+            role_at(&value, source.find("en").unwrap()),
+            Some("syntax.name")
+        );
+        assert_eq!(
+            role_at(&value, source.find('"').unwrap()),
+            Some("syntax.string")
+        );
+        assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+    }
+
+    #[test]
     fn css_group_operator_roles_require_validated_outer_components() {
         for (source, keyword) in [
             ("@media screen and (width > 1px) {}", "and"),

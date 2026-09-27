@@ -52,3 +52,7 @@
 :dir(rtl) .rtl {
     text-align: start;
 }
+
+:lang(en, "fr-CA") {
+    quotes: auto;
+}

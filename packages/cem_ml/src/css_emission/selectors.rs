@@ -325,12 +325,42 @@ fn emit(
         "pseudo-element" => Ok(format!("::{}", ident(field("name")?))),
         "pseudo-class" => {
             let name = field("name")?;
-            if name == "dir" {
-                let direction = field("direction")?;
-                if !node.children.is_empty() || !matches!(direction, "ltr" | "rtl") {
+            if attribute(tree, id, "argument-kind") == Some("literal") {
+                if !matches!(name, "dir" | "lang") || node.children.len() != 1 {
                     return Err(invalid(tree, id));
                 }
-                return Ok(format!(":dir({direction})"));
+                let list = node.children[0];
+                if !named(tree, list, "literal-arguments")
+                    || attribute(tree, list, "analysis-status") != Some("complete")
+                {
+                    return Err(invalid(tree, list));
+                }
+                let args = &tree.node(list).ok_or_else(|| invalid(tree, list))?.children;
+                if args.is_empty() {
+                    return Err(invalid(tree, list));
+                }
+                let values = args
+                    .iter()
+                    .map(|&arg| {
+                        if !named(tree, arg, "literal-argument")
+                            || !tree.node(arg).unwrap().children.is_empty()
+                        {
+                            return Err(invalid(tree, arg));
+                        }
+                        let value =
+                            attribute(tree, arg, "value").ok_or_else(|| invalid(tree, arg))?;
+                        match attribute(tree, arg, "kind") {
+                            Some("ident") if !value.is_empty() => Ok(ident(value)),
+                            Some("string") => Ok(transform_template_encode_css_string(value)),
+                            _ => Err(invalid(tree, arg)),
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                return Ok(format!(":{}({})", ident(name), values.join(", ")));
+            }
+            // These functional profiles require the import-owned literal list.
+            if matches!(name, "dir" | "lang") {
+                return Err(invalid(tree, id));
             }
             if matches!(
                 name,

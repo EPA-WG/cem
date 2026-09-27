@@ -2,8 +2,8 @@
 use super::*;
 use crate::validation::css_selector::{
     stylesheet_selector_structure, CssSelectorAttributeModifier, CssSelectorAttributeOperator,
-    CssSelectorCombinator, CssSelectorListAst, CssSelectorNamespace, CssSelectorSimpleSelector,
-    CssSelectorSourceRange,
+    CssSelectorCombinator, CssSelectorListAst, CssSelectorLiteralKind, CssSelectorNamespace,
+    CssSelectorSimpleSelector, CssSelectorSourceRange,
 };
 
 impl CssImport<'_> {
@@ -188,15 +188,42 @@ impl CssImport<'_> {
                 name,
                 selectors,
                 nth,
-                direction,
+                literals,
                 relative,
                 ..
             } => {
                 self.attr(id, "kind", "pseudo-class");
                 self.attr(id, "name", name);
                 self.attr(id, "relative", if *relative { "true" } else { "false" });
-                if let Some(direction) = direction {
-                    self.attr(id, "direction", direction.as_str());
+                if let Some(literals) = literals {
+                    self.attr(id, "argument-kind", "literal");
+                    let list = self.selector_node(
+                        id,
+                        "literal-arguments",
+                        CssSelectorSourceRange::covering(
+                            literals.first().unwrap().source_range,
+                            literals.last().unwrap().source_range,
+                        ),
+                    );
+                    self.attr(list, "analysis-status", "complete");
+                    for literal in literals {
+                        let arg =
+                            self.selector_node(list, "literal-argument", literal.source_range);
+                        self.attr(
+                            arg,
+                            "kind",
+                            match literal.kind {
+                                CssSelectorLiteralKind::Ident => "ident",
+                                CssSelectorLiteralKind::String => "string",
+                            },
+                        );
+                        self.attr(arg, "value", &literal.value);
+                        self.attr(
+                            arg,
+                            "literal-role",
+                            if literal.keyword { "keyword" } else { "name" },
+                        );
+                    }
                 }
                 if let Some((a, b)) = nth {
                     self.attr(id, "nth-a", &a.to_string());

@@ -166,6 +166,12 @@ fn weight(
         Some("id") => (1, 0, 0),
         Some("pseudo-class") => match (attribute(tree, id, "name"), node.children.first()) {
             (Some("where"), _) => (0, 0, 0),
+            (_, Some(c))
+                if named(tree, *c, "literal-arguments")
+                    && attribute(tree, id, "argument-kind") == Some("literal") =>
+            {
+                (0, 1, 0)
+            }
             (Some("is" | "not" | "has"), Some(c)) => weight(tree, *c, parent)?,
             (Some("host" | "global" | "nth-child" | "nth-last-child"), Some(c)) => {
                 add(tree, id, (0, 1, 0), weight(tree, *c, parent)?)?

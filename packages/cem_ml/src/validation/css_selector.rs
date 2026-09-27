@@ -73,7 +73,7 @@ impl CssSelectorSourceRange {
         }
     }
 
-    fn covering(first: Self, last: Self) -> Self {
+    pub(crate) fn covering(first: Self, last: Self) -> Self {
         Self {
             start: first.start,
             byte_length: last
@@ -294,17 +294,17 @@ pub enum CssSelectorCombinator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CssSelectorDirection {
-    Ltr,
-    Rtl,
+pub enum CssSelectorLiteralKind {
+    Ident,
+    String,
 }
-impl CssSelectorDirection {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Ltr => "ltr",
-            Self::Rtl => "rtl",
-        }
-    }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CssSelectorLiteral {
+    pub kind: CssSelectorLiteralKind,
+    pub value: String,
+    pub keyword: bool,
+    pub source_range: CssSelectorSourceRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -343,7 +343,7 @@ pub enum CssSelectorSimpleSelector {
         name: String,
         selectors: Option<Box<CssSelectorListAst>>,
         nth: Option<(i32, i32)>,
-        direction: Option<CssSelectorDirection>,
+        literals: Option<Vec<CssSelectorLiteral>>,
         relative: bool,
         source_range: CssSelectorSourceRange,
     },
@@ -1093,7 +1093,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                     name: "pseudo-element".to_owned(),
                     selectors: None,
                     nth: None,
-                    direction: None,
+                    literals: None,
                     relative: false,
                     source_range: range,
                 },
@@ -1125,10 +1125,10 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 next.source_range,
             ));
             if self.stylesheet {
-                if name == "dir" {
+                if matches!(name.as_str(), "dir" | "lang") {
                     self.unsupported(
                         range,
-                        "Direction pseudo-class requires an argument",
+                        "Literal pseudo-class requires arguments",
                         Some(name.clone()),
                     );
                 }
@@ -1164,7 +1164,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                     name,
                     selectors: None,
                     nth: None,
-                    direction: None,
+                    literals: None,
                     relative: false,
                     source_range: CssSelectorSourceRange::covering(
                         colon.source_range,
@@ -1189,29 +1189,57 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             );
             return None;
         };
-        let is_dir = self.stylesheet && name == "dir";
-        let direction = if is_dir {
-            let mut tokens = self.tokens[start + 2..close]
+        let is_literal = self.stylesheet && matches!(name.as_str(), "dir" | "lang");
+        let literals = if is_literal {
+            let tokens: Vec<_> = self.tokens[start + 2..close]
                 .iter()
-                .filter(|token| !is_trivia(token));
-            let token = tokens.next();
-            let parsed = token
-                .filter(|token| token.token_kind == "ident")
-                .and_then(|token| token.value.as_deref())
-                .and_then(|value| match value.to_ascii_lowercase().as_str() {
-                    "ltr" => Some(CssSelectorDirection::Ltr),
-                    "rtl" => Some(CssSelectorDirection::Rtl),
-                    _ => None,
+                .filter(|token| !is_trivia(token))
+                .collect();
+            let valid = !tokens.is_empty()
+                && tokens.len() % 2 == 1
+                && tokens.iter().enumerate().all(|(index, token)| {
+                    if index % 2 == 1 {
+                        token.token_kind == "comma"
+                    } else {
+                        matches!(token.token_kind.as_str(), "ident" | "string")
+                            && token.value.is_some()
+                    }
                 })
-                .filter(|_| tokens.next().is_none());
-            if parsed.is_none() {
+                && (name != "dir"
+                    || (tokens.len() == 1
+                        && tokens[0].token_kind == "ident"
+                        && tokens[0].value.as_deref().is_some_and(|v| {
+                            v.eq_ignore_ascii_case("ltr") || v.eq_ignore_ascii_case("rtl")
+                        })));
+            if valid {
+                Some(
+                    tokens
+                        .into_iter()
+                        .step_by(2)
+                        .map(|token| CssSelectorLiteral {
+                            kind: if token.token_kind == "ident" {
+                                CssSelectorLiteralKind::Ident
+                            } else {
+                                CssSelectorLiteralKind::String
+                            },
+                            value: if name == "dir" {
+                                token.value.as_ref().unwrap().to_ascii_lowercase()
+                            } else {
+                                token.value.clone().unwrap()
+                            },
+                            keyword: name == "dir",
+                            source_range: token.source_range,
+                        })
+                        .collect(),
+                )
+            } else {
                 self.unsupported(
                     Some(next.source_range),
-                    "Supported direction arguments are the single identifiers ltr and rtl",
+                    "Pseudo-class arguments are outside the supported literal grammar",
                     Some(name.clone()),
                 );
+                None
             }
-            parsed
         } else {
             None
         };
@@ -1296,7 +1324,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             nth_of
                 .and_then(|index| self.parse_selector_list(index + 1, close, false))
                 .map(Box::new)
-        } else if is_dir {
+        } else if is_literal {
             None
         } else {
             let range = Some(CssSelectorSourceRange::covering(
@@ -1327,7 +1355,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 name,
                 selectors,
                 nth,
-                direction,
+                literals,
                 relative,
                 source_range: CssSelectorSourceRange::covering(
                     colon.source_range,

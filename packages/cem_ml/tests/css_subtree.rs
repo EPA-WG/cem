@@ -157,6 +157,11 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("host", ":host {color:purple; &.active {background-color:orange}}", CssRuleMode::Declaration),
         ("duplicates", ".card {color:green; &.card {color:red} && {color:red}}", CssRuleMode::Declaration),
         ("zero-weight", ".card.active {:where(&) {.label {color:orange}}}", CssRuleMode::Declaration),
+        ("language", ".card {color:black; &:lang(en), &:lang(fr) {color:purple} &:lang(de) {color:green}} .pseudo {color:black; &:lang(fr) {color:orange}}", CssRuleMode::Declaration),
+        ("language-list", ".card {color:black; &:lang(en, fr) {color:purple}}", CssRuleMode::Declaration),
+        ("language-string", ".card {color:black; &:lang(\"en\") {color:purple}}", CssRuleMode::Declaration),
+        ("language-wildcard", ".card {color:black; &:lang(\"*\") {color:purple}}", CssRuleMode::Declaration),
+        ("language-empty", ".card {color:black; &:lang(\"\") {color:purple}}", CssRuleMode::Declaration),
         ("direction", ".card {direction:ltr;color:black; &:dir(rtl) {color:purple} &:dir(ltr) {color:green}} .pseudo {color:black; &:dir(ltr) {color:orange}}", CssRuleMode::Declaration),
         ("nth-filter", ":nth-child(1 of .pseudo) {color:purple} .card { :nth-last-child(1 of &) {background-color:pink} }", CssRuleMode::Declaration),
         ("nth-structural", ".card {color:black; &:nth-child(odd) {color:orange}} .pseudo:nth-last-child(1) {color:purple} .card:nth-of-type(1) {background-color:pink} .pseudo:nth-last-of-type(1) {background-color:orange}", CssRuleMode::Declaration),
@@ -185,6 +190,7 @@ fn browser_fixture_emits_scoped_native_nesting() {
         text.push_str(wrapper.closing);
         if let Some(dir) = &output {
             std::fs::write(dir.join(format!("{name}.css")), text).unwrap();
+            std::fs::write(dir.join(format!("{name}.authored.css")), css).unwrap();
         }
     }
     // References precede their definitions in one retained sheet.
@@ -600,11 +606,22 @@ fn direction_arguments_are_retained_and_emitted() {
         let direction = (0..p.tree.ast().nodes.len() as u32)
             .find_map(|id| {
                 let node = p.tree.node(id)?;
-                (node.name.as_ref()?.local_name == "direction").then_some(node)
+                (node.name.as_ref()?.local_name == "literal-argument").then_some(node)
             })
             .unwrap();
-        assert_eq!(direction.value, canonical);
-        let pseudo = p.tree.node(direction.parent.unwrap()).unwrap();
+        let value = direction
+            .attributes
+            .iter()
+            .filter_map(|id| p.tree.node(*id))
+            .find(|node| {
+                node.name
+                    .as_ref()
+                    .is_some_and(|name| name.local_name == "value")
+            })
+            .unwrap();
+        assert_eq!(value.value, canonical);
+        let list = p.tree.node(direction.parent.unwrap()).unwrap();
+        let pseudo = p.tree.node(list.parent.unwrap()).unwrap();
         assert_eq!(
             &source[pseudo.range.offset as usize
                 ..(pseudo.range.offset + pseudo.range.length) as usize],
@@ -620,6 +637,53 @@ fn direction_arguments_are_retained_and_emitted() {
         ":dir(rtl ltr)",
         ":dir(var(--dir))",
         ".a.b:dir(rtl)",
+    ] {
+        let p = plan(&format!("{selector} {{color:red}}"));
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.css().is_empty() && !result.diagnostics.is_empty(),
+            "{selector}"
+        );
+    }
+}
+
+#[test]
+fn literal_pseudo_arguments_share_emission_and_normal_specificity() {
+    for (argument, expected) in [
+        ("en", "en"),
+        ("en, 'fr-CA'", "en, \"fr-CA\""),
+        ("\"\"", "\"\""),
+        ("\"*-Latn\"", "\"*-Latn\""),
+        ("\"https://example.test/en\"", "\"https://example.test/en\""),
+        (r"\65 n", "en"),
+        (r"\*-Latn", r"\2A -Latn"),
+        ("en/*keep*/, FR", "en, FR"),
+        (r#""a\"b""#, r#""a\"b""#),
+    ] {
+        let source = format!(".card {{ &:lang({argument}) {{color:red}} }}");
+        let p = plan(&source);
+        assert!(p.references.is_empty());
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.diagnostics.is_empty(),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(
+            result.css(),
+            format!(".card {{&:lang({expected}) {{color:red;}}}}")
+        );
+    }
+    for selector in [
+        ":lang",
+        ":lang()",
+        ":lang(en,)",
+        ":lang(,en)",
+        ":lang(en fr)",
+        ":lang(*)",
+        ":lang(42)",
+        ":lang(var(--locale))",
+        ".a.b:lang(en)",
     ] {
         let p = plan(&format!("{selector} {{color:red}}"));
         let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();

@@ -1092,24 +1092,37 @@ Declaration-list inference now checks for a top-level colon token. A colon in
 an import/namespace URI, nested condition or comment cannot select that mode.
 Explicit declaration-list mode and ordinary declarations remain supported.
 
-## Retained direction selectors
+## Shared literal pseudo-class arguments
 
-The stylesheet profile accepts `:dir(ltr)` and `:dir(rtl)`, including mixed case,
-CSS escapes and argument trivia. The importer retains a constrained `direction`
-attribute on the pseudo-class node. Emission consumes that metadata and rejects
-missing or invalid fields without a text fallback. Bare `:dir`, multiple values,
-strings, functions and other identifiers are outside this supported profile.
-Other identifiers are valid but nonmatching in Selectors Level 4; this compiler
-currently diagnoses them as unsupported.
+`:dir()` and `:lang()` use the same `literal-arguments` list of `literal-argument`
+nodes. Each argument retains its identifier/string kind, decoded value and source
+range. The pseudo-class carries `argument-kind="literal"`; the list carries its
+analysis status. One serializer emits escaped identifiers or quoted strings,
+without reading source text, interpreting language/direction values or resolving
+URLs. Literal arguments contribute no selector weight of their own: their
+pseudo-class has ordinary specificity, including under nesting and `:where()`.
+This replaces the direction-only enum and retained `direction` attribute.
 
-Direction contributes ordinary pseudo-class specificity, including under native
-nesting; `:where()` keeps zero weight. The browser determines matching from
-[document directionality](https://www.w3.org/TR/selectors-4/#the-dir-pseudo),
-including inheritance and automatic direction. CSS `direction` does not determine
-the match. Native query evaluation capabilities remain unchanged.
+The importer validates the supported grammar: one `ltr`/`rtl` identifier for
+`:dir()`, or one or more comma-separated identifiers/strings for `:lang()`.
+The language profile preserves case, escaped identifiers, quoted wildcards and
+empty strings. It does not validate language tags or implement matching.
+Direction's other identifiers remain outside the current supported profile,
+though Selectors Level 4 defines them as valid and nonmatching.
 
-Direction argument identifiers also feed the shared keyword role used by source
-highlighting, sample themes and formatted CLI output. Selector names outside
-that retained argument range keep their name role, as in `:dir(rtl) .rtl`.
-Escaped and mixed-case source remains unchanged; unsupported arguments keep
-the existing fallback colors.
+The browser evaluates [directionality](https://www.w3.org/TR/selectors-4/#the-dir-pseudo)
+and [language matching](https://www.w3.org/TR/selectors-4/#the-lang-pseudo), including
+inherited attributes and explicit overrides. CSS `direction` does not determine
+`:dir()` matching. Native selector-query capabilities remain unchanged.
+
+The shared syntax stream consumes each literal's retained presentation role.
+Direction keywords, language identifiers and quoted language strings reuse the
+existing keyword, name and string palettes in source views, samples and CLI
+output. Escaped source text is preserved, selector names outside argument ranges
+keep their roles, and unsupported input keeps broad fallback colors.
+
+The Chromium 148 verification browser accepts identifier language ranges but
+rejects lists and quoted ranges, including wildcard and empty-string arguments.
+The browser gate verifies inheritance and updates with identifier arguments,
+then compares authored and emitted behavior for each advanced form and reports
+syntax support. The compiler preserves those forms without emulating matching.

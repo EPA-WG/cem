@@ -685,3 +685,30 @@ fn nested_condition_operators_have_import_owned_roles_and_ranges() {
         assert_eq!(actual, expected, "{source}");
     }
 }
+
+#[test]
+fn literal_selector_arguments_retain_values_kinds_and_authored_ranges() {
+    let source = r#":dir(RTL):lang(en, "fr-CA", \*-Latn) {color:red}"#;
+    let tree = import_data(source, "text/css", "cem", "literal.css").unwrap();
+    let arguments: Vec<_> = elements(&tree, "literal-argument")
+        .into_iter()
+        .map(|id| {
+            let range = tree.node(id).unwrap().range;
+            (
+                attr(&tree, id, "kind").unwrap(),
+                attr(&tree, id, "value").unwrap(),
+                source[range.offset as usize..(range.offset + range.length) as usize].to_owned(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        arguments,
+        vec![
+            ("ident".into(), "rtl".into(), "RTL".into()),
+            ("ident".into(), "en".into(), "en".into()),
+            ("string".into(), "fr-CA".into(), "\"fr-CA\"".into()),
+            ("ident".into(), "*-Latn".into(), r"\*-Latn".into()),
+        ]
+    );
+    assert_eq!(elements(&tree, "literal-arguments").len(), 2);
+}

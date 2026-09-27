@@ -521,11 +521,14 @@ fn structural_pseudo_classes_require_retained_numeric_coefficients() {
 }
 
 #[test]
-fn direction_emission_requires_valid_retained_metadata() {
+fn literal_argument_emission_requires_valid_retained_metadata() {
     for (attributes, children) in [
         ("", ""),
-        ("direction='auto'", ""),
-        ("direction='rtl'", "<selector-list/>"),
+        ("argument-kind='literal'", ""),
+        ("argument-kind='literal'", "<selector-list/>"),
+        ("argument-kind='literal'", "<literal-arguments analysis-status='complete'/>"),
+        ("argument-kind='literal'", "<literal-arguments analysis-status='complete'><literal-argument kind='function' value='url(x)'/></literal-arguments>"),
+        ("argument-kind='literal'", "<literal-arguments analysis-status='complete'><literal-argument kind='ident'/></literal-arguments>"),
     ] {
         let source = format!("<rule xmlns='https://cem.dev/ns/data/css/1' kind='style'><selector-list analysis-status='complete'><selector specificity='0-1-0'><compound-selector><simple-selector kind='pseudo-class' name='dir' relative='false' {attributes}>{children}</simple-selector></compound-selector></selector></selector-list></rule>");
         let tree = import_data(&source, "application/xml", "cem", "invalid-dir.xml").unwrap();
@@ -540,4 +543,22 @@ fn direction_emission_requires_valid_retained_metadata() {
             "cem.scoped_css.selector_tree_invalid"
         );
     }
+}
+
+#[test]
+fn selector_functions_cannot_use_literal_metadata_to_bypass_specificity_analysis() {
+    let tree = import_data(
+        "<rule xmlns='https://cem.dev/ns/data/css/1' kind='style'><selector-list analysis-status='complete'><selector specificity='0-1-0'><compound-selector><simple-selector kind='pseudo-class' name='is' argument-kind='literal'><literal-arguments analysis-status='complete'><literal-argument kind='ident' value='div'/></literal-arguments></simple-selector></compound-selector></selector></selector-list></rule>",
+        "application/xml", "cem", "invalid-literal-kind.xml",
+    ).unwrap();
+    let result = cem_ml::css_emission::emit_css_declaration_selectors(
+        &tree,
+        tree.node(0).unwrap().children[0],
+    )
+    .unwrap();
+    assert!(result.selectors.is_empty());
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.selector_tree_invalid"
+    );
 }

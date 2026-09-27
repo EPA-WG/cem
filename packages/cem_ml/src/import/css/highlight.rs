@@ -22,6 +22,7 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
                 && e.value.as_deref().is_some_and(|name| {
                     [
                         "dir",
+                        "lang",
                         "nth-child",
                         "nth-last-child",
                         "nth-of-type",
@@ -61,12 +62,10 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             continue;
         };
         let attr = |name| attribute(&ast.nodes, *node_id, name);
-        if expanded_name.local_name == "simple-selector"
-            && (attr("nth-a").is_some() || attr("direction").is_some())
-        {
+        if expanded_name.local_name == "simple-selector" && attr("nth-a").is_some() {
             if let Some(range) = semantics.ranges.get(node_id) {
                 let mut argument = *range;
-                // Typed direction/nth arguments contain keyword identifiers.
+                // Typed nth arguments contain keyword identifiers.
                 // An nth filter begins after An+B and `of`; keep its identifiers
                 // in their selector roles, including nested pseudo-classes.
                 if let Some(filter) = children.first().and_then(|id| semantics.ranges.get(id)) {
@@ -77,6 +76,10 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             continue;
         }
         let role = match expanded_name.local_name.as_str() {
+            "literal-argument" if attr("literal-role") == Some("keyword") => {
+                CssSemanticKindAst::Keyword
+            }
+            "literal-argument" => CssSemanticKindAst::Symbol,
             "component-value" if attr("condition-role") == Some("operator") => {
                 CssSemanticKindAst::Keyword
             }

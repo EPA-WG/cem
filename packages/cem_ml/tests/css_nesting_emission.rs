@@ -23,6 +23,8 @@ fn emits_native_nesting_with_composed_authored_specificity() {
     for (selector, text, weight) in [
         ("&.active", "&.active", (0, 2, 0)),
         ("&:dir(RTL)", "&:dir(rtl)", (0, 2, 0)),
+        ("&:lang(en, fr)", "&:lang(en, fr)", (0, 2, 0)),
+        (":where(&:lang(en))", ":where(&:lang(en))", (0, 0, 0)),
         (":where(&:dir(rtl))", ":where(&:dir(rtl))", (0, 0, 0)),
         (".label", "& .label", (0, 2, 0)),
         ("> .label", "& > .label", (0, 2, 0)),

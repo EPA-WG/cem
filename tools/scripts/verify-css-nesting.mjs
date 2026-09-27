@@ -79,6 +79,50 @@ try {
     inherited: { color: 'rgb(128, 0, 128)', direction: 'ltr', attribute: null, override: 'rgb(255, 165, 0)' },
     changed: 'rgb(0, 128, 0)', explicit: 'rgb(0, 128, 0)', automatic: 'rgb(128, 0, 128)',
   }, ':dir must follow document directionality, including inheritance, overrides and auto');
+  await page.setContent(markup);
+  await page.addStyleTag({ content: await readFile(join(directory, 'language.css'), 'utf8') });
+  const languages = await page.evaluate(() => {
+    const host = document.querySelector('cem-fixture');
+    const card = host.querySelector('.card');
+    const pseudo = host.querySelector('.pseudo');
+    host.setAttribute('lang', 'en-US');
+    pseudo.setAttribute('lang', 'fr-CA');
+    const inherited = { color: getComputedStyle(card).color, attribute: card.getAttribute('lang'),
+      override: getComputedStyle(pseudo).color };
+    host.setAttribute('lang', 'de-DE');
+    const changed = getComputedStyle(card).color;
+    card.setAttribute('lang', 'FR-ca');
+    const explicit = getComputedStyle(card).color;
+    card.setAttribute('lang', '');
+    return { inherited, changed, explicit, untagged: getComputedStyle(card).color };
+  });
+  assert.deepEqual(languages, {
+    inherited: { color: 'rgb(128, 0, 128)', attribute: null, override: 'rgb(255, 165, 0)' },
+    changed: 'rgb(0, 128, 0)', explicit: 'rgb(128, 0, 128)', untagged: 'rgb(0, 0, 0)',
+  }, ':lang must follow document language, including inheritance, ranges and overrides');
+  const languageSupport = {};
+  for (const [name, selector] of [
+    ['language-list', ':lang(en, fr)'], ['language-string', ':lang("en")'],
+    ['language-wildcard', ':lang("*")'], ['language-empty', ':lang("")'],
+  ]) {
+    const results = [];
+    for (const suffix of ['authored.css', 'css']) {
+      await page.setContent(markup);
+      await page.addStyleTag({ content: await readFile(join(directory, `${name}.${suffix}`), 'utf8') });
+      results.push(await page.evaluate((selector) => {
+        const host = document.querySelector('cem-fixture');
+        const card = host.querySelector('.card');
+        const colors = ['en-US', 'fr-CA', 'de-DE', ''].map((language) => {
+          host.setAttribute('lang', language);
+          return getComputedStyle(card).color;
+        });
+        return { supported: CSS.supports(`selector(${selector})`), colors };
+      }, selector));
+    }
+    assert.deepEqual(results[1], results[0], `${name}: emitted CSS must preserve authored browser behavior`);
+    languageSupport[selector] = results[0].supported;
+  }
+  console.log('Browser language syntax support:', languageSupport);
   for (const name of ['container', 'container-style']) {
     await page.setContent(markup);
     await page.addStyleTag({ content: await readFile(join(directory, `${name}.css`), 'utf8') });
@@ -146,7 +190,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, direction inheritance/updates, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, direction and language inheritance/updates, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });
