@@ -1599,3 +1599,30 @@ then hydrate that output without duplicating payload CSS or renaming animations.
 Only remove the capability guard once initial render and update fixtures prove
 those paths. Browser hydration of browser-produced retained output already has
 coverage; it cannot establish that the Node host emits compatible output.
+
+
+### DOM-free Edge stylesheet adapter
+
+`edge-ssr-stylesheets.ts::loadEdgeStylesheets` now accepts initialized native WASM
+bindings, an explicit declaration or persisted instance identity, authored source
+strings, the consuming module context/base URL, an abort signal and a byte reader.
+The host owns binding initialization and transport policy. The adapter has no DOM
+or implicit network dependency.
+
+Native adoption supplies the admitted occurrence list and scopes; malformed
+sources cannot shift a later shared sheet into a private scope. Native pending
+requests drive the reader, which returns bytes, final URL and MIME metadata.
+Resolution, admission, import closure compilation and animation naming stay
+native. Independent valid occurrences survive import failures, and diagnostics
+retain native import locations.
+
+The result contains emitted CSS, occurrence indexes, native cache identities and
+diagnostics. The native owner is disposed before the call resolves or rejects,
+including on cancellation while a reader ignores abort. Late bytes cannot reach
+the disposed owner. Real WASM tests run in Node without DOM globals and verify
+repeated loads preserve instance output while different contexts/identities stay
+isolated.
+
+This is the loading adapter, not an SSR response extension. Initial HTML, streamed
+updates, host-child placement and browser hydration still need to consume these
+outputs before the retained-policy capability guard can be removed.

@@ -6358,6 +6358,16 @@ registration identities may reuse an inherited or existing definition.
           unchanged; the Node evidence host cannot implement its retained policy.
           All 21 Edge unit tests and 7 browser Edge/SSR tests pass; typecheck and
           lint pass with two existing warnings.
+    - [x] Fixture: drive native declaration and instance stylesheet loads without
+          DOM globals through an Edge byte-reader adapter; verify real WASM
+          imports, consuming contexts, persisted identities, independent failures,
+          cancellation and native-owner disposal.
+          Completed: `loadEdgeStylesheets` drives initialized native bindings with
+          a caller-owned byte reader. Real Node/WASM tests cover redirected imports,
+          closest mappings, stable/isolated identities, malformed adoption, MIME
+          and transport failures, aborts and late delivery. All 27 Edge unit tests
+          pass, along with typecheck and lint (two existing warnings). The SSR
+          rendering guard remains until integration.
     - [ ] Fixture: add native stylesheet adoption/loading to the Edge host with
           consuming module contexts and persisted instance identities; verify
           imported CSS placement, readiness, cancellation and browser hydration
