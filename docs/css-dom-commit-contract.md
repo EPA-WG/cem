@@ -97,8 +97,10 @@ preparation's host/cancellation/release validity guard, and disposal still owns
 native cleanup.
 Optional prepared instance CSS now participates in admission and publishes
 between declaration CSS and the DOM patch. Old instance disposal shares the
-deferred notification boundary. Managed update queuing, authoritative recovery,
-runtime loader wiring and the Edge response/state contract still need integration.
+deferred notification boundary. The host publication queue now serializes
+preparation and publication, blocks new preparation after recovery-required,
+and resumes only after the caller's authoritative restore succeeds. Runtime
+loader/recovery wiring and the Edge response/state contract still need integration.
 Changed-CSS Edge updates
 remain guarded until those requirements are verified.
 
@@ -115,3 +117,9 @@ warnings). Seven worker/fallback scenarios exercise instance replacement,
 clearing, rejected admission, disposal, callback invalidation, reused handles
 and publication exceptions. Partial mutations after an exception require
 authoritative recovery; they are not reported as rolled back.
+
+Queue verification: 585 unit tests and 301 browser cases in each default and
+retained-CSS lane pass; typecheck and lint pass with the same two warnings.
+Native worker/fallback evidence confirms reentrant preparation waits for the
+previous publication and cleanup, and recovery-required blocks preparation until
+an authoritative restore completes. Runtime adoption remains pending.

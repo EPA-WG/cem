@@ -1894,6 +1894,35 @@ The caller must serialize managed update requests and provide authoritative
 recovery. Runtime loader wiring and the Edge response/state contract still
 need integration before changed-CSS streamed updates can be enabled.
 
+### Scheduling publication and authoritative recovery
+
+`CemCssDomPublicationQueue.forElement(element)` returns one queue for a host.
+`publish(prepare)` runs its preparation factory only after earlier publication
+and cleanup have finished. Create staged leases inside the factory so a request
+from a synchronous browser callback cannot supersede the active publication's
+leases while that publication is still running. The factory returns the ready
+declaration entries, prepared patch, revision reader, optional signal and optional
+instance candidate. It owns cleanup if it fails before returning those handles.
+
+The queue calls joint publication synchronously once preparation is complete.
+A `recovery-required` result blocks later preparation factories. Their requests
+resolve as rejected, with `cem.css_dom.recovery_required`, until recovery succeeds.
+Ordinary preparation failure or pre-publication rejection does not block the
+queue. Foreign-host patches are rejected through the normal candidate cleanup
+path.
+
+`recover(restore)` schedules the caller's authoritative restore in the same
+queue. The callback must restore the host's CSS, DOM and runtime state; this API
+does not infer a recovery snapshot. Failed recovery, or a disconnected host at
+completion, leaves the queue blocked. Requests queued before the recovery job
+are rejected; requests queued after it can prepare once recovery succeeds.
+Preparation and recovery callbacks must not await another job on the same queue.
+
+This scheduler is an internal integration API. The existing render loop still
+needs to route its loading and authoritative render/resume operations through
+it, together with the Edge response/state contract, before changed-CSS streaming
+can be enabled.
+
 ### Preparing the DOM side of a CSS update
 
 `preparePatchFramesForRange(bounds, frames, expectedRevision, document, options)`

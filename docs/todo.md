@@ -6565,6 +6565,17 @@ registration identities may reuse an inherited or existing definition.
                   reused handles and thrown publication requiring recovery.
                   Verification: 580 unit tests, 300 browser cases in each default/
                   retained-CSS lane, typecheck and lint pass with two existing warnings.
+            - [x] Fixture: serialize host preparation/publication and reentrant
+                  requests; block further preparation after recovery-required and
+                  resume only after successful authoritative recovery.
+                  Completed 2026-09-27: one `CemCssDomPublicationQueue` per host
+                  queues preparation factories, publication and recovery jobs.
+                  Failed recovery keeps preparation blocked; successful connected
+                  recovery permits later jobs. Unit tests cover ordering, failures
+                  and host checks; native worker/fallback fixtures exercise reentrant
+                  requests and publication after authoritative DOM restoration.
+                  Verification: 585 unit tests, 301 browser cases in each default/
+                  retained-CSS lane, typecheck and lint pass with two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

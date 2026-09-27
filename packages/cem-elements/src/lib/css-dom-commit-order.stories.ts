@@ -6,6 +6,7 @@ import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fi
 import { deferStylesheetNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import { prepareRetainedStylesheets, type CemPreparedStylesheets } from './internal/runtime-support/stylesheet-installation.js';
 import { prepareInstanceStylesheets, type PreparedInstanceStylesheets } from './internal/runtime-support/instance-stylesheet-installation.js';
+import { CemCssDomPublicationQueue } from './internal/runtime-support/css-dom-publication-queue.js';
 import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange,
     renderPlanIdentity, type RenderPlan } from './projection.js';
 
@@ -135,7 +136,7 @@ function publicationStory(orders: readonly string[]): Story { return {
                     if (order === 'supersede') onMarker = () => { current = { ...current, dataRevision: '3' }; };
                     if (order === 'supersede-child') onConnect = () => { current = { ...current, dataRevision: '3' }; };
                     if (order === 'disconnect-child') onConnect = () => host.remove();
-                    if (order === 'mutate-target') onMarker = () => {
+                    if (order === 'mutate-target' || order === 'queue-recovery') onMarker = () => {
                         const target = host.querySelector('[data-content]');
                         if (target) target.replaceWith(target.cloneNode(true));
                     };
@@ -146,14 +147,27 @@ function publicationStory(orders: readonly string[]): Story { return {
                         applyRenderPlanToRange(range, before, document);
                         patch = preparePatchFramesForRange(range, diffRenderPlansToPatchFrames(before, after), current, document);
                     }
+                    const queue = CemCssDomPublicationQueue.forElement(host);
+                    let reentrant: ReturnType<typeof queue.publish> | undefined;
+                    const preparationFailure = new Error('reentrant preparation fixture');
+                    if (order === 'queue-joint') onMarker = () => {
+                        reentrant = queue.publish(() => {
+                            expect(host.querySelector('[data-content]')?.textContent).toBe('After');
+                            expect(old.lease.signal.aborted).toBe(true);
+                            throw preparationFailure;
+                        });
+                    };
                     const commit = () => DeclarationStyleOwnership.commitGroupWithPatch([css], patch, () => current, controller.signal, instanceStyles);
-                    const result = order === 'nested' ? deferStylesheetNotifications(commit) : commit();
+                    const result = order.startsWith('queue-')
+                        ? await queue.publish(() => ({ entries: [css], patch, currentRevision: () => current, signal: controller.signal }))
+                        : order === 'nested' ? deferStylesheetNotifications(commit) : commit();
+                    if (reentrant) expect(await reentrant).toMatchObject({ status: 'rejected', errors: [preparationFailure] });
                     const rejected = ['reject-patch', 'reject-css', 'cancel-before', 'foreign-host', 'nested',
                         'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released',
                         'instance-rejected', 'instance-disposed', 'instance-reused'].includes(order);
                     const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child', 'prepared-joint',
-                        'instance-joint', 'instance-clear'].includes(order);
-                    expect(result.status).toBe(rejected ? 'rejected' : ['joint', 'prepared-joint', 'instance-joint', 'instance-clear'].includes(order) ? 'applied' : 'recovery-required');
+                        'instance-joint', 'instance-clear', 'queue-joint'].includes(order);
+                    expect(result.status).toBe(rejected ? 'rejected' : ['joint', 'prepared-joint', 'instance-joint', 'instance-clear', 'queue-joint'].includes(order) ? 'applied' : 'recovery-required');
                     expect(host.querySelector('[data-content]')?.textContent).toBe(completed ? 'After' : 'Before');
                     if (order !== 'disconnect-child') expect(getComputedStyle(host).getPropertyValue('--asset')).toContain(rejected ? '/old.svg' : '/new.svg');
                     expect(old.lease.signal.aborted).toBe(!rejected);
@@ -170,6 +184,23 @@ function publicationStory(orders: readonly string[]): Story { return {
                     }
                     if (completed && order !== 'disconnect-child') for (const callback of ['release', 'abort', 'connected']) {
                         expect(observed).toContainEqual({ callback, text: 'After', asset: expect.stringContaining('/new.svg') });
+                    }
+                    if (order === 'queue-recovery') {
+                        expect(queue.recoveryRequired).toBe(true);
+                        let preparedWhileBlocked = false;
+                        expect(await queue.publish(() => {
+                            preparedWhileBlocked = true;
+                            return { entries: [css], patch, currentRevision: () => current };
+                        })).toMatchObject({ status: 'rejected' });
+                        expect(preparedWhileBlocked).toBe(false);
+                        await queue.recover(() => { applyRenderPlanToRange(bounds, after, document); });
+                        expect(queue.recoveryRequired).toBe(false);
+                        expect(await queue.publish(async () => ({ entries: [await candidate('third')],
+                            patch: preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(after, after), current, document),
+                            currentRevision: () => current,
+                        }))).toMatchObject({ status: 'applied' });
+                        expect(getComputedStyle(host).getPropertyValue('--asset')).toContain('/third.svg');
+                        expect(host.querySelector('[data-content]')?.textContent).toBe('After');
                     }
                     expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
                     continue;
@@ -219,3 +250,4 @@ export const PreparedLoadsJoinPublication = publicationStory([
 export const InstanceStylesJoinPublication = publicationStory([
     'instance-joint', 'instance-clear', 'instance-rejected', 'instance-disposed', 'instance-invalidated', 'instance-reused', 'instance-failure',
 ]);
+export const QueuedPublicationAndRecovery = publicationStory(['queue-joint', 'queue-recovery']);
