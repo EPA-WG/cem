@@ -102,3 +102,45 @@ try {
     }
 } finally { wasm.disposeTemplate(diagnosticOwner); }
 console.log('Retained CSS WASM: loading, redirects, linear easing, source diagnostics, stale delivery, transport/MIME/byte limits, release and template disposal passed.');
+
+const instanceSource = JSON.stringify([{ css: '@import "child.css"; @keyframes pulse {from{opacity:0}to{opacity:1}} .card {animation:pulse 1s}', scope: null }]);
+const instanceOwner = JSON.parse(wasm.adoptInstanceStylesheets(instanceSource, 'persisted-instance')).artifactId;
+assert.ok(instanceOwner > 0);
+const instanceOptions = { ...options, declarationIdentity: 'persisted-instance', scope: { kind: 'instance' } };
+const beginInstance = (overrides = {}) => JSON.parse(wasm.beginTemplateStylesheet(instanceOwner, JSON.stringify({ ...instanceOptions, ...overrides })));
+try {
+    assert.equal(beginInstance({ scope: options.scope }).status, 'error');
+    assert.equal(beginInstance({ declarationIdentity: 'another-instance' }).status, 'error');
+    const declarationOwner = JSON.parse(wasm.adoptDomStylesheets(instanceSource)).artifactId;
+    try { assert.equal(JSON.parse(wasm.beginTemplateStylesheet(declarationOwner, JSON.stringify(instanceOptions))).status, 'error'); }
+    finally { wasm.disposeTemplate(declarationOwner); }
+    const load = () => {
+        const pending = beginInstance();
+        assert.equal(pending.status, 'pending');
+        return JSON.parse(wasm.deliverTemplateStylesheet(instanceOwner, pending.loadId, options.consumer,
+            pending.request.id, new TextEncoder().encode('.card {background:url(icon.svg)}'), 'https://example.test/cdn/child.css', 'text/css'));
+    };
+    const first = load();
+    assert.equal(first.status, 'ready');
+    assert.match(first.css, /^@scope to \(/);
+    assert.ok(first.css.includes('https://example.test/cdn/icon.svg'));
+    assert.match(first.css, /@keyframes pulse-/);
+    assert.ok(!first.css.includes('data-cem-css-context'));
+    assert.deepEqual(first.diagnostics, []);
+    assert.equal(JSON.parse(wasm.releaseTemplateStylesheets(instanceOwner, options.consumer, first.loadId)).count, 1);
+    const resumed = load();
+    assert.deepEqual(resumed.identity, first.identity);
+    assert.equal(resumed.css, first.css);
+    const pending = beginInstance();
+    assert.equal(JSON.parse(wasm.releaseTemplateStylesheets(instanceOwner, options.consumer, pending.loadId)).count, 1);
+    assert.equal(JSON.parse(wasm.deliverTemplateStylesheet(instanceOwner, pending.loadId, options.consumer,
+        pending.request.id, new TextEncoder().encode('.card{}'), pending.request.url, 'text/css')).status, 'error');
+} finally { wasm.disposeTemplate(instanceOwner); }
+assert.equal(beginInstance().status, 'error');
+for (const [sources, identity] of [[instanceSource, ''], [JSON.stringify([{ css: '.card{}', scope: 'shared' }]), 'instance']]) {
+    const rejected = JSON.parse(wasm.adoptInstanceStylesheets(sources, identity));
+    assert.equal(rejected.artifactId, undefined);
+    assert.equal(rejected.diagnostics[0].code, 'cem.ql.stylesheet_instance_invalid');
+}
+assert.equal(JSON.parse(wasm.adoptInstanceStylesheets('{', 'instance')).diagnostics[0].code, 'cem.ql.stylesheet_source_invalid');
+console.log('Instance CSS WASM: fixed ownership, implicit scope, imports, reconnect identity, cancellation and disposal passed.');

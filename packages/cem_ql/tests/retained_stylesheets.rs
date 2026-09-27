@@ -540,3 +540,160 @@ fn transport_failures_preserve_import_location_and_consumer_isolation() {
         StylesheetLoadProgress::Pending(_)
     ));
 }
+
+#[test]
+fn instance_owners_bind_identity_and_preserve_implicit_scope_across_reconnect() {
+    let sources = [DomStylesheetSource {
+        css: "@keyframes pulse {from {opacity:0} to {opacity:1}} .card {animation: pulse 1s; background:url(icon)}".into(),
+        scope: None,
+        content_type: None,
+    }];
+    let mut owner = RetainedTemplate::new_instance_stylesheets(&sources, "instance-one").unwrap();
+    let loaded = closure(&owner, "./one.svg", AbortSignal::new());
+    assert!(owner
+        .retain_stylesheet("lease", 0, loaded.clone(), &scope(), "instance-one")
+        .is_err());
+    assert!(owner
+        .retain_stylesheet(
+            "lease",
+            0,
+            loaded.clone(),
+            &CssManagedScope::Instance,
+            "other"
+        )
+        .is_err());
+    let first = owner
+        .retain_stylesheet(
+            "lease",
+            0,
+            loaded,
+            &CssManagedScope::Instance,
+            "instance-one",
+        )
+        .unwrap();
+    let css = first.emission().unwrap().css();
+    assert!(css.starts_with("@scope to ("), "{css}");
+    assert!(css.contains("https://example.test/one.svg"));
+    assert!(css.contains("@keyframes pulse-"));
+    assert!(!css.contains("data-cem-css-context"));
+    let identity = first.identity().clone();
+    owner.release_stylesheet_consumer("lease");
+    assert!(first.emission().is_err());
+    let loaded = closure(&owner, "./one.svg", AbortSignal::new());
+    let resumed = owner
+        .retain_stylesheet(
+            "new-lease",
+            0,
+            loaded,
+            &CssManagedScope::Instance,
+            "instance-one",
+        )
+        .unwrap();
+    assert_eq!(resumed.identity(), &identity);
+    assert_eq!(resumed.emission().unwrap().css(), css);
+    let mut other = RetainedTemplate::new_instance_stylesheets(&sources, "instance-two").unwrap();
+    let loaded = closure(&other, "./one.svg", AbortSignal::new());
+    let separate = other
+        .retain_stylesheet(
+            "lease",
+            0,
+            loaded,
+            &CssManagedScope::Instance,
+            "instance-two",
+        )
+        .unwrap();
+    assert_ne!(separate.identity().owner_key, identity.owner_key);
+    let loaded = closure(&owner, "./two.svg", AbortSignal::new());
+    let changed = owner
+        .retain_stylesheet(
+            "new-lease",
+            0,
+            loaded,
+            &CssManagedScope::Instance,
+            "instance-one",
+        )
+        .unwrap();
+    assert_ne!(changed.identity().context_marker, identity.context_marker);
+    assert!(resumed.emission().is_err());
+    assert!(RetainedTemplate::new_instance_stylesheets(&sources, "").is_err());
+    let named = [DomStylesheetSource {
+        css: ".card {color:red}".into(),
+        scope: Some("shared".into()),
+        content_type: None,
+    }];
+    assert!(RetainedTemplate::new_instance_stylesheets(&named, "instance-one").is_err());
+}
+
+#[test]
+fn instance_import_loads_preserve_redirects_and_cancel_exact_generations() {
+    use cem_ql::retained_template::{StylesheetLoadOptions, StylesheetLoadProgress};
+    let mut owner = RetainedTemplate::new_instance_stylesheets(
+        &[DomStylesheetSource {
+            css: "@import 'child.css'; .card {color:green}".into(),
+            scope: None,
+            content_type: None,
+        }],
+        "instance-one",
+    )
+    .unwrap();
+    let handle = CemResolutionContextHandle::new("instance");
+    let capability = CemModuleUrlResolutionCapability::new(
+        Arc::new(CemScopedModuleUrlResolver::new().with_context(
+            handle.clone(),
+            CemModuleUrlContext {
+                identity: "page".into(),
+                resolver_identity: "resolver".into(),
+                resource_policy_stamp: "policy".into(),
+                frames: vec![CemModuleUrlFrame::new("page", "https://example.test/page")],
+            },
+        )),
+        handle,
+    );
+    let options = || StylesheetLoadOptions {
+        consumer: "lease".into(),
+        index: 0,
+        scope: CssManagedScope::Instance,
+        declaration_identity: "instance-one".into(),
+        base_url: "https://example.test/payload.css".into(),
+        capability: capability.clone(),
+        response_policy: Default::default(),
+    };
+    let old = owner.begin_stylesheet_load(options()).unwrap();
+    let current = owner.begin_stylesheet_load(options()).unwrap();
+    assert_eq!(owner.release_stylesheet_generation("lease", old), 0);
+    assert!(owner.advance_stylesheet_load(old, "lease").is_err());
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(current, "lease").unwrap()
+    else {
+        panic!("expected import")
+    };
+    let StylesheetLoadProgress::Ready(output) = owner
+        .deliver_stylesheet_response(
+            current,
+            "lease",
+            request.id,
+            cem_ml::resolver::ResolvedRead {
+                uri: "https://example.test/cdn/child.css".into(),
+                bytes: b".card {background:url(icon.svg)}".to_vec(),
+                content_type: Some("text/css".into()),
+            },
+        )
+        .unwrap()
+    else {
+        panic!("expected ready CSS")
+    };
+    assert!(output
+        .emission()
+        .unwrap()
+        .css()
+        .contains("https://example.test/cdn/icon.svg"));
+    assert_eq!(
+        output.source(1).unwrap().stylesheet_url,
+        "https://example.test/cdn/child.css"
+    );
+    assert_eq!(owner.release_stylesheet_generation("lease", current), 1);
+    assert!(output.emission().is_err());
+    let cancelled = owner.begin_stylesheet_load(options()).unwrap();
+    assert_eq!(owner.release_stylesheet_generation("lease", cancelled), 1);
+    assert!(owner.advance_stylesheet_load(cancelled, "lease").is_err());
+}

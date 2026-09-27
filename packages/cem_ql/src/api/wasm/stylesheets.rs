@@ -25,6 +25,7 @@ struct Begin {
 #[derive(serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum Scope {
+    Instance,
     Private { tag: String },
     Shared { name: String },
 }
@@ -113,6 +114,7 @@ pub fn begin(artifact_id: u32, options_json: &str) -> String {
             capability,
             response_policy: Default::default(),
             scope: match options.scope {
+                Scope::Instance => CssManagedScope::Instance,
                 Scope::Private { tag } => CssManagedScope::Private { tag, context: None },
                 Scope::Shared { name } => CssManagedScope::Shared {
                     name,

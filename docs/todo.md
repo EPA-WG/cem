@@ -6250,6 +6250,17 @@ registration identities may reuse an inherited or existing definition.
               found and fixed detached-event rendering and cleanup queue overflow.
               Remount checks cover identical CSS and computed behavior after the
               last native consumer releases its installed stylesheet nodes.
+        - [x] Fixture: add a native instance stylesheet owner with a fixed persisted
+              identity; reject declaration scopes and identity substitution, and
+              verify stable animation names, context isolation and import cancellation.
+              Expose the distinct owner through WASM and verify that declaration
+              handles cannot cross into instance ownership.
+              Completed: 13 native retention tests and the real WASM protocol
+              checks pass, including fixed identity, reconnect, redirected imports,
+              stale delivery, exact cancellation and disposed-owner rejection.
+        - [ ] Fixture: carry native instance stylesheet adoption through worker
+              and fallback processing; include the persisted instance identity in
+              compilation/cache ownership and reject declaration/instance cross-use.
         - [ ] Fixture: retain per-instance inert payload CSS in native owners;
               use the persisted instance identity and consuming module context,
               preserve host-child placement, and verify readiness, imports,

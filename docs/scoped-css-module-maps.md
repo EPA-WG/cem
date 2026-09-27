@@ -1478,3 +1478,28 @@ A saturated-queue unit fixture and a worker/fallback disconnected-event story
 cover these independently of the authored demos. The stock-cell interaction
 also awaits runtime readiness around selection instead of relying on a short
 DOM polling timeout.
+
+## Native instance stylesheet owners
+
+`RetainedTemplate::new_instance_stylesheets` adopts extracted inert-payload CSS
+sources under one fixed, persisted instance identity. `adoptInstanceStylesheets`
+exposes the same boundary through WASM. The source batch uses the existing
+explicit CSS source/control format; retained CSS trees stay in the native owner.
+The host remains responsible for admitting the inert payload envelope.
+
+An instance owner accepts only `scope: { kind: 'instance' }`. A declaration owner
+still rejects that scope. Each load must use the instance owner's fixed identity
+in the existing `declarationIdentity` control field, so another identity cannot
+rename or reuse the owner. Source batches carrying a shared scope are rejected.
+
+Native output retains its implicit parent-rooted `@scope`; it does not insert a
+context selector. Resource resolution still uses the supplied consuming context,
+and that context contributes to the native owner/cache identity when needed.
+Animation names survive reconnect under the same instance and context, while
+different instance IDs have separate namespaces. Redirected imports and exact
+load-generation cancellation use the existing native loader.
+
+This is the native/WASM prerequisite. Processing-host transport and runtime
+installation of payload CSS remain pending; the browser default is unchanged.
+The runtime must preserve host-child placement and await these loads during
+render and hydration before replacing the current payload compiler.

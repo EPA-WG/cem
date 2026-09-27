@@ -76,15 +76,9 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
 /// artifact registry. The control payload contains source strings, never an AST.
 #[wasm_bindgen(js_name = "adoptDomStylesheets")]
 pub fn wasm_adopt_dom_stylesheets(source_json: &str) -> String {
-    if source_json.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
-        return error_json(
-            "cem.ql.stylesheet_source_limit",
-            "stylesheet source batch exceeds the import byte limit".to_owned(),
-        );
-    }
-    let sources: Vec<crate::render::DomStylesheetSource> = match serde_json::from_str(source_json) {
+    let sources = match stylesheet_sources(source_json) {
         Ok(sources) => sources,
-        Err(error) => return error_json("cem.ql.stylesheet_source_invalid", error.to_string()),
+        Err(error) => return error,
     };
     let artifact = crate::render::adopt_dom_stylesheets(&sources);
     let diagnostics = diagnostics_json(&artifact.diagnostics);
@@ -92,6 +86,37 @@ pub fn wasm_adopt_dom_stylesheets(source_json: &str) -> String {
     let artifact_id = retain_artifact(artifact);
     json!({"artifactId": artifact_id, "stylesheets": stylesheets, "diagnostics": diagnostics})
         .to_string()
+}
+
+/// Retain inert payload CSS under its persisted instance identity.
+#[wasm_bindgen(js_name = "adoptInstanceStylesheets")]
+pub fn wasm_adopt_instance_stylesheets(source_json: &str, instance_identity: &str) -> String {
+    let sources = match stylesheet_sources(source_json) {
+        Ok(sources) => sources,
+        Err(error) => return error,
+    };
+    let owner = match RetainedTemplate::new_instance_stylesheets(&sources, instance_identity) {
+        Ok(owner) => owner,
+        Err(error) => return error_json("cem.ql.stylesheet_instance_invalid", error),
+    };
+    let diagnostics = diagnostics_json(&owner.artifact().diagnostics);
+    let stylesheets = stylesheets_json(owner.artifact());
+    let artifact_id = retain_owner(owner);
+    json!({"artifactId": artifact_id, "stylesheets": stylesheets, "diagnostics": diagnostics})
+        .to_string()
+}
+
+fn stylesheet_sources(
+    source_json: &str,
+) -> Result<Vec<crate::render::DomStylesheetSource>, String> {
+    if source_json.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
+        return Err(error_json(
+            "cem.ql.stylesheet_source_limit",
+            "stylesheet source batch exceeds the import byte limit".to_owned(),
+        ));
+    }
+    serde_json::from_str(source_json)
+        .map_err(|error| error_json("cem.ql.stylesheet_source_invalid", error.to_string()))
 }
 
 /// Inspect static CEMT imports without resolving or loading them. The host uses this to construct
@@ -363,9 +388,13 @@ fn parse_source_map_mode(input: &str) -> Result<TemplateArtifactSourceMapMode, S
 }
 
 fn retain_artifact(artifact: TemplateArtifact) -> u32 {
+    retain_owner(RetainedTemplate::new(artifact))
+}
+
+fn retain_owner(owner: RetainedTemplate) -> u32 {
     ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
-        artifacts.push(Some(RetainedTemplate::new(artifact)));
+        artifacts.push(Some(owner));
         artifacts.len() as u32
     })
 }

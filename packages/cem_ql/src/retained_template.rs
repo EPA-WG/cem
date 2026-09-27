@@ -61,6 +61,7 @@ impl RetainedStylesheet {
 
 pub struct RetainedTemplate {
     artifact: TemplateArtifact,
+    instance_identity: Option<String>,
     loads: BTreeMap<u32, stylesheet_loads::StylesheetLoad>,
     next_load: u32,
     stylesheet_generations: BTreeMap<(String, usize), u32>,
@@ -73,6 +74,7 @@ impl RetainedTemplate {
     pub fn new(artifact: TemplateArtifact) -> Self {
         Self {
             artifact,
+            instance_identity: None,
             loads: BTreeMap::new(),
             next_load: 0,
             stylesheet_generations: BTreeMap::new(),
@@ -81,6 +83,23 @@ impl RetainedTemplate {
             stylesheets: BTreeMap::new(),
         }
     }
+    /// Adopt extracted inert payload CSS without promoting it to declaration CSS.
+    /// The caller owns envelope admission and persists this opaque instance ID.
+    pub fn new_instance_stylesheets(
+        sources: &[crate::render::DomStylesheetSource],
+        instance_identity: &str,
+    ) -> Result<Self, String> {
+        if instance_identity.trim().is_empty() {
+            return Err("instance stylesheet identity must not be empty".into());
+        }
+        if sources.iter().any(|source| source.scope.is_some()) {
+            return Err("instance stylesheet sources must not declare a shared scope".into());
+        }
+        let mut owner = Self::new(crate::render::adopt_dom_stylesheets(sources));
+        owner.instance_identity = Some(instance_identity.into());
+        Ok(owner)
+    }
+
     pub fn data_readers(&self) -> &DataReaderCache {
         &self.data_readers
     }
@@ -166,6 +185,17 @@ impl RetainedTemplate {
             .ok_or("unknown stylesheet occurrence")?;
         if declaration.is_empty() {
             return Err("stylesheet declaration identity must not be empty".into());
+        }
+        if let Some(instance) = &self.instance_identity {
+            if !matches!(scope, CssManagedScope::Instance) {
+                return Err("instance stylesheet artifacts require an instance scope".into());
+            }
+            if declaration != instance {
+                return Err(
+                    "stylesheet identity disagrees with its retained instance owner".into(),
+                );
+            }
+            return Ok(());
         }
         if matches!(scope, CssManagedScope::Instance) {
             return Err(
