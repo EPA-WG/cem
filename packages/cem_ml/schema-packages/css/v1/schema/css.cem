@@ -54,7 +54,7 @@
         {element @name="selector-list" @optional-attributes="analysis-status source-id byte-offset byte-length" @children="selector*"}
         {element @name="selector" @optional-attributes="text specificity specificity-kind source-id byte-offset byte-length" @children="simple-selector* compound-selector* combinator*"}
         {element @name="compound-selector" @optional-attributes="source-id byte-offset byte-length" @children="simple-selector*"}
-        {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace operator modifier relative nth-a nth-b source-id byte-offset byte-length" @children="selector-list?"}
+        {element @name="simple-selector" @required-attributes="kind" @optional-attributes="name value namespace operator modifier relative nth-a nth-b direction source-id byte-offset byte-length" @children="selector-list?"}
         {element @name="combinator" @required-attributes="kind" @optional-attributes="source-id byte-offset byte-length"}
         {element @name="declaration" @required-attributes="name value" @optional-attributes="important custom-property source-id byte-offset byte-length" @children="component-value* animation-name-list?"}
         {element @name="animation-name-list" @required-attributes="analysis-status" @optional-attributes="source-id byte-offset byte-length" @children="(animation-name-slot | animation-value-slot)*"}
@@ -107,6 +107,7 @@
         {attribute @name="analysis-status" @type="schema:string" @values="complete unsupported dynamic"}
         {attribute @name="operator" @type="schema:string"}
         {attribute @name="modifier" @type="schema:string" @values="i s"}
+        {attribute @name="direction" @type="schema:string" @values="ltr rtl"}
         {attribute @name="nth-a" @type="schema:integer"}
         {attribute @name="nth-b" @type="schema:integer"}
         {attribute @name="relative" @type="schema:boolean"}

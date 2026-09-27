@@ -6015,10 +6015,16 @@ registration identities may reuse an inherited or existing definition.
               Completed: 64 native import/grouping/subtree/closure tests and all
               14 CSS validation tests pass, along with Nx lint and the WASM/browser
               gate (24 computed-style checks plus animation/transition checks).
-        - [ ] Fixture: retain and emit stylesheet `:dir(ltr)` / `:dir(rtl)`
+        - [x] Fixture: retain and emit stylesheet `:dir(ltr)` / `:dir(rtl)`
               arguments, with source ranges, normal pseudo-class specificity,
-              invalid-argument rejection and browser inherited-direction checks;
+              invalid-argument rejection and browser inherited-direction checks,
+              including attribute changes, explicit overrides and `dir="auto"`;
               keep native selector-query capabilities unchanged.
+              Completed: 88 focused native tests, Nx lint and the WASM/browser
+              gate pass; document directionality is verified against opposing CSS.
+        - [ ] Fixture: color retained `:dir()` arguments through shared keyword
+              roles in native source, CLI output and samples, preserving selector
+              names, escaped text and unsupported-profile fallback.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

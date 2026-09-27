@@ -293,6 +293,20 @@ pub enum CssSelectorCombinator {
     SubsequentSibling,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CssSelectorDirection {
+    Ltr,
+    Rtl,
+}
+impl CssSelectorDirection {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Ltr => "ltr",
+            Self::Rtl => "rtl",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CssSelectorSimpleSelector {
     /// Stylesheet-only parent reference. Its weight requires enclosing rule context.
@@ -329,6 +343,7 @@ pub enum CssSelectorSimpleSelector {
         name: String,
         selectors: Option<Box<CssSelectorListAst>>,
         nth: Option<(i32, i32)>,
+        direction: Option<CssSelectorDirection>,
         relative: bool,
         source_range: CssSelectorSourceRange,
     },
@@ -1078,6 +1093,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                     name: "pseudo-element".to_owned(),
                     selectors: None,
                     nth: None,
+                    direction: None,
                     relative: false,
                     source_range: range,
                 },
@@ -1109,6 +1125,13 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 next.source_range,
             ));
             if self.stylesheet {
+                if name == "dir" {
+                    self.unsupported(
+                        range,
+                        "Direction pseudo-class requires an argument",
+                        Some(name.clone()),
+                    );
+                }
                 if matches!(
                     name.as_str(),
                     "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
@@ -1141,6 +1164,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                     name,
                     selectors: None,
                     nth: None,
+                    direction: None,
                     relative: false,
                     source_range: CssSelectorSourceRange::covering(
                         colon.source_range,
@@ -1164,6 +1188,32 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 "Pseudo-class function is not closed",
             );
             return None;
+        };
+        let is_dir = self.stylesheet && name == "dir";
+        let direction = if is_dir {
+            let mut tokens = self.tokens[start + 2..close]
+                .iter()
+                .filter(|token| !is_trivia(token));
+            let token = tokens.next();
+            let parsed = token
+                .filter(|token| token.token_kind == "ident")
+                .and_then(|token| token.value.as_deref())
+                .and_then(|value| match value.to_ascii_lowercase().as_str() {
+                    "ltr" => Some(CssSelectorDirection::Ltr),
+                    "rtl" => Some(CssSelectorDirection::Rtl),
+                    _ => None,
+                })
+                .filter(|_| tokens.next().is_none());
+            if parsed.is_none() {
+                self.unsupported(
+                    Some(next.source_range),
+                    "Supported direction arguments are the single identifiers ltr and rtl",
+                    Some(name.clone()),
+                );
+            }
+            parsed
+        } else {
+            None
         };
         let relative = name == "has";
         let is_nth = self.stylesheet
@@ -1246,6 +1296,8 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
             nth_of
                 .and_then(|index| self.parse_selector_list(index + 1, close, false))
                 .map(Box::new)
+        } else if is_dir {
+            None
         } else {
             let range = Some(CssSelectorSourceRange::covering(
                 colon.source_range,
@@ -1275,6 +1327,7 @@ impl<'a, 'f> SelectorParser<'a, 'f> {
                 name,
                 selectors,
                 nth,
+                direction,
                 relative,
                 source_range: CssSelectorSourceRange::covering(
                     colon.source_range,

@@ -157,6 +157,7 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("host", ":host {color:purple; &.active {background-color:orange}}", CssRuleMode::Declaration),
         ("duplicates", ".card {color:green; &.card {color:red} && {color:red}}", CssRuleMode::Declaration),
         ("zero-weight", ".card.active {:where(&) {.label {color:orange}}}", CssRuleMode::Declaration),
+        ("direction", ".card {direction:ltr;color:black; &:dir(rtl) {color:purple} &:dir(ltr) {color:green}} .pseudo {color:black; &:dir(ltr) {color:orange}}", CssRuleMode::Declaration),
         ("nth-filter", ":nth-child(1 of .pseudo) {color:purple} .card { :nth-last-child(1 of &) {background-color:pink} }", CssRuleMode::Declaration),
         ("nth-structural", ".card {color:black; &:nth-child(odd) {color:orange}} .pseudo:nth-last-child(1) {color:purple} .card:nth-of-type(1) {background-color:pink} .pseudo:nth-last-of-type(1) {background-color:orange}", CssRuleMode::Declaration),
     ];
@@ -574,4 +575,57 @@ fn managed_at_rule_suppression_uses_contract_diagnostics() {
         result.diagnostics[0].code,
         "cem.scoped_css.subtree_construct_unsupported"
     );
+}
+
+#[test]
+fn direction_arguments_are_retained_and_emitted() {
+    for (arg, canonical) in [
+        ("ltr", "ltr"),
+        (" RTL ", "rtl"),
+        (r"r\74 l", "rtl"),
+        ("/*a*/LTR/*b*/", "ltr"),
+    ] {
+        let source = format!(".card {{ &:DIR({arg}) {{color:red}} }}");
+        let p = plan(&source);
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.diagnostics.is_empty(),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(
+            result.css(),
+            format!(".card {{&:dir({canonical}) {{color:red;}}}}")
+        );
+        let direction = (0..p.tree.ast().nodes.len() as u32)
+            .find_map(|id| {
+                let node = p.tree.node(id)?;
+                (node.name.as_ref()?.local_name == "direction").then_some(node)
+            })
+            .unwrap();
+        assert_eq!(direction.value, canonical);
+        let pseudo = p.tree.node(direction.parent.unwrap()).unwrap();
+        assert_eq!(
+            &source[pseudo.range.offset as usize
+                ..(pseudo.range.offset + pseudo.range.length) as usize],
+            format!(":DIR({arg})")
+        );
+    }
+    for selector in [
+        ":dir",
+        ":dir()",
+        ":dir(auto)",
+        ":dir('rtl')",
+        ":dir(rtl,ltr)",
+        ":dir(rtl ltr)",
+        ":dir(var(--dir))",
+        ".a.b:dir(rtl)",
+    ] {
+        let p = plan(&format!("{selector} {{color:red}}"));
+        let result = emit_css_rule_subtree(&p, first_rule(&p), CssRuleMode::Declaration).unwrap();
+        assert!(
+            result.css().is_empty() && !result.diagnostics.is_empty(),
+            "{selector}"
+        );
+    }
 }

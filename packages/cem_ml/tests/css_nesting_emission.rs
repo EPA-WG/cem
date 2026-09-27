@@ -22,6 +22,8 @@ fn emitted(css: &str, mode: CssRuleMode) -> cem_ml::css_emission::CssSelectorEmi
 fn emits_native_nesting_with_composed_authored_specificity() {
     for (selector, text, weight) in [
         ("&.active", "&.active", (0, 2, 0)),
+        ("&:dir(RTL)", "&:dir(rtl)", (0, 2, 0)),
+        (":where(&:dir(rtl))", ":where(&:dir(rtl))", (0, 0, 0)),
         (".label", "& .label", (0, 2, 0)),
         ("> .label", "& > .label", (0, 2, 0)),
         (".outer &", ".outer &", (0, 2, 0)),

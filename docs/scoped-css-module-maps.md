@@ -1091,3 +1091,19 @@ unsupported-profile diagnostic; this change grants no new syntax admission.
 Declaration-list inference now checks for a top-level colon token. A colon in
 an import/namespace URI, nested condition or comment cannot select that mode.
 Explicit declaration-list mode and ordinary declarations remain supported.
+
+## Retained direction selectors
+
+The stylesheet profile accepts `:dir(ltr)` and `:dir(rtl)`, including mixed case,
+CSS escapes and argument trivia. The importer retains a constrained `direction`
+attribute on the pseudo-class node. Emission consumes that metadata and rejects
+missing or invalid fields without a text fallback. Bare `:dir`, multiple values,
+strings, functions and other identifiers are outside this supported profile.
+Other identifiers are valid but nonmatching in Selectors Level 4; this compiler
+currently diagnoses them as unsupported.
+
+Direction contributes ordinary pseudo-class specificity, including under native
+nesting; `:where()` keeps zero weight. The browser determines matching from
+[document directionality](https://www.w3.org/TR/selectors-4/#the-dir-pseudo),
+including inheritance and automatic direction. CSS `direction` does not determine
+the match. Native query evaluation capabilities remain unchanged.

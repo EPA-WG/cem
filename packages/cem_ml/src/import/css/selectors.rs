@@ -188,12 +188,16 @@ impl CssImport<'_> {
                 name,
                 selectors,
                 nth,
+                direction,
                 relative,
                 ..
             } => {
                 self.attr(id, "kind", "pseudo-class");
                 self.attr(id, "name", name);
                 self.attr(id, "relative", if *relative { "true" } else { "false" });
+                if let Some(direction) = direction {
+                    self.attr(id, "direction", direction.as_str());
+                }
                 if let Some((a, b)) = nth {
                     self.attr(id, "nth-a", &a.to_string());
                     self.attr(id, "nth-b", &b.to_string());

@@ -325,6 +325,13 @@ fn emit(
         "pseudo-element" => Ok(format!("::{}", ident(field("name")?))),
         "pseudo-class" => {
             let name = field("name")?;
+            if name == "dir" {
+                let direction = field("direction")?;
+                if !node.children.is_empty() || !matches!(direction, "ltr" | "rtl") {
+                    return Err(invalid(tree, id));
+                }
+                return Ok(format!(":dir({direction})"));
+            }
             if matches!(
                 name,
                 "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"

@@ -56,6 +56,29 @@ try {
       getComputedStyle(document.querySelector(selector), pseudo)[property], { selector, pseudo, property });
     assert.equal(actual, expected, `${name}: ${selector}${pseudo ?? ''} ${property}`);
   }
+  await page.setContent(markup);
+  await page.addStyleTag({ content: await readFile(join(directory, 'direction.css'), 'utf8') });
+  const directions = await page.evaluate(() => {
+    const host = document.querySelector('cem-fixture');
+    const card = host.querySelector('.card');
+    const pseudo = host.querySelector('.pseudo');
+    host.setAttribute('dir', 'rtl');
+    pseudo.setAttribute('dir', 'ltr');
+    const inherited = { color: getComputedStyle(card).color, direction: getComputedStyle(card).direction,
+      attribute: card.getAttribute('dir'), override: getComputedStyle(pseudo).color };
+    host.setAttribute('dir', 'ltr');
+    const changed = getComputedStyle(card).color;
+    host.setAttribute('dir', 'rtl');
+    card.setAttribute('dir', 'ltr');
+    const explicit = getComputedStyle(card).color;
+    card.setAttribute('dir', 'auto');
+    card.textContent = 'עברית';
+    return { inherited, changed, explicit, automatic: getComputedStyle(card).color };
+  });
+  assert.deepEqual(directions, {
+    inherited: { color: 'rgb(128, 0, 128)', direction: 'ltr', attribute: null, override: 'rgb(255, 165, 0)' },
+    changed: 'rgb(0, 128, 0)', explicit: 'rgb(0, 128, 0)', automatic: 'rgb(128, 0, 128)',
+  }, ':dir must follow document directionality, including inheritance, overrides and auto');
   for (const name of ['container', 'container-style']) {
     await page.setContent(markup);
     await page.addStyleTag({ content: await readFile(join(directory, `${name}.css`), 'utf8') });
@@ -123,7 +146,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, direction inheritance/updates, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });
