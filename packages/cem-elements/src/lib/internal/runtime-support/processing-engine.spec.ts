@@ -46,7 +46,7 @@ vi.mock('./cem-ql-render.js', () => {
     }),
     retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn() })),
     retainLoadedCemDocument: vi.fn(async () => 101),
-    retainDomStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
+    retainStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
         stylesheets: [{ css: ':scope { color: red; }', scope: null }], moduleMap: null })),
     processRetainedTemplateStylesheet: vi.fn(async () => ({ status: 'pending', loadId: 1,
         request: { id: 1, url: 'https://example.test/child.css', contentType: null, integrity: null } })),
@@ -158,7 +158,7 @@ import {
     processRetainedTemplateStylesheet,
     releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
-    retainDomStylesheetSources,
+    retainStylesheetSources,
     retainXsltComponentSource,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
@@ -177,12 +177,12 @@ describe('Phase 3A retained processing engine', () => {
             registrationIdentity: 'dom-css-registration', source: createCemProcessingTextSource(source),
             sourceRef: { kind: 'inline' as const, value: 'dom-css-source' }, resolverIdentity: 'test',
             scopePolicyStamp: 'css-test', sourceMapMode: 'dev' as const };
-        const adoption = vi.mocked(retainDomStylesheetSources);
+        const adoption = vi.mocked(retainStylesheetSources);
         adoption.mockClear();
         const first = await engine.compile(input);
         expect(await engine.compile(input)).toEqual(first);
         expect(adoption).toHaveBeenCalledTimes(1);
-        expect(adoption).toHaveBeenCalledWith(source);
+        expect(adoption).toHaveBeenCalledWith(source, undefined);
         expect(first.stylesheets).toEqual([{ css: ':scope { color: red; }', scope: null }]);
         await expect(engine.compile({ ...input, exportCompiledArtifact: true })).rejects.toThrow('CSS adoption accepts only');
         const owner = (await adoption.mock.results[0].value).artifactId;
@@ -991,4 +991,29 @@ describe('retained stylesheet processing', () => {
         engine.dispose({ reason: 'runtime-disposed' });
         await expect(engine.stylesheet({ ...begin, artifact: restored.artifact })).rejects.toThrow('disposed');
     });
+});
+
+it('keeps instance stylesheet identities separate in native compilation and load control', async () => {
+    const engine = new CemProcessingEngine();
+    const source = JSON.stringify([{ css: 'p { color: green; }', scope: null }]);
+    const input = { language: 'css' as const, producedTag: 'instance-css', templateArtifactId: 'instance-css',
+        registrationIdentity: 'same-declaration', source: createCemProcessingTextSource(source),
+        sourceRef: { kind: 'inline' as const, value: 'payload' }, resolverIdentity: 'test',
+        scopePolicyStamp: 'css-test', sourceMapMode: 'dev' as const, instanceStylesheetIdentity: 'instance-one' };
+    const first = await engine.compile(input);
+    await expect(engine.compile({ ...input, instanceStylesheetIdentity: 'instance-two' })).rejects.toThrow('another identity');
+    const second = await engine.compile({ ...input, templateArtifactId: 'second', instanceStylesheetIdentity: 'instance-two' });
+    const declaration = await engine.compile({ ...input, templateArtifactId: 'declaration', instanceStylesheetIdentity: undefined });
+    expect(new Set([first.artifact.cacheKey, second.artifact.cacheKey, declaration.artifact.cacheKey]).size).toBe(3);
+    const begin = { action: 'begin' as const, artifact: first.artifact, consumer: 'lease', index: 0,
+        baseUrl: 'https://example.test/payload.css', scope: { kind: 'instance' as const },
+        context: { identity: 'page', resolverIdentity: 'test', resourcePolicyStamp: 'test', frames: [] } };
+    await engine.stylesheet(begin);
+    expect(retainStylesheetSources).toHaveBeenCalledWith(source, 'instance-one');
+    expect(processRetainedTemplateStylesheet).toHaveBeenLastCalledWith(expect.any(Number), begin, expect.any(String), 'instance-one', 0);
+    await expect(engine.stylesheet({ ...begin, artifact: declaration.artifact })).rejects.toThrow('ownership');
+    await expect(engine.stylesheet({ ...begin, scope: { kind: 'private', tag: 'cem-card' } })).rejects.toThrow('ownership');
+    await expect(engine.compile({ ...input, templateArtifactId: 'empty', instanceStylesheetIdentity: '' })).rejects.toThrow('instance stylesheet identity');
+    await expect(engine.compile({ ...input, language: 'cem-ml', templateArtifactId: 'wrong-language' })).rejects.toThrow('CSS');
+    engine.dispose();
 });

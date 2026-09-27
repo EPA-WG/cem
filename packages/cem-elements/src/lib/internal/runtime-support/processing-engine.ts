@@ -15,7 +15,7 @@ import {
     processRetainedTemplateStylesheet,
     releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
-    retainDomStylesheetSources,
+    retainStylesheetSources,
     disposeLoadedCemDocument,
     compileCemMlTemplateArtifact,
     cemMlTemplateArtifactPayloadKey,
@@ -144,6 +144,10 @@ export class CemProcessingEngine {
 
     async compile(input: CemProcessingCompileInput): Promise<CemProcessingCompileResult> {
         this.assertActive();
+        if (input.instanceStylesheetIdentity !== undefined && (input.language !== 'css'
+            || typeof input.instanceStylesheetIdentity !== 'string' || !input.instanceStylesheetIdentity.trim())) {
+            throw new Error('a nonempty instance stylesheet identity is valid only for CSS adoption');
+        }
         if (input.language === 'xslt') {
             if (!input.xslt || input.moduleClosure || input.xpathFunctionLibrary || input.precompiledArtifact || input.exportCompiledArtifact) {
                 throw new Error('XSLT compilation requires its explicit source/options contract');
@@ -170,6 +174,7 @@ export class CemProcessingEngine {
             artifactId: input.templateArtifactId,
             cacheKey: edgeContentAddress('template-artifact', {
                 language: input.language,
+                instanceStylesheetIdentity: input.instanceStylesheetIdentity ?? null,
                 source,
                 sourceRef: input.sourceRef,
                 resolverIdentity: input.resolverIdentity,
@@ -249,6 +254,9 @@ export class CemProcessingEngine {
             throw new Error('stylesheet template artifact is not retained by this processing host');
         }
         if (!input.consumer) throw new Error('stylesheet consumer identity must not be empty');
+        if (input.action === 'begin' && (input.scope.kind === 'instance') !== (artifact.input.instanceStylesheetIdentity !== undefined)) {
+            throw new Error('stylesheet scope does not match declaration or instance ownership');
+        }
         const consumer = JSON.stringify([artifact.stylesheetOwner, input.consumer]);
         let loadId = 0;
         if (input.action !== 'begin' && input.loadId !== undefined) {
@@ -259,7 +267,7 @@ export class CemProcessingEngine {
             }
         }
         const result = await processRetainedTemplateStylesheet(artifact.wasmArtifactId, input, consumer,
-            artifact.handle.registrationIdentity, loadId);
+            artifact.input.instanceStylesheetIdentity ?? artifact.handle.registrationIdentity, loadId);
         if (this.disposed || this.artifacts.get(key) !== artifact) {
             // The compilation can still be shared by another logical artifact.
             if (!this.disposed && 'loadId' in result) {
@@ -387,7 +395,7 @@ export class CemProcessingEngine {
     ): Promise<CachedTemplateCompilation> {
         const hostBindings = input.hostBindings ?? [];
         if (input.language === 'css') {
-            const retained = await retainDomStylesheetSources(source);
+            const retained = await retainStylesheetSources(source, input.instanceStylesheetIdentity);
             return { wasmArtifactId: retained.artifactId, diagnostics: retained.diagnostics, stylesheets: retained.stylesheets };
         }
         if (input.xslt) {
@@ -487,6 +495,7 @@ function compileResult(artifact: RetainedTemplateArtifact): CemProcessingCompile
 
 function sameCompileIdentity(left: CemProcessingCompileInput, right: CemProcessingCompileInput): boolean {
     return left.language === right.language
+        && left.instanceStylesheetIdentity === right.instanceStylesheetIdentity
         && left.linkBaseUrl === right.linkBaseUrl
         && left.registrationIdentity === right.registrationIdentity
         && left.scopePolicyStamp === right.scopePolicyStamp

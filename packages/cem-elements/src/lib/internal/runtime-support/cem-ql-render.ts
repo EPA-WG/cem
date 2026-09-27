@@ -23,6 +23,7 @@ import initCemQlWasm, {
     cemQlVersion,
     compileTemplate,
     adoptDomStylesheets,
+    adoptInstanceStylesheets,
     beginTemplateStylesheet,
     deliverTemplateStylesheet,
     failTemplateStylesheet,
@@ -92,14 +93,15 @@ export interface CemDomStylesheetSource extends CemQlStylesheetArtifact {
     contentType?: string | null;
 }
 
-/** Retain native CSS owners; sourceJson is the named DOM stylesheet source batch. */
-export async function retainDomStylesheetSources(sourceJson: string): Promise<RetainedCemMlTemplate> {
+/** Retain native CSS owners from a named authored source batch; never a CSS AST. */
+export async function retainStylesheetSources(sourceJson: string, instanceIdentity?: string): Promise<RetainedCemMlTemplate> {
     await ensureRuntimeReady();
-    const result = JSON.parse(adoptDomStylesheets(sourceJson)) as {
+    const result = JSON.parse(instanceIdentity === undefined ? adoptDomStylesheets(sourceJson)
+        : adoptInstanceStylesheets(sourceJson, instanceIdentity)) as {
         artifactId?: number; stylesheets?: WasmStylesheetArtifact[]; diagnostics?: WasmDiagnostic[];
     };
     if (!Number.isSafeInteger(result.artifactId) || (result.artifactId ?? 0) < 1) {
-        throw new Error(result.diagnostics?.[0]?.message ?? 'DOM stylesheet adoption did not retain an artifact');
+        throw new Error(result.diagnostics?.[0]?.message ?? 'stylesheet adoption did not retain an artifact');
     }
     return { artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet), moduleMap: null,

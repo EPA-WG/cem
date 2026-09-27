@@ -16,7 +16,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v8' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v9' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -126,8 +126,10 @@ export function createCemProcessingTextSource(
 export interface CemProcessingCompileInput {
     /** Source URL for opt-in ordinary HTML navigation. Omitted means host-document links. */
     linkBaseUrl?: string;
-    /** css carries a named DOM stylesheet source/control batch, not CEM AST JSON. */
+    /** css carries an authored stylesheet source/control batch, not CEM AST JSON. */
     language: 'cem-ml' | 'xslt' | 'css';
+    /** CSS-only: bind an inert payload owner to its persisted instance ID. */
+    instanceStylesheetIdentity?: string;
     producedTag: string;
     templateArtifactId: string;
     registrationIdentity: string;
@@ -313,7 +315,7 @@ export type CemProcessingStylesheetInput = {
     consumer: string;
 } & (
     | { action: 'begin'; index: number; baseUrl: string; context: CemModuleUrlContextWire;
-        scope: { kind: 'private'; tag: string } | { kind: 'shared'; name: string } }
+        scope: { kind: 'private'; tag: string } | { kind: 'shared'; name: string } | { kind: 'instance' } }
     | { action: 'deliver'; loadId: string; requestId: number; bytes: ArrayBuffer;
         finalUrl: string; contentType?: string }
     | { action: 'fail'; loadId: string; requestId: number; message: string }

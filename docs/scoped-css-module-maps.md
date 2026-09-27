@@ -1409,7 +1409,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v8` `stylesheet` operation populates this collection
+The `cem-processing-host-v9` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1499,7 +1499,14 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-This is the native/WASM prerequisite. Processing-host transport and runtime
-installation of payload CSS remain pending; the browser default is unchanged.
-The runtime must preserve host-child placement and await these loads during
-render and hydration before replacing the current payload compiler.
+Processing-host protocol v9 carries `instanceStylesheetIdentity` only for CSS
+source adoption. The identity is part of the native compilation cache key and
+same-artifact reuse checks. Instance loads pass this fixed identity through the
+WASM control boundary; declaration loads retain their registration identity.
+Worker and fallback engines both reject crossing those ownership modes.
+The declaration installation coordinator remains restricted to private/shared
+sets, so instance styles cannot be installed on a declaration by accident.
+
+Runtime installation of payload CSS remains pending; the browser default is
+unchanged. The runtime must preserve host-child placement and await these loads
+during render and hydration before replacing the current payload compiler.

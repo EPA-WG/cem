@@ -12,8 +12,8 @@ export function nativeCssStoryHost(fallback = false) {
     return {
         host,
         dispose: () => scope.dispose(),
-        compile: (tag: string, sources: Array<{ css: string; scope: string | null; contentType?: string }>) => host.compile({
-            language: 'css', producedTag: tag, templateArtifactId: tag,
+        compile: (tag: string, sources: Array<{ css: string; scope: string | null; contentType?: string }>, instanceStylesheetIdentity?: string) => host.compile({
+            language: 'css', producedTag: tag, templateArtifactId: tag, instanceStylesheetIdentity,
             registrationIdentity: `native-story:${tag}`,
             source: createCemProcessingTextSource(JSON.stringify(sources)),
             sourceRef: { kind: 'inline', value: tag }, resolverIdentity: 'native-story',

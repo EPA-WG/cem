@@ -6258,9 +6258,15 @@ registration identities may reuse an inherited or existing definition.
               Completed: 13 native retention tests and the real WASM protocol
               checks pass, including fixed identity, reconnect, redirected imports,
               stale delivery, exact cancellation and disposed-owner rejection.
-        - [ ] Fixture: carry native instance stylesheet adoption through worker
+        - [x] Fixture: carry native instance stylesheet adoption through worker
               and fallback processing; include the persisted instance identity in
               compilation/cache ownership and reject declaration/instance cross-use.
+              Completed: protocol v9 separates instance compilation identities and
+              load admission. Real worker/fallback imports, implicit scope,
+              animation isolation, reconnect and cancellation pass; all 547 unit
+              tests and 281 browser stories in each runtime lane pass, along with
+              typecheck and lint (two existing warnings). Runtime payload CSS
+              installation remains the next integration gate.
         - [ ] Fixture: retain per-instance inert payload CSS in native owners;
               use the persisted instance identity and consuming module context,
               preserve host-child placement, and verify readiness, imports,

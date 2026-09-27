@@ -27,7 +27,8 @@ export interface CemStylesheetInstallationOptions {
     lease: CemStylesheetConsumerLease;
     baseUrl: string;
     context: CemModuleUrlContextWire;
-    occurrences: ReadonlyArray<Pick<Begin, 'index' | 'scope'>>;
+    // This coordinator installs declaration-owned sets. Instance output is host-local.
+    occurrences: ReadonlyArray<{ index: number; scope: Exclude<Begin['scope'], { kind: 'instance' }> }>;
     /** Transport supplies bytes; native import owns resolution and response policy. */
     read(request: Pending['request'], signal: AbortSignal): Promise<CemStylesheetResponse>;
 }
