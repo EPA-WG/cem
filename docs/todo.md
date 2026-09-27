@@ -6096,6 +6096,15 @@ registration identities may reuse an inherited or existing definition.
               Completed: 10 native tests, real WASM protocol checks and 528
               processing/unit checks pass; native/browser lint and typecheck
               pass with existing warnings. Browser installation remains pending.
+        - [x] Fixture: classify static `linear()` easing in animation shorthand
+              at shared CSS import; preserve stop tokens and source ranges,
+              admit number/percentage ordering and repeated/decreasing inputs,
+              reject malformed or dynamic stops, and verify scoped animation
+              interpolation in Chromium and combined WASM output before
+              browser compiler cutover.
+              Completed: 47 native animation/subtree/import checks, 10 native
+              retention checks, combined WASM, Chromium interpolation and
+              Nx/native/script lint pass with existing warnings.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

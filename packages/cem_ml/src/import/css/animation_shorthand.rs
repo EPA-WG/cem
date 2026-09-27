@@ -187,6 +187,41 @@ impl CssImport<'_> {
                 .filter(|v| v.is_finite())
         };
         let name = self.events[i].value.as_deref().unwrap_or_default();
+        if name.eq_ignore_ascii_case("linear") {
+            // A stop is a number and an optional contiguous run of one or two
+            // percentages, in either order. Inputs may repeat, decrease or lie
+            // outside 0..100%; the browser applies the easing normalization.
+            let mut stops = 0;
+            for stop in tokens.split(|j| self.events[*j].token_kind == "comma") {
+                stops += 1;
+                if stop.is_empty() || stop.len() > 3 {
+                    return false;
+                }
+                let number_index = if number(stop[0]).is_some() {
+                    0
+                } else if number(*stop.last().unwrap()).is_some() {
+                    stop.len() - 1
+                } else {
+                    return false;
+                };
+                for (position, &token) in stop.iter().enumerate() {
+                    if position == number_index {
+                        continue;
+                    }
+                    let event = &self.events[token];
+                    if event.token_kind != "percentage"
+                        || event
+                            .lexeme
+                            .strip_suffix('%')
+                            .and_then(|text| text.parse::<f64>().ok())
+                            .is_none_or(|value| !value.is_finite())
+                    {
+                        return false;
+                    }
+                }
+            }
+            return stops >= 2;
+        }
         if name.eq_ignore_ascii_case("cubic-bezier") {
             if tokens.len() != 7
                 || [1, 3, 5]

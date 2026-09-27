@@ -252,3 +252,109 @@ fn shorthand_rejects_unsupported_or_dynamic_groups_atomically() {
         );
     }
 }
+
+#[test]
+fn shorthand_linear_easing_preserves_literal_stops_and_name_identity() {
+    let names = std::collections::BTreeMap::from([("linear".into(), "linear-owner".into())]);
+    for easing in [
+        "linear(0, 1)",
+        "linear(0, .25 25% 75%, 1)",
+        "linear(-1 -20%, 2 120%, 1 80%)",
+        "linear(0% 0, 25% 75% .25, 1 100%)",
+        "linear(0, .2 60%, .8 40%, 1)",
+        "LINEAR(0, .25/*retain*/ 25% 75%, 1)",
+        r"l\69 near(0, 1)",
+        "linear(0e0 -1e1%, 1e0 1e2%)",
+    ] {
+        let source = format!(".card {{animation:1s {easing} linear paused, external 2s;}}");
+        let plan = plan(&source);
+        let result = emit_css_animation_names(&plan.tree, declaration(&plan), &names).unwrap();
+        assert!(
+            result.diagnostics.is_empty(),
+            "{easing}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(
+            result.value.as_deref(),
+            Some(format!("1s {easing} \"linear-owner\" paused, external 2s").as_str())
+        );
+        let tree = &plan.tree;
+        let list = tree
+            .node(declaration(&plan))
+            .unwrap()
+            .children
+            .iter()
+            .copied()
+            .find(|id| {
+                tree.node(*id)
+                    .unwrap()
+                    .name
+                    .as_ref()
+                    .is_some_and(|name| name.local_name == "animation-name-list")
+            })
+            .unwrap();
+        let easing_slot = tree
+            .node(list)
+            .unwrap()
+            .children
+            .iter()
+            .filter_map(|id| tree.node(*id))
+            .find(|node| {
+                source.get(
+                    node.range.offset as usize..(node.range.offset + node.range.length) as usize,
+                ) == Some(easing)
+            })
+            .unwrap();
+        assert_eq!(
+            easing_slot.name.as_ref().unwrap().local_name,
+            "animation-value-slot"
+        );
+        assert!(easing_slot.source.origin().is_some());
+        let range = result.names[0].range;
+        assert_eq!(
+            &source[range.offset as usize..(range.offset + range.length) as usize],
+            "linear"
+        );
+        assert!(result.names[0].source.origin().is_some());
+    }
+}
+
+#[test]
+fn shorthand_linear_easing_rejects_malformed_stops_without_partial_rewriting() {
+    for easing in [
+        "linear()",
+        "linear(0)",
+        "linear(0 0% 100%)",
+        "linear(0,)",
+        "linear(,1)",
+        "linear(0,,1)",
+        "linear(0 1,1)",
+        "linear(0%,1)",
+        "linear(0 0% 20% 30%,1)",
+        "linear(0% 0 50%,1)",
+        "linear(0px,1)",
+        "linear(0,NaN)",
+        "linear(0,1e999)",
+        "linear(0 1e999%,1)",
+        "linear(calc(0),1)",
+        "linear(0 calc(50%),1)",
+        "linear(0,1) ease",
+        "ease linear(0,1)",
+    ] {
+        let plan = plan(&format!(".card {{animation:pulse 1s {easing}, other 2s;}}"));
+        let result =
+            emit_css_animation_names(&plan.tree, declaration(&plan), &Default::default()).unwrap();
+        assert!(
+            result.value.is_none() && !result.diagnostics.is_empty(),
+            "{easing}"
+        );
+    }
+    let plan = plan(".card {animation:1s linear(0, var(--end)) pulse}");
+    let result =
+        emit_css_animation_names(&plan.tree, declaration(&plan), &Default::default()).unwrap();
+    assert!(result.value.is_none());
+    assert_eq!(
+        result.diagnostics[0].code,
+        "cem.scoped_css.animation_name_dynamic_unsupported"
+    );
+}

@@ -932,15 +932,27 @@ second `linear`. Non-name values are retained as `animation-value-slot` nodes;
 the emitter preserves their original tokens. This follows the
 [CSS Animations shorthand parsing order](https://www.w3.org/TR/css-animations-1/#animation).
 
-The first profile supports literal times/counts, standard keyword slots,
-`cubic-bezier()` and `steps()`, with bounds and duplicate-slot checks. Unsupported
-functions (including `calc()` and `linear()`) diagnose the whole declaration.
+The supported static profile accepts literal times/counts, standard keyword slots,
+`cubic-bezier()`, `steps()` and literal `linear()` stops, with bounds and
+duplicate-slot checks. Unsupported functions (including `calc()`) diagnose the
+whole declaration.
 Any `var()`, `env()` or `attr()` substitution also diagnoses the whole shorthand:
 a substitution can supply multiple tokens or comma groups, so the spelling of a
 custom property alone cannot prove which slot it fills. This restriction does
 not establish a dynamic-name authoring contract. Browser coverage verifies that
 the rewritten second `linear` selects the scoped definition and retains linear
 midpoint interpolation.
+
+Static `linear()` admission follows the [CSS Easing Level 2 stop grammar](https://www.w3.org/TR/css-easing-2/#linear-easing-function-syntax):
+at least two comma-separated stops, each with one finite literal number and an
+optional contiguous run of one or two finite percentages before or after it.
+Repeated, decreasing and out-of-range inputs are valid; browser easing evaluation
+performs normalization. Import preserves the complete easing token range,
+including comments and escapes, as an `animation-value-slot`. Only the separate
+name slot is rewritten. Malformed stops, duplicate easing functions and math
+expressions reject the shorthand; dynamic substitution retains its existing
+separate diagnostic. The Chromium fixture verifies that a stop with two positions
+holds 25% opacity at the animation midpoint using the scoped name.
 
 ## Animation references in native rule subtrees
 

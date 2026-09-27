@@ -200,9 +200,10 @@ fn browser_fixture_emits_scoped_native_nesting() {
         ("keyframes-empty", "@keyframes pulse {}", "pulse"),
         ("keyframes-string", "@keyframes \"quoted name\" {from {opacity:0} to {opacity:1}}", "\"quoted name\""),
         ("keyframes-shorthand", "@keyframes linear {from {opacity:0} to {opacity:1}}", "1s linear linear paused"),
+        ("keyframes-linear-easing", "@keyframes linear {from {opacity:0} to {opacity:1}}", "1s linear(0, .25 25% 75%, 1) linear paused"),
         ("keyframes-conditional", "@keyframes pulse {from {opacity:0} to {opacity:1}} @media all {@keyframes pulse {from {opacity:.2} to {opacity:.6}}}", "pulse"),
     ] {
-        let shorthand = file == "keyframes-shorthand";
+        let shorthand = matches!(file, "keyframes-shorthand" | "keyframes-linear-easing");
         let property = if shorthand { "animation" } else { "animation-name" };
         let timing = if shorthand { "" } else {
             ";animation-duration:1s;animation-timing-function:linear;animation-play-state:paused"
