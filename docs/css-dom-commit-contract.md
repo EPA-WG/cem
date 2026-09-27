@@ -1,0 +1,79 @@
+# CSS and DOM publication: decision needed
+
+Status: proposed, awaiting user decision. This note does not authorize a new
+runtime contract. The active work remains in [todo.md](todo.md), under atomic
+native CSS replacement in streamed Edge updates.
+
+## The boundary to decide
+
+The prepared CSS and DOM APIs can reject invalid work before publication. They
+cannot make several DOM mutations invisible to synchronous custom-element
+callbacks. Changing a host's context marker invokes its attribute callback;
+inserting a custom element invokes its connection callback. A callback can
+inspect or mutate the same host before the surrounding JavaScript call returns.
+
+The existing [patch renderer](../packages/cem-elements/src/lib/projection.ts)
+describes atomicity as validating a complete
+transaction and its targets before mutation. The CSS replacement TODO does not
+say whether the combined operation must additionally hide intermediate state
+from arbitrary custom-element callbacks. That stronger guarantee changes the
+scope of the coordinator and its failure handling.
+
+## Reproducible evidence
+
+The [browser fixture](../packages/cem-elements/src/lib/css-dom-commit-order.stories.ts)
+exercises actual native CSS output,
+`DeclarationStyleOwnership.commitGroup`, and `preparePatchFramesForRange` in
+worker and forced main-thread fallback modes. The host observes its context
+marker; a child observes connection. Both orders end with the requested CSS and
+DOM, but synchronous observers can see these intermediate combinations:
+
+| Publication order | Callback | Observed DOM | Observed CSS |
+| --- | --- | --- | --- |
+| CSS, then DOM | Host context-marker change | Before | New |
+| DOM, then CSS | New child's connection | After | Old |
+
+This is a diagnostic fixture demonstrating why a sequential composition alone
+cannot establish observer isolation. It is not an accepted coordinator or a
+change to production behavior.
+
+Verification on 2026-09-27: 297 browser cases pass in both default and retained-CSS
+lanes; typecheck and lint pass with two existing warnings.
+
+## Recommended contract: atomic admission and coherent completion
+
+1. Load and compile all CSS, snapshot the patch, and validate every ownership
+   lease, context marker, DOM target, range and current request revision before
+   the first publication mutation. Rejection here preserves the active state.
+2. Publish CSS and DOM synchronously, with no asynchronous gap. Prefer CSS first
+   so newly connected children can read their new styles. Arbitrary synchronous
+   custom-element callbacks may observe intermediate state.
+3. Defer CEM-owned old-load releases and cancellation notifications until both
+   CSS and DOM publication finish. Queue managed reentrant update requests until
+   that point. This does not suppress browser callbacks or author DOM mutations.
+4. Once publication starts, distinguish failure requiring recovery from rejection
+   before publication. If a callback changes a target or publication fails, report
+   the need for an authoritative render/resume and do not claim rollback. Cloning
+   old markup cannot restore arbitrary callback effects, native control state or
+   listener ownership.
+5. Test both callback orders, mutation during publication, cancellation before
+   admission, supersession during publication and recovery before enabling
+   changed-CSS Edge updates. Extend the response/state contract with the chosen
+   completion and recovery semantics in the same integration work.
+
+This follows the current patch renderer's admission boundary and preserves the
+light-DOM model and retained node identities. It adds explicit handling for the
+failure window instead of interpreting every failed commit as no mutation.
+
+## Alternative: require observer isolation
+
+Keep changed-CSS Edge updates guarded while defining stronger lifecycle
+restrictions or a different publication architecture. Merely reversing the
+publication order does not satisfy this requirement. Replacing a larger tree
+would also need a separate identity, focus, native state and lifecycle contract;
+it is not a drop-in implementation of the current ownership rules.
+
+## Decision
+
+Proceed with the recommended admission/completion contract, or require stronger
+observer isolation before the coordinator can be implemented?

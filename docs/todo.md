@@ -6495,6 +6495,18 @@ registration identities may reuse an inherited or existing definition.
                   Verification: 571 unit tests, 296 browser cases in each default/
                   retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
                   pass; typecheck and lint pass with two existing warnings.
+            - [x] Fixture: reproduce synchronous custom-element observations for
+                  CSS-first and DOM-first publication before defining joint publication.
+                  Completed 2026-09-27: native worker/fallback evidence demonstrates
+                  new CSS with old DOM in a host marker callback, and new DOM with old
+                  CSS in a child connection callback. Sequential publication alone
+                  does not provide synchronous observer isolation.
+                  Verification: 297 browser cases pass in both default and
+                  retained-CSS lanes; typecheck and lint pass with two existing warnings.
+            - [ ] Decide the combined publication contract before implementing the
+                  coordinator: [atomic admission and coherent completion](css-dom-commit-contract.md)
+                  is recommended; stronger observer isolation requires a different
+                  lifecycle/publication contract. Awaiting user decision.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
