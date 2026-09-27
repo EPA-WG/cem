@@ -1,0 +1,5 @@
+p {
+    color: purple;
+    background: url(card-icon) no-repeat left center / 1.5rem;
+    padding-inline-start: 2rem;
+}

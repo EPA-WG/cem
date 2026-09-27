@@ -2039,7 +2039,7 @@ const scopedCssSamples = [
         countExactly('cem-css-private style', 0),
         styleTextContains(
             'cem-element[tag="cem-css-private"] > style[data-cem-declaration-style="private"]',
-            '@scope (\n    cem-css-private',
+            '@scope (cem-css-private',
         ),
         countExactly('cem-css-private[data-cem-render-scope*="cem-scope-"]', 2),
         countExactly(
@@ -2073,7 +2073,7 @@ const scopedCssSamples = [
         countExactly('cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]', 1),
         styleTextContains(
             'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="private"]',
-            '@scope (\n    cem-css-mixed',
+            '@scope (cem-css-mixed',
         ),
         styleTextContains(
             'cem-element[tag="cem-css-mixed"] > style[data-cem-declaration-style="shared"]',
@@ -2102,14 +2102,14 @@ const scopedCssSamples = [
         computedStyle('cem-css-instance:first-of-type button', 'borderTopColor', 'rgb(0, 0, 255)'),
         computedStyle('cem-css-instance:last-of-type button', 'borderTopColor', 'rgb(255, 0, 0)'),
         countExactly('cem-element[tag="cem-css-instance"] > style[data-cem-declaration-style="private"]', 1),
-        countExactly('cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]', 1),
-        countExactly('cem-css-instance:first-of-type style[data-cem-render-node-id^="payload-"]', 0),
+        countExactly('cem-css-instance:last-of-type style[data-cem-instance-style]', 1),
+        countExactly('cem-css-instance:first-of-type style[data-cem-instance-style]', 0),
         styleTextContains(
-            'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
+            'cem-css-instance:last-of-type style[data-cem-instance-style]',
             '@scope to (',
         ),
         styleTextNotContains(
-            'cem-css-instance:last-of-type style[data-cem-render-node-id^="payload-"]',
+            'cem-css-instance:last-of-type style[data-cem-instance-style]',
             'data-cem-render-scope',
         ),
         attributeAbsent('cem-css-instance:last-of-type', 'data-cem-instance-scope'),
@@ -2125,7 +2125,7 @@ const scopedCssSamples = [
         countExactly('cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]', 1),
         styleTextContains(
             'cem-element[tag="cem-css-fragment"] > style[data-cem-declaration-style="private"]',
-            '@scope (\n    cem-css-fragment',
+            '@scope (cem-css-fragment',
         ),
     ]),
     sampleContract('9. Anonymous declaration CSS uses its generated tag', [
@@ -2186,6 +2186,14 @@ const scopedCssSamples = [
         computedStyleNot('cem-css-resource [part~=preview]', 'filter', 'none'),
         attributeEquals('cem-css-resource:first-of-type feGaussianBlur', 'stdDeviation', '0'),
         attributeEquals('cem-css-resource:last-of-type feGaussianBlur', 'stdDeviation', '2'),
+    ]),
+    sampleContract('14. Mapped stylesheet and image', [
+        normalizedText('cem-css-default-card p', 'Mapped defaults'),
+        computedStyle('cem-css-default-card p', 'color', 'rgb(0, 128, 0)'),
+    ]),
+    sampleContract('15. Nested module map overrides stylesheet and image', [
+        normalizedText('cem-css-override-card p', 'Nested override'),
+        computedStyle('cem-css-override-card p', 'color', 'rgb(128, 0, 128)'),
     ]),
 ];
 
@@ -3472,7 +3480,8 @@ const sourceHarnessHtml = `<!doctype html>
     <script type="module">
         import '/packages/cem-demo-element/dist/index.js';
         import { installCemElementRuntime } from '/packages/cem-elements/dist/index.js';
-        window.__cemFixtureRuntime = installCemElementRuntime(window);
+        window.__cemFixtureRuntime = installCemElementRuntime(window,
+            location.search.includes('retained-css') ? { retainedStylesheets: {} } : {});
     </script>
 </head>
 <body></body>
@@ -3660,7 +3669,7 @@ try {
 
         const tag = `cem-demo-source-${index + 1}`;
         try {
-            await page.goto(`http://127.0.0.1:${port}/__cem-source-harness.html`, { waitUntil: 'networkidle' });
+            await page.goto(`http://127.0.0.1:${port}/__cem-source-harness.html${fixture.path.endsWith('/scoped-css.html') ? '?retained-css' : ''}`, { waitUntil: 'networkidle' });
             await mountSourceDocument(page, fixture, tag);
             await verifySampleContractInventory(page, tag, fixture);
             if (fixture.samples) {
@@ -5332,13 +5341,17 @@ async function waitForKeyframeIdentity(page, check) {
             const target = document.querySelector(`${hostSelector} ${targetSelector}`);
             const renderScope = host?.getAttribute('data-cem-render-scope') ?? '';
             if (!style || !target || !renderScope.includes(encodedSeed)) return false;
-            const rewrittenName = `${authoredName}-${renderScope}-s1`;
-            const css = style.textContent ?? '';
-            return (
-                css.includes(`@keyframes ${rewrittenName}`) &&
-                css.includes(`animation: ${rewrittenName} `) &&
-                getComputedStyle(target).animationName === rewrittenName
-            );
+            const names = [];
+            const visit = rules => {
+                for (const rule of rules) {
+                    if (rule instanceof CSSKeyframesRule) names.push(rule.name);
+                    else if ('cssRules' in rule) visit(rule.cssRules);
+                }
+            };
+            if (!style.sheet) return false;
+            visit(style.sheet.cssRules);
+            return names.length === 1 && names[0].startsWith(`${authoredName}-`)
+                && target.getAnimations().some(animation => animation.animationName === names[0]);
         },
         check,
     );
@@ -5508,11 +5521,18 @@ async function verifyScopedCssPresentation(page) {
                     && !instance.hasAttribute('style');
             });
     });
+    await poll(page, () => ['default', 'override'].every((variant, index) => {
+        const paragraph = document.querySelector(`cem-css-${variant}-card p`);
+        if (!paragraph) return false;
+        const css = getComputedStyle(paragraph);
+        return css.color === ['rgb(0, 128, 0)', 'rgb(128, 0, 128)'][index]
+            && css.backgroundImage.includes(['/lib-dir/Smiley.svg', '/confused.svg'][index]);
+    }));
     for (const width of [1280, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await poll(page, width => {
             const cards = Array.from(document.querySelectorAll('cem-demo-element[legend]'));
-            return cards.length === 13 && document.documentElement.scrollWidth <= width
+            return cards.length === 15 && document.documentElement.scrollWidth <= width
                 && cards.every(card => {
                     const box = card.getBoundingClientRect();
                     const output = card.querySelector('[slot="demo"]');
@@ -5521,7 +5541,7 @@ async function verifyScopedCssPresentation(page) {
                 });
         }, width);
         const reachable = await page.locator('cem-demo-element [slot="text"] pre').evaluateAll(sources =>
-            sources.length === 13 && sources.every(pre => {
+            sources.length === 15 && sources.every(pre => {
                 const end = pre.scrollWidth - pre.clientWidth;
                 pre.scrollLeft = end;
                 const reached = Math.abs(pre.scrollLeft - end) <= 1;
@@ -5530,7 +5550,7 @@ async function verifyScopedCssPresentation(page) {
             }));
         if (!reachable) throw new Error('Scoped CSS source cannot be scrolled to its end');
     }
-    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 13);
+    if (new URL(page.url()).pathname !== '/__cem-source-harness.html') await verifyDemoLayout(page, 15);
 }
 
 async function verifyScopedCssDiagnostics(page, tag) {

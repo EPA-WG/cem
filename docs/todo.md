@@ -6335,11 +6335,23 @@ registration identities may reuse an inherited or existing definition.
           normative contract now distinguishes default import suppression from
           opt-in retained loading. Audit rerun: 85 focused native tests pass;
           retained-owner/WASM checks pass from the Nx cache.
-    - [ ] Fixture: extend
+    - [x] Fixture: request CSS bytes with `Accept: text/css` from the default
+          reader; verify content negotiation without bundler-specific source URLs.
+    - [x] Fixture: extend
           [`packages/cem-elements/demo/scoped-css.html`](../packages/cem-elements/demo/scoped-css.html)
           as the demonstration page, showing internal styles, CSS imports and
           resource URLs with a nested module-map CSS override; cover the authored
           samples in the source-loaded Storybook and standalone demo checks.
+          Completed: samples 14/15 compare mapped defaults and nearest-scope
+          stylesheet/image overrides. Local CSS assets, source inventories and
+          standalone/source-loaded checks cover native installation and layout.
+          Validation: 552 unit tests, all 284 retained browser tests, the corrected
+          default-demo regression, typecheck and lint pass (two existing warnings).
+          Standalone/source-loaded fixture checks pass at desktop/mobile widths.
+    - [ ] Fixture: trial retained CSS as the default browser runtime; audit
+          Edge/SSR and hydration compatibility, run both browser lanes and
+          component verification, and remove obsolete compiler paths only after
+          their remaining result-style callers have an explicit replacement.
 
 ### Remaining declarative UI migration
 

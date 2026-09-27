@@ -26,7 +26,7 @@
         </script>
         <script type="module">
             import { installCemElementRuntime } from '../dist/index.js';
-            installCemElementRuntime(window);
+            installCemElementRuntime(window, { retainedStylesheets: {} });
         </script>
     </head>
     <body>
@@ -55,6 +55,9 @@
                 <h3>See also</h3>
                 <p><a href="./external-template.html">External template loading</a></p>
                 <p><a href="./hex-grid.html">Grid components and instance styling</a></p>
+                <p><a href="./module-url.html">Module maps and resource resolution</a></p>
+                <p>This page enables retained CSS loading. The final two samples load
+                    a local stylesheet and resolve its image through the nearest module map.</p>
             </section>
 
             <cem-demo-element
@@ -407,6 +410,56 @@
 </cem-element>
 <cem-css-resource blur="0">Sharp text</cem-css-resource>
 <cem-css-resource blur="2">Blurred text</cem-css-resource>
+                </template>
+            </cem-demo-element>
+
+            <cem-demo-element
+                legend="14. Mapped stylesheet and image"
+                description="The outer resource entries select a local stylesheet and image. Expect green text and a smiling face.">
+                <template>
+<cem-element tag="cem-css-default-card">
+    <template type="text/cem-ml">
+{style |``` @import "card-theme"; ```}
+{p | Mapped defaults}
+    </template>
+</cem-element>
+<cem-element>
+    <template type="text/cem-ml">
+{module-map |
+    {resource @specifier=card-theme @target="./scoped-css-default.css" @content-type="text/css"}
+    {resource @specifier=card-icon @target="./lib-dir/Smiley.svg" @content-type="image/svg+xml"}}
+{cem-css-default-card}
+    </template>
+</cem-element>
+                </template>
+            </cem-demo-element>
+
+            <cem-demo-element
+                legend="15. Nested module map overrides stylesheet and image"
+                description="The inner resource entries replace the outer stylesheet and image mappings. Expect purple text and a confused face.">
+                <template>
+<cem-element tag="cem-css-override-card">
+    <template type="text/cem-ml">
+{style |``` @import "card-theme"; ```}
+{p | Nested override}
+    </template>
+</cem-element>
+<cem-element tag="cem-css-override-frame">
+    <template type="text/cem-ml">
+{module-map |
+    {resource @specifier=card-theme @target="./scoped-css-override.css" @content-type="text/css"}
+    {resource @specifier=card-icon @target="./confused.svg" @content-type="image/svg+xml"}}
+{cem-css-override-card}
+    </template>
+</cem-element>
+<cem-element>
+    <template type="text/cem-ml">
+{module-map |
+    {resource @specifier=card-theme @target="./scoped-css-default.css" @content-type="text/css"}
+    {resource @specifier=card-icon @target="./lib-dir/Smiley.svg" @content-type="image/svg+xml"}}
+{cem-css-override-frame}
+    </template>
+</cem-element>
                 </template>
             </cem-demo-element>
 

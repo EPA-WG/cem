@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { CemElementRuntime, writeDataIslandHydrationData } from './cem-elements.js';
-import { cemDiagnosticCodes, whenCemSourceRendered } from '../../.storybook/preview.js';
+import { cemDiagnosticCodes, whenCemSourceRendered, retainedCssEnabled } from '../../.storybook/preview.js';
 
 const SOURCE_TAG = 'story-scoped-css-demo-document';
 const DEMO_URL = new URL('../../demo/scoped-css.html', import.meta.url);
@@ -20,6 +20,8 @@ const EXPECTED_LEGENDS = [
     '11. Descendant selectors stay inside the component',
     '12. CSS from an external template fragment',
     '13. Instance IDs in URL-valued custom properties',
+    '14. Mapped stylesheet and image',
+    '15. Nested module map overrides stylesheet and image',
 ] as const;
 
 const meta: Meta = {
@@ -221,6 +223,24 @@ export const EveryAuthoredSample: Story = {
             instances[1].setAttribute('blur', '2');
             await waitFor(() => expect(requiredElement(instances[1], 'feGaussianBlur').getAttribute('stdDeviation')).toBe('2'));
         });
+        for (const [index, variant, color, image] of [
+            [13, 'default', 'rgb(0, 128, 0)', '/lib-dir/Smiley.svg'],
+            [14, 'override', 'rgb(128, 0, 128)', '/confused.svg'],
+        ] as const) {
+            await step(EXPECTED_LEGENDS[index], async () => {
+                const card = requiredElement(samples[index], `cem-css-${variant}-card`);
+                expect(card.querySelector('p')).not.toBeNull();
+                if (retainedCssEnabled) {
+                    expect(style(card, 'p', 'color')).toBe(color);
+                    expect(style(card, 'p', 'backgroundImage')).toContain(image);
+                    expect(cemDiagnosticCodes(card)).toEqual([]);
+                } else {
+                    expect(style(card, 'p', 'backgroundImage')).toBe('none');
+                    expect(cemDiagnosticCodes(requiredElement(samples[index], `cem-element[tag="cem-css-${variant}-card"]`)))
+                        .toContain('cem.scoped_css.import_unsupported');
+                }
+            });
+        }
         for (const relative of ['../index.html', './external-template.html', './hex-grid.html']) {
             expect(Array.from(host.querySelectorAll<HTMLAnchorElement>('nav a, main > section a'), link => link.href))
                 .toContain(new URL(relative, DEMO_URL).href);
@@ -230,7 +250,8 @@ export const EveryAuthoredSample: Story = {
         for (const declaration of canvasElement.querySelectorAll<HTMLElement>('cem-element[tag]')) {
             const tag = declaration.getAttribute('tag');
             if (!tag) throw new Error('declaration has no produced tag');
-            const expected = tag === 'cem-css-invalid-declaration' ? ['cem-element.stylesheet_scope_invalid']
+            const expected = !retainedCssEnabled && ['cem-css-default-card', 'cem-css-override-card'].includes(tag)
+                ? ['cem.scoped_css.import_unsupported'] : tag === 'cem-css-invalid-declaration' ? ['cem-element.stylesheet_scope_invalid']
                 : ['cem-css-unscoped-explicit', 'cem-css-mismatch', 'cem-css-mismatch-bare'].includes(tag)
                     ? ['cem-element.stylesheet_scope_mismatch']
                     : tag === 'cem-css-dynamic' ? Array(2).fill('cem.ql.template.stylesheet_dynamic_unsupported') : [];

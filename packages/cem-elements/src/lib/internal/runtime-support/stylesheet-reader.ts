@@ -7,7 +7,7 @@ const responseCapacity = 16 * 1024 * 1024 + 1;
 /** Browser byte transport only; CSS parsing, MIME and integrity checks stay native. */
 export const readRetainedStylesheet: CemStylesheetInstallationOptions['read'] = async (request, signal) => {
     signal.throwIfAborted();
-    const response = await fetch(request.url, { signal });
+    const response = await fetch(request.url, { signal, headers: { Accept: 'text/css' } });
     if (!response.ok) {
         void response.body?.cancel().catch(() => undefined);
         throw new Error(`HTTP ${response.status} for ${request.url}`);

@@ -61,7 +61,7 @@ Run the same Storybook assertions with retained native CSS enabled:
 
 ```sh
 yarn nx run cem-elements:test:retained-css
-# Focus on all 13 authored scoped-CSS samples:
+# Focus on all 15 authored scoped-CSS samples:
 yarn nx run cem-elements:test:retained-css --args='packages/cem-elements/src/lib/scoped-css-demo.stories.ts'
 ```
 

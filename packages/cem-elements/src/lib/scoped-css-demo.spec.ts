@@ -22,6 +22,8 @@ const SAMPLE_CONTRACTS = [
     ['11. Descendant selectors stay inside the component', ['input:checked + b', '{input @type=checkbox @checked=true}']],
     ['12. CSS from an external template fragment', ['./external-template-templates.html#scoped-css-external-template', 'cem-css-external-fragment', 'link-base="source"']],
     ['13. Instance IDs in URL-valued custom properties', ['$instanceID', '--sample-filter: url(', 'filter: var(--sample-filter)', '@name=id @value="{$instanceID}-filter"']],
+    ['14. Mapped stylesheet and image', ['@import "card-theme"', './scoped-css-default.css', './lib-dir/Smiley.svg']],
+    ['15. Nested module map overrides stylesheet and image', ['./scoped-css-default.css', './scoped-css-override.css', './confused.svg']],
 ] as const;
 
 const samples = Array.from(
@@ -36,6 +38,8 @@ describe('scoped CSS demo source contracts', () => {
         expect(normalized).toContain('Declaration styles are compiled into native <code>@scope</code> boundaries');
         expect(DEMO_SOURCE).toContain('href="./external-template.html"');
         expect(DEMO_SOURCE).toContain('href="./hex-grid.html"');
+        expect(DEMO_SOURCE).toContain('href="./module-url.html"');
+        expect(DEMO_SOURCE).toContain('installCemElementRuntime(window, { retainedStylesheets: {} })');
     });
 
     it('retains the modern contract cases and covers the remaining legacy descendant and external cases', () => {

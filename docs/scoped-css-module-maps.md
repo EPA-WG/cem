@@ -2,8 +2,8 @@
 
 Status: native typed CSS adoption, scoped import loading, resource resolution and
 browser installation are implemented through `retainedStylesheets: {}`. Both
-runtime test lanes pass. Default runtime cutover and the authored module-map
-import demonstration remain pending; see [todo.md](todo.md).
+runtime test lanes pass. The authored module-map import demonstration is verified in standalone and
+source-loaded modes. Default runtime cutover remains pending; see [todo.md](todo.md).
 
 Template adoption should recognize internal `<style>` content as CSS, dispatch
 through the shared `text/css` parser, and retain the resulting CEM AST and source
@@ -1460,7 +1460,9 @@ cutover remains pending.
 is unchanged; stories constructing independent runtimes keep their own options.
 The environment switch participates in the test cache identity.
 
-The 13 authored scoped-CSS samples use the same assertions in both lanes.
+The original 13 scoped-CSS samples use the same assertions in both lanes.
+Samples 14/15 additionally verify native imports in the retained lane and import
+suppression in the default lane.
 Animation assertions read the browser's keyframe definition and running
 animation, and check that the name survives reconnect. This permits the native
 owner-key namespace documented above without depending on legacy serialization.
@@ -1546,11 +1548,10 @@ individual fixtures landed.
 | Browser installation | Worker/fallback fixtures and both full browser lanes cover declaration/shared/instance ownership, consuming contexts, readiness, hydration, cancellation and independent failures. Native source trees remain inside the processing host. |
 | Override syntax | The accepted ordinary `resource` entry is implemented. `css_uses_nearest_mapping_and_preserves_non_css_precedence` verifies nearest CSS lookup and metadata while preserving non-CSS precedence; adjacent tests cover URL-scope specificity, fallback and ancestor restrictions. |
 
-These implementation gates do not enable the default runtime. The next authored
-example must demonstrate a stylesheet import and resource URL overridden by a
-nested module map, using repository assets in standalone and source-loaded modes.
-Then verify the default-cutover trial against that example and the existing
-browser lanes. The explicit syntax limits in the compiler coverage audit still
+These implementation gates do not enable the default runtime. The authored example now demonstrates a stylesheet import and resource URL
+overridden by a nested module map, using repository assets in standalone and
+source-loaded modes. Next, verify the default-cutover trial against that example
+and the existing browser lanes. The explicit syntax limits in the compiler coverage audit still
 apply; broader CSS grammar remains fixture-driven work.
 
 Verification: 85 focused native tests passed across CSS adoption, resources,
@@ -1558,3 +1559,19 @@ resolver precedence, import closures, subtree emission, nesting and rule assembl
 `cem_ql:test:retained-stylesheets` passed from the Nx cache, including retained-owner
 and real WASM checks. The prior integration run passed 550 unit tests and 284
 browser stories in each lane; this reconciliation changes documentation only.
+
+
+### Authored module-map import samples
+
+`scoped-css.html` enables retained loading explicitly. Sample 14 maps `card-theme`
+and `card-icon` to a green stylesheet and smiling image. Sample 15 repeats the
+outer defaults and replaces both entries in a nested DCE module map, producing
+purple text and a confused image. Both stylesheets resolve their `url(card-icon)`
+through the consuming context. The samples use local assets and ordinary resource
+entries; no new override syntax is introduced.
+
+Standalone and source-loaded fixture checks verify imported color, image URL,
+source presentation and overflow at 1280px and 390px. The retained Storybook lane
+verifies both mappings; the default lane verifies import suppression. The browser
+reader requests `Accept: text/css`, so development servers return CSS bytes rather
+than JavaScript module wrappers without requiring special queries in authored URLs.

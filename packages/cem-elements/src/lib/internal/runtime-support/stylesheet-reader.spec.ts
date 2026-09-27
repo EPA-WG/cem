@@ -15,7 +15,7 @@ it('preserves bytes, redirected URL and actual MIME metadata for native admissio
     const fetcher = fetchResponse(response);
     const signal = new AbortController().signal;
     const result = await readRetainedStylesheet(request, signal);
-    expect(fetcher).toHaveBeenCalledWith(request.url, { signal });
+    expect(fetcher).toHaveBeenCalledWith(request.url, { signal, headers: { Accept: 'text/css' } });
     expect(result).toMatchObject({ finalUrl: response.url, contentType: 'text/css; charset=utf-8' });
     expect([...new Uint8Array(result.bytes)]).toEqual([0, 255, 195, 169]);
     expect(response.body?.locked).toBe(false);
