@@ -1253,3 +1253,19 @@ is live and invalidate pending work on context changes before committing styles.
 The next integration step is to carry these identities through the retained
 processing-host artifact lifecycle and replace declaration-only derived-set
 ownership, with disposal/reconnect/readiness coverage.
+
+### Context changes during native import loading
+
+Fingerprint-aware closures now report `cem.css.import_context_changed` when
+status, identity derivation, request creation or response delivery observes a
+changed resolver context. The invalid state persists even if the previous
+fingerprint returns. Root construction and imported-sheet attachment check again
+after invoking the resolver, before exposing the new tree. Stale tree/byte
+delivery attaches no sheet or edge and does not increment received bytes.
+Diagnostics preserve the outstanding import's source location when available.
+
+Existing cancellation and failure handling remains in force. Custom resolvers
+without a fingerprint still require host-driven cancellation on context changes
+and cannot produce a context-dependent cache key. Browser integration must also
+check context liveness before committing a marker or style set; these native
+checks do not install or dispose browser styles.

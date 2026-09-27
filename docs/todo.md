@@ -6074,9 +6074,16 @@ registration identities may reuse an inherited or existing definition.
               Completed: 50 native ownership/import/scope/resolver checks, Nx lint
               (existing warnings) and rebuilt WASM/browser gate pass. See the
               [native identity contract](scoped-css-module-maps.md#effective-stylesheet-identity-native).
-        - [ ] Fixture: invalidate in-flight native CSS import work when a
+        - [x] Fixture: invalidate in-flight native CSS import work when a
               fingerprinted resolver context changes; reject stale delivery and
               preserve failure after the old context returns, before browser wiring.
+              Completed: 31 native ownership/import checks, Nx lint (existing
+              warnings) and rebuilt WASM/browser gate pass. Root and imported
+              resolution calls are checked before their results become visible.
+        - [ ] Fixture: retain effective CSS identities and emitted sets under the
+              native processing-host artifact lifecycle; share matching contexts,
+              isolate different contexts and release derived owners on disposal
+              before replacing browser string-based compilation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

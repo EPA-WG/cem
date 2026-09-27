@@ -340,3 +340,145 @@ fn browser_fixture_emits_ownership_context_variants() {
         }
     }
 }
+
+#[test]
+fn context_change_rejects_pending_requests_and_stale_delivery_permanently() {
+    use cem_ml::{css_imports::CssImportState, resolver::ResolvedRead};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    for delivery in ["request", "tree", "bytes"] {
+        let handle = CemResolutionContextHandle::new("mutable");
+        let stamp = Arc::new(AtomicUsize::new(0));
+        let capability = CemModuleUrlResolutionCapability::new(
+            Arc::new(MutableResolver {
+                delegate: CemScopedModuleUrlResolver::new().with_context(handle.clone(), context()),
+                stamp: stamp.clone(),
+                cacheable: true,
+            }),
+            handle,
+        );
+        let mut c = CssImportClosure::new(
+            import_data("@import 'child.css';", "text/css", "cem", "urn:root").unwrap(),
+            BASE,
+            capability,
+            Default::default(),
+            AbortSignal::new(),
+        )
+        .unwrap();
+        let request = (delivery != "request").then(|| c.next_import().unwrap().unwrap());
+        stamp.store(1, Ordering::SeqCst);
+        assert_eq!(c.state(), CssImportState::Failed);
+        stamp.store(0, Ordering::SeqCst);
+        assert_eq!(c.state(), CssImportState::Failed);
+        let error = match request {
+            None => c.next_import().unwrap_err(),
+            Some(request) if delivery == "tree" => c
+                .complete_import(
+                    request.id,
+                    import_data(".card {color:red}", "text/css", "cem", "urn:child").unwrap(),
+                    &request.resolution.resolved_url,
+                )
+                .unwrap_err(),
+            Some(request) => c
+                .complete_response(
+                    request.id,
+                    ResolvedRead {
+                        uri: request.resolution.resolved_url,
+                        bytes: b".card {color:red}".to_vec(),
+                        content_type: Some("text/css".into()),
+                    },
+                    &Default::default(),
+                )
+                .unwrap_err(),
+        };
+        assert_eq!(error.code, "cem.css.import_context_changed");
+        if delivery != "request" {
+            assert!(error.source.origin().is_some());
+        }
+        assert_eq!(c.sheets().len(), 1);
+        assert!(c.edges().is_empty());
+        assert_eq!(c.received_bytes(), 0);
+        stamp.store(0, Ordering::SeqCst);
+        assert_eq!(c.state(), CssImportState::Failed);
+        assert_eq!(
+            c.next_import().unwrap_err().code,
+            "cem.css.import_context_changed"
+        );
+        assert!(derive_css_stylesheet_identity(&c, &scope(), "card", "0").is_err());
+        assert!(emit_css_import_closure(&c, &scope(), "owner").is_err());
+    }
+}
+
+#[test]
+fn context_changes_inside_resolver_calls_reject_root_and_import_attachment() {
+    use cem_ml::module_resolution::{
+        CemModuleUrlResolution, CemModuleUrlResolutionError, CemModuleUrlResolutionRequest,
+        CemModuleUrlResolver,
+    };
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    struct FlippingResolver {
+        inner: MutableResolver,
+        armed: Arc<AtomicBool>,
+    }
+    impl CemModuleUrlResolver for FlippingResolver {
+        fn context_cache_identity(&self, ctx: &CemResolutionContextHandle) -> Option<String> {
+            self.inner.context_cache_identity(ctx)
+        }
+        fn resolve_module_url(
+            &self,
+            request: &CemModuleUrlResolutionRequest,
+        ) -> Result<CemModuleUrlResolution, CemModuleUrlResolutionError> {
+            let result = self.inner.resolve_module_url(request);
+            if self.armed.load(Ordering::SeqCst) {
+                self.inner.stamp.fetch_add(1, Ordering::SeqCst);
+            }
+            result
+        }
+    }
+    for change_at_root in [true, false] {
+        let handle = CemResolutionContextHandle::new("mutable");
+        let armed = Arc::new(AtomicBool::new(change_at_root));
+        let capability = CemModuleUrlResolutionCapability::new(
+            Arc::new(FlippingResolver {
+                inner: MutableResolver {
+                    delegate: CemScopedModuleUrlResolver::new()
+                        .with_context(handle.clone(), context()),
+                    stamp: Arc::new(AtomicUsize::new(0)),
+                    cacheable: true,
+                },
+                armed: armed.clone(),
+            }),
+            handle,
+        );
+        let result = CssImportClosure::new(
+            import_data("@import 'child.css';", "text/css", "cem", "urn:root").unwrap(),
+            BASE,
+            capability,
+            Default::default(),
+            AbortSignal::new(),
+        );
+        if change_at_root {
+            assert_eq!(result.err().unwrap().code, "cem.css.import_context_changed");
+        } else {
+            let mut c = result.unwrap();
+            let request = c.next_import().unwrap().unwrap();
+            armed.store(true, Ordering::SeqCst);
+            let error = c
+                .complete_import(
+                    request.id,
+                    import_data(
+                        ".card {background:url(icon)}",
+                        "text/css",
+                        "cem",
+                        "urn:child",
+                    )
+                    .unwrap(),
+                    &request.resolution.resolved_url,
+                )
+                .unwrap_err();
+            assert_eq!(error.code, "cem.css.import_context_changed");
+            assert!(error.source.origin().is_some());
+            assert_eq!(c.sheets().len(), 1);
+            assert!(c.edges().is_empty());
+        }
+    }
+}

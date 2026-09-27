@@ -17,7 +17,10 @@ use crate::{
     scheduler::AbortSignal,
     source_map::SourceMapStack,
 };
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CssImportState {
@@ -101,6 +104,7 @@ pub struct CssImportEdge {
 pub struct CssImportClosure {
     capability: CemModuleUrlResolutionCapability,
     resolution_identity: Option<String>,
+    context_invalidated: AtomicBool,
     limits: CssImportLimits,
     abort: AbortSignal,
     sheets: Vec<CssImportSheet>,
@@ -140,6 +144,7 @@ impl CssImportClosure {
         let mut closure = Self {
             capability,
             resolution_identity,
+            context_invalidated: AtomicBool::new(false),
             limits,
             abort,
             sheets: vec![CssImportSheet {
@@ -156,11 +161,12 @@ impl CssImportClosure {
             failure: None,
         };
         closure.enqueue(0);
+        closure.check_active()?;
         Ok(closure)
     }
 
     pub fn state(&self) -> CssImportState {
-        if self.failure.is_some() || self.abort.is_aborted() {
+        if self.failure.is_some() || self.abort.is_aborted() || self.context_changed() {
             CssImportState::Failed
         } else if self.pending.is_empty() && self.in_flight.is_none() {
             CssImportState::Ready
@@ -168,13 +174,31 @@ impl CssImportClosure {
             CssImportState::Pending
         }
     }
+    fn context_changed(&self) -> bool {
+        if self.context_invalidated.load(Ordering::Acquire) {
+            return true;
+        }
+        let changed = self.resolution_identity.as_deref().is_some_and(|identity| {
+            !identity.is_empty() && self.capability.cache_identity().as_deref() != Some(identity)
+        });
+        if changed {
+            // Status/identity reads also invalidate permanently; restoring the
+            // old context cannot revive work resolved during another revision.
+            self.context_invalidated.store(true, Ordering::Release);
+        }
+        changed
+    }
+
     /// Only the unchanged resolver snapshot can identify derived artifacts.
     pub(crate) fn stable_resolution_identity(&self) -> Option<&str> {
+        if self.context_changed() {
+            return None;
+        }
         let identity = self
             .resolution_identity
             .as_deref()
             .filter(|id| !id.is_empty())?;
-        (self.capability.cache_identity().as_deref() == Some(identity)).then_some(identity)
+        Some(identity)
     }
 
     /// Partial sheets remain inspectable after failure, but must not be compiled.
@@ -186,18 +210,25 @@ impl CssImportClosure {
     }
     pub fn failure(&self) -> Option<CssImportFailure> {
         self.failure.clone().or_else(|| {
-            self.abort.is_aborted().then(|| {
-                let mut error = failure(
+            let mut error = if self.abort.is_aborted() {
+                failure(
                     "cem.css.import_cancelled",
                     "CSS import closure was cancelled",
-                );
-                error.source = self
-                    .in_flight
-                    .as_ref()
-                    .map(|r| r.source.clone())
-                    .unwrap_or_default();
-                error
-            })
+                )
+            } else if self.context_changed() {
+                failure(
+                    "cem.css.import_context_changed",
+                    "CSS resolver context changed during import loading",
+                )
+            } else {
+                return None;
+            };
+            error.source = self
+                .in_flight
+                .as_ref()
+                .map(|r| r.source.clone())
+                .unwrap_or_default();
+            Some(error)
         })
     }
 
@@ -303,6 +334,8 @@ impl CssImportClosure {
         })();
         match result {
             Ok(sheet) => {
+                // Resolution/redirect validation may call a mutable host resolver.
+                self.check_active()?;
                 let child = self.sheets.len();
                 self.sheets.push(sheet);
                 self.edges.push(CssImportEdge {
@@ -512,19 +545,7 @@ impl CssImportClosure {
         }
     }
     fn check_active(&mut self) -> Result<(), CssImportFailure> {
-        if let Some(error) = &self.failure {
-            return Err(error.clone());
-        }
-        if self.abort.is_aborted() {
-            let mut error = failure(
-                "cem.css.import_cancelled",
-                "CSS import closure was cancelled",
-            );
-            error.source = self
-                .in_flight
-                .as_ref()
-                .map(|r| r.source.clone())
-                .unwrap_or_default();
+        if let Some(error) = self.failure() {
             return self.stop(error);
         }
         Ok(())
