@@ -314,13 +314,15 @@ impl CssImportClosure {
                 .and_then(|document| (document.children.len() == 1).then(|| document.children[0]))
                 .and_then(|id| tree.node(id))
                 .and_then(|node| node.name.as_ref());
+            // Shared import uses a scoped rule container for :host / @scope.
+            // Both containers hold stylesheet rules; style attributes do not.
             if !root.is_some_and(|name| {
                 name.namespace_uri == crate::schema::registry::CSS_SCHEMA_URI
-                    && name.local_name == "stylesheet"
+                    && matches!(name.local_name.as_str(), "stylesheet" | "style-block")
             }) {
                 return Err(failure(
                     "cem.css.import_tree_invalid",
-                    "an imported sheet requires the CSS stylesheet entry mode",
+                    "an imported sheet requires a CSS stylesheet or scoped style block",
                 ));
             }
             let resources = resolve_css_resources(tree, &self.capability, &final_url)

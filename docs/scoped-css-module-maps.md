@@ -1210,6 +1210,17 @@ the last consumer removes its set. Replacing a consumer invalidates late commits
 and a remove/reinsert cycle requires a fresh lease. Native release callbacks are
 supplied by the caller so they can target the exact processing-host generations.
 Real worker/fallback browser fixtures check these transitions and computed CSS.
+Each lease also exposes an abort signal for pending processing jobs or response
+reads. Replacement publishes the new generation before notifying old handlers,
+so a synchronous replacement from an abort handler cannot leave a live orphan.
+Cleanup must release native load IDs individually; a delayed cleanup for a
+superseded import must not release the replacement load.
+
+The pending-import browser case also exposed an admission mismatch: shared import
+produces a `style-block` tree for CSS containing `:host` or `@scope`, but downloaded
+imports previously required a `stylesheet` tree. Import closure admission now
+accepts both native rule containers. Declaration-list (`style-attribute`) trees
+remain invalid, and authored scope suppression keeps the imported source location.
 
 Next, connect retained load/delivery operations and runtime readiness to those
 leases, then add the nested module-map override demo and context restoration/

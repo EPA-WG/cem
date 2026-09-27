@@ -169,3 +169,87 @@ export const SharedMarkersAndLateCommits: Story = {
         } finally { scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren(); }
     },
 };
+
+export const PendingImportCancellation: Story = {
+    render: () => '<section aria-label="Native pending CSS cancellation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing pending ownership fixture root');
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            const scope = createCemDeclarationScope({ document });
+            const owner = new DeclarationStyleOwnership(document, scope);
+            const declaration = document.createElement('div');
+            const instance = document.createElement('native-pending-card');
+            root.append(declaration, instance); owner.add(declaration, scope);
+            const releases: Promise<unknown>[] = [];
+            try {
+                const { artifact } = await native.compile('native-pending-card', [{ css: '@import "./child.css";', scope: null }]);
+                const begin = () => native.host.stylesheet({ action: 'begin', artifact, consumer: 'pending', index: 0,
+                    baseUrl: 'https://example.test/main.css', scope: { kind: 'private', tag: 'native-pending-card' },
+                    context: { ...nativeCssStoryContext, frames: [{ frameId: 'page', baseUrl: 'https://example.test/',
+                        scopes: [], specifiers: { imports: {}, resources: {} } }] } }).result;
+                const first = owner.beginConsumer(instance, scope);
+                const pending = await begin();
+                if (pending.status !== 'pending') throw new Error('expected pending import');
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                let cancelled = false;
+                first.signal.addEventListener('abort', () => { cancelled = true; }, { once: true });
+                const replacement = owner.beginConsumer(instance, scope);
+                expect(cancelled).toBe(true);
+                expect(first.signal.aborted).toBe(true);
+                expect(replacement.signal.aborted).toBe(false);
+                const next = await begin();
+                if (next.status !== 'pending') throw new Error('expected replacement import');
+                // Old network cleanup may arrive after a newer load has started.
+                expect(await native.host.stylesheet({ action: 'release', artifact, consumer: 'pending', loadId: pending.loadId }).result)
+                    .toMatchObject({ status: 'released', count: 0 });
+                const output = await native.host.stylesheet({ action: 'deliver', artifact, consumer: 'pending',
+                    loadId: next.loadId, requestId: next.request.id, bytes: new TextEncoder().encode(':host { --imported: yes; }').buffer,
+                    finalUrl: 'https://example.test/cdn/child.css', contentType: 'text/css' }).result;
+                if (output.status !== 'ready') throw new Error('expected completed import');
+                expect(replacement.commit([{ index: 0, scope: { kind: 'private' }, output }], () => {
+                    releases.push(native.host.stylesheet({ action: 'release', artifact, consumer: 'pending', loadId: output.loadId }).result);
+                })).toBe(true);
+                expect(getComputedStyle(instance).getPropertyValue('--imported').trim()).toBe('yes');
+                const loading = owner.beginConsumer(instance, scope);
+                const unfinished = await begin();
+                if (unfinished.status !== 'pending') throw new Error('expected unfinished import');
+                loading.signal.addEventListener('abort', () => {
+                    releases.push(native.host.stylesheet({ action: 'release', artifact, consumer: 'pending', loadId: unfinished.loadId }).result);
+                }, { once: true });
+                scope.dispose();
+                expect(replacement.signal.aborted).toBe(true);
+                expect(loading.signal.aborted).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                expect(await Promise.all(releases)).toEqual([
+                    { status: 'released', count: 1 }, { status: 'released', count: 1 },
+                ]);
+            } finally { scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren(); }
+        }
+    },
+};
+
+export const ReentrantCancellation: Story = {
+    render: () => '<section aria-label="Reentrant CSS cancellation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing cancellation fixture root');
+        const scope = createCemDeclarationScope({ document });
+        const owner = new DeclarationStyleOwnership(document, scope);
+        const instance = document.createElement('native-reentrant-card'); root.append(instance);
+        try {
+            const first = owner.beginConsumer(instance, scope);
+            let nestedSignal: AbortSignal | undefined;
+            first.signal.addEventListener('abort', () => {
+                nestedSignal = owner.beginConsumer(instance, scope).signal;
+            }, { once: true });
+            const superseded = owner.beginConsumer(instance, scope);
+            expect(first.signal.aborted).toBe(true);
+            expect(superseded.signal.aborted).toBe(true);
+            expect(nestedSignal?.aborted).toBe(false);
+            scope.dispose();
+            expect(nestedSignal?.aborted).toBe(true);
+        } finally { scope.dispose(); root.replaceChildren(); }
+    },
+};

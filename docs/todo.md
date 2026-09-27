@@ -6146,9 +6146,29 @@ registration identities may reuse an inherited or existing definition.
               Completed: 264 browser stories across 57 files, typecheck and lint
               pass (two existing warnings). Native output now has an installation
               lease API; main runtime load/readiness routing remains pending.
-        - [ ] Fixture: expose lease cancellation to pending native stylesheet
+        - [x] Fixture: expose lease cancellation to pending native stylesheet
               loads; verify replacement and scope disposal abort promptly, and
               delayed cleanup releases only the superseded load generation.
+              Cover synchronous replacement from an abort handler without leaving
+              an untracked consumer or cancelling the newer generation.
+              Completed: 266 browser stories, typecheck and lint pass; both real
+              worker and fallback release pending imports on disposal.
+        - [x] Fixture: admit imported CSS scoped-style-block roots produced by
+              shared import for host selectors and authored scopes; preserve
+              native emission/suppression and keep declaration-list trees rejected.
+              Completed: failing native regression first, then all 23 import
+              closure tests, 10 native retention tests, fresh combined WASM
+              protocol checks and 266 browser stories pass. Native lint passes
+              with existing warnings.
+        - [ ] Include native Rust dependencies in `cem_ql` default cache inputs;
+              prevent retained stylesheet tests and lint from reusing results
+              after `cem_ml`, grammar, schema, workspace lockfile or toolchain
+              changes; keep the WASM build on the same dependency input set.
+              Verify resolved inputs and fresh native/WASM execution.
+        - [ ] Connect runtime retained stylesheet loads to consumer leases and
+              declaration/render readiness; use the effective module context,
+              release exact generations, preserve import failure diagnostics and
+              validate reconnect/hydration before enabling runtime installation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

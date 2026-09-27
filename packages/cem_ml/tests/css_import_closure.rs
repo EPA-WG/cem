@@ -947,3 +947,48 @@ fn load_failures_keep_the_exact_import_location_after_redirects() {
         location.range.offset
     );
 }
+
+#[test]
+fn css_import_admits_scoped_rule_containers_and_preserves_policy() {
+    use cem_ml::css_emission::{emit_css_import_closure, CssManagedScope};
+    for bytes in [
+        b":host { --imported: yes; }".as_slice(),
+        b"@scope (.escape) { a { color:red } } :host { --imported: yes; }".as_slice(),
+    ] {
+        let mut c = closure(
+            "@import 'a.css';",
+            CssImportLimits::default(),
+            AbortSignal::new(),
+        );
+        let request = c.next_import().unwrap().unwrap();
+        c.complete_response(
+            request.id,
+            response(bytes, Some("text/css")),
+            &CssImportResponsePolicy::default(),
+        )
+        .unwrap();
+        assert!(c.next_import().unwrap().is_none());
+        let output = emit_css_import_closure(
+            &c,
+            &CssManagedScope::Private {
+                tag: "cem-card".into(),
+                context: None,
+            },
+            "imported-host",
+        )
+        .unwrap();
+        assert!(output.css().contains("--imported:yes"), "{}", output.css());
+        assert!(!output.css().contains(".escape"));
+        assert_eq!(
+            output.diagnostics.len(),
+            usize::from(bytes.starts_with(b"@scope"))
+        );
+        if bytes.starts_with(b"@scope") {
+            assert_eq!(output.diagnostics[0].sheet, 1);
+            assert_eq!(
+                output.diagnostics[0].diagnostic.code,
+                "cem.scoped_css.authored_scope_unsupported"
+            );
+        }
+    }
+}

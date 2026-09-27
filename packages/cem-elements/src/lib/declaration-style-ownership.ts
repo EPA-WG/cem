@@ -12,6 +12,8 @@ export interface CemOwnedStylesheet {
 }
 
 export interface CemStylesheetConsumerLease {
+    /** Abort pending loads when this generation disconnects, changes or is disposed. */
+    readonly signal: AbortSignal;
     /** Commits once, only while this connected consumer generation remains current. */
     commit(outputs: readonly CemOwnedStylesheet[], release: () => void): boolean;
     release(): void;
@@ -30,6 +32,7 @@ interface Consumer {
     marker: string | null;
     release?: () => void;
     committed: boolean;
+    abort: AbortController;
 }
 
 const contextAttribute = 'data-cem-css-context';
@@ -114,13 +117,17 @@ export class DeclarationStyleOwnership {
         const observed = documents.get(this.document);
         if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
         const previous = this.currentConsumers.get(element);
-        if (previous) this.dropConsumer(previous);
-        const consumer: Consumer = { element: new WeakRef(element), scope, sets: [], marker: null, committed: false };
+        const consumer: Consumer = { element: new WeakRef(element), scope, sets: [], marker: null,
+            committed: false, abort: new AbortController() };
         this.currentConsumers.set(element, consumer);
         this.consumers.add(consumer);
+        // Publish the new generation before notifying old cancellation handlers;
+        // a handler may synchronously replace this generation again.
+        if (previous) this.dropConsumer(previous);
         this.observeScope(scope);
         this.reconcile();
         return {
+            signal: consumer.abort.signal,
             commit: (outputs, release) => this.commitConsumer(consumer, outputs, release),
             release: () => { this.dropConsumer(consumer); this.reconcile(); },
         };
@@ -131,7 +138,8 @@ export class DeclarationStyleOwnership {
         if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
         this.reconcile();
         const element = consumer.element.deref();
-        if (!element || !this.consumers.has(consumer) || consumer.committed) {
+        if (!element || !this.consumers.has(consumer) || this.currentConsumers.get(element) !== consumer || consumer.committed) {
+            if (!consumer.committed) this.dropConsumer(consumer);
             release();
             return false;
         }
@@ -200,7 +208,7 @@ export class DeclarationStyleOwnership {
                 this.derived.delete(set.source.output.identity.cacheKey);
             }
         }
-        consumer.release?.();
+        try { consumer.release?.(); } finally { consumer.abort.abort(); }
     }
 
     setStyles(styles: readonly HTMLStyleElement[]): void {
