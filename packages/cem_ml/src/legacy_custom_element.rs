@@ -3159,7 +3159,16 @@ fn select_members_for_eval(select: &str, ctx: &EmitCtx) -> Option<Vec<ApplyMembe
     for part in select.split('|') {
         let part = part.trim();
         if part.starts_with("//") || part.starts_with('/') {
-            out.extend(select_absolute_members(part, ctx)?);
+            let members = select_absolute_members(part, ctx)?;
+            // These paths also address the produced instance's runtime data.
+            // No match in the authored template is unknown, not a known empty
+            // host attribute/slice set. In particular, count must not fold to 0.
+            if members.is_empty()
+                && (part.starts_with("//attributes/@") || part.starts_with("/datadom/"))
+            {
+                return None;
+            }
+            out.extend(members);
         } else {
             out.extend(select_current_members(part, ctx)?);
         }
@@ -3739,6 +3748,35 @@ mod tests {
             result.source,
             r#"{cem:if @test='datadom.slices.is-checked == "on"' | {span | On}}"#
         );
+    }
+
+    #[test]
+    fn preserves_runtime_attribute_counts_in_conditions() {
+        for path in ["//attributes/@disabled", "/datadom/attributes/disabled"] {
+            let result = convert(&format!(
+                r#"<button><if test="count({path}) > 0"><attribute name="disabled">disabled</attribute></if></button>"#
+            ));
+            assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+            assert!(
+                result
+                    .source
+                    .contains("seq:count(datadom.attributes.disabled) > 0"),
+                "{}",
+                result.source
+            );
+            assert!(result
+                .source
+                .contains(r#"{attribute @name="disabled" | disabled}"#));
+        }
+    }
+
+    #[test]
+    fn preserves_static_empty_count_and_sum_evaluation() {
+        let result = convert(
+            r#"<doc/><xsl:stylesheet version="1.0"><xsl:template match="/"><out><xsl:value-of select="count(/doc/missing)"/>/<xsl:value-of select="sum(/doc/missing)"/></out></xsl:template></xsl:stylesheet>"#,
+        );
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+        assert_eq!(result.source, "{doc}{out | 0/0}");
     }
 
     #[test]

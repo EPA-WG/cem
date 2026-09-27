@@ -48,6 +48,16 @@ inside an inert instance template, keeping the radius at half its height.
 Browser checks cover computed curvature, live Bend changes and compact/forgiving
 sizes in source, dist and clean installed-package previews.
 
+The Interaction states card exercises native hover, held pointer/Space, keyboard
+focus and disabled behavior. Each sample uses one `variant`: `primary`, `explicit`,
+`contextual`, `alternate` or `destructive` (danger). A separate matrix compares
+all five intents across sharp, smooth, round and disabled controls. State paint
+uses the matching intent's CEM action tokens. Keyboard focus composes the CEM
+zebra ring on the control so local state colors remain live, with a system-color
+outline in forced-colors mode.
+`disabled` follows native attribute-presence semantics, including `disabled="false"`.
+The browser checks verify colors, geometry, release-time clicks and suppression.
+
 The other HTML files keep the POC's sibling-layout script/CSS paths (`../../custom-element/…`,
 `../angular.css`, `../theme/…`) and the material CSS/theme tree, which is **not** copied here. The
 **runnable, CI-tested** representation of each component's behavior is the twin Storybook stories

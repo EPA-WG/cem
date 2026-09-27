@@ -56,7 +56,7 @@ export async function verifyActionDemo(browser, origin, packagePath) {
         route => route.fulfill({ contentType: 'text/css', body: '' }));
     try {
         await page.goto(`${origin}${packagePath}/material/components/action.html`);
-        const expectedCounts = [5, 4, 3, 5, 1, 2, 9];
+        const expectedCounts = [5, 4, 3, 3, 5, 1, 2, 9, 20];
         await page.waitForFunction(counts => {
             const cards = [...document.querySelectorAll('cem-demo-element')];
             return cards.length === counts.length && cards.every((card, index) =>
@@ -76,10 +76,184 @@ export async function verifyActionDemo(browser, origin, packagePath) {
             'cem-demo-element[legend="Bend"] [slot=demo] cem-action',
         )?.classList.contains('cem-bend-sharp'));
         await verifyActionCurvature(page);
+        await verifyActionStates(page);
+        await verifyActionVariations(page);
         assert.deepEqual(errors, [], `${packagePath}: action demo local module/WASM loading`);
     } finally {
         await page.close();
     }
+}
+
+async function verifyActionStates(page) {
+    const card = page.locator('cem-demo-element[legend="Interaction states"] [slot=demo]');
+    const enabled = card.locator('button').first();
+    const disabled = card.locator('button').nth(1);
+    const presenceDisabled = card.locator('button').nth(2);
+    const expected = await enabled.evaluate(button => {
+        const probe = document.createElement('span');
+        const intent = button.parentElement.getAttribute('variant') ?? 'primary';
+        button.parentElement.append(probe);
+        const result = Object.fromEntries(['default', 'hover', 'active', 'disabled'].map(state => {
+            probe.style.backgroundColor = `var(--cem-action-${intent}-${state}-background)`;
+            probe.style.color = `var(--cem-action-${intent}-${state}-text)`;
+            const style = getComputedStyle(probe);
+            return [state, { background: style.backgroundColor, color: style.color }];
+        }));
+        probe.remove();
+        return result;
+    });
+    const read = locator => locator.evaluate(button => {
+        const style = getComputedStyle(button);
+        const rect = button.getBoundingClientRect();
+        return {
+            paint: { background: style.backgroundColor, color: style.color },
+            geometry: { width: rect.width, height: rect.height, radius: style.borderRadius },
+            hover: button.matches(':hover'), active: button.matches(':active'),
+            focus: button.matches(':focus-visible'), shadow: style.boxShadow,
+            outline: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth),
+            outlineColor: style.outlineColor,
+        };
+    });
+    assert.notDeepEqual(expected.default, expected.hover, 'theme hover differs from default');
+    assert.notDeepEqual(expected.hover, expected.active, 'theme active differs from hover');
+    await page.mouse.move(0, 0);
+    const initial = await read(enabled);
+    assert.deepEqual(initial.paint, expected.default, 'default state uses theme colors');
+    await enabled.evaluate(button => {
+        button.dataset.activationCount = '0';
+        button.addEventListener('click', () => {
+            button.dataset.activationCount = String(Number(button.dataset.activationCount) + 1);
+        });
+    });
+    await enabled.hover();
+    assert.equal((await read(enabled)).hover, true);
+    assert.deepEqual((await read(enabled)).paint, expected.hover, 'native hover uses theme colors');
+    await page.mouse.down();
+    try {
+        const held = await read(enabled);
+        assert.equal(held.active, true);
+        assert.deepEqual(held.paint, expected.active, 'held pointer uses active colors');
+        assert.deepEqual(held.geometry, initial.geometry, 'pointer press preserves geometry');
+        assert.equal(await enabled.getAttribute('data-activation-count'), '0');
+    } finally {
+        await page.mouse.up();
+    }
+    assert.equal(await enabled.getAttribute('data-activation-count'), '1');
+    await page.mouse.move(0, 0);
+    await enabled.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    const focused = await read(enabled);
+    assert.equal(focused.focus, true, 'keyboard navigation exposes focus-visible');
+    await verifyActionZebra(enabled);
+    assert.deepEqual(focused.geometry, initial.geometry, 'focus preserves geometry');
+    await page.keyboard.down('Space');
+    try {
+        assert.equal((await read(enabled)).active, true);
+        assert.deepEqual((await read(enabled)).paint, expected.active, 'held Space uses active colors');
+        assert.equal(await enabled.getAttribute('data-activation-count'), '1');
+    } finally {
+        await page.keyboard.up('Space');
+    }
+    assert.equal(await enabled.getAttribute('data-activation-count'), '2');
+    for (const button of [disabled, presenceDisabled]) {
+        assert.equal(await button.evaluate(node => node.disabled), true, 'disabled is a native presence binding');
+        await button.hover();
+        const state = await read(button);
+        assert.deepEqual(state.paint, expected.disabled, 'disabled hover keeps disabled colors');
+        assert.equal(await button.evaluate(node => {
+            let clicks = 0;
+            node.addEventListener('click', () => clicks++, { once: true });
+            node.click();
+            return clicks;
+        }), 0, 'native disabled button suppresses activation');
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    await enabled.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    const forced = await read(enabled);
+    assert.equal(forced.focus, true);
+    assert.equal(forced.outline, 'solid');
+    assert(forced.outlineWidth > 0, 'forced colors retains a visible focus outline');
+    assert.notEqual(forced.outlineColor, 'rgba(0, 0, 0, 0)');
+    await page.emulateMedia({ forcedColors: 'none' });
+}
+
+async function verifyActionZebra(button) {
+    const ring = await button.evaluate(node => {
+        const probe = document.createElement('span');
+        node.append(probe);
+        const stripes = [1, 2, 3].map(index => {
+            probe.style.boxShadow = `0 0 0 calc(${index} * var(--cem-zebra-strip-size)) var(--cem-zebra-color-${index})`;
+            probe.style.color = `var(--cem-zebra-color-${index})`;
+            return { shadow: getComputedStyle(probe).boxShadow, color: getComputedStyle(probe).color };
+        });
+        const actual = getComputedStyle(node).boxShadow;
+        probe.remove();
+        return { actual, stripes };
+    });
+    assert.deepEqual(ring.actual, ring.stripes.map(stripe => stripe.shadow).join(', '),
+        'focus ring resolves each stripe on the focused control');
+    assert.notEqual(ring.stripes[0].color, ring.stripes[1].color,
+        'focus stripe stays distinct from the inactive target stripe');
+}
+
+async function verifyActionVariations(page) {
+    const intents = ['primary', 'explicit', 'destructive', 'contextual', 'alternate', 'contextual', 'explicit', 'alternate'];
+    const samples = await page.locator('cem-demo-element:not([legend="Action variations matrix"])').evaluateAll(cards =>
+        cards.map(card => [...new Set([...card.querySelectorAll('[slot=demo] cem-action')]
+            .map(host => host.getAttribute('variant')))]));
+    assert.deepEqual(samples, intents.map(intent => [intent]), 'each sample uses one consistent action intent');
+    const matrix = page.locator('cem-demo-element[legend="Action variations matrix"] [slot=demo]');
+    for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+        const buttons = matrix.locator(`cem-action[variant="${intent}"] button`);
+        assert.equal(await buttons.count(), 4);
+        const geometry = await buttons.evaluateAll(nodes => nodes.map(node => ({
+            radius: parseFloat(getComputedStyle(node).borderRadius),
+            height: node.getBoundingClientRect().height,
+        })));
+        assert.equal(geometry[0].radius, 0, `${intent} sharp column`);
+        assert(geometry[1].radius > 0, `${intent} smooth column`);
+        assert.equal(geometry[2].radius * 2, geometry[2].height, `${intent} round column`);
+        assert.equal(geometry[3].radius, geometry[1].radius, `${intent} disabled retains default bend`);
+        const enabled = buttons.first();
+        const assertPaint = async (button, state) => {
+            const result = await button.evaluate((node, { intent, state }) => {
+                const probe = document.createElement('span');
+                node.parentElement.append(probe);
+                probe.style.backgroundColor = `var(--cem-action-${intent}-${state}-background)`;
+                probe.style.color = `var(--cem-action-${intent}-${state}-text)`;
+                const actual = getComputedStyle(node);
+                const expected = getComputedStyle(probe);
+                const result = { actual: [actual.backgroundColor, actual.color], expected: [expected.backgroundColor, expected.color] };
+                probe.remove();
+                return result;
+            }, { intent, state });
+            assert.deepEqual(result.actual, result.expected, `${intent} ${state} matches theme tokens`);
+        };
+        await page.mouse.move(0, 0);
+        await assertPaint(enabled, 'default');
+        await enabled.hover();
+        await assertPaint(enabled, 'hover');
+        await page.mouse.down();
+        try { await assertPaint(enabled, 'active'); }
+        finally { await page.mouse.up(); }
+        await buttons.last().hover();
+        assert.equal(await buttons.last().evaluate(node => node.disabled), true);
+        await assertPaint(buttons.last(), 'disabled');
+    }
+    const focus = matrix.locator('button').first();
+    await focus.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    const originalClass = await page.locator('body').getAttribute('class');
+    for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+        await page.locator('body').evaluate((body, mode) => body.className = `cem-theme-${mode}`, mode);
+        assert.equal(await focus.evaluate(node => node.matches(':focus-visible')), true);
+        await verifyActionZebra(focus);
+    }
+    await page.locator('body').evaluate((body, value) => { body.className = value ?? ''; }, originalClass);
 }
 
 async function verifyActionCurvature(page) {

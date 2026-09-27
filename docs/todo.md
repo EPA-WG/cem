@@ -105,6 +105,24 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
 
 ### Remaining declarative UI migration
 
+- [x] Fixture: restore the action preview's native hover, active, keyboard-focus
+      and disabled states with CEM tokens. Verify native disabled suppression,
+      stable geometry, and state paint in source/dist/installed-package previews.
+      Check each zebra stripe against the focused element's current colors;
+      inherited root-resolved ring recipes must not erase the focus stripe.
+    - [x] Fixture: give each action sample a consistent theme intent and add
+          a matrix covering all five intents and sharp/smooth/round/disabled
+          controls. Verify each intent's actual default/hover/active/disabled paint.
+    - [x] Fixture: retain runtime host-attribute counts during legacy template
+          conversion instead of folding them against the static source document.
+          Preserve static document count/sum evaluation and verify native lowering
+          before rebuilding WASM and checking disabled browser behavior.
+      Validation: all 74 native converter tests and the custom-element lint gate
+      pass. Source, dist and installed-package checks cover nine cards / 52
+      buttons, all five intents, native input states, and zebra across five theme
+      modes. DevTools confirms keyboard focus and native disabled controls.
+      See [state and variation evidence](archive/todo-completed-2026-09-27.md#action-preview-states-variations-and-zebra).
+
 - [x] Fixture: verify the legacy action demo's actual sharp, smooth and round
       corner radii against generated CEM Shape/Controls tokens, including live
       Bend changes and source/dist/installed-package theme delivery. Keep styles

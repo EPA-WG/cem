@@ -202,3 +202,34 @@ The production component/runtime implementation is unchanged. Remaining
 failures stay in the [baseline inventory](../cem-components-baseline-2026-09-27.md).
 Next: the accepted canonical `cem-action` XHTML/colocated-story migration and
 consumer cutover, preserving explicit submit/reset and default command behavior.
+
+## Action preview states, variations and zebra
+
+- [x] Bind native enabled hover/active and disabled paint to the corresponding
+  theme action state pairs. Add an interaction card and verify held pointer,
+  held/released Space, focus, unchanged geometry and disabled click suppression.
+- [x] Forward disabled by native attribute presence, including empty and
+  `"false"` values. A failing Rust fixture exposed legacy conversion folding
+  `count(//attributes/@disabled)` to zero against the static template. Keep
+  unmatched runtime data paths unresolved until rendering. Static document
+  count/sum fixtures still pass; no component JavaScript workaround was added.
+- [x] Compose zebra shadows on the focused button. The inherited root recipe
+  had resolved all stripes to the inactive surface color before focus changed
+  the local focus token. Compare all three actual stripes against local tokens
+  across light, dark, contrast-light, contrast-dark and native themes, and retain
+  a system-color outline in forced-colors mode.
+- [x] Give every sample one consistent action variant and add a comparison
+  matrix: primary, explicit, contextual, alternate and destructive (danger),
+  each with sharp, smooth, round and disabled controls. Remove obsolete color
+  names and the nonfunctional custom-color example. Verify each intent's
+  default/hover/active/disabled colors against generated theme tokens.
+
+Validation: `cargo test -p cem-ml legacy_custom_element::tests` passes all 74
+tests. `yarn nx run @epa-wg/custom-element:lint` passes with all 12 dependencies,
+including source/dist previews, clean installed-package Chromium checks and
+219-file archive verification. The IDE preview has nine cards and 52 buttons;
+DevTools confirms real Tab/Shift+Tab focus, distinct current zebra colors and
+native disabled states after rebuilding and reloading WASM.
+
+The canonical `cem-components` action cutover remains next. Its migration plan
+now records the user's requested five theme intents as the accepted target.
