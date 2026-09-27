@@ -6160,11 +6160,14 @@ registration identities may reuse an inherited or existing definition.
               closure tests, 10 native retention tests, fresh combined WASM
               protocol checks and 266 browser stories pass. Native lint passes
               with existing warnings.
-        - [ ] Include native Rust dependencies in `cem_ql` default cache inputs;
+        - [x] Include native Rust dependencies in `cem_ql` default cache inputs;
               prevent retained stylesheet tests and lint from reusing results
               after `cem_ml`, grammar, schema, workspace lockfile or toolchain
               changes; keep the WASM build on the same dependency input set.
-              Verify resolved inputs and fresh native/WASM execution.
+              Completed: resolved inputs include source, grammar, schemas, vendor
+              URL code, workspace manifests/lockfile and toolchain. Fresh lint,
+              10 native retention tests and WASM checks pass; an unchanged rerun
+              reuses both cached tasks.
         - [ ] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and
