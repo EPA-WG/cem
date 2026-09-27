@@ -1847,6 +1847,31 @@ update queue or recovery result. It is a prerequisite for the
 coordinator. Existing callers outside the boundary continue to notify cleanup
 synchronously.
 
+### Joint declaration CSS and DOM publication
+
+`DeclarationStyleOwnership.commitGroupWithPatch(entries, patch, currentRevision,
+signal?)` admits a declaration stylesheet group and a prepared DOM patch before
+publishing either candidate. The prepared range must belong directly to the
+group's host. The revision reader must be synchronous and side-effect free.
+Invalid CSS groups, cancelled/stale patches, foreign hosts and prior cancellation
+reject the candidates while preserving the active CSS and DOM. Each attempt
+consumes the patch and releases rejected CSS candidates.
+Nested calls inside an existing stylesheet notification boundary are rejected;
+the operation must own that boundary to report completion after cleanup.
+
+After admission, CSS publishes first and the patch rechecks its targets and
+current revision. Old-load release/abort callbacks run after publication exits.
+The result distinguishes `applied`, `rejected` before publication, and
+`recovery-required` after publication begins. Cancellation, target changes or
+supersession during publication and cleanup errors can require recovery even
+when some or all mutations have completed. Errors and patch diagnostics remain
+available to the caller; no rollback is claimed.
+
+This primitive coordinates declaration CSS only. The caller must serialize
+managed update requests and provide authoritative recovery. Prepared instance
+CSS, the loading/preparation bridge, and the Edge response/state contract still
+need integration before changed-CSS streamed updates can be enabled.
+
 ### Preparing the DOM side of a CSS update
 
 `preparePatchFramesForRange(bounds, frames, expectedRevision, document, options)`

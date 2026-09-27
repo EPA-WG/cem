@@ -4,7 +4,10 @@ import {
 
 import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
 import { declarationStylesheetAttributes } from './declaration-style-markup.js';
-import { notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
+import { deferStylesheetNotifications, stylesheetNotificationsDeferred,
+    notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
+import type { PreparedPatchFrames, RenderRevision, PatchFramesApplyDiagnostic } from './projection.js';
+import { renderRevisionKey } from './projection.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
 export interface CemOwnedStylesheet<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
@@ -25,6 +28,12 @@ export interface DeclarationStylesheetCommit {
     lease: CemStylesheetConsumerLease;
     outputs: readonly CemOwnedStylesheet[];
     release(): void;
+}
+
+export interface DeclarationStylesheetPatchResult {
+    status: 'applied' | 'rejected' | 'recovery-required';
+    diagnostics: readonly PatchFramesApplyDiagnostic[];
+    errors: readonly unknown[];
 }
 
 const leases = new WeakMap<CemStylesheetConsumerLease, { owner: DeclarationStyleOwnership; consumer: Consumer }>();
@@ -242,6 +251,62 @@ export class DeclarationStyleOwnership {
 
     /** Publish a complete group for one host after validating every owner and marker holder. */
     static commitGroup(entries: readonly DeclarationStylesheetCommit[]): boolean {
+        return this.publishGroup(entries);
+    }
+
+    /**
+     * Admit declaration CSS and a prepared patch together, then publish CSS first.
+     * The revision reader must be synchronous and side-effect free. The caller owns
+     * recovery and scheduling subsequent updates; this primitive does not roll back.
+     */
+    static commitGroupWithPatch(entries: readonly DeclarationStylesheetCommit[], patch: PreparedPatchFrames,
+        currentRevision: () => RenderRevision, signal?: AbortSignal): DeclarationStylesheetPatchResult {
+        let started = false;
+        let applied = false;
+        let revision: string | undefined;
+        let diagnostics: readonly PatchFramesApplyDiagnostic[] = [];
+        const errors: unknown[] = [];
+        const nested = stylesheetNotificationsDeferred();
+        try {
+            deferStylesheetNotifications(() => {
+                const live = this.publishGroup(entries, {
+                    check: element => {
+                        if (nested || signal?.aborted || !element || patch.container !== element) return false;
+                        try {
+                            const current = currentRevision();
+                            const result = patch.check(current);
+                            diagnostics = result.diagnostics;
+                            revision = renderRevisionKey(current);
+                            return result.status === 'ready';
+                        } catch (error) { errors.push(error); return false; }
+                    },
+                    start: () => { started = true; },
+                    commit: () => {
+                        if (signal?.aborted) return;
+                        const result = patch.commit(currentRevision());
+                        diagnostics = result.diagnostics;
+                        applied = result.status === 'applied';
+                    },
+                });
+                applied &&= live;
+            });
+            if (started && revision !== renderRevisionKey(currentRevision())) applied = false;
+        } catch (error) { errors.push(error); }
+        finally { patch.cancel(); }
+        const live = entries.every(entry => {
+            const state = leases.get(entry.lease);
+            const element = state?.consumer.element.deref();
+            return state && element?.isConnected && element.ownerDocument === state.owner.document
+                && active(state.consumer.scope) && active(state.owner.processingScope)
+                && state.owner.currentConsumers.get(element) === state.consumer
+                && state.owner.consumers.has(state.consumer) && !entry.lease.signal.aborted;
+        });
+        return { status: started ? applied && live && !signal?.aborted && errors.length === 0
+            ? 'applied' : 'recovery-required' : 'rejected', diagnostics, errors };
+    }
+
+    private static publishGroup(entries: readonly DeclarationStylesheetCommit[],
+        publication?: { check(element: HTMLElement | undefined): boolean; start(): void; commit(): void }): boolean {
         if (!entries.length) return false;
         const members = entries.map(entry => ({ entry, state: leases.get(entry.lease) }));
         const owners = new Set(members.flatMap(member => member.state ? [member.state.owner] : []));
@@ -252,10 +317,11 @@ export class DeclarationStyleOwnership {
             owner.reconcile();
         }
         const element = members[0].state?.consumer.element.deref();
+        const admitted = publication?.check(element) ?? true;
         const replacing = new Set(members.flatMap(member => member.state?.consumer.previous ? [member.state.consumer.previous] : []));
         const contexts = new Set(entries.flatMap(entry => entry.outputs.map(source => source.output.identity.contextMarker))
             .filter((value): value is string => value !== null));
-        const valid = element && owners.size === entries.length && contexts.size <= 1 && members.every(({ state, entry }) =>
+        const valid = admitted && element && owners.size === entries.length && contexts.size <= 1 && members.every(({ state, entry }) =>
             state && state.consumer.element.deref() === element && state.owner.validConsumer(state.consumer, entry.outputs, replacing));
         if (!valid) {
             const notifications: Array<() => void> = [];
@@ -270,6 +336,7 @@ export class DeclarationStyleOwnership {
         const notifications: Array<() => void> = [];
         const previous: Array<{ owner: DeclarationStyleOwnership; consumer: Consumer }> = [];
         try {
+            publication?.start();
             for (const { state, entry } of members) {
                 if (!state) continue;
                 const old = state.owner.publishConsumer(state.consumer, entry.outputs, entry.release);
@@ -279,6 +346,7 @@ export class DeclarationStyleOwnership {
             for (const { owner, consumer } of previous) owner.dropConsumer(consumer, notifications);
             for (const owner of owners) owner.reconcile();
             reconcileStylesheetContextMarker(element);
+            publication?.commit();
         } finally {
             runNotifications(notifications);
         }

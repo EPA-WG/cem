@@ -6531,6 +6531,18 @@ registration identities may reuse an inherited or existing definition.
                   Verification: 575 unit tests and 297 browser cases in each
                   default/retained-CSS lane pass; typecheck and lint pass with
                   two existing warnings.
+            - [x] Fixture: jointly admit declaration stylesheet groups and prepared
+                  DOM patches; preserve active CSS/DOM on pre-publication rejection
+                  and report recovery after callback mutation or cancellation during
+                  publication, with native worker/fallback evidence.
+                  Completed 2026-09-27: `commitGroupWithPatch` validates CSS and
+                  the host-bound patch before publication, defers cleanup, and
+                  distinguishes applied/rejected/recovery-required results. Twelve
+                  worker/fallback scenarios cover invalid candidates, cancellation,
+                  target replacement, revision changes, cleanup failure, nested
+                  boundaries and host disconnection. Verification: 575 unit tests,
+                  298 browser cases in each default/retained-CSS lane, typecheck
+                  and lint pass with two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

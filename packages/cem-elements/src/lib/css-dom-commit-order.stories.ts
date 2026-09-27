@@ -11,12 +11,12 @@ export default { title: 'CEM Elements/CSS and DOM Commit Ordering Evidence', tag
 type Story = StoryObj;
 
 /** Publication ordering and the notification boundary; Edge integration remains separate. */
-export const SynchronousObserversSeeSequentialPublication: Story = {
+function publicationStory(orders: readonly string[]): Story { return {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
         const root = canvasElement.querySelector('section');
         if (!root) throw new Error('missing ordering fixture');
-        for (const fallback of [false, true]) for (const order of ['css-first', 'dom-first', 'deferred-cleanup']) {
+        for (const fallback of [false, true]) for (const order of orders) {
             const native = nativeCssStoryHost(fallback);
             const scope = createCemDeclarationScope({ document });
             const owner = new DeclarationStyleOwnership(document, scope);
@@ -25,16 +25,19 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
             const childTag = `ordering-child-${crypto.randomUUID()}`;
             const observed: Array<{ callback: string; text: string; asset: string }> = [];
             let recording = false;
+            let onMarker: (() => void) | undefined;
+            let onConnect: (() => void) | undefined;
+            const released: string[] = [];
             const observe = (callback: string) => {
                 if (recording) observed.push({ callback, text: host.querySelector('[data-content]')?.textContent ?? '',
                     asset: getComputedStyle(host).getPropertyValue('--asset') });
             };
             customElements.define(tag, class extends HTMLElement {
                 static observedAttributes = ['data-cem-css-context'];
-                attributeChangedCallback() { observe('marker'); }
+                attributeChangedCallback() { observe('marker'); const callback = onMarker; onMarker = undefined; callback?.(); }
             });
             customElements.define(childTag, class extends HTMLElement {
-                connectedCallback() { observe('connected'); }
+                connectedCallback() { observe('connected'); const callback = onConnect; onConnect = undefined; callback?.(); }
             });
             const host = document.createElement(tag); root.append(host);
             const bounds = { start: document.createComment('start'), end: document.createComment('end') };
@@ -52,7 +55,9 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
                     if (output.status !== 'ready') throw new Error('expected ready CSS');
                     return { lease, outputs: [{ index: 0, scope: { kind: 'private' }, output }], release() {
                         observe('release');
+                        released.push(variant);
                         releases.push(native.host.stylesheet({ action: 'release', artifact, consumer, loadId: output.loadId }).result);
+                        if (order === 'cleanup-error' && variant === 'old') throw new Error('cleanup fixture');
                     } };
                 };
                 const plan = (after: boolean): RenderPlan => ({ producedTag: tag, instanceId: 'instance',
@@ -65,10 +70,47 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
                 old.lease.signal.addEventListener('abort', () => observe('abort'), { once: true });
                 applyRenderPlanToRange(bounds, before, document);
                 const css = await candidate('new');
-                const patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), renderPlanIdentity(after), document);
+                let patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), renderPlanIdentity(after), document);
                 expect(patch.check(renderPlanIdentity(after)).status).toBe('ready');
                 recording = true;
-                if (order === 'deferred-cleanup') {
+                if (!['css-first', 'dom-first', 'deferred-cleanup'].includes(order)) {
+                    const controller = new AbortController();
+                    let current = renderPlanIdentity(after);
+                    if (order === 'reject-patch') patch.cancel();
+                    if (order === 'reject-css') css.outputs = [...css.outputs, ...css.outputs];
+                    if (order === 'cancel-before') controller.abort();
+                    if (order === 'cancel-during') onMarker = () => controller.abort();
+                    if (order === 'supersede') onMarker = () => { current = { ...current, dataRevision: '3' }; };
+                    if (order === 'supersede-child') onConnect = () => { current = { ...current, dataRevision: '3' }; };
+                    if (order === 'disconnect-child') onConnect = () => host.remove();
+                    if (order === 'mutate-target') onMarker = () => {
+                        const target = host.querySelector('[data-content]');
+                        if (target) target.replaceWith(target.cloneNode(true));
+                    };
+                    if (order === 'foreign-host') {
+                        const foreign = document.createElement('div'); root.append(foreign);
+                        const range = { start: document.createComment('start'), end: document.createComment('end') };
+                        foreign.append(range.start, range.end);
+                        applyRenderPlanToRange(range, before, document);
+                        patch = preparePatchFramesForRange(range, diffRenderPlansToPatchFrames(before, after), current, document);
+                    }
+                    const commit = () => DeclarationStyleOwnership.commitGroupWithPatch([css], patch, () => current, controller.signal);
+                    const result = order === 'nested' ? deferStylesheetNotifications(commit) : commit();
+                    const rejected = ['reject-patch', 'reject-css', 'cancel-before', 'foreign-host', 'nested'].includes(order);
+                    const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child'].includes(order);
+                    expect(result.status).toBe(rejected ? 'rejected' : order === 'joint' ? 'applied' : 'recovery-required');
+                    expect(host.querySelector('[data-content]')?.textContent).toBe(completed ? 'After' : 'Before');
+                    if (order !== 'disconnect-child') expect(getComputedStyle(host).getPropertyValue('--asset')).toContain(rejected ? '/old.svg' : '/new.svg');
+                    expect(old.lease.signal.aborted).toBe(!rejected);
+                    expect(released).toEqual([rejected ? 'new' : 'old']);
+                    expect(patch.check(current).status).toBe('aborted');
+                    expect(result.errors.length).toBe(order === 'cleanup-error' ? 1 : 0);
+                    if (completed && order !== 'disconnect-child') for (const callback of ['release', 'abort', 'connected']) {
+                        expect(observed).toContainEqual({ callback, text: 'After', asset: expect.stringContaining('/new.svg') });
+                    }
+                    expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+                    continue;
+                } else if (order === 'deferred-cleanup') {
                     deferStylesheetNotifications(() => {
                         expect(DeclarationStyleOwnership.commitGroup([css])).toBe(true);
                         expect(old.lease.signal.aborted).toBe(false);
@@ -98,4 +140,11 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
             }
         }
     },
-};
+}; }
+
+export const SynchronousObserversSeeSequentialPublication = publicationStory(['css-first', 'dom-first', 'deferred-cleanup']);
+export const JointAdmissionAndRecovery = publicationStory([
+    'joint', 'reject-patch', 'reject-css', 'cancel-before', 'cancel-during',
+    'mutate-target', 'supersede', 'cleanup-error', 'foreign-host',
+    'nested', 'supersede-child', 'disconnect-child',
+]);

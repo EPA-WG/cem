@@ -1,5 +1,8 @@
 let pending: Array<() => void> | undefined;
 
+/** A joint operation must own its cleanup boundary to report a final result. */
+export function stylesheetNotificationsDeferred(): boolean { return pending !== undefined; }
+
 /** Run every cleanup even when another cleanup fails. */
 export function notifyStylesheetLifecycle(notifications: readonly (() => void)[]): void {
     if (pending) {

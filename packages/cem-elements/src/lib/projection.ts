@@ -2117,6 +2117,8 @@ function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchF
 }
 
 export interface PreparedPatchFrames {
+    /** Original parent of the owned render range, for binding publication to its host. */
+    readonly container: Node | null;
     /** A check does not reserve the range or mutate DOM. */
     check(currentRevision: RenderRevision): { status: 'ready' | 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] };
     commit(currentRevision: RenderRevision): PatchFramesApplyResult;
@@ -2146,7 +2148,7 @@ export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: r
         }
         return { status: 'ready', diagnostics: [] };
     };
-    return { check, cancel: () => { available = false; }, commit(currentRevision) {
+    return { container: parent, check, cancel: () => { available = false; }, commit(currentRevision) {
         const result = check(currentRevision);
         available = false;
         if (result.status !== 'ready') return { status: result.status, diagnostics: result.diagnostics };
@@ -3447,7 +3449,7 @@ function edgeRenderStateKey(revision: RenderRevision): string {
     return ['edge-state', revision.scopePolicyStamp, revision.instanceId].join(':');
 }
 
-function renderRevisionKey(revision: RenderRevision): string {
+export function renderRevisionKey(revision: RenderRevision): string {
     return [
         revision.instanceId,
         revision.dataRevision,

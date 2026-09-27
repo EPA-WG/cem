@@ -86,11 +86,18 @@ Proceed with the admission/completion contract above. The synchronous stylesheet
 notification boundary is the first implementation step: it defers ownership
 release/abort notifications until the surrounding publication returns or throws.
 Nested boundaries share a queue, and all queued cleanup runs even after failure.
-It does not implement joint admission, managed update queuing, recovery or the
-Edge response/state contract. Changed-CSS Edge updates remain guarded until
-those integration requirements are verified.
+`DeclarationStyleOwnership.commitGroupWithPatch` now jointly admits declaration
+CSS and a prepared patch, checks that they belong to the same host, and reports
+`applied`, `rejected` or `recovery-required`. It rechecks the revision and live
+ownership after publication and cleanup. Nested joint calls are rejected so a
+call cannot report success before an outer notification boundary finishes.
+Prepared instance CSS, managed update queuing, authoritative recovery and the
+Edge response/state contract still need integration. Changed-CSS Edge updates
+remain guarded until those requirements are verified.
 
-Boundary verification: 575 unit tests and 297 browser cases in each default and
+Joint publication verification: 575 unit tests and 298 browser cases in each default and
 retained-CSS lane pass; typecheck and lint pass with two existing warnings. The
 ordering fixture now also verifies deferred release/abort callbacks against real
-native CSS and a prepared DOM patch in worker and fallback modes.
+native CSS and a prepared DOM patch in worker and fallback modes. The joint
+fixture covers twelve scenarios including pre-publication rejection, cancellation,
+target mutation, revision changes, cleanup failure and host disconnection.
