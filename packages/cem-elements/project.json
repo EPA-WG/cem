@@ -213,6 +213,9 @@
                 "retained-css": {
                     "env": { "STORYBOOK_CEM_RETAINED_CSS": "1" }
                 },
+                "legacy-css": {
+                    "env": { "STORYBOOK_CEM_RETAINED_CSS": "0" }
+                },
                 "readiness-trace": {
                     "env": { "STORYBOOK_CEM_TREE_TRACE": "1" }
                 }

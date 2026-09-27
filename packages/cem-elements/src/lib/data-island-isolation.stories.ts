@@ -297,7 +297,7 @@ export const DeclarationAndDataIslandIsolationMatrix: Story = {
             'the declaration-owned stylesheet is installed once beside the declaration template'
         );
         assert(
-            managedSourceStyle.textContent?.includes('@scope (\n    iso-matrix-el') ?? false,
+            /@scope\s*\(\s*iso-matrix-el/.test(managedSourceStyle.textContent ?? ''),
             'private declaration CSS uses the native produced-tag scope'
         );
         assertEqual(
@@ -467,7 +467,7 @@ export const DeclarationAndInstanceStylesHaveSeparateOwnership: Story = {
             ':scope > style[data-cem-declaration-style="shared"]'
         );
         assert(
-            privateStyle.textContent?.startsWith('@scope (\n    style-mixed') ?? false,
+            /^@scope\s*\(\s*style-mixed/.test(privateStyle.textContent ?? ''),
             'a bare style becomes private when an explicit scoped style coexists'
         );
         assert(

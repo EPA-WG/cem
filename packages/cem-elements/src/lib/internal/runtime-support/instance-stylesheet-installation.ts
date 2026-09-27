@@ -1,3 +1,4 @@
+import type { CemOwnedStylesheet } from '../../declaration-style-ownership.js';
 import { installRetainedStylesheets, prepareRetainedStylesheets, type CemPreparedStylesheets, type CemStylesheetInstallation, type CemStylesheetInstallationOptions } from './stylesheet-installation.js';
 import { cemProcessingFailureDiagnostics, createCemProcessingTextSource, type CemProcessingDiagnostic } from './processing-host.js';
 import { notifyStylesheetLifecycle } from './stylesheet-notifications.js';
@@ -59,10 +60,23 @@ export function prepareInstanceStylesheets(options: InstanceStylesheetInstallati
     };
 }
 
-function install(input: InstanceStylesheetInstallationOptions, staged: boolean, deferred = false):
+type EmittedInstanceStylesheets = { element: HTMLElement; signal: AbortSignal; outputs: readonly CemOwnedStylesheet<{ kind: 'instance' }>[] };
+
+/** Adopt native server emission directly; this path does not compile or parse CSS. */
+export function prepareEmittedInstanceStylesheets(options: EmittedInstanceStylesheets): PreparedInstanceStylesheets {
+    const candidate = install(options, true, true);
+    return { element: options.element, ready: candidate.ready.then(diagnostics => ({
+        status: candidate.isPrepared() ? 'prepared' : 'cancelled', diagnostics })),
+        check: candidate.isPrepared, isPublished: candidate.isPublished,
+        cancelPreparation: candidate.cancelPreparation, commit: candidate.commit, dispose: candidate.dispose };
+}
+
+function install(input: InstanceStylesheetInstallationOptions | EmittedInstanceStylesheets, staged: boolean, deferred = false):
     InstanceStylesheetInstallation & { commit(): boolean; isPrepared(): boolean; isPublished(): boolean; cancelPreparation(): void } {
-    const options = { ...input, ...structuredClone({ sources: input.sources, context: input.context }) };
-    const { element, host } = options;
+    const options = 'outputs' in input ? { ...input, outputs: structuredClone(input.outputs) }
+        : { ...input, ...structuredClone({ sources: input.sources, context: input.context }) };
+    const { element } = options;
+    const host = 'host' in options ? options.host : undefined;
     let state = generations.get(element);
     if (!state) { state = {}; generations.set(element, state); }
     const ownership = state;
@@ -74,7 +88,7 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean, 
     let installation: CemStylesheetInstallation | CemPreparedStylesheets | undefined;
     let publish: (() => boolean) | undefined;
     let prepared = false;
-    let nativeCurrent = () => !host.ownerScope.disposed;
+    let nativeCurrent = () => !host?.ownerScope.disposed;
     let compileJobId: number | undefined;
     const release = () => {
         options.signal.removeEventListener('abort', dispose);
@@ -94,7 +108,7 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean, 
         controller.abort();
         release();
         options.signal.removeEventListener('abort', dispose);
-        if (compileJobId !== undefined) void host.cancel({ targetJobId: compileJobId, reason: 'superseded' }).result.catch(() => undefined);
+        if (compileJobId !== undefined) void host?.cancel({ targetJobId: compileJobId, reason: 'superseded' }).result.catch(() => undefined);
         void installation?.dispose().catch(() => undefined);
     };
     const generation: Generation = { dispose };
@@ -130,6 +144,11 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean, 
     };
     const ready = (async (): Promise<readonly CemProcessingDiagnostic[]> => {
         if (controller.signal.aborted) return [];
+        if ('outputs' in options) {
+            prepared = true;
+            publish = () => commit(options.outputs, () => undefined);
+            return [];
+        }
         if (!options.sources.length) {
             if (deferred) {
                 prepared = true;
@@ -138,7 +157,7 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean, 
             return [];
         }
         try {
-            const job = host.compile({ language: 'css', instanceStylesheetIdentity: options.instanceId,
+            const job = options.host.compile({ language: 'css', instanceStylesheetIdentity: options.instanceId,
                 producedTag: element.localName, templateArtifactId: options.artifactId,
                 registrationIdentity: options.instanceId,
                 source: createCemProcessingTextSource(JSON.stringify(options.sources)),

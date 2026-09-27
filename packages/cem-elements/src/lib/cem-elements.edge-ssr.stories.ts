@@ -156,6 +156,8 @@ function nativeInitialStylesStory(includeDeclarations: boolean, includeUpdate = 
                     await waitFor(() => expect(reads).toBeGreaterThanOrEqual(1));
                     expect(settled).toBe(false);
                     expect(restored.querySelector('p')).toBe(paragraph);
+                    expect(restored.querySelector(':scope > style[data-cem-instance-style]')).toBe(style);
+                    expect(getComputedStyle(paragraph).color).toBe('rgb(1, 2, 3)');
                     release(); await ready;
                     expect(restored.querySelector('p')).toBe(paragraph);
                     expect(restored.querySelector(':scope > style[data-cem-instance-style]')).toBe(style);

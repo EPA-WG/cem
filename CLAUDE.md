@@ -52,9 +52,11 @@ JavaScript behavior workaround. The proven reference is
 The complete normative scoping matrix, specificity, ownership, lifecycle, and
 diagnostic rules are in
 [`docs/cem-ml-uid-and-scoped-css-design.md`](docs/cem-ml-uid-and-scoped-css-design.md).
-That contract is an accepted migration target, not current runtime behavior;
-do not depend on it until the **Native CSS `@scope` migration** item in
-[`docs/todo.md`](docs/todo.md) is complete.
+Native retained CSS is the default runtime path. Its supported syntax and
+explicit compatibility boundaries are documented in
+[`docs/scoped-css-module-maps.md`](docs/scoped-css-module-maps.md); completed
+migration evidence is in
+[`docs/archive/todo-completed-2026-09-27.md`](docs/archive/todo-completed-2026-09-27.md#native-css-migration-closure).
 The produced-instance capture, data-island, serialized resume, and hydration
 contract is normative in
 [`docs/cem-element-lifecycle-principle.md`](docs/cem-element-lifecycle-principle.md).

@@ -1,21 +1,25 @@
 # Scoped module maps for typed CSS
 
-Status: native typed CSS adoption, scoped import loading, resource resolution and
-browser installation are implemented through `retainedStylesheets: {}`. Both
-runtime test lanes pass. The authored module-map import demonstration is verified in standalone and
-source-loaded modes. Default runtime cutover remains pending; see [todo.md](todo.md).
+Status: native typed CSS adoption, imports, scoped URL resolution and retained
+browser installation are the default. CEM-ML and DOM runtime updates publish CSS
+and DOM through the per-host queue. The native Edge path emits verified stylesheet
+batches for the same publication boundary. `retainedStylesheets: false` retains
+the legacy comparison path; ordinary XSLT result styles remain separate.
+The supported syntax profile and explicit limits below remain the contract.
+Earlier implementation notes are historical evidence; this status and the
+runtime/Edge publication sections describe the completed integration.
 
-Template adoption should recognize internal `<style>` content as CSS, dispatch
-through the shared `text/css` parser, and retain the resulting CEM AST and source
-locations. CSS imports and resource URLs should resolve from the closest owning
-module-map scope. The demonstration belongs in
+Template adoption recognizes internal `<style>` content as CSS, dispatches
+through the shared `text/css` parser, and retains the resulting CEM AST and source
+locations. CSS imports and resource URLs resolve from the closest owning
+module-map scope. The demonstration is in
 [`scoped-css.html`](../packages/cem-elements/demo/scoped-css.html).
 
 ## Existing boundaries
 
 - `cem_ml/src/schema/registry.rs` already registers `text/css` and
-  `https://cem.dev/ns/data/css/1`. The remaining work is adoption and retained
-  tree integration, not inventing another CSS namespace.
+  `https://cem.dev/ns/data/css/1`. Adoption and retained tree integration use
+  this existing namespace.
 - `cem_ml/src/module_resolution.rs` stores frames outermost first. Non-CSS
   requests let an outer mapping win over an inner mapping; the `css` resolution
   purpose selects the closest mapping. Its tests also require outer blocks
@@ -25,8 +29,8 @@ module-map scope. The demonstration belongs in
   module-map entries. A resource already supports `specifier`, `target`,
   `content-type`, and `integrity`; there is no separate override entry kind.
 - The [scoped CSS contract](cem-ml-uid-and-scoped-css-design.md) suppresses
-  `@import` in the default runtime. The opt-in retained runtime loads and scopes
-  imported rules; resolving their URLs alone is insufficient.
+  raw browser `@import`. The default retained runtime loads and scopes imported
+  rules; the explicit legacy path suppresses imports.
 
 ## Accepted decisions
 
@@ -50,8 +54,8 @@ module-map scope. The demonstration belongs in
    (`media`, `supports`, `layer`), source locations, and each imported sheet's
    URL base. Diagnose unsupported conditions and cycles rather than emitting
    browser `@import` as a fallback. Existing document-global and library-layer restrictions
-   still apply. The opt-in retained runtime implements this loading path;
-   the default runtime continues to suppress imports.
+   still apply. The default retained runtime implements this loading path;
+   the explicit legacy path continues to suppress imports.
 
 Update the normative contracts and add focused native tests
 before implementation: typed style adoption, closest-scope mapping/fallback,
@@ -1153,7 +1157,7 @@ It is a migration-readiness audit, not a claim to support all CSS syntax.
 | Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
 | Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
 | Other URL-bearing syntax | At audit time, quoted `image-set()` candidates were ordinary string components. The resolver recognized imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. The subsequent [image candidate fixture](#retained-image-candidate-resources) now covers this static profile. |
-| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` now admits native context-qualified sets and consumer leases. The opt-in runtime now routes declaration and inert-payload CSS through native loads, consumer leases and render/hydration readiness. Ordinary result styles remain on their separate path. |
+| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` now admits native context-qualified sets and consumer leases. The default runtime routes declaration and inert-payload CSS through native loads, consumer leases and render/hydration readiness. Ordinary result styles remain on their separate path. |
 
 The combined regression compares canonical retained output, rather than legacy
 spacing: unqualified type selectors emit with an explicit wildcard namespace,
@@ -1228,7 +1232,7 @@ and settles cancellation even if a reader ignores its abort signal. Cleanup uses
 exact load generations and accounts for worker replacement. Browser fixtures use
 real worker/fallback hosts for redirects, map snapshots, disposal, reconnect and
 reuse of existing DOM content. The main runtime uses this coordinator when
-`retainedStylesheets: {}` is configured; default cutover remains pending.
+retained CSS is enabled (the default).
 
 `CemStylesheetRegistry` now routes registered native source handles to connected
 consumers. Private occurrences match effective declaration identity; shared
@@ -1264,13 +1268,11 @@ admission diagnoses that excess byte with `cem.css.import_byte_limit`; oversized
 responses are never accepted as truncated stylesheets. Hosts may override the
 reader with `retainedStylesheets: { read }`.
 
-Next, exercise the authored CSS demos through this runtime path before enabling
-the default compiler. The runtime
-fixtures cover nested module maps, context replacement and hydration. Instance
-styles still require their own retained ownership path;
-the declaration protocol deliberately rejects instance scope. The remaining syntax
-profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not
-authorize raw-text fallbacks.
+Authored CSS demos and runtime fixtures cover nested module maps, context
+replacement and hydration in the default path. Instance styles use their own
+retained ownership path; the declaration protocol deliberately rejects instance
+scope. Syntax outside the supported profile remains explicitly diagnosed without
+raw-text fallbacks.
 
 Automatic fragment binding remains deferred. Literal functions such as `:dir()`
 and `:lang()` do not participate in URL resolution.
@@ -1301,7 +1303,7 @@ Blocked/failed candidate references use the existing declaration suppression.
 Native fixtures cover context reuse, escaped strings, exact source ranges,
 redirected/repeated imported sheets, descriptor order, the prefixed alias and
 unsupported forms. The browser gate checks computed candidate URLs from native
-output after rebuilding WASM. Runtime installation remains pending.
+output after rebuilding WASM; the default runtime installs these emitted outputs.
 
 ## Effective stylesheet identity (native)
 
@@ -1345,15 +1347,15 @@ Native tests reconstruct trees and resolver handles to verify stable identity,
 exercise map/policy/base/scope/content invalidation and verify cancellation and
 uncacheable resolvers. The browser fixture installs two native-emitted variants,
 checks their isolation from each other and unmarked hosts, then changes a host's
-marker. This proves scope behavior; runtime ownership, hydration restoration and
-cache lifecycle are still pending.
+marker. The later runtime ownership, hydration and cache lifecycle fixtures
+verify that integration through the default runtime.
 
 A cache key is not an authorization or freshness decision. The caller must
 revalidate dependency responses through the loader, confirm the consuming context
 is live and invalidate pending work on context changes before committing styles.
 The processing-host protocol below carries these identities through the retained
-artifact lifecycle. Replacing declaration-only browser ownership still requires
-context-specific installation, reconnect and readiness coverage.
+artifact lifecycle. Context-specific installation, reconnect and readiness
+coverage now verify replacement of declaration-only browser ownership.
 
 ### Context changes during native import loading
 
@@ -1408,7 +1410,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v13` `stylesheet` operation populates this collection
+The `cem-processing-host-v14` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1450,26 +1452,27 @@ Processing-engine and host tests cover shared compilation,
 root disposal, stale handles, fallback and late cancellation. The installation
 coordinator now drives these operations with caller-supplied byte transport,
 including native failure reporting. Main runtime readiness routing and bounded
-default byte transport are available through the opt-in configuration; compiler
-cutover remains pending.
+default byte transport are enabled by default. The legacy comparison option is
+`retainedStylesheets: false`.
 
 ## Authored demo acceptance with retained runtime CSS
 
 `cem-elements:test:retained-css` runs the existing browser suite with
-`retainedStylesheets: {}` in the shared Storybook preview. The default test lane
-is unchanged; stories constructing independent runtimes keep their own options.
+`retainedStylesheets: {}` in the shared Storybook preview. This is also the
+default; `test:legacy-css` explicitly selects false. Independent runtime stories
+keep their own options.
 The environment switch participates in the test cache identity.
 
 The original 13 scoped-CSS samples use the same assertions in both lanes.
 Samples 14/15 additionally verify native imports in the retained lane and import
-suppression in the default lane.
+suppression in the legacy lane.
 Animation assertions read the browser's keyframe definition and running
 animation, and check that the name survives reconnect. This permits the native
 owner-key namespace documented above without depending on legacy serialization.
 The repeated hex-gallery story waits on the preview runtime that owns its
 registrations. Native derived styles are released with their last consumer;
-remount must reproduce the same CSS and computed behavior, while the default
-compiler also retains its stylesheet DOM nodes.
+remount must reproduce the same CSS and computed behavior. The explicit legacy
+comparison compiler retains its declaration stylesheet DOM nodes.
 
 The wider acceptance run exposed two lifecycle issues. Late resource events
 can update retained state after disconnect, but rendering now waits for a live
@@ -1500,7 +1503,7 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-Processing-host protocol v13 carries `instanceStylesheetIdentity` only for CSS
+Processing-host protocol v14 carries `instanceStylesheetIdentity` only for CSS
 source adoption. The identity is part of the native compilation cache key and
 same-artifact reuse checks. Instance loads pass this fixed identity through the
 WASM control boundary; declaration loads retain their registration identity.
@@ -1523,8 +1526,8 @@ module-map contexts replace the installation while retaining the instance ID.
 Disconnect and ancestor disposal abort reads and release native generations;
 stale delivery cannot commit. A failed occurrence reports native source ranges
 without dropping independent valid occurrences. Worker/fallback fixtures cover
-these paths for DOM and CEM-ML declarations. Default compiler cutover remains
-pending.
+these paths for DOM and CEM-ML declarations. The default compiler cutover is
+complete.
 
 
 ### Nested inert payload ownership
@@ -1535,7 +1538,7 @@ source for the eventual child consumer. Boundary tests cover both namespace form
 in legacy and retained modes, including imports that the parent must not process.
 
 
-## Migration gate reconciliation (2026-09-26)
+## Historical migration gate reconciliation (2026-09-26)
 
 The import-loader and compiler implementation gates are complete for the accepted
 managed-CSS profile. Their umbrella checklist entries had not been closed as the
@@ -1572,7 +1575,7 @@ entries; no new override syntax is introduced.
 
 Standalone and source-loaded fixture checks verify imported color, image URL,
 source presentation and overflow at 1280px and 390px. The retained Storybook lane
-verifies both mappings; the default lane verifies import suppression. The browser
+verifies both mappings; the explicit legacy lane verifies import suppression. The browser
 reader requests `Accept: text/css`, so development servers return CSS bytes rather
 than JavaScript module wrappers without requiring special queries in authored URLs.
 
@@ -1592,13 +1595,9 @@ HTML or patch frames and leave retained state unchanged. Legacy-policy requests
 keep their existing behavior. This guard applies to the evidence host, not to
 browser retained-CSS installation.
 
-Default cutover remains pending. Next, give the Edge host native stylesheet
-adoption/loading with the same consuming module context and persisted instance
-identity as the browser. Verify emitted host-child styles and import readiness,
-then hydrate that output without duplicating payload CSS or renaming animations.
-Only remove the capability guard once initial render and update fixtures prove
-those paths. Browser hydration of browser-produced retained output already has
-coverage; it cannot establish that the Node host emits compatible output.
+The native asynchronous initial/update hosts described below supply those
+capabilities. The synchronous evidence host remains intentionally separate and
+continues to reject policies it cannot implement.
 
 
 ### DOM-free Edge stylesheet adapter
@@ -1692,25 +1691,39 @@ contexts and places each returned batch under its matching owner. Browser
 worker/fallback fixtures verify private and shared initial-response sidecars
 survive hydration with the same style nodes and computed styles.
 
-### Streamed updates that preserve native styles
+<a id="streamed-updates-that-preserve-native-styles"></a>
 
-Protocol v13 and Edge render-state schema 1.1.0 add an optional
-`currentStylesheets` content address. Native initial renders retain a
-`native-ssr-stylesheets-v1` record containing the emitted sidecars and an identity
-for their source inputs: template content, instance and declaration identities,
-payload CSS, consuming contexts, base URLs and render scope. Store adapters must
-persist `stylesheetState` under the `stylesheets` content kind and verify it on
-read, alongside the existing render plan and snapshot content. Older records
-remain readable; records without native stylesheet state cannot use this update
-path.
+### Streamed native CSS updates
 
-`executeNativeEdgeRenderUpdateFixture(request, store, context, signal)` copies
-the request and stylesheet context when called. It accepts updates only when
-the retained stylesheet inputs match, then patches the owned render range while
-preserving the stylesheet content address. It neither reloads CSS imports nor
-returns replacement style markup. Changed sources, template content or contexts
-fail with `cem.edge_ssr.stylesheet_update_unsupported` before any frame or state
-write. Missing/corrupt content and stale ETags also fail before progress.
+Protocol v14 and Edge render-state schema 1.1.0 retain stylesheet content under
+`currentStylesheets`. Native initial renders store the emitted sidecars and a
+`native-css-batch-v1` batch, plus the input identity for template content,
+instance/declaration identities, payload CSS, contexts, bases and render scope.
+Store adapters persist and verify the `stylesheets` content alongside the plan
+and snapshot. Older records remain readable; native updates require retained
+stylesheet state.
+
+`executeNativeEdgeRenderUpdateFixture(request, store, transport, signal)` copies
+the request and contexts at submission. Unchanged inputs preserve the content
+address and avoid reloading imports. Changed inputs use the supplied native
+bindings and byte reader to finish every occurrence before state commit. A
+failed occurrence rejects the whole replacement. Cancellation and a competing
+ETag write during loading produce no progress frames or partial state writes.
+The terminal result carries the retained stylesheet state and native batch.
+
+`publishEdgeCssDomUpdate` buffers no transport itself: the caller supplies the
+complete frame batch only after terminal success. It verifies stylesheet content
+address, previous ETag, consumer identity, declaration ownership and scopes before
+staging any mutation. Declaration outputs use existing staged leases; instance
+outputs reuse the same generation owner as native browser CSS. Server output is
+installed directly without parsing. Removed declaration batches publish empty
+sets for their known owners, and an empty instance batch clears payload CSS.
+The `adopt` callback updates the adapter's state before old-generation cleanup.
+A callback-induced publication failure blocks the host queue. The adapter must
+retrieve a full authoritative render and submit it with `recovery: true`; failed
+recovery leaves the queue blocked. The lifecycle signal cancels installed and
+pending generations on teardown. Edge adapters must own their host state and
+range, rather than independently competing with the local render loop.
 
 Cancellation is honored before the state commit. Once the state is committed,
 the iterator finishes its begin/ops/commit frames and terminal response even if
@@ -1726,9 +1739,9 @@ replacement. In-memory render-plan diffs keep their existing targeted text
 operations by default. Browser fixtures verify the hydrated paragraph, style
 nodes and animation survive a text update in dev/worker and prod/fallback modes.
 
-Atomic stylesheet replacement for changed payloads or consuming contexts remains
-required before removing the remaining native-update guard or changing the
-browser default.
+Changed payloads and consuming contexts now use the complete native batch and
+browser publication path above. The old unchanged-input capability guard has
+been removed from the native host.
 
 ### Staging declaration stylesheet replacements
 
@@ -1771,14 +1784,13 @@ An empty source list explicitly clears the committed styles. A detached host
 cannot publish a replacement; callers own lifetime cancellation through the
 provided signal and `dispose()`.
 
-The retained-CSS runtime uses this helper when payload stylesheet inputs change.
-It preserves the live styles while replacements load, including when a replacement
-fails or is superseded. Initial installation still uses `installInstanceStylesheets`
-so independent styles can load even if another initial source fails. Disconnect
-cancels both pending and live generations through the registry connection signal.
-
-Staging commits when loading finishes. Coordinating that publication with the
-runtime DOM patch still requires the transaction integration tracked in `todo.md`.
+The runtime uses staged installation during hydration to preserve server styles
+while imports load. Fresh initial installation uses `installInstanceStylesheets`,
+so independent styles can load even if another initial source fails. Subsequent
+renders use the explicit preparation API and publish CSS with the DOM patch
+through the per-host queue. Failed or superseded replacements preserve the live
+styles and DOM. Disconnect cancels pending and live generations through the
+registry connection signal.
 
 ### Preparing CSS for an explicit publication point
 
@@ -1847,8 +1859,8 @@ Disposal remains owned by the individual leases and declaration scopes. The
 return value reports whether all new consumers remain live after lifecycle
 callbacks; a callback may itself supersede an already published generation.
 
-This is a declaration ownership operation. Combining it with prepared instance
-CSS and Edge DOM patch validation remains the next integration step.
+The joint helper below combines this operation with instance CSS and validated
+DOM patches; runtime and Edge adapters use the per-host queue.
 
 ### Deferring stylesheet cleanup during publication
 
@@ -1871,7 +1883,7 @@ synchronously.
 ### Joint declaration CSS and DOM publication
 
 `DeclarationStyleOwnership.commitGroupWithPatch(entries, patch, currentRevision,
-signal?, instanceStyles?)` admits a declaration stylesheet group, optional prepared
+signal?, instanceStyles?, registryConnection?, onPublished?)` admits a declaration stylesheet group, optional prepared
 instance styles and a prepared DOM patch before
 publishing either candidate. The prepared range must belong directly to the
 group's host. The revision reader must be synchronous and side-effect free.
@@ -1895,9 +1907,8 @@ supersession during publication and cleanup errors can require recovery even
 when some or all mutations have completed. Errors and patch diagnostics remain
 available to the caller; no rollback is claimed.
 
-The caller must serialize managed update requests and provide authoritative
-recovery. Runtime loader wiring and the Edge response/state contract still
-need integration before changed-CSS streamed updates can be enabled.
+The per-host queue below serializes managed updates and full-render recovery.
+Both the runtime and Edge browser adapter use this publication boundary.
 
 ### Scheduling publication and authoritative recovery
 
@@ -1918,9 +1929,8 @@ connection; afterward it releases the adopted connection. Await registry
 `flush()` when native cleanup completion matters. If activation fails after CSS
 publication, the caller must recover rather than claim that nothing changed.
 
-This staged API does not change existing immediate `connect()` callers. Runtime
-wiring must prepare replacements inside the queue before enabling changed-CSS
-updates.
+Initial connection and hydration keep the immediate `connect()` readiness path.
+Subsequent runtime updates prepare replacements inside the queue.
 
 `CemCssDomPublicationQueue.forElement(element)` returns one queue for a host.
 `publish(prepare)` runs its preparation factory only after earlier publication
@@ -1952,10 +1962,16 @@ completion, leaves the queue blocked. Requests queued before the recovery job
 are rejected; requests queued after it can prepare once recovery succeeds.
 Preparation and recovery callbacks must not await another job on the same queue.
 
-This scheduler is an internal integration API. The existing render loop still
-needs to route its loading and authoritative render/resume operations through
-it, together with the Edge response/state contract, before changed-CSS streaming
-can be enabled.
+The runtime routes CEM-ML and DOM-template updates through this scheduler.
+Preparation captures native CSS candidates and a native or DOM-projected patch.
+Publication adopts connection, style and render-plan state before notifying old
+connection listeners. Superseded work is cancelled; failed CSS leaves live output
+intact. Invalid patches retry with a full authoritative render. Resource binding
+and settlement happen after leaving the queue, so resource-triggered renders do
+not wait on a queue job that is waiting on them. Stylesheet startup uses a separate
+artifact from rendering and cannot cache incomplete instance bindings.
+`recoverPublication` runs a full replacement inside the blocked queue and only
+unblocks it after an applied result.
 
 The existing processing-host recovery retry preserves `payloadStylesInstalled`
 when retained CSS is enabled. Recovering a missing DOM patch target therefore
@@ -1977,10 +1993,9 @@ with the same serialized ID. It then uses the existing patch renderer. Each
 candidate permits one commit attempt; `cancel()` permanently prevents commit.
 Callers supply their latest requested revision at check and commit time.
 
-Preflight does not reserve the DOM or publish CSS. The coordinator still needs
-to admit declaration and instance stylesheet candidates together with this
-prepared patch and control lifecycle notifications across their publication.
-Changed-CSS Edge updates remain guarded until that integration is verified.
+Preflight does not reserve the DOM or publish CSS. The coordinator admits CSS
+and patch candidates together, controls cleanup notifications, and requires
+recovery if synchronous browser callbacks invalidate publication.
 
 ### CSS lifecycle and mutation observation
 

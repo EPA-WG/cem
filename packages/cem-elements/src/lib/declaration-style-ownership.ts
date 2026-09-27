@@ -278,7 +278,8 @@ export class DeclarationStyleOwnership {
     static commitGroupWithPatch(entries: readonly DeclarationStylesheetCommit[], patch: PreparedPatchFrames,
         currentRevision: () => RenderRevision, signal?: AbortSignal,
         instanceStyles?: PreparedInstanceStylesheets,
-        registryConnection?: CemPreparedStylesheetConnection): DeclarationStylesheetPatchResult {
+        registryConnection?: CemPreparedStylesheetConnection,
+        onPublished?: (connection: CemStylesheetConnection | undefined) => void): DeclarationStylesheetPatchResult {
         let started = false;
         let applied = false;
         let activated: CemStylesheetConnection | undefined;
@@ -309,14 +310,15 @@ export class DeclarationStyleOwnership {
                         diagnostics = result.diagnostics;
                         applied = result.status === 'applied';
                         if (applied && registryConnection) {
-                            activated = registryConnection.activate();
+                            activated = registryConnection.activate(onPublished);
                             applied = !!activated;
                         }
+                        if (applied && !registryConnection) onPublished?.(undefined);
                     },
                 };
-                // An empty registry still owns a connection and a DOM transaction.
-                if (!entries.length && registryConnection) {
-                    if (publication.check(registryConnection.element)) { publication.start(); publication.commit(); }
+                // Instance-only and empty-registry updates still own a DOM transaction.
+                if (!entries.length && (registryConnection || instanceStyles)) {
+                    if (publication.check(registryConnection?.element ?? instanceStyles?.element)) { publication.start(); publication.commit(); }
                 } else {
                     const live = this.publishGroup(entries, publication);
                     applied &&= live;

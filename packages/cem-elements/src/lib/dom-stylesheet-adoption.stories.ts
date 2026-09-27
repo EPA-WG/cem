@@ -106,6 +106,7 @@ export const FailureDisposalAndNoStyle: Story = {
         const root = canvasElement.querySelector('section');
         if (!root) throw new Error('stylesheet fixture root is missing');
         const plain = fixture(root, '<p>Immediate</p>');
+        await plain.runtime.whenRenderSettled(plain.instance);
         expect(plain.instance.querySelector('p')?.textContent).toBe('Immediate');
         expect(plain.workers).toHaveLength(0); plain.scope.dispose();
         for (const dispose of [false, true]) {

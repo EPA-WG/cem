@@ -77,6 +77,8 @@ export const QueuedConnectionActivation: Story = {
                 applyRenderPlanToRange(bounds, before, document);
                 const queue = CemCssDomPublicationQueue.forElement(element);
                 const observations: Array<{ retired: boolean; text: string | null }> = [];
+                let adopted = false; let adoptionSeen: boolean | undefined;
+                active.signal.addEventListener('abort', () => { adoptionSeen = adopted; }, { once: true });
                 let pending: ReturnType<typeof f.registry.prepareReplacement> | undefined;
                 let transferred: readonly DeclarationStylesheetCommit[] = [];
                 oldEntries[0]?.lease.signal.addEventListener('abort', () => {
@@ -94,7 +96,7 @@ export const QueuedConnectionActivation: Story = {
                     if (mode === 'reject') patch.cancel();
                     if (mode === 'activation-failed') pending.activate = () => undefined;
                     return { entries: mode === 'wrong-group' ? [...entries] : entries, registryConnection: pending,
-                        patch, currentRevision: () => revision };
+                        patch, currentRevision: () => revision, onPublished: () => { adopted = true; } };
                 });
                 const rejected = mode === 'reject' || mode === 'wrong-group';
                 const recovery = mode === 'activation-failed' || mode === 'cleanup-cancelled';
@@ -109,6 +111,7 @@ export const QueuedConnectionActivation: Story = {
                     expect(active.signal.aborted).toBe(true);
                     expect(pending?.signal.aborted).toBe(false);
                     expect(observations).toEqual(mode === 'empty' ? [] : [{ retired: true, text: 'After' }]);
+                    expect(adoptionSeen).toBe(true);
                     // Reusing an adopted handle must reject without tearing it down.
                     const revision = renderPlanIdentity(after);
                     expect(await queue.publish(() => ({ entries: transferred, registryConnection: pending,

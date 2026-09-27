@@ -1,3 +1,4 @@
+import type { EdgeStylesheetOutput } from './edge-ssr-stylesheets.js';
 import type {
     ExportedDataIslandSnapshot,
     SourceMapMode,
@@ -111,8 +112,25 @@ export interface CemEdgeSsrPatchFrameProgress {
     frame: PatchFrame;
 }
 
+/** Complete native emission for one consuming context; no CSS parsing is needed in the browser. */
+export interface CemEdgeStylesheetBatch {
+    kind: 'native-css-batch-v1';
+    inputKey: string;
+    instance: EdgeStylesheetOutput['styles'];
+    declarations: Array<{ declarationIdentity: string; tag: string; styles: EdgeStylesheetOutput['styles'] }>;
+}
+
+export interface CemEdgeStylesheetState {
+    kind: 'native-ssr-stylesheets-v1';
+    inputKey: string;
+    batch: CemEdgeStylesheetBatch;
+    instanceStylesheetHtml: string;
+    declarationStylesheets?: CemEdgeSsrInitialRenderResult['declarationStylesheets'];
+}
+
 export interface CemEdgeSsrRenderUpdateResult {
     kind: 'render-update-complete';
+    stylesheets?: CemEdgeStylesheetState;
     renderPlanIdentity: RenderPlanIdentity;
     renderState: EdgeRenderStateRecord;
     diagnostics: CemProcessingDiagnostic[];

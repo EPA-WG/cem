@@ -35,6 +35,8 @@ import {
     type CemEdgeSsrHostSuccessEnvelope,
     type CemEdgeSsrPreviousRenderPlan,
     type CemEdgeSsrRenderInput,
+    type CemEdgeStylesheetBatch,
+    type CemEdgeStylesheetState,
     type CemEdgeSsrInitialRenderResult,
     type CemEdgeSsrTemplateInput,
 } from './edge-ssr-host.js';
@@ -129,8 +131,10 @@ export async function executeNativeSsrInitialRenderFixture(
             sources: payloadStylesheetSources(owned.payload.snapshot.payload),
         });
         const declarationStylesheets: CemEdgeSsrInitialRenderResult['declarationStylesheets'] = declarations === undefined ? undefined : [];
+        const emittedDeclarations: CemEdgeStylesheetBatch['declarations'] = [];
         for (const declaration of declarations ?? []) {
             const loaded = await loadEdgeStylesheets({ ...capabilities, ...declaration });
+            emittedDeclarations.push({ declarationIdentity: declaration.owner.identity, tag: declaration.owner.tag, styles: loaded.styles });
             const serialized = serializeDeclarationStylesheets(loaded.styles.map(style => {
                 if (style.scope.kind === 'instance') throw new TypeError('expected declaration stylesheet scope');
                 return { index: style.index, scope: style.scope, output: style };
@@ -140,8 +144,9 @@ export async function executeNativeSsrInitialRenderFixture(
         }
         signal.throwIfAborted();
         if (owned.payload.template.kind !== 'serialized-template-source-v1') throw new Error('expected serialized template source');
-        return renderInitialFixture(owned, store, instanceStyles, declarationStylesheets,
-            stylesheetInputKey(owned.payload, owned.payload.template.source, { baseUrl, context, declarations }));
+        const inputKey = stylesheetInputKey(owned.payload, owned.payload.template.source, { baseUrl, context, declarations });
+        return renderInitialFixture(owned, store, instanceStyles, declarationStylesheets, inputKey,
+            { kind: 'native-css-batch-v1', inputKey, instance: instanceStyles.styles, declarations: emittedDeclarations });
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (signal.aborted) {
@@ -187,6 +192,7 @@ function renderInitialFixture(
     instanceStyles?: EdgeStylesheetOutput,
     declarationStylesheets?: CemEdgeSsrInitialRenderResult['declarationStylesheets'],
     inputKey?: string,
+    batch?: CemEdgeStylesheetBatch,
 ): NonBrowserSsrInitialRenderFixtureResult {
     const failure = initialRenderInputFailure(request);
     if (failure) return failure;
@@ -236,7 +242,7 @@ function renderInitialFixture(
             renderedHtml,
             privacyPolicyStamp: snapshot.privacyPolicyStamp,
             ...(inputKey === undefined ? {} : { stylesheetState: {
-                kind: 'native-ssr-stylesheets-v1', inputKey, instanceStylesheetHtml, declarationStylesheets,
+                kind: 'native-ssr-stylesheets-v1', inputKey, instanceStylesheetHtml, declarationStylesheets, ...(batch ? { batch } : {}),
             } }),
         };
         const write = store.writeRenderState(stateInput, { ifAbsent: true });
@@ -331,23 +337,24 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
     yield* renderUpdateFixture(request, store);
 }
 
-/** Preserve already installed native styles. Changed inputs require a future atomic CSS transaction. */
+/** Emit a complete native replacement before committing state or exposing patch frames. */
 export function executeNativeEdgeRenderUpdateFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
     store: EdgeRenderStateStore,
-    stylesheets: NativeSsrStylesheetContext,
+    stylesheets: NativeSsrStylesheetContext & Partial<Pick<NativeSsrStylesheetOptions, 'native' | 'read'>>,
     signal: AbortSignal,
 ): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
     const { baseUrl, context, declarations } = stylesheets;
     return renderUpdateFixture(structuredClone(request), store, {
         context: structuredClone({ baseUrl, context, declarations }), signal,
+        native: stylesheets.native, read: stylesheets.read,
     });
 }
 
 async function* renderUpdateFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-update'>,
     store: EdgeRenderStateStore,
-    nativeStyles?: { context: NativeSsrStylesheetContext; signal: AbortSignal },
+    nativeStyles?: { context: NativeSsrStylesheetContext; signal: AbortSignal } & Partial<Pick<NativeSsrStylesheetOptions, 'native' | 'read'>>,
 ): AsyncGenerator<NonBrowserEdgeRenderUpdateFixtureResponse, void, void> {
     assertCemEdgeSsrHostEnvelope(request);
     if (nativeStyles?.signal.aborted) {
@@ -475,13 +482,54 @@ async function* renderUpdateFixture(
     }
 
     try {
-        const stylesheetState = retainedPrevious.contents.stylesheetState;
-        if (nativeStyles && (!isPlainRecord(stylesheetState) || stylesheetState.kind !== 'native-ssr-stylesheets-v1'
-            || !request.payload.snapshot.scopePolicyStamp.split(':').includes('retained-instance-css')
-            || stylesheetState.inputKey !== stylesheetInputKey(request.payload, templateSource.source, nativeStyles.context))) {
-            yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.stylesheet_update_unsupported',
-                'native updates require retained stylesheet state with unchanged sources, template and consuming contexts', current);
-            return;
+        let stylesheetState = retainedPrevious.contents.stylesheetState;
+        let replacement: CemEdgeStylesheetBatch | undefined;
+        let replacementState: CemEdgeStylesheetState | undefined;
+        const stylesheetDiagnostics: CemEdgeSsrInitialRenderResult['diagnostics'] = [];
+        if (nativeStyles) {
+            if (!isPlainRecord(stylesheetState) || stylesheetState.kind !== 'native-ssr-stylesheets-v1'
+                || !request.payload.snapshot.scopePolicyStamp.split(':').includes('retained-instance-css')) {
+                yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.stylesheet_state_unavailable',
+                    'native updates require retained stylesheet state and the retained-instance-css policy', current);
+                return;
+            }
+            if (isPlainRecord(stylesheetState.batch) && stylesheetState.batch.kind === 'native-css-batch-v1') {
+                replacementState = stylesheetState as unknown as CemEdgeStylesheetState;
+            }
+            const inputKey = stylesheetInputKey(request.payload, templateSource.source, nativeStyles.context);
+            if (stylesheetState.inputKey !== inputKey) {
+                if (!nativeStyles.native || !nativeStyles.read) {
+                    yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.stylesheet_transport_unavailable',
+                        'changed native styles require native bindings and a byte reader', current);
+                    return;
+                }
+                const capabilities = { native: nativeStyles.native, read: nativeStyles.read, signal: nativeStyles.signal };
+                const instance = await loadEdgeStylesheets({ ...capabilities, ...nativeStyles.context,
+                    owner: { kind: 'instance', identity: request.payload.snapshot.instanceId },
+                    sources: payloadStylesheetSources(request.payload.snapshot.payload) });
+                stylesheetDiagnostics.push(...instance.diagnostics);
+                replacement = { kind: 'native-css-batch-v1', inputKey, instance: instance.styles, declarations: [] };
+                const declarations: NonNullable<CemEdgeSsrInitialRenderResult['declarationStylesheets']> = [];
+                for (const declaration of nativeStyles.context.declarations ?? []) {
+                    const loaded = await loadEdgeStylesheets({ ...capabilities, ...declaration });
+                    stylesheetDiagnostics.push(...loaded.diagnostics);
+                    replacement.declarations.push({ declarationIdentity: declaration.owner.identity, tag: declaration.owner.tag, styles: loaded.styles });
+                    const serialized = serializeDeclarationStylesheets(loaded.styles.map(style => {
+                        if (style.scope.kind === 'instance') throw new Error('invalid declaration scope');
+                        return { index: style.index, scope: style.scope, output: style };
+                    }));
+                    declarations.push({ declarationIdentity: declaration.owner.identity, tag: declaration.owner.tag, ...serialized });
+                }
+                if (stylesheetDiagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')) {
+                    yield createCemEdgeSsrHostFailureEnvelope(request, 'failure', 'render-failed', stylesheetDiagnostics, current);
+                    return;
+                }
+                replacementState = { kind: 'native-ssr-stylesheets-v1', inputKey, batch: replacement,
+                    instanceStylesheetHtml: replacement.instance.map(style =>
+                        `<style data-cem-instance-style="${style.index}">${serializeStyleChildren([{ kind: 'text', text: style.css }])}</style>`).join(''),
+                    declarationStylesheets: declarations };
+                stylesheetState = replacementState;
+            }
         }
         const snapshot = request.payload.snapshot;
         const projected = projectTemplate(templateSource.source, {
@@ -562,11 +610,17 @@ async function* renderUpdateFixture(
         }
         yield createCemEdgeSsrHostSuccessEnvelope(request, {
             kind: 'render-update-complete',
+            ...(replacementState ? { stylesheets: replacementState } : {}),
             renderPlanIdentity: identity,
             renderState: advanced.record,
-            diagnostics: renderPlanDiagnostics(scoped.diagnostics, plan),
+            diagnostics: [...stylesheetDiagnostics, ...renderPlanDiagnostics(scoped.diagnostics, plan)],
         });
     } catch (error) {
+        if (nativeStyles?.signal.aborted) {
+            yield createCemEdgeSsrHostFailureEnvelope(request, 'cancelled', 'cancelled',
+                [fixtureDiagnostic('cem.edge_ssr.stylesheet_cancelled', 'native stylesheet update cancelled before commit')]);
+            return;
+        }
         yield updateFixtureFailure(
             request,
             'render-failed',

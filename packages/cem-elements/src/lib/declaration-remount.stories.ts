@@ -182,10 +182,11 @@ export const RemovalBeforeExternalLoadSettles: Story = {
         const replacement = mount();
         await runtime.whenDeclarationSettled(replacement);
         expect(codes(runtime, replacement)).toEqual([]);
-        expect(styles(replacement)).toHaveLength(1);
+        expect(styles(replacement)).toHaveLength(0);
         const instance = document.createElement('remount-delayed-card');
         canvasElement.append(instance);
         await runtime.whenRenderSettled(instance);
+        expect(styles(replacement)).toHaveLength(1);
         expect(getComputedStyle(instance.querySelector('span') as Element).color).toBe('rgb(1, 2, 3)');
         scope.dispose();
     },
@@ -208,6 +209,9 @@ export const ManualMountAndRemovalInOneTask: Story = {
         runtime.registerDeclaration(replacement);
         await runtime.whenDeclarationSettled(replacement);
         expect(codes(runtime, replacement)).toEqual([]);
+        expect(styles(replacement)).toHaveLength(0);
+        const instance = document.createElement('remount-batched-card'); canvasElement.append(instance);
+        await runtime.whenRenderSettled(instance);
         expect(styles(replacement)).toHaveLength(1);
         scope.dispose();
     },
@@ -222,6 +226,8 @@ export const AdoptionCannotMoveRegistrationOwnership: Story = {
         const first = declaration('remount-adoption-card', css, runtime.declarationTag);
         canvasElement.append(first);
         await runtime.whenDeclarationSettled(first);
+        const consumer = document.createElement('remount-adoption-card'); canvasElement.append(consumer);
+        await runtime.whenRenderSettled(consumer);
         const style = styles(first)[0];
         const frame = document.createElement('iframe');
         canvasElement.append(frame);

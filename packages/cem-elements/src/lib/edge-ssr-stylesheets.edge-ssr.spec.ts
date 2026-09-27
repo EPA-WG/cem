@@ -314,7 +314,7 @@ async function nativeUpdateFixture() {
         ...payload, previousRenderPlan: { stateKey: record.stateKey, expectedEtag: record.etag,
             address: { ...record.currentRenderPlan, kind: 'render-plan' as const }, identity: record.renderRevision },
     });
-    return { store, seeded, record, request, context };
+    return { store, seeded, record, request, context, transport };
 }
 
 it('streams a data update while retaining native styles outside the render plan and copies inputs before iteration', async () => {
@@ -340,7 +340,7 @@ it('streams a data update while retaining native styles outside the render plan 
 });
 
 it.each(['payload-css', 'context', 'base', 'declaration', 'template', 'scope'] as const)(
-    'rejects changed %s before frames or state writes', async change => {
+    'commits changed %s with a complete native stylesheet batch', async change => {
         const f = await nativeUpdateFixture();
         if (change === 'payload-css') f.request.payload.snapshot.payload.nodes = [];
         if (change === 'context') f.context.context.resolverIdentity = 'different';
@@ -348,10 +348,17 @@ it.each(['payload-css', 'context', 'base', 'declaration', 'template', 'scope'] a
         if (change === 'declaration') f.context.declarations[0].sources[0].css = 'p{color:red}';
         if (change === 'template' && f.request.payload.template.kind === 'serialized-template-source-v1') f.request.payload.template.source = [];
         if (change === 'scope') f.request.payload.scopeUid = 'changed';
-        expect(await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(f.request, f.store, f.context, new AbortController().signal)))
-            .toMatchObject([{ outcome: 'failure', reason: 'content-unavailable',
-                diagnostics: [{ code: 'cem.edge_ssr.stylesheet_update_unsupported' }] }]);
-        expect(f.store.readRecord(f.record.stateKey)).toEqual(f.record);
+        const responses = await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(f.request, f.store,
+            { ...f.transport, ...f.context }, new AbortController().signal));
+        const result = responses.at(-1);
+        expect(result?.outcome).toBe('success');
+        if (result?.outcome !== 'success') return;
+        expect(result.result.stylesheets?.batch.kind).toBe('native-css-batch-v1');
+        expect(result.result.renderState.currentStylesheets).not.toEqual(f.record.currentStylesheets);
+        expect(readEdgeRenderStateContents(f.store, result.result.renderState)).toMatchObject({ ok: true,
+            contents: { stylesheetState: result.result.stylesheets } });
+        if (change === 'payload-css') expect(result.result.stylesheets?.batch.instance).toEqual([]);
+        expect(f.store.readRecord(f.record.stateKey)?.etag).not.toBe(f.record.etag);
     },
 );
 
@@ -410,4 +417,36 @@ it('finishes an already committed stream after abort and preserves stylesheet st
     const next = (await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(request, f.store, f.context, new AbortController().signal))).at(-1);
     expect(next?.outcome).toBe('success');
     if (next?.outcome === 'success') expect(next.result.renderState.currentStylesheets).toEqual(f.record.currentStylesheets);
+});
+
+it.each(['cancel', 'conflict', 'import-failure'] as const)('rejects a changed CSS batch on %s without publishing partial state', async failure => {
+    const f = await nativeUpdateFixture();
+    const controller = new AbortController();
+    const source = f.request.payload.snapshot.payload.nodes[0];
+    if (source.kind !== 'element') throw new Error('missing payload stylesheet');
+    source.children = [{ kind: 'text', key: 'changed/css', text: '@import "./held.css";' }];
+    let release!: () => void; let started!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const reading = new Promise<void>(resolve => { started = resolve; });
+    const read = async () => { started(); await gate; if (failure === 'import-failure') throw new Error('failed import');
+        return { bytes: new TextEncoder().encode('p {color:red}').buffer, finalUrl: 'https://example.test/held.css', contentType: 'text/css' }; };
+    const stream = executeNativeEdgeRenderUpdateFixture(f.request, f.store, { ...f.transport, ...f.context, read }, controller.signal);
+    const pending = collectNativeUpdates(stream);
+    await reading;
+    expect(f.store.readRecord(f.record.stateKey)).toEqual(f.record);
+    if (failure === 'cancel') controller.abort();
+    if (failure === 'conflict') {
+        const competing = structuredClone(f.request);
+        competing.payload.snapshot.payload = structuredClone(f.seeded.result.hydrationData.snapshot.payload);
+        const responses = await collectNativeUpdates(executeNativeEdgeRenderUpdateFixture(competing, f.store,
+            { ...f.transport, ...f.context }, new AbortController().signal));
+        expect(responses.at(-1)?.outcome).toBe('success');
+    }
+    const before = f.store.readRecord(f.record.stateKey);
+    release();
+    const responses = await pending;
+    expect(responses).toHaveLength(1);
+    expect(responses[0]).toMatchObject(failure === 'cancel' ? { outcome: 'cancelled', reason: 'cancelled' }
+        : { outcome: 'failure', reason: failure === 'conflict' ? 'render-state-conflict' : 'render-failed' });
+    expect(f.store.readRecord(f.record.stateKey)).toEqual(before);
 });

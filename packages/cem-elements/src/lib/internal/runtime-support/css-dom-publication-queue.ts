@@ -1,7 +1,7 @@
 import { DeclarationStyleOwnership, type DeclarationStylesheetCommit,
     type DeclarationStylesheetPatchResult } from '../../declaration-style-ownership.js';
 import type { PreparedPatchFrames, RenderRevision } from '../../projection.js';
-import type { CemPreparedStylesheetConnection } from './stylesheet-registry.js';
+import type { CemPreparedStylesheetConnection, CemStylesheetConnection } from './stylesheet-registry.js';
 import type { PreparedInstanceStylesheets } from './instance-stylesheet-installation.js';
 
 export interface PreparedCssDomPublication {
@@ -11,6 +11,7 @@ export interface PreparedCssDomPublication {
     signal?: AbortSignal;
     instanceStyles?: PreparedInstanceStylesheets;
     registryConnection?: CemPreparedStylesheetConnection;
+    onPublished?(connection: CemStylesheetConnection | undefined): void;
 }
 
 const queues = new WeakMap<HTMLElement, CemCssDomPublicationQueue>();
@@ -38,23 +39,37 @@ export class CemCssDomPublicationQueue {
                 code: 'cem.css_dom.recovery_required', severity: 'error',
                 message: 'authoritative recovery must complete before preparing another update',
             }] };
-            let request: PreparedCssDomPublication;
-            try { request = await prepare(); }
-            catch (error) { return { status: 'rejected', diagnostics: [], errors: [error] }; }
-            let result: DeclarationStylesheetPatchResult;
-            try {
-                const invalidHost = request.patch.container !== this.element;
-                const rejected = new AbortController();
-                if (invalidHost) rejected.abort();
-                result = DeclarationStyleOwnership.commitGroupWithPatch(request.entries, request.patch,
-                    request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles, request.registryConnection);
-            } catch (error) {
-                // An unexpected exception cannot establish that publication never began.
-                result = { status: 'recovery-required', diagnostics: [], errors: [error] };
-            }
-            if (result.status === 'recovery-required') this.blocked = true;
+            return this.publishNow(prepare);
+        });
+    }
+
+    /** A full CSS/DOM render restores a blocked or rejected transaction in the same queue. */
+    recoverPublication(prepare: () => PreparedCssDomPublication | Promise<PreparedCssDomPublication>): Promise<DeclarationStylesheetPatchResult> {
+        return this.schedule(async () => {
+            this.blocked = true;
+            const result = await this.publishNow(prepare);
+            this.blocked = result.status !== 'applied';
             return result;
         });
+    }
+
+    private async publishNow(prepare: () => PreparedCssDomPublication | Promise<PreparedCssDomPublication>): Promise<DeclarationStylesheetPatchResult> {
+        let request: PreparedCssDomPublication;
+        try { request = await prepare(); }
+        catch (error) { return { status: 'rejected', diagnostics: [], errors: [error] }; }
+        let result: DeclarationStylesheetPatchResult;
+        try {
+            const invalidHost = request.patch.container !== this.element;
+            const rejected = new AbortController();
+            if (invalidHost) rejected.abort();
+            result = DeclarationStyleOwnership.commitGroupWithPatch(request.entries, request.patch,
+                request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles, request.registryConnection, request.onPublished);
+        } catch (error) {
+            // An unexpected exception cannot establish that publication never began.
+            result = { status: 'recovery-required', diagnostics: [], errors: [error] };
+        }
+        if (result.status === 'recovery-required') this.blocked = true;
+        return result;
     }
 
     /** The caller restores authoritative state; failed recovery leaves the queue blocked. */

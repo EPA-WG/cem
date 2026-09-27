@@ -45,7 +45,7 @@ export interface CemPreparedStylesheetConnection {
     ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: Result['diagnostics'] }>;
     takeCommits(): readonly DeclarationStylesheetCommit[] | undefined;
     /** Adopt an already published group as the live registry connection. */
-    activate(): CemStylesheetConnection | undefined;
+    activate(adopt?: (connection: CemStylesheetConnection) => void): CemStylesheetConnection | undefined;
     release(): void;
 }
 
@@ -123,16 +123,18 @@ export class CemStylesheetRegistry {
                 entries = candidates;
                 return entries;
             },
-            activate: () => {
+            activate: adopt => {
                 if (activated || !current() || !entries || !entries.every(entry => DeclarationStyleOwnership.isCurrentCommit(entry))) return undefined;
                 activated = { options, loads, revision: 0, released: false, abort, unobserve };
                 this.preparations.delete(options.element);
                 this.current.set(options.element, activated);
                 this.connections.add(activated);
-                if (previous) this.removeConnection(previous);
                 const connection = activated;
+                const live = { signal: abort.signal, whenReady: () => this.whenReady(connection), release };
+                try { adopt?.(live); }
+                finally { if (previous) this.removeConnection(previous); }
                 if (connection.released) return undefined;
-                return { signal: abort.signal, whenReady: () => this.whenReady(connection), release };
+                return live;
             },
             release,
         };

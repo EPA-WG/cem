@@ -2,7 +2,7 @@
 
 **Status:** Normative, accepted, and implemented.
 **Primary use case:** declaration-owned CSS for no-shadow-DOM CEM components.
-**Migration authority:** [`docs/todo.md`](./todo.md), under **Native CSS `@scope` migration**.
+**Implementation evidence:** [CSS migration completion](archive/todo-completed-2026-09-27.md#native-css-migration-closure).
 
 This document defines the CSS ownership, scope, projection, specificity, and
 diagnostic contract for `cem-elements`, `cem-components`, CEM Studio, and CEM
@@ -163,24 +163,23 @@ Browser DOM templates send static stylesheet sources through the same native
 importer and retain their trees under the processing host artifact lifecycle.
 The first render and both settlement APIs wait for adoption; hydrated output
 stays intact. See the [readiness contract](scoped-css-module-maps.md#dom-template-readiness-accepted-and-implemented).
-With `retainedStylesheets: {}`, scoped resource loading now uses those retained
-references through native import closures. Adoption alone does not load them;
+The default retained runtime uses those references through native import closures. Adoption alone does not load them;
 the runtime awaits the native load before installing emitted CSS.
 
 Declaration-local keyframes receive a deterministic stylesheet suffix and all
-local animation references are rewritten. In the default runtime, `@import`
-is suppressed. Document-global constructs such as `@font-face`, `@property`, `@counter-style`,
+local animation references are rewritten. Native `@import` loading resolves and
+compiles imported rules inside the managed boundary. Document-global constructs such as `@font-face`, `@property`, `@counter-style`,
 `@font-palette-values`, `@page`, and `@namespace` are suppressed with the
 diagnostics in section 8. Authored outer `@scope` is also unsupported because
 the runtime owns the component boundary.
 
 The accepted [typed CSS module-map extension](scoped-css-module-maps.md) replaces
-blanket import suppression in the opt-in retained runtime, where shared
+blanket import suppression in the default runtime, where shared
 retained-AST import loading is implemented. Imported rules receive the importing
 component's managed scope; raw browser `@import` is never a fallback. Existing global-rule and library
 layer restrictions continue to apply, including to imported rules and import
-conditions that require those unsupported constructs. The default runtime
-continues to suppress imports until the remaining cutover checklist is complete.
+conditions that require those unsupported constructs. The explicit compatibility
+option `retainedStylesheets: false` continues to suppress imports.
 
 Dynamic visual state MUST use static selectors over host, state, and ARIA
 attributes plus CEM custom properties.

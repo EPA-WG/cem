@@ -5,7 +5,7 @@ import { createCemDeclarationScope } from './declaration-scope.js';
 
 export default { title: 'CEM Elements/Retained Stylesheet Runtime', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
-type Reader = NonNullable<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>['read']>;
+type Reader = NonNullable<Exclude<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>, false>['read']>;
 function response(css: string) {
     return { bytes: new TextEncoder().encode(css).buffer, finalUrl: 'https://example.test/cdn/child.css', contentType: 'text/css' };
 }
@@ -49,11 +49,12 @@ export const PayloadReplacementPreservesActiveStyles: Story = {
     play: async ({ canvasElement }) => {
         const root = canvasElement.querySelector('section');
         if (!root) throw new Error('missing staged payload fixture');
-        for (const fallback of [false, true]) {
+        for (const fallback of [false, true]) for (const mode of ['dom', 'cem-ml'] as const) {
             let gate = held(); let reads = 0;
             const f = fixture(root, fallback, async () => { reads++; return gate.promise; });
             try {
-                const declaration = f.declare('staged-payload', '{p | Content}');
+                const declaration = f.declare('staged-payload', mode === 'dom' ? '<attribute name=label>Before</attribute><p>${$label}</p>'
+                    : '{attribute @name=label | Before}{p | {$label}}', mode);
                 await declaration.ready;
                 const instance = document.createElement(declaration.tag);
                 const payload = document.createElement('template');
@@ -67,16 +68,20 @@ export const PayloadReplacementPreservesActiveStyles: Story = {
                 const value = () => getComputedStyle(instance.querySelector('p') as Element).getPropertyValue('--instance').trim();
                 expect(value()).toBe('old');
                 source.textContent = '@import "./replacement.css";';
+                instance.setAttribute('label', 'After');
                 await waitFor(() => expect(reads).toBe(1));
                 expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
                 expect(value()).toBe('old');
+                expect(instance.querySelector('p')?.textContent).toBe('Before');
                 gate.resolve(response('p { --instance: new; }'));
                 await waitFor(() => expect(value()).toBe('new'));
                 await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('p')?.textContent).toBe('After');
                 expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
 
                 gate = held();
                 source.textContent = '@import "./failed.css"; p { --instance: partial; }';
+                instance.setAttribute('label', 'Failed candidate');
                 await waitFor(() => expect(reads).toBe(2));
                 expect(value()).toBe('new');
                 gate.resolve({ ...response('invalid import'), contentType: 'text/html' });
@@ -84,6 +89,7 @@ export const PayloadReplacementPreservesActiveStyles: Story = {
                 expect(value()).toBe('new');
                 expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
                 expect(f.runtime.diagnosticsFor(instance).some(d => d.code === 'cem.css.import_content_type')).toBe(true);
+                expect(instance.querySelector('p')?.textContent).toBe('After');
 
                 gate = held();
                 source.textContent = '@import "./superseded.css";';

@@ -28,9 +28,9 @@ same-scope duplicates and incompatible replacements still fail; remounts cannot
 revive disposed processing scopes. See the
 [registration lifecycle](../../docs/cem-element-design.md).
 
-Native declaration and inert-payload CSS can be enabled with
-`new CemElementRuntime({ retainedStylesheets: {} })` while the default
-compiler migration remains pending. The default browser reader checks HTTP status,
+Native declaration and inert-payload CSS is enabled by default.
+`new CemElementRuntime({ retainedStylesheets: false })` selects the legacy
+compatibility path. The default browser reader checks HTTP status,
 honors cancellation and buffers at most the native 16 MiB limit plus one byte
 for native oversize diagnostics. It passes the actual final URL and content type
 to native admission.
@@ -54,8 +54,11 @@ existing branch-local behavior.
 Payload styles are direct host children outside the render range. Native owners
 use the persisted instance identity and consuming module context; emitted CSS is
 installed without parsing it again. Source edits and context changes replace the
-installation. Hydration waits for imports while preserving compatible rendered
-DOM and animation names. See the [remaining migration gates](../../docs/todo.md).
+installation. Updates prepare declaration CSS, payload CSS and the DOM patch
+inside one per-host queue. Failed loads preserve the live generation; invalid
+patches trigger full-render recovery. Runtime state is adopted before retiring
+old styles, and resource work settles outside the queue. Hydration waits for
+imports while preserving compatible rendered DOM and animation names.
 
 The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
@@ -72,25 +75,36 @@ The async initial host accepts caller-selected `declarations` batches and return
 their `declarationStylesheets` sidecars after all imports and serialization finish.
 Adapters supply extracted render source and place each sidecar under its owner.
 
-`executeNativeEdgeRenderUpdateFixture` streams updates when the stored native CSS
-inputs still match. It preserves installed styles without reloading imports and
-rejects changed CSS, templates or contexts before output/state changes. Edge
-state schema 1.1.0 retains `stylesheetState` through `currentStylesheets`; custom
-stores must persist and verify that optional content. Atomic CSS replacement
-remains a default-cutover gate. See the
-[native update contract](../../docs/scoped-css-module-maps.md#streamed-updates-that-preserve-native-styles).
+`executeNativeEdgeRenderUpdateFixture` preserves unchanged styles or loads a
+complete native replacement before committing state and exposing update frames.
+Changed inputs require native bindings and a byte reader. Protocol v14 carries
+the emitted batch and its retained state; failed loads, cancellation and stale
+ETags cannot publish partial stylesheet state. Edge state schema 1.1.0 retains
+`stylesheetState` through `currentStylesheets`.
 
-Run the same Storybook assertions with retained native CSS enabled:
+`publishEdgeCssDomUpdate` is the browser publication entry point for an Edge
+adapter that owns a host's render range and declaration owners. Buffer progress
+frames until terminal success, then supply the response, current state reader,
+previous ETag, lifecycle abort signal and all declaration owners. It verifies
+the content address and revision and publishes emitted CSS without parsing it.
+Its `adopt` callback installs the next state before old-generation cleanup.
+On `recovery-required`, fetch an authoritative full-render transaction and call
+with `recovery: true`; queued ordinary updates remain blocked until it succeeds.
+Abort the lifecycle signal on teardown. Do not independently mutate a host with
+both an Edge adapter and the local runtime: the adapter must own state adoption.
+See the [native update contract](../../docs/scoped-css-module-maps.md#streamed-native-css-updates).
+
+Run the default and compatibility browser lanes:
 
 ```sh
-yarn nx run cem-elements:test:retained-css
-# Focus on all 15 authored scoped-CSS samples:
-yarn nx run cem-elements:test:retained-css --args='packages/cem-elements/src/lib/scoped-css-demo.stories.ts'
+yarn nx run cem-elements:test
+yarn nx run cem-elements:test:legacy-css
 ```
 
-The normal `cem-elements:test` lane keeps the default runtime. The opt-in lane
-changes the shared preview runtime; stories that construct their own runtime
-continue to use their explicitly chosen options.
+`test:retained-css` remains an alias configuration for explicit native runs.
+The legacy lane changes the shared Storybook preview; independent runtime
+fixtures select their own options. Two serialization fixtures explicitly pin
+the legacy import-suppression and UID-keyframe output contracts.
 
 CEM-ML attribute and slice defaults in a root `{module | ...}` prelude initialize
 the instance just like declarations in an unwrapped template. Slice defaults

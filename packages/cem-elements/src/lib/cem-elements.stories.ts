@@ -4268,11 +4268,15 @@ export const SliceEventExpressionParity: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-slice-expression-field');
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         root.appendChild(instance);
         return root;
     },
     play: async ({ canvasElement }) => {
         const instance = await waitForElement(canvasElement, 'story-slice-expression-field');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'slice story runtime is available');
+        await runtime.whenRenderSettled(instance);
         const increment = requiredElement(instance, 'button[data-role="increment"]') as HTMLButtonElement;
         const decrement = requiredElement(instance, 'button[data-role="decrement"]') as HTMLButtonElement;
         const pointer = requiredElement(instance, 'textarea[data-role="pointer"]') as HTMLTextAreaElement;
@@ -4362,11 +4366,15 @@ export const LegacyDataSliceControlParity: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-slice-controls');
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         root.appendChild(instance);
         return root;
     },
     play: async ({ canvasElement }) => {
         const instance = await waitForElement(canvasElement, 'story-slice-controls');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'slice story runtime is available');
+        await runtime.whenRenderSettled(instance);
         const textInput = requiredElement(instance, 'input[data-role="default-text"]') as HTMLInputElement;
         textInput.value = 'changed by default event';
         textInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -4497,10 +4505,11 @@ export const FormDataValidationStateSnapshot: Story = {
     },
     play: async ({ canvasElement }) => {
         const instance = await waitForElement(canvasElement, 'story-form-data-field');
-        const username = requiredElement(instance, 'input[name="username"]') as HTMLInputElement;
-        const password = requiredElement(instance, 'input[name="password"]') as HTMLInputElement;
         const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
         assert(runtime, 'form data story runtime should be attached to the instance');
+        await runtime.whenRenderSettled(instance);
+        const username = requiredElement(instance, 'input[name="username"]') as HTMLInputElement;
+        const password = requiredElement(instance, 'input[name="password"]') as HTMLInputElement;
 
         username.value = 'ada';
         username.dispatchEvent(new Event('input', { bubbles: true }));
@@ -5302,6 +5311,8 @@ export const ScopedCssUidSeedRuntime: Story = {
 
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-story-scoped-css',
+            // This comparison fixture pins legacy UID-based keyframe names and import suppression.
+            retainedStylesheets: false,
             validateGeneratedIds: true,
         });
         const declaration = document.createElement('cem-element-story-scoped-css');
@@ -5542,6 +5553,7 @@ const SsrHydrationFromSerializedSnapshot: Story = {
             },
         });
         const snapshot = projectionSnapshot('story-ssr-card', { label: 'Server Card' });
+        snapshot.scopePolicyStamp = runtime.scopePolicyStamp;
         snapshot.instanceId = 'ssr-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr';
         snapshot.declarationVersion = '1.2.3';
@@ -5611,6 +5623,9 @@ const SsrHydrationFromSerializedSnapshot: Story = {
     },
     play: async ({ canvasElement }) => {
         const instance = requiredElement(canvasElement, 'story-ssr-card') as HTMLElement;
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'hydration runtime is available');
+        await runtime.whenRenderSettled(instance);
         const article = await waitForElement(instance, 'article.ssr-card');
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
         assertEqual(article.querySelector('h2')?.textContent, 'Server Card', 'SSR HTML renders from the serialized snapshot');
@@ -5719,6 +5734,7 @@ const SsrHydrationRerendersIncompatibleDeclarationVersion: Story = {
             label: 'Server Card',
             version: 'instance-data',
         });
+        snapshot.scopePolicyStamp = runtime.scopePolicyStamp;
         snapshot.instanceId = 'ssr-version-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr-version-fallback';
         snapshot.declarationVersion = '1.9.0';
@@ -5901,6 +5917,7 @@ const SsrHydrationRejectsIncompleteMarkup: Story = {
         const source = readTemplateSource(sourceTemplate.content);
 
         const snapshot = projectionSnapshot('story-ssr-incomplete-card', { label: 'Server Card' });
+        snapshot.scopePolicyStamp = runtime.scopePolicyStamp;
         snapshot.instanceId = 'ssr-incomplete-instance-1';
         snapshot.declarationTag = 'cem-element-story-ssr-incomplete';
         snapshot.declarationVersion = '1.0.0';

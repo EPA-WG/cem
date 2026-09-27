@@ -4,6 +4,8 @@ import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemX
 import {
     DATA_CEM_RENDER_SCOPE_ATTR,
     applyPatchFramesToRange,
+    diffRenderPlansToPatchFrames,
+    preparePatchFramesForRange,
     applyRenderPlanToRange,
     edgeContentAddress,
     materializeRenderPlan,
@@ -97,7 +99,8 @@ import {
 import { DeclarationStyleOwnership, reconcileStylesheetContextMarker } from './declaration-style-ownership.js';
 import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
-import { installInstanceStylesheets, stageInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
+import { installInstanceStylesheets, stageInstanceStylesheets, prepareInstanceStylesheets, prepareEmittedInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
+import { CemCssDomPublicationQueue, type PreparedCssDomPublication } from './internal/runtime-support/css-dom-publication-queue.js';
 import { readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
@@ -644,12 +647,12 @@ export interface CemElementRuntimeOptions {
      */
     processingWorkerFactory?: CemProcessingWorkerFactory;
     /**
-     * Opt into retained native declaration and inert-payload CSS while default
-     * compiler cutover gates remain open. Transport returns bytes and response
-     * metadata; native import owns CSS parsing, URL resolution and admission. Defaults to bounded browser
-     * fetch; XSLT result styles are separate.
+     * Retained native declaration and inert-payload CSS is enabled by default.
+     * Transport returns bytes and response metadata; native import owns parsing,
+     * URL resolution and admission. Set false for the legacy compatibility path.
+     * The default reader uses bounded browser fetch; XSLT result styles are separate.
      */
-    retainedStylesheets?: { read?: CemStylesheetInstallationOptions['read'] };
+    retainedStylesheets?: false | { read?: CemStylesheetInstallationOptions['read'] };
     /** Phase 3B bounds for the lazily allocated, fair root-scope worker pool. */
     processingPoolPolicy?: CemProcessingPoolPolicy;
     /** Optional build/service-worker-compatible store for immutable template artifacts. */
@@ -1672,8 +1675,9 @@ export class CemElementRuntime {
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
-    private readonly retainedStylesheets?: CemElementRuntimeOptions['retainedStylesheets'];
+    private readonly retainedStylesheets?: Exclude<CemElementRuntimeOptions['retainedStylesheets'], false>;
     private readonly stylesheetConnections = new WeakMap<HTMLElement, CemStylesheetConnection>();
+    private readonly publicationControllers = new WeakMap<HTMLElement, AbortController>();
     private readonly stylesheetReady = new WeakSet<HTMLElement>();
     private readonly instanceStylesheets = new WeakMap<HTMLElement, { key: string; installation: InstanceStylesheetInstallation; reported: boolean }>();
     private readonly reportedStylesheetDiagnostics = new WeakSet<object>();
@@ -1734,7 +1738,7 @@ export class CemElementRuntime {
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
-        this.retainedStylesheets = options.retainedStylesheets;
+        this.retainedStylesheets = options.retainedStylesheets === false ? undefined : options.retainedStylesheets ?? {};
         if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
         this.processingPoolPolicy = options.processingPoolPolicy;
         this.artifactRegistry = options.artifactRegistry;
@@ -2571,6 +2575,7 @@ export class CemElementRuntime {
     private disconnectProducedInstance(instance: HTMLElement): void {
         this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
         this.moduleInstanceContexts.delete(instance);
+        this.publicationControllers.get(instance)?.abort();
         this.stylesheetConnections.get(instance)?.release();
         this.stylesheetConnections.delete(instance);
         this.stylesheetReady.delete(instance);
@@ -2683,7 +2688,9 @@ export class CemElementRuntime {
             return;
         }
         this.ensureInstanceState(instance, compiled, island);
-        if (this.retainedStylesheets && !this.stylesheetReady.has(instance)) {
+        if (this.retainedStylesheets && !this.stylesheetReady.has(instance)
+            && !((this.usesProcessingHost(compiled) && this.processingRenderPlans.has(instance))
+                || (compiled.mode === 'dom' && this.committedRenderPlans.has(instance)))) {
             const token = this.nextRenderToken(instance);
             const pending = this.ensureRetainedStylesheets(instance, compiled).then(async () => {
                 if (this.renderTokens.get(instance) !== token || !instance.isConnected || compiled.declarationScope.disposed) return;
@@ -2714,10 +2721,17 @@ export class CemElementRuntime {
             this.cancelSupersededProcessingRender(instance, token);
             this.renderSettled.set(
                 instance,
-                this.renderViaProcessingHost(instance, compiled, snapshot, token).then(() => {
-                    this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
+                this.renderViaProcessingHost(instance, compiled, snapshot, token).then(applied => {
+                    if (applied) this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
                 }),
             );
+            return;
+        }
+
+        if (this.retainedStylesheets && compiled.mode === 'dom' && this.committedRenderPlans.has(instance)) {
+            this.renderSettled.set(instance, this.renderRetainedUpdate(instance, compiled, snapshot, token).then(applied => {
+                if (applied) this.finishRender(instance, compiled, snapshot, token, formRefreshPass);
+            }));
             return;
         }
 
@@ -2942,8 +2956,21 @@ export class CemElementRuntime {
             } else {
                 await this.ensureLegacyConverted(compiled);
                 if (!compiled.stylesheetsReady) await this.surfaceDeclarationDiagnostics(compiled.declarationElement, compiled);
-                const result = await this.ensureProcessingArtifact(compiled, ['datadom', 'island', 'instanceID']);
+                // CSS source ownership must not prime the render cache before instance bindings exist.
+                const hostBindings = [...compiled.declaredAttributes.map(attribute => attribute.name),
+                    ...compiled.declaredSlices.map(slice => slice.name), 'datadom', 'island', 'instanceID'];
+                const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
+                if (!compiled.stylesheets.length && !moduleClosure) return;
+                const result = await this.processingHost(compiled).compile({ language: 'cem-ml',
+                    producedTag: compiled.producedTag, templateArtifactId: `${compiled.artifactId}:retained-css`,
+                    registrationIdentity: compiled.registrationIdentity ?? compiled.artifactId,
+                    source: createCemProcessingTextSource(compiled.cemMlSource ?? ''), sourceRef: compiled.sourceRef,
+                    resolverIdentity: compiled.resolverIdentity, scopePolicyStamp: this.scopePolicyStamp, sourceMapMode: 'dev',
+                    hostBindings, ...(moduleClosure ? { moduleClosure } : {}),
+                }).result;
                 artifact = result.artifact;
+                if (moduleClosure) this.recordDiagnostics(compiled.declarationElement,
+                    result.diagnostics.map(diagnostic => declarationRuntimeSupportDiagnostic(diagnostic, compiled.producedTag)));
                 compiled.stylesheets = result.stylesheets ?? [];
                 compiled.stylesheetsReady = true;
             }
@@ -3013,10 +3040,12 @@ export class CemElementRuntime {
         const instanceId = this.instanceId(instance);
         const key = edgeContentAddress('template-artifact', { sources, context, instanceId }).key;
         let state = this.instanceStylesheets.get(instance);
+        if (!state && sources.length === 0) return;
         if (!state || state.key !== key) {
             // Keep the live generation until the whole replacement is ready.
             // The staged installer owns retirement and superseded-load cleanup.
-            const install = state ? stageInstanceStylesheets : installInstanceStylesheets;
+            const hasServerStyles = instance.querySelector(':scope > style[data-cem-instance-style]') !== null;
+            const install = state || hasServerStyles ? stageInstanceStylesheets : installInstanceStylesheets;
             state = { key, reported: false, installation: install({
                 element: instance, instanceId, sources, context, signal,
                 artifactId: `instance-css:${key}`, scopePolicyStamp: this.scopePolicyStamp,
@@ -3304,12 +3333,15 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         snapshot: DataIslandSnapshot,
         token: number,
-    ): Promise<void> {
+    ): Promise<boolean> {
+        if (this.retainedStylesheets && this.processingRenderPlans.has(instance)) {
+            return this.renderRetainedUpdate(instance, compiled, snapshot, token);
+        }
         try {
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const compile = await this.ensureProcessingArtifact(compiled, Object.keys(data));
             if (this.renderTokens.get(instance) !== token) {
-                return;
+                return false;
             }
             const revision = {
                 instanceId: snapshot.instanceId,
@@ -3334,7 +3366,7 @@ export class CemElementRuntime {
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
             });
             if (this.renderTokens.get(instance) !== token) {
-                return;
+                return false;
             }
             const resultDiagnostics = this.validateGeneratedIds
                 ? result.diagnostics
@@ -3380,7 +3412,7 @@ export class CemElementRuntime {
                     previousRenderPlan: null,
                 });
                 if (this.renderTokens.get(instance) !== token) {
-                    return;
+                    return false;
                 }
                 const recoveryDiagnostics = this.validateGeneratedIds
                     ? result.diagnostics
@@ -3408,9 +3440,10 @@ export class CemElementRuntime {
             }
             this.processingRenderPlans.set(instance, result.nextRenderPlan);
             await resourcesSettled;
+            return true;
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
-                return;
+                return false;
             }
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
@@ -3419,6 +3452,114 @@ export class CemElementRuntime {
                     compiled.producedTag,
                 ),
             ]);
+            return false;
+        }
+    }
+
+    /** Serialize native preparation and publication; resource work settles after leaving the queue. */
+    private async renderRetainedUpdate(instance: HTMLElement, compiled: CompiledDeclaration,
+        snapshot: DataIslandSnapshot, token: number): Promise<boolean> {
+        const queue = CemCssDomPublicationQueue.forElement(instance);
+        const controller = new AbortController();
+        this.publicationControllers.set(instance, controller);
+        const current = () => !controller.signal.aborted && instance.isConnected
+            && !compiled.declarationScope.disposed && this.renderTokens.get(instance) === token;
+        let resources: readonly CemProcessingResourceControl[] = [];
+        let loadFailed = false;
+        const processing = this.usesProcessingHost(compiled);
+        const prepare = async (full: boolean): Promise<PreparedCssDomPublication> => {
+            if (!current()) throw new Error('superseded CSS/DOM render');
+            const data = processing ? wasmTemplateData(snapshot, compiled.declaredAttributes) : {};
+            const compile = processing ? await this.ensureProcessingArtifact(compiled, Object.keys(data)) : undefined;
+            if (!current()) throw new Error('superseded CSS/DOM render');
+            const context = this.ensureModuleUrlContext(instance, compiled).wire;
+            const registry = stylesheetRegistry(instance.ownerDocument).prepareReplacement({ element: instance,
+                declaration: compiled, sharedScope: compiled.sharedStyleScope, scope: compiled.declarationScope, context });
+            const cancel = () => registry.cancelPreparation();
+            controller.signal.addEventListener('abort', cancel, { once: true });
+            const sources = payloadStylesheetSources(snapshot.payload);
+            const key = edgeContentAddress('template-artifact', { sources, context, instanceId: snapshot.instanceId }).key;
+            const styles = sources.length === 0
+                ? prepareEmittedInstanceStylesheets({ element: instance, signal: registry.signal, outputs: [] })
+                : prepareInstanceStylesheets({ element: instance, instanceId: snapshot.instanceId,
+                sources, context, signal: registry.signal, artifactId: `instance-css:${key}`,
+                scopePolicyStamp: this.scopePolicyStamp, host: this.processingHost(compiled),
+                baseUrl: compiled.resourceBaseUrl, read: this.retainedStylesheets?.read ?? readRetainedStylesheet });
+            try {
+                const [declarationCss, instanceCss] = await Promise.all([registry.ready, styles.ready]);
+                if (!current()) throw new Error('superseded CSS/DOM render');
+                this.recordDiagnostics(instance, [
+                    ...declarationCss.diagnostics.map(d => ({ ...d, source: 'declaration' as const, tag: instance.localName })),
+                    ...instanceCss.diagnostics.map(d => ({ ...d, source: 'instance' as const, tag: instance.localName })),
+                ]);
+                if (declarationCss.status !== 'prepared' || instanceCss.status !== 'prepared') {
+                    loadFailed = [...declarationCss.diagnostics, ...instanceCss.diagnostics]
+                        .some(d => d.severity === 'error' || d.severity === 'fatal');
+                    throw new Error('CSS replacement could not be prepared');
+                }
+                const revision = { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
+                    templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                    outputTarget: snapshot.outputTarget, renderAttempt: (snapshot.renderAttempt ?? 0) + (full ? 1 : 0) };
+                let domPlan: RenderPlan | undefined;
+                if (!processing) {
+                    const projected = this.renderFromDeclaration(instance, compiled, { ...snapshot, renderAttempt: revision.renderAttempt });
+                    if (!projected) throw new Error('DOM projection failed');
+                    domPlan = { ...projected, nodes: compiled.linkBaseUrl === null ? projected.nodes
+                        : await resolveRenderPlanLinks(projected.nodes, compiled.linkBaseUrl) };
+                }
+                const result = compile ? await this.submitProcessingRender(instance, this.processingHost(compiled), token, {
+                    artifact: compile.artifact, revision, snapshot: { ...snapshot, renderAttempt: revision.renderAttempt }, data,
+                    documents: this.httpDocumentBindings(instance, snapshot), nativeAttributes: snapshot.nativeAttributes,
+                    nativeSlices: snapshot.nativeSlices, nativeValueLimits: this.nativeValueLimits,
+                    scopeUid: this.currentScopeUid(instance, compiled), payloadStylesInstalled: true,
+                    previousRenderPlan: full ? null : this.processingRenderPlans.get(instance) ?? null,
+                }) : { frames: diffRenderPlansToPatchFrames(full ? null : this.committedRenderPlans.get(instance) ?? null,
+                    domPlan as RenderPlan), diagnostics: [], hostAttributeUpdates: [], resourceControls: [], nextRenderPlan: undefined };
+                if (!current()) throw new Error('superseded CSS/DOM render');
+                this.recordDiagnostics(instance, result.diagnostics.filter(d => this.validateGeneratedIds
+                    || !d.code.startsWith('cem.render_plan.generated_')).map(d => runtimeSupportDiagnostic(d, compiled.producedTag)));
+                const entries = registry.takeCommits();
+                if (!entries) throw new Error('superseded registry preparation');
+                const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
+                const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
+                    this.processingPatchOptions(instance, compiled));
+                return { entries, registryConnection: registry, instanceStyles: styles, patch,
+                    signal: controller.signal, currentRevision: () => revision,
+                    onPublished: connection => {
+                        if (!connection || !current()) throw new Error('superseded runtime publication');
+                        this.stylesheetConnections.set(instance, connection);
+                        this.instanceStylesheets.set(instance, { key, reported: true,
+                            installation: { ready: Promise.resolve(instanceCss.diagnostics), dispose: () => styles.dispose() } });
+                        this.stylesheetReady.add(instance);
+                        if (result.nextRenderPlan) this.processingRenderPlans.set(instance, result.nextRenderPlan);
+                        if (domPlan) this.committedRenderPlans.set(instance, domPlan);
+                        resources = result.resourceControls;
+                        this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
+                    },
+                };
+            } catch (error) {
+                registry.cancelPreparation(); styles.cancelPreparation();
+                throw error;
+            } finally { controller.signal.removeEventListener('abort', cancel); }
+        };
+        try {
+            let result = queue.recoveryRequired
+                ? await queue.recoverPublication(() => prepare(true)) : await queue.publish(() => prepare(false));
+            if (!current() || loadFailed) return false;
+            if (result.status !== 'applied') result = await queue.recoverPublication(() => prepare(true));
+            if (!current() || loadFailed) return false;
+            if (result.status !== 'applied') throw new Error('CSS/DOM authoritative recovery failed');
+            const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
+            this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
+            this.bindRenderedCustomValidityInRange(bounds);
+            this.bindRenderedFormEventsInRange(instance, compiled, bounds);
+            if (processing) await this.bindProcessingResourceControls(instance, compiled, resources, token);
+            else await this.bindRenderedResourceSlicesInRange(instance, compiled, bounds, token);
+            return current();
+        } catch (error) {
+            if (current()) this.recordDiagnostics(instance, [renderDiagnostic('cem-element.processing_host_render_failed',
+                error instanceof Error ? error.message : String(error), compiled.producedTag)]);
+            return false;
         }
     }
 
@@ -3454,19 +3595,10 @@ export class CemElementRuntime {
         }
     }
 
-    private commitProcessingFrames(
-        instance: HTMLElement,
-        compiled: CompiledDeclaration,
-        island: HTMLTemplateElement,
-        frames: Parameters<typeof applyPatchFramesToRange>[1],
-        resourceControls: readonly CemProcessingResourceControl[],
-        revision: Parameters<typeof applyPatchFramesToRange>[2],
-        token: number,
-    ): Promise<void> {
+    private processingPatchOptions(instance: HTMLElement, compiled: CompiledDeclaration): Parameters<typeof applyPatchFramesToRange>[4] {
         const behavior = compiled.behavior;
         const preserveRenderedAttribute = behavior?.preserveRenderedAttribute?.bind(behavior);
-        const bounds = this.ensureRenderBounds(instance, island);
-        const result = applyPatchFramesToRange(bounds, frames, revision, instance.ownerDocument, {
+        return {
             preserveElementAttribute: preserveRenderedAttribute
                 ? (current, desired, attribute) => preserveRenderedAttribute(instance, current, desired, attribute)
                 : undefined,
@@ -3482,7 +3614,21 @@ export class CemElementRuntime {
                 'local-storage',
                 'location-element',
             ],
-        });
+        };
+    }
+
+    private commitProcessingFrames(
+        instance: HTMLElement,
+        compiled: CompiledDeclaration,
+        island: HTMLTemplateElement,
+        frames: Parameters<typeof applyPatchFramesToRange>[1],
+        resourceControls: readonly CemProcessingResourceControl[],
+        revision: Parameters<typeof applyPatchFramesToRange>[2],
+        token: number,
+    ): Promise<void> {
+        const bounds = this.ensureRenderBounds(instance, island);
+        const result = applyPatchFramesToRange(bounds, frames, revision, instance.ownerDocument,
+            this.processingPatchOptions(instance, compiled));
         if (result.status !== 'applied') {
             this.recordDiagnostics(
                 instance,
@@ -3639,6 +3785,7 @@ export class CemElementRuntime {
     }
 
     private nextRenderToken(instance: HTMLElement): number {
+        this.publicationControllers.get(instance)?.abort();
         const token = (this.renderTokens.get(instance) ?? 0) + 1;
         this.renderTokens.set(instance, token);
         return token;

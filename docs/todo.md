@@ -103,31 +103,6 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
             resource assertions and 30-second story deadline.
 ## Declarative UI Architecture Correction
 
-### Native CSS `@scope` migration
-
-- [ ] Support scoped module maps inside `cem-element` styles through typed CSS
-      adoption into the CEM AST.
-    - Resolve CSS import expressions (`@import`), `url(...)` references and
-          other CSS URL-bearing constructs through the module map from the
-          closest scope, using the shared resolver and retained CSS AST.
-          Completed in the opt-in retained runtime; default cutover is separate.
-        - [ ] Connect native closure emission to stable effective stylesheet
-              ownership, cache invalidation and browser lifecycle only after
-              completing the remaining syntax profiles and diagnostic gates.
-    - [ ] Fixture: support atomic native CSS replacement in streamed Edge updates
-          when payloads or consuming contexts change, including cancellation,
-          stale updates and browser ownership cleanup before removing the update
-          capability guard.
-        - [ ] Coordinate declaration and instance leases with Edge patch commits,
-              including context markers shared by several declaration owners;
-              extend replacement responses/state and verify stale transaction
-              rejection before enabling changes to CSS inputs in the Edge host.
-            - [ ] Bind prepared CSS publication to validated Edge patch transactions.
-    - [ ] Fixture: trial retained CSS as the default browser runtime; audit
-          Edge/SSR and hydration compatibility, run both browser lanes and
-          component verification, and remove obsolete compiler paths only after
-          their remaining result-style callers have an explicit replacement.
-
 ### Remaining declarative UI migration
 
 - [ ] Migrate every legacy `cem-components` member into its own
@@ -146,6 +121,11 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           empty disabled state and collapsible navigation failures reproduce
           with committed legacy sources. Establish the remaining baseline and
           repair shared semantics or migrate owners without weakening tests.
+          CSS closure comparison (2026-09-27): rebuilt commit `5f8e7172` and
+          the native-CSS default both produce 81 passing / 48 failing tests,
+          with the same 48 test names. No new component failures; the package
+          gate remains red. Rebuild `cem-elements` before comparing this suite,
+          because these tests import its packaged output.
     - [ ] Diagnose the restored Site build's token-browser failure:
           `cem.transform_template.adapter_failed` reports the 64-level / 4096-value
           JSON import limit before asset deployment. Resolve before end-to-end

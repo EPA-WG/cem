@@ -158,7 +158,7 @@ export const DeclarationScopeResolutionMatrix: Story = {
         await expect(privateInstances).toHaveLength(2);
         await expect(privateStyles).toHaveLength(1);
         await expect(privateStyles[0]?.dataset.cemDeclarationStyle).toBe('private');
-        await expect(privateStyles[0]?.textContent).toContain('@scope (\n    css-scope-private');
+        await expect(privateStyles[0]?.textContent).toMatch(/@scope\s*\(\s*css-scope-private/);
         await expect(privateInstances.every((instance) => instance.querySelector('style') === null)).toBe(true);
         await expect(cssValue(privateInstances[0], '--private-only')).toBe('yes');
         await expect(cssValue(privateInstances[0], '--cascade-winner')).toBe('outer');
@@ -181,7 +181,7 @@ export const DeclarationScopeResolutionMatrix: Story = {
         const mixedStyles = managedStyles(state.declarations.mixed);
         await expect(mixedStyles).toHaveLength(2);
         await expect(mixedStyles.map((style) => style.dataset.cemDeclarationStyle)).toEqual(['private', 'shared']);
-        await expect(mixedStyles[0]?.textContent).toContain('@scope (\n    css-scope-mixed');
+        await expect(mixedStyles[0]?.textContent).toMatch(/@scope\s*\(\s*css-scope-mixed/);
         await expect(mixedStyles[1]?.textContent).toContain(
             `[scope="${GROUP_SCOPE}"]:has(> template[data-cem-island="instance"])`,
         );
@@ -318,7 +318,7 @@ export const InstanceStylesStayWithOneInstance: Story = {
         const payloadStyle = Array.from(overridden.children).find((child) => child.localName === 'style') ?? null;
         await expect(payloadStyle).not.toBeNull();
         await expect(payloadStyle?.textContent).toContain('@scope to (');
-        await expect(payloadStyle?.textContent).toContain(':scope { --instance-color: rgb(255, 0, 0); }');
+        await expect(payloadStyle?.textContent?.replace(/\s+/g, '')).toContain(':scope{--instance-color:rgb(255,0,0);}');
         await expect(payloadStyle?.hasAttribute('data-cem-render-scope')).toBe(false);
         await expect(overridden.hasAttribute('data-cem-instance-scope')).toBe(false);
         const island = requiredElement(overridden, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
@@ -421,6 +421,8 @@ export const ScopeLimitsAndCascade: Story = {
         await expect(state).toBeDefined();
         if (!state) return;
         await settle(state);
+        await Promise.all(Array.from(root.querySelectorAll<HTMLElement>('css-scope-boundary, css-scope-inner'),
+            instance => state.runtime.whenRenderSettled(instance)));
         await nextFrame();
 
         async function verifyScope() {
@@ -489,6 +491,8 @@ export const StaticOnlyStylesFailClosed: Story = {
         appendExpectedResult(root, EXPECTED_RESULTS.staticOnlyStylesFailClosed);
         const runtime = new CemElementRuntime({
             declarationTag: 'cem-element-css-static',
+            // Pin the legacy suppression contract; retained import admission has dedicated native fixtures.
+            retainedStylesheets: false,
         });
         const staticDeclaration = cemMlDeclaration(
             'cem-element-css-static',
@@ -653,7 +657,7 @@ export const FragmentAndAnonymousDeclarationsUseEffectiveTags: Story = {
         await state.runtime.whenRenderSettled(fragmentInstance);
         const fragmentStyles = managedStyles(state.declarations.fragment);
         await expect(fragmentStyles).toHaveLength(1);
-        await expect(fragmentStyles[0]?.textContent).toContain('@scope (\n    css-scope-fragment');
+        await expect(fragmentStyles[0]?.textContent).toMatch(/@scope\s*\(\s*css-scope-fragment/);
         await expect(cssValue(fragmentInstance, '--fragment-style')).toBe('yes');
 
         const anonymousTag = state.declarations.anonymous.getAttribute('tag') ?? '';
@@ -662,7 +666,7 @@ export const FragmentAndAnonymousDeclarationsUseEffectiveTags: Story = {
         await state.runtime.whenRenderSettled(anonymousInstance);
         const anonymousStyles = managedStyles(state.declarations.anonymous);
         await expect(anonymousStyles).toHaveLength(1);
-        await expect(anonymousStyles[0]?.textContent).toContain(`@scope (\n    ${anonymousTag}`);
+        await expect(anonymousStyles[0]?.textContent).toContain(`@scope (${anonymousTag}`);
         await expect(cssValue(anonymousInstance, '--anonymous-style')).toBe('yes');
     },
 };

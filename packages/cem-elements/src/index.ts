@@ -16,3 +16,7 @@ export { convertLegacyTemplate, type LegacyConvertResult } from './lib/internal/
 export { exportNativeCemAttributes, importNativeCemAttributes, exportNativeCemSlices, importNativeCemSlices,
     type NativeCemValue, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits,
 } from './lib/native-values.js';
+
+export { publishEdgeCssDomUpdate, type CemEdgeCssPublicationOptions } from './lib/edge-css-publication.js';
+export { DeclarationStyleOwnership } from './lib/declaration-style-ownership.js';
+export type { CemEdgeStylesheetBatch, CemEdgeStylesheetState, CemEdgeSsrRenderUpdateResult } from './lib/edge-ssr-host.js';
