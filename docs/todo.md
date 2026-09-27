@@ -6087,10 +6087,15 @@ registration identities may reuse an inherited or existing definition.
               Completed: 16 native retention/reload tests, Nx lint/reload checks,
               combined WASM build and both template/native-value WASM regressions
               pass. Browser operations do not populate the collection yet.
-        - [ ] Fixture: connect processing-host CSS begin/delivery/retain/release
+        - [x] Fixture: connect processing-host CSS begin/delivery/retain/release
               operations to the retained native template collection and shared
               loader byte policy; verify stale handles, consumer release and
               template disposal through real WASM without serialized CSS trees.
+              Include pending-load supersession, imported response MIME/limits,
+              worker fallback, late cancellation and shared-root disposal.
+              Completed: 10 native tests, real WASM protocol checks and 528
+              processing/unit checks pass; native/browser lint and typecheck
+              pass with existing warnings. Browser installation remains pending.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

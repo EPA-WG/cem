@@ -12,6 +12,8 @@ import {
 } from '../../projection.js';
 import {
     processNativeCemValue,
+    processRetainedTemplateStylesheet,
+    releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
     retainDomStylesheetSources,
     disposeLoadedCemDocument,
@@ -32,6 +34,8 @@ import type {
     CemProcessingArtifactHandle,
     CemProcessingCompileInput,
     CemProcessingCompileResult,
+    CemProcessingStylesheetInput,
+    CemProcessingStylesheetResult,
     CemProcessingValueInput,
     CemProcessingValueResult,
     CemProcessingDocumentInput,
@@ -47,6 +51,8 @@ import type {
 import { CemProcessingLruCache } from './processing-cache.js';
 
 interface RetainedTemplateArtifact {
+    stylesheetOwner: string;
+    stylesheetConsumers: Set<string>;
     compilation: CachedTemplateCompilation;
     input: CemProcessingCompileInput;
     handle: CemProcessingArtifactHandle;
@@ -215,6 +221,8 @@ export class CemProcessingEngine {
         }
         this.compilations.set(compilation, (this.compilations.get(compilation) ?? 0) + 1);
         const artifact = {
+            stylesheetOwner: crypto.randomUUID(),
+            stylesheetConsumers: new Set<string>(),
             compilation,
             input,
             handle,
@@ -224,8 +232,44 @@ export class CemProcessingEngine {
             stylesheets: compilation.stylesheets,
         };
         const evicted = this.artifacts.set(artifactKey, artifact);
-        if (evicted) this.releaseCompilation(evicted.value.compilation);
+        if (evicted) {
+            for (const consumer of evicted.value.stylesheetConsumers) {
+                releaseRetainedTemplateStylesheets(evicted.value.wasmArtifactId, consumer);
+            }
+            this.releaseCompilation(evicted.value.compilation);
+        }
         return compileResult(artifact);
+    }
+
+    async stylesheet(input: CemProcessingStylesheetInput): Promise<CemProcessingStylesheetResult> {
+        this.assertActive();
+        const key = retainedArtifactKey(input.artifact.scopePolicyStamp, input.artifact.artifactId);
+        const artifact = this.artifacts.get(key);
+        if (!artifact || !sameArtifactHandle(artifact.handle, input.artifact)) {
+            throw new Error('stylesheet template artifact is not retained by this processing host');
+        }
+        if (!input.consumer) throw new Error('stylesheet consumer identity must not be empty');
+        const consumer = JSON.stringify([artifact.stylesheetOwner, input.consumer]);
+        let loadId = 0;
+        if (input.action !== 'begin' && input.loadId !== undefined) {
+            const prefix = `${artifact.stylesheetOwner}:`;
+            loadId = input.loadId.startsWith(prefix) ? Number(input.loadId.slice(prefix.length)) : NaN;
+            if (!Number.isInteger(loadId) || loadId < 1 || loadId > 0xffffffff) {
+                throw new Error('stylesheet load owner changed; restart the load');
+            }
+        }
+        const result = await processRetainedTemplateStylesheet(artifact.wasmArtifactId, input, consumer,
+            artifact.handle.registrationIdentity, loadId);
+        if (this.disposed || this.artifacts.get(key) !== artifact) {
+            // The compilation can still be shared by another logical artifact.
+            if (!this.disposed && 'loadId' in result) {
+                releaseRetainedTemplateStylesheets(artifact.wasmArtifactId, consumer, result.loadId);
+            }
+            throw new Error('stylesheet template artifact was disposed or evicted');
+        }
+        if (input.action === 'release' && input.loadId === undefined) artifact.stylesheetConsumers.delete(consumer);
+        else if (input.action !== 'release') artifact.stylesheetConsumers.add(consumer);
+        return 'loadId' in result ? { ...result, loadId: `${artifact.stylesheetOwner}:${result.loadId}` } : result;
     }
 
     async renderDiff(input: CemProcessingRenderDiffInput): Promise<CemProcessingRenderDiffResult> {

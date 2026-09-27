@@ -269,6 +269,21 @@
             ],
             "outputs": ["{workspaceRoot}/dist/target/cem_ql"]
         },
+        "test:retained-stylesheets": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build:wasm"],
+            "options": {
+                "commands": [
+                    "cargo test --package cem-ql --test retained_stylesheets --target-dir dist/target/cem_ql",
+                    "node packages/cem_ql/tests/retained-stylesheets-wasm.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": ["default", "^default", "{projectRoot}/tests/retained-stylesheets-wasm.mjs"],
+            "outputs": []
+        },
         "test:template-artifact-reload": {
             "cache": true,
             "executor": "nx:run-commands",

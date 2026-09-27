@@ -18,6 +18,10 @@ vi.mock('./cem-ql-render.js', () => ({
     })),
     processNativeCemValue: vi.fn(async () => ({ text: 'null' })),
     retainLoadedCemDocument: vi.fn(async () => 201),
+    processRetainedTemplateStylesheet: vi.fn(async (_id, input) => input.action === 'release'
+        ? { status: 'released', count: 1 }
+        : { status: 'pending', loadId: 1, request: { id: 1, url: 'https://example.test/child.css', contentType: null, integrity: null } }),
+    releaseRetainedTemplateStylesheets: vi.fn(() => ({ status: 'released', count: 1 })),
     disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
     processRetainedCemMlTemplate: vi.fn(async () => ({
@@ -34,7 +38,7 @@ vi.mock('./cem-ql-render.js', () => ({
     })),
 }));
 
-import { processNativeCemValue, retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
+import { processRetainedTemplateStylesheet, processNativeCemValue, retainLoadedCemDocument, disposeLoadedCemDocument, processRetainedCemMlTemplate } from './cem-ql-render.js';
 import type { DataIslandSnapshot } from '../../cem-elements.js';
 import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
@@ -384,4 +388,110 @@ it('replays stateless native value I/O on worker loss and suppresses cancelled r
     await rejected;
     root.dispose();
     await expect(host.value(input).result).rejects.toThrow();
+});
+
+
+class StylesheetProcessingWorker extends ControlledProcessingWorker {
+    private readonly engine = new CemProcessingEngine();
+    failDelivery = false;
+    override terminate(): void { this.engine.dispose({ reason: 'runtime-disposed' }); super.terminate(); }
+    override postMessage(request: CemProcessingRequestEnvelope): void {
+        if (request.operation === 'stylesheet' && request.payload.action === 'deliver' && this.failDelivery) {
+            throw new Error('worker failed during CSS delivery');
+        }
+        if (request.operation === 'compile' || request.operation === 'stylesheet') {
+            this.requests.push(request);
+            const result = request.operation === 'compile' ? this.engine.compile(request.payload) : this.engine.stylesheet(request.payload);
+            void result.then((value) => this.emit('message', createCemProcessingSuccessEnvelope(request, value)));
+            return;
+        }
+        super.postMessage(request);
+    }
+}
+
+const stylesheetBegin = { action: 'begin' as const, consumer: 'card', index: 0,
+    baseUrl: 'https://example.test/main.css', scope: { kind: 'private' as const, tag: 'cem-card' },
+    context: { identity: 'page', resolverIdentity: 'test', resourcePolicyStamp: 'test', frames: [] } };
+
+it('routes stylesheet bytes and rejects worker handles after fallback, including after a new begin', async () => {
+    const worker = new StylesheetProcessingWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    const { artifact } = await host.compile(compileInput('css')).result;
+    const pending = await host.stylesheet({ ...stylesheetBegin, artifact }).result;
+    if (pending.status !== 'pending') throw new Error('expected pending');
+    const delivery = { action: 'deliver' as const, artifact, consumer: 'card', loadId: pending.loadId,
+        requestId: pending.request.id, bytes: new TextEncoder().encode('.card{}').buffer,
+        finalUrl: 'https://example.test/child.css', contentType: 'text/css' };
+    await host.stylesheet(delivery).result;
+    expect(worker.requests.at(-1)?.payload).toEqual({ ...delivery, consumer: expect.stringContaining('card') });
+    worker.failDelivery = true;
+    await expect(host.stylesheet(delivery).result).rejects.toThrow('restart the load');
+    expect(host.mode).toBe('main-thread');
+    const restarted = await host.stylesheet({ ...stylesheetBegin, artifact }).result;
+    expect(restarted).toHaveProperty('loadId');
+    await expect(host.stylesheet(delivery).result).rejects.toThrow('owner changed');
+    await host.dispose({ reason: 'runtime-disposed' }).result;
+});
+
+it('releases the exact stylesheet generation cancelled during fallback processing', async () => {
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => { throw new Error('unavailable'); } });
+    const { artifact } = await host.compile(compileInput('css')).result;
+    let finish!: (value: { status: 'pending'; loadId: number; request: { id: number; url: string; contentType: null; integrity: null } }) => void;
+    vi.mocked(processRetainedTemplateStylesheet).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const job = host.stylesheet({ ...stylesheetBegin, artifact });
+    const rejected = expect(job.result).rejects.toThrow('cancelled');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result;
+    finish({ status: 'pending', loadId: 17, request: { id: 1, url: 'https://example.test/child.css', contentType: null, integrity: null } });
+    await rejected;
+    expect(processRetainedTemplateStylesheet).toHaveBeenLastCalledWith(1,
+        expect.objectContaining({ action: 'release', loadId: expect.stringMatching(/:17$/) }),
+        expect.any(String), 'registration:css', 17);
+    await host.dispose({ reason: 'runtime-disposed' }).result;
+});
+
+it('releases stylesheet consumers for a disposed root while keeping the pooled worker alive', async () => {
+    const worker = new StylesheetProcessingWorker();
+    const document = {} as Document;
+    const roots = [createCemDeclarationScope({ document }), createCemDeclarationScope({ document })];
+    const options = { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker, poolPolicy: { workerCount: 1, maxWorkers: 1 } };
+    const hosts = roots.map(root => cemProcessingHostForScope(root, options));
+    const { artifact } = await hosts[0].compile(compileInput('css')).result;
+    await hosts[0].stylesheet({ ...stylesheetBegin, artifact }).result;
+    const other = await hosts[1].compile(compileInput('css')).result;
+    await hosts[1].stylesheet({ ...stylesheetBegin, artifact: other.artifact }).result;
+    const consumers = worker.requests.filter(request => request.operation === 'stylesheet').map(request => request.payload.consumer);
+    expect(new Set(consumers).size).toBe(2);
+    await hosts[0].dispose({ reason: 'scope-disposed' }).result;
+    expect(worker.terminated).toBe(false);
+    expect(worker.requests.at(-1)).toMatchObject({ operation: 'stylesheet', payload: { action: 'release', artifact, consumer: expect.stringContaining('card') } });
+    await hosts[1].dispose({ reason: 'scope-disposed' }).result;
+});
+
+
+it('releases a late successful worker stylesheet response after host cancellation', async () => {
+    const worker = new StylesheetProcessingWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker });
+    const { artifact } = await host.compile(compileInput('css')).result;
+    let finish!: (value: { status: 'pending'; loadId: number; request: { id: number; url: string; contentType: null; integrity: null } }) => void;
+    vi.mocked(processRetainedTemplateStylesheet).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const job = host.stylesheet({ ...stylesheetBegin, artifact });
+    const rejected = expect(job.result).rejects.toThrow('cancelled');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    const cancellation = host.cancel({ targetJobId: job.jobId, reason: 'superseded' });
+    await vi.waitFor(() => expect(worker.requests.at(-1)?.operation).toBe('cancel'));
+    worker.respondCancel(false);
+    await cancellation.result;
+    finish({ status: 'pending', loadId: 23, request: { id: 1, url: 'https://example.test/child.css', contentType: null, integrity: null } });
+    await rejected;
+    expect(worker.requests.at(-1)).toMatchObject({ operation: 'stylesheet',
+        payload: { action: 'release', loadId: expect.stringMatching(/:23$/) } });
+    await host.dispose({ reason: 'runtime-disposed' }).result;
 });

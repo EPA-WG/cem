@@ -47,6 +47,9 @@ vi.mock('./cem-ql-render.js', () => {
     retainLoadedCemDocument: vi.fn(async () => 101),
     retainDomStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
         stylesheets: [{ css: ':scope { color: red; }', scope: null }], moduleMap: null })),
+    processRetainedTemplateStylesheet: vi.fn(async () => ({ status: 'pending', loadId: 1,
+        request: { id: 1, url: 'https://example.test/child.css', contentType: null, integrity: null } })),
+    releaseRetainedTemplateStylesheets: vi.fn(() => ({ status: 'released', count: 1 })),
     disposeLoadedCemDocument: vi.fn(),
     disposeRetainedCemMlTemplate: vi.fn(() => true),
     processRetainedCemMlTemplate: vi.fn(async (artifactId: number, input: {
@@ -151,6 +154,8 @@ vi.mock('./cem-ql-render.js', () => {
 
 import { CemProcessingEngine } from './processing-engine.js';
 import {
+    processRetainedTemplateStylesheet,
+    releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
     retainDomStylesheetSources,
     retainXsltComponentSource,
@@ -937,5 +942,50 @@ describe('retained typed XSLT processing', () => {
         resume(late);
         await expect(pending).rejects.toThrow('disposed');
         expect(late.dispose).toHaveBeenCalledTimes(1);
+    });
+});
+
+
+describe('retained stylesheet processing', () => {
+    const compile = (id: string) => ({ language: 'css' as const, producedTag: 'cem-card', templateArtifactId: id,
+        registrationIdentity: `registration:${id}`, source: createCemProcessingTextSource('[]'),
+        sourceRef: { kind: 'inline' as const, value: 'same-source' }, resolverIdentity: 'test',
+        scopePolicyStamp: 'test', sourceMapMode: 'dev' as const });
+    const begin = { action: 'begin' as const, consumer: 'host', index: 0, baseUrl: 'https://example.test/main.css',
+        scope: { kind: 'private' as const, tag: 'cem-card' },
+        context: { identity: 'page', resolverIdentity: 'test', resourcePolicyStamp: 'test', frames: [] } };
+
+    it('isolates consumers of shared native compilations and rejects loads from another owner', async () => {
+        const engine = new CemProcessingEngine({ maxArtifactEntries: 2 });
+        const first = await engine.compile(compile('first'));
+        const second = await engine.compile(compile('second'));
+        const process = vi.mocked(processRetainedTemplateStylesheet);
+        process.mockClear();
+        const one = await engine.stylesheet({ ...begin, artifact: first.artifact });
+        const two = await engine.stylesheet({ ...begin, artifact: second.artifact });
+        expect(one.status).toBe('pending');
+        expect(two.status).toBe('pending');
+        if (one.status !== 'pending' || two.status !== 'pending') throw new Error('expected pending');
+        expect(one.loadId).not.toBe(two.loadId);
+        expect(process.mock.calls[0][0]).toBe(process.mock.calls[1][0]);
+        expect(process.mock.calls[0][2]).not.toBe(process.mock.calls[1][2]);
+        expect(process.mock.calls[0][3]).toBe('registration:first');
+        const delivery = { action: 'deliver' as const, consumer: 'host', loadId: one.loadId,
+            requestId: 1, bytes: new TextEncoder().encode('.card{}').buffer, finalUrl: 'https://example.test/child.css' };
+        await expect(engine.stylesheet({ ...delivery, artifact: second.artifact })).rejects.toThrow('owner changed');
+        await engine.stylesheet({ ...delivery, artifact: first.artifact });
+        expect(process).toHaveBeenLastCalledWith(process.mock.calls[0][0], expect.objectContaining(delivery),
+            process.mock.calls[0][2], 'registration:first', 1);
+        await expect(engine.stylesheet({ ...begin, artifact: { ...first.artifact, registrationIdentity: 'forged' } }))
+            .rejects.toThrow('not retained');
+        // Touch second, then evict first while its compilation remains shared.
+        await engine.compile(compile('second'));
+        await engine.compile(compile('third'));
+        expect(releaseRetainedTemplateStylesheets).toHaveBeenCalledWith(process.mock.calls[0][0], process.mock.calls[0][2]);
+        await expect(engine.stylesheet({ ...delivery, artifact: first.artifact })).rejects.toThrow('not retained');
+        const restored = await engine.compile(compile('first'));
+        await expect(engine.stylesheet({ ...delivery, artifact: restored.artifact })).rejects.toThrow('owner changed');
+        engine.dispose({ reason: 'runtime-disposed' });
+        await expect(engine.stylesheet({ ...begin, artifact: restored.artifact })).rejects.toThrow('disposed');
     });
 });

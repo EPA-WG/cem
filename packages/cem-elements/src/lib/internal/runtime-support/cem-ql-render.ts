@@ -1,3 +1,4 @@
+import type { CemProcessingStylesheetInput, CemProcessingStylesheetResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
  * Host runtime-support boundary for the `cem_ql` WASM render engine
@@ -22,6 +23,9 @@ import initCemQlWasm, {
     cemQlVersion,
     compileTemplate,
     adoptDomStylesheets,
+    beginTemplateStylesheet,
+    deliverTemplateStylesheet,
+    releaseTemplateStylesheets,
     compileTemplateArtifact,
     compileTemplateModuleClosure,
     convertLegacyCustomElementTemplate,
@@ -99,6 +103,33 @@ export async function retainDomStylesheetSources(sourceJson: string): Promise<Re
     return { artifactId: result.artifactId as number,
         stylesheets: (result.stylesheets ?? []).map(mapStylesheet), moduleMap: null,
         diagnostics: (result.diagnostics ?? []).map(mapDiagnostic) };
+}
+
+export function releaseRetainedTemplateStylesheets(artifactId: number, consumer: string, loadId = 0): CemProcessingStylesheetResult<number> {
+    return stylesheetResult(releaseTemplateStylesheets(artifactId, consumer, loadId));
+}
+
+export async function processRetainedTemplateStylesheet(
+    artifactId: number, input: CemProcessingStylesheetInput, consumer: string,
+    declarationIdentity: string, loadId = 0
+): Promise<CemProcessingStylesheetResult<number>> {
+    await ensureRuntimeReady();
+    if (input.action === 'release') return releaseRetainedTemplateStylesheets(artifactId, consumer, loadId);
+    if (input.action === 'deliver') {
+        if (!Number.isInteger(input.requestId) || input.requestId < 1 || input.requestId > 0xffffffff) {
+            throw new Error('invalid stylesheet request identity');
+        }
+        return stylesheetResult(deliverTemplateStylesheet(artifactId, loadId, consumer, input.requestId,
+            new Uint8Array(input.bytes), input.finalUrl, input.contentType ?? ''));
+    }
+    return stylesheetResult(beginTemplateStylesheet(artifactId, JSON.stringify({ consumer,
+        index: input.index, baseUrl: input.baseUrl, context: input.context, scope: input.scope, declarationIdentity })));
+}
+
+function stylesheetResult(json: string): CemProcessingStylesheetResult<number> {
+    const result = JSON.parse(json) as CemProcessingStylesheetResult<number> | { status: 'error'; message: string };
+    if (result.status === 'error') throw new Error(result.message);
+    return result;
 }
 
 export interface CemMlTemplateCompileResult {

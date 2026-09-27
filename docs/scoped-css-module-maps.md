@@ -1250,9 +1250,9 @@ cache lifecycle are still pending.
 A cache key is not an authorization or freshness decision. The caller must
 revalidate dependency responses through the loader, confirm the consuming context
 is live and invalidate pending work on context changes before committing styles.
-The next integration step is to carry these identities through the retained
-processing-host artifact lifecycle and replace declaration-only derived-set
-ownership, with disposal/reconnect/readiness coverage.
+The processing-host protocol below carries these identities through the retained
+artifact lifecycle. Replacing declaration-only browser ownership still requires
+context-specific installation, reconnect and readiness coverage.
 
 ### Context changes during native import loading
 
@@ -1305,9 +1305,41 @@ occurrences, imported source/diagnostic retention, wrong roots, pending/cancelle
 closures, authored scope mismatch, reconnect and disposal. WASM rendering still
 uses the same artifact and reader cache through accessors.
 
-This introduces no browser CSS compiler cutover. The native collection is attached
-to the real WASM artifact owner, but browser processing operations do not yet
-populate it. Next, expose begin/delivery/retain/release operations through the
-shared processing host, carrying loader-validated bytes and explicit control
-metadata. Keep CSS trees native and return emitted CSS/identity/diagnostics only
-at the output boundary; then connect context-specific browser installation.
+### Processing-host stylesheet protocol
+
+The `cem-processing-host-v7` `stylesheet` operation populates this collection
+through three controls:
+
+- `begin` supplies an artifact handle, consumer, occurrence index, admitted
+  private/shared scope, source base and the existing module resolver context
+  wire metadata. The engine takes declaration identity from the validated
+  artifact. Native code uses that template's retained root tree and returns a
+  pending import request or ready output.
+- `deliver` supplies the outstanding request ID, response bytes, final URL and
+  content type. Native `complete_response` applies MIME, integrity, redirect,
+  response and aggregate byte checks before shared CSS import. It returns the
+  next request or retains the ready closure and emits CSS, identity and diagnostics.
+- `release` drops all occurrences for a consumer, or only a specified load
+  generation. Late cancellation of an older generation cannot release newer work.
+
+Each template permits at most 64 pending loads. A new begin supersedes pending
+work for the same consumer and occurrence. Load IDs are monotonic within the
+native template; the engine qualifies them with its artifact owner's identity.
+Eviction, worker loss or template disposal therefore cannot make an old host
+handle refer to a new native job. Failed worker delivery requires a fresh begin;
+response bytes are never replayed into another load. Begin can retry in fallback.
+
+The host isolates consumer names per root; the engine isolates them per logical
+artifact even when compilations are shared. Artifact eviction and root disposal
+release their consumers. Worker and fallback cancellation both release the exact
+returned generation, including replies received after host cancellation.
+
+These controls carry named metadata and bytes; CSS trees remain native. Returned
+CSS is an explicit output boundary. The resolver wire snapshot is immutable for
+a load. Browser installation must supersede loads when context changes and check
+context liveness before committing emitted CSS or a context marker.
+
+`cem_ql:test:retained-stylesheets` runs native ownership/load tests and the real
+WASM protocol fixture. Processing-engine and host tests cover shared compilation,
+root disposal, stale handles, fallback and late cancellation. Browser fetching,
+style installation and the compiler cutover remain pending.

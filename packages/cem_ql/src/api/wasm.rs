@@ -20,6 +20,7 @@ use crate::template_artifact::{
     TemplateArtifactSourceMapMode, CEM_TEMPLATE_ARTIFACT_VERSION,
 };
 
+mod stylesheets;
 mod values;
 mod xpath_functions;
 mod xslt_bundle;

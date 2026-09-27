@@ -302,3 +302,166 @@ fn one_consumer_retains_multiple_style_occurrences_without_collisions() {
     assert_eq!(owner.release_stylesheet_consumer("first"), 2);
     assert!(records.iter().all(|record| record.emission().is_err()));
 }
+
+#[test]
+fn load_protocol_validates_delivery_supersession_and_consumer_release() {
+    use cem_ql::retained_template::{StylesheetLoadOptions, StylesheetLoadProgress};
+    let mut owner = template("@import 'child.css'; .card {color:green}");
+    let options = || {
+        let handle = CemResolutionContextHandle::new("test");
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            handle.clone(),
+            CemModuleUrlContext {
+                identity: "test".into(),
+                resolver_identity: "test".into(),
+                resource_policy_stamp: "test".into(),
+                frames: vec![CemModuleUrlFrame::new("page", "https://example.test/page")],
+            },
+        );
+        StylesheetLoadOptions {
+            consumer: "one".into(),
+            index: 0,
+            scope: scope(),
+            declaration_identity: "card".into(),
+            base_url: "https://example.test/main.css".into(),
+            capability: CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle),
+            response_policy: Default::default(),
+        }
+    };
+    let mut invalid = options();
+    invalid.scope = CssManagedScope::Instance;
+    assert!(owner.begin_stylesheet_load(invalid).is_err());
+    let first = owner.begin_stylesheet_load(options()).unwrap();
+    let second = owner.begin_stylesheet_load(options()).unwrap();
+    assert_eq!(owner.release_stylesheet_generation("one", first), 0);
+    assert!(owner.advance_stylesheet_load(first, "one").is_err());
+    assert!(owner.advance_stylesheet_load(second, "other").is_err());
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(second, "one").unwrap()
+    else {
+        panic!("expected import")
+    };
+    let output = owner
+        .deliver_stylesheet_response(
+            second,
+            "one",
+            request.id,
+            cem_ml::resolver::ResolvedRead {
+                uri: "https://example.test/cdn/child.css".into(),
+                bytes: b".card {background:url(icon.svg)}".to_vec(),
+                content_type: Some("text/css".into()),
+            },
+        )
+        .unwrap();
+    let StylesheetLoadProgress::Ready(output) = output else {
+        panic!("expected ready CSS")
+    };
+    assert!(output
+        .emission()
+        .unwrap()
+        .css()
+        .contains("https://example.test/cdn/icon.svg"));
+    assert!(owner.advance_stylesheet_load(second, "one").is_err());
+    let third = owner.begin_stylesheet_load(options()).unwrap();
+    assert_eq!(owner.release_stylesheet_consumer("one"), 2);
+    assert!(owner.advance_stylesheet_load(third, "one").is_err());
+    assert!(output.emission().is_err());
+    let fourth = owner.begin_stylesheet_load(options()).unwrap();
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(fourth, "one").unwrap()
+    else {
+        panic!()
+    };
+    assert!(owner
+        .deliver_stylesheet_response(
+            fourth,
+            "one",
+            request.id,
+            cem_ml::resolver::ResolvedRead {
+                uri: request.resolution.resolved_url,
+                bytes: b"not CSS".to_vec(),
+                content_type: Some("text/html".into()),
+            }
+        )
+        .is_err());
+    assert!(owner.advance_stylesheet_load(fourth, "one").is_err());
+}
+
+#[test]
+fn load_protocol_checks_byte_limits_before_import_and_cancels_exact_generations() {
+    use cem_ql::retained_template::{StylesheetLoadOptions, StylesheetLoadProgress};
+    let mut owner = template("@import 'child.css'; .card {color:green}");
+    let handle = CemResolutionContextHandle::new("limits");
+    let capability = CemModuleUrlResolutionCapability::new(
+        Arc::new(CemScopedModuleUrlResolver::new().with_context(
+            handle.clone(),
+            CemModuleUrlContext {
+                identity: "limits".into(),
+                resolver_identity: "limits".into(),
+                resource_policy_stamp: "limits".into(),
+                frames: vec![CemModuleUrlFrame::new("page", "https://example.test/page")],
+            },
+        )),
+        handle,
+    );
+    let options = |limit| StylesheetLoadOptions {
+        consumer: "one".into(),
+        index: 0,
+        scope: scope(),
+        declaration_identity: "card".into(),
+        base_url: "https://example.test/main.css".into(),
+        capability: capability.clone(),
+        response_policy: cem_ml::css_imports::CssImportResponsePolicy {
+            max_response_bytes: limit,
+            max_total_bytes: limit,
+        },
+    };
+    let first = owner.begin_stylesheet_load(options(3)).unwrap();
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(first, "one").unwrap()
+    else {
+        panic!()
+    };
+    let error = owner
+        .deliver_stylesheet_response(
+            first,
+            "one",
+            request.id,
+            cem_ml::resolver::ResolvedRead {
+                uri: request.resolution.resolved_url,
+                bytes: b".card{}".to_vec(),
+                content_type: Some("text/css".into()),
+            },
+        )
+        .err()
+        .unwrap();
+    assert!(error.contains("byte limits"), "{error}");
+    assert!(owner.advance_stylesheet_load(first, "one").is_err());
+    let second = owner.begin_stylesheet_load(options(100)).unwrap();
+    assert_eq!(owner.release_stylesheet_generation("one", first), 0);
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(second, "one").unwrap()
+    else {
+        panic!()
+    };
+    let StylesheetLoadProgress::Ready(output) = owner
+        .deliver_stylesheet_response(
+            second,
+            "one",
+            request.id,
+            cem_ml::resolver::ResolvedRead {
+                uri: request.resolution.resolved_url,
+                bytes: b".card{color:blue}".to_vec(),
+                content_type: Some("text/css".into()),
+            },
+        )
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(owner.release_stylesheet_generation("other", second), 0);
+    assert!(output.emission().is_ok());
+    assert_eq!(owner.release_stylesheet_generation("one", second), 1);
+    assert!(output.emission().is_err());
+    assert_eq!(owner.release_stylesheet_generation("one", second), 0);
+}

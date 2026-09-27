@@ -115,7 +115,7 @@ interface CemModuleUrlFrameWire {
     allowedSchemes?: string[];
 }
 
-interface CemModuleUrlContextWire {
+export interface CemModuleUrlContextWire {
     identity: string;
     resolverIdentity: string;
     resourcePolicyStamp: string;

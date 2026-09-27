@@ -16,6 +16,8 @@ import {
     type CemProcessingCancelResult,
     type CemProcessingCompileInput,
     type CemProcessingCompileResult,
+    type CemProcessingStylesheetInput,
+    type CemProcessingStylesheetResult,
     type CemProcessingValueInput,
     type CemProcessingValueResult,
     type CemProcessingDocumentInput,
@@ -486,6 +488,9 @@ class RootCemProcessingHost implements CemProcessingHost {
     private readonly sequence: CemProcessingJobSequence;
     private readonly jobs = new CemProcessingCancellationRegistry();
     private readonly engine = new CemProcessingEngine();
+    private readonly stylesheetOwner = crypto.randomUUID();
+    private readonly stylesheetConsumers = new Map<string, Pick<CemProcessingStylesheetInput, 'artifact' | 'consumer'>>();
+    private readonly stylesheetJobs = new Set<Promise<unknown>>();
     private readonly documentInputs = new Map<string, Extract<CemProcessingDocumentInput, { action: 'retain' }>>();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
     private readonly jobPolicies = new Map<number, string>();
@@ -533,6 +538,19 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult> {
         return this.submit('value', input);
+    }
+
+    stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult> {
+        input = { ...input, consumer: JSON.stringify([this.stylesheetOwner, input.consumer]) };
+        const key = JSON.stringify([input.artifact, input.consumer]);
+        if (input.action !== 'release') this.stylesheetConsumers.set(key, { artifact: input.artifact, consumer: input.consumer });
+        const job = this.submit('stylesheet', input);
+        const result = job.result.then((result) => {
+            if (input.action === 'release' && input.loadId === undefined) this.stylesheetConsumers.delete(key);
+            return result;
+        }).finally(() => this.stylesheetJobs.delete(result));
+        this.stylesheetJobs.add(result);
+        return { jobId: job.jobId, result };
     }
 
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult> {
@@ -584,13 +602,19 @@ class RootCemProcessingHost implements CemProcessingHost {
         const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
         this.jobs.start(request.jobId);
         const result = Promise.resolve().then(async () => {
+            await Promise.allSettled([...this.stylesheetJobs]);
             if (!this.fallbackSelected) {
                 // The worker may also serve other roots. Release this root's owners first.
+                await Promise.all([...this.stylesheetConsumers.values()].map((consumer) =>
+                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet',
+                        { ...consumer, action: 'release' }), consumer.artifact.scopePolicyStamp).catch(() => undefined)));
+
                 await Promise.all([...this.documentInputs.values()].map((document) =>
                     this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'document',
                         { action: 'release', handle: document.handle }), document.handle.scopePolicyStamp)
                         .catch(() => undefined)));
             }
+            this.stylesheetConsumers.clear();
             this.documentInputs.clear();
             this.lease.release();
             this.compileInputs.clear();
@@ -628,6 +652,13 @@ class RootCemProcessingHost implements CemProcessingHost {
                     this.assertNotCancelled(request);
                 }
                 const response = await this.lease.request(request, scopePolicyStamp);
+                if (request.operation === 'stylesheet' && response.operation === 'stylesheet'
+                    && 'loadId' in response.result && (this.disposed || this.jobs.isCancelled(request.jobId))) {
+                    await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet', {
+                        action: 'release', artifact: request.payload.artifact, consumer: request.payload.consumer,
+                        loadId: response.result.loadId,
+                    }), scopePolicyStamp).catch(() => undefined);
+                }
                 this.assertNotCancelled(request);
                 if (request.operation === 'cancel' && cancellationAccepted) {
                     return {
@@ -642,6 +673,9 @@ class RootCemProcessingHost implements CemProcessingHost {
                     throw error;
                 }
                 this.selectFallback(error, request);
+                if (request.operation === 'stylesheet' && request.payload.action !== 'begin') {
+                    throw new Error('stylesheet worker owner was lost; restart the load', { cause: error });
+                }
                 if (request.operation === 'cancel') {
                     return {
                         targetJobId: request.payload.targetJobId,
@@ -664,7 +698,7 @@ class RootCemProcessingHost implements CemProcessingHost {
         request: CemProcessingRequestEnvelope<TOperation>,
         cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
-        if (request.operation === 'render-diff') {
+        if (request.operation === 'render-diff' || request.operation === 'stylesheet' && request.payload.action === 'begin') {
             const input = this.compileInputs.get(
                 compileInputKey(
                     request.payload.artifact.scopePolicyStamp,
@@ -675,7 +709,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                 throw new Error('the main-thread fallback is missing the worker template source');
             }
             await this.engine.compile(input);
-            for (const binding of request.payload.documents ?? []) {
+            for (const binding of request.operation === 'render-diff' ? request.payload.documents ?? [] : []) {
                 const document = this.documentInputs.get(JSON.stringify(binding.handle));
                 if (!document) throw new Error('the main-thread fallback is missing the retained document bytes');
                 await this.engine.document(document);
@@ -691,6 +725,17 @@ class RootCemProcessingHost implements CemProcessingHost {
         if (request.operation === 'value') {
             const result = await this.engine.value(request.payload);
             this.assertNotCancelled(request);
+            return result as OperationResult<TOperation>;
+        }
+        if (request.operation === 'stylesheet') {
+            const result = await this.engine.stylesheet(request.payload);
+            try {
+                this.assertNotCancelled(request);
+            } catch (error) {
+                if ('loadId' in result) await this.engine.stylesheet({ action: 'release',
+                    artifact: request.payload.artifact, consumer: request.payload.consumer, loadId: result.loadId });
+                throw error;
+            }
             return result as OperationResult<TOperation>;
         }
         if (request.operation === 'document') {
@@ -725,6 +770,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     private assertNotCancelled(request: CemProcessingRequestEnvelope): void {
+        if (request.operation === 'stylesheet' && this.disposed) throw new Error('the CEM processing host is disposed');
         if (request.operation !== 'cancel' && this.jobs.isCancelled(request.jobId)) {
             throw new CemProcessingJobCancelledError(request.jobId);
         }
@@ -745,6 +791,8 @@ class RootCemProcessingHost implements CemProcessingHost {
                 transactionState: 'not-started',
                 revision: request.payload.revision,
             })
+            : request?.operation === 'stylesheet'
+                ? decideCemProcessingWorkerFailure({ phase, operation: 'stylesheet', action: request.payload.action })
             : decideCemProcessingWorkerFailure({
                 phase,
                 operation: request?.operation ?? 'compile',
@@ -798,7 +846,7 @@ function requestScopePolicyStamp(
     if (request.operation === 'compile') {
         return request.payload.scopePolicyStamp;
     }
-    if (request.operation === 'render-diff') {
+    if (request.operation === 'render-diff' || request.operation === 'stylesheet') {
         return request.payload.artifact.scopePolicyStamp;
     }
     if (request.operation === 'cancel') {
@@ -808,7 +856,8 @@ function requestScopePolicyStamp(
 }
 
 type OperationResult<TOperation extends CemProcessingOperation> =
-    TOperation extends 'value' ? CemProcessingValueResult
+    TOperation extends 'stylesheet' ? CemProcessingStylesheetResult
+        : TOperation extends 'value' ? CemProcessingValueResult
         : TOperation extends 'document' ? CemProcessingDocumentResult
         : TOperation extends 'compile' ? CemProcessingCompileResult
         : TOperation extends 'render-diff' ? CemProcessingRenderDiffResult

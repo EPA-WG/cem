@@ -1,3 +1,4 @@
+import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
 import type { DataIslandSnapshot, SourceMapMode } from '../../cem-elements.js';
@@ -15,12 +16,13 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v6' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v7' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
     'render-diff',
     'document',
+    'stylesheet',
     'value',
     'cancel',
     'dispose',
@@ -291,7 +293,28 @@ export interface CemProcessingDisposeResult {
     disposed: true;
 }
 
+/** Control metadata and loader bytes only; native CSS trees stay with the artifact. */
+export type CemProcessingStylesheetInput = {
+    artifact: CemProcessingArtifactHandle;
+    consumer: string;
+} & (
+    | { action: 'begin'; index: number; baseUrl: string; context: CemModuleUrlContextWire;
+        scope: { kind: 'private'; tag: string } | { kind: 'shared'; name: string } }
+    | { action: 'deliver'; loadId: string; requestId: number; bytes: ArrayBuffer;
+        finalUrl: string; contentType?: string }
+    | { action: 'release'; loadId?: string }
+);
+
+export type CemProcessingStylesheetResult<TLoadId = string> =
+    | { status: 'pending'; loadId: TLoadId;
+        request: { id: number; url: string; contentType: string | null; integrity: string | null } }
+    | { status: 'ready'; loadId: TLoadId; css: string;
+        identity: { ownerKey: string; cacheKey: string; contextMarker: string | null };
+        diagnostics: Array<CemProcessingDiagnostic & { sheet: number; line: number; column: number; offset: number; length: number }> }
+    | { status: 'released'; count: number };
+
 interface CemProcessingRequestPayloads {
+    stylesheet: CemProcessingStylesheetInput;
     document: CemProcessingDocumentInput;
     value: CemProcessingValueInput;
     compile: CemProcessingCompileInput;
@@ -301,6 +324,7 @@ interface CemProcessingRequestPayloads {
 }
 
 interface CemProcessingSuccessResults {
+    stylesheet: CemProcessingStylesheetResult;
     document: CemProcessingDocumentResult;
     value: CemProcessingValueResult;
     compile: CemProcessingCompileResult;
@@ -525,6 +549,7 @@ export interface CemProcessingHost {
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;
+    stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult>;
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult>;
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult>;
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult>;
@@ -564,6 +589,7 @@ export type CemProcessingWorkerFailure =
           transactionState: CemProcessingPatchTransactionState;
           revision: RenderRevision;
       })
+    | (CemProcessingWorkerFailureBase & { operation: 'stylesheet'; action: 'begin' | 'deliver' | 'release' })
     | (CemProcessingWorkerFailureBase & { operation: 'value' | 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =
@@ -594,7 +620,7 @@ export type CemProcessingWorkerFailureDecision =
           diagnostic: CemProcessingDiagnostic;
       }
     | {
-          action: 'complete-control-without-retry';
+          action: 'complete-control-without-retry' | 'restart-stylesheet-load';
           nextMode: 'main-thread' | 'disposed';
           allocateNewJobId: false;
           ignoreLateWorkerResult: true;
@@ -624,7 +650,8 @@ export function decideCemProcessingWorkerFailure(
     }
 
     const diagnostic = workerFallbackDiagnostic(failure.phase);
-    if (failure.operation === 'compile' || failure.operation === 'document' || failure.operation === 'value') {
+    if (failure.operation === 'compile' || failure.operation === 'document' || failure.operation === 'value'
+        || failure.operation === 'stylesheet' && failure.action === 'begin') {
         return {
             action: 'retry-main-thread',
             nextMode: 'main-thread',
@@ -636,7 +663,7 @@ export function decideCemProcessingWorkerFailure(
     }
     if (failure.operation !== 'render-diff') {
         return {
-            action: 'complete-control-without-retry',
+            action: failure.operation === 'stylesheet' ? 'restart-stylesheet-load' : 'complete-control-without-retry',
             nextMode: failure.operation === 'dispose' ? 'disposed' : 'main-thread',
             allocateNewJobId: false,
             ignoreLateWorkerResult: true,

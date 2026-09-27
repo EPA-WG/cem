@@ -1,5 +1,8 @@
 //! Native template owner shared by processing-host handles and native tests.
 //! Derived CSS retains its source closure; no CSS tree crosses a serialized boundary.
+mod stylesheet_loads;
+pub use stylesheet_loads::{StylesheetLoadOptions, StylesheetLoadProgress};
+
 use crate::{eval::DataReaderCache, render::TemplateArtifact};
 use cem_ml::{
     css_emission::{
@@ -40,6 +43,9 @@ impl RetainedStylesheet {
 
 pub struct RetainedTemplate {
     artifact: TemplateArtifact,
+    loads: BTreeMap<u32, stylesheet_loads::StylesheetLoad>,
+    next_load: u32,
+    stylesheet_generations: BTreeMap<(String, usize), u32>,
     data_readers: DataReaderCache,
     // A consumer can own multiple style occurrences without replacing siblings.
     consumers: BTreeMap<(String, usize), String>,
@@ -49,6 +55,9 @@ impl RetainedTemplate {
     pub fn new(artifact: TemplateArtifact) -> Self {
         Self {
             artifact,
+            loads: BTreeMap::new(),
+            next_load: 0,
+            stylesheet_generations: BTreeMap::new(),
             data_readers: Default::default(),
             consumers: BTreeMap::new(),
             stylesheets: BTreeMap::new(),
@@ -91,16 +100,7 @@ impl RetainedTemplate {
                 "stylesheet closure does not belong to the retained template source".into(),
             );
         }
-        if matches!(scope, CssManagedScope::Instance) {
-            return Err(
-                "declaration stylesheet artifacts require a private or shared scope".into(),
-            );
-        }
-        if let Some(authored) = &source.scope {
-            if !matches!(scope, CssManagedScope::Shared { name, .. } if name == authored) {
-                return Err("effective stylesheet scope disagrees with its authored scope".into());
-            }
-        }
+        self.validate_stylesheet_scope(index, scope, declaration_identity)?;
         let identity = derive_css_stylesheet_identity(
             &closure,
             scope,
@@ -135,6 +135,47 @@ impl RetainedTemplate {
         Ok(retained)
     }
 
+    fn validate_stylesheet_scope(
+        &self,
+        index: usize,
+        scope: &CssManagedScope,
+        declaration: &str,
+    ) -> Result<(), String> {
+        let source = self
+            .artifact
+            .stylesheets
+            .get(index)
+            .ok_or("unknown stylesheet occurrence")?;
+        if declaration.is_empty() {
+            return Err("stylesheet declaration identity must not be empty".into());
+        }
+        if matches!(scope, CssManagedScope::Instance) {
+            return Err(
+                "declaration stylesheet artifacts require a private or shared scope".into(),
+            );
+        }
+        if let Some(authored) = &source.scope {
+            if !matches!(scope, CssManagedScope::Shared { name, .. } if name == authored) {
+                return Err("effective stylesheet scope disagrees with its authored scope".into());
+            }
+        }
+        if matches!(
+            scope,
+            CssManagedScope::Private {
+                context: Some(_),
+                ..
+            } | CssManagedScope::Shared {
+                context: Some(_),
+                ..
+            }
+        ) {
+            return Err("stylesheet scope must not carry a caller-supplied context marker".into());
+        }
+        cem_ml::css_emission::emit_css_scope_wrapper(scope)
+            .map_err(|_| "invalid managed stylesheet scope")?;
+        Ok(())
+    }
+
     pub fn stylesheet(&self, consumer: &str, index: usize) -> Option<Arc<RetainedStylesheet>> {
         let key = self.consumers.get(&(consumer.to_owned(), index))?;
         self.stylesheets
@@ -146,10 +187,13 @@ impl RetainedTemplate {
     /// Release every occurrence owned by this consumer. Removing the last
     /// consumer invalidates outstanding output handles without cancelling sources.
     pub fn release_stylesheet_consumer(&mut self, consumer: &str) -> usize {
+        self.stylesheet_generations
+            .retain(|(owner, _), _| owner != consumer);
+        let pending = self.release_stylesheet_loads(consumer);
         let before = self.consumers.len();
         self.consumers.retain(|(owner, _), _| owner != consumer);
         self.prune();
-        before - self.consumers.len()
+        pending + before - self.consumers.len()
     }
     fn prune(&mut self) {
         let live: BTreeSet<_> = self.consumers.values().collect();
@@ -166,6 +210,7 @@ impl RetainedTemplate {
 
 impl Drop for RetainedTemplate {
     fn drop(&mut self) {
+        self.cancel_all_stylesheet_loads();
         for entry in self.stylesheets.values() {
             entry.released.abort();
         }
