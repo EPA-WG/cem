@@ -3,6 +3,7 @@ import {
 } from './declaration-scope.js';
 
 import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
+import { declarationStylesheetAttributes } from './declaration-style-markup.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
 export interface CemOwnedStylesheet<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
@@ -68,6 +69,7 @@ export class DeclarationStyleOwnership {
     private readonly mountedScopes = new WeakSet<CemDeclarationScope>();
     private currentOwner?: Owner;
     private readonly derived = new Map<string, DerivedSet>();
+    private readonly serverStyles = new Set<HTMLStyleElement>();
     private readonly consumers = new Set<Consumer>();
     private readonly currentConsumers = new WeakMap<HTMLElement, Consumer>();
     styles?: readonly HTMLStyleElement[];
@@ -95,6 +97,9 @@ export class DeclarationStyleOwnership {
             }
         }
         this.owners.add({ element: new WeakRef(element), scope, connectedOnce });
+        for (const style of element.querySelectorAll<HTMLStyleElement>(':scope > style[data-cem-declaration-style][data-cem-style-key]')) {
+            this.serverStyles.add(style);
+        }
         this.observeScope(scope);
         this.reconcile();
     }
@@ -177,10 +182,9 @@ export class DeclarationStyleOwnership {
             const key = source.output.identity.cacheKey;
             let set = this.derived.get(key);
             if (!set) {
-                const style = this.document.createElement('style');
-                style.setAttribute('data-cem-declaration-style', source.scope.kind);
-                if (source.scope.kind === 'shared') style.setAttribute('data-cem-style-scope', source.scope.name);
-                style.textContent = source.output.css;
+                const style = this.takeServerStyle(source) ?? this.document.createElement('style');
+                for (const [name, value] of Object.entries(declarationStylesheetAttributes(source))) style.setAttribute(name, value);
+                if (style.textContent !== source.output.css) style.textContent = source.output.css;
                 set = { source, style, consumers: new Set() };
                 this.derived.set(key, set);
             }
@@ -195,6 +199,21 @@ export class DeclarationStyleOwnership {
         }
         this.reconcile();
         return true;
+    }
+
+    private takeServerStyle(source: CemOwnedStylesheet): HTMLStyleElement | undefined {
+        const attributes = declarationStylesheetAttributes(source);
+        let retained: HTMLStyleElement | undefined;
+        for (const style of this.serverStyles) {
+            if (style.getAttribute('data-cem-style-key') !== source.output.identity.cacheKey) continue;
+            this.serverStyles.delete(style);
+            if (!retained && Object.entries(attributes).every(([name, value]) => style.getAttribute(name) === value)
+                && (source.scope.kind === 'shared' || !style.hasAttribute('data-cem-style-scope'))
+                && !style.hasAttribute('media') && !style.hasAttribute('type') && !style.hasAttribute('title') && !style.disabled
+                && style.textContent === source.output.css) retained = style;
+            else style.remove();
+        }
+        return retained;
     }
 
     private dropConsumer(consumer: Consumer): void {
@@ -247,6 +266,13 @@ export class DeclarationStyleOwnership {
             if (connected && processingActive && active(owner.scope)) liveOwners.push(owner);
         }
         if (!this.currentOwner || !liveOwners.includes(this.currentOwner)) this.currentOwner = liveOwners[0];
+        for (const style of this.serverStyles) {
+            const owner = Array.from(this.owners).find(candidate => candidate.element.deref() === style.parentElement);
+            if (!owner || !processingActive || !active(owner.scope) || (owner.connectedOnce && !liveOwners.includes(owner))) {
+                style.remove();
+                this.serverStyles.delete(style);
+            }
+        }
         const element = this.currentOwner?.element.deref();
         for (const style of this.styles ?? []) {
             if (element) {

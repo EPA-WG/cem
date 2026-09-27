@@ -17,7 +17,8 @@ type Ready = Extract<CemProcessingStylesheetResult<number>, { status: 'ready' }>
 type Progress = Exclude<CemProcessingStylesheetResult<number>, { status: 'released' }>
     | { status: 'error'; message: string; diagnostics: CemProcessingDiagnostic[] };
 export interface EdgeStylesheetOutput {
-    styles: Array<{ index: number; css: string; identity: Ready['identity'] }>;
+    styles: Array<{ index: number; scope: { kind: 'instance' } | { kind: 'private'; tag: string } | { kind: 'shared'; name: string };
+        css: string; identity: Ready['identity'] }>;
     diagnostics: CemProcessingDiagnostic[];
 }
 
@@ -54,7 +55,7 @@ export async function loadEdgeStylesheets(options: EdgeStylesheetLoadOptions): P
     try {
         for (const [index, source] of (adoption.stylesheets ?? []).entries()) {
             signal.throwIfAborted();
-            const scope = owner.kind === 'instance' ? { kind: 'instance' }
+            const scope: EdgeStylesheetOutput['styles'][number]['scope'] = owner.kind === 'instance' ? { kind: 'instance' }
                 : source.scope === null ? { kind: 'private', tag: owner.tag } : { kind: 'shared', name: source.scope };
             let progress = JSON.parse(native.beginTemplateStylesheet(handle, JSON.stringify({
                 consumer, index, declarationIdentity: owner.identity, scope, baseUrl, context,
@@ -77,7 +78,7 @@ export async function loadEdgeStylesheets(options: EdgeStylesheetLoadOptions): P
             signal.throwIfAborted();
             output.diagnostics.push(...progress.diagnostics);
             if (progress.status === 'ready') {
-                output.styles.push({ index, css: progress.css, identity: progress.identity });
+                output.styles.push({ index, scope, css: progress.css, identity: progress.identity });
             } else if (!progress.diagnostics.length) {
                 throw new Error(progress.message);
             }

@@ -1655,3 +1655,26 @@ fixtures feed native initial responses into hydration, then verify the same
 paragraph and direct style node survive, exactly one instance stylesheet remains,
 and emitted CSS and animation names match. The server context must preserve the
 browser's resolver identity as well as its maps and base URL.
+
+### Declaration stylesheet markup for SSR
+
+`loadEdgeStylesheets` returns each admitted occurrence's scope alongside its
+native CSS, index and cache identity. For declaration output, pass those fields
+to `serializeDeclarationStylesheets` as `{ index, scope, output: style }`. Place
+the returned `html` directly under the owning declaration, outside its template,
+and apply its non-null `contextMarker` as `data-cem-css-context` on the consuming
+produced hosts. Serialize one declaration/context batch at a time; the serializer
+rejects duplicate indices, mixed context markers and unsafe style HTML.
+
+When native browser loading completes, declaration ownership can reuse these
+server nodes. It compares the cache key, occurrence index, private/shared scope
+and exact CSS against native output. Duplicate or mismatched candidates for the
+same cache key are removed. Candidates for other contexts remain pending until
+those contexts load or their declaration owner is removed/disposed. Successfully
+adopted styles follow the existing shared-consumer lifetime and owner placement.
+This avoids duplicate installation while preserving the normal import-readiness
+gate; it does not skip browser native compilation or import loading.
+
+The surrounding SSR adapter still selects declaration sources and consuming
+contexts. Initial-response declaration batching and streamed native updates
+remain separate integration work.

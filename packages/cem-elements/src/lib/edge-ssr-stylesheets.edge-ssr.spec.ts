@@ -1,3 +1,4 @@
+import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
 import { executeNativeSsrInitialRenderFixture } from './edge-ssr-host-fixture.js';
 import { CemEdgeSsrJobSequence, createCemEdgeSsrHostRequestEnvelope } from './edge-ssr-host.js';
 import { exportDataIslandSnapshotForEdge } from './cem-elements.js';
@@ -196,4 +197,31 @@ it('keeps older declaration-only retained policies gated instead of changing the
     expect(result).toMatchObject({ outcome: 'failure', reason: 'content-unavailable',
         diagnostics: [{ code: 'cem.edge_ssr.retained_css_unavailable' }] });
     expect(adopt).not.toHaveBeenCalled();
+});
+
+it('serializes admitted declaration scopes and preserves native context identity for SSR placement', async () => {
+    const output = await loadEdgeStylesheets(options({ owner: { kind: 'declaration', identity: 'card', tag: 'cem-card' },
+        sources: [{ css: 'p {color:red', scope: null }, { css: '@import "theme";', scope: 'library' },
+            { css: 'p {color:blue}', scope: null }] }));
+    const styles = output.styles.map(style => {
+        if (style.scope.kind === 'instance') throw new Error('expected declaration scope');
+        return { index: style.index, scope: style.scope, output: style };
+    });
+    const serialized = serializeDeclarationStylesheets(styles);
+    expect(serialized.html).toContain('data-cem-declaration-style="shared"');
+    expect(serialized.html).toContain('data-cem-style-scope="library"');
+    expect(serialized.html).toContain('data-cem-declaration-style="private"');
+    expect(serialized.html).toContain('data-cem-style-index="0"');
+    expect(serialized.html).toContain('data-cem-style-index="1"');
+    expect(serialized.html).toContain('https://example.test/inner/local.svg');
+    expect(serialized.contextMarker).toBe(output.styles[0].identity.contextMarker);
+    expect(serialized.contextMarker).not.toBeNull();
+    const first = styles[0];
+    expect(() => serializeDeclarationStylesheets([first, first])).toThrow('invalid declaration stylesheet batch');
+    expect(() => serializeDeclarationStylesheets([first, { ...styles[1], output: { ...styles[1].output,
+        identity: { ...styles[1].output.identity, contextMarker: 'different-context' } } }])).toThrow('invalid declaration stylesheet batch');
+    expect(() => serializeDeclarationStylesheets([{ ...first, output: { ...first.output,
+        css: 'p::before{content:"</STYLE><script>bad</script>"}' } }])).toThrow('unsafe stylesheet HTML');
+    const escaped = serializeDeclarationStylesheets([{ ...first, scope: { kind: 'shared', name: 'a"<&' } }]);
+    expect(escaped.html).toContain('data-cem-style-scope="a&quot;&lt;&amp;"');
 });

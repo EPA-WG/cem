@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
+import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
 import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
@@ -251,5 +252,86 @@ export const ReentrantCancellation: Story = {
             scope.dispose();
             expect(nestedSignal?.aborted).toBe(true);
         } finally { scope.dispose(); root.replaceChildren(); }
+    },
+};
+
+export const ServerDeclarationStyleReuse: Story = {
+    render: () => '<section aria-label="Server declaration stylesheet reuse"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing SSR style fixture');
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            const scope = createCemDeclarationScope({ document });
+            const owner = new DeclarationStyleOwnership(document, scope);
+            const declaration = document.createElement('div');
+            const consumers = [document.createElement('native-server-card'), document.createElement('native-server-card')];
+            consumers.forEach(element => {
+                element.setAttribute('scope', 'server-library');
+                element.innerHTML = '<template data-cem-island="instance"></template>';
+            });
+            root.append(declaration, ...consumers);
+            try {
+                const { artifact } = await native.compile('native-server-card', [
+                    { css: ':host { --private: yes }', scope: null },
+                    { css: ':host { --shared: yes }', scope: 'server-library' },
+                ]);
+                const outputs = await Promise.all([0, 1].map(async index => {
+                    const styleScope = index === 0 ? { kind: 'private' as const, tag: 'native-server-card' }
+                        : { kind: 'shared' as const, name: 'server-library' };
+                    const output = await native.host.stylesheet({ action: 'begin', artifact, consumer: 'server', index,
+                        scope: styleScope, baseUrl: 'https://example.test/main.css', context: nativeCssStoryContext }).result;
+                    if (output.status !== 'ready') throw new Error('expected ready native output');
+                    return { index, scope: styleScope, output };
+                }));
+                const serialized = serializeDeclarationStylesheets(outputs);
+                declaration.innerHTML = serialized.html;
+                const serverNodes = Array.from(declaration.querySelectorAll('style'));
+                const serverText = serverNodes.map(node => node.firstChild);
+                // Discard duplicate and corrupted candidates once native output is available.
+                const duplicate = serverNodes[0].cloneNode(true) as HTMLStyleElement;
+                const corrupt = serverNodes[1].cloneNode(true) as HTMLStyleElement;
+                corrupt.textContent = ':root { --corrupt: yes }';
+                declaration.prepend(corrupt); declaration.append(duplicate);
+                owner.add(declaration, scope);
+                const first = owner.beginConsumer(consumers[0], scope);
+                expect(first.commit(outputs, () => undefined)).toBe(true);
+                expect(Array.from(declaration.querySelectorAll('style'))).toEqual(serverNodes);
+                serverNodes.forEach((node, index) => expect(declaration.querySelectorAll('style')[index]).toBe(node));
+                serverNodes.forEach((node, index) => expect(node.firstChild).toBe(serverText[index]));
+                expect(duplicate.isConnected).toBe(false); expect(corrupt.isConnected).toBe(false);
+                expect(consumers[0].getAttribute('data-cem-css-context')).toBe(serialized.contextMarker);
+                const second = owner.beginConsumer(consumers[1], scope);
+                expect(second.commit(outputs, () => undefined)).toBe(true);
+                first.release();
+                expect(Array.from(declaration.querySelectorAll('style'))).toEqual(serverNodes);
+                serverNodes.forEach((node, index) => expect(declaration.querySelectorAll('style')[index]).toBe(node));
+                expect(getComputedStyle(consumers[1]).getPropertyValue('--private').trim()).toBe('yes');
+                expect(getComputedStyle(consumers[1]).getPropertyValue('--shared').trim()).toBe('yes');
+                second.release();
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                // A mismatched occurrence must not be reused, even with the correct cache key.
+                owner.remove(declaration);
+                declaration.innerHTML = serialized.html;
+                const wrong = declaration.querySelector('style');
+                if (!wrong) throw new Error('missing mismatch candidate');
+                wrong.setAttribute('data-cem-style-index', '99');
+                const pendingContext = wrong.cloneNode(true) as HTMLStyleElement;
+                pendingContext.setAttribute('data-cem-style-key', 'another-context');
+                declaration.append(pendingContext);
+                const restricted = declaration.querySelectorAll('style')[1];
+                restricted.setAttribute('media', 'not all');
+                owner.add(declaration, scope);
+                const third = owner.beginConsumer(consumers[0], scope);
+                expect(third.commit(outputs, () => undefined)).toBe(true);
+                expect(wrong.isConnected).toBe(false);
+                expect(restricted.isConnected).toBe(false);
+                expect(pendingContext.isConnected).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(3);
+                scope.dispose();
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { scope.dispose(); native.dispose(); root.replaceChildren(); }
+        }
     },
 };

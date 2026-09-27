@@ -6380,6 +6380,18 @@ registration identities may reuse an inherited or existing definition.
           Verification: 31 Edge unit tests, 8 Edge browser stories, 552 regular
           unit tests and 284 regular browser stories pass, along with typecheck
           and lint (two existing warnings).
+    - [x] Fixture: serialize native declaration/shared stylesheet output for SSR
+          and reuse verified server style nodes under browser declaration ownership;
+          cover identity/content mismatch, duplicate nodes, shared consumers,
+          worker/fallback parity and disposal.
+          Completed: the Edge loader returns admitted occurrence scopes. The
+          shared serializer emits native cache/index/scope metadata and returns
+          the consuming context marker. Browser ownership preserves matching
+          style/text nodes, removes duplicate or mismatched candidates, shares
+          them between consumers and cleans up pending candidates on disposal.
+          Both browser lanes pass all 285 cases.
+          Also verified: 552 unit tests, 32 Edge unit tests, 8 Edge browser
+          stories, typecheck and lint (two existing warnings).
     - [ ] Fixture: add native stylesheet adoption/loading to the Edge host with
           consuming module contexts and persisted instance identities; verify
           imported CSS placement, readiness, cancellation and browser hydration
