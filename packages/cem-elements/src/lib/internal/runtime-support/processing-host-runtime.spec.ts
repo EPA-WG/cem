@@ -539,3 +539,36 @@ it.each(['worker', 'fallback'])('preserves structured stylesheet failures throug
     ]);
     await host.dispose({ reason: 'runtime-disposed' }).result;
 });
+
+it('releases stylesheet generations outside a saturated worker work queue', async () => {
+    class CleanupWorker extends ControlledProcessingWorker {
+        override postMessage(request: CemProcessingRequestEnvelope): void {
+            if (request.operation === 'stylesheet' && request.payload.action === 'release') {
+                this.requests.push(request);
+                queueMicrotask(() => this.emit('message', createCemProcessingSuccessEnvelope(request, { status: 'released', count: 1 })));
+            } else super.postMessage(request);
+        }
+    }
+    const worker = new CleanupWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, {
+        workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => worker as unknown as Worker,
+        poolPolicy: { workerCount: 1, maxWorkers: 1, queueSize: 1 },
+    });
+    const initial = host.compile(compileInput('owner')); await flushMicrotasks();
+    worker.respondNext(); const { artifact } = await initial.result;
+    const active = host.compile(compileInput('active')); await flushMicrotasks();
+    const queued = host.compile(compileInput('queued')); await flushMicrotasks();
+    try {
+        const releases = Array.from({ length: 80 }, (_, index) => host.stylesheet({
+            action: 'release', artifact, consumer: `consumer-${index}`, loadId: `load-${index}`,
+        }).result);
+        await expect(Promise.all(releases)).resolves.toHaveLength(80);
+        expect(worker.requests.filter(request => request.operation === 'stylesheet')).toHaveLength(80);
+    } finally {
+        worker.respondNext(); await active.result; await flushMicrotasks();
+        worker.respondNext(); await queued.result;
+        root.dispose();
+    }
+});

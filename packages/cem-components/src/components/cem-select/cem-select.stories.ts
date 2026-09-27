@@ -68,7 +68,7 @@ export const Default = meta.story({
         );
         await expect(select?.querySelector('style')).toBeNull();
         await expect(declarationStyles?.length).toBe(1);
-        await expect(declarationStyles?.[0]?.textContent).toContain('@scope (\n    cem-select');
+        await expect(declarationStyles?.[0]?.textContent).toMatch(/@scope\s*\(\s*cem-select\s*\)/u);
         await expect(select).toHaveAttribute('data-cem-render-scope');
         await expect(select).not.toHaveAttribute('data-cem-instance-scope');
         await expect(select).not.toHaveAttribute('data-cem-scope');

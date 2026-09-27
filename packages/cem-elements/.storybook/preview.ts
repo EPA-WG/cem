@@ -9,6 +9,7 @@ import { treeProcessingTimingOptions } from './tree-processing-timing.js';
 import { startReadinessTiming } from './readiness-timing.js';
 import { assertSourceLoadedCoverage } from './demo-coverage.js';
 
+export const retainedCssEnabled = import.meta.env.STORYBOOK_CEM_RETAINED_CSS === '1';
 let runtime: CemElementRuntime | undefined;
 const declarationLoads = new Map<string, Promise<void>>();
 const moduleUrlDemoUrl = new URL('../demo/module-url.html', import.meta.url);
@@ -24,6 +25,7 @@ const moduleUrlDemoMappedReferrerUrl = new URL('./module-referrer/', moduleUrlDe
 function installStorybookRuntime(): CemElementRuntime {
     return installCemElementRuntime(window, {
         ...treeProcessingTimingOptions,
+        ...(retainedCssEnabled ? { retainedStylesheets: {} } : {}),
         moduleUrlRoot: {
             importMap: {
                 imports: {
@@ -79,6 +81,11 @@ const preview = definePreview({
         assertSourceLoadedCoverage(id, canvasElement);
     },
 });
+
+/** The runtime that owns the preview's declaration custom element. */
+export function storybookCemRuntime(): CemElementRuntime {
+    return runtime ??= installStorybookRuntime();
+}
 
 export function loadCemDeclaration(path: string, source: string): Promise<void> {
     const existing = declarationLoads.get(path);

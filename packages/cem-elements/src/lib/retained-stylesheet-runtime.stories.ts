@@ -269,3 +269,35 @@ export const DefaultReaderPreservesNativeByteDiagnostic: Story = {
         } finally { globalThis.fetch = original; }
     },
 };
+
+export const LateEventAfterDisconnect: Story = {
+    render: () => '<section aria-label="Detached CSS consumer events"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing detached-event fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('late-event', '<slice name="loaded">before</slice><style>p { color: green; }</style><img slice="loaded" slice-event="load" slice-value="after"><p>${$loaded}</p>', 'dom');
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const paragraph = instance.querySelector('p');
+                const image = instance.querySelector('img');
+                if (!paragraph || !image) throw new Error('missing event fixture output');
+                expect(paragraph.textContent).toBe('before');
+                instance.remove();
+                image.dispatchEvent(new Event('load'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('p')).toBe(paragraph);
+                expect(paragraph.textContent).toBe('before');
+                root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const restored = instance.querySelector('p');
+                if (!restored) throw new Error('missing reconnected output');
+                expect(getComputedStyle(restored).color).toBe('rgb(0, 128, 0)');
+                expect(f.runtime.diagnosticsFor(instance)).toEqual([]);
+            } finally { f.dispose(); }
+        }
+    },
+};

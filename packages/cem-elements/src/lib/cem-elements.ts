@@ -2668,6 +2668,9 @@ export class CemElementRuntime {
     }
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass = 0): void {
+        // Resource events can arrive after disconnect and still update retained
+        // state. Reconnection owns the next render and stylesheet consumer.
+        if (!instance.isConnected || compiled.declarationScope.disposed) return;
         const island = this.ensureDataIsland(instance);
         if (this.frozenSerializedInstances.has(instance)) {
             this.renderSettled.set(instance, Promise.resolve());

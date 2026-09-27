@@ -52,6 +52,18 @@ recomputed and excluded from snapshots. Stylesheet diagnostics expose their
 existing branch-local behavior. Instance CSS still uses the existing renderer;
 see the [remaining migration gates](../../docs/todo.md).
 
+Run the same Storybook assertions with native declaration CSS enabled:
+
+```sh
+yarn nx run cem-elements:test:retained-css
+# Focus on all 13 authored scoped-CSS samples:
+yarn nx run cem-elements:test:retained-css --args='packages/cem-elements/src/lib/scoped-css-demo.stories.ts'
+```
+
+The normal `cem-elements:test` lane keeps the default runtime. The opt-in lane
+changes the shared preview runtime; stories that construct their own runtime
+continue to use their explicitly chosen options.
+
 CEM-ML attribute and slice defaults in a root `{module | ...}` prelude initialize
 the instance just like declarations in an unwrapped template. Slice defaults
 populate both their named bindings and `datadom.slices`. Boolean defaults stay

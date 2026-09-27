@@ -1453,3 +1453,28 @@ coordinator now drives these operations with caller-supplied byte transport,
 including native failure reporting. Main runtime readiness routing and bounded
 default byte transport are available through the opt-in configuration; compiler
 cutover remains pending.
+
+## Authored demo acceptance with retained runtime CSS
+
+`cem-elements:test:retained-css` runs the existing browser suite with
+`retainedStylesheets: {}` in the shared Storybook preview. The default test lane
+is unchanged; stories constructing independent runtimes keep their own options.
+The environment switch participates in the test cache identity.
+
+The 13 authored scoped-CSS samples use the same assertions in both lanes.
+Animation assertions read the browser's keyframe definition and running
+animation, and check that the name survives reconnect. This permits the native
+owner-key namespace documented above without depending on legacy serialization.
+The repeated hex-gallery story waits on the preview runtime that owns its
+registrations. Native derived styles are released with their last consumer;
+remount must reproduce the same CSS and computed behavior, while the default
+compiler also retains its stylesheet DOM nodes.
+
+The wider acceptance run exposed two lifecycle issues. Late resource events
+can update retained state after disconnect, but rendering now waits for a live
+connection. Exact-generation stylesheet release uses the worker control path,
+so bulk removal does not fill the bounded work queue and reject new renders.
+A saturated-queue unit fixture and a worker/fallback disconnected-event story
+cover these independently of the authored demos. The stock-cell interaction
+also awaits runtime readiness around selection instead of relying on a short
+DOM polling timeout.

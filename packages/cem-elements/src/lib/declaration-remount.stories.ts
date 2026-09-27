@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
-import { CemElementRuntime, installCemElementRuntime } from './cem-elements.js';
+import { CemElementRuntime } from './cem-elements.js';
+import { retainedCssEnabled, storybookCemRuntime } from '../../.storybook/preview.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
 const meta: Meta = { title: 'CEM Elements/Declaration Remount', tags: ['test'] };
@@ -243,7 +244,7 @@ export const AdoptionCannotMoveRegistrationOwnership: Story = {
 export const RepeatedSourceLoadedGallery: Story = {
     render: () => document.createElement('section'),
     play: async ({ canvasElement }) => {
-        const runtime = installCemElementRuntime(window);
+        const runtime = storybookCemRuntime();
         const src = new URL('../../demo/hex-grid.html', import.meta.url).href;
         let retainedStyles: Element[] = [];
         let constructor: CustomElementConstructor | undefined;
@@ -257,7 +258,7 @@ export const RepeatedSourceLoadedGallery: Story = {
             expect(codes(runtime, owner)).toEqual([]);
             await runtime.whenRenderSettled(page);
             await waitFor(() => {
-                expect(page.querySelectorAll('.hex-link').length).toBeGreaterThanOrEqual(14);
+                expect(page.querySelectorAll('.hex-link').length, `gallery mount ${mount}`).toBeGreaterThanOrEqual(14);
                 expect(styles(page)).toHaveLength(4);
                 expect(getComputedStyle(page.querySelector('.hex-link') as Element).clipPath).toContain('polygon');
                 expect(getComputedStyle(page.querySelector('.hex-grid') as Element).display).toBe('flex');
@@ -270,7 +271,12 @@ export const RepeatedSourceLoadedGallery: Story = {
                 retainedStyles = Array.from(styles(page));
                 constructor = customElements.get('cem-hex-grid');
             } else {
-                expect(Array.from(styles(page)).every((style, index) => style === retainedStyles[index])).toBe(true);
+                const currentStyles = Array.from(styles(page));
+                expect(currentStyles.map(style => style.textContent)).toEqual(retainedStyles.map(style => style.textContent));
+                // Native derived sets live only while they have connected consumers.
+                // The default compiler retains its declaration-owned DOM nodes.
+                if (!retainedCssEnabled) expect(currentStyles.every((style, index) => style === retainedStyles[index])).toBe(true);
+                retainedStyles = currentStyles;
                 expect(customElements.get('cem-hex-grid')).toBe(constructor);
             }
             canvasElement.replaceChildren();

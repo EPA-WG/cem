@@ -287,7 +287,10 @@ class CemProcessingWorkerSlot {
     }
 
     enqueue(owner: PooledRootOwner, pending: PooledWorkerRequest): void {
-        if (pending.request.operation === 'cancel') {
+        // Exact-generation CSS release is cleanup control, just like cancel.
+        // Bulk disconnect must not fill the work queue or reject new renders.
+        if (pending.request.operation === 'cancel' || pending.request.operation === 'stylesheet'
+            && pending.request.payload.action === 'release') {
             this.pool.record(owner, 'enqueue', pending.request, pending.scopePolicyStamp);
             this.pool.record(owner, 'dispatch', pending.request, pending.scopePolicyStamp);
             void this.transport.request(pending.request).then(pending.resolve, pending.reject);

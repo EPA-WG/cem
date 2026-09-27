@@ -6231,10 +6231,29 @@ registration identities may reuse an inherited or existing definition.
               real-file loading and native oversize diagnostics in worker/fallback
               modes. Typecheck and lint pass (two existing warnings). Browser test
               and Storybook build cache inputs now include the CSS fixture asset.
-        - [ ] Fixture: run the authored scoped-CSS demos through opt-in retained
+        - [x] Fixture: run the authored scoped-CSS demos through opt-in retained
               runtime installation; compare containment, shared membership,
               animation identity and diagnostics, then isolate any remaining
               compiler gaps as native fixtures before default cutover.
+        - [x] Fixture: deliver a late slice event after a retained-CSS consumer
+              disconnects; prevent detached rendering and stylesheet registration,
+              then verify a fresh connection still renders in worker/fallback modes.
+        - [x] Fixture: saturate the worker work queue and release retained CSS
+              generations; dispatch cleanup as control work without consuming
+              render capacity, then verify repeated authored-gallery remounts.
+        - [x] Fixture: reuse the complete Storybook suite with retained declaration
+              CSS enabled in the preview runtime; keep the default lane, verify
+              both lanes, and make opt-in mode part of the browser cache identity.
+              Completed: all 13 scoped-CSS samples and 280 browser stories pass
+              in each lane; 546 unit tests, typecheck and lint pass (two existing
+              warnings). The retained lane
+              found and fixed detached-event rendering and cleanup queue overflow.
+              Remount checks cover identical CSS and computed behavior after the
+              last native consumer releases its installed stylesheet nodes.
+        - [ ] Fixture: retain per-instance inert payload CSS in native owners;
+              use the persisted instance identity and consuming module context,
+              preserve host-child placement, and verify readiness, imports,
+              reconnect, hydration and cancellation before default cutover.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

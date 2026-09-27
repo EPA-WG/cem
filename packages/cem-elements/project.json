@@ -209,11 +209,15 @@
                 "cwd": "{workspaceRoot}"
             },
             "configurations": {
+                "retained-css": {
+                    "env": { "STORYBOOK_CEM_RETAINED_CSS": "1" }
+                },
                 "readiness-trace": {
                     "env": { "STORYBOOK_CEM_TREE_TRACE": "1" }
                 }
             },
             "inputs": [
+                { "env": "STORYBOOK_CEM_RETAINED_CSS" },
                 "{projectRoot}/docs/demo-storybook-coverage.json",
                 "{projectRoot}/.storybook/demo-coverage.ts",
                 "{projectRoot}/index.html",

@@ -138,13 +138,27 @@ export const EveryAuthoredSample: Story = {
             const produced = requiredElement(sample, 'cem-css-keyframes');
             const identity = produced.getAttribute('data-cem-render-scope');
             expect(identity).toContain('udemoz2fcssz2fkeyframes');
-            const name = `seeded-pulse-${identity}-s1`;
             expect(managed(sample, 'cem-css-keyframes', 'private')).toHaveLength(1);
-            expect(managed(sample, 'cem-css-keyframes')[0].textContent).toContain(`@keyframes ${name}`);
-            expect(style(sample, '[part~="indicator"]', 'animationName')).toBe(name);
+            const sheet = managed(sample, 'cem-css-keyframes')[0].sheet;
+            if (!sheet) throw new Error('Missing managed animation stylesheet');
+            const names = keyframeNames(sheet.cssRules);
+            expect(names).toHaveLength(1);
+            const name = names[0];
+            expect(name).toMatch(/^seeded-pulse-.+/);
+            const indicator = requiredElement(sample, '[part~="indicator"]');
+            expect((indicator.getAnimations()[0] as CSSAnimation).animationName).toBe(name);
             expect(style(sample, '[part~="indicator"]', 'animationDuration')).toBe('0.8s');
             expect(style(sample, '[part~="indicator"]', 'animationIterationCount')).toBe('infinite');
-            expect(requiredElement(sample, '[part~="indicator"]').getAnimations()).toHaveLength(1);
+            expect(indicator.getAnimations()).toHaveLength(1);
+            const parent = produced.parentElement;
+            if (!parent) throw new Error('Missing animation sample parent');
+            produced.remove();
+            parent.append(produced);
+            await whenCemSourceRendered(host);
+            const restoredSheet = managed(sample, 'cem-css-keyframes')[0].sheet;
+            if (!restoredSheet) throw new Error('Missing reconnected animation stylesheet');
+            expect(keyframeNames(restoredSheet.cssRules)).toEqual(names);
+            expect((requiredElement(produced, '[part~="indicator"]').getAnimations()[0] as CSSAnimation).animationName).toBe(name);
         });
         await step(EXPECTED_LEGENDS[10], async () => {
             const sample = samples[10];
@@ -338,4 +352,9 @@ async function waitForCondition(condition: () => boolean, message: string): Prom
 
 function normalize(value: string): string {
     return value.replace(/\s+/gu, ' ').trim();
+}
+
+function keyframeNames(rules: CSSRuleList): string[] {
+    return Array.from(rules).flatMap(rule => rule instanceof CSSKeyframesRule
+        ? [rule.name] : rule instanceof CSSGroupingRule ? keyframeNames(rule.cssRules) : []);
 }

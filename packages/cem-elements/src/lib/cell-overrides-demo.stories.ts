@@ -5,6 +5,7 @@ import pokemonSource from '../../demo/pokemon-cells.json?raw';
 import stockSource from '../../demo/stock-cells.xml?raw';
 import stockTemplate from '../../demo/stock-cell.cemt?raw';
 import { CemElementRuntime } from './cem-elements.js';
+import { whenCemRendered } from '../../.storybook/preview.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 
 const meta: Meta = { title: 'CEM Elements/Cell Template Overrides', tags: ['test'] };
@@ -264,8 +265,10 @@ export const ConditionalStockFallback: Story = {
         const preview = canvasElement.querySelector('cem-demo-element[legend="stock-cells.xml"]');
         await waitFor(() => expect(preview?.querySelector('[slot=text] code')?.textContent).toBe(stockSource));
         expect(preview?.querySelector('[slot=demo]')?.textContent).toBe('');
+        await whenCemRendered(viewer);
         await userEvent.click(viewer.querySelector('tbody button') as HTMLButtonElement);
-        await waitFor(() => expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Cherry'));
+        await whenCemRendered(viewer);
+        expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Cherry');
         select(controls.getByRole('combobox', { name: 'Sort column' }), 'name');
         await expectStockRows(viewer, ['Apple', 'Cherry', 'Lemon', 'Pear', 'Plum']);
         expect(viewer.querySelector('tr[aria-selected=true]')).toHaveTextContent('Out of stock (0)');
