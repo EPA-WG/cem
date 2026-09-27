@@ -6136,6 +6136,19 @@ registration identities may reuse an inherited or existing definition.
               Completed: all 262 browser stories across 56 files pass, including
               the three previously premature assertions. Typecheck and lint pass
               with two existing warnings.
+        - [x] Fixture: extend declaration style ownership with native derived
+              sets keyed by cache identity; share matching connected consumers,
+              qualify hosts, preserve occurrence order across contexts, release
+              on disconnect/disposal and reject stale asynchronous commits.
+              Verify real native worker/fallback output before runtime cutover,
+              including shared marker references across declarations, conflicting
+              contexts and late results after removal/reinsertion.
+              Completed: 264 browser stories across 57 files, typecheck and lint
+              pass (two existing warnings). Native output now has an installation
+              lease API; main runtime load/readiness routing remains pending.
+        - [ ] Fixture: expose lease cancellation to pending native stylesheet
+              loads; verify replacement and scope disposal abort promptly, and
+              delayed cleanup releases only the superseded load generation.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

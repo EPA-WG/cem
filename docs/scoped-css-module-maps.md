@@ -1154,7 +1154,7 @@ It is a migration-readiness audit, not a claim to support all CSS syntax.
 | Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
 | Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
 | Other URL-bearing syntax | At audit time, quoted `image-set()` candidates were ordinary string components. The resolver recognized imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. The subsequent [image candidate fixture](#retained-image-candidate-resources) now covers this static profile. |
-| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` still maintains one browser style set and needs the accepted context-qualified installation lifecycle. |
+| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` now admits native context-qualified sets and consumer leases. The runtime still needs to route its retained operations and readiness through that path. |
 
 The combined regression compares canonical retained output, rather than legacy
 spacing: unqualified type selectors emit with an explicit wildcard namespace,
@@ -1202,8 +1202,17 @@ The boundary fixture exposed an over-budget authored host selector; wrapping its
 host condition in `:where()` keeps the containment test within the accepted
 `0-2-1` ceiling. Native compilation correctly diagnosed the original selector.
 
-Next, connect context-qualified browser installation and its ownership lifecycle,
-then add the nested module-map override demo and context disposal/reconnect/
+`DeclarationStyleOwnership.beginConsumer` now accepts complete native output for
+one connected consumer generation. It reuses style elements by native cache key,
+orders all context variants by source occurrence, and retains shared context
+markers across declarations. Disconnect or scope disposal releases the consumer;
+the last consumer removes its set. Replacing a consumer invalidates late commits,
+and a remove/reinsert cycle requires a fresh lease. Native release callbacks are
+supplied by the caller so they can target the exact processing-host generations.
+Real worker/fallback browser fixtures check these transitions and computed CSS.
+
+Next, connect retained load/delivery operations and runtime readiness to those
+leases, then add the nested module-map override demo and context restoration/
 hydration checks. Instance styles still require their own retained ownership path;
 the declaration protocol deliberately rejects instance scope. The remaining syntax
 profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not

@@ -2,6 +2,41 @@ import {
     assertCemDeclarationScopeActive, onCemDeclarationScopeDispose, type CemDeclarationScope,
 } from './declaration-scope.js';
 
+import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
+
+/** A complete native occurrence; CSS is never parsed by the installation layer. */
+export interface CemOwnedStylesheet {
+    index: number;
+    scope: { kind: 'private' } | { kind: 'shared'; name: string };
+    output: Extract<CemProcessingStylesheetResult, { status: 'ready' }>;
+}
+
+export interface CemStylesheetConsumerLease {
+    /** Commits once, only while this connected consumer generation remains current. */
+    commit(outputs: readonly CemOwnedStylesheet[], release: () => void): boolean;
+    release(): void;
+}
+
+interface DerivedSet {
+    source: CemOwnedStylesheet;
+    style: HTMLStyleElement;
+    consumers: Set<Consumer>;
+}
+
+interface Consumer {
+    element: WeakRef<HTMLElement>;
+    scope: CemDeclarationScope;
+    sets: DerivedSet[];
+    marker: string | null;
+    release?: () => void;
+    committed: boolean;
+}
+
+const contextAttribute = 'data-cem-css-context';
+// Shared source declarations can qualify the same host. One release must not
+// remove a marker still held by another declaration's consumer.
+const markers = new WeakMap<HTMLElement, { value: string; consumers: Set<Consumer> }>();
+
 interface Owner {
     element: WeakRef<HTMLElement>;
     scope: CemDeclarationScope;
@@ -21,6 +56,9 @@ export class DeclarationStyleOwnership {
     private readonly observedScopes = new WeakSet<CemDeclarationScope>();
     private readonly mountedScopes = new WeakSet<CemDeclarationScope>();
     private currentOwner?: Owner;
+    private readonly derived = new Map<string, DerivedSet>();
+    private readonly consumers = new Set<Consumer>();
+    private readonly currentConsumers = new WeakMap<HTMLElement, Consumer>();
     styles?: readonly HTMLStyleElement[];
 
     constructor(private readonly document: Document, private readonly processingScope: CemDeclarationScope) {
@@ -70,12 +108,114 @@ export class DeclarationStyleOwnership {
         return this.mountedScopes.has(scope);
     }
 
+    beginConsumer(element: HTMLElement, scope: CemDeclarationScope): CemStylesheetConsumerLease {
+        assertCemDeclarationScopeActive(scope);
+        assertCemDeclarationScopeActive(this.processingScope);
+        const observed = documents.get(this.document);
+        if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
+        const previous = this.currentConsumers.get(element);
+        if (previous) this.dropConsumer(previous);
+        const consumer: Consumer = { element: new WeakRef(element), scope, sets: [], marker: null, committed: false };
+        this.currentConsumers.set(element, consumer);
+        this.consumers.add(consumer);
+        this.observeScope(scope);
+        this.reconcile();
+        return {
+            commit: (outputs, release) => this.commitConsumer(consumer, outputs, release),
+            release: () => { this.dropConsumer(consumer); this.reconcile(); },
+        };
+    }
+
+    private commitConsumer(consumer: Consumer, outputs: readonly CemOwnedStylesheet[], release: () => void): boolean {
+        const observed = documents.get(this.document);
+        if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
+        this.reconcile();
+        const element = consumer.element.deref();
+        if (!element || !this.consumers.has(consumer) || consumer.committed) {
+            release();
+            return false;
+        }
+        const contexts = new Set(outputs.map(s => s.output.identity.contextMarker).filter((s): s is string => s !== null));
+        const marker = contexts.values().next().value ?? null;
+        const held = markers.get(element);
+        const indices = new Set(outputs.map(s => s.index));
+        // Validate the entire set before publishing either styles or a marker.
+        const invalid = contexts.size > 1 || indices.size !== outputs.length ||
+            outputs.some(s => !Number.isSafeInteger(s.index) || s.index < 0) ||
+            (marker !== null && held !== undefined && held.value !== marker) || outputs.some(source => {
+                const existing = this.derived.get(source.output.identity.cacheKey)?.source;
+                return existing && (existing.index !== source.index || existing.output.css !== source.output.css ||
+                    existing.output.identity.contextMarker !== source.output.identity.contextMarker ||
+                    existing.scope.kind !== source.scope.kind || (existing.scope.kind === 'shared' &&
+                        source.scope.kind === 'shared' && existing.scope.name !== source.scope.name));
+            });
+        if (invalid) {
+            this.dropConsumer(consumer);
+            release();
+            return false;
+        }
+        consumer.committed = true;
+        consumer.release = release;
+        consumer.marker = marker;
+        for (const source of outputs) {
+            const key = source.output.identity.cacheKey;
+            let set = this.derived.get(key);
+            if (!set) {
+                const style = this.document.createElement('style');
+                style.setAttribute('data-cem-declaration-style', source.scope.kind);
+                if (source.scope.kind === 'shared') style.setAttribute('data-cem-style-scope', source.scope.name);
+                style.textContent = source.output.css;
+                set = { source, style, consumers: new Set() };
+                this.derived.set(key, set);
+            }
+            set.consumers.add(consumer);
+            consumer.sets.push(set);
+        }
+        if (marker !== null) {
+            const membership = held ?? { value: marker, consumers: new Set<Consumer>() };
+            membership.consumers.add(consumer);
+            markers.set(element, membership);
+            element.setAttribute(contextAttribute, marker);
+        }
+        this.reconcile();
+        return true;
+    }
+
+    private dropConsumer(consumer: Consumer): void {
+        if (!this.consumers.delete(consumer)) return;
+        const element = consumer.element.deref();
+        if (element && this.currentConsumers.get(element) === consumer) this.currentConsumers.delete(element);
+        if (element && consumer.marker !== null) {
+            const membership = markers.get(element);
+            membership?.consumers.delete(consumer);
+            if (membership && membership.consumers.size === 0) {
+                if (element.getAttribute(contextAttribute) === membership.value) element.removeAttribute(contextAttribute);
+                markers.delete(element);
+            }
+        }
+        for (const set of consumer.sets) {
+            set.consumers.delete(consumer);
+            if (!set.consumers.size) {
+                set.style.remove();
+                this.derived.delete(set.source.output.identity.cacheKey);
+            }
+        }
+        consumer.release?.();
+    }
+
     setStyles(styles: readonly HTMLStyleElement[]): void {
         this.styles = styles;
         this.reconcile();
     }
 
     reconcile(records: readonly MutationRecord[] = []): void {
+        for (const consumer of this.consumers) {
+            const element = consumer.element.deref();
+            const removed = element && records.some(record =>
+                Array.from(record.removedNodes).some(node => node === element || node.contains(element)));
+            if (!element || !element.isConnected || element.ownerDocument !== this.document || removed ||
+                !active(consumer.scope) || !active(this.processingScope)) this.dropConsumer(consumer);
+        }
         const liveOwners: Owner[] = [];
         const processingActive = active(this.processingScope);
         for (const owner of this.owners) {
@@ -97,6 +237,15 @@ export class DeclarationStyleOwnership {
                 if (style.parentElement !== element) element.append(style);
             } else {
                 style.remove();
+            }
+        }
+        const ordered = Array.from(this.derived.values()).sort((a, b) => a.source.index - b.source.index).map(s => s.style);
+        if (!element) {
+            for (const style of ordered) style.remove();
+        } else {
+            const mounted = Array.from(element.children).filter(child => ordered.includes(child as HTMLStyleElement));
+            if (mounted.length !== ordered.length || mounted.some((style, index) => style !== ordered[index])) {
+                for (const style of ordered) element.append(style);
             }
         }
     }
