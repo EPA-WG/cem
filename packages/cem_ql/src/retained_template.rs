@@ -1,7 +1,7 @@
 //! Native template owner shared by processing-host handles and native tests.
 //! Derived CSS retains its source closure; no CSS tree crosses a serialized boundary.
 mod stylesheet_loads;
-pub use stylesheet_loads::{StylesheetLoadOptions, StylesheetLoadProgress};
+pub use stylesheet_loads::{StylesheetLoadError, StylesheetLoadOptions, StylesheetLoadProgress};
 
 use crate::{eval::DataReaderCache, render::TemplateArtifact};
 use cem_ml::{

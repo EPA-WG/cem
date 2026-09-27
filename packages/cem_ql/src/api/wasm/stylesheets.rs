@@ -1,6 +1,8 @@
 //! Named stylesheet control and byte transport; retained CSS trees never leave WASM.
 use super::*;
-use crate::retained_template::{StylesheetLoadOptions, StylesheetLoadProgress};
+use crate::retained_template::{
+    StylesheetLoadError, StylesheetLoadOptions, StylesheetLoadProgress,
+};
 use cem_ml::{
     css_emission::CssManagedScope,
     module_resolution::{
@@ -26,10 +28,28 @@ enum Scope {
     Private { tag: String },
     Shared { name: String },
 }
-fn error(message: impl ToString) -> String {
-    json!({"status":"error", "message":message.to_string()}).to_string()
+fn error(error: impl Into<StylesheetLoadError>) -> String {
+    let error = error.into();
+    let diagnostics = match &error {
+        StylesheetLoadError::Control(_) => Vec::new(),
+        StylesheetLoadError::Import(failure) => {
+            let mut diagnostic =
+                json!({"code":failure.code, "message":failure.message, "severity":"error"});
+            if let Some(location) = &failure.location {
+                diagnostic["sourceUri"] = json!(location.source_uri);
+                diagnostic["stylesheetUrl"] = json!(location.stylesheet_url);
+                diagnostic["line"] = json!(location.range.line);
+                diagnostic["column"] = json!(location.range.column);
+                diagnostic["offset"] = json!(location.range.offset);
+                diagnostic["length"] = json!(location.range.length);
+            }
+            vec![diagnostic]
+        }
+    };
+    json!({"status":"error", "message":error.to_string(), "diagnostics":diagnostics}).to_string()
 }
-fn progress(id: u32, progress: StylesheetLoadProgress) -> Result<String, String> {
+
+fn progress(id: u32, progress: StylesheetLoadProgress) -> Result<String, StylesheetLoadError> {
     Ok(match progress {
         StylesheetLoadProgress::Pending(request) => json!({"status":"pending", "loadId":id,
             "request":{"id":request.id,"url":request.resolution.resolved_url,
@@ -53,7 +73,7 @@ fn progress(id: u32, progress: StylesheetLoadProgress) -> Result<String, String>
 }
 fn with_owner(
     id: u32,
-    action: impl FnOnce(&mut RetainedTemplate) -> Result<String, String>,
+    action: impl FnOnce(&mut RetainedTemplate) -> Result<String, StylesheetLoadError>,
 ) -> String {
     ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
@@ -74,7 +94,7 @@ pub fn begin(artifact_id: u32, options_json: &str) -> String {
     }
     let options: Begin = match serde_json::from_str(options_json) {
         Ok(v) => v,
-        Err(e) => return error(e),
+        Err(e) => return error(e.to_string()),
     };
     with_owner(artifact_id, |owner| {
         let handle = CemResolutionContextHandle::new("stylesheet-context");

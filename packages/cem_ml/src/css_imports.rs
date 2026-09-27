@@ -66,6 +66,14 @@ pub struct CssImportFailure {
     pub code: String,
     pub message: String,
     pub source: SourceMapStack,
+    pub location: Option<Box<CssImportLocation>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CssImportLocation {
+    pub source_uri: String,
+    pub stylesheet_url: String,
+    pub range: crate::parser::tree::CemTreeRange,
 }
 
 impl std::fmt::Display for CssImportFailure {
@@ -140,7 +148,7 @@ impl CssImportClosure {
         let resolution_identity = capability.cache_identity();
         let resources = resolve_css_resources(tree, &capability, &url)
             .map_err(|e| failure("cem.css.import_tree_invalid", e))?;
-        validate_import_placement(&resources)?;
+        validate_import_placement(&resources, &url)?;
         let mut closure = Self {
             capability,
             resolution_identity,
@@ -223,11 +231,9 @@ impl CssImportClosure {
             } else {
                 return None;
             };
-            error.source = self
-                .in_flight
-                .as_ref()
-                .map(|r| r.source.clone())
-                .unwrap_or_default();
+            if let Some(request) = &self.in_flight {
+                error = self.locate_request(error, request);
+            }
             Some(error)
         })
     }
@@ -283,8 +289,8 @@ impl CssImportClosure {
                 self.in_flight = Some(request.clone());
                 Ok(Some(request))
             }
-            Err(mut error) => {
-                error.source = reference.source.clone();
+            Err(error) => {
+                let error = at_import(error, &sheet.resources.tree, &sheet.url, reference.node_id);
                 self.stop(error)
             }
         }
@@ -319,7 +325,7 @@ impl CssImportClosure {
             }
             let resources = resolve_css_resources(tree, &self.capability, &final_url)
                 .map_err(|e| failure("cem.css.import_tree_invalid", e))?;
-            validate_import_placement(&resources)?;
+            validate_import_placement(&resources, &final_url)?;
             let mut ancestry = parent.ancestry.clone();
             ancestry.push(canonical_url(&request.resolution.resolved_url)?);
             if !ancestry.contains(&final_url) {
@@ -348,10 +354,7 @@ impl CssImportClosure {
                 self.enqueue(child);
                 Ok(())
             }
-            Err(mut error) => {
-                error.source = request.source;
-                self.stop(error)
-            }
+            Err(error) => self.stop(self.locate_request(error, &request)),
         }
     }
 
@@ -422,10 +425,7 @@ impl CssImportClosure {
                 self.received_bytes = total;
                 Ok(())
             }
-            Err(mut error) => {
-                error.source = request.source;
-                self.stop(error)
-            }
+            Err(error) => self.stop(self.locate_request(error, &request)),
         }
     }
 
@@ -450,7 +450,7 @@ impl CssImportClosure {
                     "cem.css.import_content_type",
                     "CSS import mapping requires text/css",
                 );
-                error.source = request.source;
+                error = self.locate_request(error, &request);
                 return self.stop(error);
             }
             let read = ResolveRequest::new(
@@ -463,7 +463,7 @@ impl CssImportClosure {
                 Ok(response) => response,
                 Err(error) => {
                     let mut error = failure(error.code(), error.to_string());
-                    error.source = request.source;
+                    error = self.locate_request(error, &request);
                     return self.stop(error);
                 }
             };
@@ -512,12 +512,25 @@ impl CssImportClosure {
         message: &str,
     ) -> Result<(), CssImportFailure> {
         self.check_active()?;
-        let mut error = failure(code, message);
-        error.source = self.request(id)?.source.clone();
+        let error = self.locate_request(failure(code, message), self.request(id)?);
         self.failure = Some(error);
         self.pending.clear();
         self.in_flight = None;
         Ok(())
+    }
+
+    fn locate_request(
+        &self,
+        error: CssImportFailure,
+        request: &CssImportRequest,
+    ) -> CssImportFailure {
+        let sheet = &self.sheets[request.parent_sheet];
+        at_import(
+            error,
+            &sheet.resources.tree,
+            &sheet.url,
+            request.import_node,
+        )
     }
 
     fn request(&self, id: u64) -> Result<&CssImportRequest, CssImportFailure> {
@@ -570,12 +583,13 @@ fn failure(code: &str, message: impl Into<String>) -> CssImportFailure {
         code: code.into(),
         message: message.into(),
         source: SourceMapStack::default(),
+        location: None,
     }
 }
 
 /// Placement is read from semantic nodes, never reparsed from CSS source.
 /// Reject a whole sheet before any of its imports can reach the host loader.
-fn validate_import_placement(plan: &CssResourcePlan) -> Result<(), CssImportFailure> {
+fn validate_import_placement(plan: &CssResourcePlan, url: &str) -> Result<(), CssImportFailure> {
     let tree = &plan.tree;
     // resolve_css_resources has already checked the single CSS root.
     let root = tree.node(tree.node(0).unwrap().children[0]).unwrap();
@@ -604,13 +618,33 @@ fn validate_import_placement(plan: &CssResourcePlan) -> Result<(), CssImportFail
         if matches!(reference.kind, CssResourceKind::Import { .. })
             && !allowed.contains(&reference.node_id)
         {
-            let mut error = failure(
+            let error = failure(
                 "cem.css.import_placement_invalid",
                 "CSS imports must be top-level and precede rules other than charset and layer-order statements",
             );
-            error.source = reference.source.clone();
-            return Err(error);
+            return Err(at_import(error, tree, url, reference.node_id));
         }
     }
     Ok(())
+}
+
+fn at_import(
+    mut error: CssImportFailure,
+    tree: &RetainedCemTree,
+    url: &str,
+    id: AstNodeId,
+) -> CssImportFailure {
+    // A downloaded sheet can already identify its own invalid import. Do not
+    // replace that location with the parent import that fetched it.
+    if error.location.is_none() {
+        if let Some(node) = tree.node(id) {
+            error.source = node.source.clone();
+            error.location = Some(Box::new(CssImportLocation {
+                source_uri: tree.source_uri().to_owned(),
+                stylesheet_url: url.to_owned(),
+                range: node.range,
+            }));
+        }
+    }
+    error
 }

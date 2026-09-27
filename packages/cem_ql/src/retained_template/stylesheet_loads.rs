@@ -5,6 +5,36 @@ use cem_ml::{
     resolver::ResolvedRead,
 };
 
+#[derive(Debug)]
+pub enum StylesheetLoadError {
+    Control(String),
+    Import(Box<cem_ml::css_imports::CssImportFailure>),
+}
+impl From<String> for StylesheetLoadError {
+    fn from(message: String) -> Self {
+        Self::Control(message)
+    }
+}
+impl From<&str> for StylesheetLoadError {
+    fn from(message: &str) -> Self {
+        Self::Control(message.into())
+    }
+}
+impl From<cem_ml::css_imports::CssImportFailure> for StylesheetLoadError {
+    fn from(error: cem_ml::css_imports::CssImportFailure) -> Self {
+        Self::Import(Box::new(error))
+    }
+}
+impl std::fmt::Display for StylesheetLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Control(message) => f.write_str(message),
+            Self::Import(error) => error.fmt(f),
+        }
+    }
+}
+impl std::error::Error for StylesheetLoadError {}
+
 pub struct StylesheetLoadOptions {
     pub consumer: String,
     pub index: usize,
@@ -27,7 +57,10 @@ pub enum StylesheetLoadProgress {
 }
 
 impl RetainedTemplate {
-    pub fn begin_stylesheet_load(&mut self, options: StylesheetLoadOptions) -> Result<u32, String> {
+    pub fn begin_stylesheet_load(
+        &mut self,
+        options: StylesheetLoadOptions,
+    ) -> Result<u32, StylesheetLoadError> {
         if options.consumer.is_empty() {
             return Err("stylesheet consumer identity must not be empty".into());
         }
@@ -63,8 +96,7 @@ impl RetainedTemplate {
             options.capability.clone(),
             CssImportLimits::default(),
             abort.clone(),
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
         for id in replaced {
             self.cancel_stylesheet_load(id);
         }
@@ -86,7 +118,7 @@ impl RetainedTemplate {
         &mut self,
         id: u32,
         consumer: &str,
-    ) -> Result<StylesheetLoadProgress, String> {
+    ) -> Result<StylesheetLoadProgress, StylesheetLoadError> {
         self.check_load_consumer(id, consumer)?;
         let result = self.loads.get_mut(&id).unwrap().closure.next_import();
         match result {
@@ -103,11 +135,13 @@ impl RetainedTemplate {
                 if result.is_err() {
                     load.abort.abort();
                 }
-                result.map(StylesheetLoadProgress::Ready)
+                result
+                    .map(StylesheetLoadProgress::Ready)
+                    .map_err(Into::into)
             }
             Err(error) => {
                 self.cancel_stylesheet_load(id);
-                Err(error.to_string())
+                Err(error.into())
             }
         }
     }
@@ -118,7 +152,7 @@ impl RetainedTemplate {
         consumer: &str,
         request_id: u64,
         response: ResolvedRead,
-    ) -> Result<StylesheetLoadProgress, String> {
+    ) -> Result<StylesheetLoadProgress, StylesheetLoadError> {
         self.check_load_consumer(id, consumer)?;
         let load = self.loads.get_mut(&id).unwrap();
         if let Err(error) =
@@ -126,7 +160,7 @@ impl RetainedTemplate {
                 .complete_response(request_id, response, &load.options.response_policy)
         {
             self.cancel_stylesheet_load(id);
-            return Err(error.to_string());
+            return Err(error.into());
         }
         self.advance_stylesheet_load(id, consumer)
     }

@@ -5,6 +5,7 @@ import {
 import { CemProcessingEngine } from './processing-engine.js';
 import {
     CemProcessingCancellationRegistry,
+    CemProcessingDiagnosticError,
     CemProcessingJobSequence,
     assertCemProcessingEnvelope,
     cemProcessingHostOwnerScope,
@@ -207,13 +208,10 @@ class FailedCemProcessingWorkerTransport implements CemProcessingWorkerConnectio
     }
 }
 
-class CemProcessingOperationError extends Error {
+class CemProcessingOperationError extends CemProcessingDiagnosticError {
     constructor(readonly response: CemProcessingResponseEnvelope) {
-        super(
-            response.outcome === 'success'
-                ? 'the CEM processing operation unexpectedly failed'
-                : response.diagnostics.map((diagnostic) => diagnostic.message).join('; ')
-        );
+        super(response.outcome === 'success' ? [] : response.diagnostics,
+            response.outcome === 'success' ? 'the CEM processing operation unexpectedly failed' : undefined);
         this.name = 'CemProcessingOperationError';
     }
 }

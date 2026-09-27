@@ -444,7 +444,7 @@ fn load_protocol_checks_byte_limits_before_import_and_cancels_exact_generations(
         )
         .err()
         .unwrap();
-    assert!(error.contains("byte limits"), "{error}");
+    assert!(error.to_string().contains("byte limits"), "{error}");
     assert!(owner.advance_stylesheet_load(first, "one").is_err());
     let second = owner.begin_stylesheet_load(options(100)).unwrap();
     assert_eq!(owner.release_stylesheet_generation("one", first), 0);

@@ -39,6 +39,20 @@ export interface CemProcessingDiagnostic {
     sourceMapRef?: SourceMapRef;
 }
 
+/** Structured native diagnostics survive both worker and fallback failures. */
+export class CemProcessingDiagnosticError extends Error {
+    constructor(readonly diagnostics: Array<CemProcessingDiagnostic | CemProcessingStylesheetDiagnostic>, message = diagnostics.map(d => d.message).join('; ')) {
+        super(message);
+        this.name = 'CemProcessingDiagnosticError';
+    }
+}
+
+export function cemProcessingFailureDiagnostics(error: unknown): Array<CemProcessingDiagnostic | CemProcessingStylesheetDiagnostic> {
+    if (error instanceof CemProcessingDiagnosticError) return error.diagnostics;
+    return [{ code: 'cem.processing_host.execution_failed', severity: 'error',
+        message: error instanceof Error ? error.message : 'the CEM processing job failed' }];
+}
+
 export interface CemProcessingSourceRef {
     kind: 'inline' | 'url' | 'specifier' | 'fragment';
     value: string;
@@ -309,7 +323,7 @@ export type CemProcessingStylesheetInput = {
 export interface CemProcessingStylesheetDiagnostic extends CemProcessingDiagnostic {
     sourceUri: string;
     stylesheetUrl: string;
-    sheet: number;
+    sheet?: number;
     line: number;
     column: number;
     offset: number;

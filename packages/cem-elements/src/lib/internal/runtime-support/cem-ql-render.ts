@@ -1,4 +1,4 @@
-import type { CemProcessingStylesheetInput, CemProcessingStylesheetResult } from './processing-host.js';
+import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
  * Host runtime-support boundary for the `cem_ql` WASM render engine
@@ -127,8 +127,11 @@ export async function processRetainedTemplateStylesheet(
 }
 
 function stylesheetResult(json: string): CemProcessingStylesheetResult<number> {
-    const result = JSON.parse(json) as CemProcessingStylesheetResult<number> | { status: 'error'; message: string };
-    if (result.status === 'error') throw new Error(result.message);
+    const result = JSON.parse(json) as CemProcessingStylesheetResult<number> | { status: 'error'; message: string; diagnostics: CemProcessingDiagnostic[] };
+    if (result.status === 'error') {
+        if (result.diagnostics.length) throw new CemProcessingDiagnosticError(result.diagnostics, result.message);
+        throw new Error(result.message);
+    }
     return result;
 }
 

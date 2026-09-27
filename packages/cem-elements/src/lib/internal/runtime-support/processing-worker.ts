@@ -3,6 +3,7 @@
 import { CemProcessingEngine } from './processing-engine.js';
 import {
     CemProcessingCancellationRegistry,
+    cemProcessingFailureDiagnostics,
     assertCemProcessingEnvelope,
     createCemProcessingFailureEnvelope,
     createCemProcessingReadyEnvelope,
@@ -95,7 +96,7 @@ async function handleMessage(message: unknown): Promise<void> {
         workerScope.postMessage(
             jobs.isCancelled(request.jobId)
                 ? createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()])
-                : createCemProcessingFailureEnvelope(request, 'failure', [failureDiagnostic(error)])
+                : createCemProcessingFailureEnvelope(request, 'failure', cemProcessingFailureDiagnostics(error))
         );
     } finally {
         if (request.operation !== 'cancel') {
@@ -109,13 +110,5 @@ function cancelledDiagnostic(): CemProcessingDiagnostic {
         code: 'cem.processing_host.job_cancelled',
         severity: 'info',
         message: 'the CEM processing job was cancelled',
-    };
-}
-
-function failureDiagnostic(error: unknown): CemProcessingDiagnostic {
-    return {
-        code: 'cem.processing_host.execution_failed',
-        severity: 'error',
-        message: error instanceof Error ? error.message : 'the CEM processing job failed',
     };
 }

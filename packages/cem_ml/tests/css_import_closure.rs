@@ -395,6 +395,13 @@ fn css_import_byte_integrity_accepts_expected_bytes_and_rejects_changes() {
             &CssImportResponsePolicy::default(),
         );
         assert_eq!(result.is_ok(), success);
+        if let Err(error) = result {
+            assert_eq!(error.code, "cem.css.import_integrity");
+            let location = error.location.unwrap();
+            assert_eq!(location.source_uri, "urn:fixture:css");
+            assert_eq!(location.stylesheet_url, "https://example.test/main.css");
+            assert_eq!(location.range.offset, 0);
+        }
         assert_eq!(c.sheets().len(), if success { 2 } else { 1 });
     }
 }
@@ -613,6 +620,10 @@ fn css_import_placement_failure_does_not_attach_or_queue_a_delivered_sheet() {
         )
         .unwrap_err();
     assert_eq!(error.code, "cem.css.import_placement_invalid");
+    let location = error.location.unwrap();
+    assert_eq!(location.source_uri, "urn:fixture:css");
+    assert_eq!(location.stylesheet_url, request.resolution.resolved_url);
+    assert_eq!(location.range.offset, 5);
     assert_eq!(c.state(), CssImportState::Failed);
     assert_eq!(c.sheets().len(), 1);
     assert!(c.edges().is_empty());
@@ -743,7 +754,11 @@ fn emission_compiles_import_occurrences_with_shared_names_and_final_url_bases() 
     );
     assert_eq!(css.matches("@keyframes pulse-cem-6f776e6572").count(), 2);
     assert_eq!(css.matches("https://example.test/cdn/icon.svg").count(), 2);
-    assert_eq!(css.matches("https://example.test/cdn/candidate.svg").count(), 2);
+    assert_eq!(
+        css.matches("https://example.test/cdn/candidate.svg")
+            .count(),
+        2
+    );
     assert_eq!(
         css.matches("animation-name:\"root-motion-cem-6f776e6572\"")
             .count(),
@@ -889,4 +904,46 @@ fn imported_global_rules_keep_contract_diagnostics_and_sheet_identity() {
     assert!(result.css().contains(":scope .card {color:red;}"));
     assert!(result.css().contains(":scope .root {color:green;}"));
     assert!(!result.css().contains("@font-face"));
+}
+
+#[test]
+fn load_failures_keep_the_exact_import_location_after_redirects() {
+    let mut c = closure("@import 'a.css';", Default::default(), AbortSignal::new());
+    let first = c.next_import().unwrap().unwrap();
+    let child = "/* λ */\n@import 'b.css';";
+    c.complete_response(
+        first.id,
+        cem_ml::resolver::ResolvedRead {
+            uri: "https://example.test/cdn/a.css".into(),
+            bytes: child.as_bytes().to_vec(),
+            content_type: Some("text/css".into()),
+        },
+        &Default::default(),
+    )
+    .unwrap();
+    let second = c.next_import().unwrap().unwrap();
+    let wrong = c
+        .complete_response(second.id + 1, response(b"a {}", None), &Default::default())
+        .unwrap_err();
+    assert_eq!(wrong.code, "cem.css.import_delivery_invalid");
+    assert!(wrong.location.is_none());
+    let mut bad_mime = response(b"a {}", Some("text/html"));
+    bad_mime.uri = second.resolution.resolved_url.clone();
+    let error = c
+        .complete_response(second.id, bad_mime, &Default::default())
+        .unwrap_err();
+    assert_eq!(error.code, "cem.css.import_content_type");
+    let location = error.location.unwrap();
+    assert_eq!(location.source_uri, "https://example.test/cdn/a.css");
+    assert_eq!(location.stylesheet_url, "https://example.test/cdn/a.css");
+    assert_eq!(location.range.line, 2);
+    assert_eq!(
+        &child[location.range.offset as usize
+            ..(location.range.offset + location.range.length) as usize],
+        "@import 'b.css';"
+    );
+    assert_eq!(
+        c.failure().unwrap().location.unwrap().range.offset,
+        location.range.offset
+    );
 }

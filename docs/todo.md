@@ -6110,12 +6110,20 @@ registration identities may reuse an inherited or existing definition.
               ranges, suppression codes, host transport and released-owner checks.
               Completed: 10 native retention tests, real WASM diagnostics, 530
               host/unit tests, lint and typecheck pass with existing warnings.
-              Audit confirms the existing sample syntax; structured load failures
-              remain the next diagnostic gate before browser installation.
-        - [ ] Fixture: preserve structured native CSS load failure codes and
+              Audit confirms the existing sample syntax; browser installation
+              remains pending.
+        - [x] Fixture: preserve structured native CSS load failure codes and
               import locations through WASM and worker/fallback error transport;
               cover MIME/integrity rejection and stale delivery before browser
               installation. Keep control-handle errors distinct from source failures.
+              Completed: 22 native import and 10 retention tests, real WASM
+              failures, 532 host/unit tests, typecheck and native/browser/script
+              lint pass with existing warnings. Nested failures retain their own
+              source location rather than the parent import location.
+        - [ ] Fixture: drive existing scope/adoption browser cases with native
+              processing-host stylesheet output; compare scope containment,
+              animation identity and suppression diagnostics before switching
+              runtime installation. Use failures to identify required syntax gaps.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

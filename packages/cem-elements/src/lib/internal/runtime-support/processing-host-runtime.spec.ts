@@ -44,6 +44,9 @@ import { createCemDeclarationScope } from '../../declaration-scope.js';
 import { CemProcessingEngine } from './processing-engine.js';
 import { cemProcessingHostForScope } from './processing-host-runtime.js';
 import {
+    CemProcessingDiagnosticError,
+    cemProcessingFailureDiagnostics,
+    createCemProcessingFailureEnvelope,
     createCemProcessingReadyEnvelope,
     createCemProcessingSuccessEnvelope,
     createCemProcessingTextSource,
@@ -402,7 +405,8 @@ class StylesheetProcessingWorker extends ControlledProcessingWorker {
         if (request.operation === 'compile' || request.operation === 'stylesheet') {
             this.requests.push(request);
             const result = request.operation === 'compile' ? this.engine.compile(request.payload) : this.engine.stylesheet(request.payload);
-            void result.then((value) => this.emit('message', createCemProcessingSuccessEnvelope(request, value)));
+            void result.then((value) => this.emit('message', createCemProcessingSuccessEnvelope(request, value)),
+                (error: unknown) => this.emit('message', createCemProcessingFailureEnvelope(request, 'failure', cemProcessingFailureDiagnostics(error))));
             return;
         }
         super.postMessage(request);
@@ -514,5 +518,24 @@ it.each(['worker', 'fallback'])('preserves imported stylesheet diagnostic locati
     if (result.status !== 'ready') throw new Error('expected ready stylesheet');
     expect(result.diagnostics).toContainEqual(diagnostic);
     expect(structuredClone(result).diagnostics).toContainEqual(diagnostic);
+    await host.dispose({ reason: 'runtime-disposed' }).result;
+});
+
+
+it.each(['worker', 'fallback'])('preserves structured stylesheet failures through %s transport', async (mode) => {
+    const worker = new StylesheetProcessingWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => { if (mode === 'fallback') throw new Error('unavailable'); return worker as unknown as Worker; } });
+    const { artifact } = await host.compile(compileInput('css')).result;
+    const diagnostic = { code: 'cem.css.import_content_type', severity: 'error' as const,
+        message: 'CSS imports require text/css', sourceUri: 'https://example.test/cdn/child.css',
+        stylesheetUrl: 'https://example.test/cdn/child.css', line: 2, column: 1, offset: 9, length: 16 };
+    vi.mocked(processRetainedTemplateStylesheet).mockRejectedValueOnce(new CemProcessingDiagnosticError([diagnostic]));
+    await expect(host.stylesheet({ ...stylesheetBegin, artifact }).result).rejects.toMatchObject({ diagnostics: [diagnostic] });
+    expect(host.mode).toBe(mode === 'worker' ? 'worker' : 'main-thread');
+    expect(cemProcessingFailureDiagnostics(new Error('stale handle'))).toEqual([
+        { code: 'cem.processing_host.execution_failed', severity: 'error', message: 'stale handle' },
+    ]);
     await host.dispose({ reason: 'runtime-disposed' }).result;
 });

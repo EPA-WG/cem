@@ -14,7 +14,9 @@ try {
     assert.equal(stale.status, 'pending');
     const current = begin();
     assert.equal(JSON.parse(wasm.releaseTemplateStylesheets(owner, options.consumer, stale.loadId)).count, 0);
-    assert.equal(deliver(stale).status, 'error');
+    const staleError = deliver(stale);
+    assert.equal(staleError.status, 'error');
+    assert.deepEqual(staleError.diagnostics, []);
     const ready = deliver(current);
     assert.equal(ready.status, 'ready');
     assert.ok(ready.css.includes('https://example.test/cdn/icon.svg'));
@@ -23,12 +25,29 @@ try {
     assert.deepEqual(ready.diagnostics, []);
     assert.equal(deliver(current).status, 'error');
     const bad = begin();
-    assert.equal(deliver(bad, 'text/html').status, 'error');
+    const mimeError = deliver(bad, 'text/html');
+    assert.equal(mimeError.status, 'error');
+    assert.equal(mimeError.diagnostics[0].code, 'cem.css.import_content_type');
+    assert.match(mimeError.diagnostics[0].sourceUri, /^urn:cem:template-style:/);
+    assert.equal(mimeError.diagnostics[0].stylesheetUrl, options.baseUrl);
+    assert.equal(mimeError.diagnostics[0].offset, 0);
+    assert.equal(mimeError.diagnostics[0].length, '@import "child.css";'.length);
+    const integrityOptions = structuredClone(options);
+    integrityOptions.context.frames[0].specifiers.resources['child.css'] = {
+        target: './child.css', integrity: 'sha256-mkSHzL7faOU7/U/v8Umg+058R69+vN2A2xmE3Fz1q98=',
+    };
+    const integrityLoad = JSON.parse(wasm.beginTemplateStylesheet(owner, JSON.stringify(integrityOptions)));
+    assert.equal(integrityLoad.status, 'pending');
+    const integrityError = deliver(integrityLoad);
+    assert.equal(integrityError.status, 'error');
+    assert.equal(integrityError.diagnostics[0].code, 'cem.css.import_integrity');
+    assert.equal(integrityError.diagnostics[0].stylesheetUrl, options.baseUrl);
     const oversized = begin();
     const limit = JSON.parse(wasm.deliverTemplateStylesheet(owner, oversized.loadId, options.consumer,
         oversized.request.id, new Uint8Array(16 * 1024 * 1024 + 1), 'https://example.test/child.css', 'text/css'));
     assert.equal(limit.status, 'error');
     assert.match(limit.message, /byte limits/);
+    assert.equal(limit.diagnostics[0].code, 'cem.css.import_byte_limit');
     const released = begin();
     assert.equal(JSON.parse(wasm.releaseTemplateStylesheets(owner, options.consumer, 0)).status, 'released');
     assert.equal(deliver(released).status, 'error');

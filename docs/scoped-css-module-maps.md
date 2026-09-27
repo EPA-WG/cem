@@ -1184,13 +1184,21 @@ UTF-8 byte ranges and redirect provenance. Worker and fallback tests verify that
 these locations survive transport. Host transition diagnostics have no source
 location and remain ordinary processing diagnostics.
 
-Remaining diagnostic work: failed load operations still flatten native failures
-into an error string. Preserve their structured code and import location through
-the same host boundary before installing styles, including MIME/integrity failures.
-Then run the existing scope/adoption stories against native installation and add
-the nested module-map override demo plus disposal/reconnect/hydration checks.
-The remaining syntax profiles stay explicitly diagnosed until a concrete fixture
-requires them; this audit does not authorize raw-text fallbacks.
+Failed load operations also preserve their structured native code and import
+location through WASM and worker/fallback errors. MIME, integrity and response
+byte failures point to the import that requested the response. The native loader
+also attaches that location to transport failures.
+Invalid placement in a downloaded sheet keeps that sheet's own location instead
+of being overwritten by its parent import. Errors about stale handles or invalid
+request IDs do not invent a source location. The host exposes structured native
+failures as `CemProcessingDiagnosticError.diagnostics`; ordinary host/control
+failures keep their generic processing diagnostic.
+
+Next, run the existing scope/adoption stories against native emitted CSS before
+switching browser installation, then add the nested module-map override demo and
+context disposal/reconnect/hydration checks. The remaining syntax profiles stay
+explicitly diagnosed until a concrete fixture requires them; this audit does not
+authorize raw-text fallbacks.
 
 Automatic fragment binding remains deferred. Literal functions such as `:dir()`
 and `:lang()` do not participate in URL resolution.
