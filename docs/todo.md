@@ -6503,6 +6503,16 @@ registration identities may reuse an inherited or existing definition.
                   does not provide synchronous observer isolation.
                   Verification: 297 browser cases pass in both default and
                   retained-CSS lanes; typecheck and lint pass with two existing warnings.
+            - [x] Audit CSS mutation observation against direct lifecycle handling;
+                  document which external mutations still require observation.
+                  Completed 2026-09-27: connect/disconnect, consumer publication/
+                  release and scope disposal already update ownership directly.
+                  Retain observers for external inputs and declaration/consumer
+                  DOM changes. Documented removal effects in
+                  [CSS lifecycle and mutation observation](scoped-css-module-maps.md#css-lifecycle-and-mutation-observation)
+                  and clarified that the publication fixture's synchronous host
+                  attribute callback is synthetic, not generated CEM behavior.
+                  Source audit only; no runtime behavior changed.
             - [ ] Decide the combined publication contract before implementing the
                   coordinator: [atomic admission and coherent completion](css-dom-commit-contract.md)
                   is recommended; stronger observer isolation requires a different

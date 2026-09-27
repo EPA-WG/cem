@@ -1847,3 +1847,46 @@ Preflight does not reserve the DOM or publish CSS. The coordinator still needs
 to admit declaration and instance stylesheet candidates together with this
 prepared patch and control lifecycle notifications across their publication.
 Changed-CSS Edge updates remain guarded until that integration is verified.
+
+### CSS lifecycle and mutation observation
+
+CSS application is performed by the browser. CEM uses mutation observation to
+maintain ownership and react to externally changed inputs. It does not observe
+installed CSS text to make the browser recalculate styles.
+
+The current runtime already updates CEM-controlled lifecycle state directly:
+
+- Connecting a produced instance restores declaration-owned `scope`, reconciles
+  its CSS context marker and establishes its stylesheet connection.
+- Disconnecting an instance releases that connection and disposes its instance
+  stylesheet installation synchronously through `disconnectedCallback`.
+- Consumer commits/releases and declaration-scope disposal update ownership
+  directly. They do not wait for a mutation observer callback.
+
+Two observers cover changes outside those explicit operations:
+
+| Observer | Responsibility | Consequence of removing it without replacement |
+| --- | --- | --- |
+| Per-instance host attributes and inert data island | Restore externally changed scope/context markers and invalidate rendering when inputs change, including stylesheet payload inputs | Markers can become inconsistent; changed inputs no longer automatically schedule rendering or instance stylesheet preparation |
+| Shared document child-list observer | Reconcile declaration owners and consumers after insertion, removal or movement, including ancestor changes | Ownership transfer, cancellation and removal of unused styles can be missed until another explicit reconciliation |
+
+Generated CEM instances do not implement `attributeChangedCallback`. Their
+attribute observation is asynchronous. The declaration element currently has
+a connection callback but no disconnection callback; declaration ownership also
+supports elements registered through the runtime API. Removing the shared
+document observer therefore requires coverage beyond generated-instance
+disconnection. Ownership methods additionally drain pending document mutation
+records when validating leases, so removal followed by reinsertion cannot make
+a stale consumer current again.
+
+Keep direct lifecycle updates for CEM-controlled operations and retain observers
+for external changes. An observer-free mode would need an explicit input-update
+and ownership lifecycle contract before it could preserve these behaviors.
+Removing observers would not suppress native connection callbacks from custom
+elements inserted during a DOM patch; the separate
+[CSS/DOM publication decision](css-dom-commit-contract.md) still applies.
+
+Source audit: `connectProducedInstance`, `disconnectProducedInstance`,
+`observeInstance`, and `ensureInstanceState` in
+[`cem-elements.ts`](../packages/cem-elements/src/lib/cem-elements.ts), plus
+[`declaration-style-ownership.ts`](../packages/cem-elements/src/lib/declaration-style-ownership.ts).

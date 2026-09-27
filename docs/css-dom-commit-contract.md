@@ -8,7 +8,7 @@ native CSS replacement in streamed Edge updates.
 
 The prepared CSS and DOM APIs can reject invalid work before publication. They
 cannot make several DOM mutations invisible to synchronous custom-element
-callbacks. Changing a host's context marker invokes its attribute callback;
+callbacks. Changing an observed host context marker can invoke its attribute callback;
 inserting a custom element invokes its connection callback. A callback can
 inspect or mutate the same host before the surrounding JavaScript call returns.
 
@@ -36,6 +36,14 @@ DOM, but synchronous observers can see these intermediate combinations:
 This is a diagnostic fixture demonstrating why a sequential composition alone
 cannot establish observer isolation. It is not an accepted coordinator or a
 change to production behavior.
+
+The fixture host is a synthetic custom element with `attributeChangedCallback`.
+Generated CEM hosts instead observe attributes using `MutationObserver`; they
+do not have that synchronous attribute callback. Native child connection
+callbacks and explicitly invoked cancellation/release handlers remain relevant
+to publication. The recommendation does not require isolating mutation observer
+callbacks or removing CEM's observation of external DOM changes. See the
+[CSS lifecycle audit](scoped-css-module-maps.md#css-lifecycle-and-mutation-observation).
 
 Verification on 2026-09-27: 297 browser cases pass in both default and retained-CSS
 lanes; typecheck and lint pass with two existing warnings.
