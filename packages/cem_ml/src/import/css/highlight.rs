@@ -21,6 +21,7 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             || (e.token_kind == "function-open"
                 && e.value.as_deref().is_some_and(|name| {
                     [
+                        "dir",
                         "nth-child",
                         "nth-last-child",
                         "nth-of-type",
@@ -60,12 +61,14 @@ pub(crate) fn annotate_retained_css_roles(document: &mut CssDocumentAst) {
             continue;
         };
         let attr = |name| attribute(&ast.nodes, *node_id, name);
-        if expanded_name.local_name == "simple-selector" && attr("nth-a").is_some() {
+        if expanded_name.local_name == "simple-selector"
+            && (attr("nth-a").is_some() || attr("direction").is_some())
+        {
             if let Some(range) = semantics.ranges.get(node_id) {
                 let mut argument = *range;
-                // The retained filter begins after An+B and `of`. Restrict the
-                // keyword role to that prefix so filter identifiers keep their
-                // selector roles, including nested structural pseudo-classes.
+                // Typed direction/nth arguments contain keyword identifiers.
+                // An nth filter begins after An+B and `of`; keep its identifiers
+                // in their selector roles, including nested pseudo-classes.
                 if let Some(filter) = children.first().and_then(|id| semantics.ranges.get(id)) {
                     argument.length = filter.offset.saturating_sub(argument.offset);
                 }

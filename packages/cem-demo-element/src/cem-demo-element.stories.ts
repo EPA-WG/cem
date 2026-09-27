@@ -511,6 +511,10 @@ export const OfflineDemoDocuments: Story = {
             syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
         ).filter((token) => token.textContent === 'odd' || token.textContent === 'of');
         await expect(nthTokens.map((token) => token.localName)).toEqual(['strong', 'strong', 'b']);
+        const directionTokens = Array.from(
+            syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
+        ).filter((token) => token.textContent === 'rtl');
+        await expect(directionTokens.map((token) => token.localName)).toEqual(['strong', 'b']);
         const conditionTokens = Array.from(
             syntaxDocument.querySelectorAll('#css-syntax-complete [slot="text"] code > *')
         ).filter((token) => token.textContent === 'and' || token.textContent === 'or');
@@ -553,6 +557,10 @@ export const OfflineDemoDocuments: Story = {
             await expect(syntaxWindow.getComputedStyle(nthTokens[0]).color)
                 .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'keyword'));
             await expect(syntaxWindow.getComputedStyle(nthTokens[2]).color)
+                .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'name'));
+            await expect(syntaxWindow.getComputedStyle(directionTokens[0]).color)
+                .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'keyword'));
+            await expect(syntaxWindow.getComputedStyle(directionTokens[1]).color)
                 .toBe(syntaxRoleKeyColor(syntaxWindow, syntaxDocument, 'name'));
             for (const token of conditionTokens) {
                 await expect(syntaxWindow.getComputedStyle(token).color)

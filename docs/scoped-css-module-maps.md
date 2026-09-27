@@ -1107,3 +1107,9 @@ nesting; `:where()` keeps zero weight. The browser determines matching from
 [document directionality](https://www.w3.org/TR/selectors-4/#the-dir-pseudo),
 including inheritance and automatic direction. CSS `direction` does not determine
 the match. Native query evaluation capabilities remain unchanged.
+
+Direction argument identifiers also feed the shared keyword role used by source
+highlighting, sample themes and formatted CLI output. Selector names outside
+that retained argument range keep their name role, as in `:dir(rtl) .rtl`.
+Escaped and mixed-case source remains unchanged; unsupported arguments keep
+the existing fallback colors.

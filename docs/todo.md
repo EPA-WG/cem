@@ -6022,9 +6022,15 @@ registration identities may reuse an inherited or existing definition.
               keep native selector-query capabilities unchanged.
               Completed: 88 focused native tests, Nx lint and the WASM/browser
               gate pass; document directionality is verified against opposing CSS.
-        - [ ] Fixture: color retained `:dir()` arguments through shared keyword
+        - [x] Fixture: color retained `:dir()` arguments through shared keyword
               roles in native source, CLI output and samples, preserving selector
               names, escaped text and unsupported-profile fallback.
+              Completed: all 12 native highlighting tests, real CLI HTML/ANSI
+              regression, both lint targets and all 12 rebuilt browser tests pass.
+        - [ ] Fixture: retain stylesheet `:lang()` literal language-range lists,
+              preserving identifier/string syntax, escapes and source ranges;
+              verify specificity, invalid inputs and inherited-language browser
+              matching without expanding native selector-query capabilities.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

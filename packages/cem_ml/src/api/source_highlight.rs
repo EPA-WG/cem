@@ -1293,6 +1293,36 @@ mod tests {
     }
 
     #[test]
+    fn css_direction_keywords_preserve_selector_names_and_source() {
+        for source in [
+            ":dir(rtl) .rtl {}",
+            ":where(:dir(RTL)) .rtl {}",
+            r":dir(r\74 l) .rtl {}",
+        ] {
+            let value = response(
+                &serde_json::json!({"source":source,"contentType":"text/css"}).to_string(),
+            );
+            assert_eq!(
+                role_at(&value, source.find("dir(").unwrap() + 4),
+                Some("syntax.keyword"),
+                "{source}"
+            );
+            assert_eq!(
+                role_at(&value, source.find(".rtl").unwrap() + 1),
+                Some("syntax.name")
+            );
+            assert_eq!(semantic_html_text(value["html"].as_str().unwrap()), source);
+        }
+        let source = ":dir(auto) {}";
+        let value =
+            response(&serde_json::json!({"source":source,"contentType":"text/css"}).to_string());
+        assert_ne!(
+            role_at(&value, source.find("auto").unwrap()),
+            Some("syntax.keyword")
+        );
+    }
+
+    #[test]
     fn css_group_operator_roles_require_validated_outer_components() {
         for (source, keyword) in [
             ("@media screen and (width > 1px) {}", "and"),

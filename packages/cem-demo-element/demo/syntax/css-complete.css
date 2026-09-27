@@ -47,3 +47,8 @@
 @supports ((display: grid) or (display: flex)) {
     .card { display: grid; }
 }
+
+/* The direction keyword and the class name have different roles. */
+:dir(rtl) .rtl {
+    text-align: start;
+}

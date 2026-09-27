@@ -13796,6 +13796,7 @@ This document has **strong** text and a link.
 :host { --accent: #312e81; color: var(--accent); animation:1s linear linear; }
 :nth-child(odd of .odd) {color:red}
 @supports (not (display:grid)) {.card {display:block}}
+.card:dir(RTL) {text-align:start}
 ```}
 {p @class=note |Hello}
 </template>"#;
@@ -13849,7 +13850,7 @@ This document has **strong** text and a link.
             source
         );
         assert!(written.contains("data-role=\"syntax.keyword\""));
-        for keyword in ["odd", "of", "not"] {
+        for keyword in ["odd", "of", "not", "RTL"] {
             assert!(
                 written.split("</span>").any(|span| {
                     span.contains("data-role=\"syntax.keyword\"")
