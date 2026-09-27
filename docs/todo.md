@@ -6482,6 +6482,19 @@ registration identities may reuse an inherited or existing definition.
                   Verification: 571 unit tests, 293 browser cases in each default/
                   retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
                   pass; typecheck and lint pass with two existing warnings.
+            - [x] Fixture: prepare a DOM patch without publication, snapshot its
+                  frames and recheck revisions, bounds and target identities at
+                  an explicit single-use commit before coordinating CSS admission.
+                  Completed 2026-09-27: `preparePatchFramesForRange` snapshots frames,
+                  separates non-mutating checks from publication and rejects changed
+                  revisions, reparented/reversed/removed bounds and replaced DOM targets.
+                  Commit attempts are single-use; cancellation is terminal. The direct
+                  renderer shares range/target validation. Browser fixtures cover
+                  targeted and whole-range updates, source-frame mutation, invalid
+                  transactions, foreign documents and stale/cancelled publication.
+                  Verification: 571 unit tests, 296 browser cases in each default/
+                  retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
+                  pass; typecheck and lint pass with two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

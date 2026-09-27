@@ -2006,51 +2006,15 @@ export function applyPatchFramesToRange(
     document: Document,
     options: RenderPlanApplyOptions = {},
 ): PatchFramesApplyResult {
-    const parsed = parseCommittedPatchFrames(frames);
-    if (!parsed.ok) {
-        return { status: 'aborted', diagnostics: [parsed.diagnostic] };
-    }
-    if (renderRevisionKey(parsed.revision) !== renderRevisionKey(expectedRevision)) {
-        return {
-            status: 'stale',
-            diagnostics: [
-                {
-                    code: 'cem.patch_frame.stale_revision',
-                    severity: 'warning',
-                    message: 'the committed patch transaction did not match the latest requested render revision',
-                },
-            ],
-        };
-    }
-
-    const replaceScope = parsed.ops.filter(
-        (operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope',
-    );
-    if (replaceScope.length > 0) {
-        if (replaceScope.length !== parsed.ops.length) {
-            return abortedPatch('a replaceScope transaction cannot mix scope replacement with targeted operations');
-        }
-        const plan: RenderPlan = {
-            ...parsed.commit.nextRenderPlan,
-            nodes: replaceScope.map((operation) => deserializePatchNode(operation.node.node)),
-        };
+    const validation = validatePatchFrames(bounds, frames, expectedRevision, document);
+    if (!validation.ok) return validation.result;
+    const { parsed, resolved } = validation;
+    const replacements = parsed.ops.filter((operation): operation is Extract<DomPatchOp, { op: 'replaceScope' }> => operation.op === 'replaceScope');
+    if (replacements.length) {
+        const plan: RenderPlan = { ...parsed.commit.nextRenderPlan,
+            nodes: replacements.map(operation => deserializePatchNode(operation.node.node)) };
         applyRenderPlanToRange(bounds, plan, document, options);
         return { status: 'applied', diagnostics: [] };
-    }
-
-    const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }> = [];
-    for (const operation of parsed.ops) {
-        if (operation.op === 'replaceScope') {
-            continue;
-        }
-        const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
-        if (
-            !target ||
-            ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)
-        ) {
-            return abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`);
-        }
-        resolved.push({ operation, target });
     }
     const focus = captureRenderRangeFocus(bounds);
     const finishSelectRefresh = beginSelectRefresh();
@@ -2116,6 +2080,80 @@ export function applyPatchFramesToRange(
     return { status: 'applied', diagnostics: [] };
 }
 
+type ValidatedPatch = {
+    ok: true;
+    parsed: Extract<ReturnType<typeof parseCommittedPatchFrames>, { ok: true }>;
+    resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }>;
+} | { ok: false; result: { status: 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] } };
+
+function validatePatchFrames(bounds: RenderPlanDomRange, frames: readonly PatchFrame[], expectedRevision: RenderRevision,
+    document: Document): ValidatedPatch {
+    const parsed = parseCommittedPatchFrames(frames);
+    if (!parsed.ok) return { ok: false, result: { status: 'aborted', diagnostics: [parsed.diagnostic] } };
+    if (renderRevisionKey(parsed.revision) !== renderRevisionKey(expectedRevision)) return { ok: false, result: {
+        status: 'stale', diagnostics: [{ code: 'cem.patch_frame.stale_revision', severity: 'warning',
+            message: 'the committed patch transaction did not match the latest requested render revision' }],
+    } };
+    const parent = bounds.start.parentNode;
+    let end: Node | null = bounds.start.nextSibling;
+    while (end && end !== bounds.end) end = end.nextSibling;
+    if (!parent || bounds.end.parentNode !== parent || end !== bounds.end
+        || bounds.start.ownerDocument !== document || bounds.end.ownerDocument !== document) {
+        return { ok: false, result: abortedPatch('patch render bounds must be ordered siblings in the target document') };
+    }
+    const replacements = parsed.ops.filter(operation => operation.op === 'replaceScope');
+    if (replacements.length && replacements.length !== parsed.ops.length) return { ok: false,
+        result: abortedPatch('a replaceScope transaction cannot mix scope replacement with targeted operations') };
+    const resolved: Array<{ operation: Exclude<DomPatchOp, { op: 'replaceScope' }>; target: Node }> = [];
+    for (const operation of parsed.ops) {
+        if (operation.op === 'replaceScope') continue;
+        const target = findNodeByRenderIdentityInRange(bounds, operation.target.id);
+        if (!target || ((operation.op === 'setAttribute' || operation.op === 'reconcileChildren') && target.nodeType !== 1)) {
+            return { ok: false, result: abortedPatch(`patch target \`${operation.target.id}\` was not present in the rendered range`) };
+        }
+        resolved.push({ operation, target });
+    }
+    return { ok: true, parsed, resolved };
+}
+
+export interface PreparedPatchFrames {
+    /** A check does not reserve the range or mutate DOM. */
+    check(currentRevision: RenderRevision): { status: 'ready' | 'stale' | 'aborted'; diagnostics: PatchFramesApplyDiagnostic[] };
+    commit(currentRevision: RenderRevision): PatchFramesApplyResult;
+    cancel(): void;
+}
+
+/** Snapshot a complete transaction for admission alongside asynchronously prepared CSS. */
+export function preparePatchFramesForRange(bounds: RenderPlanDomRange, frames: readonly PatchFrame[],
+    expectedRevision: RenderRevision, document: Document, options: RenderPlanApplyOptions = {}): PreparedPatchFrames {
+    const range = { start: bounds.start, end: bounds.end };
+    const snapshot = structuredClone({ frames, expectedRevision });
+    const applyOptions = { ...options };
+    const initial = validatePatchFrames(range, snapshot.frames, snapshot.expectedRevision, document);
+    const parent = range.start.parentNode;
+    const children: Node[] = [];
+    if (initial.ok) for (let node = range.start.nextSibling; node && node !== range.end; node = node.nextSibling) children.push(node);
+    let available = true;
+    const check: PreparedPatchFrames['check'] = currentRevision => {
+        if (!available) return abortedPatch('prepared patch transaction was already consumed or cancelled');
+        if (!initial.ok) return initial.result;
+        const current = validatePatchFrames(range, snapshot.frames, currentRevision, document);
+        if (!current.ok) return current.result;
+        let node = range.start.nextSibling;
+        const sameChildren = children.every(child => { const equal = child === node; node = node?.nextSibling ?? null; return equal; }) && node === range.end;
+        if (range.start.parentNode !== parent || !sameChildren || current.resolved.some((item, index) => item.target !== initial.resolved[index].target)) {
+            return abortedPatch('prepared patch render range or target identity changed before commit');
+        }
+        return { status: 'ready', diagnostics: [] };
+    };
+    return { check, cancel: () => { available = false; }, commit(currentRevision) {
+        const result = check(currentRevision);
+        available = false;
+        if (result.status !== 'ready') return { status: result.status, diagnostics: result.diagnostics };
+        return applyPatchFramesToRange(range, snapshot.frames, currentRevision, document, applyOptions);
+    } };
+}
+
 function parseCommittedPatchFrames(frames: readonly PatchFrame[]):
     | {
           ok: true;
@@ -2158,7 +2196,7 @@ function invalidPatch(message: string): { ok: false; diagnostic: PatchFramesAppl
     };
 }
 
-function abortedPatch(message: string): PatchFramesApplyResult {
+function abortedPatch(message: string): Extract<ValidatedPatch, { ok: false }>['result'] {
     return {
         status: 'aborted',
         diagnostics: [{ code: 'cem.patch_frame.target_mismatch', severity: 'error', message }],

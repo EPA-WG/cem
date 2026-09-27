@@ -1828,3 +1828,22 @@ callbacks; a callback may itself supersede an already published generation.
 
 This is a declaration ownership operation. Combining it with prepared instance
 CSS and Edge DOM patch validation remains the next integration step.
+
+### Preparing the DOM side of a CSS update
+
+`preparePatchFramesForRange(bounds, frames, expectedRevision, document, options)`
+snapshots a complete patch transaction without changing DOM. Its
+`check(currentRevision)` reports `ready`, `stale` or `aborted`. Validation checks
+transaction framing, the requested revision, ordered range bounds in the target
+document, operation compatibility and target availability.
+
+`commit(currentRevision)` repeats those checks and rejects a reparented range,
+changed direct range children or replaced target nodes, including replacements
+with the same serialized ID. It then uses the existing patch renderer. Each
+candidate permits one commit attempt; `cancel()` permanently prevents commit.
+Callers supply their latest requested revision at check and commit time.
+
+Preflight does not reserve the DOM or publish CSS. The coordinator still needs
+to admit declaration and instance stylesheet candidates together with this
+prepared patch and control lifecycle notifications across their publication.
+Changed-CSS Edge updates remain guarded until that integration is verified.
