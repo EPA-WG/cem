@@ -6168,6 +6168,19 @@ registration identities may reuse an inherited or existing definition.
               URL code, workspace manifests/lockfile and toolchain. Fresh lint,
               10 native retention tests and WASM checks pass; an unchanged rerun
               reuses both cached tasks.
+        - [x] Fixture: coordinate retained stylesheet begin/byte delivery with
+              consumer leases and one readiness promise; snapshot the context,
+              preserve independent successful occurrences and structured failures,
+              and release exact generations on cancellation. Verify imports,
+              disposal, reconnect and existing DOM reuse through real hosts.
+              Completed: 269 browser stories, all six coordinator lifecycle
+              tests, typecheck and lint pass (two existing warnings). Late native
+              results are released, and worker replacement cannot release old
+              handles against the fallback owner. Main runtime routing is pending.
+        - [ ] Fixture: report stylesheet reader/transport failures through native
+              import failure admission so diagnostics retain the requesting import
+              location; reject stale/wrong-consumer failures and preserve siblings.
+              Verify native tests first, then WASM and worker/fallback installation.
         - [ ] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and
