@@ -1750,9 +1750,9 @@ starting installation: this installer receives only the already admitted
 occurrences. The existing installation default still publishes valid siblings.
 
 A staged lease can change its context marker only when no other declaration
-owner on that host still requires the old marker. Coordinated marker changes
-across several owners and committing CSS with Edge patch frames remain required
-integration work. Current runtime callers keep their existing immediate
+owner on that host still requires the old marker. Use the grouped commit below
+when several owners change together. Binding CSS publication to Edge patch
+frames remains required integration work. Current runtime callers keep their existing immediate
 replacement behavior through `beginConsumer`.
 
 ### Staging instance stylesheet replacements
@@ -1796,6 +1796,35 @@ installed after readiness until commit. An empty batch also waits for commit
 before clearing styles. Supersession invalidates a prepared candidate, and
 compilation errors return `cancelled` without changing the current styles.
 
-These APIs hold ready CSS for a later transaction. They do not yet coordinate
-multiple declaration markers or validate/apply an Edge DOM patch. Those steps
-remain required before enabling changed-CSS Edge updates.
+These APIs hold ready CSS for a later transaction. Declaration ownership can
+coordinate marker changes with the grouped commit below. Connecting preparation
+and grouped publication to a validated Edge DOM patch remains required before
+enabling changed-CSS Edge updates.
+
+
+### Committing declaration owners together
+
+`DeclarationStyleOwnership.commitGroup(entries)` publishes native stylesheet
+output for several declaration owners of the same host. Each entry supplies
+its original consumer `lease`, complete native `outputs`, and native-load
+`release` callback. Use staged leases to retain the previous CSS while loading.
+Each owner may occur only once in a group.
+
+The group validates every lease, occurrence index, cache identity and target
+context marker before changing ownership. A marker change must include every
+consumer still holding the old marker. Omitted owners, conflicting markers,
+invalid output, superseded leases and disposed scopes reject the group, release
+its candidate loads and preserve any still-active previous generations.
+
+Publication installs every new ownership set and retires old memberships before
+updating the host marker or notifying old-load cancellation handlers. Thus
+synchronous attribute observers and reentrant cancellation handlers see the
+complete replacement. Equal cache entries retain their style nodes. Clearing
+one owner preserves a marker still needed by another. Repeating the same
+committed group returns false without releasing its installed native loads.
+Disposal remains owned by the individual leases and declaration scopes. The
+return value reports whether all new consumers remain live after lifecycle
+callbacks; a callback may itself supersede an already published generation.
+
+This is a declaration ownership operation. Combining it with prepared instance
+CSS and Edge DOM patch validation remains the next integration step.

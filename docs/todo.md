@@ -6469,8 +6469,20 @@ registration identities may reuse an inherited or existing definition.
                   Verification: 571 unit tests, 292 browser cases in each default/
                   retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
                   pass; typecheck and lint pass with two existing warnings.
-            - [ ] Coordinate marker changes across declaration owners, then bind
-                  prepared CSS publication to validated Edge patch transactions.
+            - [x] Fixture: coordinate marker changes across declaration owners;
+                  reject incomplete, conflicting, invalid or stale groups before
+                  publication and defer old-load callbacks until all styles switch.
+                  Completed 2026-09-27: `DeclarationStyleOwnership.commitGroup`
+                  validates one staged lease per owner on a common host, requires
+                  all old-marker holders for a context change, and retires internal
+                  memberships before notifying attribute observers or old loads.
+                  Worker/fallback fixtures cover omitted owners, conflicting markers,
+                  invalid occurrences, supersession, disposed scopes, repeated commit,
+                  node reuse, partial clearing and synchronous reentrant observers.
+                  Verification: 571 unit tests, 293 browser cases in each default/
+                  retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
+                  pass; typecheck and lint pass with two existing warnings.
+            - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after

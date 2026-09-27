@@ -20,6 +20,14 @@ export interface CemStylesheetConsumerLease<TScope = { kind: 'private' } | { kin
     release(): void;
 }
 
+export interface DeclarationStylesheetCommit {
+    lease: CemStylesheetConsumerLease;
+    outputs: readonly CemOwnedStylesheet[];
+    release(): void;
+}
+
+const leases = new WeakMap<CemStylesheetConsumerLease, { owner: DeclarationStyleOwnership; consumer: Consumer }>();
+
 interface DerivedSet {
     source: CemOwnedStylesheet;
     style: HTMLStyleElement;
@@ -151,23 +159,37 @@ export class DeclarationStyleOwnership {
         if (!staged && committed && committed !== previous) this.dropConsumer(committed);
         this.observeScope(scope);
         this.reconcile();
-        return {
+        const lease: CemStylesheetConsumerLease = {
             signal: consumer.abort.signal,
             commit: (outputs, release) => this.commitConsumer(consumer, outputs, release),
             release: () => { this.dropConsumer(consumer); this.reconcile(); },
         };
+        leases.set(lease, { owner: this, consumer });
+        return lease;
     }
 
     private commitConsumer(consumer: Consumer, outputs: readonly CemOwnedStylesheet[], release: () => void): boolean {
         const observed = documents.get(this.document);
         if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
         this.reconcile();
-        const element = consumer.element.deref();
-        if (!element || !this.consumers.has(consumer) || this.currentConsumers.get(element) !== consumer || consumer.committed) {
+        if (!this.validConsumer(consumer, outputs, new Set(consumer.previous ? [consumer.previous] : []))) {
             if (!consumer.committed) this.dropConsumer(consumer);
             release();
             return false;
         }
+        const previous = this.publishConsumer(consumer, outputs, release);
+        const element = consumer.element.deref();
+        if (element) reconcileStylesheetContextMarker(element);
+        if (previous) this.dropConsumer(previous);
+        this.reconcile();
+        return this.consumers.has(consumer);
+    }
+
+    private validConsumer(consumer: Consumer, outputs: readonly CemOwnedStylesheet[], replacing: Set<Consumer>): boolean {
+        const element = consumer.element.deref();
+        if (!element || !element.isConnected || element.ownerDocument !== this.document || !active(consumer.scope)
+            || !active(this.processingScope) || !this.consumers.has(consumer)
+            || this.currentConsumers.get(element) !== consumer || consumer.committed) return false;
         const contexts = new Set(outputs.map(s => s.output.identity.contextMarker).filter((s): s is string => s !== null));
         const marker = contexts.values().next().value ?? null;
         const held = markers.get(element);
@@ -176,18 +198,21 @@ export class DeclarationStyleOwnership {
         const invalid = contexts.size > 1 || indices.size !== outputs.length ||
             outputs.some(s => !Number.isSafeInteger(s.index) || s.index < 0) ||
             (marker !== null && held !== undefined && held.value !== marker
-                && Array.from(held.consumers).some(member => member !== consumer.previous)) || outputs.some(source => {
+                && Array.from(held.consumers).some(member => !replacing.has(member))) || outputs.some(source => {
                 const existing = this.derived.get(source.output.identity.cacheKey)?.source;
                 return existing && (existing.index !== source.index || existing.output.css !== source.output.css ||
                     existing.output.identity.contextMarker !== source.output.identity.contextMarker ||
                     existing.scope.kind !== source.scope.kind || (existing.scope.kind === 'shared' &&
                         source.scope.kind === 'shared' && existing.scope.name !== source.scope.name));
             });
-        if (invalid) {
-            this.dropConsumer(consumer);
-            release();
-            return false;
-        }
+        return !invalid;
+    }
+
+    private publishConsumer(consumer: Consumer, outputs: readonly CemOwnedStylesheet[], release: () => void): Consumer | undefined {
+        const element = consumer.element.deref();
+        if (!element) return undefined; // Validated immediately before publication.
+        const marker = outputs.find(source => source.output.identity.contextMarker !== null)?.output.identity.contextMarker ?? null;
+        const held = markers.get(element);
         consumer.committed = true;
         consumer.release = release;
         consumer.marker = marker;
@@ -208,13 +233,52 @@ export class DeclarationStyleOwnership {
             const membership = held?.value === marker ? held : { value: marker, consumers: new Set<Consumer>() };
             membership.consumers.add(consumer);
             markers.set(element, membership);
-            element.setAttribute(contextAttribute, marker);
         }
         const previous = consumer.previous;
         consumer.previous = undefined;
-        if (previous) this.dropConsumer(previous);
-        this.reconcile();
-        return this.consumers.has(consumer);
+        return previous;
+    }
+
+    /** Publish a complete group for one host after validating every owner and marker holder. */
+    static commitGroup(entries: readonly DeclarationStylesheetCommit[]): boolean {
+        if (!entries.length) return false;
+        const members = entries.map(entry => ({ entry, state: leases.get(entry.lease) }));
+        const owners = new Set(members.flatMap(member => member.state ? [member.state.owner] : []));
+        // Drain disconnections before pure validation; cancellation callbacks may supersede candidates.
+        for (const owner of owners) {
+            const observed = documents.get(owner.document);
+            if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
+            owner.reconcile();
+        }
+        const element = members[0].state?.consumer.element.deref();
+        const replacing = new Set(members.flatMap(member => member.state?.consumer.previous ? [member.state.consumer.previous] : []));
+        const contexts = new Set(entries.flatMap(entry => entry.outputs.map(source => source.output.identity.contextMarker))
+            .filter((value): value is string => value !== null));
+        const valid = element && owners.size === entries.length && contexts.size <= 1 && members.every(({ state, entry }) =>
+            state && state.consumer.element.deref() === element && state.owner.validConsumer(state.consumer, entry.outputs, replacing));
+        if (!valid) {
+            const notifications: Array<() => void> = [];
+            for (const { state } of members) if (state && !state.consumer.committed) state.owner.dropConsumer(state.consumer, notifications);
+            for (const owner of owners) owner.reconcile();
+            if (element) reconcileStylesheetContextMarker(element);
+            for (const release of new Set(members.filter(({ state, entry }) =>
+                !state?.consumer.committed || state.consumer.release !== entry.release).map(({ entry }) => entry.release))) notifications.push(release);
+            runNotifications(notifications);
+            return false;
+        }
+        const notifications: Array<() => void> = [];
+        const previous: Array<{ owner: DeclarationStyleOwnership; consumer: Consumer }> = [];
+        for (const { state, entry } of members) {
+            if (!state) continue;
+            const old = state.owner.publishConsumer(state.consumer, entry.outputs, entry.release);
+            if (old) previous.push({ owner: state.owner, consumer: old });
+        }
+        // Retire internal ownership before notifying any old load or host attribute observer.
+        for (const { owner, consumer } of previous) owner.dropConsumer(consumer, notifications);
+        for (const owner of owners) owner.reconcile();
+        reconcileStylesheetContextMarker(element);
+        runNotifications(notifications);
+        return members.every(({ state }) => state && state.owner.consumers.has(state.consumer));
     }
 
     private takeServerStyle(source: CemOwnedStylesheet): HTMLStyleElement | undefined {
@@ -232,7 +296,7 @@ export class DeclarationStyleOwnership {
         return retained;
     }
 
-    private dropConsumer(consumer: Consumer): void {
+    private dropConsumer(consumer: Consumer, notifications?: Array<() => void>): void {
         if (!this.consumers.delete(consumer)) return;
         const element = consumer.element.deref();
         if (element && this.currentConsumers.get(element) === consumer) {
@@ -244,7 +308,7 @@ export class DeclarationStyleOwnership {
             const membership = markers.get(element);
             membership?.consumers.delete(consumer);
             if (membership && membership.consumers.size === 0) {
-                if (element.getAttribute(contextAttribute) === membership.value) element.removeAttribute(contextAttribute);
+                if (!notifications && element.getAttribute(contextAttribute) === membership.value) element.removeAttribute(contextAttribute);
                 markers.delete(element);
             }
         }
@@ -255,7 +319,9 @@ export class DeclarationStyleOwnership {
                 this.derived.delete(set.source.output.identity.cacheKey);
             }
         }
-        try { consumer.release?.(); } finally { consumer.abort.abort(); }
+        const notify = () => { try { consumer.release?.(); } finally { consumer.abort.abort(); } };
+        if (notifications) notifications.push(notify);
+        else notify();
     }
 
     setStyles(styles: readonly HTMLStyleElement[]): void {
@@ -335,4 +401,12 @@ function reconcileDocument(registrations: Set<WeakRef<DeclarationStyleOwnership>
         if (ownership) ownership.reconcile(records);
         else registrations.delete(reference);
     }
+}
+
+function runNotifications(notifications: Array<() => void>): void {
+    const errors: unknown[] = [];
+    for (const notify of notifications) {
+        try { notify(); } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw new AggregateError(errors, 'stylesheet ownership cleanup failed');
 }

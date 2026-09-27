@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
-import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
+import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from './declaration-style-ownership.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
 export default { title: 'CEM Elements/Native Stylesheet Ownership', tags: ['test'] } satisfies Meta;
@@ -441,6 +441,119 @@ export const StagedReplacementOwnership: Story = {
                 expect(declaration.querySelectorAll('style')).toHaveLength(0);
                 expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
             } finally { scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren(); }
+        }
+    },
+};
+
+
+export const CoordinatedContextReplacement: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing grouped ownership fixture');
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            const scope = createCemDeclarationScope({ document });
+            const owners = [0, 1].map(() => new DeclarationStyleOwnership(document, scope));
+            const declarations = owners.map(owner => {
+                const element = document.createElement('div'); root.append(element); owner.add(element, scope); return element;
+            });
+            const tag = `native-group-${crypto.randomUUID()}`;
+            let observeMarker: (() => void) | undefined;
+            customElements.define(tag, class extends HTMLElement {
+                static observedAttributes = ['data-cem-css-context'];
+                attributeChangedCallback() { observeMarker?.(); }
+            });
+            const instance = document.createElement(tag); root.append(instance);
+            const releases: Promise<unknown>[] = [];
+            let sequence = 0;
+            try {
+                const artifacts = await Promise.all([0, 1].map(index => native.compile(`native-group-source-${index}`, [
+                    { css: `:host { --asset-${index}: url(asset); }`, scope: null },
+                ])));
+                async function prepare(index: number, variant: string): Promise<DeclarationStylesheetCommit> {
+                    const lease = owners[index].stageConsumer(instance, scope);
+                    const consumer = `group-${++sequence}`;
+                    const artifact = artifacts[index].artifact;
+                    const context = { ...nativeCssStoryContext, frames: [{ frameId: 'page',
+                        baseUrl: 'https://example.test/', scopes: [],
+                        specifiers: { imports: {}, resources: { asset: { target: `./${variant}.svg` } } } }] };
+                    const output = await native.host.stylesheet({ action: 'begin', artifact, consumer, index: 0,
+                        baseUrl: 'https://example.test/main.css', context,
+                        scope: { kind: 'private', tag } }).result;
+                    if (output.status !== 'ready') throw new Error('expected ready group output');
+                    return { lease, outputs: [{ index: 0, scope: { kind: 'private' }, output }],
+                        release: () => { releases.push(native.host.stylesheet({ action: 'release', artifact, consumer, loadId: output.loadId }).result); } };
+                }
+                const assertAssets = (variant: string) => {
+                    for (const index of [0, 1]) expect(getComputedStyle(instance).getPropertyValue(`--asset-${index}`)).toContain(`/${variant}.svg`);
+                };
+                const initial = await Promise.all([prepare(0, 'old'), prepare(1, 'old')]);
+                expect(DeclarationStyleOwnership.commitGroup(initial)).toBe(true);
+                assertAssets('old');
+                const oldNodes = declarations.map(element => element.querySelector('style'));
+                const oldMarker = instance.getAttribute('data-cem-css-context');
+                // Omitting another owner that still holds the old marker must fail closed.
+                const omitted = await prepare(0, 'new');
+                expect(DeclarationStyleOwnership.commitGroup([omitted])).toBe(false);
+                assertAssets('old');
+                expect(instance.getAttribute('data-cem-css-context')).toBe(oldMarker);
+                const conflicting = await Promise.all([prepare(0, 'new'), prepare(1, 'other')]);
+                expect(DeclarationStyleOwnership.commitGroup(conflicting)).toBe(false);
+                assertAssets('old');
+                const invalid = await Promise.all([prepare(0, 'new'), prepare(1, 'new')]);
+                invalid[1].outputs = [...invalid[1].outputs, ...invalid[1].outputs];
+                expect(DeclarationStyleOwnership.commitGroup(invalid)).toBe(false);
+                expect(declarations.map(element => element.querySelector('style'))).toEqual(oldNodes);
+                const stale = await Promise.all([prepare(0, 'new'), prepare(1, 'new')]);
+                const newer = owners[1].stageConsumer(instance, scope);
+                expect(DeclarationStyleOwnership.commitGroup(stale)).toBe(false);
+                newer.release(); assertAssets('old');
+                const next = await Promise.all([prepare(0, 'new'), prepare(1, 'new')]);
+                let observedComplete = false;
+                let markerObservedComplete = false;
+                observeMarker = () => {
+                    assertAssets('new');
+                    const reentrant = owners[0].stageConsumer(instance, scope);
+                    reentrant.release();
+                    markerObservedComplete = true;
+                };
+                initial[0].lease.signal.addEventListener('abort', () => {
+                    assertAssets('new');
+                    expect(instance.getAttribute('data-cem-css-context')).not.toBe(oldMarker);
+                    const reentrant = owners[1].stageConsumer(instance, scope);
+                    reentrant.release();
+                    observedComplete = true;
+                }, { once: true });
+                expect(DeclarationStyleOwnership.commitGroup(next)).toBe(true);
+                expect(observedComplete).toBe(true);
+                expect(markerObservedComplete).toBe(true);
+                assertAssets('new');
+                const releaseCount = releases.length;
+                expect(DeclarationStyleOwnership.commitGroup(next)).toBe(false);
+                expect(releases).toHaveLength(releaseCount);
+                initial.forEach(entry => entry.lease.release());
+                assertAssets('new');
+                const same = await Promise.all([prepare(0, 'new'), prepare(1, 'new')]);
+                const currentNodes = declarations.map(element => element.querySelector('style'));
+                expect(DeclarationStyleOwnership.commitGroup(same)).toBe(true);
+                expect(declarations.map(element => element.querySelector('style'))).toEqual(currentNodes);
+                // Clearing one owner preserves the other owner's context marker.
+                const clear = { lease: owners[0].stageConsumer(instance, scope), outputs: [], release: () => undefined };
+                expect(DeclarationStyleOwnership.commitGroup([clear])).toBe(true);
+                expect(instance.hasAttribute('data-cem-css-context')).toBe(true);
+                expect(declarations[0].querySelectorAll('style')).toHaveLength(0);
+                const disposed = await Promise.all([prepare(0, 'later'), prepare(1, 'later')]);
+                observeMarker = undefined;
+                scope.dispose();
+                expect(DeclarationStyleOwnership.commitGroup(disposed)).toBe(false);
+                expect(instance.hasAttribute('data-cem-css-context')).toBe(false);
+                expect(declarations[1].querySelectorAll('style')).toHaveLength(0);
+                expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally {
+                observeMarker = undefined;
+                scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren();
+            }
         }
     },
 };
