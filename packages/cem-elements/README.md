@@ -28,6 +28,24 @@ same-scope duplicates and incompatible replacements still fail; remounts cannot
 revive disposed processing scopes. See the
 [registration lifecycle](../../docs/cem-element-design.md).
 
+Native declaration CSS can be enabled with
+`new CemElementRuntime({ retainedStylesheets: { read } })` while the default
+compiler migration remains pending. `read(request, signal)` receives the native
+resolved URL, request ID, content-type hint and integrity metadata. It returns
+`{ bytes: ArrayBuffer, finalUrl, contentType }`; native import validates the
+response and resolves nested imports and resource URLs. The reader should honor
+the abort signal and reject failed responses.
+
+In this mode, `whenDeclarationSettled` waits for retained CEM-ML/DOM source
+registration. `whenRenderSettled` also waits for the instance's private and shared
+stylesheet loads, including during hydration. Shared sources apply without an
+instance of their own declaration. Disconnect, context changes and scope disposal
+release consumer generations. The internal `data-cem-css-context` marker is
+recomputed and excluded from snapshots. Stylesheet diagnostics expose their
+`sourceUri`, `stylesheetUrl` and byte range. XSLT result styles retain their
+existing branch-local behavior. Instance CSS still uses the existing renderer;
+see the [remaining migration gates](../../docs/todo.md).
+
 CEM-ML attribute and slice defaults in a root `{module | ...}` prelude initialize
 the instance just like declarations in an unwrapped template. Slice defaults
 populate both their named bindings and `datadom.slices`. Boolean defaults stay

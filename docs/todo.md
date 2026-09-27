@@ -6201,10 +6201,32 @@ registration identities may reuse an inherited or existing definition.
               render-cache ownership a declaration-CSS prerequisite.
               Completed: all 14 native compatibility cases pass. CEM-ML and DOM
               declaration sources are the next registry integration targets.
-        - [ ] Connect runtime retained stylesheet loads to consumer leases and
+        - [x] Fixture: opt into retained declaration CSS through the main runtime;
+              register CEM-ML/DOM sources, await CSS on render and hydration,
+              cancel disconnected consumers and preserve source diagnostics.
+              Verify shared sources without instances, module-map contexts,
+              reconnect and source ownership through real worker/fallback hosts.
+              Keep default cutover behind the remaining compiler/instance gates.
+              Completed: 277 browser stories, 539 unit tests, typecheck and lint
+              pass (two existing warnings). Versioned hydration retains DOM,
+              ancestor disposal cancels pending renders, and context markers are
+              restored after mutation and omitted from snapshots.
+        - [x] Fixture: preserve CEM-ML stylesheet occurrence metadata through
+              processing-host source/binary compilation; give equivalent browser
+              module contexts stable identities across reconnects while retaining
+              distinct live lookup handles and policy/map invalidation.
+              Completed with source/binary metadata assertions, a failing-first
+              context identity test, and worker/fallback reuse after reparenting.
+        - [x] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and
               validate reconnect/hydration before enabling runtime installation.
+              Completed through `retainedStylesheets: { read }`; default transport
+              and compiler cutover remain gated separately.
+        - [ ] Fixture: provide bounded default byte transport for retained CSS;
+              preserve final URL/content type, reject HTTP failures, cancel body
+              reads on abort and pass oversize responses to native byte admission
+              without buffering the entire response. Verify default runtime wiring.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

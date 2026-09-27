@@ -272,3 +272,24 @@ function wasmFailure(authoredSpecifier: string): Record<string, unknown> {
         message: 'fixture failure',
     };
 }
+
+it('shares resolver configuration identity across live handles and invalidates map or policy changes', () => {
+    const root = createBrowserModuleUrlRoot(browserDocument(''), 'policy:v1').context;
+    const map = { scopes: [], specifiers: { imports: {}, resources: { icon: { target: './one.svg', integrity: 'digest' } } } };
+    const create = (seed: string, policy = 'policy:v1', target = './one.svg') => createBrowserModuleUrlContext(root,
+        seed, 'https://example.test/card.cemt', 'card-resolver', policy,
+        { ...map, specifiers: { ...map.specifiers, resources: { icon: { ...map.specifiers.resources.icon, target } } } });
+    const first = create('first'), reconnected = create('reconnected');
+    expect(first.handle).not.toBe(reconnected.handle);
+    expect(first.identity).toBe(reconnected.identity);
+    expect(first.wire).toEqual(reconnected.wire);
+    expect(first.wire).not.toEqual(create('other-policy', 'policy:v2').wire);
+    expect(first.wire).not.toEqual(create('other-map', 'policy:v1', './two.svg').wire);
+    const child = (parent: typeof root, seed: string) => createBrowserModuleUrlContext(parent,
+        seed, 'https://example.test/child.cemt', 'child-resolver', 'policy:v1');
+    expect(child(first, 'one').wire).toEqual(child(reconnected, 'two').wire);
+    const mappedRoot = (target: string) => createBrowserModuleUrlRoot(browserDocument(''), 'policy:v1', {
+        resolverIdentity: 'custom-resolver', importMap: { imports: { icon: target } },
+    }).context;
+    expect(mappedRoot('./one.svg').identity).not.toBe(mappedRoot('./two.svg').identity);
+});

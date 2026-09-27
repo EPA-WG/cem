@@ -1228,8 +1228,8 @@ keeps native failures structured, installs independent successful occurrences,
 and settles cancellation even if a reader ignores its abort signal. Cleanup uses
 exact load generations and accounts for worker replacement. Browser fixtures use
 real worker/fallback hosts for redirects, map snapshots, disposal, reconnect and
-reuse of existing DOM content. This coordinator is ready for main runtime routing;
-it does not yet replace the default declaration installation path.
+reuse of existing DOM content. The main runtime uses this coordinator when
+`retainedStylesheets: { read }` is configured; default cutover remains pending.
 
 `CemStylesheetRegistry` now routes registered native source handles to connected
 consumers. Private occurrences match effective declaration identity; shared
@@ -1238,9 +1238,19 @@ instances. Each connection captures its consuming module context. Readiness
 includes sources added or removed during loading. Source removal, disconnect,
 context replacement and ancestor disposal release exact native generations;
 reentrant cancellation cannot overwrite a newer connection. Real worker/fallback
-browser fixtures cover these transitions and shared style reuse. The runtime must
-register admitted occurrences, release source registrations when their owning
-lifetime ends, and await connection readiness before declaring a render settled.
+browser fixtures cover these transitions and shared style reuse. In the opt-in
+runtime path, declaration settlement registers admitted CEM-ML/DOM occurrences,
+and render settlement waits for the consuming connection. Source scope disposal
+releases registrations; disconnect and ancestor disposal abort pending renders.
+Version-compatible hydration waits for imports while retaining existing DOM.
+The reserved context marker is restored after mutation and excluded from snapshots.
+
+Browser resolver configuration identities now survive reconnects. Live lookup
+handles remain distinct for referrer selection, while equivalent maps, bases and
+policies produce equal native context fingerprints and reuse derived styles.
+Changes to mapping targets or policy still invalidate those identities. Ordinary
+CEM-ML source and binary compilation both return stylesheet occurrence metadata
+alongside their retained artifact handles; CSS trees stay native.
 
 XSLT result styles are excluded from this declaration registry. The approved
 [result-construction contract](xslt-runtime-lowering.md#native-output-construction)
@@ -1248,9 +1258,10 @@ keeps them inside their rendered branch; an XSLT component's empty declaration
 stylesheet collection is intentional. Do not hoist result styles or introduce
 declaration CSS handles merely to replace the XSLT render adapter's sentinel ID.
 
-Next, register retained CEM-ML and DOM declaration sources and connect main
-declaration/render readiness to the registry, then add the nested module-map override demo and context restoration/
-hydration checks. Instance styles still require their own retained ownership path;
+Next, supply the default bounded byte transport and exercise the authored CSS
+demos through this runtime path before enabling the default compiler. The runtime
+fixtures cover nested module maps, context replacement and hydration. Instance
+styles still require their own retained ownership path;
 the declaration protocol deliberately rejects instance scope. The remaining syntax
 profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not
 authorize raw-text fallbacks.
@@ -1432,5 +1443,5 @@ WASM protocol fixture, including source-located suppression diagnostics.
 Processing-engine and host tests cover shared compilation,
 root disposal, stale handles, fallback and late cancellation. The installation
 coordinator now drives these operations with caller-supplied byte transport,
-including native failure reporting. Main runtime transport/readiness routing and
-the compiler cutover remain pending.
+including native failure reporting. Main runtime readiness routing is available
+through the opt-in reader; default byte transport and compiler cutover remain pending.

@@ -30,7 +30,7 @@ vi.mock('./cem-ql-render.js', () => {
     retainCemMlTemplateSource: vi.fn(async (source: string) => {
         const artifactId = nextArtifactId++;
         sources.set(artifactId, source);
-        return { artifactId, diagnostics: [] };
+        return { artifactId, diagnostics: [], stylesheets: [{ css: ':host { color: green; }', scope: null }] };
     }),
     retainCemMlTemplateArtifact: vi.fn(async (bytes: ArrayBuffer) => {
         const artifactId = nextArtifactId++;
@@ -40,6 +40,7 @@ vi.mock('./cem-ql-render.js', () => {
             artifactId,
             contentHash: `cem-bin/1+blake3:fixture-${source.length}`,
             formatVersion: 'cem-template-artifact/1',
+            stylesheets: [{ css: ':host { color: green; }', scope: null }],
             diagnostics: [],
         };
     }),
@@ -253,6 +254,7 @@ describe('Phase 3A retained processing engine', () => {
             fallbackEngine.compile(compileInput),
         ]);
         expect(workerArtifact).toEqual(fallbackArtifact);
+        expect(workerArtifact.stylesheets).toEqual([{ css: ':host { color: green; }', scope: null }]);
 
         const snapshot = snapshotFixture('1');
         const renderInput = {
@@ -448,6 +450,7 @@ describe('Phase 3A retained processing engine', () => {
             'dev'
         );
         expect(result.compiledArtifact).toBeUndefined();
+        expect(result.stylesheets).toEqual([{ css: ':host { color: green; }', scope: null }]);
     });
 
     it('rejects a policy-mismatched artifact and deterministically falls back to source', async () => {

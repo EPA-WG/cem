@@ -40,6 +40,14 @@ const contextAttribute = 'data-cem-css-context';
 // remove a marker still held by another declaration's consumer.
 const markers = new WeakMap<HTMLElement, { value: string; consumers: Set<Consumer> }>();
 
+/** Restore reserved host state without treating a context marker as authored data. */
+export function reconcileStylesheetContextMarker(element: HTMLElement): void {
+    const expected = markers.get(element)?.value ?? null;
+    if (element.getAttribute(contextAttribute) === expected) return;
+    if (expected === null) element.removeAttribute(contextAttribute);
+    else element.setAttribute(contextAttribute, expected);
+}
+
 interface Owner {
     element: WeakRef<HTMLElement>;
     scope: CemDeclarationScope;

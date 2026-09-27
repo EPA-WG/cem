@@ -26,6 +26,7 @@ export interface CemStylesheetConsumer {
 }
 
 export interface CemStylesheetConnection {
+    readonly signal: AbortSignal;
     /** Includes sources added or removed while the current load is pending. */
     whenReady(): Promise<Result>;
     release(): void;
@@ -40,6 +41,7 @@ interface Connection {
     loads: Map<Source, { installation?: CemStylesheetInstallation; ready: Promise<Result> }>;
     revision: number;
     released: boolean;
+    abort: AbortController;
     unobserve: () => void;
 }
 
@@ -81,7 +83,7 @@ export class CemStylesheetRegistry {
         }
         this.reconcile(this.observer?.takeRecords() ?? []);
         const connection: Connection = { options: { ...options, context: structuredClone(options.context) },
-            loads: new Map(), revision: 0, released: false, unobserve: () => undefined };
+            loads: new Map(), revision: 0, released: false, abort: new AbortController(), unobserve: () => undefined };
         const previous = this.current.get(options.element);
         this.current.set(options.element, connection);
         this.connections.add(connection);
@@ -91,7 +93,7 @@ export class CemStylesheetRegistry {
             connection.unobserve = observeScopes([options.scope], () => this.removeConnection(connection));
             for (const source of this.sources.values()) this.attach(source, connection);
         }
-        return { whenReady: () => this.whenReady(connection), release: () => this.removeConnection(connection) };
+        return { signal: connection.abort.signal, whenReady: () => this.whenReady(connection), release: () => this.removeConnection(connection) };
     }
 
     /** Await all submitted native cleanup; readers that ignore abort cannot delay it. */
@@ -164,6 +166,7 @@ export class CemStylesheetRegistry {
         if (this.current.get(connection.options.element) === connection) this.current.delete(connection.options.element);
         for (const load of connection.loads.values()) if (load.installation) this.clean(load.installation);
         connection.loads.clear();
+        connection.abort.abort();
     }
 
     private clean(installation: CemStylesheetInstallation): void {

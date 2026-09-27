@@ -168,7 +168,7 @@ export function createBrowserModuleUrlRoot(
     };
     const mapIdentity = stableHash(JSON.stringify({ baseUrl, scopes: frame.scopes, specifiers }));
     const resolverIdentity = options.resolverIdentity?.trim() || `browser-import-map:${mapIdentity}`;
-    const identity = `browser-root:${stableHash(`${baseUrl}\n${resolverIdentity}\n${resourcePolicyStamp}`)}`;
+    const identity = `browser-root:${stableHash(`${baseUrl}\n${resolverIdentity}\n${resourcePolicyStamp}\n${mapIdentity}`)}`;
     const context = Object.freeze({
         handle: identity,
         parent: null,
@@ -198,8 +198,10 @@ export function createBrowserModuleUrlContext(
     const normalizedModuleMap = cloneModuleMap(moduleMap);
     const mapIdentity = stableHash(JSON.stringify(normalizedModuleMap));
     const handle = `browser-context:${stableHash(`${parent.handle}\n${handleSeed}\n${normalizedBaseUrl}\n${mapIdentity}`)}`;
-    const identity = `${handle}:${stableHash(`${resolverIdentity}\n${resourcePolicyStamp}\n${mapIdentity}`)}`;
     const wireResolverIdentity = `${parent.resolverIdentity}+${resolverIdentity}:${mapIdentity}`;
+    // Handles distinguish live referrers. CSS ownership must survive reconnects
+    // and reuse identical resolver configurations across sibling instances.
+    const identity = `browser-resolution:${stableHash(`${parent.identity}\n${normalizedBaseUrl}\n${wireResolverIdentity}\n${resourcePolicyStamp}\n${mapIdentity}`)}`;
     return Object.freeze({
         handle,
         parent,
@@ -214,7 +216,7 @@ export function createBrowserModuleUrlContext(
             frames: [
                 ...parent.wire.frames,
                 {
-                    frameId: handle,
+                    frameId: identity,
                     baseUrl: normalizedBaseUrl,
                     scopes: normalizedModuleMap.scopes,
                     specifiers: normalizedModuleMap.specifiers,

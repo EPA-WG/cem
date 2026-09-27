@@ -513,6 +513,7 @@ function retainedCompilation(
 ): CachedTemplateCompilation {
     return {
         wasmArtifactId: retained.artifactId,
+        stylesheets: retained.stylesheets,
         diagnostics: retained.diagnostics.filter((diagnostic) =>
             diagnostic.code.startsWith('cem.tokenizer.')
         ),

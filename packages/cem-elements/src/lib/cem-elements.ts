@@ -93,7 +93,9 @@ import {
     type CemDeclarationScope,
     type CemControlInputPolicy,
 } from './declaration-scope.js';
-import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
+import { DeclarationStyleOwnership, reconcileStylesheetContextMarker } from './declaration-style-ownership.js';
+import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
+import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
     type CemEdgeSsrHostOperation,
@@ -147,6 +149,13 @@ export interface CemElementDiagnostic {
     source: 'declaration' | 'instance' | 'render';
     tag?: string;
     sourceMapRef?: SourceMapRef;
+    /** Retained CSS import location, when the diagnostic originates in a stylesheet. */
+    sourceUri?: string;
+    stylesheetUrl?: string;
+    line?: number;
+    column?: number;
+    offset?: number;
+    length?: number;
 }
 
 export interface DeclarationShapeInput {
@@ -631,6 +640,12 @@ export interface CemElementRuntimeOptions {
      * tests may inject worker construction without replacing the processing host.
      */
     processingWorkerFactory?: CemProcessingWorkerFactory;
+    /**
+     * Opt into retained native declaration CSS while compiler/instance cutover gates
+     * remain open. Transport returns bytes and response metadata; native import
+     * owns CSS parsing, URL resolution and admission. XSLT result styles are separate.
+     */
+    retainedStylesheets?: { read: CemStylesheetInstallationOptions['read'] };
     /** Phase 3B bounds for the lazily allocated, fair root-scope worker pool. */
     processingPoolPolicy?: CemProcessingPoolPolicy;
     /** Optional build/service-worker-compatible store for immutable template artifacts. */
@@ -770,6 +785,8 @@ interface CompiledDeclaration {
     stylesheetsReady: boolean;
     domStylesheetSources?: CemDomStylesheetSource[];
     domStyleAdoption?: Promise<void>;
+    domStyleArtifact?: CemProcessingCompileResult['artifact'];
+    retainedStylePreparation?: Promise<void>;
     diagnostics: CemElementDiagnostic[];
     behavior?: CemProducedElementBehavior;
 }
@@ -1114,6 +1131,7 @@ const ANONYMOUS_DECLARATION_ONLY_ATTRIBUTES = new Set([
 ]);
 const UID_SEED_ATTR = 'uid-seed';
 const PUBLIC_STYLE_SCOPE_ATTR = 'scope';
+const STYLE_CONTEXT_ATTR = 'data-cem-css-context';
 const STYLE_TAG = 'style';
 const LOCAL_STORAGE_EVENT = 'cem-local-storage';
 const LOCATION_EVENT = 'cem-location';
@@ -1125,6 +1143,7 @@ const SOURCE_FRAME_ATTR = 'data-cem-source-frame';
 const RUNTIME_PAYLOAD_ATTRIBUTE_NAMES = new Set([
     DATA_ISLAND_ATTR,
     DATA_CEM_RENDER_SCOPE_ATTR,
+    STYLE_CONTEXT_ATTR,
     RENDER_NODE_ID_ATTR,
     RENDER_TEMPLATE_ARTIFACT_ID_ATTR,
     RENDER_DATA_REVISION_ATTR,
@@ -1157,6 +1176,16 @@ const RESERVED_CUSTOM_ELEMENT_NAMES = new Set([
 
 let artifactSequence = 0;
 const declarationStyleOwners = new WeakMap<CompiledDeclaration, DeclarationStyleOwnership>();
+const stylesheetRegistries = new WeakMap<Document, CemStylesheetRegistry>();
+
+function stylesheetRegistry(document: Document): CemStylesheetRegistry {
+    let registry = stylesheetRegistries.get(document);
+    if (!registry) {
+        registry = new CemStylesheetRegistry(document);
+        stylesheetRegistries.set(document, registry);
+    }
+    return registry;
+}
 
 function styleOwnership(compiled: CompiledDeclaration): DeclarationStyleOwnership {
     let ownership = declarationStyleOwners.get(compiled);
@@ -1639,6 +1668,10 @@ export class CemElementRuntime {
     private readonly processingRenderPlans = new WeakMap<HTMLElement, CemProcessingRenderPlanHandle>();
     private readonly processingRenderJobs = new WeakMap<HTMLElement, ActiveProcessingRenderJob>();
     private readonly processingWorkerFactory?: CemProcessingWorkerFactory;
+    private readonly retainedStylesheets?: CemElementRuntimeOptions['retainedStylesheets'];
+    private readonly stylesheetConnections = new WeakMap<HTMLElement, CemStylesheetConnection>();
+    private readonly stylesheetReady = new WeakSet<HTMLElement>();
+    private readonly reportedStylesheetDiagnostics = new WeakSet<object>();
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
     private readonly controlInputPolicy: CemControlInputPolicy;
     private readonly nativeValueLimits: CemValueArtifactLimits;
@@ -1696,6 +1729,8 @@ export class CemElementRuntime {
         this.uidSeedFallback = options.uidSeedFallback ?? (this.runMode === 'build-ssr' ? 'source-hash' : 'runtime');
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
+        this.retainedStylesheets = options.retainedStylesheets;
+        if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css';
         this.processingPoolPolicy = options.processingPoolPolicy;
         this.artifactRegistry = options.artifactRegistry;
         this.onProcessingTrace = options.onProcessingTrace;
@@ -1704,13 +1739,15 @@ export class CemElementRuntime {
     /**
      * Resolves once the most recent render for an instance has settled, including the
      * asynchronous `cem_ql` WASM render boundary for canonical CEM-ML and form
-     * state refreshes after DOM commits. Circular form rules stop refreshing
+     * state refreshes after DOM commits. Retained declaration CSS, when enabled,
+     * also settles before returning. Circular form rules stop refreshing
      * with a diagnostic so this promise can settle.
      */
     async whenRenderSettled(instance: HTMLElement): Promise<void> {
         for (;;) {
             const render = this.renderSettled.get(instance);
             await render;
+            await this.settleRetainedStylesheets(instance);
             const pending = Object.values(this.instanceStates.get(instance)?.localStorageResources ?? {})
                 .map(active => active.native?.pending).filter((p): p is Promise<void> => !!p);
             await Promise.all(pending);
@@ -2063,6 +2100,10 @@ export class CemElementRuntime {
         }
         this.installDeclarationStylesheets(effectiveDeclaration);
 
+        if (this.retainedStylesheets && effectiveDeclaration.mode !== 'xslt') {
+            return this.prepareRetainedStylesheets(effectiveDeclaration);
+        }
+
         if (effectiveDeclaration.mode === 'dom') {
             return this.ensureDomStylesheets(effectiveDeclaration).then(() => {
                 if (declarationElement !== effectiveDeclaration.declarationElement) {
@@ -2272,7 +2313,8 @@ export class CemElementRuntime {
 
     /**
      * Resolves once a declaration's asynchronous parse diagnostics (from the cem_ql WASM
-     * compile or DOM stylesheet adoption) have been recorded. DOM declarations
+     * compile or DOM stylesheet adoption) have been recorded, including retained
+     * source registration when enabled. DOM declarations
      * without styles retain immediate settlement.
      */
     whenDeclarationSettled(declaration: object): Promise<void> {
@@ -2473,6 +2515,7 @@ export class CemElementRuntime {
             return;
         }
         this.ensureInstanceScope(instance, compiled);
+        if (this.retainedStylesheets) reconcileStylesheetContextMarker(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
         compiled.behavior?.connected?.(instance, this.behaviorContext(instance));
@@ -2489,10 +2532,14 @@ export class CemElementRuntime {
                     this.renderInstance(instance, compiled);
                     return;
                 }
-                if (compiled.mode === 'dom' && !compiled.stylesheetsReady) {
+                if (this.retainedStylesheets || (compiled.mode === 'dom' && !compiled.stylesheetsReady)) {
                     const token = this.nextRenderToken(instance);
-                    this.renderSettled.set(instance, this.ensureDomStylesheets(compiled).then(() => {
+                    const ready = this.retainedStylesheets
+                        ? this.ensureRetainedStylesheets(instance, compiled) : this.ensureDomStylesheets(compiled);
+                    this.renderSettled.set(instance, ready.then(() => {
                         if (this.renderTokens.get(instance) !== token || !instance.isConnected || compiled.declarationScope.disposed) return;
+                        if (this.stylesheetConnections.get(instance)?.signal.aborted) return;
+                        if (this.retainedStylesheets) this.stylesheetReady.add(instance);
                         compiled.behavior?.rendered?.(instance, this.behaviorContext(instance));
                     }));
                 } else {
@@ -2519,6 +2566,9 @@ export class CemElementRuntime {
     private disconnectProducedInstance(instance: HTMLElement): void {
         this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
         this.moduleInstanceContexts.delete(instance);
+        this.stylesheetConnections.get(instance)?.release();
+        this.stylesheetConnections.delete(instance);
+        this.stylesheetReady.delete(instance);
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
@@ -2622,6 +2672,18 @@ export class CemElementRuntime {
             return;
         }
         this.ensureInstanceState(instance, compiled, island);
+        if (this.retainedStylesheets && !this.stylesheetReady.has(instance)) {
+            const token = this.nextRenderToken(instance);
+            const pending = this.ensureRetainedStylesheets(instance, compiled).then(async () => {
+                if (this.renderTokens.get(instance) !== token || !instance.isConnected || compiled.declarationScope.disposed) return;
+                if (this.stylesheetConnections.get(instance)?.signal.aborted) return;
+                this.stylesheetReady.add(instance);
+                this.renderInstance(instance, compiled, formRefreshPass);
+                await this.renderSettled.get(instance);
+            });
+            this.renderSettled.set(instance, pending);
+            return;
+        }
         if (compiled.mode === 'dom' && !compiled.stylesheetsReady) {
             const token = this.nextRenderToken(instance);
             const pending = this.ensureDomStylesheets(compiled).then(async () => {
@@ -2857,6 +2919,88 @@ export class CemElementRuntime {
         });
     }
 
+    private prepareRetainedStylesheets(compiled: CompiledDeclaration): Promise<void> {
+        const transport = this.retainedStylesheets;
+        if (!transport || compiled.mode === 'xslt') return Promise.resolve();
+        return compiled.retainedStylePreparation ??= (async () => {
+            let artifact: CemProcessingCompileResult['artifact'] | undefined;
+            if (compiled.mode === 'dom') {
+                await this.ensureDomStylesheets(compiled);
+                artifact = compiled.domStyleArtifact;
+            } else {
+                await this.ensureLegacyConverted(compiled);
+                if (!compiled.stylesheetsReady) await this.surfaceDeclarationDiagnostics(compiled.declarationElement, compiled);
+                const result = await this.ensureProcessingArtifact(compiled, ['datadom', 'island', 'instanceID']);
+                artifact = result.artifact;
+                compiled.stylesheets = result.stylesheets ?? [];
+                compiled.stylesheetsReady = true;
+            }
+            assertCemDeclarationScopeActive(compiled.declarationScope);
+            if (!artifact) return;
+            const resolutions = resolveDeclarationStylesheetScopes(compiled.sharedStyleScope,
+                compiled.stylesheets.map(stylesheet => stylesheet.scope));
+            const occurrences: CemStylesheetInstallationOptions['occurrences'][number][] = [];
+            for (const [index, resolution] of resolutions.entries()) {
+                if (resolution.kind === 'invalid') {
+                    this.recordDiagnostics(compiled.declarationElement, [declarationDiagnostic(
+                        'cem-element.stylesheet_scope_mismatch',
+                        `stylesheet scope \`${resolution.scope}\` must exactly match declaration scope \`${compiled.sharedStyleScope ?? ''}\``,
+                        compiled.producedTag)]);
+                } else {
+                    occurrences.push({ index, scope: resolution.kind === 'shared'
+                        ? { kind: 'shared', name: resolution.scope } : { kind: 'private', tag: compiled.producedTag } });
+                }
+            }
+            stylesheetRegistry(compiled.declarationElement.ownerDocument).register({
+                declaration: compiled, scope: compiled.declarationScope, ownership: styleOwnership(compiled),
+                host: this.processingHost(compiled), artifact, occurrences, baseUrl: compiled.resourceBaseUrl, read: transport.read,
+            });
+        })().catch(error => {
+            // A failed source compilation may be retried on a later connection.
+            compiled.retainedStylePreparation = undefined;
+            if (compiled.declarationScope.disposed) return;
+            this.recordDiagnostics(compiled.declarationElement, [declarationDiagnostic(
+                'cem-element.stylesheet_adoption_failed', error instanceof Error ? error.message : String(error), compiled.producedTag)]);
+        });
+    }
+
+    private async ensureRetainedStylesheets(instance: HTMLElement, compiled: CompiledDeclaration): Promise<void> {
+        let connection = this.stylesheetConnections.get(instance);
+        if (!connection || connection.signal.aborted) {
+            connection = stylesheetRegistry(instance.ownerDocument).connect({ element: instance, declaration: compiled,
+                sharedScope: compiled.sharedStyleScope, scope: compiled.declarationScope,
+                context: this.ensureModuleUrlContext(instance, compiled).wire });
+            this.stylesheetConnections.set(instance, connection);
+        }
+        const { signal } = connection;
+        let removeAbort: () => void = () => undefined;
+        const cancelled = new Promise<void>(resolve => {
+            if (signal.aborted) resolve();
+            else {
+                const abort = () => resolve();
+                signal.addEventListener('abort', abort, { once: true });
+                removeAbort = () => signal.removeEventListener('abort', abort);
+            }
+        });
+        try {
+            await Promise.race([this.prepareRetainedStylesheets(compiled), cancelled]);
+            if (!signal.aborted) await this.settleRetainedStylesheets(instance);
+        } finally { removeAbort(); }
+    }
+
+    private async settleRetainedStylesheets(instance: HTMLElement): Promise<void> {
+        const connection = this.stylesheetConnections.get(instance);
+        if (!connection) return;
+        const result = await connection.whenReady();
+        if (connection !== this.stylesheetConnections.get(instance) || connection.signal.aborted) return;
+        const diagnostics = result.diagnostics.filter(diagnostic => {
+            if (this.reportedStylesheetDiagnostics.has(diagnostic)) return false;
+            this.reportedStylesheetDiagnostics.add(diagnostic);
+            return true;
+        });
+        this.recordDiagnostics(instance, diagnostics.map(diagnostic => ({ ...diagnostic, source: 'declaration', tag: instance.localName })));
+    }
+
     private ensureDomStylesheets(compiled: CompiledDeclaration): Promise<void> {
         if (compiled.stylesheetsReady) return Promise.resolve();
         return compiled.domStyleAdoption ??= (async () => {
@@ -2876,6 +3020,7 @@ export class CemElementRuntime {
                     scopePolicyStamp: this.scopePolicyStamp, sourceMapMode: 'dev',
                 }).result]);
                 if (!result || compiled.declarationScope.disposed) return;
+                compiled.domStyleArtifact = result.artifact;
                 compiled.stylesheets = result.stylesheets ?? [];
                 const diagnostics = result.diagnostics.map(d => declarationRuntimeSupportDiagnostic(d, compiled.producedTag));
                 compiled.diagnostics.push(...diagnostics);
@@ -3802,6 +3947,10 @@ export class CemElementRuntime {
             // Observation targets are attached in `observeInstance` (on connect), so the
             // observer can be torn down on disconnect and re-attached on reconnect.
             state.observer = new observer((records) => {
+                if (this.retainedStylesheets && records.some(record => record.target === instance
+                    && record.type === 'attributes' && record.attributeName === STYLE_CONTEXT_ATTR)) {
+                    reconcileStylesheetContextMarker(instance);
+                }
                 const scopeMutated = records.some(
                     (record) =>
                         record.type === 'attributes'
@@ -3816,6 +3965,7 @@ export class CemElementRuntime {
                     records.some(
                         (record) =>
                             !(scopeMutated && record.target === instance && record.attributeName === PUBLIC_STYLE_SCOPE_ATTR)
+                            && !(this.retainedStylesheets && record.target === instance && record.attributeName === STYLE_CONTEXT_ATTR)
                             && mutationInvalidatesInstance(record, instance, island),
                     )
                 ) {
@@ -5855,6 +6005,7 @@ export class CemElementRuntime {
     }
 
     private installDeclarationStylesheets(compiled: CompiledDeclaration): void {
+        if (this.retainedStylesheets) return;
         if (hasStaticTemplateImport(compiled.cemMlSource ?? '') && !compiled.moduleClosureReady) return;
         if (!compiled.stylesheetsReady) {
             return;
@@ -9448,6 +9599,7 @@ function resourceRevisionsFromSnapshot(snapshot: DataIslandSnapshot | undefined)
 function hostAttributes(instance: HTMLElement): Record<string, string> {
     const attributes: Record<string, string> = {};
     for (const attribute of Array.from(instance.attributes)) {
+        if (attribute.name === STYLE_CONTEXT_ATTR) continue;
         attributes[attribute.name] = attribute.value;
     }
     return attributes;
@@ -9475,6 +9627,7 @@ function reconcileHostAttributesFromIsland(
 function datasetEntries(instance: HTMLElement): Record<string, string> {
     const dataset: Record<string, string> = {};
     for (const [key, value] of Object.entries(instance.dataset)) {
+        if (key === 'cemCssContext') continue;
         if (value !== undefined) {
             dataset[key] = value;
         }
