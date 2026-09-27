@@ -1814,8 +1814,8 @@ admission checks this guard; joint publication also checks it after cleanup.
 Keep the preparation handle and
 call `dispose()` if an entry is abandoned, or when its published generation is
 no longer needed. Disposal and native release remain idempotent. The transfer
-does not convert instance-style leases into declaration ownership leases;
-prepared instance CSS still needs its own coordinator integration.
+does not convert instance-style leases into declaration ownership leases.
+Pass a prepared instance installation separately to joint publication below.
 
 
 ### Committing declaration owners together
@@ -1866,7 +1866,8 @@ synchronously.
 ### Joint declaration CSS and DOM publication
 
 `DeclarationStyleOwnership.commitGroupWithPatch(entries, patch, currentRevision,
-signal?)` admits a declaration stylesheet group and a prepared DOM patch before
+signal?, instanceStyles?)` admits a declaration stylesheet group, optional prepared
+instance styles and a prepared DOM patch before
 publishing either candidate. The prepared range must belong directly to the
 group's host. The revision reader must be synchronous and side-effect free.
 Invalid CSS groups, cancelled/stale patches, foreign hosts and prior cancellation
@@ -1875,7 +1876,13 @@ consumes the patch and releases rejected CSS candidates.
 Nested calls inside an existing stylesheet notification boundary are rejected;
 the operation must own that boundary to report completion after cleanup.
 
-After admission, CSS publishes first and the patch rechecks its targets and
+The instance candidate must target the same host and pass its non-mutating
+`check()`. An empty instance batch explicitly clears existing instance styles;
+omitting the candidate leaves instance styles under their existing ownership.
+Rejected admission calls `cancelPreparation()`, which releases an unpublished
+candidate while preserving an active generation if its handle was reused.
+After admission, declaration CSS and then instance CSS publish before the patch
+rechecks its targets and
 current revision. Old-load release/abort callbacks run after publication exits.
 The result distinguishes `applied`, `rejected` before publication, and
 `recovery-required` after publication begins. Cancellation, target changes or
@@ -1883,9 +1890,8 @@ supersession during publication and cleanup errors can require recovery even
 when some or all mutations have completed. Errors and patch diagnostics remain
 available to the caller; no rollback is claimed.
 
-This primitive coordinates declaration CSS only. The caller must serialize
-managed update requests and provide authoritative recovery. Prepared instance
-CSS, runtime loader wiring, and the Edge response/state contract still
+The caller must serialize managed update requests and provide authoritative
+recovery. Runtime loader wiring and the Edge response/state contract still
 need integration before changed-CSS streamed updates can be enabled.
 
 ### Preparing the DOM side of a CSS update

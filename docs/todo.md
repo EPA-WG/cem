@@ -6553,6 +6553,18 @@ registration identities may reuse an inherited or existing definition.
                   publication and rejected, disposed, invalid or released entries.
                   Verification: 580 unit tests, 299 browser cases in each default/
                   retained-CSS lane, typecheck and lint pass with two existing warnings.
+            - [x] Fixture: admit prepared instance CSS alongside declaration CSS
+                  and DOM patches; verify rejection preserves active styles, empty
+                  batches clear explicitly, and invalidation during publication
+                  reports recovery in native worker/fallback modes.
+                  Completed 2026-09-27: joint publication checks the instance host
+                  and prepared generation, publishes instance CSS before DOM, and
+                  defers old instance cleanup. Rejection cancels preparation without
+                  destroying an active reused handle. Seven worker/fallback scenarios
+                  cover replacement, clearing, rejection, disposal, invalidation,
+                  reused handles and thrown publication requiring recovery.
+                  Verification: 580 unit tests, 300 browser cases in each default/
+                  retained-CSS lane, typecheck and lint pass with two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

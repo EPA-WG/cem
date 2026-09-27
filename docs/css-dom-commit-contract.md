@@ -95,8 +95,11 @@ Prepared native declaration loads can now transfer their outputs once through
 `takeCommit()` into joint publication. Admission and completion retain the
 preparation's host/cancellation/release validity guard, and disposal still owns
 native cleanup.
-Prepared instance CSS, managed update queuing, authoritative recovery and the
-Edge response/state contract still need integration. Changed-CSS Edge updates
+Optional prepared instance CSS now participates in admission and publishes
+between declaration CSS and the DOM patch. Old instance disposal shares the
+deferred notification boundary. Managed update queuing, authoritative recovery,
+runtime loader wiring and the Edge response/state contract still need integration.
+Changed-CSS Edge updates
 remain guarded until those requirements are verified.
 
 Joint publication verification: 575 unit tests and 298 browser cases in each default and
@@ -105,3 +108,10 @@ ordering fixture now also verifies deferred release/abort callbacks against real
 native CSS and a prepared DOM patch in worker and fallback modes. The joint
 fixture covers twelve scenarios including pre-publication rejection, cancellation,
 target mutation, revision changes, cleanup failure and host disconnection.
+
+Instance integration verification: 580 unit tests and 300 browser cases in each
+default/retained-CSS lane pass, along with typecheck and lint (two existing
+warnings). Seven worker/fallback scenarios exercise instance replacement,
+clearing, rejected admission, disposal, callback invalidation, reused handles
+and publication exceptions. Partial mutations after an exception require
+authoritative recovery; they are not reported as rolled back.

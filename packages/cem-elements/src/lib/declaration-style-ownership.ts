@@ -8,6 +8,7 @@ import { deferStylesheetNotifications, stylesheetNotificationsDeferred,
     notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import type { PreparedPatchFrames, RenderRevision, PatchFramesApplyDiagnostic } from './projection.js';
 import { renderRevisionKey } from './projection.js';
+import type { PreparedInstanceStylesheets } from './internal/runtime-support/instance-stylesheet-installation.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
 export interface CemOwnedStylesheet<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
@@ -257,12 +258,14 @@ export class DeclarationStyleOwnership {
     }
 
     /**
-     * Admit declaration CSS and a prepared patch together, then publish CSS first.
+     * Admit declaration CSS, optional instance CSS and a prepared patch together.
+     * Publish both CSS candidates before the DOM patch.
      * The revision reader must be synchronous and side-effect free. The caller owns
      * recovery and scheduling subsequent updates; this primitive does not roll back.
      */
     static commitGroupWithPatch(entries: readonly DeclarationStylesheetCommit[], patch: PreparedPatchFrames,
-        currentRevision: () => RenderRevision, signal?: AbortSignal): DeclarationStylesheetPatchResult {
+        currentRevision: () => RenderRevision, signal?: AbortSignal,
+        instanceStyles?: PreparedInstanceStylesheets): DeclarationStylesheetPatchResult {
         let started = false;
         let applied = false;
         let revision: string | undefined;
@@ -274,6 +277,7 @@ export class DeclarationStyleOwnership {
                 const live = this.publishGroup(entries, {
                     check: element => {
                         if (nested || signal?.aborted || !element || patch.container !== element) return false;
+                        if (instanceStyles && (instanceStyles.element !== element || !instanceStyles.check())) return false;
                         try {
                             const current = currentRevision();
                             const result = patch.check(current);
@@ -285,6 +289,7 @@ export class DeclarationStyleOwnership {
                     start: () => { started = true; },
                     commit: () => {
                         if (signal?.aborted) return;
+                        if (instanceStyles && !instanceStyles.commit()) return;
                         const result = patch.commit(currentRevision());
                         diagnostics = result.diagnostics;
                         applied = result.status === 'applied';
@@ -294,7 +299,10 @@ export class DeclarationStyleOwnership {
             });
             if (started && revision !== renderRevisionKey(currentRevision())) applied = false;
         } catch (error) { errors.push(error); }
-        finally { patch.cancel(); }
+        finally {
+            patch.cancel();
+            if (!started) instanceStyles?.cancelPreparation();
+        }
         const live = entries.every(entry => {
             const state = leases.get(entry.lease);
             const element = state?.consumer.element.deref();
@@ -304,6 +312,7 @@ export class DeclarationStyleOwnership {
                 && state.owner.consumers.has(state.consumer) && !entry.lease.signal.aborted && entry.isCurrent?.() !== false;
         });
         return { status: started ? applied && live && !signal?.aborted && errors.length === 0
+            && (!instanceStyles || instanceStyles.isPublished())
             ? 'applied' : 'recovery-required' : 'rejected', diagnostics, errors };
     }
 

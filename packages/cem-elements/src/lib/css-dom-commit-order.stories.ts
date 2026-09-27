@@ -5,6 +5,7 @@ import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from './d
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 import { deferStylesheetNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import { prepareRetainedStylesheets, type CemPreparedStylesheets } from './internal/runtime-support/stylesheet-installation.js';
+import { prepareInstanceStylesheets, type PreparedInstanceStylesheets } from './internal/runtime-support/instance-stylesheet-installation.js';
 import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange,
     renderPlanIdentity, type RenderPlan } from './projection.js';
 
@@ -29,6 +30,7 @@ function publicationStory(orders: readonly string[]): Story { return {
             let onMarker: (() => void) | undefined;
             let onConnect: (() => void) | undefined;
             const released: string[] = [];
+            const instanceObservations: string[] = [];
             const observe = (callback: string) => {
                 if (recording) observed.push({ callback, text: host.querySelector('[data-content]')?.textContent ?? '',
                     asset: getComputedStyle(host).getPropertyValue('--asset') });
@@ -38,13 +40,18 @@ function publicationStory(orders: readonly string[]): Story { return {
                 attributeChangedCallback() { observe('marker'); const callback = onMarker; onMarker = undefined; callback?.(); }
             });
             customElements.define(childTag, class extends HTMLElement {
-                connectedCallback() { observe('connected'); const callback = onConnect; onConnect = undefined; callback?.(); }
+                connectedCallback() {
+                    observe('connected');
+                    instanceObservations.push(getComputedStyle(host).getPropertyValue('--instance').trim());
+                    const callback = onConnect; onConnect = undefined; callback?.();
+                }
             });
             const host = document.createElement(tag); root.append(host);
             const bounds = { start: document.createComment('start'), end: document.createComment('end') };
             host.append(bounds.start, bounds.end);
             const releases: Promise<unknown>[] = [];
             const preparations: CemPreparedStylesheets[] = [];
+            const instancePreparations: PreparedInstanceStylesheets[] = [];
             try {
                 const { artifact } = await native.compile(tag, [{ css: ':host { --asset: url(asset); }', scope: null }]);
                 const candidate = async (variant: string): Promise<DeclarationStylesheetCommit> => {
@@ -87,13 +94,41 @@ function publicationStory(orders: readonly string[]): Story { return {
                 old.lease.signal.addEventListener('abort', () => observe('abort'), { once: true });
                 applyRenderPlanToRange(bounds, before, document);
                 const css = await candidate('new');
+                let instanceStyles: PreparedInstanceStylesheets | undefined;
+                let instanceStyleNode: HTMLStyleElement | null = null;
+                if (order.startsWith('instance-')) {
+                    const prepare = (value: string, empty = false) => {
+                        const result = prepareInstanceStylesheets({ host: native.host, element: host, instanceId: 'instance',
+                            context: nativeCssStoryContext, baseUrl: 'https://example.test/',
+                            sources: empty ? [] : [{ css: `:host { --instance: ${value}; }`, scope: null }],
+                            artifactId: `instance-${value}`, scopePolicyStamp: 'native-story', signal: new AbortController().signal,
+                            read: async () => { throw new Error('unexpected instance import'); } });
+                        instancePreparations.push(result);
+                        return result;
+                    };
+                    const active = prepare('old');
+                    expect(await active.ready).toMatchObject({ status: 'prepared' });
+                    expect(active.commit()).toBe(true);
+                    instanceStyleNode = host.querySelector('style[data-cem-instance-style]');
+                    instanceStyles = prepare('new', order === 'instance-clear');
+                    expect(await instanceStyles.ready).toMatchObject({ status: 'prepared' });
+                    expect(instanceStyles.check()).toBe(true);
+                    expect(getComputedStyle(host).getPropertyValue('--instance').trim()).toBe('old');
+                    if (order === 'instance-reused') instanceStyles = active;
+                }
                 let patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), renderPlanIdentity(after), document);
                 expect(patch.check(renderPlanIdentity(after)).status).toBe('ready');
                 recording = true;
                 if (!['css-first', 'dom-first', 'deferred-cleanup'].includes(order)) {
                     const controller = new AbortController();
                     let current = renderPlanIdentity(after);
-                    if (order === 'reject-patch' || order === 'prepared-rejected') patch.cancel();
+                    if (['reject-patch', 'prepared-rejected', 'instance-rejected'].includes(order)) patch.cancel();
+                    if (order === 'instance-disposed') instanceStyles?.dispose();
+                    if (order === 'instance-invalidated') onMarker = () => instanceStyles?.dispose();
+                    if (order === 'instance-failure') onMarker = () => {
+                        const append = host.append;
+                        host.append = () => { host.append = append; throw new Error('instance publication fixture'); };
+                    };
                     if (order === 'reject-css') css.outputs = [...css.outputs, ...css.outputs];
                     if (order === 'cancel-before') controller.abort();
                     if (order === 'cancel-during') onMarker = () => controller.abort();
@@ -111,18 +146,28 @@ function publicationStory(orders: readonly string[]): Story { return {
                         applyRenderPlanToRange(range, before, document);
                         patch = preparePatchFramesForRange(range, diffRenderPlansToPatchFrames(before, after), current, document);
                     }
-                    const commit = () => DeclarationStyleOwnership.commitGroupWithPatch([css], patch, () => current, controller.signal);
+                    const commit = () => DeclarationStyleOwnership.commitGroupWithPatch([css], patch, () => current, controller.signal, instanceStyles);
                     const result = order === 'nested' ? deferStylesheetNotifications(commit) : commit();
                     const rejected = ['reject-patch', 'reject-css', 'cancel-before', 'foreign-host', 'nested',
-                        'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released'].includes(order);
-                    const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child', 'prepared-joint'].includes(order);
-                    expect(result.status).toBe(rejected ? 'rejected' : ['joint', 'prepared-joint'].includes(order) ? 'applied' : 'recovery-required');
+                        'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released',
+                        'instance-rejected', 'instance-disposed', 'instance-reused'].includes(order);
+                    const completed = ['joint', 'cleanup-error', 'supersede-child', 'disconnect-child', 'prepared-joint',
+                        'instance-joint', 'instance-clear'].includes(order);
+                    expect(result.status).toBe(rejected ? 'rejected' : ['joint', 'prepared-joint', 'instance-joint', 'instance-clear'].includes(order) ? 'applied' : 'recovery-required');
                     expect(host.querySelector('[data-content]')?.textContent).toBe(completed ? 'After' : 'Before');
                     if (order !== 'disconnect-child') expect(getComputedStyle(host).getPropertyValue('--asset')).toContain(rejected ? '/old.svg' : '/new.svg');
                     expect(old.lease.signal.aborted).toBe(!rejected);
                     expect(released).toEqual([rejected ? 'new' : 'old']);
                     expect(patch.check(current).status).toBe('aborted');
-                    expect(result.errors.length).toBe(order === 'cleanup-error' ? 1 : 0);
+                    expect(result.errors.length).toBe(['cleanup-error', 'instance-failure'].includes(order) ? 1 : 0);
+                    if (instanceStyles) {
+                        const expected = order === 'instance-clear' ? '' : ['instance-joint', 'instance-failure'].includes(order) ? 'new' : 'old';
+                        expect(getComputedStyle(host).getPropertyValue('--instance').trim()).toBe(expected);
+                        expect(host.querySelector('style[data-cem-instance-style]')).toBe(order === 'instance-clear' ? null : instanceStyleNode);
+                        expect(instanceStyles.isPublished()).toBe(completed);
+                        expect(instanceStyles.check()).toBe(false);
+                        if (completed) expect(instanceObservations).toEqual([expected]);
+                    }
                     if (completed && order !== 'disconnect-child') for (const callback of ['release', 'abort', 'connected']) {
                         expect(observed).toContainEqual({ callback, text: 'After', asset: expect.stringContaining('/new.svg') });
                     }
@@ -155,6 +200,7 @@ function publicationStory(orders: readonly string[]): Story { return {
                 expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
             } finally {
                 recording = false; scope.dispose(); await Promise.all(preparations.map(prepared => prepared.dispose()));
+                for (const prepared of instancePreparations) prepared.dispose();
                 await Promise.all(releases); native.dispose(); root.replaceChildren();
             }
         }
@@ -169,4 +215,7 @@ export const JointAdmissionAndRecovery = publicationStory([
 ]);
 export const PreparedLoadsJoinPublication = publicationStory([
     'prepared-joint', 'prepared-rejected', 'prepared-disposed', 'prepared-invalid', 'prepared-released',
+]);
+export const InstanceStylesJoinPublication = publicationStory([
+    'instance-joint', 'instance-clear', 'instance-rejected', 'instance-disposed', 'instance-invalidated', 'instance-reused', 'instance-failure',
 ]);
