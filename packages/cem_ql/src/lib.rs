@@ -19,6 +19,7 @@ pub mod lexer;
 pub mod native;
 pub mod parser;
 pub mod render;
+pub mod retained_template;
 pub mod resolve;
 pub mod semantic;
 pub mod stdlib;

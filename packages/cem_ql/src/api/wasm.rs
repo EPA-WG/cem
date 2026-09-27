@@ -24,10 +24,7 @@ mod values;
 mod xpath_functions;
 mod xslt_bundle;
 
-struct RetainedTemplate {
-    artifact: TemplateArtifact,
-    data_readers: crate::eval::DataReaderCache,
-}
+use crate::retained_template::RetainedTemplate;
 
 thread_local! {
     static ARTIFACTS: RefCell<Vec<Option<RetainedTemplate>>> = const { RefCell::new(Vec::new()) };
@@ -294,8 +291,8 @@ pub fn wasm_render_template(artifact_id: u32, data_json: &str) -> String {
                 format!("template artifact `{artifact_id}` is not registered"),
             );
         };
-        data.data_readers = artifact.data_readers.clone();
-        plan_json(&render_compiled_template(&artifact.artifact, &data)).to_string()
+        data.data_readers = artifact.data_readers().clone();
+        plan_json(&render_compiled_template(artifact.artifact(), &data)).to_string()
     })
 }
 
@@ -367,10 +364,7 @@ fn parse_source_map_mode(input: &str) -> Result<TemplateArtifactSourceMapMode, S
 fn retain_artifact(artifact: TemplateArtifact) -> u32 {
     ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
-        artifacts.push(Some(RetainedTemplate {
-            artifact,
-            data_readers: Default::default(),
-        }));
+        artifacts.push(Some(RetainedTemplate::new(artifact)));
         artifacts.len() as u32
     })
 }

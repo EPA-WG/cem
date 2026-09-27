@@ -1269,3 +1269,45 @@ without a fingerprint still require host-driven cancellation on context changes
 and cannot produce a context-dependent cache key. Browser integration must also
 check context liveness before committing a marker or style set; these native
 checks do not install or dispose browser styles.
+
+## Retained template stylesheet collection (native)
+
+`cem_ql::retained_template::RetainedTemplate` is now the owner stored in the
+processing host's WASM template registry. It keeps the existing template and
+reader cache alongside derived stylesheet records. Dropping a template handle
+through `disposeTemplate` drops this owner and invalidates its output handles.
+
+`retain_stylesheet` accepts a ready native closure, an admitted declaration
+scope, stable declaration identity, style occurrence index and consumer identity.
+The root tree must be the same retained tree owned by that template occurrence;
+equal text in an unrelated tree is insufficient. Explicit authored shared scopes
+must agree with the effective scope, and declaration artifacts cannot be admitted
+as instance styles. Each retained record owns the closure, emitted fragments,
+diagnostics and the derived identity; imported node IDs therefore retain their
+native source owners.
+
+Matching cache keys share one `Arc` record. Different contexts or occurrences
+remain separate. A consumer can retain multiple occurrences. Replacing one
+occurrence releases its old record only when no other registered consumer needs
+it. Invalid input leaves that consumer's current binding intact. The incoming
+closure and reused output must both remain active before publication.
+
+Releasing the last registered consumer removes the collection's strong reference
+and invalidates outstanding output handles. Template disposal does the same for
+all records. Accessing emitted CSS checks this lifetime token and the source
+closure's cancellation/context state. Existing external references can keep
+native memory alive until dropped, but cannot read installable output after
+release. Reconnect creates a fresh output handle from an active source closure;
+release does not cancel a source closure shared with another operation.
+
+Native fixtures cover sharing, context isolation, replacement, multiple style
+occurrences, imported source/diagnostic retention, wrong roots, pending/cancelled
+closures, authored scope mismatch, reconnect and disposal. WASM rendering still
+uses the same artifact and reader cache through accessors.
+
+This introduces no browser CSS compiler cutover. The native collection is attached
+to the real WASM artifact owner, but browser processing operations do not yet
+populate it. Next, expose begin/delivery/retain/release operations through the
+shared processing host, carrying loader-validated bytes and explicit control
+metadata. Keep CSS trees native and return emitted CSS/identity/diagnostics only
+at the output boundary; then connect context-specific browser installation.

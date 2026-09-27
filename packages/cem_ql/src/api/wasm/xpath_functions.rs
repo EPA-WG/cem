@@ -146,7 +146,7 @@ pub fn render_template_with_native_values(
                 "template artifact is not registered",
             );
         };
-        data.data_readers = artifact.data_readers.clone();
-        plan_json_with_limits(&render_compiled_template(&artifact.artifact, &data), &limits).to_string()
+        data.data_readers = artifact.data_readers().clone();
+        plan_json_with_limits(&render_compiled_template(artifact.artifact(), &data), &limits).to_string()
     })
 }

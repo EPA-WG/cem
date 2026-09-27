@@ -6080,10 +6080,17 @@ registration identities may reuse an inherited or existing definition.
               Completed: 31 native ownership/import checks, Nx lint (existing
               warnings) and rebuilt WASM/browser gate pass. Root and imported
               resolution calls are checked before their results become visible.
-        - [ ] Fixture: retain effective CSS identities and emitted sets under the
+        - [x] Fixture: retain effective CSS identities and emitted sets under the
               native processing-host artifact lifecycle; share matching contexts,
               isolate different contexts and release derived owners on disposal
               before replacing browser string-based compilation.
+              Completed: 16 native retention/reload tests, Nx lint/reload checks,
+              combined WASM build and both template/native-value WASM regressions
+              pass. Browser operations do not populate the collection yet.
+        - [ ] Fixture: connect processing-host CSS begin/delivery/retain/release
+              operations to the retained native template collection and shared
+              loader byte policy; verify stale handles, consumer release and
+              template disposal through real WASM without serialized CSS trees.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
