@@ -1229,7 +1229,7 @@ and settles cancellation even if a reader ignores its abort signal. Cleanup uses
 exact load generations and accounts for worker replacement. Browser fixtures use
 real worker/fallback hosts for redirects, map snapshots, disposal, reconnect and
 reuse of existing DOM content. The main runtime uses this coordinator when
-`retainedStylesheets: { read }` is configured; default cutover remains pending.
+`retainedStylesheets: {}` is configured; default cutover remains pending.
 
 `CemStylesheetRegistry` now routes registered native source handles to connected
 consumers. Private occurrences match effective declaration identity; shared
@@ -1258,8 +1258,15 @@ keeps them inside their rendered branch; an XSLT component's empty declaration
 stylesheet collection is intentional. Do not hoist result styles or introduce
 declaration CSS handles merely to replace the XSLT render adapter's sentinel ID.
 
-Next, supply the default bounded byte transport and exercise the authored CSS
-demos through this runtime path before enabling the default compiler. The runtime
+The default browser reader preserves the response URL and content type, rejects
+HTTP failures and cancels body reads on abort. It buffers at most the native
+16 MiB response limit plus one excess byte, then cancels the stream. Native
+admission diagnoses that excess byte with `cem.css.import_byte_limit`; oversized
+responses are never accepted as truncated stylesheets. Hosts may override the
+reader with `retainedStylesheets: { read }`.
+
+Next, exercise the authored CSS demos through this runtime path before enabling
+the default compiler. The runtime
 fixtures cover nested module maps, context replacement and hydration. Instance
 styles still require their own retained ownership path;
 the declaration protocol deliberately rejects instance scope. The remaining syntax
@@ -1443,5 +1450,6 @@ WASM protocol fixture, including source-located suppression diagnostics.
 Processing-engine and host tests cover shared compilation,
 root disposal, stale handles, fallback and late cancellation. The installation
 coordinator now drives these operations with caller-supplied byte transport,
-including native failure reporting. Main runtime readiness routing is available
-through the opt-in reader; default byte transport and compiler cutover remain pending.
+including native failure reporting. Main runtime readiness routing and bounded
+default byte transport are available through the opt-in configuration; compiler
+cutover remains pending.

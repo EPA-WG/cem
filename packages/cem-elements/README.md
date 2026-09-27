@@ -29,8 +29,14 @@ revive disposed processing scopes. See the
 [registration lifecycle](../../docs/cem-element-design.md).
 
 Native declaration CSS can be enabled with
-`new CemElementRuntime({ retainedStylesheets: { read } })` while the default
-compiler migration remains pending. `read(request, signal)` receives the native
+`new CemElementRuntime({ retainedStylesheets: {} })` while the default
+compiler migration remains pending. The default browser reader checks HTTP status,
+honors cancellation and buffers at most the native 16 MiB limit plus one byte
+for native oversize diagnostics. It passes the actual final URL and content type
+to native admission.
+
+Hosts can override transport with `retainedStylesheets: { read }`.
+`read(request, signal)` receives the native
 resolved URL, request ID, content-type hint and integrity metadata. It returns
 `{ bytes: ArrayBuffer, finalUrl, contentType }`; native import validates the
 response and resolves nested imports and resource URLs. The reader should honor

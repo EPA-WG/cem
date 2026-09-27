@@ -96,6 +96,7 @@ import {
 import { DeclarationStyleOwnership, reconcileStylesheetContextMarker } from './declaration-style-ownership.js';
 import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
+import { readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
     type CemEdgeSsrHostOperation,
@@ -643,9 +644,10 @@ export interface CemElementRuntimeOptions {
     /**
      * Opt into retained native declaration CSS while compiler/instance cutover gates
      * remain open. Transport returns bytes and response metadata; native import
-     * owns CSS parsing, URL resolution and admission. XSLT result styles are separate.
+     * owns CSS parsing, URL resolution and admission. Defaults to bounded browser
+     * fetch; XSLT result styles are separate.
      */
-    retainedStylesheets?: { read: CemStylesheetInstallationOptions['read'] };
+    retainedStylesheets?: { read?: CemStylesheetInstallationOptions['read'] };
     /** Phase 3B bounds for the lazily allocated, fair root-scope worker pool. */
     processingPoolPolicy?: CemProcessingPoolPolicy;
     /** Optional build/service-worker-compatible store for immutable template artifacts. */
@@ -2953,7 +2955,8 @@ export class CemElementRuntime {
             }
             stylesheetRegistry(compiled.declarationElement.ownerDocument).register({
                 declaration: compiled, scope: compiled.declarationScope, ownership: styleOwnership(compiled),
-                host: this.processingHost(compiled), artifact, occurrences, baseUrl: compiled.resourceBaseUrl, read: transport.read,
+                host: this.processingHost(compiled), artifact, occurrences, baseUrl: compiled.resourceBaseUrl,
+                read: transport.read ?? readRetainedStylesheet,
             });
         })().catch(error => {
             // A failed source compilation may be retried on a later connection.

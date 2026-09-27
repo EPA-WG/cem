@@ -5,7 +5,7 @@ import { createCemDeclarationScope } from './declaration-scope.js';
 
 export default { title: 'CEM Elements/Retained Stylesheet Runtime', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
-type Reader = NonNullable<CemElementRuntimeOptions['retainedStylesheets']>['read'];
+type Reader = NonNullable<NonNullable<CemElementRuntimeOptions['retainedStylesheets']>['read']>;
 function response(css: string) {
     return { bytes: new TextEncoder().encode(css).buffer, finalUrl: 'https://example.test/cdn/child.css', contentType: 'text/css' };
 }
@@ -15,7 +15,7 @@ function held() {
     return { promise, resolve };
 }
 let sequence = 0;
-function fixture(root: HTMLElement, fallback: boolean, read: Reader) {
+function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
     const parent = createCemDeclarationScope({ document });
     const scope = createCemDeclarationScope({ document, parent });
     const suffix = `native-${++sequence}-${fallback ? 'fallback' : 'worker'}`;
@@ -208,5 +208,64 @@ export const AncestorDisposalStopsPendingRender: Story = {
                 expect(instance.hasAttribute('data-cem-css-context')).toBe(false);
             } finally { f.dispose(); }
         }
+    },
+};
+
+export const DefaultBrowserByteTransport: Story = {
+    render: () => '<section aria-label="Runtime default CSS byte transport"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing default transport fixture');
+        const url = new URL('./retained-stylesheet-runtime-fixture.css?direct', import.meta.url).href;
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('fetched-card', `${css(`@import "${url}";`)}{p | Fetched}`);
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('p')?.textContent).toBe('Fetched');
+                expect(getComputedStyle(instance).getPropertyValue('--default-reader').trim()).toBe('loaded');
+                expect(f.runtime.diagnosticsFor(instance)).toEqual([]);
+                expect(declaration.declaration.querySelectorAll('style[data-cem-declaration-style]')).toHaveLength(1);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const DefaultReaderPreservesNativeByteDiagnostic: Story = {
+    render: () => '<section aria-label="Default CSS reader native byte limit"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing byte limit fixture');
+        const original = globalThis.fetch;
+        const url = 'https://example.test/oversized-stylesheet-fixture.css';
+        let cancellations = 0;
+        globalThis.fetch = async (input, init) => {
+            if (input !== url) return original(input, init);
+            const response = new Response(new ReadableStream<Uint8Array>({
+                pull(controller) { controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 100)); },
+                cancel() { cancellations++; },
+            }), { headers: { 'content-type': 'text/css' } });
+            Object.defineProperty(response, 'url', { value: url });
+            return response;
+        };
+        try {
+            for (const fallback of [false, true]) {
+                const f = fixture(root, fallback);
+                try {
+                    const declaration = f.declare('oversized-card', `${css(`@import "${url}";`)}{p | Independent content}`);
+                    await declaration.ready;
+                    const instance = document.createElement(declaration.tag); root.append(instance);
+                    await f.runtime.whenRenderSettled(instance);
+                    expect(instance.querySelector('p')?.textContent).toBe('Independent content');
+                    expect(f.runtime.diagnosticsFor(instance)).toEqual(expect.arrayContaining([expect.objectContaining({
+                        code: 'cem.css.import_byte_limit', offset: 1, stylesheetUrl: document.baseURI,
+                    })]));
+                    expect(declaration.declaration.querySelectorAll('style[data-cem-declaration-style]')).toHaveLength(0);
+                } finally { f.dispose(); }
+            }
+            expect(cancellations).toBe(2);
+        } finally { globalThis.fetch = original; }
     },
 };

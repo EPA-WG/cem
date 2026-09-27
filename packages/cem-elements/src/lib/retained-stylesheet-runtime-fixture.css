@@ -1,0 +1,2 @@
+/* Byte-transport fixture: fetched by the runtime story, never installed globally. */
+:host { --default-reader: loaded; }

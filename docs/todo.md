@@ -6223,10 +6223,18 @@ registration identities may reuse an inherited or existing definition.
               validate reconnect/hydration before enabling runtime installation.
               Completed through `retainedStylesheets: { read }`; default transport
               and compiler cutover remain gated separately.
-        - [ ] Fixture: provide bounded default byte transport for retained CSS;
+        - [x] Fixture: provide bounded default byte transport for retained CSS;
               preserve final URL/content type, reject HTTP failures, cancel body
               reads on abort and pass oversize responses to native byte admission
               without buffering the entire response. Verify default runtime wiring.
+              Completed: 545 unit tests and 279 browser stories pass, including
+              real-file loading and native oversize diagnostics in worker/fallback
+              modes. Typecheck and lint pass (two existing warnings). Browser test
+              and Storybook build cache inputs now include the CSS fixture asset.
+        - [ ] Fixture: run the authored scoped-CSS demos through opt-in retained
+              runtime installation; compare containment, shared membership,
+              animation identity and diagnostics, then isolate any remaining
+              compiler gaps as native fixtures before default cutover.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
