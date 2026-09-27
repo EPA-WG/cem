@@ -6392,11 +6392,22 @@ registration identities may reuse an inherited or existing definition.
           Both browser lanes pass all 285 cases.
           Also verified: 552 unit tests, 32 Edge unit tests, 8 Edge browser
           stories, typecheck and lint (two existing warnings).
-    - [ ] Fixture: add native stylesheet adoption/loading to the Edge host with
-          consuming module contexts and persisted instance identities; verify
-          imported CSS placement, readiness, cancellation and browser hydration
-          without duplicate payload styles or renamed animations before removing
-          the retained-policy capability guard.
+    - [x] Fixture: include explicit declaration/shared stylesheet batches in async
+          initial SSR responses; snapshot their source/context before awaits,
+          await all imports and safe serialization before committing state, and
+          verify cancellation and independent native diagnostics.
+          Completed: protocol v12 returns declaration sidecars with stable owner
+          identities and consuming context markers. Private/shared/instance CSS
+          survives real browser hydration in worker and fallback modes with the
+          same style nodes, computed styles and animation names. Callers still
+          supply extracted render sources and select/place declaration batches.
+          Verification: 552 unit tests, 285 browser cases, 36 Edge unit tests,
+          9 Edge browser cases, typecheck and lint pass (two existing warnings).
+    - [ ] Fixture: support retained native CSS in streamed Edge updates. Preserve
+          unchanged declaration/instance styles outside patch-owned render ranges;
+          define and verify atomic CSS replacement when payloads or consuming
+          contexts change, including cancellation, stale updates and browser
+          ownership cleanup before removing the update capability guard.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after

@@ -1408,7 +1408,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v11` `stylesheet` operation populates this collection
+The `cem-processing-host-v12` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1500,7 +1500,7 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-Processing-host protocol v11 carries `instanceStylesheetIdentity` only for CSS
+Processing-host protocol v12 carries `instanceStylesheetIdentity` only for CSS
 source adoption. The identity is part of the native compilation cache key and
 same-artifact reuse checks. Instance loads pass this fixed identity through the
 WASM control boundary; declaration loads retain their registration identity.
@@ -1633,8 +1633,8 @@ below. Streamed updates and declaration/shared placement remain separate gates.
 using the initialized bindings, byte reader, base URL and consuming module context
 supplied by the host. It validates and copies the request before awaiting imports,
 extracts inert payload source strings, and loads them under the snapshot's persisted
-instance ID. Declaration/shared styles remain the surrounding host adapter's
-responsibility; this fixture does not discover declaration sources.
+instance ID. The surrounding host adapter selects declaration/shared sources and
+their consuming contexts; this fixture does not discover declaration sources.
 
 Protocol v11 adds optional `instanceStylesheetHtml` to the initial response.
 Adapters place this string as direct produced-host children after the render-end
@@ -1656,6 +1656,18 @@ paragraph and direct style node survive, exactly one instance stylesheet remains
 and emitted CSS and animation names match. The server context must preserve the
 browser's resolver identity as well as its maps and base URL.
 
+Protocol v12 adds optional `declarationStylesheets` to the initial response.
+Pass explicit `declarations` batches to the async fixture with each source owner's
+stable registration identity, tag, sources, base URL and consuming context. The
+fixture copies all batches before awaiting work, loads and serializes every batch
+before committing render state, and returns each batch's declaration identity,
+tag, HTML and context marker. Native diagnostics from all batches remain in the
+response; independently valid occurrences still produce output. Cancellation or
+unsafe HTML in any batch returns no partial response and writes no render state.
+The render source supplied by the adapter must already exclude extracted static
+declaration styles. Instance and declaration sidecars remain outside the owned
+render range and its retained render plan.
+
 ### Declaration stylesheet markup for SSR
 
 `loadEdgeStylesheets` returns each admitted occurrence's scope alongside its
@@ -1676,5 +1688,7 @@ This avoids duplicate installation while preserving the normal import-readiness
 gate; it does not skip browser native compilation or import loading.
 
 The surrounding SSR adapter still selects declaration sources and consuming
-contexts. Initial-response declaration batching and streamed native updates
-remain separate integration work.
+contexts and places each returned batch under its matching owner. Browser
+worker/fallback fixtures verify private and shared initial-response sidecars
+survive hydration with the same style nodes and computed styles. Streamed native
+updates remain separate integration work.

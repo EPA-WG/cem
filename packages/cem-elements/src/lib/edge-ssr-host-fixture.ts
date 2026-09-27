@@ -1,4 +1,5 @@
 import { loadEdgeStylesheets, type EdgeStylesheetLoadOptions, type EdgeStylesheetOutput } from './edge-ssr-stylesheets.js';
+import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
 import type {
     DataIslandSnapshot,
     SerializedPayloadElement,
@@ -34,6 +35,7 @@ import {
     type CemEdgeSsrHostSuccessEnvelope,
     type CemEdgeSsrPreviousRenderPlan,
     type CemEdgeSsrRenderInput,
+    type CemEdgeSsrInitialRenderResult,
     type CemEdgeSsrTemplateInput,
 } from './edge-ssr-host.js';
 
@@ -85,29 +87,51 @@ export function executeNonBrowserSsrInitialRenderFixture(
     return renderInitialFixture(request, store);
 }
 
-/** Native payload CSS path. Declaration/shared styles remain owned by the host adapter. */
+export interface NativeSsrStylesheetOptions extends Omit<EdgeStylesheetLoadOptions, 'owner' | 'sources'> {
+    /** Caller-selected declaration/context batches, including any shared source declarations. */
+    declarations?: Array<Pick<EdgeStylesheetLoadOptions, 'sources' | 'context' | 'baseUrl'> & {
+        owner: Extract<EdgeStylesheetLoadOptions['owner'], { kind: 'declaration' }>;
+    }>;
+}
+
+/** Native CSS path. The host adapter owns source discovery and sidecar placement. */
 export async function executeNativeSsrInitialRenderFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
     store: EdgeRenderStateStore,
-    stylesheets: Omit<EdgeStylesheetLoadOptions, 'owner' | 'sources'>,
+    stylesheets: NativeSsrStylesheetOptions,
 ): Promise<NonBrowserSsrInitialRenderFixtureResult> {
     const failure = initialRenderInputFailure(request);
     if (failure) return failure;
     const owned = structuredClone(request);
+    const signal = stylesheets.signal;
     try {
-        stylesheets.signal.throwIfAborted();
+        signal.throwIfAborted();
         if (!owned.payload.snapshot.scopePolicyStamp.split(':').includes('retained-instance-css')) {
             return renderInitialFixture(owned, store);
         }
-        const instanceStyles = await loadEdgeStylesheets({ ...stylesheets,
+        const { baseUrl, context, declarations } = structuredClone({
+            baseUrl: stylesheets.baseUrl, context: stylesheets.context, declarations: stylesheets.declarations,
+        });
+        const capabilities = { native: stylesheets.native, read: stylesheets.read, signal };
+        const instanceStyles = await loadEdgeStylesheets({ ...capabilities, baseUrl, context,
             owner: { kind: 'instance', identity: owned.payload.snapshot.instanceId },
             sources: payloadStylesheetSources(owned.payload.snapshot.payload),
         });
-        stylesheets.signal.throwIfAborted();
-        return renderInitialFixture(owned, store, instanceStyles);
+        const declarationStylesheets: CemEdgeSsrInitialRenderResult['declarationStylesheets'] = declarations === undefined ? undefined : [];
+        for (const declaration of declarations ?? []) {
+            const loaded = await loadEdgeStylesheets({ ...capabilities, ...declaration });
+            const serialized = serializeDeclarationStylesheets(loaded.styles.map(style => {
+                if (style.scope.kind === 'instance') throw new TypeError('expected declaration stylesheet scope');
+                return { index: style.index, scope: style.scope, output: style };
+            }));
+            declarationStylesheets?.push({ declarationIdentity: declaration.owner.identity, tag: declaration.owner.tag, ...serialized });
+            instanceStyles.diagnostics.push(...loaded.diagnostics);
+        }
+        signal.throwIfAborted();
+        return renderInitialFixture(owned, store, instanceStyles, declarationStylesheets);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (stylesheets.signal.aborted) {
+        if (signal.aborted) {
             return createCemEdgeSsrHostFailureEnvelope(owned, 'cancelled', 'cancelled',
                 [fixtureDiagnostic('cem.edge_ssr.stylesheet_cancelled', message)]);
         }
@@ -148,6 +172,7 @@ function renderInitialFixture(
     request: CemEdgeSsrHostRequestEnvelope<'render-initial'>,
     store: EdgeRenderStateStore,
     instanceStyles?: EdgeStylesheetOutput,
+    declarationStylesheets?: CemEdgeSsrInitialRenderResult['declarationStylesheets'],
 ): NonBrowserSsrInitialRenderFixtureResult {
     const failure = initialRenderInputFailure(request);
     if (failure) return failure;
@@ -240,6 +265,7 @@ function renderInitialFixture(
             kind: 'initial-render',
             renderedHtml,
             ...(instanceStylesheetHtml === undefined ? {} : { instanceStylesheetHtml }),
+            ...(declarationStylesheets === undefined ? {} : { declarationStylesheets }),
             hydrationData: {
                 kind: 'cem-ssr-hydration-v1',
                 snapshot,

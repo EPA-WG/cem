@@ -93,6 +93,14 @@ export interface CemEdgeSsrInitialRenderResult {
     renderedHtml: string;
     /** Direct host style children to place after the render-end marker, outside renderedHtml. */
     instanceStylesheetHtml?: string;
+    /** One explicit declaration/context batch; adapters place html under the owning declaration. */
+    declarationStylesheets?: Array<{
+        declarationIdentity: string;
+        tag: string;
+        html: string;
+        /** Apply to consuming produced hosts, preserving their shared scope membership. */
+        contextMarker: string | null;
+    }>;
     hydrationData: CemSsrHydrationData;
     renderState: EdgeRenderStateRecord;
     diagnostics: CemProcessingDiagnostic[];

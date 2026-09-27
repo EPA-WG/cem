@@ -1,5 +1,5 @@
 import { expect, waitFor } from 'storybook/test';
-import { CemElementRuntime, exportDataIslandSnapshotForEdge, writeDataIslandHydrationData } from './cem-elements.js';
+import { CemElementRuntime, analyzeDeclarationRegistrationIdentity, exportDataIslandSnapshotForEdge, writeDataIslandHydrationData } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { createBrowserModuleUrlContext, createBrowserModuleUrlRoot } from './internal/runtime-support/module-url-resolution.js';
 import { executeNativeSsrInitialRenderFixture } from './edge-ssr-host-fixture.js';
@@ -35,89 +35,140 @@ export const BrowserToEdgeSnapshotPrivacyPolicy: Story =
 export const EdgeRenderStateHybridStorageModel: Story =
     edgeSsrStories.EdgeRenderStateHybridStorageModel;
 
-export const NativePayloadStylesFromInitialSsr: Story = {
-    render: () => '<section aria-label="Native SSR payload stylesheet hydration"></section>',
-    play: async ({ canvasElement }) => {
-        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
-        const root = canvasElement.querySelector('section');
-        if (!root) throw new Error('missing SSR fixture');
-        for (const fallback of [false, true]) {
-            const scope = createCemDeclarationScope({ document });
-            const tag = `native-ssr-${fallback ? 'fallback' : 'worker'}`;
-            const importedCss = 'p {color:rgb(1,2,3);animation:pulse 20s infinite} @keyframes pulse {from{opacity:.5}to{opacity:1}}';
-            const bytes = new TextEncoder().encode(importedCss).buffer;
-            const response = { bytes, finalUrl: new URL('./ssr-child.css', document.baseURI).href, contentType: 'text/css' };
-            let reads = 0;
-            let release: () => void = () => undefined;
-            const gate = new Promise<void>(resolve => { release = resolve; });
-            const runtime = new CemElementRuntime({ declarationTag: `declaration-${tag}`, declarationScope: scope,
-                moduleUrlRoot: { baseUrl: document.baseURI, importMap: {} },
-                retainedStylesheets: { read: async () => { reads++; await gate; return response; } },
-                processingWorkerFactory: request => {
-                    if (fallback) throw new Error('forced fallback');
-                    return new Worker(request.scriptUrl, { type: request.type, name: request.name });
-                },
-            });
-            try {
-                const declaration = document.createElement('div');
-                declaration.setAttribute('tag', tag); declaration.setAttribute('version', '1.0.0');
-                const template = document.createElement('template'); template.innerHTML = '<p>Server content</p>';
-                declaration.append(template); root.append(declaration);
-                runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
-                const authored = document.createElement(tag);
-                authored.setAttribute('data-cem-render-scope', `server-${tag}`);
-                authored.innerHTML = '<template><style>@import "./ssr-child.css";</style></template>';
-                const snapshot = runtime.snapshotInstance(authored);
-                const rootContext = createBrowserModuleUrlRoot(document, snapshot.scopePolicyStamp,
-                    { baseUrl: document.baseURI, importMap: {} });
-                const context = createBrowserModuleUrlContext(rootContext.context, 'server', document.baseURI,
-                    `document:${document.baseURI}`, snapshot.scopePolicyStamp).wire;
-                const exported = exportDataIslandSnapshotForEdge(snapshot, { fields: {
-                    hostAttributes: 'allow', dataset: 'allow', payload: 'allow', slices: 'allow', formData: 'allow',
-                    validationState: 'allow', eventPayloads: 'allow',
-                } });
-                const request = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-initial', {
-                    template: { kind: 'serialized-template-source-v1', templateArtifactId: snapshot.templateArtifactId,
-                        source: readTemplateSource(template.content) },
-                    snapshot: exported, scopeUid: `server-${tag}`, sourceMapMode: 'dev',
-                    revision: { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
-                        templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
-                        outputTarget: snapshot.outputTarget, renderAttempt: snapshot.renderAttempt },
+export const NativePayloadStylesFromInitialSsr = nativeInitialStylesStory(false);
+export const NativeDeclarationStylesFromInitialSsr = nativeInitialStylesStory(true);
+
+function nativeInitialStylesStory(includeDeclarations: boolean): Story {
+    return {
+        render: () => '<section aria-label="Native SSR payload stylesheet hydration"></section>',
+        play: async ({ canvasElement }) => {
+            await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+            const root = canvasElement.querySelector('section');
+            if (!root) throw new Error('missing SSR fixture');
+            for (const fallback of [false, true]) {
+                const scope = createCemDeclarationScope({ document });
+                const tag = `native-ssr-${includeDeclarations ? 'declarations-' : ''}${fallback ? 'fallback' : 'worker'}`;
+                const importedCss = 'p {color:rgb(1,2,3);animation:pulse 20s infinite} @keyframes pulse {from{opacity:.5}to{opacity:1}}';
+                const bytes = new TextEncoder().encode(importedCss).buffer;
+                const response = { bytes, finalUrl: new URL('./ssr-child.css', document.baseURI).href, contentType: 'text/css' };
+                const declarationSources = [{ css: '@import "./ssr-declaration.css";', scope: null },
+                    { css: ':host {--shared-ready:yes}', scope: 'ssr-library' }];
+                const declarationResponse = { bytes: new TextEncoder().encode('p {border-top:3px solid rgb(4,5,6)} :host {--asset:url("./ssr-icon.svg")}').buffer,
+                    finalUrl: new URL('./ssr-declaration.css', document.baseURI).href, contentType: 'text/css' };
+                const read = async (request: { url: string }) => request.url.endsWith('/ssr-declaration.css') ? declarationResponse : response;
+                let reads = 0;
+                let release: () => void = () => undefined;
+                const gate = new Promise<void>(resolve => { release = resolve; });
+                const runtime = new CemElementRuntime({ declarationTag: `declaration-${tag}`, declarationScope: scope,
+                    moduleUrlRoot: { baseUrl: document.baseURI, importMap: {} },
+                    retainedStylesheets: { read: async request => { reads++; await gate; return read(request); } },
+                    processingWorkerFactory: request => {
+                        if (fallback) throw new Error('forced fallback');
+                        return new Worker(request.scriptUrl, { type: request.type, name: request.name });
+                    },
                 });
-                const result = await executeNativeSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore(), {
-                    native: wasm, baseUrl: document.baseURI, context, signal: new AbortController().signal,
-                    read: async () => response,
-                });
-                expect(result.outcome).toBe('success');
-                if (result.outcome !== 'success') throw new Error(result.diagnostics.map(d => d.message).join('\n'));
-                expect(result.result.diagnostics).toEqual([]);
-                expect(result.result.renderedHtml).not.toContain('<style');
-                const island = authored.querySelector('template');
-                if (!island) throw new Error('missing authored island');
-                writeDataIslandHydrationData(island, snapshot);
-                const restored = document.createElement(tag);
-                restored.setAttribute('data-cem-render-scope', `server-${tag}`);
-                restored.innerHTML = `${island.outerHTML}<!--cem-render-start-->${result.result.renderedHtml}<!--cem-render-end-->${result.result.instanceStylesheetHtml}`;
-                const paragraph = restored.querySelector('p');
-                const style = restored.querySelector(':scope > style[data-cem-instance-style]');
-                if (!paragraph || !style) throw new Error('missing server nodes');
-                const serverCss = style.textContent;
-                root.append(restored);
-                let settled = false;
-                const ready = runtime.whenRenderSettled(restored).then(() => { settled = true; });
-                await waitFor(() => expect(reads).toBe(1));
-                expect(settled).toBe(false);
-                expect(restored.querySelector('p')).toBe(paragraph);
-                release(); await ready;
-                expect(restored.querySelector('p')).toBe(paragraph);
-                expect(restored.querySelector(':scope > style[data-cem-instance-style]')).toBe(style);
-                expect(style.textContent).toBe(serverCss);
-                expect(restored.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(1);
-                expect(getComputedStyle(paragraph).color).toBe('rgb(1, 2, 3)');
-                const animation = paragraph.getAnimations()[0] as CSSAnimation;
-                expect(serverCss).toContain(`@keyframes ${animation.animationName}`);
-                expect(runtime.diagnosticsFor(restored).filter(d => !fallback || d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]);
-            } finally { release(); root.replaceChildren(); scope.dispose(); }
-        }
-    },
-};
+                try {
+                    const declaration = document.createElement('div');
+                    declaration.setAttribute('tag', tag); declaration.setAttribute('version', '1.0.0');
+                    const template = document.createElement('template'); template.innerHTML = '<p>Server content</p>';
+                    if (includeDeclarations) {
+                        declaration.setAttribute('scope', 'ssr-library');
+                        template.innerHTML = `<style>${declarationSources[0].css}</style><style scope="ssr-library">${declarationSources[1].css}</style>${template.innerHTML}`;
+                    }
+                    declaration.append(template); root.append(declaration);
+                    runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+                    const authored = document.createElement(tag);
+                    authored.setAttribute('data-cem-render-scope', `server-${tag}`);
+                    authored.innerHTML = '<template><style>@import "./ssr-child.css";</style></template>';
+                    if (includeDeclarations) authored.setAttribute('scope', 'ssr-library');
+                    const snapshot = runtime.snapshotInstance(authored);
+                    const rootContext = createBrowserModuleUrlRoot(document, snapshot.scopePolicyStamp,
+                        { baseUrl: document.baseURI, importMap: {} });
+                    const context = createBrowserModuleUrlContext(rootContext.context, 'server', document.baseURI,
+                        `document:${document.baseURI}`, snapshot.scopePolicyStamp).wire;
+                    const exported = exportDataIslandSnapshotForEdge(snapshot, { fields: {
+                        hostAttributes: 'allow', dataset: 'allow', payload: 'allow', slices: 'allow', formData: 'allow',
+                        validationState: 'allow', eventPayloads: 'allow',
+                    } });
+                    const declarationIdentity = analyzeDeclarationRegistrationIdentity({ tag, declarationVersion: '1.0.0',
+                        resolvedTemplateSource: template.innerHTML, templateLanguage: 'dom', hasBehavior: false,
+                        scopePolicyStamp: snapshot.scopePolicyStamp, sharedStyleScope: includeDeclarations ? 'ssr-library' : null,
+                    }).registrationIdentity;
+                    if (!declarationIdentity) throw new Error('missing declaration identity');
+                    // The host supplies the render source after extracting static declaration CSS.
+                    const renderTemplate = template.content.cloneNode(true) as DocumentFragment;
+                    renderTemplate.querySelectorAll('style').forEach(style => style.remove());
+                    const request = createCemEdgeSsrHostRequestEnvelope(new CemEdgeSsrJobSequence(), 'render-initial', {
+                        template: { kind: 'serialized-template-source-v1', templateArtifactId: snapshot.templateArtifactId,
+                            source: readTemplateSource(renderTemplate) },
+                        snapshot: exported, scopeUid: `server-${tag}`, sourceMapMode: 'dev',
+                        revision: { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
+                            templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                            outputTarget: snapshot.outputTarget, renderAttempt: snapshot.renderAttempt },
+                    });
+                    const result = await executeNativeSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore(), {
+                        native: wasm, baseUrl: document.baseURI, context, signal: new AbortController().signal,
+                        read,
+                        ...(includeDeclarations ? { declarations: [{ owner: { kind: 'declaration' as const, identity: declarationIdentity, tag },
+                            sources: declarationSources, baseUrl: document.baseURI, context }] } : {}),
+                    });
+                    expect(result.outcome).toBe('success');
+                    if (result.outcome !== 'success') throw new Error(result.diagnostics.map(d => d.message).join('\n'));
+                    expect(result.result.diagnostics).toEqual([]);
+                    expect(result.result.renderedHtml).not.toContain('<style');
+                    let serverDeclaration: HTMLElement | undefined;
+                    let declarationNodes: HTMLStyleElement[] = [];
+                    if (includeDeclarations) {
+                        const batch = result.result.declarationStylesheets?.[0];
+                        if (!batch) throw new Error('missing declaration sidecar');
+                        declaration.remove();
+                        serverDeclaration = declaration.cloneNode(true) as HTMLElement;
+                        serverDeclaration.insertAdjacentHTML('beforeend', batch.html);
+                        declarationNodes = Array.from(serverDeclaration.querySelectorAll(':scope > style'));
+                        expect(declarationNodes).toHaveLength(2);
+                        root.append(serverDeclaration);
+                        runtime.registerDeclaration(serverDeclaration); await runtime.whenDeclarationSettled(serverDeclaration);
+                    }
+                    const island = authored.querySelector('template');
+                    if (!island) throw new Error('missing authored island');
+                    writeDataIslandHydrationData(island, snapshot);
+                    const restored = document.createElement(tag);
+                    restored.setAttribute('data-cem-render-scope', `server-${tag}`);
+                    restored.innerHTML = `${island.outerHTML}<!--cem-render-start-->${result.result.renderedHtml}<!--cem-render-end-->${result.result.instanceStylesheetHtml}`;
+                    if (includeDeclarations) {
+                        restored.setAttribute('scope', 'ssr-library');
+                        const marker = result.result.declarationStylesheets?.[0].contextMarker;
+                        if (marker) restored.setAttribute('data-cem-css-context', marker);
+                    }
+                    const paragraph = restored.querySelector('p');
+                    const style = restored.querySelector(':scope > style[data-cem-instance-style]');
+                    if (!paragraph || !style) throw new Error('missing server nodes');
+                    const serverCss = style.textContent;
+                    root.append(restored);
+                    let settled = false;
+                    const ready = runtime.whenRenderSettled(restored).then(() => { settled = true; });
+                    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(1));
+                    expect(settled).toBe(false);
+                    expect(restored.querySelector('p')).toBe(paragraph);
+                    release(); await ready;
+                    expect(restored.querySelector('p')).toBe(paragraph);
+                    expect(restored.querySelector(':scope > style[data-cem-instance-style]')).toBe(style);
+                    expect(style.textContent).toBe(serverCss);
+                    expect(restored.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(1);
+                    expect(getComputedStyle(paragraph).color).toBe('rgb(1, 2, 3)');
+                    expect(reads).toBe(includeDeclarations ? 2 : 1);
+                    if (serverDeclaration) {
+                        expect(serverDeclaration.querySelectorAll(':scope > style')).toHaveLength(2);
+                        declarationNodes.forEach((node, index) => expect(serverDeclaration?.querySelectorAll(':scope > style')[index]).toBe(node));
+                        expect(getComputedStyle(paragraph).borderTopColor).toBe('rgb(4, 5, 6)');
+                        expect(getComputedStyle(restored).getPropertyValue('--shared-ready').trim()).toBe('yes');
+                        expect(restored.getAttribute('data-cem-css-context')).toBe(result.result.declarationStylesheets?.[0].contextMarker);
+                    }
+                    const animation = paragraph.getAnimations()[0] as CSSAnimation;
+                    expect(serverCss).toContain(`@keyframes ${animation.animationName}`);
+                    expect(runtime.diagnosticsFor(restored).filter(d => !fallback || d.code !== 'cem.processing_host.worker_startup_fallback')).toEqual([]);
+                } finally { release(); root.replaceChildren(); scope.dispose(); }
+            }
+        },
+    };
+}

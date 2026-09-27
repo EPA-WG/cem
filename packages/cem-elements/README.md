@@ -61,14 +61,17 @@ The asynchronous `executeNativeSsrInitialRenderFixture` evidence host now loads
 native payload CSS and returns `instanceStylesheetHtml` for direct host children
 outside the render range. Worker/fallback hydration preserves its DOM and animation
 identity. The synchronous host and streamed updates still reject retained-CSS
-policies with `cem.edge_ssr.retained_css_unavailable`; declaration/shared placement
-and native updates remain default-cutover gates.
+policies with `cem.edge_ssr.retained_css_unavailable`; native updates remain a
+default-cutover gate.
 
 `serializeDeclarationStylesheets` formats native declaration/shared output for
 placement under its declaration owner and returns the consuming context marker.
 Browser ownership reuses matching server style nodes after native loading,
 deduplicates them, and releases them with their last consumer. See the
 [SSR placement contract](../../docs/scoped-css-module-maps.md#declaration-stylesheet-markup-for-ssr).
+The async initial host accepts caller-selected `declarations` batches and returns
+their `declarationStylesheets` sidecars after all imports and serialization finish.
+Adapters supply extracted render source and place each sidecar under its owner.
 
 Run the same Storybook assertions with retained native CSS enabled:
 

@@ -225,3 +225,73 @@ it('serializes admitted declaration scopes and preserves native context identity
     const escaped = serializeDeclarationStylesheets([{ ...first, scope: { kind: 'shared', name: 'a"<&' } }]);
     expect(escaped.html).toContain('data-cem-style-scope="a&quot;&lt;&amp;"');
 });
+
+it('waits for copied declaration batches before committing initial SSR and keeps sidecars outside the render range', async () => {
+    const request = initialRequest('p {color:green}');
+    const store = new InMemoryEdgeRenderStateStore();
+    const transport = options();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const read = vi.fn(async (...args: Parameters<typeof transport.read>) => { await gate; return transport.read(...args); });
+    const declarations = [{ owner: { kind: 'declaration' as const, identity: 'source-library', tag: 'cem-source' },
+        sources: [{ css: '@import "theme";', scope: 'library' }, { css: 'p {color:blue}', scope: null }],
+        context: structuredClone(transport.context), baseUrl: transport.baseUrl }];
+    const response = executeNativeSsrInitialRenderFixture(request, store, { ...transport, read, declarations });
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    expect(store.readRecord(`edge-state:${request.payload.snapshot.scopePolicyStamp}:${request.payload.snapshot.instanceId}`)).toBeUndefined();
+    declarations[0].sources[1].css = 'p {color:red}';
+    declarations[0].context.frames[1].specifiers.resources.icon.target = './mutated.svg';
+    release();
+    const result = await response;
+    expect(result.outcome).toBe('success');
+    if (result.outcome !== 'success') return;
+    expect(result.result.renderedHtml).not.toContain('<style');
+    expect(result.result.instanceStylesheetHtml).toContain('color:green');
+    const batches = result.result.declarationStylesheets;
+    expect(batches).toHaveLength(1);
+    expect(batches?.[0]).toMatchObject({ declarationIdentity: 'source-library', tag: 'cem-source' });
+    expect(batches?.[0].html).toContain('data-cem-style-scope="library"');
+    expect(batches?.[0].html).toContain('@scope (cem-source');
+    expect(batches?.[0].html).toContain('color:blue');
+    expect(batches?.[0].html).toContain('https://example.test/inner/local.svg');
+    expect(batches?.[0].html).not.toContain('mutated.svg');
+    expect(batches?.[0].contextMarker).toEqual(expect.any(String));
+    expect(batches?.[0].html).toContain(`[data-cem-css-context="${batches?.[0].contextMarker}"]`);
+    expect(result.result.diagnostics).toEqual([]);
+    expect(structuredClone(result)).toEqual(result);
+});
+
+it.each(['unsafe', 'cancelled'] as const)('does not commit initial SSR when a declaration batch is %s', async failure => {
+    const request = initialRequest('p {color:green}');
+    const store = new InMemoryEdgeRenderStateStore();
+    const controller = new AbortController();
+    const transport = options({ signal: controller.signal });
+    const read = vi.fn(() => new Promise<Awaited<ReturnType<typeof transport.read>>>(() => undefined));
+    const input = { ...transport, read, declarations: [{
+        owner: { kind: 'declaration' as const, identity: 'source', tag: 'cem-source' },
+        sources: [{ css: failure === 'unsafe' ? 'p::before{content:"</style><script>bad</script>"}' : '@import "theme";', scope: null }],
+        baseUrl: transport.baseUrl, context: transport.context,
+    }] };
+    const response = executeNativeSsrInitialRenderFixture(request, store, input);
+    if (failure === 'cancelled') {
+        await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+        input.signal = new AbortController().signal;
+        controller.abort(new Error('cancelled declaration import'));
+    }
+    expect(await response).toMatchObject(failure === 'cancelled'
+        ? { outcome: 'cancelled', reason: 'cancelled' } : { outcome: 'failure', reason: 'render-failed' });
+    expect(store.readRecord(`edge-state:${request.payload.snapshot.scopePolicyStamp}:${request.payload.snapshot.instanceId}`)).toBeUndefined();
+});
+
+it('keeps valid declaration output and native diagnostics when another occurrence fails', async () => {
+    const transport = options();
+    const result = await executeNativeSsrInitialRenderFixture(initialRequest('p{}'), new InMemoryEdgeRenderStateStore(), {
+        ...transport, declarations: [{ owner: { kind: 'declaration', identity: 'source', tag: 'cem-source' },
+            sources: [{ css: 'p{color:red', scope: null }, { css: 'p{color:blue}', scope: 'library' }],
+            baseUrl: transport.baseUrl, context: transport.context }],
+    });
+    expect(result.outcome).toBe('success');
+    if (result.outcome !== 'success') return;
+    expect(result.result.declarationStylesheets?.[0].html).toContain('color:blue');
+    expect(result.result.diagnostics).toEqual([expect.objectContaining({ code: 'cem.ql.template.stylesheet_parse_failed' })]);
+});
