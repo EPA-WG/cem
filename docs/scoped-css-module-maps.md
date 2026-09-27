@@ -1751,6 +1751,26 @@ occurrences. The existing installation default still publishes valid siblings.
 
 A staged lease can change its context marker only when no other declaration
 owner on that host still requires the old marker. Coordinated marker changes
-across several owners, instance-style staging and committing CSS with Edge patch
-frames remain required integration work. Current runtime callers keep their
-existing immediate replacement behavior through `beginConsumer`.
+across several owners and committing CSS with Edge patch frames remain required
+integration work. Current runtime callers keep their existing immediate
+replacement behavior through `beginConsumer`.
+
+### Staging instance stylesheet replacements
+
+`stageInstanceStylesheets(options)` keeps the current instance styles installed
+while native compilation and imports run. Compilation or import errors reject
+the whole candidate set. A newer installation cancels the pending candidate;
+cancellation and late results leave the committed generation in place. Inputs
+are copied when submitted. As with the immediate installer, callers must assign
+a new artifact identity when the compilation inputs change.
+
+Successful replacement reuses direct instance style nodes and unchanged text
+nodes, removes surplus styles, then releases the previous native loads. An old
+installation's disposer cannot remove nodes transferred to the replacement.
+An empty source list explicitly clears the committed styles. A detached host
+cannot publish a replacement; callers own lifetime cancellation through the
+provided signal and `dispose()`.
+
+This opt-in helper commits when loading finishes. Runtime callers still use
+`installInstanceStylesheets`; committing styles together with an Edge DOM patch
+requires the transaction coordinator tracked in `todo.md`.

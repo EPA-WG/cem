@@ -6439,9 +6439,19 @@ registration identities may reuse an inherited or existing definition.
               Verification: 561 unit tests, 287 browser cases in each default/
               retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
               pass; typecheck and lint pass with two existing warnings.
-        - [ ] Stage instance payload styles through compilation and imports while
-              keeping active/SSR nodes installed; reject compilation failures and
+        - [x] Fixture: stage instance payload styles through compilation and
+              imports while keeping active/SSR nodes installed; reject failures and
               verify cancellation and supersession before publishing replacements.
+              Completed 2026-09-27: opt-in `stageInstanceStylesheets` snapshots
+              source/context inputs, keeps SSR and committed nodes during loads,
+              rejects partial compilation/import failures, transfers reused node
+              ownership and clears styles for an explicit empty source batch.
+              Worker/fallback browser fixtures cover failure, cancellation during
+              compilation and imports, late results, supersession, detached hosts,
+              unchanged text nodes and disposal of the previous generation.
+              Verification: 561 unit tests, 290 browser cases in each default/
+              retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
+              pass; typecheck and lint pass with two existing warnings.
         - [ ] Coordinate declaration and instance leases with Edge patch commits,
               including context markers shared by several declaration owners;
               extend replacement responses/state and verify stale transaction
