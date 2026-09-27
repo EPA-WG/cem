@@ -1194,10 +1194,19 @@ request IDs do not invent a source location. The host exposes structured native
 failures as `CemProcessingDiagnosticError.diagnostics`; ordinary host/control
 failures keep their generic processing diagnostic.
 
-Next, run the existing scope/adoption stories against native emitted CSS before
-switching browser installation, then add the nested module-map override demo and
-context disposal/reconnect/hydration checks. The remaining syntax profiles stay
-explicitly diagnosed until a concrete fixture requires them; this audit does not
+The scope/adoption browser fixtures now install native processing-host output in
+test-owned styles. Real worker and forced fallback runs repeat the existing
+projection, nested-host, inheritance, proximity and public-override checks. They
+also compare shared membership, animation ownership and suppression diagnostics.
+The boundary fixture exposed an over-budget authored host selector; wrapping its
+host condition in `:where()` keeps the containment test within the accepted
+`0-2-1` ceiling. Native compilation correctly diagnosed the original selector.
+
+Next, connect context-qualified browser installation and its ownership lifecycle,
+then add the nested module-map override demo and context disposal/reconnect/
+hydration checks. Instance styles still require their own retained ownership path;
+the declaration protocol deliberately rejects instance scope. The remaining syntax
+profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not
 authorize raw-text fallbacks.
 
 Automatic fragment binding remains deferred. Literal functions such as `:dir()`

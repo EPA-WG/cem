@@ -6120,10 +6120,19 @@ registration identities may reuse an inherited or existing definition.
               failures, 532 host/unit tests, typecheck and native/browser/script
               lint pass with existing warnings. Nested failures retain their own
               source location rather than the parent import location.
-        - [ ] Fixture: drive existing scope/adoption browser cases with native
+        - [x] Fixture: drive existing scope/adoption browser cases with native
               processing-host stylesheet output; compare scope containment,
               animation identity and suppression diagnostics before switching
               runtime installation. Use failures to identify required syntax gaps.
+              Completed: real worker/fallback output passes containment,
+              inheritance, cascade, shared membership, animation identity and
+              suppression checks. Corrected the fixture's over-budget host
+              selector with `:where()`; no new native grammar was needed.
+              All eight scope/adoption stories, typecheck and lint pass (two
+              existing lint warnings). Production installation remains pending.
+        - [ ] Fixture: await native DOM stylesheet adoption in existing UID,
+              isolation and ownership browser stories before asserting installed
+              styles; replace frame-only readiness assumptions with runtime waits.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

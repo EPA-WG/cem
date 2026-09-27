@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect } from 'storybook/test';
 
 import { CemElementRuntime } from './cem-elements.js';
+import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
 const GROUP_SCOPE = 'css-matrix-lib';
 const EXPECTED_RESULTS = {
@@ -375,7 +376,7 @@ export const ScopeLimitsAndCascade: Story = {
                 'button { color: rgb(0, 128, 0); }',
                 '[slot="content"] { color: rgb(0, 0, 255); --scope-inherited: yes; }',
                 '[slot="content"] em { background-color: rgb(255, 0, 0); }',
-                ':host([data-outer]) .nested-leak { background-color: rgb(255, 0, 0); }',
+                ':where(:host([data-outer])) .nested-leak { background-color: rgb(255, 0, 0); }',
                 '.fallback-owned { border: 0.2rem solid rgb(0, 128, 0); }',
                 '</style>',
                 '<button type="button" data-proximity>proximity</button>',
@@ -422,25 +423,59 @@ export const ScopeLimitsAndCascade: Story = {
         await settle(state);
         await nextFrame();
 
-        await expect(getComputedStyle(requiredElement(root, '[data-proximity]')).color).toBe('rgb(0, 128, 0)');
-        await expect(getComputedStyle(requiredElement(root, '[part~="control"]')).color).toBe('rgb(128, 0, 128)');
+        async function verifyScope() {
+            await expect(getComputedStyle(requiredElement(root, '[data-proximity]')).color).toBe('rgb(0, 128, 0)');
+            await expect(getComputedStyle(requiredElement(root, '[part~="control"]')).color).toBe('rgb(128, 0, 128)');
 
-        const projectedRoot = requiredElement(root, 'section[slot="content"]');
-        const projectedDescendant = requiredElement(projectedRoot, '[data-projected-descendant]');
-        await expect(getComputedStyle(projectedRoot).color).toBe('rgb(0, 0, 255)');
-        await expect(getComputedStyle(projectedDescendant).color).toBe('rgb(0, 0, 255)');
-        await expect(getComputedStyle(projectedDescendant).getPropertyValue('--scope-inherited').trim()).toBe('yes');
-        await expect(getComputedStyle(projectedDescendant).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+            const projectedRoot = requiredElement(root, 'section[slot="content"]');
+            const projectedDescendant = requiredElement(projectedRoot, '[data-projected-descendant]');
+            await expect(getComputedStyle(projectedRoot).color).toBe('rgb(0, 0, 255)');
+            await expect(getComputedStyle(projectedDescendant).color).toBe('rgb(0, 0, 255)');
+            await expect(getComputedStyle(projectedDescendant).getPropertyValue('--scope-inherited').trim()).toBe('yes');
+            await expect(getComputedStyle(projectedDescendant).backgroundColor).toBe('rgba(0, 0, 0, 0)');
 
-        await expect(getComputedStyle(requiredElement(root, '[data-same-nested]')).backgroundColor).toBe(
-            'rgba(0, 0, 0, 0)',
-        );
-        await expect(getComputedStyle(requiredElement(root, '[data-inner-content]')).backgroundColor).toBe(
-            'rgb(0, 128, 0)',
-        );
-        const fallback = requiredElement(root, '[data-fallback]');
-        await expect(fallback).not.toHaveAttribute('slot');
-        await expect(getComputedStyle(fallback).borderTopColor).toBe('rgb(0, 128, 0)');
+            await expect(getComputedStyle(requiredElement(root, '[data-same-nested]')).backgroundColor).toBe(
+                'rgba(0, 0, 0, 0)',
+            );
+            await expect(getComputedStyle(requiredElement(root, '[data-inner-content]')).backgroundColor).toBe(
+                'rgb(0, 128, 0)',
+            );
+            const fallback = requiredElement(root, '[data-fallback]');
+            await expect(fallback).not.toHaveAttribute('slot');
+            await expect(getComputedStyle(fallback).borderTopColor).toBe('rgb(0, 128, 0)');
+        }
+        await verifyScope();
+        const originals = Object.values(state.declarations).flatMap(declaration =>
+            managedStyles(declaration).map(style => ({ style, css: style.textContent })));
+        try {
+            for (const fallback of [false, true]) {
+                const native = nativeCssStoryHost(fallback);
+                try {
+                    for (const declaration of Object.values(state.declarations)) {
+                        const tag = declaration.getAttribute('tag');
+                        const template = declaration.querySelector('template');
+                        if (!tag || !template) throw new Error('native scope fixture declaration is incomplete');
+                        const sources = Array.from(template.content.querySelectorAll('style'), style =>
+                            ({ css: style.textContent ?? '', scope: null }));
+                        expect(sources).toHaveLength(1);
+                        expect(managedStyles(declaration)).toHaveLength(1);
+                        const { artifact } = await native.compile(tag, sources);
+                        for (const [index, style] of managedStyles(declaration).entries()) {
+                            const result = await native.host.stylesheet({ action: 'begin', artifact,
+                                consumer: tag, index, baseUrl: document.baseURI,
+                                context: nativeCssStoryContext, scope: { kind: 'private', tag } }).result;
+                            if (result.status !== 'ready') throw new Error('expected native CSS ready');
+                            expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+                            expect(result.diagnostics.filter(d => !d.code.startsWith('cem.processing_host.'))).toEqual([]);
+                            style.textContent = result.css;
+                        }
+                    }
+                    await verifyScope();
+                } finally { native.dispose(); }
+            }
+        } finally {
+            for (const { style, css } of originals) style.textContent = css;
+        }
     },
 };
 

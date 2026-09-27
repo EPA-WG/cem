@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime, writeDataIslandHydrationData } from './cem-elements.js';
+import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { createCemProcessingFailureEnvelope, type CemProcessingRequestEnvelope } from './internal/runtime-support/processing-host.js';
 
@@ -121,6 +122,72 @@ export const FailureDisposalAndNoStyle: Story = {
                 expect(f.runtime.diagnosticsFor(f.declaration).some(d => d.code === 'cem-element.stylesheet_adoption_failed')).toBe(true);
                 f.scope.dispose();
             }
+        }
+    },
+};
+
+/** Same retained source and owner must produce the same CSS across host modes. */
+export const NativeOutputParity: Story = {
+    render: () => '<section aria-label="Native stylesheet output parity"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('native stylesheet fixture root is missing');
+        const css = [
+            ':host { --adopted: yes; }',
+            'span { animation: pulse 20s linear infinite; }',
+            '@keyframes pulse { from { opacity: 0.25; } to { opacity: 0.75; } }',
+            '@font-face { font-family: forbidden; src: url("./forbidden.woff2"); }',
+            '@scope (.escape) { span { color: red; } }',
+        ].join('\n');
+        let workerCss: string | undefined;
+        let workerOwner: string | undefined;
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            try {
+                const { artifact, diagnostics } = await native.compile('native-parity-card', [
+                    { css, scope: 'native-parity' },
+                    { css: 'a { color: red', scope: null },
+                    { css: 'a {}', scope: null, contentType: 'text/less' },
+                ]);
+                expect(diagnostics.map(d => d.code)).toEqual(expect.arrayContaining([
+                    'cem.ql.template.stylesheet_parse_failed', 'cem.ql.template.stylesheet_content_type_unsupported',
+                ]));
+                const result = await native.host.stylesheet({ action: 'begin', artifact,
+                    consumer: 'parity', index: 0, baseUrl: document.baseURI,
+                    context: nativeCssStoryContext, scope: { kind: 'shared', name: 'native-parity' } }).result;
+                if (result.status !== 'ready') throw new Error('expected native CSS ready');
+                expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+                expect(result.diagnostics.map(d => d.code)).toEqual(expect.arrayContaining([
+                    'cem.scoped_css.global_construct_unsupported', 'cem.scoped_css.authored_scope_unsupported',
+                ]));
+                expect(result.css).not.toContain('@font-face');
+                expect(result.css).not.toContain('.escape');
+                if (fallback) {
+                    expect(result.css).toBe(workerCss);
+                    expect(result.identity.ownerKey).toBe(workerOwner);
+                } else { workerCss = result.css; workerOwner = result.identity.ownerKey; }
+                root.innerHTML = '<native-parity-card scope="native-parity"><template data-cem-island="instance"></template><span>First</span></native-parity-card>' +
+                    '<native-parity-other scope="native-parity"><template data-cem-island="instance"></template><span>Second</span></native-parity-other>' +
+                    '<table><tbody><tr><th scope="native-parity"><span>Unmanaged</span></th></tr></tbody></table>';
+                if (result.identity.contextMarker) {
+                    for (const host of root.querySelectorAll('[scope]')) {
+                        host.setAttribute('data-cem-css-context', result.identity.contextMarker);
+                    }
+                }
+                const style = document.createElement('style'); style.textContent = result.css; root.append(style);
+                const spans = root.querySelectorAll('span');
+                const first = getComputedStyle(spans[0]);
+                expect(first.getPropertyValue('--adopted').trim()).toBe('yes');
+                expect(getComputedStyle(spans[1]).getPropertyValue('--adopted').trim()).toBe('yes');
+                expect(getComputedStyle(spans[2]).getPropertyValue('--adopted').trim()).toBe('');
+                expect(first.animationName).not.toBe('pulse');
+                expect(first.animationName).not.toBe('none');
+                expect(getComputedStyle(spans[1]).animationName).toBe(first.animationName);
+                expect(getComputedStyle(spans[2]).animationName).toBe('none');
+                expect(spans[0].getAnimations()).toHaveLength(1);
+                expect(await native.host.stylesheet({ action: 'release', artifact, consumer: 'parity', loadId: result.loadId }).result)
+                    .toMatchObject({ status: 'released', count: 1 });
+            } finally { root.replaceChildren(); native.dispose(); }
         }
     },
 };
