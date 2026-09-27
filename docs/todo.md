@@ -6042,10 +6042,24 @@ registration identities may reuse an inherited or existing definition.
               HTML/ANSI regression, both lint targets, 12 sample browser tests
               and the rebuilt compiler browser gate pass. Chromium 148 rejects
               advanced language forms; authored/emitted behavior remains equal.
-        - [ ] Audit retained compiler coverage against managed-CSS fixtures and
+        - [x] Fixture: compile the combined existing runtime managed-CSS contract
+              natively: host aliases, forward keyframes, nested declarations,
+              specificity/global/layer/important suppression and source provenance.
+              Completed: all 107 tests across ten native compiler/resource suites
+              pass. This adds a contract regression; runtime code is unchanged.
+        - [x] Audit retained compiler coverage against managed-CSS fixtures and
               the accepted contract; identify concrete blockers before wiring
               import-closure ownership, caching and browser lifecycle. Prefer
               shared argument representations over new per-function emitters.
+              Completed: [coverage audit](scoped-css-module-maps.md#retained-compiler-coverage-audit-2026-09-26)
+              identifies quoted image candidates and runtime ownership/transport
+              as concrete gaps; no further selector function is required by the
+              audited fixtures.
+        - [ ] Fixture: retain URL-bearing `image-set()` string candidates through
+              shared import and resolve/emit them using the resource plan; cover
+              imported bases, nearest-map overrides, failed resolution, escaping
+              and source ranges. Keep ordinary strings, `type()` strings, comments
+              and literal selector arguments unchanged; diagnose unsupported forms.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

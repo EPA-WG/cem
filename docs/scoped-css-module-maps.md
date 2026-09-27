@@ -1126,3 +1126,50 @@ rejects lists and quoted ranges, including wildcard and empty-string arguments.
 The browser gate verifies inheritance and updates with identifier arguments,
 then compares authored and emitted behavior for each advanced form and reports
 syntax support. The compiler preserves those forms without emulating matching.
+
+## Retained compiler coverage audit (2026-09-26)
+
+The audit compared the retained compiler with the managed-CSS policy cases in
+`packages/cem-elements/src/lib/processing-boundary.spec.ts`, the scope and
+lifecycle stories in `css-scoping.stories.ts` and
+`dom-stylesheet-adoption.stories.ts`, and the accepted scoping contract.
+It is a migration-readiness audit, not a claim to support all CSS syntax.
+
+| Area | Evidence and remaining work |
+| --- | --- |
+| Host aliases, nesting, specificity and suppression | `css_emission`, `css_nesting_emission` and `css_subtree` cover retained structure and diagnostics. The combined `retained_stylesheet_covers_existing_runtime_managed_css_contract` regression checks forward animation references, aliases, nested declaration order, policy suppression and source provenance together. |
+| Scope boundaries | `css_rule_assembly` covers private/shared/instance wrappers and context qualification. Existing browser scope stories remain the cutover acceptance gate for projection limits, inheritance and cascade. |
+| Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
+| Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
+| Other URL-bearing syntax | Quoted `image-set()` candidates are still ordinary string components. `css_resources::resource_reference` recognizes imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. This is the next resource-coverage blocker. |
+| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `emit_css_import_closure` requires a caller-owned stable identity; it neither derives ownership nor installs CSS. `DeclarationStyleOwnership` maintains one style set and needs the accepted context-qualified derived-set lifecycle. |
+
+The combined regression compares canonical retained output, rather than legacy
+spacing: unqualified type selectors emit with an explicit wildcard namespace,
+and rewritten animation references emit quoted names. Existing browser animation
+fixtures already exercise those representations.
+
+Known syntax limits remain explicit: functional pseudo-elements, `:state()`,
+complex/list-valued host aliases, dynamic animation names/shorthands and some
+static timing-function forms are outside the retained profile. They are not a
+reason to add one emitter per function. Add grammar only with a concrete fixture,
+using shared retained representations wherever applicable.
+
+Recommended sequence:
+
+1. Retain URL-bearing string roles for `image-set()` candidates at shared import;
+   resolve and emit them through the existing resource plan. Cover imported-sheet
+   bases, nearest-map overrides, failed resolution, escapes and source ranges.
+   Ordinary strings, comments, `type()` strings and literal selector arguments
+   must remain untouched. Reject unsupported candidate structure explicitly.
+2. Derive stable effective stylesheet identity from declaration/style occurrence
+   and resolver context, including invalidation inputs. Keep retained source trees
+   reusable while isolating resolution plans and emitted sets per context.
+3. Connect native closure loading/emission through the processing host and its
+   retained artifact lifecycle. Preserve readiness, cancellation and diagnostics;
+   replace runtime string compilation only with the native path verified.
+4. Run the existing scope/adoption stories against that path, then add the nested
+   module-map override demo and context disposal/reconnect/hydration checks.
+
+Automatic fragment binding remains deferred. Literal functions such as `:dir()`
+and `:lang()` do not participate in URL resolution.

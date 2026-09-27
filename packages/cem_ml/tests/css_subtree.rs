@@ -693,3 +693,80 @@ fn literal_pseudo_arguments_share_emission_and_normal_specificity() {
         );
     }
 }
+
+#[test]
+fn retained_stylesheet_covers_existing_runtime_managed_css_contract() {
+    // Combines the policy and animation cases in processing-boundary.spec.ts.
+    // Imports have their own closure gate; single-sheet emission cannot load them.
+    let source = r#"
+        @scope (.authored) { button { color:red; } }
+        @layer components { button { color:red; } }
+        @font-face { font-family:Demo; src:url(demo.woff2); }
+        #private { color:red; }
+        .forced.forced { color:red; }
+        .one.two.three { color:red; }
+        :host([invalid]) { color:red; }
+        :global(.legacy) button, :root { color:red; }
+        [part~="control"].active button { color:green; }
+        button { color:red !important; background:green;
+            animation:pulse 1s ease; animation-name:pulse;
+            @media all { color:blue; &:hover { opacity:.5; } color:green; }
+        }
+        @keyframes pulse { from { opacity:0; } to { opacity:1; } }
+    "#;
+    let plan = plan(source);
+    let result = cem_ml::css_emission::emit_css_stylesheet(
+        &plan,
+        CssRuleMode::Declaration,
+        "runtime-contract",
+    )
+    .unwrap();
+    let css = result.body.css();
+    for expected in [
+        ":where(:scope)[invalid] {color:red;}",
+        ":where(:scope).legacy *|button, :where(:scope) {color:red;}",
+        "[part~=\"control\"].active *|button {color:green;}",
+        "animation:\"pulse-runtime-contract\" 1s ease;",
+        "animation-name:\"pulse-runtime-contract\";",
+        "@media all {color:blue;&:hover {opacity:.5;}color:green;}",
+        "@keyframes pulse-runtime-contract",
+    ] {
+        assert!(css.contains(expected), "missing {expected}: {css}");
+    }
+    for suppressed in [
+        "@scope",
+        "@layer",
+        "@font-face",
+        "#private",
+        ".forced",
+        ".one",
+        "!important",
+    ] {
+        assert!(!css.contains(suppressed), "unexpected {suppressed}: {css}");
+    }
+    let mut codes: Vec<_> = result.body.diagnostics.iter().map(|d| d.code).collect();
+    codes.sort_unstable();
+    let mut expected = vec![
+        "cem.scoped_css.authored_scope_unsupported",
+        "cem.scoped_css.layer_unsupported",
+        "cem.scoped_css.global_construct_unsupported",
+        "cem.scoped_css.id_selector_unsupported",
+        "cem.scoped_css.manufactured_specificity_unsupported",
+        "cem.scoped_css.specificity_unsupported",
+        "cem.scoped_css.global_alias",
+        "cem.scoped_css.global_alias",
+        "cem.scoped_css.important_unsupported",
+    ];
+    expected.sort_unstable();
+    assert_eq!(codes, expected);
+    assert!(result
+        .body
+        .diagnostics
+        .iter()
+        .all(|d| d.source.origin().is_some() && d.range.length > 0));
+    assert!(result
+        .body
+        .fragments
+        .iter()
+        .all(|f| f.source.origin().is_some() && f.range.length > 0));
+}
