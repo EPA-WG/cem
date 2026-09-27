@@ -162,3 +162,68 @@ export function installRetainedStylesheets<TScope extends Begin['scope']>(option
         },
     };
 }
+
+export interface CemPreparedStylesheets {
+    /** Loading is complete, but styles and context markers have not been published. */
+    ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: Diagnostic[] }>;
+    /** Publish once through the original lease, rechecking its current generation. */
+    commit(): boolean;
+    dispose(): Promise<void>;
+}
+
+/** Load a complete candidate set and hold its native owners until an explicit commit. */
+export function prepareRetainedStylesheets<TScope extends Begin['scope']>(
+    options: CemStylesheetInstallationOptions<TScope>,
+): CemPreparedStylesheets {
+    const { lease, host } = options;
+    let preparedMode = host.mode;
+    const controller = new AbortController();
+    let candidate: { outputs: readonly CemOwnedStylesheet<TScope>[]; release(): void } | undefined;
+    let prepared = false;
+    let released = false;
+    let committed = false;
+    const abort = () => { candidate = undefined; controller.abort(); };
+    lease.signal.addEventListener('abort', abort, { once: true });
+    if (lease.signal.aborted) abort();
+    const release = () => {
+        if (released) return;
+        released = true;
+        abort();
+        lease.signal.removeEventListener('abort', abort);
+        lease.release();
+    };
+    const installation = installRetainedStylesheets({ ...options, requireComplete: true,
+        lease: { signal: controller.signal, release,
+            commit(outputs, releaseGeneration) {
+                if (controller.signal.aborted) { releaseGeneration(); return false; }
+                preparedMode = host.mode;
+                candidate = { outputs, release: releaseGeneration };
+                return true;
+            },
+        },
+    });
+    return {
+        ready: installation.ready.then(result => {
+            prepared = result.status === 'ready' && !controller.signal.aborted && !host.ownerScope.disposed && host.mode === preparedMode;
+            if (!prepared) release();
+            return { status: prepared ? 'prepared' : 'cancelled', diagnostics: result.diagnostics };
+        }),
+        commit() {
+            if (committed || !prepared || !candidate || controller.signal.aborted) return false;
+            if (host.ownerScope.disposed || host.mode !== preparedMode) { release(); return false; }
+            const current = candidate;
+            candidate = undefined;
+            // Mark before calling the lease: its publication can invoke user lifecycle callbacks.
+            committed = true;
+            try {
+                if (lease.commit(current.outputs, current.release)) return true;
+                release();
+                return false;
+            } catch (error) {
+                release();
+                throw error;
+            }
+        },
+        dispose: () => installation.dispose(),
+    };
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CemStylesheetConsumerLease } from '../../declaration-style-ownership.js';
-import { installRetainedStylesheets } from './stylesheet-installation.js';
+import { installRetainedStylesheets, prepareRetainedStylesheets } from './stylesheet-installation.js';
 import { CemProcessingDiagnosticError, type CemProcessingHost, type CemProcessingStylesheetInput,
     type CemProcessingStylesheetResult } from './processing-host.js';
 
@@ -134,4 +134,95 @@ it.each(['throw', 'error', 'fatal'] as const)('rejects the complete replacement 
     expect(f.lease.release).toHaveBeenCalled();
     await load.dispose();
     expect(f.host.stylesheet).toHaveBeenCalledWith(expect.objectContaining({ action: 'release', loadId: 'valid' }));
+});
+
+
+describe('prepared stylesheet publication', () => {
+    it('holds native output until an explicit, single commit and releases it on disposal', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
+        const load = prepareRetainedStylesheets(f.options);
+        expect(load.commit()).toBe(false);
+        expect(await load.ready).toEqual({ status: 'prepared', diagnostics: [] });
+        expect(f.lease.commit).not.toHaveBeenCalled();
+        expect(f.host.stylesheet).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'release' }));
+        expect(load.commit()).toBe(true);
+        expect(load.commit()).toBe(false);
+        expect(f.lease.commit).toHaveBeenCalledOnce();
+        await load.dispose();
+        expect(f.lease.release).toHaveBeenCalledOnce();
+        expect(f.host.stylesheet).toHaveBeenCalledWith(expect.objectContaining({ action: 'release', loadId: 'held' }));
+    });
+
+    it.each(['abort', 'dispose', 'host-dispose', 'host-replace'] as const)('rejects publication after %s', async action => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
+        const load = prepareRetainedStylesheets(f.options);
+        await load.ready;
+        if (action === 'abort') f.abort.abort();
+        if (action === 'dispose') await load.dispose();
+        if (action === 'host-dispose') Object.defineProperty(f.host.ownerScope, 'disposed', { value: true });
+        if (action === 'host-replace') Object.defineProperty(f.host, 'mode', { value: 'main-thread' });
+        expect(load.commit()).toBe(false);
+        expect(f.lease.commit).not.toHaveBeenCalled();
+        await load.dispose();
+    });
+
+    it('releases rejected publication and never retries a stale lease', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
+        vi.mocked(f.lease.commit).mockReturnValue(false);
+        const load = prepareRetainedStylesheets(f.options);
+        await load.ready;
+        expect(load.commit()).toBe(false);
+        expect(load.commit()).toBe(false);
+        await load.dispose();
+        expect(f.lease.commit).toHaveBeenCalledOnce();
+        expect(f.lease.release).toHaveBeenCalledOnce();
+        expect(f.host.stylesheet).toHaveBeenCalledWith(expect.objectContaining({ action: 'release', loadId: 'held' }));
+    });
+
+    it('rejects reentrant publication of the same candidate', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
+        const load = prepareRetainedStylesheets(f.options);
+        vi.mocked(f.lease.commit).mockImplementation(() => {
+            expect(load.commit()).toBe(false);
+            return true;
+        });
+        await load.ready;
+        expect(load.commit()).toBe(true);
+        await load.dispose();
+    });
+
+    it('cleans native ownership when publication throws', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : ready('held'));
+        vi.mocked(f.lease.commit).mockImplementation(() => { throw new Error('publication failed'); });
+        const load = prepareRetainedStylesheets(f.options);
+        await load.ready;
+        expect(() => load.commit()).toThrow('publication failed');
+        expect(load.commit()).toBe(false);
+        await load.dispose();
+        expect(f.host.stylesheet).toHaveBeenCalledWith(expect.objectContaining({ action: 'release', loadId: 'held' }));
+    });
+
+    it('requires every occurrence even when partial installation was requested', async () => {
+        const f = fixture(async input => {
+            if (input.action === 'release') return { status: 'released', count: 1 };
+            if (input.action === 'begin' && input.index === 1) throw new Error('import failed');
+            return ready('valid');
+        });
+        f.options.occurrences.push({ index: 1, scope: { kind: 'private', tag: 'cem-card' } });
+        const load = prepareRetainedStylesheets({ ...f.options, requireComplete: false });
+        expect(await load.ready).toMatchObject({ status: 'cancelled', diagnostics: [expect.objectContaining({ message: 'import failed' })] });
+        expect(load.commit()).toBe(false);
+        expect(f.lease.commit).not.toHaveBeenCalled();
+        await load.dispose();
+    });
+
+    it('cancels an unfinished reader without waiting for its result', async () => {
+        const f = fixture(async input => input.action === 'release' ? { status: 'released', count: 1 } : pending('held'));
+        f.options.read = vi.fn(() => new Promise(() => undefined));
+        const load = prepareRetainedStylesheets(f.options);
+        await vi.waitFor(() => expect(f.options.read).toHaveBeenCalledOnce());
+        await load.dispose();
+        expect(await load.ready).toMatchObject({ status: 'cancelled' });
+        expect(load.commit()).toBe(false);
+    });
 });

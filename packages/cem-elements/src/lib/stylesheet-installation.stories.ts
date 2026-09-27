@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
-import { installRetainedStylesheets, type CemStylesheetResponse } from './internal/runtime-support/stylesheet-installation.js';
+import { installRetainedStylesheets, prepareRetainedStylesheets, type CemStylesheetResponse } from './internal/runtime-support/stylesheet-installation.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
 export default { title: 'CEM Elements/Retained Stylesheet Installation', tags: ['test'] } satisfies Meta;
@@ -205,6 +205,55 @@ export const StagedImportReplacement: Story = {
                 expect(f.declaration.querySelectorAll('style')).toHaveLength(0);
                 expect(f.instance.hasAttribute('data-cem-css-context')).toBe(false);
             } finally { await Promise.all(loads.map(load => load.dispose())); f.dispose(); }
+        }
+    },
+};
+
+
+export const PreparedDeclarationPublication: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing preparation fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const { artifact } = await f.native.compile('native-install-card', [
+                    { css: '@import "./child.css"; :host { --asset: url(asset); }', scope: null },
+                ]);
+                const options = { host: f.native.host, artifact, consumer: 'initial', context: f.context,
+                    baseUrl: 'https://example.test/main.css', occurrences: [{ index: 0,
+                        scope: { kind: 'private' as const, tag: 'native-install-card' } }],
+                    read: async () => response(':host { --prepared: before; }') };
+                const initial = installRetainedStylesheets({ ...options, lease: f.owner.beginConsumer(f.instance, f.scope) });
+                await initial.ready;
+                const old = f.declaration.querySelector('style');
+                const marker = f.instance.getAttribute('data-cem-css-context');
+                const context = structuredClone(f.context);
+                context.frames[0].specifiers.resources.asset.target = './replacement.svg';
+                const candidate = prepareRetainedStylesheets({ ...options, context, consumer: 'replacement',
+                    lease: f.owner.stageConsumer(f.instance, f.scope),
+                    read: async () => response(':host { --prepared: after; }') });
+                expect(await candidate.ready).toEqual({ status: 'prepared', diagnostics: [] });
+                expect(f.declaration.querySelector('style')).toBe(old);
+                expect(f.instance.getAttribute('data-cem-css-context')).toBe(marker);
+                expect(getComputedStyle(f.instance).getPropertyValue('--prepared').trim()).toBe('before');
+                expect(candidate.commit()).toBe(true);
+                expect(candidate.commit()).toBe(false);
+                expect(f.instance.getAttribute('data-cem-css-context')).not.toBe(marker);
+                expect(getComputedStyle(f.instance).getPropertyValue('--prepared').trim()).toBe('after');
+                await initial.dispose();
+                expect(getComputedStyle(f.instance).getPropertyValue('--asset')).toContain('/replacement.svg');
+                const stale = prepareRetainedStylesheets({ ...options, consumer: 'stale',
+                    lease: f.owner.stageConsumer(f.instance, f.scope) });
+                await stale.ready;
+                const newer = f.owner.stageConsumer(f.instance, f.scope);
+                expect(stale.commit()).toBe(false);
+                newer.release();
+                await stale.dispose();
+                expect(getComputedStyle(f.instance).getPropertyValue('--prepared').trim()).toBe('after');
+                await candidate.dispose();
+            } finally { f.dispose(); }
         }
     },
 };

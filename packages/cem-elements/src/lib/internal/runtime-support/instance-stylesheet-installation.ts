@@ -1,4 +1,4 @@
-import { installRetainedStylesheets, type CemStylesheetInstallation, type CemStylesheetInstallationOptions } from './stylesheet-installation.js';
+import { installRetainedStylesheets, prepareRetainedStylesheets, type CemPreparedStylesheets, type CemStylesheetInstallation, type CemStylesheetInstallationOptions } from './stylesheet-installation.js';
 import { cemProcessingFailureDiagnostics, createCemProcessingTextSource, type CemProcessingDiagnostic } from './processing-host.js';
 
 export interface InstanceStylesheetInstallation {
@@ -29,7 +29,28 @@ export function stageInstanceStylesheets(options: InstanceStylesheetInstallation
     return install(options, true);
 }
 
-function install(input: InstanceStylesheetInstallationOptions, staged: boolean): InstanceStylesheetInstallation {
+export interface PreparedInstanceStylesheets {
+    ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: readonly CemProcessingDiagnostic[] }>;
+    commit(): boolean;
+    dispose(): void;
+}
+
+/** Compile and load without publishing until the caller commits the current candidate. */
+export function prepareInstanceStylesheets(options: InstanceStylesheetInstallationOptions): PreparedInstanceStylesheets {
+    const candidate = install(options, true, true);
+    let loaded = false;
+    return {
+        ready: candidate.ready.then(diagnostics => {
+            loaded = candidate.isPrepared();
+            return { status: loaded ? 'prepared' : 'cancelled', diagnostics };
+        }),
+        commit: () => loaded && candidate.commit(),
+        dispose: candidate.dispose,
+    };
+}
+
+function install(input: InstanceStylesheetInstallationOptions, staged: boolean, deferred = false):
+    InstanceStylesheetInstallation & { commit(): boolean; isPrepared(): boolean } {
     const options = { ...input, ...structuredClone({ sources: input.sources, context: input.context }) };
     const { element, host } = options;
     let state = generations.get(element);
@@ -40,7 +61,9 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean):
     if (!staged) for (const style of retainedNodes) style.remove();
     let nodes: HTMLStyleElement[] = [];
     let releaseNative: (() => void) | undefined;
-    let installation: CemStylesheetInstallation | undefined;
+    let installation: CemStylesheetInstallation | CemPreparedStylesheets | undefined;
+    let publish: (() => boolean) | undefined;
+    let prepared = false;
     let compileJobId: number | undefined;
     const release = () => {
         options.signal.removeEventListener('abort', dispose);
@@ -55,6 +78,8 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean):
     };
     const dispose = () => {
         if (controller.signal.aborted) return;
+        prepared = false;
+        publish = undefined;
         controller.abort();
         release();
         options.signal.removeEventListener('abort', dispose);
@@ -95,7 +120,10 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean):
     const ready = (async (): Promise<readonly CemProcessingDiagnostic[]> => {
         if (controller.signal.aborted) return [];
         if (!options.sources.length) {
-            if (!staged || !commit([], () => undefined)) dispose();
+            if (deferred) {
+                prepared = true;
+                publish = () => commit([], () => undefined);
+            } else if (!staged || !commit([], () => undefined)) dispose();
             return [];
         }
         try {
@@ -120,17 +148,37 @@ function install(input: InstanceStylesheetInstallationOptions, staged: boolean):
                 release();
                 return compilation.diagnostics;
             }
-            installation = installRetainedStylesheets({ ...options, artifact: compilation.artifact, requireComplete: staged,
+            const installationOptions = { ...options, artifact: compilation.artifact, requireComplete: staged,
                 consumer: `instance:${options.instanceId}:${crypto.randomUUID()}`,
                 occurrences: (compilation.stylesheets ?? []).map((_, index) => ({ index, scope: { kind: 'instance' as const } })),
                 lease: { signal: controller.signal, release, commit },
-            });
-            const result = await installation.ready;
+            };
+            const pending = deferred ? prepareRetainedStylesheets(installationOptions) : installRetainedStylesheets(installationOptions);
+            installation = pending;
+            const result = await pending.ready;
+            if (result.status === 'prepared' && 'commit' in pending) {
+                prepared = true;
+                publish = () => pending.commit();
+            }
             return controller.signal.aborted ? [] : [...compilation.diagnostics, ...result.diagnostics];
         } catch (error) {
             release();
             return controller.signal.aborted ? [] : cemProcessingFailureDiagnostics(error);
         }
     })();
-    return { ready, dispose };
+    const isPrepared = () => prepared && !controller.signal.aborted && !host.ownerScope.disposed && ownership.pending === generation;
+    return { ready, dispose, isPrepared,
+        commit() {
+            if (!isPrepared() || !publish) {
+                if (prepared) dispose();
+                return false;
+            }
+            prepared = false;
+            const commitPrepared = publish;
+            publish = undefined;
+            if (commitPrepared()) return true;
+            dispose();
+            return false;
+        },
+    };
 }

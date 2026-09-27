@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
-import { installInstanceStylesheets, stageInstanceStylesheets, type InstanceStylesheetInstallationOptions } from './internal/runtime-support/instance-stylesheet-installation.js';
+import { installInstanceStylesheets, stageInstanceStylesheets, prepareInstanceStylesheets, type InstanceStylesheetInstallationOptions } from './internal/runtime-support/instance-stylesheet-installation.js';
 import type { CemStylesheetResponse } from './internal/runtime-support/stylesheet-installation.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
@@ -190,6 +190,60 @@ export const CompilationCancellationAndInputSnapshot: Story = {
                 expect(getComputedStyle(f.element).getPropertyValue('--asset')).toContain('/original.svg');
                 expect(read).toBe(false);
                 load.dispose(); snapshot.dispose();
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+
+export const ExplicitPublication: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing instance fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            const prepare = (sources = f.options.sources) => prepareInstanceStylesheets({ ...f.options,
+                artifactId: crypto.randomUUID(), sources });
+            try {
+                const first = prepare([{ css: '@import "./child.css";', scope: null }]);
+                expect(first.commit()).toBe(false);
+                const result = await first.ready;
+                expect(result.status).toBe('prepared');
+                expect(result.diagnostics.some(item => item.severity === 'error' || item.severity === 'fatal')).toBe(false);
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+                expect(f.value()).toBe('server');
+                expect(f.element.querySelector('style')).toBe(f.style);
+                expect(first.commit()).toBe(true);
+                expect(first.commit()).toBe(false);
+                expect(f.value()).toBe('imported');
+                const stale = prepare();
+                await stale.ready;
+                expect(f.value()).toBe('imported');
+                const current = prepare([{ css: ':host { --value: current; }', scope: null }]);
+                await current.ready;
+                expect(stale.commit()).toBe(false);
+                expect(current.commit()).toBe(true);
+                first.dispose(); stale.dispose();
+                expect(f.value()).toBe('current');
+                const cancelled = prepare();
+                await cancelled.ready;
+                cancelled.dispose();
+                expect(cancelled.commit()).toBe(false);
+                expect(f.value()).toBe('current');
+                const invalid = prepare([{ css: '}', scope: null }]);
+                expect(await invalid.ready).toMatchObject({ status: 'cancelled' });
+                expect(invalid.commit()).toBe(false);
+                invalid.dispose();
+                expect(f.value()).toBe('current');
+                const empty = prepare([]);
+                expect(empty.commit()).toBe(false);
+                expect(await empty.ready).toEqual({ status: 'prepared', diagnostics: [] });
+                expect(f.value()).toBe('current');
+                expect(empty.commit()).toBe(true);
+                expect(f.element.querySelectorAll('style')).toHaveLength(0);
+                current.dispose(); empty.dispose();
+                expect(f.element.querySelector('p')).toBe(f.content);
             } finally { f.dispose(); }
         }
     },

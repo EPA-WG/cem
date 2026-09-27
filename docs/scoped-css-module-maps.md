@@ -1774,3 +1774,28 @@ provided signal and `dispose()`.
 This opt-in helper commits when loading finishes. Runtime callers still use
 `installInstanceStylesheets`; committing styles together with an Edge DOM patch
 requires the transaction coordinator tracked in `todo.md`.
+
+### Preparing CSS for an explicit publication point
+
+`prepareRetainedStylesheets(options)` loads every requested occurrence without
+publishing through the supplied consumer lease. Its `ready` result is
+`prepared` or `cancelled`, with native diagnostics. Preparation always requires
+a complete set; compilation diagnostics still need checking before this API.
+Use a staged declaration lease to preserve its previous committed generation.
+
+After readiness, `commit()` synchronously calls the original lease and returns
+whether publication succeeded. It publishes at most once and rejects cancelled
+leases, disposed processing scopes and changed worker modes. The original lease
+rechecks ownership and context-marker conflicts at publication time. Calling
+`dispose()` before commit releases the candidate; after commit it releases the
+published generation. Await disposal when native cleanup completion matters.
+
+`prepareInstanceStylesheets(options)` provides the same explicit publication
+point around instance compilation and imports. SSR and active style nodes stay
+installed after readiness until commit. An empty batch also waits for commit
+before clearing styles. Supersession invalidates a prepared candidate, and
+compilation errors return `cancelled` without changing the current styles.
+
+These APIs hold ready CSS for a later transaction. They do not yet coordinate
+multiple declaration markers or validate/apply an Edge DOM patch. Those steps
+remain required before enabling changed-CSS Edge updates.

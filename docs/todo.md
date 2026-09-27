@@ -6456,6 +6456,21 @@ registration identities may reuse an inherited or existing definition.
               including context markers shared by several declaration owners;
               extend replacement responses/state and verify stale transaction
               rejection before enabling changes to CSS inputs in the Edge host.
+            - [x] Fixture: prepare declaration and instance native CSS without
+                  publication; commit explicitly after loading, rejecting cancelled,
+                  superseded or disposed candidates and preserving active styles.
+                  Completed 2026-09-27: `prepareRetainedStylesheets` holds complete
+                  native output behind the original lease; `prepareInstanceStylesheets`
+                  covers instance compilation/imports and defers empty-batch publication.
+                  Explicit commits publish once and reject stale leases or changed
+                  processing-host modes. Worker/fallback fixtures preserve style
+                  nodes and context markers until commit; unit tests cover cleanup,
+                  reentrant commit, partial failures and uncooperative readers.
+                  Verification: 571 unit tests, 292 browser cases in each default/
+                  retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
+                  pass; typecheck and lint pass with two existing warnings.
+            - [ ] Coordinate marker changes across declaration owners, then bind
+                  prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after
