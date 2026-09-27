@@ -8,6 +8,7 @@ import { deferStylesheetNotifications, stylesheetNotificationsDeferred,
     notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import type { PreparedPatchFrames, RenderRevision, PatchFramesApplyDiagnostic } from './projection.js';
 import { renderRevisionKey } from './projection.js';
+import type { CemPreparedStylesheetConnection, CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { PreparedInstanceStylesheets } from './internal/runtime-support/instance-stylesheet-installation.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
@@ -276,18 +277,21 @@ export class DeclarationStyleOwnership {
      */
     static commitGroupWithPatch(entries: readonly DeclarationStylesheetCommit[], patch: PreparedPatchFrames,
         currentRevision: () => RenderRevision, signal?: AbortSignal,
-        instanceStyles?: PreparedInstanceStylesheets): DeclarationStylesheetPatchResult {
+        instanceStyles?: PreparedInstanceStylesheets,
+        registryConnection?: CemPreparedStylesheetConnection): DeclarationStylesheetPatchResult {
         let started = false;
         let applied = false;
+        let activated: CemStylesheetConnection | undefined;
         let revision: string | undefined;
         let diagnostics: readonly PatchFramesApplyDiagnostic[] = [];
         const errors: unknown[] = [];
         const nested = stylesheetNotificationsDeferred();
         try {
             deferStylesheetNotifications(() => {
-                const live = this.publishGroup(entries, {
-                    check: element => {
-                        if (nested || signal?.aborted || !element || patch.container !== element) return false;
+                const publication = {
+                    check: (element: HTMLElement | undefined) => {
+                        if (nested || signal?.aborted || !element?.isConnected || patch.container !== element) return false;
+                        if (registryConnection && (registryConnection.element !== element || !registryConnection.check(entries))) return false;
                         if (instanceStyles && (instanceStyles.element !== element || !instanceStyles.check())) return false;
                         try {
                             const current = currentRevision();
@@ -304,15 +308,25 @@ export class DeclarationStyleOwnership {
                         const result = patch.commit(currentRevision());
                         diagnostics = result.diagnostics;
                         applied = result.status === 'applied';
+                        if (applied && registryConnection) {
+                            activated = registryConnection.activate();
+                            applied = !!activated;
+                        }
                     },
-                });
-                applied &&= live;
+                };
+                // An empty registry still owns a connection and a DOM transaction.
+                if (!entries.length && registryConnection) {
+                    if (publication.check(registryConnection.element)) { publication.start(); publication.commit(); }
+                } else {
+                    const live = this.publishGroup(entries, publication);
+                    applied &&= live;
+                }
             });
             if (started && revision !== renderRevisionKey(currentRevision())) applied = false;
         } catch (error) { errors.push(error); }
         finally {
             patch.cancel();
-            if (!started) instanceStyles?.cancelPreparation();
+            if (!started) { instanceStyles?.cancelPreparation(); registryConnection?.cancelPreparation(); }
         }
         const live = entries.every(entry => {
             const state = leases.get(entry.lease);
@@ -323,6 +337,7 @@ export class DeclarationStyleOwnership {
                 && state.owner.consumers.has(state.consumer) && !entry.lease.signal.aborted && entry.isCurrent?.() !== false;
         });
         return { status: started ? applied && live && !signal?.aborted && errors.length === 0
+            && (!registryConnection || (activated && registryConnection.isPublished()))
             && (!instanceStyles || instanceStyles.isPublished())
             ? 'applied' : 'recovery-required' : 'rejected', diagnostics, errors };
     }

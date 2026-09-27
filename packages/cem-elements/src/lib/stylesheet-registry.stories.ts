@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
-import { DeclarationStyleOwnership } from './declaration-style-ownership.js';
+import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from './declaration-style-ownership.js';
 import { CemStylesheetRegistry, type CemStylesheetSource } from './internal/runtime-support/stylesheet-registry.js';
 import type { CemStylesheetResponse } from './internal/runtime-support/stylesheet-installation.js';
+import { CemCssDomPublicationQueue } from './internal/runtime-support/css-dom-publication-queue.js';
+import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange,
+    renderPlanIdentity, type RenderPlan } from './projection.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
 
 export default { title: 'CEM Elements/Retained Stylesheet Registry', tags: ['test'] } satisfies Meta;
@@ -44,6 +47,94 @@ function heldResponse() {
     return { promise, resolve: (css: string) => resolve({ bytes: new TextEncoder().encode(css).buffer,
         finalUrl: 'https://example.test/child.css', contentType: 'text/css' }) };
 }
+
+export const QueuedConnectionActivation: Story = {
+    render: () => '<section aria-label="Queued registry activation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing queued registry fixture');
+        for (const fallback of [false, true]) for (const mode of ['replace', 'empty', 'reject', 'wrong-group', 'activation-failed', 'cleanup-cancelled']) {
+            const f = fixture(root, fallback);
+            try {
+                const element = f.instance('registry-queued');
+                const own = await f.source(element.localName, [{ css: ':host { --private: url(icon); }', scope: null }]);
+                if (mode !== 'empty') f.registry.register(own.options);
+                const options = { element, declaration: own.options.declaration, sharedScope: 'controls',
+                    scope: f.consumers, context: context('old') };
+                const initial = f.registry.prepareReplacement(options);
+                await initial.ready;
+                const oldEntries = initial.takeCommits();
+                if (!oldEntries) throw new Error('missing initial entries');
+                if (oldEntries.length) expect(DeclarationStyleOwnership.commitGroup(oldEntries)).toBe(true);
+                const active = initial.activate();
+                if (!active) throw new Error('missing initial connection');
+                const bounds = { start: document.createComment('start'), end: document.createComment('end') };
+                element.append(bounds.start, bounds.end);
+                const plan = (text: string): RenderPlan => ({ producedTag: element.localName, instanceId: 'instance',
+                    templateArtifactId: 'template', dataRevision: text, outputTarget: 'light-dom', scopePolicyStamp: 'policy',
+                    nodes: [{ kind: 'text', text, renderNodeId: 'text' }] });
+                const before = plan('Before'), after = plan('After');
+                applyRenderPlanToRange(bounds, before, document);
+                const queue = CemCssDomPublicationQueue.forElement(element);
+                const observations: Array<{ retired: boolean; text: string | null }> = [];
+                let pending: ReturnType<typeof f.registry.prepareReplacement> | undefined;
+                let transferred: readonly DeclarationStylesheetCommit[] = [];
+                oldEntries[0]?.lease.signal.addEventListener('abort', () => {
+                    observations.push({ retired: active.signal.aborted, text: bounds.start.nextSibling?.textContent ?? null });
+                    if (mode === 'cleanup-cancelled') pending?.release();
+                }, { once: true });
+                const result = await queue.publish(async () => {
+                    pending = f.registry.prepareReplacement({ ...options, context: context('new') });
+                    expect(await pending.ready).toMatchObject({ status: 'prepared' });
+                    const entries = pending.takeCommits();
+                    if (!entries) throw new Error('missing replacement entries');
+                    transferred = entries;
+                    const revision = renderPlanIdentity(after);
+                    const patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), revision, document);
+                    if (mode === 'reject') patch.cancel();
+                    if (mode === 'activation-failed') pending.activate = () => undefined;
+                    return { entries: mode === 'wrong-group' ? [...entries] : entries, registryConnection: pending,
+                        patch, currentRevision: () => revision };
+                });
+                const rejected = mode === 'reject' || mode === 'wrong-group';
+                const recovery = mode === 'activation-failed' || mode === 'cleanup-cancelled';
+                expect(result.status).toBe(rejected ? 'rejected' : recovery ? 'recovery-required' : 'applied');
+                expect(bounds.start.nextSibling?.textContent).toBe(rejected ? 'Before' : 'After');
+                expect(queue.recoveryRequired).toBe(recovery);
+                if (rejected) {
+                    expect(pending?.signal.aborted).toBe(true);
+                    expect(active.signal.aborted).toBe(false);
+                    expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/old.svg');
+                } else if (!recovery) {
+                    expect(active.signal.aborted).toBe(true);
+                    expect(pending?.signal.aborted).toBe(false);
+                    expect(observations).toEqual(mode === 'empty' ? [] : [{ retired: true, text: 'After' }]);
+                    // Reusing an adopted handle must reject without tearing it down.
+                    const revision = renderPlanIdentity(after);
+                    expect(await queue.publish(() => ({ entries: transferred, registryConnection: pending,
+                        patch: preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(after, after), revision, document),
+                        currentRevision: () => revision }))).toMatchObject({ status: 'rejected' });
+                    expect(pending?.isPublished()).toBe(true);
+                    expect(pending?.signal.aborted).toBe(false);
+                }
+                if (recovery) {
+                    let prepared = false;
+                    await queue.publish(() => { prepared = true; throw new Error('blocked factory'); });
+                    expect(prepared).toBe(false);
+                    await queue.recover(async () => {
+                        pending?.release(); active.release();
+                        const restored = f.registry.connect(options);
+                        await restored.whenReady();
+                        applyRenderPlanToRange(bounds, before, document);
+                    });
+                    expect(queue.recoveryRequired).toBe(false);
+                    expect(getComputedStyle(element).getPropertyValue('--private')).toContain('/old.svg');
+                }
+                expect(f.native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { await f.dispose(); }
+        }
+    },
+};
 
 export const PreparedConnectionReplacement: Story = {
     render: () => '<section aria-label="Prepared registry replacement"></section>',

@@ -35,6 +35,12 @@ export interface CemStylesheetConnection {
 }
 
 export interface CemPreparedStylesheetConnection {
+    readonly element: HTMLElement;
+    /** Validate the exact transferred group before publication. */
+    check(entries: readonly DeclarationStylesheetCommit[]): boolean;
+    isPublished(): boolean;
+    /** Cancel an unadopted candidate without releasing an active connection. */
+    cancelPreparation(): void;
     readonly signal: AbortSignal;
     ready: Promise<{ status: 'prepared' | 'cancelled'; diagnostics: Result['diagnostics'] }>;
     takeCommits(): readonly DeclarationStylesheetCommit[] | undefined;
@@ -97,6 +103,10 @@ export class CemStylesheetRegistry {
                 : sourceRevision === this.sourceRevision && this.preparations.get(options.element) === handle
                     && this.current.get(options.element) === previous);
         const handle: CemPreparedStylesheetConnection = {
+            element: options.element,
+            check: candidates => !activated && current() && taken && entries === candidates,
+            isPublished: () => !!activated && current(),
+            cancelPreparation: () => { if (!activated) release(); },
             signal: abort.signal,
             ready: Promise.resolve({ status: 'cancelled', diagnostics: [] }),
             takeCommits: () => {

@@ -1,6 +1,7 @@
 import { DeclarationStyleOwnership, type DeclarationStylesheetCommit,
     type DeclarationStylesheetPatchResult } from '../../declaration-style-ownership.js';
 import type { PreparedPatchFrames, RenderRevision } from '../../projection.js';
+import type { CemPreparedStylesheetConnection } from './stylesheet-registry.js';
 import type { PreparedInstanceStylesheets } from './instance-stylesheet-installation.js';
 
 export interface PreparedCssDomPublication {
@@ -9,6 +10,7 @@ export interface PreparedCssDomPublication {
     currentRevision(): RenderRevision;
     signal?: AbortSignal;
     instanceStyles?: PreparedInstanceStylesheets;
+    registryConnection?: CemPreparedStylesheetConnection;
 }
 
 const queues = new WeakMap<HTMLElement, CemCssDomPublicationQueue>();
@@ -45,7 +47,7 @@ export class CemCssDomPublicationQueue {
                 const rejected = new AbortController();
                 if (invalidHost) rejected.abort();
                 result = DeclarationStyleOwnership.commitGroupWithPatch(request.entries, request.patch,
-                    request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles);
+                    request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles, request.registryConnection);
             } catch (error) {
                 // An unexpected exception cannot establish that publication never began.
                 result = { status: 'recovery-required', diagnostics: [], errors: [error] };

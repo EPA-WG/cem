@@ -1914,8 +1914,8 @@ connection; afterward it releases the adopted connection. Await registry
 publication, the caller must recover rather than claim that nothing changed.
 
 This staged API does not change existing immediate `connect()` callers. Runtime
-queue wiring must perform preparation inside the queue and coordinate registry
-activation with publication before enabling changed-CSS updates.
+wiring must prepare replacements inside the queue before enabling changed-CSS
+updates.
 
 `CemCssDomPublicationQueue.forElement(element)` returns one queue for a host.
 `publish(prepare)` runs its preparation factory only after earlier publication
@@ -1923,7 +1923,15 @@ and cleanup have finished. Create staged leases inside the factory so a request
 from a synchronous browser callback cannot supersede the active publication's
 leases while that publication is still running. The factory returns the ready
 declaration entries, prepared patch, revision reader, optional signal and optional
-instance candidate. It owns cleanup if it fails before returning those handles.
+instance candidate. An optional `registryConnection` carries the staged registry
+handle alongside the exact array returned by its `takeCommits()`. Publication
+validates that handle and group together, then activates the connection after
+the DOM patch and before deferred stylesheet cleanup notifications. Empty registry
+groups still publish their DOM transaction and connection. Rejection cancels an
+unadopted preparation; it preserves an already active handle accidentally reused
+by a rejected request. Failed activation or cancellation during cleanup requires
+recovery. The caller retains the handle for release during recovery or teardown.
+The factory owns cleanup if it fails before returning those handles.
 
 The queue calls joint publication synchronously once preparation is complete.
 A `recovery-required` result blocks later preparation factories. Their requests

@@ -156,16 +156,17 @@ describe('local legacy demo case map', () => {
         }
     });
 
-    it('links every pending viewer fixture to the review and the execution checklist', () => {
+    it('links viewer fixtures to the review and active or archived execution evidence', () => {
         const review = manifest.standaloneViewerReview;
         expect(review).toBeDefined();
         if (!review) return;
         const document = read(`../../../../${review.document}`);
         const todo = read('../../../../docs/todo.md');
+        const completed = read('../../../../docs/archive/todo-snapshot-2026-09-27.md');
         expect(review.completedFixtures).toEqual(['XML-VIEW-1', 'XML-VIEW-2', 'XML-VIEW-3', 'XML-VIEW-4']);
         for (const id of review.completedFixtures) {
             expect(document, id).toContain(id);
-            expect(todo, id).toContain(`- [x] Fixture ${id}:`);
+            expect(completed, id).toContain(`- [x] Fixture ${id}:`);
         }
         expect(review.openFixtures).toEqual([]);
         for (const id of review.openFixtures) {

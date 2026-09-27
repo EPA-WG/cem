@@ -5,7 +5,8 @@ Product/module sequencing lives in [`../roadmap.md`](../roadmap.md), future
 wishlist work lives in [`wishlist.md`](wishlist.md), and completed execution
 history is preserved under [`archive/`](archive/). The
 [2026-09-27 snapshot](archive/todo-snapshot-2026-09-27.md) preserves completed
-items and the context referenced by older progress notes.
+items and the context referenced by older progress notes. Later completions are
+recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
