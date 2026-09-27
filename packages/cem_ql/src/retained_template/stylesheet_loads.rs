@@ -165,6 +165,29 @@ impl RetainedTemplate {
         self.advance_stylesheet_load(id, consumer)
     }
 
+    /// Stop a pending import after its host transport fails, retaining native location.
+    pub fn fail_stylesheet_load(
+        &mut self,
+        id: u32,
+        consumer: &str,
+        request_id: u64,
+        message: &str,
+    ) -> Result<StylesheetLoadProgress, StylesheetLoadError> {
+        self.check_load_consumer(id, consumer)?;
+        if message.len() > cem_ml::import::MAX_DOCUMENT_BYTES {
+            return Err("stylesheet failure control exceeds byte limit".into());
+        }
+        let load = self.loads.get_mut(&id).unwrap();
+        if let Err(error) = load
+            .closure
+            .fail_import(request_id, "cem.css.import_load_failed", message)
+        {
+            self.cancel_stylesheet_load(id);
+            return Err(error.into());
+        }
+        self.advance_stylesheet_load(id, consumer)
+    }
+
     /// Cancellation targets a generation so a late reply cannot release newer work.
     pub fn release_stylesheet_generation(&mut self, consumer: &str, id: u32) -> usize {
         let slot = self

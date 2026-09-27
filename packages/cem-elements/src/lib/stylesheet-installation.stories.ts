@@ -115,23 +115,29 @@ export const FailuresKeepIndependentStyles: Story = {
     play: async ({ canvasElement }) => {
         const root = canvasElement.querySelector('section');
         if (!root) throw new Error('missing failure fixture');
-        for (const fallback of [false, true]) {
+        for (const fallback of [false, true]) for (const failure of ['mime', 'transport', 'nested']) {
             const f = fixture(root, fallback);
             try {
                 const { artifact } = await f.native.compile('native-install-card', [
                     { css: '@import "./child.css"; :host { --failed: no; }', scope: null },
                     { css: ':host { --independent: yes; }', scope: null },
                 ]);
+                let reads = 0;
                 const load = installRetainedStylesheets({ host: f.native.host, artifact, consumer: 'failure',
                     lease: f.owner.beginConsumer(f.instance, f.scope), context: f.context,
                     baseUrl: 'https://example.test/main.css', occurrences: [0, 1].map(index =>
                         ({ index, scope: { kind: 'private' as const, tag: 'native-install-card' } })),
-                    read: async () => response('<html/>', 'text/html') });
+                    read: async () => {
+                        if (failure === 'nested' && ++reads === 1) return response('@import "./missing.css"; :host { --failed: nested; }');
+                        if (failure !== 'mime') throw new Error('network offline');
+                        return response('<html/>', 'text/html');
+                    } });
                 const result = await load.ready;
                 expect(result).toMatchObject({ status: 'ready', installed: 1 });
                 expect(result.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({
-                    code: 'cem.css.import_content_type', stylesheetUrl: 'https://example.test/main.css',
-                    sourceUri: expect.stringMatching(/^urn:cem:template-style:/), offset: 0,
+                    code: failure === 'mime' ? 'cem.css.import_content_type' : 'cem.css.import_load_failed',
+                    stylesheetUrl: failure === 'nested' ? 'https://example.test/cdn/child.css' : 'https://example.test/main.css',
+                    sourceUri: failure === 'nested' ? 'https://example.test/cdn/child.css' : expect.stringMatching(/^urn:cem:template-style:/), offset: 0,
                 })]));
                 expect(getComputedStyle(f.instance).getPropertyValue('--failed').trim()).toBe('');
                 expect(getComputedStyle(f.instance).getPropertyValue('--independent').trim()).toBe('yes');

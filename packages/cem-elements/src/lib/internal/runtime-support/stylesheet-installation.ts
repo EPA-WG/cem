@@ -108,10 +108,19 @@ export function installRetainedStylesheets(options: CemStylesheetInstallationOpt
                     if ('loadId' in result) loadId = result.loadId;
                     while (result.status === 'pending') {
                         const request = result.request;
-                        const response = await active(Promise.resolve().then(() => {
-                            if (signal.aborted) throw cancelled;
-                            return options.read(request, signal);
-                        }));
+                        let response: CemStylesheetResponse;
+                        try {
+                            response = await active(Promise.resolve().then(() => {
+                                if (signal.aborted) throw cancelled;
+                                return options.read(request, signal);
+                            }));
+                        } catch (error) {
+                            if (signal.aborted || error === cancelled) throw cancelled;
+                            // Native admission owns the requesting import's source location.
+                            await operation({ action: 'fail', artifact, consumer, loadId: result.loadId,
+                                requestId: request.id, message: error instanceof Error ? error.message : String(error) });
+                            throw new Error('native stylesheet failure did not stop the load', { cause: error });
+                        }
                         result = await operation({ action: 'deliver', artifact, consumer, loadId: result.loadId,
                             requestId: result.request.id, ...response });
                     }

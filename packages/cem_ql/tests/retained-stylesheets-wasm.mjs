@@ -51,6 +51,17 @@ try {
     const released = begin();
     assert.equal(JSON.parse(wasm.releaseTemplateStylesheets(owner, options.consumer, 0)).status, 'released');
     assert.equal(deliver(released).status, 'error');
+    const transport = begin();
+    const wrongConsumer = JSON.parse(wasm.failTemplateStylesheet(owner, transport.loadId, 'other', transport.request.id, 'wrong'));
+    assert.equal(wrongConsumer.status, 'error');
+    assert.deepEqual(wrongConsumer.diagnostics, []);
+    const transportError = JSON.parse(wasm.failTemplateStylesheet(owner, transport.loadId, options.consumer, transport.request.id, 'network offline'));
+    assert.equal(transportError.status, 'error');
+    assert.equal(transportError.diagnostics[0].code, 'cem.css.import_load_failed');
+    assert.equal(transportError.diagnostics[0].stylesheetUrl, options.baseUrl);
+    assert.equal(transportError.diagnostics[0].offset, 0);
+    assert.match(transportError.diagnostics[0].sourceUri, /^urn:cem:template-style:/);
+    assert.equal(deliver(transport).status, 'error');
     const disposed = begin();
     assert.equal(wasm.disposeTemplate(owner), true);
     assert.equal(deliver(disposed).status, 'error');
@@ -90,4 +101,4 @@ try {
         assert.ok(!ready.css.includes(suppressed), suppressed);
     }
 } finally { wasm.disposeTemplate(diagnosticOwner); }
-console.log('Retained CSS WASM: loading, redirects, linear easing, source diagnostics, stale delivery, MIME/byte limits, release and template disposal passed.');
+console.log('Retained CSS WASM: loading, redirects, linear easing, source diagnostics, stale delivery, transport/MIME/byte limits, release and template disposal passed.');

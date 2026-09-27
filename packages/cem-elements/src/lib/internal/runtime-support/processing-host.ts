@@ -16,7 +16,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v7' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v8' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -316,6 +316,7 @@ export type CemProcessingStylesheetInput = {
         scope: { kind: 'private'; tag: string } | { kind: 'shared'; name: string } }
     | { action: 'deliver'; loadId: string; requestId: number; bytes: ArrayBuffer;
         finalUrl: string; contentType?: string }
+    | { action: 'fail'; loadId: string; requestId: number; message: string }
     | { action: 'release'; loadId?: string }
 );
 
@@ -614,7 +615,7 @@ export type CemProcessingWorkerFailure =
           transactionState: CemProcessingPatchTransactionState;
           revision: RenderRevision;
       })
-    | (CemProcessingWorkerFailureBase & { operation: 'stylesheet'; action: 'begin' | 'deliver' | 'release' })
+    | (CemProcessingWorkerFailureBase & { operation: 'stylesheet'; action: 'begin' | 'deliver' | 'fail' | 'release' })
     | (CemProcessingWorkerFailureBase & { operation: 'value' | 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =

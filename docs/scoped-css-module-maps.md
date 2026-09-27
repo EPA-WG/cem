@@ -1374,8 +1374,8 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v7` `stylesheet` operation populates this collection
-through three controls:
+The `cem-processing-host-v8` `stylesheet` operation populates this collection
+through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
   private/shared scope, source base and the existing module resolver context
@@ -1386,6 +1386,10 @@ through three controls:
   content type. Native `complete_response` applies MIME, integrity, redirect,
   response and aggregate byte checks before shared CSS import. It returns the
   next request or retains the ready closure and emits CSS, identity and diagnostics.
+- `fail` supplies the outstanding request ID and a reader/transport error message.
+  Native admission marks the import failed and returns `cem.css.import_load_failed`
+  with the requesting import's retained source location. Stale loads and another
+  consumer's handle are rejected without changing the active load.
 - `release` drops all occurrences for a consumer, or only a specified load
   generation. Late cancellation of an older generation cannot release newer work.
 
@@ -1409,5 +1413,7 @@ context liveness before committing emitted CSS or a context marker.
 `cem_ql:test:retained-stylesheets` runs native ownership/load tests and the real
 WASM protocol fixture, including source-located suppression diagnostics.
 Processing-engine and host tests cover shared compilation,
-root disposal, stale handles, fallback and late cancellation. Browser fetching,
-style installation and the compiler cutover remain pending.
+root disposal, stale handles, fallback and late cancellation. The installation
+coordinator now drives these operations with caller-supplied byte transport,
+including native failure reporting. Main runtime transport/readiness routing and
+the compiler cutover remain pending.

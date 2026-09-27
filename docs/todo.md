@@ -6177,10 +6177,14 @@ registration identities may reuse an inherited or existing definition.
               tests, typecheck and lint pass (two existing warnings). Late native
               results are released, and worker replacement cannot release old
               handles against the fallback owner. Main runtime routing is pending.
-        - [ ] Fixture: report stylesheet reader/transport failures through native
+        - [x] Fixture: report stylesheet reader/transport failures through native
               import failure admission so diagnostics retain the requesting import
               location; reject stale/wrong-consumer failures and preserve siblings.
               Verify native tests first, then WASM and worker/fallback installation.
+              Completed: 11 native tests, real WASM protocol checks, 538 unit tests,
+              269 browser stories, typecheck and lint pass (existing warnings).
+              Redirected child failures retain the child import location; stale
+              and wrong-consumer failures cannot alter a newer load.
         - [ ] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and

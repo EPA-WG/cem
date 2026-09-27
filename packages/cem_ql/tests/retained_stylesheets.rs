@@ -474,3 +474,69 @@ fn load_protocol_checks_byte_limits_before_import_and_cancels_exact_generations(
     assert!(output.emission().is_err());
     assert_eq!(owner.release_stylesheet_generation("one", second), 0);
 }
+
+#[test]
+fn transport_failures_preserve_import_location_and_consumer_isolation() {
+    use cem_ql::retained_template::{
+        StylesheetLoadError, StylesheetLoadOptions, StylesheetLoadProgress,
+    };
+    let mut owner = template("/* header */ @import 'child.css';");
+    let options = || {
+        let handle = CemResolutionContextHandle::new("test");
+        let resolver = CemScopedModuleUrlResolver::new().with_context(
+            handle.clone(),
+            CemModuleUrlContext {
+                identity: "test".into(),
+                resolver_identity: "test".into(),
+                resource_policy_stamp: "test".into(),
+                frames: vec![CemModuleUrlFrame::new("page", "https://example.test/page")],
+            },
+        );
+        StylesheetLoadOptions {
+            consumer: "one".into(),
+            index: 0,
+            scope: scope(),
+            declaration_identity: "card".into(),
+            base_url: "https://example.test/main.css".into(),
+            capability: CemModuleUrlResolutionCapability::new(Arc::new(resolver), handle),
+            response_policy: Default::default(),
+        }
+    };
+    let first = owner.begin_stylesheet_load(options()).unwrap();
+    let second = owner.begin_stylesheet_load(options()).unwrap();
+    assert!(matches!(
+        owner.fail_stylesheet_load(first, "one", 1, "late"),
+        Err(StylesheetLoadError::Control(_))
+    ));
+    assert!(matches!(
+        owner.fail_stylesheet_load(second, "other", 1, "wrong"),
+        Err(StylesheetLoadError::Control(_))
+    ));
+    let StylesheetLoadProgress::Pending(request) =
+        owner.advance_stylesheet_load(second, "one").unwrap()
+    else {
+        panic!("expected import");
+    };
+    let Err(StylesheetLoadError::Import(failure)) =
+        owner.fail_stylesheet_load(second, "one", request.id, "network offline")
+    else {
+        panic!("expected native failure");
+    };
+    assert_eq!(failure.code, "cem.css.import_load_failed");
+    assert_eq!(failure.message, "network offline");
+    let location = failure.location.unwrap();
+    assert_eq!(location.stylesheet_url, "https://example.test/main.css");
+    assert_eq!(location.range.offset, 13);
+    assert_eq!(location.range.length, 20);
+    assert!(owner.advance_stylesheet_load(second, "one").is_err());
+    assert!(owner.stylesheet("one", 0).is_none());
+    let fresh = owner.begin_stylesheet_load(options()).unwrap();
+    assert!(matches!(
+        owner.fail_stylesheet_load(second, "one", request.id, "late again"),
+        Err(StylesheetLoadError::Control(_))
+    ));
+    assert!(matches!(
+        owner.advance_stylesheet_load(fresh, "one").unwrap(),
+        StylesheetLoadProgress::Pending(_)
+    ));
+}

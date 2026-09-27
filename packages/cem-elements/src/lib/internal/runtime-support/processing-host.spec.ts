@@ -300,10 +300,10 @@ function snapshotFixture(): DataIslandSnapshot {
 }
 
 
-it('retries stylesheet begin after worker loss but requires a new load for delivery or release', () => {
+it('retries stylesheet begin after worker loss but requires a new load for delivery, failure or release', () => {
     expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'stylesheet', action: 'begin' }).action)
         .toBe('retry-main-thread');
-    for (const action of ['deliver', 'release'] as const) {
+    for (const action of ['deliver', 'fail', 'release'] as const) {
         expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'stylesheet', action }).action)
             .toBe('restart-stylesheet-load');
     }

@@ -25,6 +25,7 @@ import initCemQlWasm, {
     adoptDomStylesheets,
     beginTemplateStylesheet,
     deliverTemplateStylesheet,
+    failTemplateStylesheet,
     releaseTemplateStylesheets,
     compileTemplateArtifact,
     compileTemplateModuleClosure,
@@ -115,10 +116,11 @@ export async function processRetainedTemplateStylesheet(
 ): Promise<CemProcessingStylesheetResult<number>> {
     await ensureRuntimeReady();
     if (input.action === 'release') return releaseRetainedTemplateStylesheets(artifactId, consumer, loadId);
-    if (input.action === 'deliver') {
+    if (input.action === 'deliver' || input.action === 'fail') {
         if (!Number.isInteger(input.requestId) || input.requestId < 1 || input.requestId > 0xffffffff) {
             throw new Error('invalid stylesheet request identity');
         }
+        if (input.action === 'fail') return stylesheetResult(failTemplateStylesheet(artifactId, loadId, consumer, input.requestId, input.message));
         return stylesheetResult(deliverTemplateStylesheet(artifactId, loadId, consumer, input.requestId,
             new Uint8Array(input.bytes), input.finalUrl, input.contentType ?? ''));
     }

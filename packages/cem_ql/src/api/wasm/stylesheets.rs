@@ -151,6 +151,22 @@ pub fn deliver(
     })
 }
 
+#[wasm_bindgen(js_name = "failTemplateStylesheet")]
+pub fn fail(
+    artifact_id: u32,
+    load_id: u32,
+    consumer: &str,
+    request_id: u32,
+    message: &str,
+) -> String {
+    with_owner(artifact_id, |owner| {
+        progress(
+            load_id,
+            owner.fail_stylesheet_load(load_id, consumer, request_id.into(), message)?,
+        )
+    })
+}
+
 #[wasm_bindgen(js_name = "releaseTemplateStylesheets")]
 pub fn release(artifact_id: u32, consumer: &str, load_id: u32) -> String {
     with_owner(artifact_id, |owner| {
