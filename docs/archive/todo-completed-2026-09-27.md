@@ -183,3 +183,22 @@ example doubles both dimensions in each mode. Sharp is 0px and smooth is 8px
 with the default theme. The preview has no console warnings or errors.
 Validation: `yarn nx run @epa-wg/custom-element:lint`, including package,
 reference-corpus and browser-fixture dependencies.
+
+## Shared harness required-input repair
+
+- [x] Reproduce the shared substrate harness's native validation failure in
+  isolation: clearing the input incorrectly leaves `form.checkValidity()` true.
+- [x] Correct the test-owned field declaration to bind `required` by presence,
+  using the native semantics already pinned in the Rust fixture. Preserve the
+  existing invalid-form assertion and reset, event, accessibility and visual checks.
+- [x] Verify absent, empty, `"false"` and `"true"` required attributes, including
+  live removal/reintroduction, native `validity.valueMissing`, and input identity.
+- [x] Pass `yarn nx run @epa-wg/cem-components:verify-phase3-harness` and its
+  lint/typecheck/build dependencies. Rerun the full component suite and compare
+  full failure names against the recorded baseline: 82 passing / 47 failing,
+  with exactly the harness failure resolved and no new failing test names.
+
+The production component/runtime implementation is unchanged. Remaining
+failures stay in the [baseline inventory](../cem-components-baseline-2026-09-27.md).
+Next: the accepted canonical `cem-action` XHTML/colocated-story migration and
+consumer cutover, preserving explicit submit/reset and default command behavior.

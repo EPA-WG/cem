@@ -71,7 +71,7 @@ describe('component test harness', () => {
             tag: FIELD_TAG,
             cemMl:
                 '{attribute @name=label | Field}' +
-                '{label @class=cem-harness-field | {span | {$label}} {input @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @required={datadom.attributes.required} @slice=value @slice-event=input @slice-value="{$target.value}" | }}',
+                '{label @class=cem-harness-field | {span | {$label}} {input @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @slice=value @slice-event=input @slice-value="{$target.value}" | }}',
         });
 
         const form = await harness.render(`
@@ -92,6 +92,7 @@ describe('component test harness', () => {
         expect(fieldHost.shadowRoot).toBeNull();
         expect(assertAccessibleName(action, 'Save')).toBe('Save');
         expect(assertAccessibleName(input, 'Email')).toBe('Email');
+        expect(input.required).toBe(true);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
 
         actionHost.setAttribute('label', 'Publish');
@@ -122,6 +123,20 @@ describe('component test harness', () => {
         input = harness.query<HTMLInputElement>(`${FIELD_TAG} input`);
         input.value = '';
         expect(captureFormSnapshot(form).valid).toBe(false);
+
+        // Native boolean attributes are enabled by presence, including "false".
+        // Exercise live removal/reintroduction without losing the native owner.
+        for (const required of [null, '', 'false', 'true', null, '']) {
+            if (required === null) fieldHost.removeAttribute('required');
+            else fieldHost.setAttribute('required', required);
+            await harness.settle(fieldHost);
+            expect(harness.query<HTMLInputElement>(`${FIELD_TAG} input`)).toBe(input);
+            expect(input.required).toBe(required !== null);
+            input.value = '';
+            expect(input.validity.valueMissing).toBe(required !== null);
+            expect(captureFormSnapshot(form).valid).toBe(required === null);
+        }
+
         input.value = 'published@example.test';
         input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
         await harness.settle(fieldHost);

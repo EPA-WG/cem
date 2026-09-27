@@ -135,6 +135,15 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
               absent, empty, `"false"`, and `"true"` host values. Verify the
               explicit presence expression used by canonical components and
               distinguish it from legacy value/truthiness bindings.
+        - [x] Fixture: repair the shared substrate harness's required-input
+              declaration using explicit attribute presence. Preserve native
+              form-validity/reset assertions and verify absent, empty,
+              `"false"`, and `"true"` values plus live removal without replacing
+              the native input. Compare the full legacy failure inventory.
+              The full harness gate passes. The aggregate suite is now
+              82 passing / 47 failing, with only this failure removed and no
+              new failing test names. See the
+              [repair evidence](archive/todo-completed-2026-09-27.md#shared-harness-required-input-repair).
     - [x] Fixture: load the legacy material action demo through page-level
           module maps and repository-owned runtime/demo modules, matching the
           `cem-elements` demo convention. Verify source and packaged asset

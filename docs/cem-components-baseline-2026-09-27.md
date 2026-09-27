@@ -8,6 +8,10 @@ This matches the counts recorded during native CSS closure. The command below
 runs only the component suite; it does not claim the aggregate package gate is
 green. The runtime build was run first because these tests import its package.
 
+After the shared harness fixture repair, the suite reports **82 passing /
+47 failing / 129 total**. Comparing full test names removes exactly the harness
+failure listed below and adds no failures. The aggregate package gate remains red.
+
 ```sh
 yarn nx run cem-elements:build
 yarn nx run-many --targets=test --projects=@epa-wg/cem-components --excludeTaskDependencies --skipNxCache --args='--run --reporter=json --outputFile=/tmp/cem-components-baseline.json'
@@ -38,9 +42,18 @@ the failure inventory below preserves their useful contents in the repository.
   concrete source finding; its contribution to all seven failures still needs
   a focused native render and browser check during owner migration.
 - **Separate unresolved failures:** autocomplete payload replacement, expansion
-  activation, paginator focus ownership, sort-header owner identity, input paint,
-  and the harness's boolean expectation need individual attribution. Do not
+  activation, paginator focus ownership, sort-header owner identity, and input
+  paint need individual attribution. Do not
   classify these from test names alone or weaken their assertions.
+- **Harness required-input fixture (resolved):** the isolated harness failure
+  occurs when an empty input incorrectly passes native form validation. Its
+  test-owned field template bound `required` directly to the host value, so
+  the empty attribute was omitted on the native input. Switching that fixture
+  to the already-proven presence expression restores the existing assertion.
+  The browser fixture also checks absent, empty, `"false"`, and `"true"` values,
+  live removal/reintroduction, native `validity.valueMissing`, and input identity.
+  No production component, shared runtime behavior, or assertion was relaxed.
+  The full `verify-phase3-harness` gate passes, including lint and typechecking.
 
 Continue with the accepted `cem-action` declarative cutover. Site's v3 XHTML
 asset delivery prerequisite is complete. Preserve this baseline when comparing
@@ -49,6 +62,8 @@ The legacy behavior modules remain frozen; this investigation changes no
 production semantics or test expectations.
 
 ## Failure inventory
+
+This is the original 48-failure snapshot; resolved cases remain here as evidence.
 
 Counts are per test file. Each entry records the first reported failure only;
 assertions after it were not exercised successfully.
