@@ -97,7 +97,7 @@ import {
 import { DeclarationStyleOwnership, reconcileStylesheetContextMarker } from './declaration-style-ownership.js';
 import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
-import { installInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
+import { installInstanceStylesheets, stageInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
 import { readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
@@ -3014,8 +3014,10 @@ export class CemElementRuntime {
         const key = edgeContentAddress('template-artifact', { sources, context, instanceId }).key;
         let state = this.instanceStylesheets.get(instance);
         if (!state || state.key !== key) {
-            state?.installation.dispose();
-            state = { key, reported: false, installation: installInstanceStylesheets({
+            // Keep the live generation until the whole replacement is ready.
+            // The staged installer owns retirement and superseded-load cleanup.
+            const install = state ? stageInstanceStylesheets : installInstanceStylesheets;
+            state = { key, reported: false, installation: install({
                 element: instance, instanceId, sources, context, signal,
                 artifactId: `instance-css:${key}`, scopePolicyStamp: this.scopePolicyStamp,
                 host: this.processingHost(compiled), baseUrl: compiled.resourceBaseUrl,

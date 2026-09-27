@@ -44,6 +44,81 @@ function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
 }
 const css = (value: string, scope = '') => `{style ${scope ? `@scope=${scope}` : ''} |\`\`\`\n${value} \`\`\`\n}`;
 
+export const PayloadReplacementPreservesActiveStyles: Story = {
+    render: () => '<section aria-label="Staged runtime payload styles"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing staged payload fixture');
+        for (const fallback of [false, true]) {
+            let gate = held(); let reads = 0;
+            const f = fixture(root, fallback, async () => { reads++; return gate.promise; });
+            try {
+                const declaration = f.declare('staged-payload', '{p | Content}');
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p { --instance: old; }</style>';
+                instance.append(payload); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const island = instance.querySelector<HTMLTemplateElement>('template[data-cem-island="instance"]');
+                const source = island?.content.querySelector('style');
+                const style = instance.querySelector('style[data-cem-instance-style]');
+                if (!island || !source || !style) throw new Error('missing initial payload stylesheet');
+                const value = () => getComputedStyle(instance.querySelector('p') as Element).getPropertyValue('--instance').trim();
+                expect(value()).toBe('old');
+                source.textContent = '@import "./replacement.css";';
+                await waitFor(() => expect(reads).toBe(1));
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
+                expect(value()).toBe('old');
+                gate.resolve(response('p { --instance: new; }'));
+                await waitFor(() => expect(value()).toBe('new'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
+
+                gate = held();
+                source.textContent = '@import "./failed.css"; p { --instance: partial; }';
+                await waitFor(() => expect(reads).toBe(2));
+                expect(value()).toBe('new');
+                gate.resolve({ ...response('invalid import'), contentType: 'text/html' });
+                await f.runtime.whenRenderSettled(instance);
+                expect(value()).toBe('new');
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
+                expect(f.runtime.diagnosticsFor(instance).some(d => d.code === 'cem.css.import_content_type')).toBe(true);
+
+                gate = held();
+                source.textContent = '@import "./superseded.css";';
+                await waitFor(() => expect(reads).toBe(3));
+                expect(value()).toBe('new');
+                source.textContent = 'p { --instance: latest; }';
+                await waitFor(() => expect(value()).toBe('latest'));
+                gate.resolve(response('p { --instance: obsolete; }'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(value()).toBe('latest');
+                expect(instance.querySelectorAll('style[data-cem-instance-style]')).toHaveLength(1);
+
+                const payloadParent = source.parentNode;
+                if (!payloadParent) throw new Error('missing retained payload parent');
+                source.remove();
+                await waitFor(() => expect(instance.querySelectorAll('style[data-cem-instance-style]')).toHaveLength(0));
+                await f.runtime.whenRenderSettled(instance);
+                expect(value()).toBe('');
+                source.textContent = 'p { --instance: restored; }';
+                payloadParent.appendChild(source);
+                await waitFor(() => expect(value()).toBe('restored'));
+                gate = held();
+                source.textContent = '@import "./disconnect.css";';
+                await waitFor(() => expect(reads).toBe(4));
+                expect(value()).toBe('restored');
+                instance.remove();
+                gate.resolve(response('p { --instance: disconnected; }'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelectorAll('style[data-cem-instance-style]')).toHaveLength(0);
+                expect(f.workerCalls()).toBeGreaterThan(0);
+            } finally { gate.resolve(response('')); f.dispose(); }
+        }
+    },
+};
+
 export const RecoveryPreservesRetainedInstanceStyles: Story = {
     render: () => '<section aria-label="Retained CSS recovery"></section>',
     play: async ({ canvasElement }) => {

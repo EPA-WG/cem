@@ -1771,9 +1771,14 @@ An empty source list explicitly clears the committed styles. A detached host
 cannot publish a replacement; callers own lifetime cancellation through the
 provided signal and `dispose()`.
 
-This opt-in helper commits when loading finishes. Runtime callers still use
-`installInstanceStylesheets`; committing styles together with an Edge DOM patch
-requires the transaction coordinator tracked in `todo.md`.
+The retained-CSS runtime uses this helper when payload stylesheet inputs change.
+It preserves the live styles while replacements load, including when a replacement
+fails or is superseded. Initial installation still uses `installInstanceStylesheets`
+so independent styles can load even if another initial source fails. Disconnect
+cancels both pending and live generations through the registry connection signal.
+
+Staging commits when loading finishes. Coordinating that publication with the
+runtime DOM patch still requires the transaction integration tracked in `todo.md`.
 
 ### Preparing CSS for an explicit publication point
 
