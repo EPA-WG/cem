@@ -6425,6 +6425,27 @@ registration identities may reuse an inherited or existing definition.
           when payloads or consuming contexts change, including cancellation,
           stale updates and browser ownership cleanup before removing the update
           capability guard.
+        - [x] Add a staged declaration stylesheet lease that preserves committed
+              styles while imports load, restores the current generation on
+              cancellation/failure, rejects stale commits and conflicting shared
+              context markers, and releases old ownership only after replacement.
+              Completed: `stageConsumer` preserves the active generation until a
+              valid commit and handles supersession, reentrant cancellation and
+              scope/disconnect cleanup. `requireComplete` rejects a partial
+              native load without publishing it; default installation behavior
+              still admits valid siblings. Worker/fallback fixtures verify old
+              CSS survives delayed/failed imports and late cleanup cannot remove
+              the replacement.
+              Verification: 561 unit tests, 287 browser cases in each default/
+              retained-CSS lane, 50 Edge unit tests and 10 Edge browser cases
+              pass; typecheck and lint pass with two existing warnings.
+        - [ ] Stage instance payload styles through compilation and imports while
+              keeping active/SSR nodes installed; reject compilation failures and
+              verify cancellation and supersession before publishing replacements.
+        - [ ] Coordinate declaration and instance leases with Edge patch commits,
+              including context markers shared by several declaration owners;
+              extend replacement responses/state and verify stale transaction
+              rejection before enabling changes to CSS inputs in the Edge host.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after

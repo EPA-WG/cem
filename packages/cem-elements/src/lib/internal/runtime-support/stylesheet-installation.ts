@@ -28,6 +28,8 @@ export interface CemStylesheetInstallationOptions<TScope extends Begin['scope'] 
     baseUrl: string;
     context: CemModuleUrlContextWire;
     occurrences: ReadonlyArray<{ index: number; scope: TScope }>;
+    /** Reject partial loads instead of committing valid siblings. Check compilation diagnostics before installation. */
+    requireComplete?: boolean;
     /** Transport supplies bytes; native import owns resolution and response policy. */
     read(request: Pending['request'], signal: AbortSignal): Promise<CemStylesheetResponse>;
 }
@@ -42,7 +44,7 @@ const cancelled = Symbol('stylesheet installation cancelled');
 
 /** Owns the async native load transaction; the browser never parses CSS here. */
 export function installRetainedStylesheets<TScope extends Begin['scope']>(options: CemStylesheetInstallationOptions<TScope>): CemStylesheetInstallation {
-    const { host, lease } = options;
+    const { host, lease, requireComplete = false } = options;
     const { signal } = lease;
     const { artifact, consumer, baseUrl, context, occurrences } = structuredClone({
         artifact: options.artifact, consumer: options.consumer, baseUrl: options.baseUrl,
@@ -134,6 +136,8 @@ export function installRetainedStylesheets<TScope extends Begin['scope']>(option
                 }
             }
             if (signal.aborted) throw cancelled;
+            if (requireComplete && (outputs.length !== occurrences.length
+                || diagnostics.some(diagnostic => diagnostic.severity === 'error' || diagnostic.severity === 'fatal'))) throw cancelled;
             if (!lease.commit(outputs, release)) {
                 if (!signal.aborted) throw new Error('native stylesheet lease rejected the complete set');
                 throw cancelled;

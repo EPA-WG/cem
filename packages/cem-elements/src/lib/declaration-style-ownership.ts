@@ -34,6 +34,7 @@ interface Consumer {
     release?: () => void;
     committed: boolean;
     abort: AbortController;
+    previous?: Consumer;
 }
 
 const contextAttribute = 'data-cem-css-context';
@@ -125,18 +126,29 @@ export class DeclarationStyleOwnership {
     }
 
     beginConsumer(element: HTMLElement, scope: CemDeclarationScope): CemStylesheetConsumerLease {
+        return this.beginGeneration(element, scope, false);
+    }
+
+    /** Keep the committed generation until replacement commits; releasing a pending lease restores it. */
+    stageConsumer(element: HTMLElement, scope: CemDeclarationScope): CemStylesheetConsumerLease {
+        return this.beginGeneration(element, scope, true);
+    }
+
+    private beginGeneration(element: HTMLElement, scope: CemDeclarationScope, staged: boolean): CemStylesheetConsumerLease {
         assertCemDeclarationScopeActive(scope);
         assertCemDeclarationScopeActive(this.processingScope);
         const observed = documents.get(this.document);
         if (observed) reconcileDocument(observed.registrations, observed.observer.takeRecords());
         const previous = this.currentConsumers.get(element);
+        const committed = previous?.committed ? previous : previous?.previous;
         const consumer: Consumer = { element: new WeakRef(element), scope, sets: [], marker: null,
-            committed: false, abort: new AbortController() };
+            committed: false, abort: new AbortController(), previous: staged ? committed : undefined };
         this.currentConsumers.set(element, consumer);
         this.consumers.add(consumer);
         // Publish the new generation before notifying old cancellation handlers;
         // a handler may synchronously replace this generation again.
-        if (previous) this.dropConsumer(previous);
+        if (previous && (!staged || previous !== committed)) this.dropConsumer(previous);
+        if (!staged && committed && committed !== previous) this.dropConsumer(committed);
         this.observeScope(scope);
         this.reconcile();
         return {
@@ -163,7 +175,8 @@ export class DeclarationStyleOwnership {
         // Validate the entire set before publishing either styles or a marker.
         const invalid = contexts.size > 1 || indices.size !== outputs.length ||
             outputs.some(s => !Number.isSafeInteger(s.index) || s.index < 0) ||
-            (marker !== null && held !== undefined && held.value !== marker) || outputs.some(source => {
+            (marker !== null && held !== undefined && held.value !== marker
+                && Array.from(held.consumers).some(member => member !== consumer.previous)) || outputs.some(source => {
                 const existing = this.derived.get(source.output.identity.cacheKey)?.source;
                 return existing && (existing.index !== source.index || existing.output.css !== source.output.css ||
                     existing.output.identity.contextMarker !== source.output.identity.contextMarker ||
@@ -192,13 +205,16 @@ export class DeclarationStyleOwnership {
             consumer.sets.push(set);
         }
         if (marker !== null) {
-            const membership = held ?? { value: marker, consumers: new Set<Consumer>() };
+            const membership = held?.value === marker ? held : { value: marker, consumers: new Set<Consumer>() };
             membership.consumers.add(consumer);
             markers.set(element, membership);
             element.setAttribute(contextAttribute, marker);
         }
+        const previous = consumer.previous;
+        consumer.previous = undefined;
+        if (previous) this.dropConsumer(previous);
         this.reconcile();
-        return true;
+        return this.consumers.has(consumer);
     }
 
     private takeServerStyle(source: CemOwnedStylesheet): HTMLStyleElement | undefined {
@@ -219,7 +235,11 @@ export class DeclarationStyleOwnership {
     private dropConsumer(consumer: Consumer): void {
         if (!this.consumers.delete(consumer)) return;
         const element = consumer.element.deref();
-        if (element && this.currentConsumers.get(element) === consumer) this.currentConsumers.delete(element);
+        if (element && this.currentConsumers.get(element) === consumer) {
+            if (consumer.previous && this.consumers.has(consumer.previous)) this.currentConsumers.set(element, consumer.previous);
+            else this.currentConsumers.delete(element);
+        }
+        consumer.previous = undefined;
         if (element && consumer.marker !== null) {
             const membership = markers.get(element);
             membership?.consumers.delete(consumer);

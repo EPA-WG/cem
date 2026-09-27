@@ -1729,3 +1729,28 @@ nodes and animation survive a text update in dev/worker and prod/fallback modes.
 Atomic stylesheet replacement for changed payloads or consuming contexts remains
 required before removing the remaining native-update guard or changing the
 browser default.
+
+### Staging declaration stylesheet replacements
+
+`DeclarationStyleOwnership.stageConsumer(element, scope)` starts a replacement
+lease while keeping the committed generation installed. A newer stage cancels
+the previous pending stage. Releasing a pending lease, or rejecting its output,
+restores the committed generation as current. Commit validates all indices,
+cache identities and context markers before replacing ownership. Styles still
+used by another consumer remain installed, and unchanged cache entries keep the
+same style nodes. Disconnecting the consumer or disposing its scope releases
+both active and pending generations.
+
+Use `installRetainedStylesheets({ ..., lease, requireComplete: true })` for a
+replacement that must keep its old CSS when a requested occurrence fails. This
+mode releases the candidate loads without calling `lease.commit` if any requested
+occurrence fails or returns an error/fatal diagnostic. Its readiness result is
+`cancelled` with the native diagnostics. Check compilation diagnostics before
+starting installation: this installer receives only the already admitted
+occurrences. The existing installation default still publishes valid siblings.
+
+A staged lease can change its context marker only when no other declaration
+owner on that host still requires the old marker. Coordinated marker changes
+across several owners, instance-style staging and committing CSS with Edge patch
+frames remain required integration work. Current runtime callers keep their
+existing immediate replacement behavior through `beginConsumer`.

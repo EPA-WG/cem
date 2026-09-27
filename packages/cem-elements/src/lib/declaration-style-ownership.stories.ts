@@ -335,3 +335,112 @@ export const ServerDeclarationStyleReuse: Story = {
         }
     },
 };
+
+export const StagedReplacementOwnership: Story = {
+    render: () => '<section aria-label="Staged declaration CSS replacement"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing staged fixture');
+        for (const fallback of [false, true]) {
+            const native = nativeCssStoryHost(fallback);
+            const scope = createCemDeclarationScope({ document });
+            const owner = new DeclarationStyleOwnership(document, scope);
+            const otherOwner = new DeclarationStyleOwnership(document, scope);
+            const declaration = document.createElement('div');
+            const otherDeclaration = document.createElement('div');
+            const element = document.createElement('native-staged-card');
+            const peer = document.createElement('native-staged-card');
+            root.append(declaration, otherDeclaration, element, peer);
+            owner.add(declaration, scope); otherOwner.add(otherDeclaration, scope);
+            const releases: Promise<unknown>[] = [];
+            try {
+                const { artifact } = await native.compile('native-staged-card', [{ css: ':host {--asset:url(icon)}', scope: null }]);
+                let sequence = 0;
+                const prepare = async (variant: string) => {
+                    const consumer = `staged-${variant}-${++sequence}`;
+                    const output = await native.host.stylesheet({ action: 'begin', artifact, consumer, index: 0,
+                        scope: { kind: 'private', tag: 'native-staged-card' }, baseUrl: 'https://example.test/',
+                        context: { ...nativeCssStoryContext, frames: [{ frameId: variant, baseUrl: 'https://example.test/', scopes: [],
+                            specifiers: { imports: {}, resources: { icon: { target: `./${variant}.svg` } } } }] },
+                    }).result;
+                    if (output.status !== 'ready') throw new Error('expected native output');
+                    return { outputs: [{ index: 0, scope: { kind: 'private' as const }, output }], release: () => {
+                        releases.push(native.host.stylesheet({ action: 'release', artifact, consumer, loadId: output.loadId }).result);
+                    } };
+                };
+                const a = await prepare('a');
+                const b = await prepare('b');
+                const first = owner.beginConsumer(element, scope);
+                expect(first.commit(a.outputs, a.release)).toBe(true);
+                const shared = owner.beginConsumer(peer, scope);
+                const peerOutput = await prepare('a');
+                expect(shared.commit(peerOutput.outputs, peerOutput.release)).toBe(true);
+                const original = declaration.querySelector('style');
+                const marker = element.getAttribute('data-cem-css-context');
+                const cancelled = owner.stageConsumer(element, scope);
+                expect(original?.isConnected).toBe(true);
+                expect(first.signal.aborted).toBe(false);
+                cancelled.release();
+                expect(original?.isConnected).toBe(true);
+                expect(element.getAttribute('data-cem-css-context')).toBe(marker);
+                const stale = owner.stageConsumer(element, scope);
+                const current = owner.stageConsumer(element, scope);
+                expect(stale.signal.aborted).toBe(true);
+                expect(stale.commit(b.outputs, () => undefined)).toBe(false);
+                expect(first.signal.aborted).toBe(false);
+                expect(current.commit([...b.outputs, ...b.outputs], () => undefined)).toBe(false);
+                expect(first.signal.aborted).toBe(false);
+                const blocking = otherOwner.beginConsumer(element, scope);
+                const blockingOutput = await prepare('a');
+                expect(blocking.commit(blockingOutput.outputs, blockingOutput.release)).toBe(true);
+                const conflict = owner.stageConsumer(element, scope);
+                expect(conflict.commit(b.outputs, () => undefined)).toBe(false);
+                expect(element.getAttribute('data-cem-css-context')).toBe(marker);
+                expect(original?.isConnected).toBe(true);
+                blocking.release();
+                const replacement = owner.stageConsumer(element, scope);
+                expect(replacement.commit(b.outputs, b.release)).toBe(true);
+                expect(first.signal.aborted).toBe(true);
+                expect(getComputedStyle(element).getPropertyValue('--asset')).toContain('/b.svg');
+                expect(getComputedStyle(peer).getPropertyValue('--asset')).toContain('/a.svg');
+                expect(original?.isConnected).toBe(true);
+                shared.release();
+                expect(original?.isConnected).toBe(false);
+                const retained = declaration.querySelector('style');
+                const same = owner.stageConsumer(element, scope);
+                const sameOutput = await prepare('b');
+                expect(same.commit(sameOutput.outputs, sameOutput.release)).toBe(true);
+                expect(declaration.querySelector('style')).toBe(retained);
+                let nested: ReturnType<DeclarationStyleOwnership['stageConsumer']> | undefined;
+                same.signal.addEventListener('abort', () => { nested = owner.stageConsumer(element, scope); }, { once: true });
+                const reentrant = owner.stageConsumer(element, scope);
+                const c = await prepare('c');
+                expect(reentrant.commit(c.outputs, c.release)).toBe(true);
+                expect(nested?.signal.aborted).toBe(false);
+                nested?.release();
+                expect(reentrant.signal.aborted).toBe(false);
+                const pending = owner.stageConsumer(element, scope);
+                element.remove(); root.append(element);
+                expect(pending.commit(b.outputs, () => undefined)).toBe(false);
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                expect(element.hasAttribute('data-cem-css-context')).toBe(false);
+                const resumed = owner.beginConsumer(element, scope);
+                const resumedOutput = await prepare('c');
+                expect(resumed.commit(resumedOutput.outputs, resumedOutput.release)).toBe(true);
+                const abandoned = owner.stageConsumer(element, scope);
+                const immediate = owner.beginConsumer(element, scope);
+                expect(abandoned.signal.aborted).toBe(true);
+                expect(resumed.signal.aborted).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                const d = await prepare('d');
+                expect(immediate.commit(d.outputs, d.release)).toBe(true);
+                const disposed = owner.stageConsumer(element, scope);
+                scope.dispose();
+                expect(immediate.signal.aborted).toBe(true);
+                expect(disposed.signal.aborted).toBe(true);
+                expect(declaration.querySelectorAll('style')).toHaveLength(0);
+                expect(native.host.mode).toBe(fallback ? 'main-thread' : 'worker');
+            } finally { scope.dispose(); await Promise.all(releases); native.dispose(); root.replaceChildren(); }
+        }
+    },
+};

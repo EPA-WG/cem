@@ -116,3 +116,22 @@ describe('retained stylesheet installation lifecycle', () => {
         await expect(load.dispose()).resolves.toBeUndefined();
     });
 });
+
+it.each(['throw', 'error', 'fatal'] as const)('rejects the complete replacement when an occurrence reports %s', async failure => {
+    const diagnostic = { code: 'cem.css.failure', severity: failure === 'fatal' ? 'fatal' as const : 'error' as const, message: 'failed stylesheet' };
+    const f = fixture(async input => {
+        if (input.action === 'release') return { status: 'released', count: 1 };
+        if (input.action === 'begin' && input.index === 1) {
+            if (failure === 'throw') throw new CemProcessingDiagnosticError([diagnostic]);
+            return { ...ready('invalid'), diagnostics: [diagnostic] };
+        }
+        return ready('valid');
+    });
+    f.options.occurrences.push({ index: 1, scope: { kind: 'private', tag: 'cem-card' } });
+    const load = installRetainedStylesheets({ ...f.options, requireComplete: true });
+    expect(await load.ready).toMatchObject({ status: 'cancelled', installed: 0, diagnostics: [diagnostic] });
+    expect(f.lease.commit).not.toHaveBeenCalled();
+    expect(f.lease.release).toHaveBeenCalled();
+    await load.dispose();
+    expect(f.host.stylesheet).toHaveBeenCalledWith(expect.objectContaining({ action: 'release', loadId: 'valid' }));
+});

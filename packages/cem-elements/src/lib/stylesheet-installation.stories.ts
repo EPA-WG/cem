@@ -146,3 +146,65 @@ export const FailuresKeepIndependentStyles: Story = {
         }
     },
 };
+
+export const StagedImportReplacement: Story = {
+    render: () => '<section aria-label="Staged native CSS imports"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing staged import fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            const loads: ReturnType<typeof installRetainedStylesheets>[] = [];
+            try {
+                const { artifact } = await f.native.compile('native-install-card', [
+                    { css: '@import "theme"; :host {--asset:url(asset)}', scope: null },
+                    { css: ':host {--independent:yes}', scope: null },
+                ]);
+                let sequence = 0;
+                const start = (variant: string, read: () => Promise<CemStylesheetResponse>, staged = true) => {
+                    const context = { ...f.context, frames: [{ ...f.context.frames[0], frameId: variant,
+                        specifiers: { imports: {}, resources: { theme: { target: `./${variant}.css` }, asset: { target: `./${variant}.svg` } } } }] };
+                    const lease = staged ? f.owner.stageConsumer(f.instance, f.scope) : f.owner.beginConsumer(f.instance, f.scope);
+                    const load = installRetainedStylesheets({ host: f.native.host, artifact, consumer: `replacement-${++sequence}`,
+                        context, baseUrl: 'https://example.test/main.css', lease, read, requireComplete: true,
+                        occurrences: [0, 1].map(index => ({ index, scope: { kind: 'private' as const, tag: 'native-install-card' } })),
+                    });
+                    loads.push(load); return load;
+                };
+                const initial = start('initial', async () => response(':host {--imported:before}'), false);
+                expect(await initial.ready).toMatchObject({ status: 'ready', installed: 2 });
+                const original = Array.from(f.declaration.querySelectorAll('style'));
+                const marker = f.instance.getAttribute('data-cem-css-context');
+                let requested = false;
+                const gate = held<CemStylesheetResponse>();
+                const pending = start('next', async () => { requested = true; return gate.promise; });
+                await waitFor(() => expect(requested).toBe(true));
+                original.forEach((style, index) => expect(f.declaration.querySelectorAll('style')[index]).toBe(style));
+                expect(getComputedStyle(f.instance).getPropertyValue('--imported').trim()).toBe('before');
+                expect(f.instance.getAttribute('data-cem-css-context')).toBe(marker);
+                await pending.dispose();
+                gate.resolve(response(':host {--imported:late}'));
+                expect(await pending.ready).toMatchObject({ status: 'cancelled', installed: 0 });
+                const failed = start('failed', async () => { throw new Error('offline'); });
+                expect(await failed.ready).toMatchObject({ status: 'cancelled', installed: 0,
+                    diagnostics: [expect.objectContaining({ code: 'cem.css.import_load_failed' })] });
+                original.forEach((style, index) => expect(f.declaration.querySelectorAll('style')[index]).toBe(style));
+                expect(f.instance.getAttribute('data-cem-css-context')).toBe(marker);
+                const replacement = start('replacement', async () => response(':host {--imported:replacement}'));
+                expect(await replacement.ready).toMatchObject({ status: 'ready', installed: 2 });
+                expect(getComputedStyle(f.instance).getPropertyValue('--imported').trim()).toBe('replacement');
+                expect(getComputedStyle(f.instance).getPropertyValue('--asset')).toContain('/replacement.svg');
+                expect(f.instance.getAttribute('data-cem-css-context')).not.toBe(marker);
+                expect(original[0].isConnected).toBe(false);
+                expect(f.instance.querySelector('p')).toBe(f.content);
+                // Cleanup from the superseded installation must not remove its replacement.
+                await initial.dispose(); await failed.dispose();
+                expect(f.declaration.querySelectorAll('style')).toHaveLength(2);
+                expect(getComputedStyle(f.instance).getPropertyValue('--imported').trim()).toBe('replacement');
+                await replacement.dispose();
+                expect(f.declaration.querySelectorAll('style')).toHaveLength(0);
+                expect(f.instance.hasAttribute('data-cem-css-context')).toBe(false);
+            } finally { await Promise.all(loads.map(load => load.dispose())); f.dispose(); }
+        }
+    },
+};
