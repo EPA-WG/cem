@@ -31,6 +31,8 @@ pub use strings::{
 
 pub const MAX_BYTES: usize = 32768;
 pub const MAX_DOCUMENT_BYTES: usize = 16 * 1024 * 1024;
+/// Materialized data documents have a larger budget than expression strings.
+pub const MAX_DOCUMENT_VALUES: usize = 65_536;
 const MAX_DEPTH: usize = 64;
 const MAX_VALUES: usize = 4096;
 const DATA_NS: &str = "cem:generic-data";
@@ -312,8 +314,8 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
     Ok(imported)
 }
 
-fn validate_xml_limits(document: &xml::XmlDocumentAst) -> Result<(), ImportFailure> {
-    if document.events.len() > MAX_VALUES
+fn validate_xml_limits(document: &xml::XmlDocumentAst, max_values: usize) -> Result<(), ImportFailure> {
+    if document.events.len() > max_values
         || document.events.iter().any(|event| {
             event.depth > MAX_DEPTH
                 || (event.depth == MAX_DEPTH
@@ -325,7 +327,7 @@ fn validate_xml_limits(document: &xml::XmlDocumentAst) -> Result<(), ImportFailu
     {
         return Err(ImportFailure::new(
             ImportFailureKind::Limit,
-            "XML exceeds the 64-level / 4096-event import limit.",
+            format!("XML exceeds the 64-level / {max_values}-event import limit."),
         ));
     }
     Ok(())
@@ -390,13 +392,14 @@ fn parse(source: &str, format: &str, source_uri: &str) -> Result<LoadedInputAstS
     if source.len() > MAX_BYTES {
         return Err("Source exceeds the 32 KiB import limit.".into());
     }
-    parse_bytes(source.as_bytes(), format, source_uri)
+    parse_bytes(source.as_bytes(), format, source_uri, MAX_VALUES)
 }
 
 fn parse_bytes(
     bytes: &[u8],
     content_type: &str,
     source_uri: &str,
+    max_values: usize,
 ) -> Result<LoadedInputAstStream, String> {
     let (format, content_type) = import_content_type(content_type)?;
     Ok(match format {
@@ -409,7 +412,7 @@ fn parse_bytes(
                     content_type: Some(&content_type),
                 },
             ))?;
-            validate_xml_limits(&doc).map_err(|error| error.to_string())?;
+            validate_xml_limits(&doc, max_values).map_err(|error| error.to_string())?;
             if doc.events.iter().any(|e| {
                 e.kind == xml::XmlEventKind::Doctype
                     || (e.kind == xml::XmlEventKind::EntityReference
@@ -530,7 +533,7 @@ pub fn import_data_bytes(
         ));
         return RetainedCemTree::new(builder.ast, source_uri, text, builder.semantics, None);
     }
-    let native = Arc::new(parse_bytes(bytes, content_type, source_uri)?);
+    let native = Arc::new(parse_bytes(bytes, content_type, source_uri, MAX_DOCUMENT_VALUES)?);
     project_native(
         native,
         "",
@@ -543,6 +546,7 @@ pub fn import_data_bytes(
             bytes,
             &["data/1", &import_content_type(content_type)?.1, projection],
         )),
+        MAX_DOCUMENT_VALUES,
     )
 }
 
@@ -561,6 +565,7 @@ pub fn import_data(
             source.as_bytes(),
             &["data/1", &import_content_type(format)?.1, projection],
         )),
+        MAX_VALUES,
     )
 }
 
@@ -612,13 +617,16 @@ pub fn retain_lifecycle(native: Arc<LoadedInputAstStream>) -> Result<Arc<Retaine
         ),
         _ => return Err("The lifecycle owner has no registered CEM data import.".into()),
     };
-    project_native(native, "", "cem", &uri, &format, length, None)
+    if length > MAX_DOCUMENT_BYTES {
+        return Err("Source exceeds the 16 MiB document import limit.".into());
+    }
+    project_native(native, "", "cem", &uri, &format, length, None, MAX_DOCUMENT_VALUES)
 }
 
-fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure> {
+fn validate_data_ast(native: &LoadedInputAstStream, max_values: usize) -> Result<(), ImportFailure> {
     use ImportFailureKind::*;
     match native {
-        LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc)?,
+        LoadedInputAstStream::XmlDocument(doc) => validate_xml_limits(doc, max_values)?,
         LoadedInputAstStream::JsonDocument(doc) => {
             if let Some(fact) = doc.parse_facts.iter().find(|fact| fact.fatal) {
                 return Err(ImportFailure::new(Malformed, fact.message.clone()));
@@ -627,10 +635,10 @@ fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure>
             let mut count = 0;
             while let Some((value, depth)) = pending.pop() {
                 count += 1;
-                if depth > MAX_DEPTH || count > MAX_VALUES {
+                if depth > MAX_DEPTH || count > max_values {
                     return Err(ImportFailure::new(
                         Limit,
-                        "JSON exceeds the 64-level / 4096-value import limit.",
+                        format!("JSON exceeds the 64-level / {max_values}-value import limit."),
                     ));
                 }
                 match value {
@@ -657,10 +665,10 @@ fn validate_data_ast(native: &LoadedInputAstStream) -> Result<(), ImportFailure>
             let mut count = 0;
             while let Some((node, depth)) = pending.pop() {
                 count += 1;
-                if depth > MAX_DEPTH || count > MAX_VALUES {
+                if depth > MAX_DEPTH || count > max_values {
                     return Err(ImportFailure::new(
                         Limit,
-                        "YAML exceeds the 64-level / 4096-value import limit.",
+                        format!("YAML exceeds the 64-level / {max_values}-value import limit."),
                     ));
                 }
                 if node.alias.is_some() || node.anchor_id.is_some() || node.tag.is_some() {
@@ -695,12 +703,13 @@ fn project_native(
     format: &str,
     byte_length: usize,
     fingerprint: Option<[u8; 32]>,
+    max_values: usize,
 ) -> Result<Arc<RetainedCemTree>, String> {
-    validate_data_ast(native.as_ref()).map_err(|e| e.to_string())?;
+    validate_data_ast(native.as_ref(), max_values).map_err(|e| e.to_string())?;
     let (ast, mut semantics) = match (projection, native.as_ref()) {
         ("cem", LoadedInputAstStream::CssDocument(doc)) => css::project(doc)?,
         ("json-to-xml", LoadedInputAstStream::JsonDocument(doc)) =>
-            json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values: MAX_VALUES, ..Default::default() }).map_err(|e| e.to_string())?,
+            json_xml::project_json_to_xml_with_semantics(doc, &json_xml::JsonXmlProjectionOptions { max_depth: MAX_DEPTH, max_values, ..Default::default() }).map_err(|e| e.to_string())?,
         ("json-to-xml", _) => return Err("The json-to-xml projection requires JSON input.".into()),
         ("cem" | "xpath", LoadedInputAstStream::XmlDocument(doc)) => { let imported = import_xml_ast(doc)?; (imported.ast, imported.semantics) },
         ("xpath", _) => return Err("The xpath projection requires XML input; use the ordinary CEM import for other formats.".into()),
@@ -712,6 +721,7 @@ fn project_native(
                 _ => return Err("Unsupported CEM data import.".into()),
             };
             let mut builder = ImportBuilder::new();
+            builder.max_values = max_values;
             builder.generic_data(&data)?;
             (builder.ast, builder.semantics)
         },
@@ -746,6 +756,7 @@ struct ImportBuilder {
     ast: CemDocument,
     semantics: CemTreeSemantics,
     visited: usize,
+    max_values: usize,
 }
 impl ImportBuilder {
     fn generic_data(&mut self, document: &GenericDataDocumentAst) -> Result<(), String> {
@@ -768,6 +779,7 @@ impl ImportBuilder {
             ast,
             semantics: CemTreeSemantics::default(),
             visited: 0,
+            max_values: MAX_VALUES,
         }
     }
     fn push(&mut self, parent: AstNodeId, node: CemAstNode) -> AstNodeId {
@@ -840,12 +852,12 @@ impl ImportBuilder {
     }
     fn value(&mut self, parent: AstNodeId, value: &Value, depth: usize) -> Result<(), String> {
         self.visited += 1;
-        if self.visited > MAX_VALUES
+        if self.visited > self.max_values
             || depth > MAX_DEPTH
             || (depth == MAX_DEPTH
                 && matches!(value, Value::Sequence { .. } | Value::Mapping { .. }))
         {
-            return Err("Data exceeds the 64-level / 4096-value import limit.".into());
+            return Err(format!("Data exceeds the 64-level / {}-value import limit.", self.max_values));
         }
         let range = value.source_range();
         let source = range.source_map.clone().unwrap_or_else(|| SourceMapStack {

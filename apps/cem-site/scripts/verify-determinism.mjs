@@ -13,7 +13,7 @@ const runtimeOutputs = [];
 for (const runtime of manifest.runtimes) {
     const destinationMap = JSON.parse(await readFile(resolve(workspaceRoot, runtime.destinationMap), 'utf8'));
     const targets = [
-        ...Object.values(destinationMap.imports),
+        ...Object.values(destinationMap.imports).map(({ path }) => path),
         ...Object.values(destinationMap.resources).map(({ path }) => path),
     ];
     runtimeOutputs.push(

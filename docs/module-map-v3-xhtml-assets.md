@@ -1,7 +1,7 @@
 # Module-map v3 XHTML deployment resources
 
-Status: native v3 XHTML resource support implemented; Site adoption and component
-cutover remain pending.
+Status: native v3 XHTML resource support and Site adoption are complete.
+The action component cutover remains next.
 The active checklist is in [todo.md](todo.md). This document specifies an
 additive extension to the existing worker-safe
 [module-map v3 contract](../packages/cem_ml/schema-packages/module-map-v3/v1/schema/module-map-v3.cem),
@@ -11,9 +11,9 @@ not a replacement for its typed imports or JavaScript edge rewriting.
 
 Canonical CEM components ship XHTML declarations. Removing `cem-action` from
 the legacy JavaScript registry requires Site's search and interactive pages to
-load its declaration explicitly. Site currently uses module-map v2, whose
-resource vocabulary is JavaScript, CSS and WASM. A declared XHTML resource fails
-with `cem.module_map.resource_type_unsupported`.
+load its declaration explicitly. Site previously used module-map v2, whose resource vocabulary is JavaScript,
+CSS and WASM. A declared XHTML resource failed with
+`cem.module_map.resource_type_unsupported`. Site now uses typed v3 maps.
 
 Extend v3 resources to deploy canonical `.xhtml` files through the same explicit
 asset graph, digest evidence, cache inputs and atomic publication used by other
@@ -48,6 +48,10 @@ JavaScript DOM parser, AST serialization, or application-specific template loade
 into the build pipeline.
 
 ## Concrete source and destination
+
+The following action excerpts describe the next component cutover. The current
+Site maps deploy the existing canonical `cem-select` declaration using this
+same resource contract.
 
 Source map excerpt:
 
@@ -113,17 +117,15 @@ resolve the same canonical template without copying it into application code.
 
 ## Site adoption and component cutover
 
-Convert Site's paired maps and authored import-map fixture shapes to v3 typed
-entries. Audit each JavaScript asset's bare specifiers and declare the exact
-`moduleImports` edges v3 requires; do not rely on v2's opaque-JavaScript behavior.
-Retain the complete current resource inventory and add the canonical action
-XHTML once per deployed route.
+Site's paired maps use v3 typed entries and exact declared `moduleImports`
+edges. The resource inventory includes the runtime's transitive dependencies
+and the canonical select XHTML once per deployed route. Build/cache inputs,
+source provenance checks and deployed-resource verification include XHTML.
 
-Update search/interactive CEM layouts to load the named template, update source
-provenance checks to recognize canonical component declarations, and include
-XHTML in build/cache inputs and deployed-resource verification. Prove both
-routes from static output under their real paths, including action activation,
-scoped styles, no missing asset requests, and deterministic output.
+Browser fixtures prove named-template loading, interaction, scoped styles and
+complete resource delivery under both routes' real static paths. For the next
+action cutover, add its canonical XHTML asset and update the authored
+search/interactive layouts to load it, then verify action activation.
 
 Only then restore and complete the action cutover: remove its registry entry
 and global CSS, retain the five passing colocated action stories, migrate
@@ -144,9 +146,17 @@ CLI coverage proves byte-preserving publication, deterministic reports, a change
 cache key when only XHTML changes, and no partial output for a missing XHTML
 source. The schema-owned cache fixture now includes an XHTML resource.
 
-The next task is Site adoption. Resolve the recorded token-browser import-limit
-failure before claiming end-to-end Site verification, then complete the component
-cutover. No publishing is included in this implementation.
+Site adoption is complete. Both routes deploy 58 declared assets, including the
+canonical select XHTML, with exact JavaScript edges and source/output digest
+verification. Browser fixtures load its named template and verify selection,
+native scoped CSS and light-DOM rendering from each route's deployed assets.
+The token catalog import blocker is resolved by a bounded 65,536-value document
+profile; small string imports retain their 4,096-value limit. Authored layouts
+query retained generic-data trees directly. Site build, deterministic output,
+search, interactive, production-route and aggregate verification pass.
+
+Next, complete canonical action XHTML and its consumer cutover, then remove its
+legacy registry entry and global CSS. No package publishing is included.
 
 ## Verification
 

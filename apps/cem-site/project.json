@@ -67,7 +67,9 @@
                 "{workspaceRoot}/packages/cem-components/examples/README.md",
                 "{workspaceRoot}/packages/cem-components/docs/component-reference.md",
                 "{workspaceRoot}/packages/cem-components/docs/angular-material-parity.md",
+                "{workspaceRoot}/packages/cem-components/declarative-migration.json",
                 "{workspaceRoot}/packages/cem-components/src/lib/primitives.ts",
+                "{workspaceRoot}/packages/cem-components/src/components/**/*.xhtml",
                 "{workspaceRoot}/packages/cem-components/tests/angular-material-parity.json",
                 "{workspaceRoot}/CHANGELOG.md",
                 "{workspaceRoot}/packages/cem-components/CHANGELOG.md",
@@ -119,6 +121,7 @@
             "inputs": [
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-interactive.mjs",
+                "{projectRoot}/scripts/verify-xhtml.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false
@@ -137,6 +140,7 @@
             "inputs": [
                 "{projectRoot}/site.routes.json",
                 "{projectRoot}/scripts/verify-search.mjs",
+                "{projectRoot}/scripts/verify-xhtml.mjs",
                 {
                     "dependentTasksOutputFiles": "**/*",
                     "transitive": false

@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="packages" @visibility="public" |
     {body |
@@ -79,16 +80,16 @@
                 npm packages
               }
               {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                {cem:for-each @select="$input.publicSurfaces" @as="surface" |
-                  {cem:if @test='surface.kind == "npm"' |
+                {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "publicSurfaces").children.children' @as="surface" |
+                  {cem:if @test='seq:where(surface.children, fn(member) => member.attributes.value == "kind").children.children.value == "npm"' |
                     {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                      {attribute @name="data-public-kind" @value="{$surface.kind}"}
-                      {attribute @name="data-public-id" @value="{$surface.id}"}
+                      {attribute @name="data-public-kind" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
+                      {attribute @name="data-public-id" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "id").children.children.value}'}
                       {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                        {attribute @name="href" @value="{$surface.route}"}
-                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$surface.id}}
+                        {attribute @name="href" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "route").children.children.value}'}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(surface.children, fn(member) => member.attributes.value == "id").children.children.value}}
                       }
-                      — {$surface.summary}
+                      — {$seq:where(surface.children, fn(member) => member.attributes.value == "summary").children.children.value}
                     }
                   }
                 }
@@ -100,16 +101,16 @@
                 Cargo crates
               }
               {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                {cem:for-each @select="$input.publicSurfaces" @as="surface" |
-                  {cem:if @test='surface.kind == "cargo"' |
+                {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "publicSurfaces").children.children' @as="surface" |
+                  {cem:if @test='seq:where(surface.children, fn(member) => member.attributes.value == "kind").children.children.value == "cargo"' |
                     {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                      {attribute @name="data-public-kind" @value="{$surface.kind}"}
-                      {attribute @name="data-public-id" @value="{$surface.id}"}
+                      {attribute @name="data-public-kind" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
+                      {attribute @name="data-public-id" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "id").children.children.value}'}
                       {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                        {attribute @name="href" @value="{$surface.route}"}
-                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$surface.id}}
+                        {attribute @name="href" @value='{seq:where(surface.children, fn(member) => member.attributes.value == "route").children.children.value}'}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(surface.children, fn(member) => member.attributes.value == "id").children.children.value}}
                       }
-                      — {$surface.summary}
+                      — {$seq:where(surface.children, fn(member) => member.attributes.value == "summary").children.children.value}
                     }
                   }
                 }

@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="search" @visibility="public" |
     {body |
@@ -27,7 +28,7 @@
           }
           {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="type" @value="importmap"}
-            {$input.searchImportMap}
+            {$seq:where(input.children.children, fn(member) => member.attributes.value == "searchImportMap").children.children.value}
           }
           {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="type" @value="module"}
@@ -106,25 +107,25 @@
               {attribute @name="data-search-status" @value=""}
               {attribute @name="role" @value="status"}
               {attribute @name="aria-live" @value="polite"}
-              {$ seq:count(input.searchDocuments.route)} searchable documents
+              {$ seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "searchDocuments").children.children)} searchable documents
             }
             {element @name="ol" @namespace="http://www.w3.org/1999/xhtml" |
               {attribute @name="id" @value="search-results"}
               {attribute @name="data-search-results" @value=""}
-              {cem:for-each @select="$input.searchDocuments" @as="document" |
+              {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "searchDocuments").children.children' @as="document" |
                 {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="data-search-document" @value="{$document.route}"}
+                  {attribute @name="data-search-document" @value='{seq:where(document.children, fn(member) => member.attributes.value == "route").children.children.value}'}
                   {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="href" @value="{$document.route}"}
-                    {$document.title}
+                    {attribute @name="href" @value='{seq:where(document.children, fn(member) => member.attributes.value == "route").children.children.value}'}
+                    {$seq:where(document.children, fn(member) => member.attributes.value == "title").children.children.value}
                   }
-                  {element @name="p" @namespace="http://www.w3.org/1999/xhtml" | {$document.summary}}
+                  {element @name="p" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(document.children, fn(member) => member.attributes.value == "summary").children.children.value}}
                   {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                    {cem:for-each @select="$document.headings" @as="heading" |
+                    {cem:for-each @select='seq:where(document.children, fn(member) => member.attributes.value == "headings").children.children' @as="heading" |
                       {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
                         {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                          {attribute @name="href" @value='{str:concat((document.route, "#", heading.id))}'}
-                          {$heading.text}
+                          {attribute @name="href" @value='{str:concat((seq:where(document.children, fn(member) => member.attributes.value == "route").children.children.value, "#", seq:where(heading.children, fn(member) => member.attributes.value == "id").children.children.value))}'}
+                          {$seq:where(heading.children, fn(member) => member.attributes.value == "text").children.children.value}
                         }
                       }
                     }

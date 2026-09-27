@@ -100,14 +100,27 @@ CEMT layout. It demonstrates searchable canonical theme tokens, live
 `cem-action` and `cem-field` primitives, an executable inline CEM custom-element
 fixture, and the resulting native light DOM. Its production custom-element,
 component, CSS, worker, and WASM resources are not special-case copies: paired
-module-map v2 documents declare the exact source and destination graph, and the
+module-map v3 documents declare the exact source and destination graph, and the
 CEM-ML transform publishes and rewrites that graph into the app-relative browser
-import map. `cem-site:verify:interactive` exercises the route in Chromium, while
-the static verifier rejects undeclared dependencies and byte drift for every
-published runtime resource.
+import map. JavaScript entries declare exact `moduleImports` edges; the native
+publisher rewrites those bare specifiers to relative deployed URLs. Other assets
+are byte-preserved. Verification checks source/output digests, byte lengths and
+the complete declared dependency graph.
+
+Both routes deploy the existing canonical `cem-select.xhtml` as an
+`application/xhtml+xml` resource outside the browser import map. Their browser
+fixtures load `#cem-select` with the declaration's `choice-select` capability,
+exercise selection, and verify declaration-owned scoped CSS. The action registry
+cutover is a separate next step; these checks prove XHTML transport using the
+already migrated component.
+
+Catalog and manifest layouts query retained generic-data CEM nodes directly.
+They do not expect imported JSON to become records. The shared document importer
+supports the token catalog within its 65,536-value budget; small expression
+imports retain their existing limits.
 
 The `/search/` route consumes the same route manifest through native CEMT and a
-paired module-map v2 contract. CEMT renders the manifest's `searchDocuments`
+paired module-map v3 contract. CEMT renders the manifest's `searchDocuments`
 projection as the route's semantic HTML index. Its current site-owned filtering
 module is migration debt under the primary no-JS UI rule and must move behind a
 declarative `cem-elements` capability rather than become a pattern for another

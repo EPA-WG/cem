@@ -110,12 +110,6 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       once-per-declaration scope-contract CEM-token `<style>` and colocated
       CSF Next `<cem-tag>.stories.ts` `play` tests, moving missing reusable behavior into
       `cem-elements`, until both migration targets are zero.
-    - [ ] Implement v3 XHTML deployment before resuming the action cutover.
-        - Native support complete: the v3 schema gate, 27 focused module-map
-          tests, v1/v2/v3 CLI publication tests, cache-key fixture, TypeScript
-          projections and WASM build pass. Generated examples document XHTML.
-        - [ ] Adopt typed v3 maps and exact module edges in Site, then prove
-              static search/interactive XHTML delivery before registry removal.
     - [ ] Investigate the legacy component suite failures before claiming a
           green package gate: the cutover trial reports 80 passing / 49 failing;
           empty disabled state and collapsible navigation failures reproduce
@@ -126,10 +120,6 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           with the same 48 test names. No new component failures; the package
           gate remains red. Rebuild `cem-elements` before comparing this suite,
           because these tests import its packaged output.
-    - [ ] Diagnose the restored Site build's token-browser failure:
-          `cem.transform_template.adapter_failed` reports the 64-level / 4096-value
-          JSON import limit before asset deployment. Resolve before end-to-end
-          XHTML cutover verification; do not attribute it to the new resource.
     - [ ] Fixture: verify canonical action loading in workflow/demo and Site
           search/interactive consumers, including packaged XHTML asset delivery.
     - [ ] Fixture: cover explicit submit/reset, required-input validation,

@@ -371,6 +371,8 @@ try {
 
 function contentType(filePath) {
     switch (extname(filePath)) {
+        case '.xhtml':
+            return 'application/xhtml+xml; charset=utf-8';
         case '.html':
             return 'text/html; charset=utf-8';
         case '.js':

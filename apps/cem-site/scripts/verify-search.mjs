@@ -1,3 +1,4 @@
+import { verifyDeployedXhtml } from './verify-xhtml.mjs';
 import { createReadStream } from 'node:fs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -77,6 +78,9 @@ try {
         throw new Error(`search query contract drifted: ${JSON.stringify(initialRuntime)}`);
     }
 
+    const xhtml = await verifyDeployedXhtml(page);
+    if (browserErrors.length) throw new Error(`XHTML deployment failed: ${browserErrors.join("; ")}`);
+
     const deepLink = '/reference/cem-ml/transform-config/#heading-13';
     const link = page.locator(`a[href="${deepLink}"]`).first();
     if ((await link.textContent())?.trim() !== 'CEM-ML transform graph reference') {
@@ -137,6 +141,7 @@ try {
 
     const report = {
         version: 1,
+        xhtml,
         route: searchPath,
         documentCount: initialRuntime.documentCount,
         graphSemanticsResults: initialRuntime.resultCount,
@@ -158,8 +163,14 @@ try {
 
 function contentType(filePath) {
     switch (extname(filePath)) {
+        case '.xhtml':
+            return 'application/xhtml+xml; charset=utf-8';
         case '.html':
             return 'text/html; charset=utf-8';
+        case '.css':
+            return 'text/css; charset=utf-8';
+        case '.wasm':
+            return 'application/wasm';
         case '.js':
             return 'text/javascript; charset=utf-8';
         case '.json':

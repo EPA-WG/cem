@@ -91,3 +91,36 @@ Validation:
   remains red and is tracked under the remaining declarative UI migration.
 
 The active TODO retains its 25 unrelated open items and no completed checkboxes.
+
+## Site v3 XHTML deployment
+
+    - [x] Implement v3 XHTML deployment before resuming the action cutover.
+        - Native support complete: the v3 schema gate, 27 focused module-map
+          tests, v1/v2/v3 CLI publication tests, cache-key fixture, TypeScript
+          projections and WASM build pass. Generated examples document XHTML.
+        - [x] Adopt typed v3 maps and exact module edges in Site, then prove
+              static search/interactive XHTML delivery before registry removal.
+            - [x] Fixture: verify Site catalog/search layouts query retained
+                  generic-data trees, including rendered values and row counts;
+                  retain one stable ID per heading without copying a second ID.
+            - [x] Fixture: deploy the existing canonical select XHTML on both
+                  routes; verify byte/digest identity, named-template loading,
+                  scoped styles, interaction and complete declared module assets.
+
+    - [x] Fixture: distinguish bounded document imports from small expression
+          imports; accept a catalog-sized native tree with source provenance,
+          reject document value/depth/byte overflow, and preserve string/CSS limits.
+    - [x] Diagnose the restored Site build's token-browser failure:
+          `cem.transform_template.adapter_failed` reports the 64-level / 4096-value
+          JSON import limit before asset deployment. Resolve before end-to-end
+          XHTML cutover verification; do not attribute it to the new resource.
+
+Validation: 37 focused native import tests passed. The full `cem-site:verify`
+gate passes, including deterministic builds, search, interactive behavior and
+all 26 production routes. Both browser routes load the canonical select XHTML,
+choose its second option and verify native scoped CSS. Static checks preserve
+all catalog rows, component provenance and source/output asset digests.
+The 65,536-value document profile fixes the token-catalog blocker while retaining
+16 MiB and 64-level limits and the smaller string/CSS profiles. Site layouts now
+read the retained generic-data tree. Completed items are removed from active TODO.
+Site lint passes with one existing unused-variable warning in `search-runtime.js`.

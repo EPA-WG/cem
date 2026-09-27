@@ -127,7 +127,7 @@ pub fn import_string(
             }
             let doc = parsed((document, diagnostics))?;
             validate_xml_string(&doc, request.source)?;
-            validate_xml_limits(&doc)?;
+            validate_xml_limits(&doc, MAX_VALUES)?;
             if doc
                 .events
                 .iter()
@@ -168,7 +168,7 @@ pub fn import_string(
             }),
         )?),
     });
-    validate_data_ast(&native)?;
+    validate_data_ast(&native, MAX_VALUES)?;
     let (ast, mut semantics) = match native.as_ref() {
         LoadedInputAstStream::XmlDocument(doc) => {
             let mut imported = import_xml_ast(doc).map_err(|e| ImportFailure::new(Internal, e))?;

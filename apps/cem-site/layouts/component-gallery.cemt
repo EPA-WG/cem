@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="components" @visibility="public" |
     {body |
@@ -75,10 +76,10 @@
             }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
               State requirements:
-              {$input.stateCoverage.summary.total}; browser-covered:
-              {$input.stateCoverage.summary.covered}; static-only:
-              {$input.stateCoverage.summary.staticOnly}; gaps:
-              {$input.stateCoverage.summary.gaps}.
+              {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "stateCoverage").children.children, fn(member) => member.attributes.value == "summary").children.children, fn(member) => member.attributes.value == "total").children.children.value}; browser-covered:
+              {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "stateCoverage").children.children, fn(member) => member.attributes.value == "summary").children.children, fn(member) => member.attributes.value == "covered").children.children.value}; static-only:
+              {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "stateCoverage").children.children, fn(member) => member.attributes.value == "summary").children.children, fn(member) => member.attributes.value == "staticOnly").children.children.value}; gaps:
+              {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "stateCoverage").children.children, fn(member) => member.attributes.value == "summary").children.children, fn(member) => member.attributes.value == "gaps").children.children.value}.
             }
             {element @name="section" @namespace="http://www.w3.org/1999/xhtml" |
               {element @name="h2" @namespace="http://www.w3.org/1999/xhtml" |
@@ -118,37 +119,37 @@
                   }
                 }
                 {element @name="tbody" @namespace="http://www.w3.org/1999/xhtml" |
-                  {cem:for-each @select="$input.components" @as="component" |
+                  {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children' @as="component" |
                     {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
-                      {attribute @name="data-component-tag" @value="{$component.tag}"}
-                      {attribute @name="data-component-category" @value="{$component.category}"}
+                      {attribute @name="data-component-tag" @value='{seq:where(component.children, fn(member) => member.attributes.value == "tag").children.children.value}'}
+                      {attribute @name="data-component-category" @value='{seq:where(component.children, fn(member) => member.attributes.value == "category").children.children.value}'}
                       {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
                         {attribute @name="scope" @value="row"}
-                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$component.tag}}
+                        {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(component.children, fn(member) => member.attributes.value == "tag").children.children.value}}
                       }
-                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$component.category}}
-                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$component.primaryUse}}
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(component.children, fn(member) => member.attributes.value == "category").children.children.value}}
+                      {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(component.children, fn(member) => member.attributes.value == "primaryUse").children.children.value}}
                       {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
                         {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                          {cem:for-each @select="$component.tokenFamilies" @as="family" |
+                          {cem:for-each @select='seq:where(component.children, fn(member) => member.attributes.value == "tokenFamilies").children.children' @as="family" |
                             {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                              {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$family}}
+                              {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$family.children.value}}
                             }
                           }
                         }
                       }
                       {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
                         {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                          {cem:for-each @select="$component.categoryStates" @as="state" |
+                          {cem:for-each @select='seq:where(component.children, fn(member) => member.attributes.value == "categoryStates").children.children' @as="state" |
                             {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                              {$state.name}: {$state.status}
+                              {$seq:where(state.children, fn(member) => member.attributes.value == "name").children.children.value}: {$seq:where(state.children, fn(member) => member.attributes.value == "status").children.children.value}
                             }
                           }
                         }
                       }
                       {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
                         {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                          {attribute @name="href" @value="{$component.documentation.referenceHref}"}
+                          {attribute @name="href" @value='{seq:where(seq:where(component.children, fn(member) => member.attributes.value == "documentation").children.children, fn(member) => member.attributes.value == "referenceHref").children.children.value}'}
                           Component reference
                         }
                       }
@@ -164,13 +165,13 @@
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 Interactive stories remain a separately owned local build. Run
-                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$input.relatedSurfaces.storybook.devTarget}}
+                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "relatedSurfaces").children.children, fn(member) => member.attributes.value == "storybook").children.children, fn(member) => member.attributes.value == "devTarget").children.children.value}}
                 or build them with
-                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$input.relatedSurfaces.storybook.buildTarget}}.
+                {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | yarn nx run {$seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "relatedSurfaces").children.children, fn(member) => member.attributes.value == "storybook").children.children, fn(member) => member.attributes.value == "buildTarget").children.children.value}}.
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="href" @value="{$input.relatedSurfaces.storybook.sourceHref}"}
+                  {attribute @name="href" @value='{seq:where(seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "relatedSurfaces").children.children, fn(member) => member.attributes.value == "storybook").children.children, fn(member) => member.attributes.value == "sourceHref").children.children.value}'}
                   Browse the separately owned Storybook source
                 }
               }
@@ -181,13 +182,13 @@
                 Workflow example sources
               }
               {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                {cem:for-each @select="$input.relatedSurfaces.examples" @as="example" |
+                {cem:for-each @select='seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "relatedSurfaces").children.children, fn(member) => member.attributes.value == "examples").children.children' @as="example" |
                   {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
                     {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                      {attribute @name="href" @value="{$example.sourceHref}"}
-                      {$example.name}
+                      {attribute @name="href" @value='{seq:where(example.children, fn(member) => member.attributes.value == "sourceHref").children.children.value}'}
+                      {$seq:where(example.children, fn(member) => member.attributes.value == "name").children.children.value}
                     }
-                    — {$example.purpose}
+                    — {$seq:where(example.children, fn(member) => member.attributes.value == "purpose").children.children.value}
                   }
                 }
               }

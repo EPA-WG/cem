@@ -20,6 +20,14 @@
         },
         {
             "kind": "npm",
+            "id": "@epa-wg/cem-demo-element",
+            "manifest": "packages/cem-demo-element/package.json",
+            "nxProject": "@epa-wg/cem-demo-element",
+            "route": "/packages/",
+            "summary": "Offline-first source and live-output demo element for HTML and CEM-ML."
+        },
+        {
+            "kind": "npm",
             "id": "@epa-wg/cem-elements",
             "manifest": "packages/cem-elements/package.json",
             "nxProject": "cem-elements",
@@ -110,7 +118,7 @@
     "runtimes": [
         {
             "id": "interactive",
-            "schema": "https://cem.dev/ns/data/module-map/2",
+            "schema": "https://cem.dev/ns/data/module-map/3",
             "sourceMap": "apps/cem-site/runtime/source.module-map.json",
             "destinationMap": "apps/cem-site/runtime/destination.module-map.json",
             "entrySpecifier": "@epa-wg/cem-site/runtime",
@@ -118,7 +126,7 @@
         },
         {
             "id": "search",
-            "schema": "https://cem.dev/ns/data/module-map/2",
+            "schema": "https://cem.dev/ns/data/module-map/3",
             "sourceMap": "apps/cem-site/runtime/source.module-map.json",
             "destinationMap": "apps/cem-site/runtime/destination.module-map.json",
             "entrySpecifier": "@epa-wg/cem-site/search",
@@ -542,6 +550,7 @@
             "exportId": "component-gallery",
             "canonicalSources": [
                 "docs/component-mvp.md",
+                "packages/cem-components/declarative-migration.json",
                 "packages/cem-components/src/lib/primitives.ts",
                 "packages/cem-components/docs/component-reference.md",
                 "packages/cem-components/docs/conventions.md",

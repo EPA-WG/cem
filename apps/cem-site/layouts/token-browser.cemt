@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="tokens" @visibility="public" |
     {body |
@@ -125,36 +126,36 @@
                 }
               }
               {element @name="tbody" @namespace="http://www.w3.org/1999/xhtml" |
-                {cem:for-each @select="$input.tokens" @as="token" |
+                {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children' @as="token" |
                   {element @name="tr" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="data-token-name" @value="{$token.name}"}
-                    {attribute @name="data-token-spec" @value="{$token.spec}"}
-                    {attribute @name="data-token-table" @value="{$token.sourceTable}"}
-                    {attribute @name="data-token-bucket" @value="{$token.bucket}"}
+                    {attribute @name="data-token-name" @value='{seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}'}
+                    {attribute @name="data-token-spec" @value='{seq:where(token.children, fn(member) => member.attributes.value == "spec").children.children.value}'}
+                    {attribute @name="data-token-table" @value='{seq:where(token.children, fn(member) => member.attributes.value == "sourceTable").children.children.value}'}
+                    {attribute @name="data-token-bucket" @value='{seq:where(token.children, fn(member) => member.attributes.value == "bucket").children.children.value}'}
                     {element @name="th" @namespace="http://www.w3.org/1999/xhtml" |
                       {attribute @name="scope" @value="row"}
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.name}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}}
                     }
-                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.type}}
-                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.tier}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "type").children.children.value}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "tier").children.children.value}}
                     {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.spec}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "spec").children.children.value}}
                       /
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.sourceTable}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "sourceTable").children.children.value}}
                     }
-                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.bucket}}
-                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$token.portability}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "bucket").children.children.value}}
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "portability").children.children.value}}
                     {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.rawValue}}
-                    }
-                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.light}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "rawValue").children.children.value}}
                     }
                     {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.dark}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(token.children, fn(member) => member.attributes.value == "modes").children.children, fn(member) => member.attributes.value == "light").children.children.value}}
                     }
                     {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
-                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.modes.native}}
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(token.children, fn(member) => member.attributes.value == "modes").children.children, fn(member) => member.attributes.value == "dark").children.children.value}}
+                    }
+                    {element @name="td" @namespace="http://www.w3.org/1999/xhtml" |
+                      {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(token.children, fn(member) => member.attributes.value == "modes").children.children, fn(member) => member.attributes.value == "native").children.children.value}}
                     }
                   }
                 }

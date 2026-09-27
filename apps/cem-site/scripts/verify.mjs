@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { createProjectGraphAsync } from '@nx/devkit';
@@ -119,7 +120,7 @@ function canonicalOwner(source) {
 async function loadRuntimeContract(runtime, outputs) {
     if (
         typeof runtime?.id !== 'string' ||
-        runtime?.schema !== 'https://cem.dev/ns/data/module-map/2' ||
+        runtime?.schema !== 'https://cem.dev/ns/data/module-map/3' ||
         typeof runtime.sourceMap !== 'string' ||
         typeof runtime.destinationMap !== 'string' ||
         typeof runtime.entrySpecifier !== 'string' ||
@@ -127,7 +128,7 @@ async function loadRuntimeContract(runtime, outputs) {
         runtime.routes.length === 0 ||
         new Set(runtime.routes).size !== runtime.routes.length
     ) {
-        throw new Error('each site runtime must declare one exact module-map v2 contract');
+        throw new Error('each site runtime must declare one exact module-map v3 contract');
     }
     const sourceMapPath = resolve(workspaceRoot, runtime.sourceMap);
     const destinationMapPath = resolve(workspaceRoot, runtime.destinationMap);
@@ -146,7 +147,7 @@ async function loadRuntimeContract(runtime, outputs) {
             !moduleMap.resources ||
             Array.isArray(moduleMap.resources)
         ) {
-            throw new Error(`${label} runtime module map does not implement schema v2`);
+            throw new Error(`${label} runtime module map does not implement schema v3`);
         }
     }
     const sourceImportKeys = Object.keys(sourceMap.imports).sort();
@@ -162,33 +163,20 @@ async function loadRuntimeContract(runtime, outputs) {
         throw new Error(`${runtime.id} runtime module-map source/destination identities drifted`);
     }
 
-    const declarations = [
-        ...sourceImportKeys.map((specifier) => ({
-            specifier,
-            source: sourceMap.imports[specifier],
-            target: destinationMap.imports[specifier],
-            contentType: 'text/javascript',
-        })),
-        ...sourceResourceKeys.map((specifier) => {
-            const source = sourceMap.resources[specifier];
-            const destination = destinationMap.resources[specifier];
-            if (
-                !source ||
-                !destination ||
-                Object.keys(source).sort().join(',') !== 'contentType,path' ||
-                Object.keys(destination).sort().join(',') !== 'contentType,path' ||
-                source.contentType !== destination.contentType
-            ) {
-                throw new Error(`runtime resource ${specifier} is not an exact paired declaration`);
+    const declarations = ['imports', 'resources'].flatMap(section =>
+        Object.keys(sourceMap[section]).map(specifier => {
+            const source = sourceMap[section][specifier];
+            const destination = destinationMap[section][specifier];
+            const fields = Object.keys(source).sort().join(',');
+            if (!['contentType,path', 'contentType,moduleImports,path'].includes(fields)
+                || Object.keys(destination).sort().join(',') !== fields
+                || source.contentType !== destination.contentType
+                || JSON.stringify(source.moduleImports) !== JSON.stringify(destination.moduleImports)) {
+                throw new Error(`runtime asset ${specifier} is not an exact typed pair`);
             }
-            return {
-                specifier,
-                source: source.path,
-                target: destination.path,
-                contentType: source.contentType,
-            };
-        }),
-    ];
+            return { specifier, source: source.path, target: destination.path,
+                contentType: source.contentType, moduleImports: source.moduleImports ?? {} };
+        }));
     if (runtime.id === 'interactive') {
         if (
             declarations.filter(({ contentType }) => contentType === 'application/wasm').length !== 1 ||
@@ -280,7 +268,8 @@ const runtimeContract = {
 };
 if (
     JSON.stringify(JSON.parse(manifest.searchImportMap)) !==
-    JSON.stringify({ imports: searchRuntimeContract.sourceMap.imports })
+    JSON.stringify({ imports: Object.fromEntries(Object.entries(searchRuntimeContract.sourceMap.imports)
+        .map(([specifier, entry]) => [specifier, entry.path])) })
 ) {
     throw new Error('search import-map placeholder drifted from its source module map');
 }
@@ -659,8 +648,9 @@ for (const entry of manifest.entries.filter(({ kind }) => kind === 'page')) {
     }
     idsByRoute.set(entry.route, new Set(ids));
     const headings = [...output.matchAll(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/g)].map((match) => {
-        const id = match[2].match(/\sid="([^"]+)"/)?.[1];
-        if (!id) {
+        const headingIds = [...match[2].matchAll(/\sid="([^"]+)"/g)];
+        const id = headingIds[0]?.[1];
+        if (headingIds.length !== 1 || !id) {
             throw new Error(`${entry.output} has a heading without a stable fragment identifier`);
         }
         return { id, level: Number(match[1]), text: normalizedHtmlText(match[3]) };
@@ -879,7 +869,16 @@ for (const entry of manifest.entries) {
                 if (!componentMvp.includes(`| \`${component.tag}\` |`)) {
                     throw new Error(`${component.tag} is absent from canonical component semantics`);
                 }
-                if (!primitiveSource.includes(`tag: '${component.tag}'`)) {
+                if (component.implementation?.kind === 'cem-element-xhtml') {
+                    const expectedSource = `packages/cem-components/src/components/${component.tag}/${component.tag}.xhtml`;
+                    if (component.implementation.source !== expectedSource) {
+                        throw new Error(`${component.tag} has a noncanonical declaration source`);
+                    }
+                    const declaration = await readFile(resolve(workspaceRoot, expectedSource), 'utf8');
+                    if (!declaration.includes(`tag="${component.tag}"`) || !declaration.includes(`id="${component.tag}"`)) {
+                        throw new Error(`${component.tag} is absent from its canonical XHTML declaration`);
+                    }
+                } else if (!primitiveSource.includes(`tag: '${component.tag}'`)) {
                     throw new Error(`${component.tag} is absent from the executable primitive inventory`);
                 }
                 if (!output.includes(`data-component-tag="${component.tag}"`)) {
@@ -1020,8 +1019,16 @@ for (const entry of manifest.entries) {
                     throw new Error(`Angular Material comparison record is incomplete: ${record.id}`);
                 }
                 for (const owner of mapping.owners) {
+                    let declaredComponent = primitiveSource.includes(`tag: '${owner}'`);
+                    if (mapping.kind === 'component' && !declaredComponent && /^cem-[a-z0-9-]+$/.test(owner)) {
+                        const declaration = await readFile(
+                            resolve(workspaceRoot, `packages/cem-components/src/components/${owner}/${owner}.xhtml`),
+                            'utf8',
+                        );
+                        declaredComponent = declaration.includes(`tag="${owner}"`) && declaration.includes(`id="${owner}"`);
+                    }
                     if (
-                        (mapping.kind === 'component' && !primitiveSource.includes(`tag: '${owner}'`)) ||
+                        (mapping.kind === 'component' && !declaredComponent) ||
                         (mapping.kind === 'behavior' && !owner.startsWith('behavior:'))
                     ) {
                         throw new Error(`${record.id} has an unknown rendered CEM owner ${owner}`);
@@ -1198,9 +1205,17 @@ for (const route of searchRuntimeContract.runtime.routes) {
     }
 }
 
+const assetEvidence = JSON.parse(reportText).reportAst.transformGraph.moduleAssetManifest.assets;
 for (const asset of runtimeContract.assets) {
     const [source, output] = await Promise.all([readFile(asset.sourcePath), readFile(join(outputRoot, asset.output))]);
-    if (!source.equals(output)) {
+    const evidence = assetEvidence.find(entry => entry.specifier === asset.specifier
+        && entry.destination === `dist/apps/cem-site/${asset.output}`);
+    const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+    if (!evidence || evidence.sourceSha256 !== digest(source) || evidence.sha256 !== digest(output)
+        || evidence.sourceByteLength !== source.length || evidence.byteLength !== output.length) {
+        throw new Error(`${asset.output} is missing matching source/output digest evidence`);
+    }
+    if (!Object.keys(asset.moduleImports).length && !source.equals(output)) {
         throw new Error(`${asset.output} is not an exact publication of ${asset.source}`);
     }
 }

@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="interactive-examples" @visibility="public" |
     {body |
@@ -16,7 +17,7 @@
             {attribute @name="name" @value="viewport"}
             {attribute @name="content" @value="width=device-width, initial-scale=1"}
           }
-          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | {$input.title}}
+          {element @name="title" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}}
           {element @name="link" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="rel" @value="stylesheet"}
             {attribute @name="href" @value="./assets/theme/cem-combined.css"}
@@ -27,7 +28,7 @@
           }
           {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="type" @value="importmap"}
-            {$input.importMap}
+            {$seq:where(input.children.children, fn(member) => member.attributes.value == "importMap").children.children.value}
           }
           {element @name="script" @namespace="http://www.w3.org/1999/xhtml" |
             {attribute @name="type" @value="module"}
@@ -84,7 +85,7 @@
             {attribute @name="id" @value="content"}
             {element @name="h1" @namespace="http://www.w3.org/1999/xhtml" |
               {attribute @name="id" @value="interactive-examples"}
-              {$input.title}
+              {$seq:where(input.children.children, fn(member) => member.attributes.value == "title").children.children.value}
             }
             {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
               This page loads only resources declared by the CEM-ML module-map transformation.
@@ -106,19 +107,19 @@
               {element @name="output" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="id" @value="token-filter-status"}
                 {attribute @name="data-token-status" @value=""}
-                {$input.tokens.length} token examples
+                {$ seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children)} token examples
               }
               {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
                 {attribute @name="data-token-list" @value=""}
-                {cem:for-each @select="$input.tokens" @as="token" |
+                {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "tokens").children.children' @as="token" |
                   {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="data-token-example" @value="{$token.name}"}
+                    {attribute @name="data-token-example" @value='{seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}'}
                     {element @name="span" @namespace="http://www.w3.org/1999/xhtml" |
                       {attribute @name="aria-hidden" @value="true"}
-                      {attribute @name="style" @value='{str:concat(("display:inline-block;width:2rem;height:2rem;background:var(", token.name, ");"))}'}
+                      {attribute @name="style" @value='{str:concat(("display:inline-block;width:2rem;height:2rem;background:var(", seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value, ");"))}'}
                     }
-                    {element @name="strong" @namespace="http://www.w3.org/1999/xhtml" | {$token.label}}
-                    {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$token.name}}
+                    {element @name="strong" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "label").children.children.value}}
+                    {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(token.children, fn(member) => member.attributes.value == "name").children.children.value}}
                   }
                 }
               }
@@ -129,11 +130,11 @@
                 {attribute @name="id" @value="component-example-heading"}
                 Production component examples
               }
-              {cem:for-each @select="$input.components" @as="component" |
-                {element @name="{$component.tag}" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="label" @value="{$component.label}"}
-                  {attribute @name="data-component-example" @value="{$component.kind}"}
-                  {$component.label}
+              {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children' @as="component" |
+                {element @name='{$seq:where(component.children, fn(member) => member.attributes.value == "tag").children.children.value}' @namespace="http://www.w3.org/1999/xhtml" |
+                  {attribute @name="label" @value='{seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}'}
+                  {attribute @name="data-component-example" @value='{seq:where(component.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
+                  {$seq:where(component.children, fn(member) => member.attributes.value == "label").children.children.value}
                 }
               }
               {element @name="output" @namespace="http://www.w3.org/1999/xhtml" |
@@ -148,14 +149,14 @@
                 CEM fixture and native light-DOM output
               }
               {element @name="custom-element" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="tag" @value="{$input.cemFixture.tag}"}
+                {attribute @name="tag" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}'}
                 {element @name="template" @namespace="http://www.w3.org/1999/xhtml" |
                   {attribute @name="type" @value="text/cem-ml"}
-                  {$input.cemFixture.source}
+                  {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
                 }
               }
-              {element @name="{$input.cemFixture.tag}" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="name" @value="{$input.cemFixture.name}"}
+              {element @name='{$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "tag").children.children.value}' @namespace="http://www.w3.org/1999/xhtml" |
+                {attribute @name="name" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "name").children.children.value}'}
                 {attribute @name="data-cem-fixture-instance" @value=""}
               }
               {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
@@ -165,7 +166,7 @@
               {element @name="pre" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="code" @namespace="http://www.w3.org/1999/xhtml" |
                   {attribute @name="data-cem-source" @value=""}
-                  {$input.cemFixture.source}
+                  {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "cemFixture").children.children, fn(member) => member.attributes.value == "source").children.children.value}
                 }
               }
               {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |

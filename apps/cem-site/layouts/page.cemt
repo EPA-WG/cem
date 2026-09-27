@@ -88,11 +88,12 @@
     {body |
       {cem:choose |
         {cem:when @test='node.kind == "element"' |
+          {cem:variable @name=isHeading @select='node.name == "h1" || node.name == "h2" || node.name == "h3" || node.name == "h4" || node.name == "h5" || node.name == "h6"'}
           {element @name="{$node.name}" @namespace="{$node.namespace}" |
-            {cem:if @test='node.name == "h1" || node.name == "h2" || node.name == "h3" || node.name == "h4" || node.name == "h5" || node.name == "h6"' |
+            {cem:if @test=isHeading |
               {attribute @name="id" @value='{str:concat(("heading-", nodePath))}'}
             }
-            {cem:for-each @select="$node.attributes" @as="attribute" |
+            {cem:for-each @select='seq:where(node.attributes, fn(attribute) => !(isHeading && attribute.name == "id"))' @as="attribute" |
               {cem:choose |
                 {cem:when @test='attribute.name == "href" && canonicalSourceBase != "" && str:starts_with(attribute.value, "#") == false && str:starts_with(attribute.value, "/") == false && str:starts_with(attribute.value, "http:") == false && str:starts_with(attribute.value, "https:") == false && str:starts_with(attribute.value, "mailto:") == false' |
                   {attribute @name="{$attribute.name}" @namespace="{$attribute.namespace}"

@@ -93,7 +93,12 @@ CEM-ML owns MIME aliases/parameters and byte decoding, including XML, JSON, YAML
 CSV and UTF-8 plain text. The HTTP transport keeps its configurable response
 byte limit (1 MiB default); native document retention adds a 64-owner / 16 MiB
 source-byte budget. Import also enforces bounded depth and value/event counts.
-The smaller `data:read` source limit remains 32 KiB.
+Materialized JSON, YAML and CSV imports admit up to 65,536 values; XML admits
+65,536 source events. Generic-data projection also counts mapping keys against
+the value budget. All retain the 64-level nesting bound. The byte ingress and
+retained lifecycle ingress apply the same document bounds before projection.
+The smaller `data:read` and standard string imports retain their 32 KiB / 4,096
+value/event bounds. CSS retains its separate 4,096-event profile.
 
 The standalone `custom-element/http-request.js` companion is retired, including
 its package export and IDE declaration. Its HTTP and version-picker examples

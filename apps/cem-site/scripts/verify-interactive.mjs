@@ -1,3 +1,4 @@
+import { verifyDeployedXhtml } from './verify-xhtml.mjs';
 import { createReadStream } from 'node:fs';
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -66,6 +67,9 @@ try {
         );
     }
 
+    const xhtml = await verifyDeployedXhtml(page);
+    if (browserErrors.length) throw new Error(`XHTML deployment failed: ${browserErrors.join("; ")}`);
+
     await page.locator('[data-token-filter]').fill('comfort');
     const visibleTokens = await page.locator('[data-token-example]:visible').count();
     const tokenStatus = await page.locator('[data-token-status]').textContent();
@@ -133,6 +137,7 @@ try {
 
     const report = {
         version: 1,
+        xhtml,
         route: fixturePath,
         tokenFilterVisibleCount: visibleTokens,
         actionCount: 2,
@@ -156,6 +161,8 @@ try {
 
 function contentType(filePath) {
     switch (extname(filePath)) {
+        case '.xhtml':
+            return 'application/xhtml+xml; charset=utf-8';
         case '.html':
             return 'text/html; charset=utf-8';
         case '.js':

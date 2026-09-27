@@ -3,6 +3,7 @@
 @default transform
 
 {module @version="1.0.0" |
+  // Imported inputs use the retained cem:generic-data vocabulary.
   {param @name="input" @type="object" @required=true}
   {template @name="comparison" @visibility="public" |
     {body |
@@ -94,26 +95,26 @@
               }
               {element @name="dl" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Product}
-                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.product}}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "product").children.children.value}}
                 {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Version}
                 {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
-                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.tag}}
+                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "tag").children.children.value}}
                 }
                 {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Commit}
                 {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
-                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.commit}}
+                  {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "commit").children.children.value}}
                 }
                 {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Captured}
-                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$input.benchmark.capturedAt}}
+                {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "capturedAt").children.children.value}}
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="href" @value="{$input.benchmark.catalogUrl}"}
+                  {attribute @name="href" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "catalogUrl").children.children.value}'}
                   Official catalog
                 }
                 and
                 {element @name="a" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="href" @value="{$input.benchmark.sourceUrl}"}
+                  {attribute @name="href" @value='{seq:where(seq:where(input.children.children, fn(member) => member.attributes.value == "benchmark").children.children, fn(member) => member.attributes.value == "sourceUrl").children.children.value}'}
                   pinned catalog source
                 }
               }
@@ -124,10 +125,10 @@
                 Coverage summary
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
-                {attribute @name="data-parity-total" @value="{seq:count(input.components.id)}"}
+                {attribute @name="data-parity-total" @value='{seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children)}'}
                 {attribute @name="data-parity-covered" @value="18"}
                 {attribute @name="data-parity-partial" @value="19"}
-                {$ seq:count(input.components.id)} retained catalog rows: 18 covered and 19 partial.
+                {$ seq:count(seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children)} retained catalog rows: 18 covered and 19 partial.
               }
               {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                 Covered means the bounded CEM behavioral capability is owned. Partial means the mapping is useful but a named behavior or deliberately excluded framework surface remains visible in the notes.
@@ -138,26 +139,26 @@
                 {attribute @name="id" @value="catalog-mappings"}
                 Catalog mappings
               }
-              {cem:for-each @select="$input.components" @as="component" |
+              {cem:for-each @select='seq:where(input.children.children, fn(member) => member.attributes.value == "components").children.children' @as="component" |
                 {element @name="article" @namespace="http://www.w3.org/1999/xhtml" |
-                  {attribute @name="data-parity-id" @value="{$component.id}"}
-                  {attribute @name="data-parity-status" @value="{$component.status}"}
-                  {attribute @name="data-mapping-kind" @value="{$component.mapping.kind}"}
+                  {attribute @name="data-parity-id" @value='{seq:where(component.children, fn(member) => member.attributes.value == "id").children.children.value}'}
+                  {attribute @name="data-parity-status" @value='{seq:where(component.children, fn(member) => member.attributes.value == "status").children.children.value}'}
+                  {attribute @name="data-mapping-kind" @value='{seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "kind").children.children.value}'}
                   {element @name="h3" @namespace="http://www.w3.org/1999/xhtml" |
-                    {attribute @name="id" @value='{str:concat(("angular-material-", component.id))}'}
-                    {$component.name}
+                    {attribute @name="id" @value='{str:concat(("angular-material-", seq:where(component.children, fn(member) => member.attributes.value == "id").children.children.value))}'}
+                    {$seq:where(component.children, fn(member) => member.attributes.value == "name").children.children.value}
                   }
                   {element @name="dl" @namespace="http://www.w3.org/1999/xhtml" |
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Coverage}
-                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$component.status}}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(component.children, fn(member) => member.attributes.value == "status").children.children.value}}
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Mapping kind}
-                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$component.mapping.kind}}
+                    {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" | {$seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "kind").children.children.value}}
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | CEM owners}
                     {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
                       {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                        {cem:for-each @select="$component.mapping.owners" @as="owner" |
+                        {cem:for-each @select='seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "owners").children.children' @as="owner" |
                           {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$owner}}
+                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$owner.children.value}}
                           }
                         }
                       }
@@ -165,33 +166,33 @@
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | States}
                     {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
                       {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                        {cem:for-each @select="$component.mapping.states" @as="state" |
-                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$state}}
+                        {cem:for-each @select='seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "states").children.children' @as="state" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$state.children.value}}
                         }
                       }
                     }
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Keyboard}
                     {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
                       {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                        {cem:for-each @select="$component.mapping.keyboard" @as="keyboard" |
-                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$keyboard}}
+                        {cem:for-each @select='seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "keyboard").children.children' @as="keyboard" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$keyboard.children.value}}
                         }
                       }
                     }
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Accessibility}
                     {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
                       {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                        {cem:for-each @select="$component.mapping.accessibility" @as="accessibility" |
-                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$accessibility}}
+                        {cem:for-each @select='seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "accessibility").children.children' @as="accessibility" |
+                          {element @name="li" @namespace="http://www.w3.org/1999/xhtml" | {$accessibility.children.value}}
                         }
                       }
                     }
                     {element @name="dt" @namespace="http://www.w3.org/1999/xhtml" | Evidence}
                     {element @name="dd" @namespace="http://www.w3.org/1999/xhtml" |
                       {element @name="ul" @namespace="http://www.w3.org/1999/xhtml" |
-                        {cem:for-each @select="$component.mapping.evidence" @as="evidence" |
+                        {cem:for-each @select='seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "evidence").children.children' @as="evidence" |
                           {element @name="li" @namespace="http://www.w3.org/1999/xhtml" |
-                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$evidence}}
+                            {element @name="code" @namespace="http://www.w3.org/1999/xhtml" | {$evidence.children.value}}
                           }
                         }
                       }
@@ -199,7 +200,7 @@
                   }
                   {element @name="p" @namespace="http://www.w3.org/1999/xhtml" |
                     {element @name="strong" @namespace="http://www.w3.org/1999/xhtml" | Scope:}
-                    {$component.mapping.notes}
+                    {$seq:where(seq:where(component.children, fn(member) => member.attributes.value == "mapping").children.children, fn(member) => member.attributes.value == "notes").children.children.value}
                   }
                 }
               }
