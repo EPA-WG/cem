@@ -1242,8 +1242,14 @@ browser fixtures cover these transitions and shared style reuse. The runtime mus
 register admitted occurrences, release source registrations when their owning
 lifetime ends, and await connection readiness before declaring a render settled.
 
-Next, retain XSLT stylesheet owners and connect main declaration/render readiness
-to the registry, then add the nested module-map override demo and context restoration/
+XSLT result styles are excluded from this declaration registry. The approved
+[result-construction contract](xslt-runtime-lowering.md#native-output-construction)
+keeps them inside their rendered branch; an XSLT component's empty declaration
+stylesheet collection is intentional. Do not hoist result styles or introduce
+declaration CSS handles merely to replace the XSLT render adapter's sentinel ID.
+
+Next, register retained CEM-ML and DOM declaration sources and connect main
+declaration/render readiness to the registry, then add the nested module-map override demo and context restoration/
 hydration checks. Instance styles still require their own retained ownership path;
 the declaration protocol deliberately rejects instance scope. The remaining syntax
 profiles stay explicitly diagnosed until a concrete fixture requires them; this audit does not

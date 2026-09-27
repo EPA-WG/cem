@@ -6194,10 +6194,13 @@ registration identities may reuse an inherited or existing definition.
               existing warnings). Readiness includes late sources; stale handles
               cannot remove replacements, and reentrant cancellation preserves
               the newest connection. Main runtime registration remains pending.
-        - [ ] Fixture: retain native stylesheet owners for XSLT component sources;
-              keep CSS source trees native and their handles stable across XSLT
-              render-cache eviction. Verify loading, source disposal and shared
-              processing owners before connecting all declaration languages.
+        - [x] Audit the existing XSLT result-style boundary before runtime
+              registration: result styles remain in their rendered branch and
+              are excluded from the declaration stylesheet registry. Verify
+              `xslt_output` and `xslt_output_prerequisites`; do not make XSLT
+              render-cache ownership a declaration-CSS prerequisite.
+              Completed: all 14 native compatibility cases pass. CEM-ML and DOM
+              declaration sources are the next registry integration targets.
         - [ ] Connect runtime retained stylesheet loads to consumer leases and
               declaration/render readiness; use the effective module context,
               release exact generations, preserve import failure diagnostics and
