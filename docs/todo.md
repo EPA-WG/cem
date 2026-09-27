@@ -6576,6 +6576,18 @@ registration identities may reuse an inherited or existing definition.
                   requests and publication after authoritative DOM restoration.
                   Verification: 585 unit tests, 301 browser cases in each default/
                   retained-CSS lane, typecheck and lint pass with two existing warnings.
+            - [x] Fixture: preserve retained instance stylesheet ownership during
+                  authoritative processing-host recovery after a missing DOM target;
+                  verify no duplicate payload styles in worker/fallback modes.
+                  Completed 2026-09-27: reproduced recovery creating two style nodes
+                  instead of one. The authoritative retry now preserves
+                  `payloadStylesInstalled`, retaining the original native style node
+                  while rebuilding content. Verification: 585 unit tests, 302 browser
+                  cases in each default/retained-CSS lane, typecheck and lint pass
+                  with two existing warnings.
+            - [ ] Stage registry connection replacements without publishing or
+                  retiring the active connection during loading; hand their ready
+                  candidates to queued joint publication before runtime adoption.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

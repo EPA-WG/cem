@@ -1923,6 +1923,12 @@ needs to route its loading and authoritative render/resume operations through
 it, together with the Edge response/state contract, before changed-CSS streaming
 can be enabled.
 
+The existing processing-host recovery retry preserves `payloadStylesInstalled`
+when retained CSS is enabled. Recovering a missing DOM patch target therefore
+rebuilds content without projecting a second copy of the inert payload's styles.
+The separately owned instance style node remains installed and retains its
+identity across that full-render retry.
+
 ### Preparing the DOM side of a CSS update
 
 `preparePatchFramesForRange(bounds, frames, expectedRevision, document, options)`

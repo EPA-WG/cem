@@ -44,6 +44,41 @@ function fixture(root: HTMLElement, fallback: boolean, read?: Reader) {
 }
 const css = (value: string, scope = '') => `{style ${scope ? `@scope=${scope}` : ''} |\`\`\`\n${value} \`\`\`\n}`;
 
+export const RecoveryPreservesRetainedInstanceStyles: Story = {
+    render: () => '<section aria-label="Retained CSS recovery"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing recovery fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const declaration = f.declare('recovery-card', '{attribute @name=label | Before}{p | {$label}}');
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p { --instance: retained; }</style>';
+                instance.append(payload); root.append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const style = instance.querySelector('style[data-cem-instance-style]');
+                const paragraph = instance.querySelector('p');
+                if (!style || !paragraph) throw new Error('missing initial instance output');
+                expect(paragraph.textContent).toBe('Before');
+                expect(instance.querySelectorAll('style')).toHaveLength(1);
+                paragraph.remove();
+                instance.setAttribute('label', 'After');
+                await waitFor(() => expect(instance.querySelector('p')?.textContent).toBe('After'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelector('p')).not.toBe(paragraph);
+                expect(instance.querySelectorAll('style')).toHaveLength(1);
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBe(style);
+                expect(getComputedStyle(instance.querySelector('p') as HTMLElement).getPropertyValue('--instance').trim()).toBe('retained');
+                expect(f.runtime.diagnosticsFor(instance).some(d => d.code === 'cem-element.processing_host_render_failed')).toBe(false);
+                expect(f.workerCalls()).toBeGreaterThan(0);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
 export const RenderAndHydrationWaitForImports: Story = {
     render: () => '<section aria-label="Runtime native CSS readiness"></section>',
     play: async ({ canvasElement }) => {

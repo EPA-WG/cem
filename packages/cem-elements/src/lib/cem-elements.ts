@@ -3374,6 +3374,7 @@ export class CemElementRuntime {
                     nativeSlices: recoverySnapshot.nativeSlices,
                     nativeValueLimits: this.nativeValueLimits,
                     scopeUid: this.currentScopeUid(instance, compiled),
+                    payloadStylesInstalled: !!this.retainedStylesheets,
                     previousRenderPlan: null,
                 });
                 if (this.renderTokens.get(instance) !== token) {
