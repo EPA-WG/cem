@@ -1829,6 +1829,24 @@ callbacks; a callback may itself supersede an already published generation.
 This is a declaration ownership operation. Combining it with prepared instance
 CSS and Edge DOM patch validation remains the next integration step.
 
+### Deferring stylesheet cleanup during publication
+
+The internal `deferStylesheetNotifications(() => { ... })` boundary holds
+declaration ownership release and abort notifications while synchronous CSS and
+DOM publication runs. Nested boundaries share the outer queue. Ownership and DOM
+mutations still happen immediately; old leases can already be invalid even
+though their abort signals will fire only after the boundary exits. Native
+custom-element callbacks remain synchronous.
+
+Queued cleanup runs after publication returns or throws. Every queued callback
+is attempted; publication and cleanup errors are both retained if both fail.
+Cleanup can start another publication with its own boundary. The boundary does
+not extend past an `await` and provides no rollback, joint admission, managed
+update queue or recovery result. It is a prerequisite for the
+[accepted CSS/DOM coordinator contract](css-dom-commit-contract.md), not a complete
+coordinator. Existing callers outside the boundary continue to notify cleanup
+synchronously.
+
 ### Preparing the DOM side of a CSS update
 
 `preparePatchFramesForRange(bounds, frames, expectedRevision, document, options)`

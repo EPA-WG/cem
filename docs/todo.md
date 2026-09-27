@@ -6513,10 +6513,24 @@ registration identities may reuse an inherited or existing definition.
                   and clarified that the publication fixture's synchronous host
                   attribute callback is synthetic, not generated CEM behavior.
                   Source audit only; no runtime behavior changed.
-            - [ ] Decide the combined publication contract before implementing the
+            - [x] Decide the combined publication contract before implementing the
                   coordinator: [atomic admission and coherent completion](css-dom-commit-contract.md)
                   is recommended; stronger observer isolation requires a different
-                  lifecycle/publication contract. Awaiting user decision.
+                  lifecycle/publication contract. Accepted 2026-09-27: validate
+                  before publication, publish CSS then DOM synchronously, defer
+                  CEM cleanup and report post-publication failures as recovery.
+            - [x] Fixture: defer stylesheet release/abort notifications across
+                  synchronous CSS and DOM publication; cover nested boundaries,
+                  publication/cleanup failures and reentrant cleanup, plus real
+                  native worker/fallback ordering without hiding browser callbacks.
+                  Completed 2026-09-27: internal synchronous notification boundary
+                  queues declaration ownership cleanup until publication exits;
+                  nested boundaries share the queue and failures drain all cleanup.
+                  Native ordering evidence verifies release/abort sees new CSS and
+                  DOM while browser attribute callbacks remain synchronous.
+                  Verification: 575 unit tests and 297 browser cases in each
+                  default/retained-CSS lane pass; typecheck and lint pass with
+                  two existing warnings.
             - [ ] Bind prepared CSS publication to validated Edge patch transactions.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and

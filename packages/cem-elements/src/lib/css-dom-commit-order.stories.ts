@@ -3,19 +3,20 @@ import { expect } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { DeclarationStyleOwnership, type DeclarationStylesheetCommit } from './declaration-style-ownership.js';
 import { nativeCssStoryHost, nativeCssStoryContext } from './native-css-story-fixture.js';
+import { deferStylesheetNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 import { applyRenderPlanToRange, diffRenderPlansToPatchFrames, preparePatchFramesForRange,
     renderPlanIdentity, type RenderPlan } from './projection.js';
 
 export default { title: 'CEM Elements/CSS and DOM Commit Ordering Evidence', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 
-/** Diagnostic evidence for the pending atomic-publication contract, not an accepted coordinator. */
+/** Publication ordering and the notification boundary; Edge integration remains separate. */
 export const SynchronousObserversSeeSequentialPublication: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {
         const root = canvasElement.querySelector('section');
         if (!root) throw new Error('missing ordering fixture');
-        for (const fallback of [false, true]) for (const order of ['css-first', 'dom-first']) {
+        for (const fallback of [false, true]) for (const order of ['css-first', 'dom-first', 'deferred-cleanup']) {
             const native = nativeCssStoryHost(fallback);
             const scope = createCemDeclarationScope({ document });
             const owner = new DeclarationStyleOwnership(document, scope);
@@ -50,6 +51,7 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
                         baseUrl: 'https://example.test/main.css', context, scope: { kind: 'private', tag } }).result;
                     if (output.status !== 'ready') throw new Error('expected ready CSS');
                     return { lease, outputs: [{ index: 0, scope: { kind: 'private' }, output }], release() {
+                        observe('release');
                         releases.push(native.host.stylesheet({ action: 'release', artifact, consumer, loadId: output.loadId }).result);
                     } };
                 };
@@ -58,13 +60,28 @@ export const SynchronousObserversSeeSequentialPublication: Story = {
                     nodes: [{ kind: 'element', namespace: null, tag: after ? childTag : 'div', renderNodeId: 'content',
                         attributes: [{ name: 'data-content', value: '' }], children: [{ kind: 'text', text: after ? 'After' : 'Before', renderNodeId: 'text' }] }] });
                 const before = plan(false); const after = plan(true);
-                expect(DeclarationStyleOwnership.commitGroup([await candidate('old')])).toBe(true);
+                const old = await candidate('old');
+                expect(DeclarationStyleOwnership.commitGroup([old])).toBe(true);
+                old.lease.signal.addEventListener('abort', () => observe('abort'), { once: true });
                 applyRenderPlanToRange(bounds, before, document);
                 const css = await candidate('new');
                 const patch = preparePatchFramesForRange(bounds, diffRenderPlansToPatchFrames(before, after), renderPlanIdentity(after), document);
                 expect(patch.check(renderPlanIdentity(after)).status).toBe('ready');
                 recording = true;
-                if (order === 'css-first') {
+                if (order === 'deferred-cleanup') {
+                    deferStylesheetNotifications(() => {
+                        expect(DeclarationStyleOwnership.commitGroup([css])).toBe(true);
+                        expect(old.lease.signal.aborted).toBe(false);
+                        expect(observed.some(event => event.callback === 'release' || event.callback === 'abort')).toBe(false);
+                        expect(patch.commit(renderPlanIdentity(after)).status).toBe('applied');
+                    });
+                    expect(old.lease.signal.aborted).toBe(true);
+                    for (const callback of ['release', 'abort', 'connected']) {
+                        expect(observed).toContainEqual({ callback, text: 'After', asset: expect.stringContaining('/new.svg') });
+                    }
+                    // Browser attribute callbacks still run synchronously during CSS publication.
+                    expect(observed).toContainEqual({ callback: 'marker', text: 'Before', asset: expect.stringContaining('/new.svg') });
+                } else if (order === 'css-first') {
                     expect(DeclarationStyleOwnership.commitGroup([css])).toBe(true);
                     expect(patch.commit(renderPlanIdentity(after)).status).toBe('applied');
                     expect(observed).toContainEqual({ callback: 'marker', text: 'Before', asset: expect.stringContaining('/new.svg') });

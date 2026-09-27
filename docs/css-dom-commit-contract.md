@@ -1,10 +1,10 @@
-# CSS and DOM publication: decision needed
+# CSS and DOM publication contract
 
-Status: proposed, awaiting user decision. This note does not authorize a new
-runtime contract. The active work remains in [todo.md](todo.md), under atomic
-native CSS replacement in streamed Edge updates.
+Status: accepted on 2026-09-27 through the user's instruction to continue with
+the recommended contract. Implementation is tracked in [todo.md](todo.md), under
+atomic native CSS replacement in streamed Edge updates.
 
-## The boundary to decide
+## Publication boundary
 
 The prepared CSS and DOM APIs can reject invalid work before publication. They
 cannot make several DOM mutations invisible to synchronous custom-element
@@ -14,10 +14,9 @@ inspect or mutate the same host before the surrounding JavaScript call returns.
 
 The existing [patch renderer](../packages/cem-elements/src/lib/projection.ts)
 describes atomicity as validating a complete
-transaction and its targets before mutation. The CSS replacement TODO does not
-say whether the combined operation must additionally hide intermediate state
-from arbitrary custom-element callbacks. That stronger guarantee changes the
-scope of the coordinator and its failure handling.
+transaction and its targets before mutation. Combined publication follows that
+admission boundary and permits intermediate observations from synchronous
+custom-element callbacks, with explicit recovery after publication failures.
 
 ## Reproducible evidence
 
@@ -48,7 +47,7 @@ callbacks or removing CEM's observation of external DOM changes. See the
 Verification on 2026-09-27: 297 browser cases pass in both default and retained-CSS
 lanes; typecheck and lint pass with two existing warnings.
 
-## Recommended contract: atomic admission and coherent completion
+## Accepted contract: atomic admission and coherent completion
 
 1. Load and compile all CSS, snapshot the patch, and validate every ownership
    lease, context marker, DOM target, range and current request revision before
@@ -81,7 +80,17 @@ publication order does not satisfy this requirement. Replacing a larger tree
 would also need a separate identity, focus, native state and lifecycle contract;
 it is not a drop-in implementation of the current ownership rules.
 
-## Decision
+## Implementation status
 
-Proceed with the recommended admission/completion contract, or require stronger
-observer isolation before the coordinator can be implemented?
+Proceed with the admission/completion contract above. The synchronous stylesheet
+notification boundary is the first implementation step: it defers ownership
+release/abort notifications until the surrounding publication returns or throws.
+Nested boundaries share a queue, and all queued cleanup runs even after failure.
+It does not implement joint admission, managed update queuing, recovery or the
+Edge response/state contract. Changed-CSS Edge updates remain guarded until
+those integration requirements are verified.
+
+Boundary verification: 575 unit tests and 297 browser cases in each default and
+retained-CSS lane pass; typecheck and lint pass with two existing warnings. The
+ordering fixture now also verifies deferred release/abort callbacks against real
+native CSS and a prepared DOM patch in worker and fallback modes.

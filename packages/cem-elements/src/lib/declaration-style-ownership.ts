@@ -4,6 +4,7 @@ import {
 
 import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
 import { declarationStylesheetAttributes } from './declaration-style-markup.js';
+import { notifyStylesheetLifecycle as runNotifications } from './internal/runtime-support/stylesheet-notifications.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
 export interface CemOwnedStylesheet<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
@@ -268,16 +269,19 @@ export class DeclarationStyleOwnership {
         }
         const notifications: Array<() => void> = [];
         const previous: Array<{ owner: DeclarationStyleOwnership; consumer: Consumer }> = [];
-        for (const { state, entry } of members) {
-            if (!state) continue;
-            const old = state.owner.publishConsumer(state.consumer, entry.outputs, entry.release);
-            if (old) previous.push({ owner: state.owner, consumer: old });
+        try {
+            for (const { state, entry } of members) {
+                if (!state) continue;
+                const old = state.owner.publishConsumer(state.consumer, entry.outputs, entry.release);
+                if (old) previous.push({ owner: state.owner, consumer: old });
+            }
+            // Retire internal ownership before notifying any old load or host attribute observer.
+            for (const { owner, consumer } of previous) owner.dropConsumer(consumer, notifications);
+            for (const owner of owners) owner.reconcile();
+            reconcileStylesheetContextMarker(element);
+        } finally {
+            runNotifications(notifications);
         }
-        // Retire internal ownership before notifying any old load or host attribute observer.
-        for (const { owner, consumer } of previous) owner.dropConsumer(consumer, notifications);
-        for (const owner of owners) owner.reconcile();
-        reconcileStylesheetContextMarker(element);
-        runNotifications(notifications);
         return members.every(({ state }) => state && state.owner.consumers.has(state.consumer));
     }
 
@@ -321,7 +325,7 @@ export class DeclarationStyleOwnership {
         }
         const notify = () => { try { consumer.release?.(); } finally { consumer.abort.abort(); } };
         if (notifications) notifications.push(notify);
-        else notify();
+        else runNotifications([notify]);
     }
 
     setStyles(styles: readonly HTMLStyleElement[]): void {
@@ -401,12 +405,4 @@ function reconcileDocument(registrations: Set<WeakRef<DeclarationStyleOwnership>
         if (ownership) ownership.reconcile(records);
         else registrations.delete(reference);
     }
-}
-
-function runNotifications(notifications: Array<() => void>): void {
-    const errors: unknown[] = [];
-    for (const notify of notifications) {
-        try { notify(); } catch (error) { errors.push(error); }
-    }
-    if (errors.length) throw new AggregateError(errors, 'stylesheet ownership cleanup failed');
 }
