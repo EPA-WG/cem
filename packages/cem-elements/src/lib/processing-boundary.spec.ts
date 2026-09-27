@@ -726,3 +726,19 @@ describe('host processing boundary contracts', () => {
         );
     });
 });
+
+it('omits native-owned payload CSS without parsing it or removing ordinary result styles', () => {
+    const plan: RenderPlan = { producedTag: 'cem-card', instanceId: 'one', templateArtifactId: 'one',
+        dataRevision: '1', outputTarget: 'light-dom', scopePolicyStamp: 'test', nodes: [
+            { kind: 'element', tag: 'style', namespace: null, attributes: [], renderNodeId: 'payload-0',
+                children: [{ kind: 'text', text: '@import "native-only.css";' }] },
+            { kind: 'element', tag: 'style', namespace: null, attributes: [], renderNodeId: 'result-1',
+                children: [{ kind: 'text', text: 'p {color:green}' }] },
+        ] };
+    const result = scopeRenderPlan(plan, 'scope-one', { payloadStylesInstalled: true,
+        payload: { nodes: [{ kind: 'element', key: '0', namespace: null, tag: 'style', attributes: {},
+            children: [{ kind: 'text', key: '0/0', text: '@import "native-only.css";' }] }], slots: {} } });
+    expect(result.diagnostics).toEqual([]);
+    expect(result.renderPlan.nodes).toHaveLength(1);
+    expect(result.renderPlan.nodes[0]).toMatchObject({ renderNodeId: 'result-1' });
+});

@@ -301,3 +301,145 @@ export const LateEventAfterDisconnect: Story = {
         }
     },
 };
+
+export const PayloadCssReadinessAndHydration: Story = {
+    render: () => '<section aria-label="Native payload CSS readiness"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing payload CSS fixture');
+        for (const fallback of [false, true]) for (const mode of ['dom', 'cem-ml'] as const) {
+            let gate = held(); let reads = 0;
+            const f = fixture(root, fallback, async () => { reads++; return gate.promise; });
+            try {
+                const declaration = f.declare('payload-card', mode === 'dom' ? '<p>Ready</p>' : '{p | Ready}', mode);
+                await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>@import "./child.css";</style><style>p {--independent: yes}</style>';
+                instance.append(payload); root.append(instance);
+                let settled = false;
+                const ready = f.runtime.whenRenderSettled(instance).then(() => { settled = true; });
+                await waitFor(() => expect(reads).toBe(1));
+                expect(settled).toBe(false); expect(instance.querySelector('p')).toBeNull();
+                gate.resolve(response('p {color: rgb(1, 2, 3); animation: pulse 20s infinite} @keyframes pulse {from{opacity:0.5}to{opacity:1}}'));
+                await ready;
+                const paragraph = instance.querySelector('p');
+                if (!paragraph) throw new Error('missing payload-styled content');
+                expect(getComputedStyle(paragraph).color).toBe('rgb(1, 2, 3)');
+                expect(getComputedStyle(paragraph).getPropertyValue('--independent').trim()).toBe('yes');
+                expect(instance.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(2);
+                expect(declaration.declaration.querySelector('style')).toBeNull();
+                const name = (paragraph.getAnimations()[0] as CSSAnimation).animationName;
+                const snapshot = f.runtime.snapshotInstance(instance);
+                const revision = paragraph.getAttribute('data-cem-data-revision');
+                if (!revision) throw new Error('missing payload revision');
+                snapshot.dataRevision = revision;
+                const markup = instance.innerHTML; instance.remove();
+                gate = held();
+                const restored = document.createElement(declaration.tag); restored.innerHTML = markup;
+                const island = restored.querySelector<HTMLTemplateElement>('template[data-cem-island="instance"]');
+                const retainedParagraph = restored.querySelector('p');
+                if (!island || !retainedParagraph) throw new Error('missing payload hydration DOM');
+                writeDataIslandHydrationData(island, snapshot);
+                root.append(restored);
+                let hydrated = false;
+                const hydration = f.runtime.whenRenderSettled(restored).then(() => { hydrated = true; });
+                await waitFor(() => expect(reads).toBe(2));
+                expect(hydrated).toBe(false);
+                expect(restored.querySelector('p')).toBe(retainedParagraph);
+                gate.resolve(response('p {color: rgb(1, 2, 3); animation: pulse 20s infinite} @keyframes pulse {from{opacity:0.5}to{opacity:1}}'));
+                await hydration;
+                expect(restored.querySelector('p')).toBe(retainedParagraph);
+                expect((retainedParagraph.getAnimations()[0] as CSSAnimation).animationName).toBe(name);
+                expect(restored.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(2);
+                expect(f.runtime.diagnosticsFor(restored)).toEqual([]);
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const PayloadCssDisconnectAndFailure: Story = {
+    render: () => '<section aria-label="Native payload CSS cancellation"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing payload cancellation fixture');
+        for (const fallback of [false, true]) {
+            let gate = held(); let reads = 0;
+            const signals: AbortSignal[] = [];
+            const f = fixture(root, fallback, async (_request, signal) => { reads++; signals.push(signal); return gate.promise; });
+            try {
+                const declaration = f.declare('payload-cancel', '{p | Ready}'); await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>@import "./child.css";</style><style>p {color:green}</style>';
+                instance.append(payload); root.append(instance);
+                const ready = f.runtime.whenRenderSettled(instance);
+                await waitFor(() => expect(reads).toBe(1));
+                instance.remove(); await ready;
+                expect(signals[0].aborted).toBe(true);
+                expect(instance.querySelector('p')).toBeNull();
+                const stale = gate; gate = held(); root.append(instance);
+                const reconnected = f.runtime.whenRenderSettled(instance);
+                await waitFor(() => expect(reads).toBe(2));
+                stale.resolve(response('p {color:red}'));
+                gate.resolve({ ...response('not CSS'), contentType: 'text/html' });
+                await reconnected;
+                const paragraph = instance.querySelector('p');
+                if (!paragraph) throw new Error('missing surviving payload content');
+                expect(getComputedStyle(paragraph).color).toBe('rgb(0, 128, 0)');
+                expect(instance.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(1);
+                const diagnostic = f.runtime.diagnosticsFor(instance).find(d => d.code === 'cem.css.import_content_type');
+                expect(diagnostic).toMatchObject({ source: 'instance', offset: 0, length: '@import "./child.css";'.length });
+                expect(diagnostic?.sourceUri).toMatch(/^urn:cem:template-style:/);
+                f.parent.dispose();
+                expect(instance.querySelector('style[data-cem-instance-style]')).toBeNull();
+            } finally { f.dispose(); }
+        }
+    },
+};
+
+export const PayloadCssContextAndSourceChanges: Story = {
+    render: () => '<section aria-label="Payload CSS contexts and edits"></section>',
+    play: async ({ canvasElement }) => {
+        const root = canvasElement.querySelector('section');
+        if (!root) throw new Error('missing payload contexts fixture');
+        for (const fallback of [false, true]) {
+            const f = fixture(root, fallback);
+            try {
+                const parents: HTMLElement[] = [];
+                for (const variant of ['a', 'b']) {
+                    const declaration = f.declare(`payload-map-${variant}`, `{module-map | {resource @specifier=icon @target="https://example.test/${variant}.svg"}}{p | Context}`);
+                    await declaration.ready;
+                    const parent = document.createElement(declaration.tag); root.append(parent);
+                    await f.runtime.whenRenderSettled(parent); parents.push(parent);
+                }
+                const declaration = f.declare('payload-context', '{p | Ready}'); await declaration.ready;
+                const instance = document.createElement(declaration.tag);
+                const payload = document.createElement('template');
+                payload.innerHTML = '<style>p {--asset:url(icon)}</style>';
+                instance.append(payload); parents[0].append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const first = instance.querySelector('p');
+                if (!first) throw new Error('missing mapped payload content');
+                expect(getComputedStyle(first).getPropertyValue('--asset')).toContain('/a.svg');
+                expect(instance.hasAttribute('data-cem-css-context')).toBe(false);
+                const identity = f.runtime.snapshotInstance(instance).instanceId;
+                parents[1].append(instance);
+                await f.runtime.whenRenderSettled(instance);
+                const moved = instance.querySelector('p');
+                if (!moved) throw new Error('missing moved payload content');
+                expect(getComputedStyle(moved).getPropertyValue('--asset')).toContain('/b.svg');
+                expect(f.runtime.snapshotInstance(instance).instanceId).toBe(identity);
+                const island = instance.querySelector<HTMLTemplateElement>('template[data-cem-island="instance"]');
+                const source = island?.content.querySelector('style');
+                if (!source) throw new Error('missing retained payload source');
+                source.textContent = 'p {color:blue}';
+                await waitFor(() => expect(getComputedStyle(instance.querySelector('p') as Element).color).toBe('rgb(0, 0, 255)'));
+                await f.runtime.whenRenderSettled(instance);
+                expect(instance.querySelectorAll(':scope > style[data-cem-instance-style]')).toHaveLength(1);
+                expect(instance.querySelector('style[data-cem-instance-style]')?.textContent).not.toContain('/b.svg');
+                expect(f.runtime.diagnosticsFor(instance)).toEqual([]);
+            } finally { f.dispose(); }
+        }
+    },
+};

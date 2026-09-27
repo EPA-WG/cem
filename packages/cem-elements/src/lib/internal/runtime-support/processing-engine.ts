@@ -316,6 +316,7 @@ export class CemProcessingEngine {
         });
         this.assertActive();
         const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
+            payloadStylesInstalled: input.payloadStylesInstalled,
             payload: input.snapshot.payload,
         });
         const lowered = lowerResourceControls(scoped.renderPlan);

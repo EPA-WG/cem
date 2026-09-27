@@ -16,7 +16,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v9' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v10' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -206,6 +206,8 @@ export type CemProcessingValueInput = { scopePolicyStamp: string; limits: CemVal
 export type CemProcessingValueResult = { value: NativeCemValue } | { text: string | null };
 
 export interface CemProcessingRenderDiffInput {
+    /** Native payload CSS is installed separately on the consuming host. */
+    payloadStylesInstalled?: boolean;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;

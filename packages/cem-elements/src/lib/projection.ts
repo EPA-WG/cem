@@ -219,6 +219,8 @@ export interface ScopedRenderPlanResult {
 }
 
 export interface ScopeRenderPlanOptions {
+    /** Native payload CSS is installed as host children outside the render range. */
+    payloadStylesInstalled?: boolean;
     /** Serialized inert instance payload. Its styles become managed host children. */
     payload?: unknown;
 }
@@ -1021,7 +1023,7 @@ export function scopeRenderPlan(
     options: ScopeRenderPlanOptions = {},
 ): ScopedRenderPlanResult {
     const diagnostics: ScopedCssRewriteDiagnostic[] = [];
-    const payloadStyles = collectPayloadStyles(options.payload);
+    const payloadStyles = options.payloadStylesInstalled ? [] : collectPayloadStyles(options.payload);
     const planNodes = stripPayloadStyleNodes(plan.nodes);
     return {
         renderPlan: {
@@ -1292,6 +1294,14 @@ function coerceProjectionPayload(payload: unknown): ProjectionPayload | null {
         ...(Array.isArray(nodes) ? { nodes } : {}),
         ...(slots && typeof slots === 'object' ? { slots } : {}),
     };
+}
+
+/** Extract authored CSS text only; native adoption owns CSS parsing. */
+export function payloadStylesheetSources(payload: unknown): Array<{ css: string; scope: null }> {
+    return collectPayloadStyles(payload).flatMap(node => node.kind === 'element' ? [{
+        css: node.children.map(child => child.kind === 'text' ? child.text
+            : child.kind === 'comment' ? `/*${child.text}*/` : '').join(''), scope: null,
+    }] : []);
 }
 
 function collectPayloadStyles(payload: unknown): RenderPlanNode[] {

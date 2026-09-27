@@ -20,15 +20,14 @@ export interface CemStylesheetResponse {
     contentType?: string;
 }
 
-export interface CemStylesheetInstallationOptions {
+export interface CemStylesheetInstallationOptions<TScope extends Begin['scope'] = Exclude<Begin['scope'], { kind: 'instance' }>> {
     host: CemProcessingHost;
     artifact: CemProcessingArtifactHandle;
     consumer: string;
-    lease: CemStylesheetConsumerLease;
+    lease: CemStylesheetConsumerLease<NoInfer<TScope>>;
     baseUrl: string;
     context: CemModuleUrlContextWire;
-    // This coordinator installs declaration-owned sets. Instance output is host-local.
-    occurrences: ReadonlyArray<{ index: number; scope: Exclude<Begin['scope'], { kind: 'instance' }> }>;
+    occurrences: ReadonlyArray<{ index: number; scope: TScope }>;
     /** Transport supplies bytes; native import owns resolution and response policy. */
     read(request: Pending['request'], signal: AbortSignal): Promise<CemStylesheetResponse>;
 }
@@ -42,7 +41,7 @@ export interface CemStylesheetInstallation {
 const cancelled = Symbol('stylesheet installation cancelled');
 
 /** Owns the async native load transaction; the browser never parses CSS here. */
-export function installRetainedStylesheets(options: CemStylesheetInstallationOptions): CemStylesheetInstallation {
+export function installRetainedStylesheets<TScope extends Begin['scope']>(options: CemStylesheetInstallationOptions<TScope>): CemStylesheetInstallation {
     const { host, lease } = options;
     const { signal } = lease;
     const { artifact, consumer, baseUrl, context, occurrences } = structuredClone({
@@ -99,7 +98,7 @@ export function installRetainedStylesheets(options: CemStylesheetInstallationOpt
     }
 
     const ready: CemStylesheetInstallation['ready'] = (async () => {
-        const outputs: CemOwnedStylesheet[] = [];
+        const outputs: CemOwnedStylesheet<TScope>[] = [];
         const diagnostics: Diagnostic[] = [];
         try {
             for (const occurrence of occurrences) {

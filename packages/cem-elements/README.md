@@ -28,7 +28,7 @@ same-scope duplicates and incompatible replacements still fail; remounts cannot
 revive disposed processing scopes. See the
 [registration lifecycle](../../docs/cem-element-design.md).
 
-Native declaration CSS can be enabled with
+Native declaration and inert-payload CSS can be enabled with
 `new CemElementRuntime({ retainedStylesheets: {} })` while the default
 compiler migration remains pending. The default browser reader checks HTTP status,
 honors cancellation and buffers at most the native 16 MiB limit plus one byte
@@ -43,16 +43,21 @@ response and resolves nested imports and resource URLs. The reader should honor
 the abort signal and reject failed responses.
 
 In this mode, `whenDeclarationSettled` waits for retained CEM-ML/DOM source
-registration. `whenRenderSettled` also waits for the instance's private and shared
+registration. `whenRenderSettled` also waits for the instance's private, shared and payload
 stylesheet loads, including during hydration. Shared sources apply without an
 instance of their own declaration. Disconnect, context changes and scope disposal
 release consumer generations. The internal `data-cem-css-context` marker is
 recomputed and excluded from snapshots. Stylesheet diagnostics expose their
 `sourceUri`, `stylesheetUrl` and byte range. XSLT result styles retain their
-existing branch-local behavior. Instance CSS still uses the existing renderer;
-see the [remaining migration gates](../../docs/todo.md).
+existing branch-local behavior.
 
-Run the same Storybook assertions with native declaration CSS enabled:
+Payload styles are direct host children outside the render range. Native owners
+use the persisted instance identity and consuming module context; emitted CSS is
+installed without parsing it again. Source edits and context changes replace the
+installation. Hydration waits for imports while preserving compatible rendered
+DOM and animation names. See the [remaining migration gates](../../docs/todo.md).
+
+Run the same Storybook assertions with retained native CSS enabled:
 
 ```sh
 yarn nx run cem-elements:test:retained-css

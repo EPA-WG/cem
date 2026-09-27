@@ -5,17 +5,17 @@ import {
 import type { CemProcessingStylesheetResult } from './internal/runtime-support/processing-host.js';
 
 /** A complete native occurrence; CSS is never parsed by the installation layer. */
-export interface CemOwnedStylesheet {
+export interface CemOwnedStylesheet<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
     index: number;
-    scope: { kind: 'private' } | { kind: 'shared'; name: string };
+    scope: TScope;
     output: Extract<CemProcessingStylesheetResult, { status: 'ready' }>;
 }
 
-export interface CemStylesheetConsumerLease {
+export interface CemStylesheetConsumerLease<TScope = { kind: 'private' } | { kind: 'shared'; name: string }> {
     /** Abort pending loads when this generation disconnects, changes or is disposed. */
     readonly signal: AbortSignal;
     /** Commits once, only while this connected consumer generation remains current. */
-    commit(outputs: readonly CemOwnedStylesheet[], release: () => void): boolean;
+    commit(outputs: readonly CemOwnedStylesheet<TScope>[], release: () => void): boolean;
     release(): void;
 }
 

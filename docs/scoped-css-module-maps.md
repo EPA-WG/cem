@@ -1409,7 +1409,7 @@ uses the same artifact and reader cache through accessors.
 
 ### Processing-host stylesheet protocol
 
-The `cem-processing-host-v9` `stylesheet` operation populates this collection
+The `cem-processing-host-v10` `stylesheet` operation populates this collection
 through four controls:
 
 - `begin` supplies an artifact handle, consumer, occurrence index, admitted
@@ -1499,14 +1499,28 @@ Animation names survive reconnect under the same instance and context, while
 different instance IDs have separate namespaces. Redirected imports and exact
 load-generation cancellation use the existing native loader.
 
-Processing-host protocol v9 carries `instanceStylesheetIdentity` only for CSS
+Processing-host protocol v10 carries `instanceStylesheetIdentity` only for CSS
 source adoption. The identity is part of the native compilation cache key and
 same-artifact reuse checks. Instance loads pass this fixed identity through the
 WASM control boundary; declaration loads retain their registration identity.
 Worker and fallback engines both reject crossing those ownership modes.
-The declaration installation coordinator remains restricted to private/shared
-sets, so instance styles cannot be installed on a declaration by accident.
+The shared installation coordinator accepts typed scope sets. Declaration leases
+remain restricted to private/shared styles, while instance leases commit only to
+the consuming host.
 
-Runtime installation of payload CSS remains pending; the browser default is
-unchanged. The runtime must preserve host-child placement and await these loads
-during render and hydration before replacing the current payload compiler.
+With `retainedStylesheets: {}`, the runtime extracts authored CSS from the inert
+payload and adopts it into native instance owners. Direct host style children
+sit outside the render range. Protocol v10 carries `payloadStylesInstalled` so
+DOM and worker render plans omit payload styles without parsing their CSS;
+ordinary result styles still follow their existing path.
+
+First render and hydration wait for imports. Compatible hydration preserves
+rendered DOM and animation names, and reuses the direct style nodes. The scope
+policy stamp includes `retained-instance-css` to reject older hydration output
+that placed payload CSS inside the render range. Payload edits and moves between
+module-map contexts replace the installation while retaining the instance ID.
+Disconnect and ancestor disposal abort reads and release native generations;
+stale delivery cannot commit. A failed occurrence reports native source ranges
+without dropping independent valid occurrences. Worker/fallback fixtures cover
+these paths for DOM and CEM-ML declarations. Default compiler cutover remains
+pending.

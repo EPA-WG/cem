@@ -8,6 +8,7 @@ import {
     edgeContentAddress,
     materializeRenderPlan,
     projectTemplate,
+    payloadStylesheetSources,
     readTemplateSource,
     renderedPlanAttributeValue,
     resolveDeclarationStyleScope,
@@ -96,6 +97,7 @@ import {
 import { DeclarationStyleOwnership, reconcileStylesheetContextMarker } from './declaration-style-ownership.js';
 import { CemStylesheetRegistry, type CemStylesheetConnection } from './internal/runtime-support/stylesheet-registry.js';
 import type { CemStylesheetInstallationOptions } from './internal/runtime-support/stylesheet-installation.js';
+import { installInstanceStylesheets, type InstanceStylesheetInstallation } from './internal/runtime-support/instance-stylesheet-installation.js';
 import { readRetainedStylesheet } from './internal/runtime-support/stylesheet-reader.js';
 import {
     createCemEdgeSsrHostRequestEnvelope,
@@ -642,9 +644,9 @@ export interface CemElementRuntimeOptions {
      */
     processingWorkerFactory?: CemProcessingWorkerFactory;
     /**
-     * Opt into retained native declaration CSS while compiler/instance cutover gates
-     * remain open. Transport returns bytes and response metadata; native import
-     * owns CSS parsing, URL resolution and admission. Defaults to bounded browser
+     * Opt into retained native declaration and inert-payload CSS while default
+     * compiler cutover gates remain open. Transport returns bytes and response
+     * metadata; native import owns CSS parsing, URL resolution and admission. Defaults to bounded browser
      * fetch; XSLT result styles are separate.
      */
     retainedStylesheets?: { read?: CemStylesheetInstallationOptions['read'] };
@@ -1673,6 +1675,7 @@ export class CemElementRuntime {
     private readonly retainedStylesheets?: CemElementRuntimeOptions['retainedStylesheets'];
     private readonly stylesheetConnections = new WeakMap<HTMLElement, CemStylesheetConnection>();
     private readonly stylesheetReady = new WeakSet<HTMLElement>();
+    private readonly instanceStylesheets = new WeakMap<HTMLElement, { key: string; installation: InstanceStylesheetInstallation; reported: boolean }>();
     private readonly reportedStylesheetDiagnostics = new WeakSet<object>();
     private readonly processingPoolPolicy?: CemProcessingPoolPolicy;
     private readonly controlInputPolicy: CemControlInputPolicy;
@@ -1732,7 +1735,7 @@ export class CemElementRuntime {
         this.validateGeneratedIds = options.validateGeneratedIds ?? false;
         this.processingWorkerFactory = options.processingWorkerFactory;
         this.retainedStylesheets = options.retainedStylesheets;
-        if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css';
+        if (this.retainedStylesheets) this.scopePolicyStamp += ':retained-declaration-css:retained-instance-css';
         this.processingPoolPolicy = options.processingPoolPolicy;
         this.artifactRegistry = options.artifactRegistry;
         this.onProcessingTrace = options.onProcessingTrace;
@@ -2571,6 +2574,8 @@ export class CemElementRuntime {
         this.stylesheetConnections.get(instance)?.release();
         this.stylesheetConnections.delete(instance);
         this.stylesheetReady.delete(instance);
+        this.instanceStylesheets.get(instance)?.installation.dispose();
+        this.instanceStylesheets.delete(instance);
         const state = this.instanceStates.get(instance);
         state?.observer?.disconnect();
         if (state) {
@@ -2627,6 +2632,7 @@ export class CemElementRuntime {
     }
 
     private invalidateProducedInstance(instance: HTMLElement, compiled: CompiledDeclaration): void {
+        if (this.retainedStylesheets) this.stylesheetReady.delete(instance);
         if (!this.initializedInstances.has(instance) || !instance.isConnected) {
             return;
         }
@@ -2885,6 +2891,7 @@ export class CemElementRuntime {
             this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
             const scoped = scopeRenderPlan(result.renderPlan, this.currentScopeUid(instance, compiled), {
                 payload: snapshot.payload,
+                payloadStylesInstalled: !!this.retainedStylesheets,
             });
             this.recordDiagnostics(
                 instance,
@@ -2989,9 +2996,37 @@ export class CemElementRuntime {
             }
         });
         try {
-            await Promise.race([this.prepareRetainedStylesheets(compiled), cancelled]);
+            await Promise.race([Promise.all([
+                this.prepareRetainedStylesheets(compiled),
+                this.ensureInstanceStylesheets(instance, compiled, signal),
+            ]), cancelled]);
             if (!signal.aborted) await this.settleRetainedStylesheets(instance);
         } finally { removeAbort(); }
+    }
+
+    private async ensureInstanceStylesheets(instance: HTMLElement, compiled: CompiledDeclaration, signal: AbortSignal): Promise<void> {
+        const island = this.ensureDataIsland(instance);
+        const payload = this.invalidInstancePayloads.has(instance) ? emptySerializedPayload()
+            : serializePayload(island, this.explicitInstancePayloads.has(instance));
+        const sources = payloadStylesheetSources(payload);
+        const context = this.ensureModuleUrlContext(instance, compiled).wire;
+        const instanceId = this.instanceId(instance);
+        const key = edgeContentAddress('template-artifact', { sources, context, instanceId }).key;
+        let state = this.instanceStylesheets.get(instance);
+        if (!state || state.key !== key) {
+            state?.installation.dispose();
+            state = { key, reported: false, installation: installInstanceStylesheets({
+                element: instance, instanceId, sources, context, signal,
+                artifactId: `instance-css:${key}`, scopePolicyStamp: this.scopePolicyStamp,
+                host: this.processingHost(compiled), baseUrl: compiled.resourceBaseUrl,
+                read: this.retainedStylesheets?.read ?? readRetainedStylesheet,
+            }) };
+            this.instanceStylesheets.set(instance, state);
+        }
+        const diagnostics = await state.installation.ready;
+        if (signal.aborted || this.instanceStylesheets.get(instance) !== state || state.reported) return;
+        state.reported = true;
+        this.recordDiagnostics(instance, diagnostics.map(diagnostic => ({ ...diagnostic, source: 'instance', tag: instance.localName })));
     }
 
     private async settleRetainedStylesheets(instance: HTMLElement): Promise<void> {
@@ -3293,6 +3328,7 @@ export class CemElementRuntime {
                 nativeSlices: snapshot.nativeSlices,
                 nativeValueLimits: this.nativeValueLimits,
                 scopeUid: this.currentScopeUid(instance, compiled),
+                payloadStylesInstalled: !!this.retainedStylesheets,
                 previousRenderPlan: this.processingRenderPlans.get(instance) ?? null,
             });
             if (this.renderTokens.get(instance) !== token) {
@@ -3619,6 +3655,7 @@ export class CemElementRuntime {
             const plan = projectTemplate(compiled.templateSource, input);
             const scoped = scopeRenderPlan(plan, this.currentScopeUid(instance, compiled), {
                 payload: snapshot.payload,
+                payloadStylesInstalled: !!this.retainedStylesheets,
             });
             this.recordDiagnostics(
                 instance,

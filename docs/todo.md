@@ -6267,10 +6267,22 @@ registration identities may reuse an inherited or existing definition.
               tests and 281 browser stories in each runtime lane pass, along with
               typecheck and lint (two existing warnings). Runtime payload CSS
               installation remains the next integration gate.
-        - [ ] Fixture: retain per-instance inert payload CSS in native owners;
+        - [x] Fixture: omit externally installed payload CSS from DOM and worker
+              render plans without parsing it; keep ordinary result styles intact.
+        - [x] Fixture: retain per-instance inert payload CSS in native owners;
               use the persisted instance identity and consuming module context,
               preserve host-child placement, and verify readiness, imports,
               reconnect, hydration and cancellation before default cutover.
+              Completed: opt-in runtime installs native payload CSS as host children
+              outside render bounds. Worker/fallback fixtures cover delayed imports,
+              compatible hydration, reconnect, cancellation, MIME failure recovery,
+              source edits and moves between module-map contexts. Protocol v10 skips
+              payload CSS compilation in render plans and retains result styles.
+              All 548 unit tests and 284 browser stories in each runtime lane pass;
+              typecheck and lint pass with two existing warnings.
+        - [ ] Fixture: verify nested inert payload styles remain owned by their
+              consuming child instance; prevent parent collection or render-plan
+              cleanup from consuming CSS inside a nested inert template.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets
