@@ -103,6 +103,11 @@ export function executeNonBrowserSsrInitialRenderFixture(
         );
     }
 
+    const cssFailure = retainedCssCapabilityFailure(request.payload);
+    if (cssFailure) {
+        return fixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.retained_css_unavailable', cssFailure);
+    }
+
     try {
         const snapshot = request.payload.snapshot;
         const projected = projectTemplate(request.payload.template.source, {
@@ -252,6 +257,12 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
             'cem.edge_ssr.snapshot_fields_unavailable',
             'the sanitized snapshot omits fields required to produce an edge update'
         );
+        return;
+    }
+
+    const cssFailure = retainedCssCapabilityFailure(request.payload);
+    if (cssFailure) {
+        yield updateFixtureFailure(request, 'content-unavailable', 'cem.edge_ssr.retained_css_unavailable', cssFailure);
         return;
     }
 
@@ -428,6 +439,15 @@ export async function* executeNonBrowserEdgeRenderUpdateFixture(
 /** Serialize the owned render range without constructing or reading browser DOM. */
 export function serializeRenderPlanToHtmlFixture(plan: RenderPlan): string {
     return plan.nodes.map((node) => serializeRenderNode(node, plan)).join('');
+}
+
+/** This evidence host has no native stylesheet owner, resolver or byte reader. */
+function retainedCssCapabilityFailure(input: CemEdgeSsrRenderInput): string | undefined {
+    const policies = input.snapshot.scopePolicyStamp.split(':');
+    if (policies.includes('retained-declaration-css') || policies.includes('retained-instance-css')) {
+        return 'the non-browser evidence host cannot render retained CSS; a native stylesheet load capability is required';
+    }
+    return undefined;
 }
 
 function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | undefined {

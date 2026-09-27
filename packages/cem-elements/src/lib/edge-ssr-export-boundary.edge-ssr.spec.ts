@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     createCemEdgeSsrBrowserRequestEnvelope,
+    exportDataIslandSnapshotForEdge,
     type DataIslandSnapshot,
     type DataIslandSnapshotExportPolicy,
 } from './cem-elements.js';
@@ -20,7 +21,7 @@ import {
 } from './projection.js';
 import {
     PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
-    processingBoundarySnapshotFixture,
+    edgeSsrSnapshotFixture,
 } from './processing-boundary.fixtures.js';
 
 const COMPLETE_EXPORT_POLICY: DataIslandSnapshotExportPolicy = {
@@ -50,6 +51,14 @@ const REDACTED_EXPORT_POLICY: DataIslandSnapshotExportPolicy = {
 };
 
 describe('browser-to-edge snapshot export boundary', () => {
+    it('rejects an explicitly allowed uncloneable event payload', () => {
+        const snapshot = edgeSsrSnapshotFixture();
+        snapshot.eventPayloads = { callback: () => 'not transportable' };
+        expect(() => exportDataIslandSnapshotForEdge(snapshot, {
+            fields: { eventPayloads: 'allow' },
+        })).toThrow();
+    });
+
     it('omits default-denied fields before creating an initial-render host request', () => {
         const secret = 'initial-default-deny-secret';
         const snapshot = privateSnapshot('Before', '1', secret);
@@ -249,7 +258,7 @@ function updateBrowserRequest(
 }
 
 function renderSnapshot(label: string, dataRevision: string): DataIslandSnapshot {
-    const snapshot = processingBoundarySnapshotFixture();
+    const snapshot = edgeSsrSnapshotFixture();
     snapshot.dataRevision = dataRevision;
     snapshot.hostAttributes = {
         ...snapshot.hostAttributes,

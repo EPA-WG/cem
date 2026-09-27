@@ -57,6 +57,10 @@ installed without parsing it again. Source edits and context changes replace the
 installation. Hydration waits for imports while preserving compatible rendered
 DOM and animation names. See the [remaining migration gates](../../docs/todo.md).
 
+The Node Edge/SSR evidence host currently rejects retained-CSS policy stamps with
+`cem.edge_ssr.retained_css_unavailable`. Native Edge stylesheet loading and its
+hydration checks remain a default-cutover gate.
+
 Run the same Storybook assertions with retained native CSS enabled:
 
 ```sh

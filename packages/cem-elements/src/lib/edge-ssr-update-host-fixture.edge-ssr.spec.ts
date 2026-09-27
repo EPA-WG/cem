@@ -32,10 +32,25 @@ import {
 } from './projection.js';
 import {
     PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
-    processingBoundarySnapshotFixture,
+    edgeSsrSnapshotFixture,
 } from './processing-boundary.fixtures.js';
 
 describe('non-browser edge render-update host fixture', () => {
+    it.each(['retained-declaration-css', 'retained-instance-css'])(
+        'rejects unsupported %s policy without frames or state changes', async marker => {
+            const store = new InMemoryEdgeRenderStateStore();
+            const seeded = seedInitialRender(store);
+            const snapshot = renderSnapshot('After', '2');
+            snapshot.scopePolicyStamp += `:${marker}`;
+            const request = updateRequest(seeded, exportCompleteSnapshot(snapshot));
+            const responses = await collectResponses(executeNonBrowserEdgeRenderUpdateFixture(request, store));
+            expect(responses).toHaveLength(1);
+            expect(responses[0]).toMatchObject({ outcome: 'failure', reason: 'content-unavailable',
+                diagnostics: [{ code: 'cem.edge_ssr.retained_css_unavailable' }] });
+            expect(store.readRecord(seeded.result.renderState.stateKey)).toEqual(seeded.result.renderState);
+        },
+    );
+
     it('streams the browser-reference patch frames before a terminal committed state without DOM globals', async () => {
         const store = new InMemoryEdgeRenderStateStore();
         const seeded = seedInitialRender(store);
@@ -268,7 +283,7 @@ function updateRequest(
 }
 
 function renderSnapshot(label: string, dataRevision: string): DataIslandSnapshot {
-    const snapshot = processingBoundarySnapshotFixture();
+    const snapshot = edgeSsrSnapshotFixture();
     snapshot.dataRevision = dataRevision;
     snapshot.hostAttributes = {
         ...snapshot.hostAttributes,

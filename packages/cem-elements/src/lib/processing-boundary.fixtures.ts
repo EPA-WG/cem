@@ -88,3 +88,11 @@ export function processingBoundarySnapshotFixture(): DataIslandSnapshot {
         },
     };
 }
+
+/** Transport success fixture; the generic fixture also tests unsupported host values. */
+export function edgeSsrSnapshotFixture(): DataIslandSnapshot {
+    const snapshot = processingBoundarySnapshotFixture();
+    snapshot.slices = { primitive: 'ok' };
+    snapshot.eventPayloads = { detail: { ok: true } };
+    return snapshot;
+}

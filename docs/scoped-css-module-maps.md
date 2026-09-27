@@ -1575,3 +1575,27 @@ source presentation and overflow at 1280px and 390px. The retained Storybook lan
 verifies both mappings; the default lane verifies import suppression. The browser
 reader requests `Accept: text/css`, so development servers return CSS bytes rather
 than JavaScript module wrappers without requiring special queries in authored URLs.
+
+
+### Edge/SSR gate before default cutover
+
+The Node evidence host in `edge-ssr-host-fixture.ts` still uses synchronous
+`projectTemplate` and `scopeRenderPlan`. It has no native stylesheet owner,
+module resolver or byte reader. It previously accepted the browser's
+`retained-declaration-css` / `retained-instance-css` policy stamp while compiling
+payload CSS through the legacy path. Its resulting hydration identity therefore
+claimed a capability the host did not implement.
+
+Initial-render and update requests with either retained policy now return
+`content-unavailable` with `cem.edge_ssr.retained_css_unavailable`. They emit no
+HTML or patch frames and leave retained state unchanged. Legacy-policy requests
+keep their existing behavior. This guard applies to the evidence host, not to
+browser retained-CSS installation.
+
+Default cutover remains pending. Next, give the Edge host native stylesheet
+adoption/loading with the same consuming module context and persisted instance
+identity as the browser. Verify emitted host-child styles and import readiness,
+then hydrate that output without duplicating payload CSS or renaming animations.
+Only remove the capability guard once initial render and update fixtures prove
+those paths. Browser hydration of browser-produced retained output already has
+coverage; it cannot establish that the Node host emits compatible output.

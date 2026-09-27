@@ -22,7 +22,7 @@ import {
 } from './projection.js';
 import {
     PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
-    processingBoundarySnapshotFixture,
+    edgeSsrSnapshotFixture,
 } from './processing-boundary.fixtures.js';
 
 class HostClassInstance {
@@ -35,7 +35,7 @@ class BrowserHandleLike {
 
 describe('Edge/SSR processing boundary contracts', () => {
     it('locks correlated initial-render and streamed edge-update host envelopes', () => {
-        const snapshot = processingBoundarySnapshotFixture();
+        const snapshot = edgeSsrSnapshotFixture();
         const exported = exportDataIslandSnapshotForEdge(snapshot, {
             fields: {
                 hostAttributes: 'allow',
@@ -194,7 +194,7 @@ describe('Edge/SSR processing boundary contracts', () => {
 
     it('locks hybrid content-addressed blobs behind an optimistic revision pointer', () => {
         const previousPlan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
-            snapshot: processingBoundarySnapshotFixture(),
+            snapshot: edgeSsrSnapshotFixture(),
             values: { label: 'Before' },
         });
         const nextPlan: RenderPlan = {
@@ -254,7 +254,7 @@ describe('Edge/SSR processing boundary contracts', () => {
     });
 
     it('keeps snapshots, render plans, patch frames, and edge records plain structured-clone data', () => {
-        const snapshot = processingBoundarySnapshotFixture();
+        const snapshot = edgeSsrSnapshotFixture();
         const exported = exportDataIslandSnapshotForEdge(snapshot, {
             privacyPolicyStamp: 'edge-policy-v1',
             fields: {
@@ -270,9 +270,8 @@ describe('Edge/SSR processing boundary contracts', () => {
         expectPlainBoundaryValue(exported);
         expect(exported.renderAttempt).toBe(2);
         expect((exported.formData as Record<string, unknown>).signin).toEqual({ username: 'ada' });
-        expect((exported.slices as Record<string, unknown>).date).toBe('2026-06-17T00:00:00.000Z');
-        expect((exported.slices as Record<string, unknown>).klass).toEqual({ value: 'class-value' });
-        expect((exported.eventPayloads as Record<string, unknown>).fn).toBeUndefined();
+        expect(exported.slices).toEqual({ primitive: 'ok' });
+        expect(exported.eventPayloads).toEqual({ detail: { ok: true } });
 
         const projection: TemplateProjectionInput = {
             snapshot,
@@ -330,7 +329,7 @@ describe('Edge/SSR processing boundary contracts', () => {
     });
 
     it('applies default-deny and redaction policy before exporting snapshots to edge hosts', () => {
-        const snapshot = processingBoundarySnapshotFixture();
+        const snapshot = edgeSsrSnapshotFixture();
         snapshot.dataset = { analyticsId: 'visitor-42' };
         snapshot.slices = { draftInput: 'browser-local draft' };
         snapshot.formData = { signin: { username: 'ada', password: 'secret' } };
@@ -422,7 +421,7 @@ describe('Edge/SSR processing boundary contracts', () => {
 
         const store = new InMemoryEdgeRenderStateStore();
         const plan = projectTemplate(PROCESSING_BOUNDARY_TEMPLATE_SOURCE, {
-            snapshot: processingBoundarySnapshotFixture(),
+            snapshot: edgeSsrSnapshotFixture(),
             values: { label: 'Projected' },
         });
         expect(() =>

@@ -19,12 +19,25 @@ import {
 } from './projection.js';
 import {
     PROCESSING_BOUNDARY_TEMPLATE_SOURCE,
-    processingBoundarySnapshotFixture,
+    edgeSsrSnapshotFixture,
 } from './processing-boundary.fixtures.js';
 
 describe('non-browser SSR initial-render host fixture', () => {
+    it.each(['retained-declaration-css', 'retained-instance-css'])(
+        'rejects unsupported %s policy before creating SSR state', marker => {
+            const snapshot = edgeSsrSnapshotFixture();
+            snapshot.scopePolicyStamp += `:${marker}`;
+            const store = new InMemoryEdgeRenderStateStore();
+            const request = initialRequest(exportCompleteSnapshot(snapshot));
+            const response = executeNonBrowserSsrInitialRenderFixture(request, store);
+            expect(response).toMatchObject({ outcome: 'failure', reason: 'content-unavailable',
+                diagnostics: [{ code: 'cem.edge_ssr.retained_css_unavailable' }] });
+            expect(store.readRecord(expectedStateKey(request.payload.snapshot))).toBeUndefined();
+        },
+    );
+
     it('emits escaped identity-bearing HTML, hydration data, and verified retained state without DOM globals', () => {
-        const snapshot = processingBoundarySnapshotFixture();
+        const snapshot = edgeSsrSnapshotFixture();
         snapshot.hostAttributes = {
             ...snapshot.hostAttributes,
             label: 'Server <Card> & "safe"',
@@ -113,7 +126,7 @@ describe('non-browser SSR initial-render host fixture', () => {
         ];
 
         for (const [label, transform] of cases) {
-            const snapshot = processingBoundarySnapshotFixture();
+            const snapshot = edgeSsrSnapshotFixture();
             snapshot.hostAttributes['data-cem-render-scope'] = 'boundary-server-scope';
             const exported = exportCompleteSnapshot(snapshot);
             const request = initialRequest(exported, undefined, transform);
@@ -129,7 +142,7 @@ describe('non-browser SSR initial-render host fixture', () => {
     });
 
     it('fails closed for policy-omitted fields, unresolved artifacts, and unsafe raw HTML', () => {
-        const snapshot = processingBoundarySnapshotFixture();
+        const snapshot = edgeSsrSnapshotFixture();
         const defaultDenied = exportDataIslandSnapshotForEdge(snapshot);
         const missingFieldsStore = new InMemoryEdgeRenderStateStore();
         const missingFields = executeNonBrowserSsrInitialRenderFixture(
@@ -187,7 +200,7 @@ describe('non-browser SSR initial-render host fixture', () => {
 });
 
 function exportCompleteSnapshot(
-    snapshot = processingBoundarySnapshotFixture()
+    snapshot = edgeSsrSnapshotFixture()
 ): ExportedDataIslandSnapshot {
     return exportDataIslandSnapshotForEdge(snapshot, {
         fields: {

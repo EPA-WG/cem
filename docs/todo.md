@@ -6348,6 +6348,21 @@ registration identities may reuse an inherited or existing definition.
           Validation: 552 unit tests, all 284 retained browser tests, the corrected
           default-demo regression, typecheck and lint pass (two existing warnings).
           Standalone/source-loaded fixture checks pass at desktop/mobile widths.
+    - [x] Fixture: repair Edge success fixtures to use clone-safe event payloads
+          and explicitly verify that allowing an uncloneable payload rejects export.
+    - [x] Fixture: reject retained-CSS policies in the legacy Edge/SSR evidence
+          host before emitting HTML or patch frames or changing retained state;
+          record the native stylesheet capability required for default cutover.
+          Completed: initial and update requests fail before output/state changes
+          with `cem.edge_ssr.retained_css_unavailable`. The browser default remains
+          unchanged; the Node evidence host cannot implement its retained policy.
+          All 21 Edge unit tests and 7 browser Edge/SSR tests pass; typecheck and
+          lint pass with two existing warnings.
+    - [ ] Fixture: add native stylesheet adoption/loading to the Edge host with
+          consuming module contexts and persisted instance identities; verify
+          imported CSS placement, readiness, cancellation and browser hydration
+          without duplicate payload styles or renamed animations before removing
+          the retained-policy capability guard.
     - [ ] Fixture: trial retained CSS as the default browser runtime; audit
           Edge/SSR and hydration compatibility, run both browser lanes and
           component verification, and remove obsolete compiler paths only after
