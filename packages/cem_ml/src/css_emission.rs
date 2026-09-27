@@ -14,6 +14,8 @@ pub use keyframes::{
     emit_css_keyframes, CssEmittedKeyframeOffset, CssKeyframeBlock, CssKeyframesEmission,
     CssKeyframesRule,
 };
+mod ownership;
+pub use ownership::{derive_css_stylesheet_identity, CssStylesheetIdentity};
 mod closure;
 pub use closure::{
     emit_css_import_closure, CssClosureDiagnostic, CssClosureEmission, CssClosureFragment,

@@ -1201,3 +1201,55 @@ Native fixtures cover context reuse, escaped strings, exact source ranges,
 redirected/repeated imported sheets, descriptor order, the prefixed alias and
 unsupported forms. The browser gate checks computed candidate URLs from native
 output after rebuilding WASM. Runtime installation remains pending.
+
+## Effective stylesheet identity (native)
+
+`derive_css_stylesheet_identity` derives a qualified managed scope and two keys
+from a ready native import closure, stable declaration identity and style
+occurrence. It performs no caching or browser installation.
+
+- **Context marker:** a versioned BLAKE3 fingerprint of the effective resolver
+  configuration. The scoped resolver includes context/resolver identity, policy
+  stamp, ordered frames and scoped maps, base URLs, all mapping targets and
+  MIME/integrity metadata, blocking entries and allowed schemes. Map keys and
+  scheme sets have deterministic order. Length-prefixed fields distinguish
+  absent, empty and differently partitioned values. Lookup handles and pointers
+  are excluded. Context and frame identities must themselves survive hydration.
+- **Owner key:** the declaration, style occurrence, private/shared/instance scope,
+  source stylesheet base and effective context marker. It is the input to the
+  existing closure emitter's keyframe namespace. Editing CSS or refreshing an
+  imported response preserves this owner's namespace.
+- **Cache key:** the owner key plus every retained sheet's import-owned source
+  fingerprint, final URL and ordered import edges. Changed root/imported content
+  or response bases invalidate compiled output. Source provenance is deliberately
+  part of the imported fingerprint, so cached diagnostics retain their owner.
+
+Only styles with imports or non-fragment resource references require a context
+marker. Plain styles and authored local fragments keep the single
+context-independent set. Qualified private/shared roots use the existing native
+scope wrapper. Instance CSS retains its implicit scope; instance callers must
+supply the persisted instance identity as part of their ownership input.
+
+`CemModuleUrlResolver::context_cache_identity` is optional. The built-in scoped
+resolver hashes its immutable typed configuration directly. Custom resolvers
+must fingerprint all resolution inputs before opting in; the default is
+uncacheable. The closure captures the fingerprint before resolving its root.
+Identity derivation rejects a changed or unavailable fingerprint, incomplete or
+cancelled closures, missing source fingerprints, empty owner fields and a
+caller-supplied context marker. It never substitutes a process-local handle.
+These versioned hash domains must change when their encoded inputs or compiler
+semantics change.
+
+Native tests reconstruct trees and resolver handles to verify stable identity,
+exercise map/policy/base/scope/content invalidation and verify cancellation and
+uncacheable resolvers. The browser fixture installs two native-emitted variants,
+checks their isolation from each other and unmarked hosts, then changes a host's
+marker. This proves scope behavior; runtime ownership, hydration restoration and
+cache lifecycle are still pending.
+
+A cache key is not an authorization or freshness decision. The caller must
+revalidate dependency responses through the loader, confirm the consuming context
+is live and invalidate pending work on context changes before committing styles.
+The next integration step is to carry these identities through the retained
+processing-host artifact lifecycle and replace declaration-only derived-set
+ownership, with disposal/reconnect/readiness coverage.

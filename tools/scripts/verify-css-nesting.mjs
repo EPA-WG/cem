@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 const directory = await mkdtemp(join(tmpdir(), 'cem-css-nesting-'));
 let browser;
 try {
-  const native = spawnSync('cargo', ['test', '-p', 'cem-ml', '--test', 'css_subtree', '--test', 'css_import_closure',
+  const native = spawnSync('cargo', ['test', '-p', 'cem-ml', '--test', 'css_subtree', '--test', 'css_import_closure', '--test', 'css_ownership',
     '--target-dir', 'dist/target/cem_ml', 'browser_fixture_emits_'], {
     env: { ...process.env, CEM_CSS_SUBTREE_FIXTURE_DIR: directory }, stdio: 'inherit',
   });
@@ -169,6 +169,28 @@ try {
   });
   assert.deepEqual(importedAnimation, { name: 'pulse-cem-66697874757265', opacity: '0.5', color: 'rgb(0, 128, 0)' },
     'nested imports preserve cross-sheet animation names and cascade order');
+  const contextMarkers = await Promise.all(['first', 'second'].map(name =>
+    readFile(join(directory, `context-${name}.txt`), 'utf8')));
+  await page.setContent('<cem-card id="first"><div class="card"></div></cem-card>' +
+    '<cem-card id="second"><div class="card"></div></cem-card>' +
+    '<cem-card id="unmatched"><div class="card"></div></cem-card>');
+  for (const name of ['first', 'second']) {
+    await page.addStyleTag({ content: await readFile(join(directory, `context-${name}.css`), 'utf8') });
+  }
+  const contexts = await page.evaluate(([first, second]) => {
+    const a = document.querySelector('#first');
+    const b = document.querySelector('#second');
+    a.setAttribute('data-cem-css-context', first);
+    b.setAttribute('data-cem-css-context', second);
+    const image = host => getComputedStyle(host.querySelector('.card')).backgroundImage;
+    const before = [image(a), image(b), image(document.querySelector('#unmatched'))];
+    a.setAttribute('data-cem-css-context', second);
+    return { before, switched: image(a) };
+  }, contextMarkers);
+  assert.deepEqual(contexts, {
+    before: ['url("https://example.test/first.svg")', 'url("https://example.test/second.svg")', 'none'],
+    switched: 'url("https://example.test/second.svg")',
+  }, 'derived context variants must remain isolated and follow the host marker');
   const startingCss = await readFile(join(directory, 'starting-style.css'), 'utf8');
   await page.setContent('<cem-fixture></cem-fixture>');
   const transition = await page.evaluate((css) => {
@@ -193,7 +215,7 @@ try {
   }, startingCss);
   assert.deepEqual(transition, { initial: '0', midpoint: '0.5', keyframes: ['0', '1'], final: '1' },
     'native @starting-style must supply the initial transition value');
-  console.log(`Native nested CSS: ${cases.length} computed-style checks, direction and language inheritance/updates, two container updates, five keyframe animations, an imported animation and the starting-style transition passed.`);
+  console.log(`Native nested CSS: ${cases.length} computed-style checks, direction and language inheritance/updates, two container updates, five keyframe animations, an imported animation, context isolation/updates and the starting-style transition passed.`);
 } finally {
   await browser?.close();
   await rm(directory, { recursive: true, force: true });

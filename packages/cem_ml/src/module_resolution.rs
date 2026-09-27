@@ -4,6 +4,8 @@
 //! deliberately synchronous and side-effect free: it never fetches the resolved
 //! target or falls back to a host package search.
 
+mod cache;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
@@ -126,6 +128,13 @@ impl fmt::Display for CemModuleUrlResolutionError {
 impl std::error::Error for CemModuleUrlResolutionError {}
 
 pub trait CemModuleUrlResolver: Send + Sync {
+    /// Stable fingerprint of all resolution inputs, excluding lookup handles.
+    /// Custom resolvers opt in only when every map/policy change invalidates it.
+    /// None means that derived artifacts cannot be cached across calls.
+    fn context_cache_identity(&self, _context: &CemResolutionContextHandle) -> Option<String> {
+        None
+    }
+
     fn resolve_module_url(
         &self,
         request: &CemModuleUrlResolutionRequest,
@@ -149,6 +158,10 @@ impl CemModuleUrlResolutionCapability {
             context,
             node_contexts: Arc::new(BTreeMap::new()),
         }
+    }
+
+    pub fn cache_identity(&self) -> Option<String> {
+        self.resolver.context_cache_identity(&self.context)
     }
 
     pub fn context(&self) -> &CemResolutionContextHandle {
@@ -378,6 +391,10 @@ impl CemScopedModuleUrlResolver {
 }
 
 impl CemModuleUrlResolver for CemScopedModuleUrlResolver {
+    fn context_cache_identity(&self, context: &CemResolutionContextHandle) -> Option<String> {
+        self.contexts.get(context).map(CemModuleUrlContext::cache_identity)
+    }
+
     fn resolve_module_url(
         &self,
         request: &CemModuleUrlResolutionRequest,

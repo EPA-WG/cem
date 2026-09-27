@@ -6065,10 +6065,18 @@ registration identities may reuse an inherited or existing definition.
               warnings), and the rebuilt WASM/browser gate pass, including 25
               computed-style checks. Dynamic candidates and calculated resolutions
               remain outside the admitted static profile.
-        - [ ] Fixture: derive effective stylesheet ownership and cache identity
+        - [x] Fixture: derive effective stylesheet ownership and cache identity
               from declaration/style occurrence and resolver context; verify stable
               reuse, context isolation, policy/map invalidation and hydration
               identity before connecting native emission to browser installation.
+              Verify two emitted context variants coexist, unmatched hosts stay
+              unaffected and marker changes switch the applicable native scope.
+              Completed: 50 native ownership/import/scope/resolver checks, Nx lint
+              (existing warnings) and rebuilt WASM/browser gate pass. See the
+              [native identity contract](scoped-css-module-maps.md#effective-stylesheet-identity-native).
+        - [ ] Fixture: invalidate in-flight native CSS import work when a
+              fingerprinted resolver context changes; reject stale delivery and
+              preserve failure after the old context returns, before browser wiring.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

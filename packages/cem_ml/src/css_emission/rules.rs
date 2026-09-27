@@ -145,7 +145,7 @@ pub(super) fn ordered_body(
 /// Semantic names from an already validated declaration/ownership context, not
 /// raw selector strings. The host remains responsible for tag registration,
 /// public scope-name validation, context assignment and stylesheet lifecycle.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CssManagedScope {
     Private {
         tag: String,

@@ -100,6 +100,7 @@ pub struct CssImportEdge {
 
 pub struct CssImportClosure {
     capability: CemModuleUrlResolutionCapability,
+    resolution_identity: Option<String>,
     limits: CssImportLimits,
     abort: AbortSignal,
     sheets: Vec<CssImportSheet>,
@@ -132,11 +133,13 @@ impl CssImportClosure {
             ));
         }
         let url = canonical_url(url)?;
+        let resolution_identity = capability.cache_identity();
         let resources = resolve_css_resources(tree, &capability, &url)
             .map_err(|e| failure("cem.css.import_tree_invalid", e))?;
         validate_import_placement(&resources)?;
         let mut closure = Self {
             capability,
+            resolution_identity,
             limits,
             abort,
             sheets: vec![CssImportSheet {
@@ -165,6 +168,15 @@ impl CssImportClosure {
             CssImportState::Pending
         }
     }
+    /// Only the unchanged resolver snapshot can identify derived artifacts.
+    pub(crate) fn stable_resolution_identity(&self) -> Option<&str> {
+        let identity = self
+            .resolution_identity
+            .as_deref()
+            .filter(|id| !id.is_empty())?;
+        (self.capability.cache_identity().as_deref() == Some(identity)).then_some(identity)
+    }
+
     /// Partial sheets remain inspectable after failure, but must not be compiled.
     pub fn sheets(&self) -> &[CssImportSheet] {
         &self.sheets
