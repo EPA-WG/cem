@@ -29,14 +29,18 @@ for (const entry of entries) {
 await cp(
     join(workspaceRoot, 'packages/cem-elements/dist'),
     join(vendorRoot, 'cem-elements/dist'),
-    // Drop incremental-build artifacts; the vendored runtime is JS/WASM only.
-    { recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo') },
+    // Keep build metadata and browser-story adapters out of the shipped runtime.
+    { recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo')
+        && !/-story-fixture\.(?:js|d\.ts(?:\.map)?)$/u.test(src) },
 );
 await cp(join(workspaceRoot, 'packages/cem_ql/dist/wasm'), join(vendorRoot, 'cem_ql/dist/wasm'), { recursive: true });
 await cp(join(workspaceRoot, 'packages/cem-demo-element/dist'), join(vendorRoot, 'cem-demo-element/dist'), {
     recursive: true, filter: (src) => !src.endsWith('.tsbuildinfo'),
 });
 await cp(join(workspaceRoot, 'packages/cem-ml-npm/dist/wasm/browser'), join(vendorRoot, 'cem-ml/wasm'), { recursive: true });
+await mkdir(join(vendorRoot, 'cem-theme'), { recursive: true });
+await cp(join(workspaceRoot, 'packages/cem-theme/dist/lib/css/cem-combined.css'),
+    join(vendorRoot, 'cem-theme/styles.css'));
 
 const customElementPath = join(distRoot, 'custom-element.js');
 const customElementSource = await readFile(customElementPath, 'utf8');

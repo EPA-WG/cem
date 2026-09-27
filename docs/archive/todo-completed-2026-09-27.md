@@ -124,3 +124,62 @@ The 65,536-value document profile fixes the token-catalog blocker while retainin
 16 MiB and 64-level limits and the smaller string/CSS profiles. Site layouts now
 read the retained generic-data tree. Completed items are removed from active TODO.
 Site lint passes with one existing unused-variable warning in `search-runtime.js`.
+
+## Action demo local preview
+
+- [x] Load the legacy Material action page with page-level import maps for
+  `cem-elements`, CEM-ML WASM and the repository-owned `cem-demo-element` helper.
+  Use `<cem-element>` and explicit `custom-element-v0` template language markers,
+  including the externally loaded icon template. Restore fallback label
+  evaluation and place the Bend example inside its demo template.
+- [x] Replace missing legacy stylesheet/header dependencies with the page's
+  own layout and a demo navigation link. Keep external icon fonts as presentation
+  assets; runtime JavaScript and WASM resolve locally.
+- [x] Give action its own source/dist map pair in the native transform graph.
+  Retain strict source-map validation for each Material page.
+- [x] Verify all seven cards and 29 buttons, evaluated fallback/icon content,
+  and the Bend interaction from source, dist and a clean installed archive.
+  DevTools confirms the same results at the user's IDE URL:
+  `http://localhost:63342/cem/packages/custom-element/material/components/action.html`.
+  Runtime/demo modules and both WASM engines return HTTP 200; the console is clean.
+- [x] Audit the packed inventory against the prior 189-file fingerprint.
+  Its existing paths reproduce the prior digest exactly after removing 30 newly
+  compiled native-CSS files and the two new action maps. Exclude the three
+  browser-story-adapter outputs, then lock 218 files: the existing inventory,
+  27 native-CSS runtime/declaration outputs and the two action maps.
+- [x] Make the public adapter smoke test's scope syntax checks independent of
+  emitter whitespace, preserving the exact declaration selector, implicit scope,
+  computed colors and outside-instance isolation checks.
+
+Validation: `yarn nx run @epa-wg/custom-element:lint` passes with its build,
+reference-corpus, packed-archive, theme-runtime and browser-fixture dependencies.
+The packed archive includes clean JavaScript/type consumer checks and Chromium
+rendering. This closes local preview loading for the legacy Material reference;
+the separate canonical `cem-components` action cutover remains active.
+
+The component baseline investigation also adds a passing native
+`host_boolean_attribute_presence_is_distinct_from_value_truthiness` fixture.
+Its four cases distinguish attribute presence from empty/nonempty string values.
+The unchanged legacy component suite remains 81 passing / 48 failing; the
+[failure inventory](../cem-components-baseline-2026-09-27.md) records the findings.
+
+## Action theme curvature
+
+- [x] Load the generated CEM theme stylesheet through the action page's module
+  map and declarative `cem-module-url` binding. Vendor the same generated CSS
+  in the package; the archive now locks 219 files.
+- [x] Replace unsupported legacy nested action selectors with declaration-owned
+  native scoped rules. Bind the radius to `--cem-action-border-radius`, select
+  local Bend tokens, and consume CEM control sizing. Prevent unintended label
+  wrapping while retaining explicit multiline content.
+- [x] Give the multiline round example an inert instance template with local
+  shape-height and round-bend overrides. Verify radius equals half the height.
+- [x] Verify computed default/sharp/round curvature, live Bend changes, and
+  compact/forgiving sizing in source, dist and clean installed-package checks.
+
+DevTools at the IDE preview confirms balanced round geometry of 20px/40px
+(radius/height), compact 18px/36px, and forgiving 22px/44px. The multiline
+example doubles both dimensions in each mode. Sharp is 0px and smooth is 8px
+with the default theme. The preview has no console warnings or errors.
+Validation: `yarn nx run @epa-wg/custom-element:lint`, including package,
+reference-corpus and browser-fixture dependencies.

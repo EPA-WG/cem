@@ -542,10 +542,10 @@ export async function runCustomElementSmoke(importBase) {
     );
     check(
         'public adapter emits native declaration and implicit instance scopes',
-        styleDeclaration
+        /@scope\s*\(\s*adapter-style-matrix\s*\)/u.test(styleDeclaration
             .querySelector(':scope > style[data-cem-declaration-style="private"]')
-            ?.textContent?.includes('@scope (\n    adapter-style-matrix') &&
-            styledFirst.querySelector(':scope > style')?.textContent?.includes('@scope to ('),
+            ?.textContent ?? '') &&
+            /@scope\s+to\s*\(/u.test(styledFirst.querySelector(':scope > style')?.textContent ?? ''),
     );
 
     await declareAdapterFixture(

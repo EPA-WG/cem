@@ -5392,6 +5392,39 @@ mod tests {
     }
 
     #[test]
+    fn host_boolean_attribute_presence_is_distinct_from_value_truthiness() {
+        let source = r#"{button
+            @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }}
+            @data-legacy={datadom.attributes.disabled}
+            @data-truthy={if datadom.attributes.disabled { "yes" } else { "no" }}
+            | Action}"#;
+
+        for (value, expected) in [
+            (None, r#"<button data-truthy="no">Action</button>"#),
+            (Some(""), r#"<button disabled="true" data-truthy="no">Action</button>"#),
+            (Some("false"), r#"<button disabled="true" data-legacy="false" data-truthy="yes">Action</button>"#),
+            (Some("true"), r#"<button disabled="true" data-legacy="true" data-truthy="yes">Action</button>"#),
+        ] {
+            let mut attributes = BTreeMap::new();
+            if let Some(value) = value {
+                attributes.insert(
+                    "disabled".to_owned(),
+                    vec![Item::Atomic(AtomValue::String(value.to_owned()))],
+                );
+            }
+            let mut datadom = BTreeMap::new();
+            datadom.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
+            let data = TemplateData::default()
+                .with_binding("datadom", ItemStream::once(Item::Record(datadom)));
+
+            let rendered = render_template(source, &data);
+
+            assert!(rendered.diagnostics.is_empty(), "{value:?}: {:?}", rendered.diagnostics);
+            assert_eq!(rendered.rendered.trim(), expected, "host value: {value:?}");
+        }
+    }
+
+    #[test]
     fn unnamed_template_element_still_renders_as_html() {
         let rendered = render_template("{template | {span | fallback}}", &TemplateData::default());
 

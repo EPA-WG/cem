@@ -27,36 +27,34 @@ Action variation
     <meta charset="UTF-8">
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
     <title>Components - custom-element - Material Design</title>
-    <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="../../demo/wc-square.svg" rel="icon"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=shift" />    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
           integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
-
     <script type="importmap">
         {
           "imports": {
-            "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
-            "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
-            "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/"
+            "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
+            "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+            "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
+            "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css"
           }
         }
     </script>
     <script type="module">
-        import "@epa-wg/custom-element/module-url.js";
-        import "@epa-wg/custom-element/custom-element.js";
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import '@epa-wg/cem-demo-element';
+
+        installCemElementRuntime(window);
     </script>
     <style>
-        @import "../angular.css";
-        @import "../material.css";
-        @import "../theme/semantic.css";
-        @import "../theme/consumer-theme.css";
-        @import "../demo.css";
         main{
             display: flex; flex-wrap: wrap;
             gap: 3rem;
             padding: 5rem;
             &>p{ min-width: 90%; }
-            html-demo-element
+            cem-demo-element
             {   overflow: visible;
                 [slot="legend"]{ border-radius: 1rem 1rem 0 0; }
                 [slot="description"]{ padding: 0 1rem 1rem 1rem; dd{ padding: 0 !important;margin: 0; }}
@@ -66,14 +64,22 @@ Action variation
             var{ color: darkgreen; font-weight: bold; }
             flex-3x{ display: inline-flex; flex-wrap: wrap;gap:3rem; max-width:12rem;}
             cem-action{display: inline-block;}
+        }
     </style>
 </head>
 <!--
 ToDO
 * docs w/ how to use
 -->
-<body>
-<template id="cem-action">
+<body class="cem-theme-light">
+<cem-element hidden>
+    <template type="text/cem-ml">
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem:if @test="datadom.slices.themeUrl" |
+    {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+    </template>
+</cem-element>
+<template id="cem-action" lang="custom-element-v0">
     <attribute name="text"
             aria-description="button text content. "
             ></attribute>
@@ -90,31 +96,47 @@ ToDO
             aria-description="Boolean. Default is 'false'. Values: true|false"
             ></attribute>
     <style>
-        & button{
-            display: flex; align-items: center; justify-content: center; gap:1em;
-            background-color: var(--cem-action-background-color);
-            color: var(--cem-action-color);
+        :scope > button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            gap: var(--cem-dim-x-small);
+            box-sizing: border-box;
+            min-block-size: var(--cem-shape-height, var(--cem-control-height));
+            padding-inline: var(--cem-control-padding-x);
+            padding-block: var(--cem-control-padding-y);
+            border-radius: var(--cem-action-border-radius);
+            background-color: var(--cem-action-primary-default-background);
+            color: var(--cem-action-primary-default-text);
             width: 100%;
         }
-        &[color="secondary"]>*>dd{ background-color: var(--cem-action-color-secondary); }
-        &[color="success"]>*>dd{ background-color: var(--cem-action-color-success); }
-        &[color="alert"]>*>dd{ background-color: var(--cem-action-color-alert); }
-
+        :scope.cem-bend-sharp {
+            --cem-bend: var(--cem-bend-sharp);
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope.cem-bend-smooth {
+            --cem-bend: var(--cem-bend-smooth);
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope.cem-bend-round {
+            --cem-bend: var(--cem-bend-round);
+            --cem-action-border-radius: var(--cem-bend);
+        }
     </style>
-    <button><slot>{text}</slot></button>
+    <button type="button"><slot>{$text}</slot></button>
 
 </template>
 
-<custom-element hidden src="#cem-action" tag="cem-action"></custom-element>
-<custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
-<custom-element hidden src="./icon.html#cem-icon" tag="cem-icon"></custom-element>
+<cem-element hidden src="#cem-action" tag="cem-action"></cem-element>
+<cem-element hidden src="./icon.html#cem-icon" tag="cem-icon"></cem-element>
 
 <header class="cem-theme-teal">
-    <custom-element src="../index.html#nav-head"></custom-element>
+    <nav><a href="../../../cem-elements/index.html">cem-element demo</a></nav>
 </header>
 <main>
     <aside>
-        <p><code>cem-action</code> is button-looking component from &lt;custom-element&gt; Material suite based on the
+        <p><code>cem-action</code> is button-looking component from the legacy Material suite, loaded by &lt;cem-element&gt; based on the
             <a href="https://m3.material.io/components/buttons/overview">Material Design specification for buttons</a>.<br/>
             Action triggers the flow by changing the data <var>slice</var> or following the <var>href</var> attribute URL.
             Inspired by <a href="https://mui.com/material-ui/react-button/">MUI</a>
@@ -126,26 +148,37 @@ ToDO
         <div> <code>slice</code> TBD</div>
     </aside>
 
-    <html-demo-element legend="Typical use">
+    <cem-demo-element legend="Typical use">
         <template>
 <cem-action text="text in attribute" ></cem-action>
 <cem-action> with icon <cem-icon image="search" ></cem-icon>  </cem-action>
 <cem-action class="cem-bend-sharp"> square border </cem-action>
 <cem-action  class="cem-bend-round"> round border   </cem-action>
 <cem-action  class="cem-bend-round">
-    <cem-icon image="🛒"></cem-icon>
-    <div>round border <br/> multiline</div>
+    <template>
+        <style>
+            :scope {
+                --cem-shape-height: calc(var(--cem-control-height) * 2);
+                --cem-bend-round: calc(var(--cem-shape-height) / 2);
+            }
+        </style>
+        <cem-icon image="🛒"></cem-icon>
+        <div>round border <br/> multiline</div>
+    </template>
 </cem-action>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="Bend">
+    <cem-demo-element legend="Bend">
         <p slot="description">
-            Corner shape is defined by <var>--cem-bend</var>
+            Shape tokens set sharp corners, smooth corners and round ends through
+            <var>--cem-action-border-radius</var>. Round ends use half the theme's
+            control height. The taller multiline example supplies a local
+            <var>--cem-shape-height</var> and round-bend binding.
         </p>
-        <template></template>
-<custom-element>
-    <template>
+        <template>
+<cem-element>
+    <template lang="custom-element-v0">
 <style>
     &>*{ display: flex; gap: 1rem; margin: 1rem; flex-wrap: wrap; justify-content: center;}
     cem-action:first-of-type,cem-action:first-of-type+*{ width: 100%; text-align: center; }
@@ -154,13 +187,14 @@ ToDO
 <div class="material-symbols-outlined">shift</div>
 <cem-action class="cem-bend-sharp" slice="bend" slice-event="click" slice-value="'cem-bend-sharp'"> square  </cem-action>
 <cem-action class="cem-bend-smooth" slice="bend" slice-event="click" slice-value="'cem-bend-smooth'"> smooth </cem-action>
-<cem-action class="cem-bend-round" slice="bend" slice-event="click" slice-value="'cem-bend-round'"> round  </cem-icon>  </cem-action>
+<cem-action class="cem-bend-round" slice="bend" slice-event="click" slice-value="'cem-bend-round'"> round  </cem-action>
 
     </template>
-</custom-element>
-    </html-demo-element>
+</cem-element>
+        </template>
+    </cem-demo-element>
 
-    <html-demo-element legend="Variations">
+    <cem-demo-element legend="Variations">
         <p slot="description">
 
         </p>
@@ -169,9 +203,9 @@ ToDO
 <cem-action text="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
 <cem-action text="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="color attribute">
+    <cem-demo-element legend="color attribute">
         <p slot="description">
             Semantic colors
         </p>
@@ -182,15 +216,15 @@ ToDO
 <cem-action text="3"    color="success"  > <cem-icon image="✉"></cem-icon> </cem-action>
 <cem-action text="4"    color="alert"    > <cem-icon image="✉"></cem-icon> </cem-action>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="custom color">
+    <cem-demo-element legend="custom color">
         <p slot="description">
             Override by CE
         </p>
         <template>
-<custom-element>
-    <template>
+<cem-element>
+    <template lang="custom-element-v0">
         <style>
             &
             {   --cem-action-text-color:red;
@@ -201,18 +235,18 @@ ToDO
         </style>
         <cem-action text="123"> CUSTOM COLOR </cem-action>
     </template>
-</custom-element>
+</cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
 
-    <html-demo-element legend="invisible attribute">
+    <cem-demo-element legend="invisible attribute">
         <p slot="description">
             hides button, animated
         </p>
         <template>
-    <custom-element>
-        <template>
+    <cem-element>
+        <template lang="custom-element-v0">
             <label>
                 <input type="checkbox" slice="is-checked" value="on" />
                 invisible</label>
@@ -230,11 +264,11 @@ ToDO
     <cem-icon image="mail" ></cem-icon>
 </cem-action>
         </template>
-    </custom-element>
+    </cem-element>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
-    <html-demo-element legend="align attribute">
+    <cem-demo-element legend="align attribute">
         <p slot="description">
             sets vertical( top, middle, bottom ) and horizontal( left, center, right) button align.<br/>
             Default is right top.
@@ -254,14 +288,13 @@ ToDO
     <cem-action text="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-action>
 </flex-3x>
         </template>
-    </html-demo-element>
+    </cem-demo-element>
 
 </main>
 <footer>
     <hr/>
     <a href="../../LICENSE"> Code and documentation licensed under an Apache License 2.0 </a>
 </footer>
-<script src="https://unpkg.com/html-demo-element@1.0.8/html-demo-element.js" type="module"></script>
 
 </body>
 </html>

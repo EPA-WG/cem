@@ -105,6 +105,13 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
 
 ### Remaining declarative UI migration
 
+- [x] Fixture: verify the legacy action demo's actual sharp, smooth and round
+      corner radii against generated CEM Shape/Controls tokens, including live
+      Bend changes and source/dist/installed-package theme delivery. Keep styles
+      declaration-owned and preserve page-level module-map loading.
+      Checks cover multiline shape overrides and compact/forgiving sizes.
+      See [curvature evidence](archive/todo-completed-2026-09-27.md#action-theme-curvature).
+
 - [ ] Migrate every legacy `cem-components` member into its own
       `src/components/<cem-tag>/<cem-tag>.xhtml` folder with embedded,
       once-per-declaration scope-contract CEM-token `<style>` and colocated
@@ -120,6 +127,28 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           with the same 48 test names. No new component failures; the package
           gate remains red. Rebuild `cem-elements` before comparing this suite,
           because these tests import its packaged output.
+          Follow-up 2026-09-27: the unchanged suite again reports 81 passing /
+          48 failing. The [failure inventory](cem-components-baseline-2026-09-27.md)
+          records each failed test, the boolean-presence mismatch, and the
+          separate datepicker template-brace defect. Owner repairs remain open.
+        - [x] Fixture: pin native template attribute-presence semantics for
+              absent, empty, `"false"`, and `"true"` host values. Verify the
+              explicit presence expression used by canonical components and
+              distinguish it from legacy value/truthiness bindings.
+    - [x] Fixture: load the legacy material action demo through page-level
+          module maps and repository-owned runtime/demo modules, matching the
+          `cem-elements` demo convention. Verify source and packaged asset
+          loading and the IDE preview URL through DevTools when connected.
+          Review the archive inventory against native CSS runtime additions,
+          excluding browser-story adapters from the vendored package.
+          Validation: source, dist and clean installed-package browser checks
+          pass, as does the package lint target and its dependencies. DevTools
+          verifies all seven cards, 29 buttons, successful local JS/WASM loads,
+          no console errors, and the Bend interaction at the IDE preview URL.
+          See [closure evidence](archive/todo-completed-2026-09-27.md#action-demo-local-preview).
+        - [x] Fixture: preserve the adapter smoke test's native declaration and
+              implicit-instance scope checks across CSS emitter whitespace,
+              retaining all computed-style and isolation assertions.
     - [ ] Fixture: verify canonical action loading in workflow/demo and Site
           search/interactive consumers, including packaged XHTML asset delivery.
     - [ ] Fixture: cover explicit submit/reset, required-input validation,
@@ -143,49 +172,7 @@ The Edge/SSR host fixtures belong to Phase 3.5 after the browser substrate is
 stable. Moving `@epa-wg/custom-element` into the monorepo and deciding final
 legacy XSLT preservation belong to Phase 3.6. Swift/Xcode plus Kotlin/Compose
 compile gates remain Phase 8. Live Figma UI Kit and prototype work is deferred
-until final Phases 10 and 11, after Phase 9 release governance.
-
-## Later Non-Figma Phase Gates
-
-Expand each gate into its task-level checklist when it becomes the immediate
-goal. These gates deliberately keep the deferred Figma work from becoming active
-before the non-Figma roadmap is complete.
-
-## Phase 10 Checklist — Deferred Figma UI Kit
-
-Phase 4 component names, variants, executable states, and accessibility semantics
-are complete in the archived checklist, and the Phase 10 repository foundation
-already owns the five-mode token gate and 49-primitive executable Figma inventory.
-The remaining Phase 10 work is reviewed canvas work in the canonical CEM UI Kit
-and must not start before Phase 9 is complete.
-
-- [ ] Build and review the `02 Foundations` page from native CEM variables.
-    - [ ] Build color, typography, spacing, shape, stroke, layering, and motion
-          guidance with variable bindings or approved composite text styles and
-          no raw replacement values.
-    - [ ] Review every foundation section in all five modes and record the Figma
-          revision, evidence locations, and raw-value findings.
-- [ ] Build and review the representative `03 Components` pilot for
-      `cem-action`, `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`.
-    - [ ] Keep variant dimensions independent, use component properties by
-          semantic meaning, and test every owned state in all five modes.
-    - [ ] Record the pilot fixture and review evidence before expanding to the
-          remaining component inventory.
-- [ ] Complete `03 Components` for every executable inventory entry, keeping
-      inert payloads nested under their consuming visual owners.
-- [ ] Populate `99 QA`, run the offline token/component gates, record the
-      reviewed Figma revision and five-mode evidence, and publish the Phase 10
-      library only after raw-value, detached-shape, state, and documentation
-      checks pass.
-
-## Phase 11 Checklist — Deferred Figma Site Demo
-
-Phase 11 starts only after the Phase 10 UI Kit is reviewed and published.
-
-- [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
-      entirely from library instances, then compose `05 Site Demo` from those
-      patterns without detached one-off controls.
-- [ ] Add matching CEM XML/HTML fixtures and a web implementation built from CEM
-      components, with native iOS/Android token-usage notes.
-- [ ] Record scenario tests, screenshots, and reviewed Figma evidence proving
-      consistent tokens and component semantics across design and implementation.
+until final [Phases 10 and 11](../roadmap.md#phase-10---figma-ui-kit). Their
+checklists live only in the roadmap. Finish and verify `cem-elements` and the
+declarative `cem-components` migration first, then the remaining non-Figma phases
+through Phase 9 release governance.

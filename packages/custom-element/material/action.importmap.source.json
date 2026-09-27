@@ -1,0 +1,8 @@
+{
+    "imports": {
+        "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css"
+    }
+}

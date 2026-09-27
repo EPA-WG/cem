@@ -1,7 +1,7 @@
 # cem-action declarative migration
 
 Status: explicit submit/reset support and colocated native-pointer tests accepted;
-native v3 XHTML deployment implemented; Site adoption precedes migration cutover.
+native v3 XHTML deployment and Site adoption verified; component cutover remains open.
 
 `cem-action` is the next migration candidate in the accepted
 [component MVP](component-mvp.md) order. It has no component-specific behavior
@@ -159,9 +159,11 @@ active selector. Without `:where`, the selectors exceed the accepted `0-2-1`
 specificity ceiling and are suppressed with a diagnostic. This is existing
 runtime policy, not a missing CSS capability.
 
-The migration remains unshipped until Site adopts v3 XHTML deployment
-and consumer/gate cutover is complete. No legacy registry or global style has
-been removed by the planning change.
+Site v3 XHTML deployment is now verified, including canonical select loading
+on search and interactive routes and all 26 production routes. See the
+[deployment closure](archive/todo-completed-2026-09-27.md#site-v3-xhtml-deployment).
+The action migration remains unshipped until its consumer/gate cutover is
+complete. Its legacy registry entry and global styles remain in place.
 
 ## Cutover trial verification
 
@@ -181,8 +183,13 @@ has not yet been established. Preserve these failures as follow-up work rather
 than weakening assertions or changing frozen behavior modules. No workspace-wide
 tests were run.
 
-After restoring the pre-cutover Site sources, its build also fails before asset
+During the earlier cutover trial, restoring the pre-cutover Site sources left
+a build failure before asset
 deployment at `transform:token-browser-page`: `cem.transform_template.adapter_failed`
 reports `JSON exceeds the 64-level / 4096-value import limit.` This is independent
 of the trial XHTML resource entry and must be resolved before Site can provide
 a passing end-to-end cutover check.
+
+The Site import-limit failure above was resolved by the verified bounded
+document-import profile in the deployment closure. It is historical evidence,
+not a remaining action-cutover blocker.

@@ -4,7 +4,8 @@ CEM should become a complete consumer-semantics design system: tokens, documenta
 tooling, web components, native adapters, Figma assets, and demos that all prove the same model from different angles.
 
 This roadmap is intentionally higher level than `docs/todo.md`. Use this file to decide product/module order; use
-`docs/todo.md` for task-level execution.
+`docs/todo.md` for active task-level execution. Deferred Figma checklists remain
+here until their runtime, component, and non-Figma phase prerequisites are complete.
 
 ## Product Modules
 
@@ -34,7 +35,11 @@ This roadmap is intentionally higher level than `docs/todo.md`. Use this file to
    them. Do not change binary format at internal/external boundaries unless an explicit converter edge requires it.
 5. Carry source-map stacks and byte offsets through every parser, transform, generated node, and runtime handoff.
 6. Treat embedded languages and mixed formats as scoped handoffs owned by the parent parser's return condition.
-7. Prove components on the web before porting full UI examples into Figma/native.
+7. Complete and verify the `cem-elements` browser substrate and declarative
+   `cem-components` migration before starting live Figma work. Resolve their active
+   correctness and package-gate failures first. Keep deferred Figma checklists in
+   this roadmap until those prerequisites and the remaining non-Figma phases are complete.
+   Prove components on the web before porting full UI examples into Figma/native.
 8. Use demos as integration tests, not as the first source of component behavior.
 9. Keep Angular Material as a reference benchmark for coverage and ergonomics, not as a required implementation
    dependency unless an Angular adapter is explicitly scoped later.
@@ -766,7 +771,9 @@ wishlist without creating a tag, release, package publication, or deployment.
 ## Phase 10 - Figma UI Kit
 
 Goal: give designers a governed, usable design kit tied to generated tokens and component semantics.
-This final projection phase starts only after Phase 9 is complete.
+This final projection phase starts only after `cem-elements` and the declarative
+`cem-components` migration pass their gates and all non-Figma phases through
+Phase 9 are complete.
 
 Deliverables:
 
@@ -788,6 +795,35 @@ Exit criteria:
 
 - Designers can mock the major CEM demo flows without inventing colors, spacing, or unsupported component states.
 - Figma names and component variants map cleanly to code names.
+
+### Deferred execution checklist
+
+Phase 4 component names, variants, executable states, and accessibility semantics
+are complete in the archived checklist, and the Phase 10 repository foundation
+already owns the five-mode token gate and 49-primitive executable Figma inventory.
+The remaining Phase 10 work is reviewed canvas work in the canonical CEM UI Kit
+and must not start until the `cem-elements` browser substrate and declarative
+`cem-components` migration are complete with passing package gates, followed by
+the remaining non-Figma phases through Phase 9.
+
+- [ ] Build and review the `02 Foundations` page from native CEM variables.
+    - [ ] Build color, typography, spacing, shape, stroke, layering, and motion
+          guidance with variable bindings or approved composite text styles and
+          no raw replacement values.
+    - [ ] Review every foundation section in all five modes and record the Figma
+          revision, evidence locations, and raw-value findings.
+- [ ] Build and review the representative `03 Components` pilot for
+      `cem-action`, `cem-text-field`, `cem-card`, `cem-nav`, and `cem-dialog`.
+    - [ ] Keep variant dimensions independent, use component properties by
+          semantic meaning, and test every owned state in all five modes.
+    - [ ] Record the pilot fixture and review evidence before expanding to the
+          remaining component inventory.
+- [ ] Complete `03 Components` for every executable inventory entry, keeping
+      inert payloads nested under their consuming visual owners.
+- [ ] Populate `99 QA`, run the offline token/component gates, record the
+      reviewed Figma revision and five-mode evidence, and publish the Phase 10
+      library only after raw-value, detached-shape, state, and documentation
+      checks pass.
 
 ## Phase 11 - Figma Site Demo
 
@@ -814,6 +850,18 @@ Deliverables:
 Exit criteria:
 
 - The same flows exist in Figma, CEM fixture form, and web-rendered form with consistent tokens and component semantics.
+
+### Deferred execution checklist
+
+Phase 11 starts only after the Phase 10 UI Kit is reviewed and published.
+
+- [ ] Build `04 Patterns` for auth, profile, assets, discussion, and settings
+      entirely from library instances, then compose `05 Site Demo` from those
+      patterns without detached one-off controls.
+- [ ] Add matching CEM XML/HTML fixtures and a web implementation built from CEM
+      components, with native iOS/Android token-usage notes.
+- [ ] Record scenario tests, screenshots, and reviewed Figma evidence proving
+      consistent tokens and component semantics across design and implementation.
 
 ## Suggested Milestone Sequence
 

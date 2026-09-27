@@ -1,13 +1,83 @@
 {@doc cem-ml 1}
 {run |
-  {import @id=material-components @src="components/*.html" @content-type="text/html" |
+  {import @id=action @src="components/action.html" @content-type="text/html" |
     {rewrite-importmap
-      @id=dist-importmap
+      @id=action-dist-importmap
+      @source-map="action.importmap.source.json"
+      @target-map="action.importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=action-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=autocomplete @src="components/autocomplete.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=autocomplete-dist-importmap
       @source-map="importmap.source.json"
       @target-map="importmap.dist.json"
       @mode="replace-imports"
       @missing="error" |
-      {export @id=html @out="../dist/material/components/{file}" @content-type="text/html"}
+      {export @id=autocomplete-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=badge @src="components/badge.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=badge-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=badge-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=dropdown @src="components/dropdown.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=dropdown-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=dropdown-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=icon-link @src="components/icon-link.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=icon-link-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=icon-link-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=icon @src="components/icon.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=icon-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=icon-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=input @src="components/input.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=input-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=input-html @out="../dist/material/components/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=menu @src="components/menu.html" @content-type="text/html" |
+    {rewrite-importmap
+      @id=menu-dist-importmap
+      @source-map="importmap.source.json"
+      @target-map="importmap.dist.json"
+      @mode="replace-imports"
+      @missing="error" |
+      {export @id=menu-html @out="../dist/material/components/{file}" @content-type="text/html"}
     }
   }
 }

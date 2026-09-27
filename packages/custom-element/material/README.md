@@ -3,7 +3,7 @@
 Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 
 These are the legacy `@epa-wg/custom-element` **material suite** components (`components/*.html`),
-copied verbatim from the POC (`~/aWork/custom-element-dist/src/material/components`). They are
+originally copied from the POC (`~/aWork/custom-element-dist/src/material/components`). They are
 authored as declarative **HTML + XSLT** (bare `<attribute>` / `<if>` / `<choose>` / `<when>`, `{$x}` /
 `{//path}` interpolation, XPath functions such as `contains()`).
 
@@ -15,8 +15,9 @@ namespaces) and **transpiles it to canonical CEM-ML**, which renders on the cem_
 same engine hand-authored `type="cem-ml; version=0.0"` templates use. A legacy sample and its migrated
 CEM-ML twin therefore render **identically**.
 
-The sample markup (the `<custom-element>` declarations) is preserved **as-is**; only the
-`custom-element` implementation they import changed (it now routes through the converter). See:
+Most sample markup retains the `<custom-element>` declarations; the action page
+now uses `<cem-element>` with explicit legacy template language markers for IDE
+preview. Both routes use the converter. See:
 
 - Converter runtime boundary:
   [`../../cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts`](../../cem-elements/src/lib/internal/runtime-support/cem-ql-render.ts)
@@ -28,7 +29,26 @@ The sample markup (the `<custom-element>` declarations) is preserved **as-is**; 
 
 ## Running the pages
 
-These HTML files keep the POC's sibling-layout script/CSS paths (`../../custom-element/…`,
+The [action page](components/action.html) runs directly from an IDE HTTP preview.
+It declares its runtime, WASM and demo-helper imports in a page-level import map,
+installs `cem-elements`, and uses local `cem-demo-element` cards. Its legacy
+action/icon templates explicitly select `lang="custom-element-v0"`. The native
+module-map transform rewrites these imports to vendored assets in the packed
+package; no development-server aliases are required. Icon fonts remain external
+presentation assets. This is the legacy Material action reference, separate from
+the canonical `cem-components` action migration.
+
+The same page-level map resolves `@epa-wg/cem-theme/styles.css` through
+`cem-module-url`. Build the generated theme CSS before opening the source page;
+the package build includes that stylesheet as a vendored asset. The action's
+embedded scoped styles consume `--cem-action-border-radius` and CEM control
+sizing. Bend helpers select sharp, smooth or round tokens locally. The multiline
+round example declares its taller `--cem-shape-height` and matching round bend
+inside an inert instance template, keeping the radius at half its height.
+Browser checks cover computed curvature, live Bend changes and compact/forgiving
+sizes in source, dist and clean installed-package previews.
+
+The other HTML files keep the POC's sibling-layout script/CSS paths (`../../custom-element/…`,
 `../angular.css`, `../theme/…`) and the material CSS/theme tree, which is **not** copied here. The
 **runnable, CI-tested** representation of each component's behavior is the twin Storybook stories
 above; the raw pages are kept as authoring reference.

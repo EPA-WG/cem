@@ -338,7 +338,8 @@ function isForbiddenArchivePath(path) {
             path,
         ) ||
         /(^|\/)(?:\.editorconfig|\.gitignore|package-lock\.json|project\.json)$/u.test(path) ||
-        /(?:\.tsbuildinfo|\.tmp|\.cache)$/u.test(path)
+        /(?:\.tsbuildinfo|\.tmp|\.cache)$/u.test(path) ||
+        /-story-fixture\.(?:js|d\.ts(?:\.map)?)$/u.test(path)
     );
 }
 
