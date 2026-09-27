@@ -6105,6 +6105,17 @@ registration identities may reuse an inherited or existing definition.
               Completed: 47 native animation/subtree/import checks, 10 native
               retention checks, combined WASM, Chromium interpolation and
               Nx/native/script lint pass with existing warnings.
+        - [x] Fixture: preserve diagnostic source URI and resolved stylesheet URL
+              through retained output and WASM; verify redirected imports, exact
+              ranges, suppression codes, host transport and released-owner checks.
+              Completed: 10 native retention tests, real WASM diagnostics, 530
+              host/unit tests, lint and typecheck pass with existing warnings.
+              Audit confirms the existing sample syntax; structured load failures
+              remain the next diagnostic gate before browser installation.
+        - [ ] Fixture: preserve structured native CSS load failure codes and
+              import locations through WASM and worker/fallback error transport;
+              cover MIME/integrity rejection and stale delivery before browser
+              installation. Keep control-handle errors distinct from source failures.
         - [ ] Complete native grouping/nested-rule compilation, remaining
               selector grammar and keyframe-reference rewriting; compose the
               ordered rule parts and managed wrappers into complete stylesheets

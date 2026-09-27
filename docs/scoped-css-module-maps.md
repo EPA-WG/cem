@@ -1154,7 +1154,7 @@ It is a migration-readiness audit, not a claim to support all CSS syntax.
 | Groups and animations | `css_grouping`, `css_keyframes`, `css_animation_names` and `css_subtree` cover the admitted media/supports/container/starting-style and static animation profiles. No additional function grammar was identified as necessary for the audited runtime fixtures. |
 | Imports and explicit URLs | `css_resources`, `css_resource_emission` and `css_import_closure` cover context-specific resolution, retained byte delivery, conditions, cross-sheet symbols and emitted source provenance. Single-sheet emission deliberately diagnoses imports as pending; it cannot replace closure compilation. |
 | Other URL-bearing syntax | At audit time, quoted `image-set()` candidates were ordinary string components. The resolver recognized imports, URL tokens and quoted `url()` only. These candidate strings would keep the wrong relative base when an imported stylesheet is installed in the document. The subsequent [image candidate fixture](#retained-image-candidate-resources) now covers this static profile. |
-| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `emit_css_import_closure` requires a caller-owned stable identity; it neither derives ownership nor installs CSS. `DeclarationStyleOwnership` maintains one style set and needs the accepted context-qualified derived-set lifecycle. |
+| Runtime integration | `projection.ts::scopeCssText` still performs string-based compilation. `derive_css_stylesheet_identity` and the retained processing-host protocol now own context-specific identities and emitted sets. `DeclarationStyleOwnership` still maintains one browser style set and needs the accepted context-qualified installation lifecycle. |
 
 The combined regression compares canonical retained output, rather than legacy
 spacing: unqualified type selectors emit with an explicit wildcard namespace,
@@ -1167,21 +1167,30 @@ static timing-function forms are outside the retained profile. They are not a
 reason to add one emitter per function. Add grammar only with a concrete fixture,
 using shared retained representations wherever applicable.
 
-Recommended sequence:
+Audit follow-up: the static image candidate, effective identity and processing-host
+fixtures below complete the first three native integration steps. Static
+`linear()` easing is also admitted. A follow-up scan of the scope/adoption stories
+and `demo/scoped-css.html` found no use of the deferred functional pseudo-element,
+`:state()`, complex host-alias or mathematical animation profiles.
 
-1. Retain URL-bearing string roles for `image-set()` candidates at shared import;
-   resolve and emit them through the existing resource plan. Cover imported-sheet
-   bases, nearest-map overrides, failed resolution, escapes and source ranges.
-   Ordinary strings, comments, `type()` strings and literal selector arguments
-   must remain untouched. Reject unsupported candidate structure explicitly.
-2. Derive stable effective stylesheet identity from declaration/style occurrence
-   and resolver context, including invalidation inputs. Keep retained source trees
-   reusable while isolating resolution plans and emitted sets per context.
-3. Connect native closure loading/emission through the processing host and its
-   retained artifact lifecycle. Preserve readiness, cancellation and diagnostics;
-   replace runtime string compilation only with the native path verified.
-4. Run the existing scope/adoption stories against that path, then add the nested
-   module-map override demo and context disposal/reconnect/hydration checks.
+The diagnostic audit found that ready WASM output carried only a sheet index and
+range. It now also carries `sourceUri` and `stylesheetUrl`: the former identifies
+the retained source containing the byte range, while the latter is the resolution
+base (including redirects). These differ for inline sources and may differ for
+native tree delivery. Consumers must not treat either as a serialized tree.
+Native owner lifetime checks cover this source projection as well as emitted CSS.
+Real WASM fixtures verify root/import distinction, multiple suppression codes,
+UTF-8 byte ranges and redirect provenance. Worker and fallback tests verify that
+these locations survive transport. Host transition diagnostics have no source
+location and remain ordinary processing diagnostics.
+
+Remaining diagnostic work: failed load operations still flatten native failures
+into an error string. Preserve their structured code and import location through
+the same host boundary before installing styles, including MIME/integrity failures.
+Then run the existing scope/adoption stories against native installation and add
+the nested module-map override demo plus disposal/reconnect/hydration checks.
+The remaining syntax profiles stay explicitly diagnosed until a concrete fixture
+requires them; this audit does not authorize raw-text fallbacks.
 
 Automatic fragment binding remains deferred. Literal functions such as `:dir()`
 and `:lang()` do not participate in URL resolution.
@@ -1352,6 +1361,7 @@ a load. Browser installation must supersede loads when context changes and check
 context liveness before committing emitted CSS or a context marker.
 
 `cem_ql:test:retained-stylesheets` runs native ownership/load tests and the real
-WASM protocol fixture. Processing-engine and host tests cover shared compilation,
+WASM protocol fixture, including source-located suppression diagnostics.
+Processing-engine and host tests cover shared compilation,
 root disposal, stale handles, fallback and late cancellation. Browser fetching,
 style installation and the compiler cutover remain pending.

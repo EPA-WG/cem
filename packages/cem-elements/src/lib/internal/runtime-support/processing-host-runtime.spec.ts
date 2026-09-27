@@ -495,3 +495,24 @@ it('releases a late successful worker stylesheet response after host cancellatio
         payload: { action: 'release', loadId: expect.stringMatching(/:23$/) } });
     await host.dispose({ reason: 'runtime-disposed' }).result;
 });
+
+
+it.each(['worker', 'fallback'])('preserves imported stylesheet diagnostic locations through %s transport', async (mode) => {
+    const worker = new StylesheetProcessingWorker();
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => { if (mode === 'fallback') throw new Error('unavailable'); return worker as unknown as Worker; } });
+    const { artifact } = await host.compile(compileInput('css')).result;
+    const diagnostic = { code: 'cem.scoped_css.id_selector_unsupported', severity: 'warning' as const,
+        message: 'ID selectors are suppressed', sourceUri: 'https://example.test/cdn/child.css',
+        stylesheetUrl: 'https://example.test/cdn/child.css', sheet: 1, line: 2, column: 1, offset: 16, length: 8 };
+    vi.mocked(processRetainedTemplateStylesheet).mockResolvedValueOnce({ status: 'ready', loadId: 7,
+        css: '.card {color:green}', identity: { ownerKey: 'owner', cacheKey: 'cache', contextMarker: null },
+        diagnostics: [diagnostic] });
+    const result = await host.stylesheet({ ...stylesheetBegin, artifact }).result;
+    expect(result.status).toBe('ready');
+    if (result.status !== 'ready') throw new Error('expected ready stylesheet');
+    expect(result.diagnostics).toContainEqual(diagnostic);
+    expect(structuredClone(result).diagnostics).toContainEqual(diagnostic);
+    await host.dispose({ reason: 'runtime-disposed' }).result;
+});

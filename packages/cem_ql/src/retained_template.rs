@@ -17,6 +17,12 @@ use std::{
     sync::Arc,
 };
 
+/// Source identity for a retained sheet occurrence, without exposing its tree.
+pub struct RetainedStylesheetSource<'a> {
+    pub source_uri: &'a str,
+    pub stylesheet_url: &'a str,
+}
+
 pub struct RetainedStylesheet {
     identity: CssStylesheetIdentity,
     closure: Arc<CssImportClosure>,
@@ -26,6 +32,18 @@ pub struct RetainedStylesheet {
 impl RetainedStylesheet {
     pub fn identity(&self) -> &CssStylesheetIdentity {
         &self.identity
+    }
+    pub fn source(&self, sheet: usize) -> Result<RetainedStylesheetSource<'_>, &'static str> {
+        self.emission()?;
+        let sheet = self
+            .closure
+            .sheets()
+            .get(sheet)
+            .ok_or("unknown stylesheet occurrence")?;
+        Ok(RetainedStylesheetSource {
+            source_uri: sheet.resources.tree.source_uri(),
+            stylesheet_url: &sheet.url,
+        })
     }
     fn active(&self) -> bool {
         !self.released.is_aborted()

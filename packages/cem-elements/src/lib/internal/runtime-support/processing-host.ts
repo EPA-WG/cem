@@ -305,12 +305,23 @@ export type CemProcessingStylesheetInput = {
     | { action: 'release'; loadId?: string }
 );
 
+/** Native warning location. Host transition diagnostics have no source location. */
+export interface CemProcessingStylesheetDiagnostic extends CemProcessingDiagnostic {
+    sourceUri: string;
+    stylesheetUrl: string;
+    sheet: number;
+    line: number;
+    column: number;
+    offset: number;
+    length: number;
+}
+
 export type CemProcessingStylesheetResult<TLoadId = string> =
     | { status: 'pending'; loadId: TLoadId;
         request: { id: number; url: string; contentType: string | null; integrity: string | null } }
     | { status: 'ready'; loadId: TLoadId; css: string;
         identity: { ownerKey: string; cacheKey: string; contextMarker: string | null };
-        diagnostics: Array<CemProcessingDiagnostic & { sheet: number; line: number; column: number; offset: number; length: number }> }
+        diagnostics: Array<CemProcessingDiagnostic | CemProcessingStylesheetDiagnostic> }
     | { status: 'released'; count: number };
 
 interface CemProcessingRequestPayloads {

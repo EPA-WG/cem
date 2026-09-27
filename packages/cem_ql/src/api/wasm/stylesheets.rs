@@ -36,13 +36,18 @@ fn progress(id: u32, progress: StylesheetLoadProgress) -> Result<String, String>
                 "contentType":request.resolution.content_type_hint,"integrity":request.resolution.integrity}}).to_string(),
         StylesheetLoadProgress::Ready(record) => {
             let emission = record.emission()?;
+            let diagnostics = emission.diagnostics.iter().map(|d| {
+                let source = record.source(d.sheet)?;
+                Ok(json!({"code":d.diagnostic.code, "message":d.diagnostic.message,
+                    "severity":"warning", "sheet":d.sheet, "sourceUri":source.source_uri,
+                    "stylesheetUrl":source.stylesheet_url,
+                    "line":d.diagnostic.range.line, "column":d.diagnostic.range.column,
+                    "offset":d.diagnostic.range.offset, "length":d.diagnostic.range.length}))
+            }).collect::<Result<Vec<_>, &'static str>>()?;
             json!({"status":"ready", "loadId":id, "css":emission.css(),
                 "identity":{"ownerKey":record.identity().owner_key,"cacheKey":record.identity().cache_key,
                     "contextMarker":record.identity().context_marker},
-                "diagnostics":emission.diagnostics.iter().map(|d| json!({"code":d.diagnostic.code,
-                    "message":d.diagnostic.message,"severity":"warning","sheet":d.sheet,
-                    "line":d.diagnostic.range.line,"column":d.diagnostic.range.column,
-                    "offset":d.diagnostic.range.offset,"length":d.diagnostic.range.length})).collect::<Vec<_>>()}).to_string()
+                "diagnostics":diagnostics}).to_string()
         }
     })
 }

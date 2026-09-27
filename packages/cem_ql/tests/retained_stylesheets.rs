@@ -193,9 +193,17 @@ fn disposal_releases_imported_native_owners_and_preserves_diagnostics_until_then
         "cem.scoped_css.id_selector_unsupported"
     );
     assert!(emission.diagnostics[0].diagnostic.source.origin().is_some());
-    drop(retained);
+    let source = retained.source(emission.diagnostics[0].sheet).unwrap();
+    assert_eq!(source.source_uri, "urn:child");
+    assert_eq!(
+        source.stylesheet_url,
+        "https://example.test/styles/child.css"
+    );
+    assert!(retained.source(2).is_err());
     assert!(weak.upgrade().is_some());
     drop(owner);
+    assert!(retained.source(1).is_err());
+    drop(retained);
     assert!(weak.upgrade().is_none());
 }
 
@@ -248,6 +256,7 @@ fn released_output_handles_cannot_outlive_consumers_or_template_disposal() {
     assert!(first.emission().is_ok());
     owner.release_stylesheet_consumer("second");
     assert!(first.emission().is_err());
+    assert!(first.source(0).is_err());
     // Reconnect can reuse the still-valid source closure, but gets a fresh lease.
     let reconnected = owner
         .retain_stylesheet("first", 0, c, &scope(), "card")
