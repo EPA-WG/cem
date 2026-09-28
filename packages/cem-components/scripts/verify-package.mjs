@@ -11,7 +11,7 @@ const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
 const builtCatalogPath = join(packageRoot, 'dist', 'catalog', 'cem.components.catalog.json');
 const publicCatalogPath = './dist/catalog/cem.components.catalog.json';
 const publicComponentExport = './src/components/*/*.xhtml';
-const packedDeclarations = ['src/components/cem-theme-switch/cem-theme-switch.xhtml', 'src/components/cem-select/cem-select.xhtml', 'src/components/cem-action/cem-action.xhtml'];
+const packedDeclarations = ['src/components/cem-icon-button/cem-icon-button.xhtml', 'src/components/cem-menu-item/cem-menu-item.xhtml', 'src/components/cem-theme-switch/cem-theme-switch.xhtml', 'src/components/cem-select/cem-select.xhtml', 'src/components/cem-action/cem-action.xhtml'];
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
@@ -286,12 +286,12 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
-    for (const page of ['cem-bundle.html', 'cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
+    for (const page of ['cem-icon-button.html', 'cem-menu-item.html', 'cem-bundle.html', 'cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
         if (packageJson.exports?.[`./playgrounds/${page}`] !== `./dist/${page}` || !packedFiles.includes(`dist/${page}`)) {
             throw new Error(`npm pack must expose the built playground ${page}`);
         }
     }
-    for (const source of ['dist/components.xhtml', 'build/components.cemt', 'build/components.transform.cem', 'playgrounds/cem-bundle.html', 'playgrounds/bundle.importmap.source.json', 'playgrounds/bundle.importmap.package.json', 'playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
+    for (const source of ['demo.css', 'playgrounds/cem-icon-button.html', 'playgrounds/cem-menu-item.html', 'dist/components.xhtml', 'build/components.cemt', 'build/components.transform.cem', 'playgrounds/cem-bundle.html', 'playgrounds/bundle.importmap.source.json', 'playgrounds/bundle.importmap.package.json', 'playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
         if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
     }
 

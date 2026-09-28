@@ -97,37 +97,6 @@ describe('CEM component primitives', () => {
         expect(() => assertAriaReferenceIntegrity(substrateHarness.root)).not.toThrow();
     });
 
-    it('renders action-family primitives as accessible light DOM', async () => {
-        harness = createComponentHarness();
-        const root = await harness.render(`
-            <cem-stack gap="sm">
-                <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
-                <cem-menu-item>Archive</cem-menu-item>
-            </cem-stack>
-        `);
-        await waitForPrimitive(root, 'cem-menu-item button');
-
-        const iconButton = harness.query<HTMLButtonElement>('cem-icon-button button');
-        const menuItem = harness.query<HTMLButtonElement>('cem-menu-item button');
-        const icon = harness.query<HTMLElement>('cem-icon-button .cem-icon');
-
-        for (const host of Array.from(
-            harness.root.querySelectorAll<HTMLElement>('cem-icon-button, cem-menu-item'),
-        )) {
-            assertLightDomRendered(host);
-            expect(host.shadowRoot).toBeNull();
-        }
-
-        expect(iconButton.type).toBe('button');
-        expect(iconButton.className).toContain('cem-icon-button--quiet');
-        expect(assertAccessibleName(iconButton, 'Open settings')).toBe('Open settings');
-        expect(icon.getAttribute('aria-hidden')).toBe('true');
-        expect(icon.textContent?.trim()).toBe('settings');
-        expect(menuItem.type).toBe('button');
-        expect(menuItem.getAttribute('role')).toBe('menuitem');
-        expect(assertAccessibleName(menuItem, 'Archive')).toBe('Archive');
-        expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
-    });
 
     it('renders field, text, and icon primitives as accessible light DOM', async () => {
         harness = createComponentHarness();

@@ -1,0 +1,23 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-menu-item">
+  <template id="cem-menu-item" type="text/cem-ml">
+    {attribute @name=label | Menu item}
+    {style @type="text/css" |```
+        :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+        :scope > button[part~='control'] {
+            background-color: var(--cem-action-contextual-default-background);
+            color: var(--cem-action-contextual-default-text);
+        }
+        :scope > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-contextual-hover-background);
+            color: var(--cem-action-contextual-hover-text);
+        }
+        :scope > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-contextual-active-background);
+            color: var(--cem-action-contextual-active-text);
+        }
+        ```}
+    {button @type=button @class=cem-menu-item @role=menuitem @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={datadom.attributes.expanded} @slice=selected @slice-event=click @slice-value="$event.type" |
+      {slot | {$label}}
+    }
+  </template>
+</cem-element>

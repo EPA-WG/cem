@@ -71,7 +71,7 @@
                 "states": ["default", "hover", "focus-visible", "active", "disabled", "loading", "expanded"],
                 "keyboard": ["Use native Tab focus and Space/Enter button activation."],
                 "accessibility": ["Render native buttons; require an accessible label for icon-only actions and preserve busy and disclosure state."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders action-family primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::applies shared native hover treatment without changing action geometry or semantics", "packages/cem-components/src/lib/states.browser.spec.ts::applies shared native active treatment during pointer and keyboard activation"],
+                "evidence": ["packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::Hover", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"],
                 "notes": "The native text and icon action contracts are covered. The catalog row remains partial because there are no FAB, mini-FAB, extended-FAB, anchor-button, or interactive-disabled variants."
             }
         },
@@ -281,7 +281,7 @@
                 "states": ["default", "hover", "focus-visible", "active", "disabled", "selected", "expanded"],
                 "keyboard": ["Individual menu items use native button activation; no menu-level ArrowUp/ArrowDown, Home/End, Escape, or typeahead controller exists."],
                 "accessibility": ["Expose labeled native buttons with role=menuitem, disabled state, and disclosure state."],
-                "evidence": ["packages/cem-components/src/lib/primitives.browser.spec.ts::renders action-family primitives as accessible light DOM", "packages/cem-components/src/lib/states.browser.spec.ts::reflects action, loading, disabled, expanded, selected, and focus states on native controls", "packages/cem-components/src/lib/states.browser.spec.ts::applies shared native active treatment during pointer and keyboard activation"],
+                "evidence": ["packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::AllAttributes", "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active"],
                 "notes": "cem-menu-item covers command-row semantics only. There is no public menu container, trigger/popup relationship, focus controller, dismissal lifecycle, positioning, nested menu, or menu selection group."
             }
         },
@@ -351,7 +351,7 @@
                 "states": ["hover", "focus-visible", "active", "disabled", "forced-colors"],
                 "keyboard": ["Paint held active feedback for trusted pointer activation and native Space/Enter activation without synthesizing events or mutating component state."],
                 "accessibility": ["Keep visible focus independent from active paint, preserve readable contrast, suppress disabled activation, and use system colors in forced-colors mode."],
-                "evidence": ["packages/cem-components/src/lib/states.browser.spec.ts::applies shared native active treatment during pointer and keyboard activation", "packages/cem-components/src/lib/states.browser.spec.ts::applies navigation active treatment during trusted pointer and native keyboard activation"],
+                "evidence": ["packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts::Active", "packages/cem-components/src/lib/states.browser.spec.ts::applies navigation active treatment during trusted pointer and native keyboard activation"],
                 "notes": "CEM provides tokenized bounded active feedback rather than a radial pointer-origin ripple. The behavior is partial because it is scoped to accepted interactive owners and has no arbitrary-host ripple directive, radius/origin animation, or programmatic launch API."
             }
         },

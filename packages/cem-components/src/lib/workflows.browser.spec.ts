@@ -1,3 +1,5 @@
+import iconButtonDeclaration from '../components/cem-icon-button/cem-icon-button.xhtml?raw';
+import menuItemDeclaration from '../components/cem-menu-item/cem-menu-item.xhtml?raw';
 import { CemElementRuntime } from '@epa-wg/cem-elements';
 
 import actionDeclaration from '../components/cem-action/cem-action.xhtml?raw';
@@ -39,6 +41,14 @@ describe('CEM component workflow fixtures', () => {
 
     beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
+        for (const markup of [iconButtonDeclaration, menuItemDeclaration]) {
+            const source = document.createElement('div');
+            source.innerHTML = markup;
+            const declaration = source.firstElementChild as HTMLElement;
+            expect(runtime.registerDeclaration(declaration)).toBe(true);
+            await runtime.whenDeclarationSettled(declaration);
+            expect(runtime.diagnosticsFor(declaration)).toEqual([]);
+        }
         const result = await installCemComponentPrimitives(runtime);
         expect(result.diagnostics).toEqual([]);
         const source = document.createElement('div');

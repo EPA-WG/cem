@@ -462,3 +462,23 @@ zebra contour, including while disabled, with a flat surface behind the label.
 Reduced motion freezes that contour; forced colors uses a static system outline.
 Ordinary light/dark/native modes retain pending background gradients. Both the
 contrast state values and contour tokens are generated from canonical theme docs.
+
+## Canonical command components
+
+`cem-icon-button` and `cem-menu-item` load from their individual XHTML declarations
+or `components.xhtml#<tag>`. Both expose their native button as `part="control"`;
+icon-button also exposes the decorative glyph as `part="icon"`.
+
+| Component | Implemented component attributes | Other explicit attributes |
+| --- | --- | --- |
+| `cem-icon-button` | `label` (accessible name, default Icon action), `name` (decorative text, default circle), `variant` (compatibility class suffix, default quiet), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
+| `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
+
+Every variant of icon-button keeps the existing contextual state colors. Native
+clicks update the `pressed` (icon-button) or `selected` (menu-item) event slice;
+these are event records, not persistent selected/toggle state. Menu navigation and
+popup ownership remain the containing menu's responsibility. Default slot content
+is supported by both controls. Boolean disabled presence includes `disabled="false"`.
+
+Each component has a matching property playground under `playgrounds/`, covering
+all listed attributes and showing its canonical source.

@@ -53,7 +53,9 @@
                 "{projectRoot}/dist/cem-theme-switch.html",
                 "{projectRoot}/dist/cem-action-gallery.html",
                 "{projectRoot}/dist/icon.html",
-                "{projectRoot}/dist/cem-bundle.html"
+                "{projectRoot}/dist/cem-bundle.html",
+                "{projectRoot}/dist/cem-icon-button.html",
+                "{projectRoot}/dist/cem-menu-item.html"
             ]
         },
         "verify-playgrounds": {
@@ -68,6 +70,7 @@
             },
             "inputs": [
                 "{projectRoot}/playgrounds/**/*",
+                "{projectRoot}/demo.css",
                 "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
                 "{projectRoot}/package.json",
                 "{projectRoot}/src/components/**/*.xhtml",

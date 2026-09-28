@@ -31,7 +31,9 @@
         "./playgrounds/cem-theme-switch.html": "./dist/cem-theme-switch.html",
         "./playgrounds/cem-select.html": "./dist/cem-select.html",
         "./components.xhtml": "./dist/components.xhtml",
-        "./playgrounds/cem-bundle.html": "./dist/cem-bundle.html"
+        "./playgrounds/cem-bundle.html": "./dist/cem-bundle.html",
+        "./playgrounds/cem-icon-button.html": "./dist/cem-icon-button.html",
+        "./playgrounds/cem-menu-item.html": "./dist/cem-menu-item.html"
     },
     "files": [
         "dist",

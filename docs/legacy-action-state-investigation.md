@@ -1,6 +1,6 @@
 # Legacy action state investigation
 
-2026-09-28. Status: event scheduling decision resolved; owner migration remains next.
+2026-09-28. Status: event scheduling and command-owner migration are complete.
 
 ## Results
 
@@ -69,9 +69,9 @@ form, payload and validation values from a new event payload revision. Held
 interval equality, native click counts, focus, geometry, styling and exact
 target checks remain covered.
 
-Next, migrate `cem-icon-button` and `cem-menu-item` to canonical XHTML with
-explicit disabled presence, colocated stories and companion playgrounds; compare
-the complete legacy failure inventory afterward.
+The [command-component migration](command-component-migration.md) now supplies
+canonical XHTML, explicit disabled presence, colocated stories and companion
+playgrounds. The remaining legacy state inventory is recorded there.
 
 ## Verification evidence
 

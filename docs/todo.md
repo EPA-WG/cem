@@ -14,14 +14,32 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
       vertically using shared `cem-components/demo.css` classes in every property
       playground; include the shared stylesheet in published packages.
 
-## Immediate: Canonical icon-button and menu-item migration
+## Next: Canonical field controls
 
-- [ ] Migrate `cem-icon-button` and `cem-menu-item` into per-component XHTML,
+- [ ] Migrate `cem-field` and `cem-text-field` with explicit boolean-presence
+      semantics, full attribute coverage and canonical source playgrounds.
+- [ ] Compare remaining legacy state failures after the migration.
+
+## Completed: Native radio selection feedback
+
+- [x] Decision: radios use their native dot for selection; checkbox and switch
+      styling stays unchanged. Radio focus, invalid and pending outlines follow
+      the circular native control (user approved).
+- [x] Fixture: checked radios have no extra selection shadow; circular focus,
+      invalid and pending feedback remains visible across themes and forced colors.
+- [x] Update shared styles and contracts, verify and commit/push.
+
+## Completed: Canonical icon-button and menu-item migration
+
+- [x] Migrate `cem-icon-button` and `cem-menu-item` into per-component XHTML,
       using explicit disabled presence and removing their legacy ownership.
-- [ ] Fixture: colocated stories for every implemented attribute, native
+- [x] Fixture: colocated stories for every implemented attribute, native
       pointer/keyboard activation and disabled behavior; companion playgrounds.
-- [ ] Compare the complete legacy state failure inventory after migration;
+- [x] Compare the complete legacy state failure inventory after migration;
       verify source/package output, commit and push.
+
+Verification and the remaining 4-pass/15-fail legacy state inventory are recorded
+in [command component migration](command-component-migration.md).
 
 ## Completed: Batch renders after event bursts
 

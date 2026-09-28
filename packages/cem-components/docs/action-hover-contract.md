@@ -229,7 +229,9 @@ harness without simulating hover or injecting runtime styles.
 The migrated action owns these rules in
 [`cem-action.xhtml`](../src/components/cem-action/cem-action.xhtml), with all five
 intents exercised in its colocated stories. Its native button exposes
-`part="control"`. Only the unmigrated icon/menu rules remain in global CSS.
+`part="control"`. Icon-button and menu-item now own their contextual rules in their canonical
+XHTML declarations. Their colocated `Hover` and `Active` stories retain the
+previous native interaction, geometry, focus and event checks.
 The primary rows above describe the default intent; other supported variants
 substitute their intent name in the same state-token pairs.
 

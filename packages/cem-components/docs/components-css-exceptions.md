@@ -193,3 +193,12 @@ Content focus-visible requires no exception. D5 already owns external focus
 width and offset, and zebra owns the mode-aware focus color. Component CSS
 binds those generated endpoints directly to the accepted native owners; forced
 colors use `CanvasText` without changing geometry or content-state paint.
+
+## Native radio selection clarification
+
+Native radios retain their circular browser appearance and selected dot. Checked
+state alone adds no CEM shadow stripe. Focus, invalid and pending feedback still
+paints a decorative input `::before`, with `--cem-bend-circle` keeping its outline
+circular while preserving native input appearance. The
+checkbox and switch selection stripes are unchanged. This supersedes earlier
+shared radio-selection stripe descriptions in the binary input evidence.

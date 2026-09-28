@@ -46,7 +46,7 @@ paths.
 
 The accepted [component development pattern](../../../../docs/component-development-pattern.md) keeps canonical XHTML
 separate from a companion property playground and source view. A generated
-`#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
+`#ID` bundle is planned as release output. `cem-action`, `cem-select`, `cem-icon-button` and `cem-menu-item` now use
 the canonical XHTML and colocated story structure.
 
 When migrating a Material component, mark its previous demo as legacy and link

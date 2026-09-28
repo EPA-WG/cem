@@ -1174,6 +1174,16 @@ function assertPublicComponentStyles(components, tokenNames) {
         }
     }
 
+    for (const tag of ACTION_TAGS) {
+        const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
+        const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
+        assertCssUsesTokensOnly(repoPath(path), css);
+        for (const rule of parseCssRules(repoPath(path), css)) {
+            const selector = rule.selector.replace(':scope', tag).replace("[part~='control']", '').replace(/:where\(([^)]+)\)/g, '$1');
+            if (!rule.media && ACTION_BINDINGS.has(selector)) actionRules.set(selector, rule.declarations);
+        }
+    }
+
     for (const [selector, expectedDeclarations] of ACTION_BINDINGS) {
         const declarations = actionRules.get(selector);
         if (!declarations) {

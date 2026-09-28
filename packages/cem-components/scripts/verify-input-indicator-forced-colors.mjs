@@ -198,7 +198,7 @@ async function verifyNativeIndicators() {
             for (const id of ids) {
                 const control = page.locator(`#${id}`);
                 const read = () => control.evaluate(node => {
-                    const style = getComputedStyle(node);
+                    const style = getComputedStyle(node, node.type === 'radio' ? '::before' : null);
                     const rect = node.getBoundingClientRect();
                     return { shadow: style.boxShadow, width: rect.width, height: rect.height };
                 });
@@ -210,6 +210,15 @@ async function verifyNativeIndicators() {
                         assert([...actual.shadow.matchAll(/(-?\d*\.?\d+)px/g)].some(match => Number(match[1]) !== 0), `${mode}/${id}/${state}: feedback has zero width`);
                     }
                     assert(actual.width === baseline.width && actual.height === baseline.height, `${mode}/${id}/${state}: indicator changed geometry`);
+                    if (id === 'radio') {
+                        const native = await control.evaluate(node => {
+                            const style = getComputedStyle(node);
+                            return { appearance: style.appearance, shadow: style.boxShadow, outline: style.outlineStyle,
+                                pointerEvents: getComputedStyle(node, '::before').pointerEvents };
+                        });
+                        assert(native.appearance !== 'none' && native.shadow === 'none' && native.outline === 'none'
+                            && native.pointerEvents === 'none', `${mode}/radio/${state}: native appearance or decorative ring ownership changed`);
+                    }
                     assert(await page.locator('label').evaluateAll(labels => labels.every(label => getComputedStyle(label).boxShadow === 'none')), `${mode}/${id}/${state}: label acquired a shadow`);
                 };
                 await check(false, 'rest');
@@ -221,6 +230,10 @@ async function verifyNativeIndicators() {
                 await control.focus();
                 assert(await control.evaluate(node => node.matches(':focus-visible')), `${mode}/${id}: focus-visible missing`);
                 await check(true, 'focus');
+                if (id === 'radio') {
+                    const radius = await control.evaluate(node => parseFloat(getComputedStyle(node, '::before').borderTopLeftRadius));
+                    assert(radius >= baseline.width / 2, `${mode}/radio: outline must follow the native circle: radius=${radius}, width=${baseline.width}`);
+                }
                 await control.evaluate(node => node.blur());
                 await check(false, 'blur');
                 for (const [attribute, value] of [['aria-invalid', 'true'], ['data-state', 'loading']]) {
@@ -234,7 +247,7 @@ async function verifyNativeIndicators() {
                 if (['checkbox', 'radio', 'switch'].includes(id)) {
                     await control.check();
                     await control.evaluate(node => node.blur());
-                    await check(true, 'checked');
+                    await check(id !== 'radio', 'checked');
                     await control.evaluate(node => { node.checked = false; });
                     await check(false, 'unchecked');
                 }
@@ -252,7 +265,7 @@ async function verifyNativeIndicators() {
             await control.evaluate(node => node.setAttribute('data-state', 'loading'));
             const checkOutline = async token => {
                 const state = await control.evaluate((node, token) => {
-                    const style = getComputedStyle(node);
+                    const style = getComputedStyle(node, node.type === 'radio' ? '::before' : null);
                     return { shadow: style.boxShadow, style: style.outlineStyle, width: style.outlineWidth, expected: style.getPropertyValue(token).trim() };
                 }, token);
                 assert(state.shadow === 'none' && state.style === 'solid' && state.width === state.expected, `${id}: forced-color outline must use ${token}: ${JSON.stringify(state)}`);
@@ -286,7 +299,7 @@ function captureForcedFocusState({ control, target }) {
     const canvasText = getComputedStyle(probe).color;
     probe.remove();
 
-    const styles = getComputedStyle(targetElement);
+    const styles = getComputedStyle(targetElement, controlElement.type === 'radio' ? '::before' : null);
     return {
         activeSelector: document.activeElement === controlElement ? control : null,
         boxShadow: styles.boxShadow,

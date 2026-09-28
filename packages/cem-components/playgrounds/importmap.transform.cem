@@ -28,4 +28,14 @@
       {export @id=bundle-html @out="../dist/cem-bundle.html" @content-type="text/html"}
     }
   }
+  {import @id=cem-icon-button @src="cem-icon-button.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-icon-button-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-icon-button-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-menu-item @src="cem-menu-item.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-menu-item-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-menu-item-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
 }

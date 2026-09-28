@@ -25,6 +25,7 @@ try {
     await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
     await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
+    for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
     await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
@@ -36,9 +37,10 @@ try {
     await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
     await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
+    for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
     await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action, select and theme-switch playgrounds verified from source and isolated package archives.');
+    console.log('Action, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -593,7 +595,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch']) {
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon-button', 'cem-menu-item']) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -622,13 +624,56 @@ async function verifyBundle(url) {
             assert.equal(check.count, 1);
             assert.equal(check.base, check.sourceUrl);
         }
-        assert.equal(result.styleCount, 3);
+        assert.equal(result.styleCount, 5);
         assert.equal(result.stylesAfter, result.styleCount);
         assert.ok(result.diagnostics.includes('cem-element.registry_same_scope_duplicate'));
         assert.equal(await page.locator('#bundle-action button').getAttribute('aria-pressed'), 'true');
         await page.locator('#bundle-select [role=combobox]').click();
         await page.locator('#bundle-select [role=option]').filter({ hasText: 'Grace' }).click();
         assert.equal(await page.locator('#bundle-select').evaluate(host => host.value), 'grace');
+        assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+}
+
+async function verifyCommand(url, tag) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(url);
+        await page.waitForSelector('#command-preview button');
+        await page.waitForSelector('#command-configured button');
+        await page.evaluate(async () => {
+            await Promise.all([...document.querySelectorAll('template[data-cem-island="instance"]')].map(island => window.cemPlaygroundRuntime.whenRenderSettled(island.parentElement)));
+        });
+        const source = await readFile(join(root, `packages/cem-components/src/components/${tag}/${tag}.xhtml`), 'utf8');
+        const attributes = [...new Set([
+            ...[...source.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+            ...[...source.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
+            ...[...source.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]), 'class',
+        ])].sort();
+        assert.deepEqual(await page.locator('[data-command-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-command-attribute')).sort()), attributes);
+        assert.deepEqual(await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort()), attributes);
+        assert(await page.locator('#command-disabled button').isDisabled());
+        assert(await page.locator('#command-hidden').isHidden());
+        assert.equal(await page.locator('#command-expanded button').getAttribute('aria-expanded'), 'true');
+        assert.equal(await page.locator('#command-configured button').getAttribute('aria-expanded'), 'false');
+        const layout = await page.locator('.property-groups').evaluate(node => ({ display: getComputedStyle(node).display, wrap: getComputedStyle(node).flexWrap,
+            options: [...node.querySelectorAll('.property-options')].map(options => [getComputedStyle(options).display, getComputedStyle(options).flexDirection]) }));
+        assert.equal(layout.display, 'flex');
+        assert.equal(layout.wrap, 'wrap');
+        assert(layout.options.every(([display, direction]) => display === 'flex' && direction === 'column'));
+        const disabled = page.locator(`input[name="${tag.slice(4)}-disabled"][value="false"]`);
+        await disabled.check();
+        await page.waitForFunction(() => document.querySelector('#command-preview button')?.disabled === true);
+        await page.locator(`input[name="${tag.slice(4)}-disabled"][value="absent"]`).check();
+        await page.waitForFunction(() => document.querySelector('#command-preview button')?.disabled === false);
+        await page.locator('#command-preview button').click();
+        await page.locator('#command-preview button').press('Space');
+        await page.evaluate(() => window.cemPlaygroundRuntime.whenRenderSettled(document.querySelector('#command-preview')));
+        assert.equal(await page.locator('#command-preview').evaluate((host, name) => window.cemPlaygroundRuntime.snapshotInstance(host).slices[name], tag === 'cem-icon-button' ? 'pressed' : 'selected'), 'click');
+        await page.setViewportSize({ width: 375, height: 812 });
+        assert(await page.locator('.property-groups').evaluate(node => node.getBoundingClientRect().right <= innerWidth));
         assert.deepEqual(errors, []);
     } finally { await page.close(); }
 }

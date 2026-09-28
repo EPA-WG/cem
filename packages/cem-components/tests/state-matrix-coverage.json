@@ -57,11 +57,11 @@
             ],
             "interaction": "Render enabled action controls and preserve their native button and menuitem semantics.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
-            "test": "renders action-family primitives as accessible light DOM",
+            "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+            "test": "AllAttributes",
             "assertions": [
-                "expect(iconButton.type).toBe('button');",
-                "expect(menuItem.getAttribute('role')).toBe('menuitem');"
+                "expect(button.type).toBe('button');",
+                "expect(button.classList.contains('cem-icon-button--quiet')).toBe(true);"
             ],
             "componentEvidence": [
                 {
@@ -70,6 +70,15 @@
                     "test": "LabelsAndStyles",
                     "assertions": [
                         "await expect(control.type).toBe('button');"
+                    ]
+                },
+                {
+                    "component": "cem-menu-item",
+                    "owner": "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "const button = within(host).getByRole('menuitem', { name: 'Menu item' }) as HTMLButtonElement;",
+                        "expect(button.type).toBe('button');"
                     ]
                 }
             ]
@@ -85,8 +94,8 @@
             ],
             "interaction": "Move the pointer onto and away from an action without changing layout.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "applies shared native hover treatment without changing action geometry or semantics",
+            "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+            "test": "Hover",
             "assertions": [
                 "expect(hovered.backgroundColor).toBe(resolveTokenColor(button, tokens.hoverBackground));",
                 "expectActionStructureAndGeometry(hovered, baseline);",
@@ -101,6 +110,17 @@
                     "assertions": [
                         "await expect(button.matches(':hover')).toBe(true);",
                         "await expect(colors()).toEqual(paint('hover'));"
+                    ]
+                },
+                {
+                    "component": "cem-menu-item",
+                    "owner": "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts",
+                    "test": "Hover",
+                    "assertions": [
+                        "expect(hovered.backgroundColor).toBe(resolveTokenColor(button, tokens.hoverBackground));",
+                        "expectActionStructureAndGeometry(hovered, baseline);",
+                        "expect(restored.backgroundColor).toBe(baseline.backgroundColor);",
+                        "expect(hovered.focusTreatment).toEqual(baseline.focusTreatment);"
                     ]
                 }
             ]
@@ -131,8 +151,8 @@
             ],
             "interaction": "Activate an action and prove the active treatment preserves readable contrast.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "applies shared native active treatment during pointer and keyboard activation",
+            "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+            "test": "Active",
             "assertions": [
                 "expect(button.matches(':active')).toBe(true);",
                 "expectPaintedColorToResolveFromToken(active.backgroundColor, button, tokens.activeBackground);",
@@ -151,6 +171,20 @@
                         "await expect(button.matches(':active')).toBe(true);",
                         "await expect(rect()).toEqual(initial);"
                     ]
+                },
+                {
+                    "component": "cem-menu-item",
+                    "owner": "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts",
+                    "test": "Active",
+                    "assertions": [
+                        "expect(button.matches(':active')).toBe(true);",
+                        "expectPaintedColorToResolveFromToken(active.backgroundColor, button, tokens.activeBackground);",
+                        "expect(contrastRatio(active.backgroundColor, active.color)).toBeGreaterThanOrEqual(4.5);",
+                        "expectActionStructureAndGeometry(active, hovered);",
+                        "expect(held.backgroundColor).toBe(baseline.backgroundColor);",
+                        "expect(keyboardActive.backgroundColor).not.toBe(keyboardBaseline.backgroundColor);",
+                        "expect(keyboardReleased.backgroundColor).toBe(keyboardBaseline.backgroundColor);"
+                    ]
                 }
             ]
         },
@@ -158,12 +192,27 @@
             "id": "action:disabled",
             "category": "Action",
             "state": "disabled",
-            "components": ["cem-icon-button"],
+            "components": [
+                "cem-icon-button",
+                "cem-menu-item"
+            ],
             "interaction": "Disable an action and remove native activation.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
-            "assertions": ["expect(iconButton.disabled).toBe(true);"]
+            "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+            "test": "AllAttributes",
+            "assertions": [
+                "expect(button.disabled).toBe(true);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-menu-item",
+                    "owner": "packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(button.disabled).toBe(true);"
+                    ]
+                }
+            ]
         },
         {
             "id": "action:loading",
@@ -898,12 +947,17 @@
             "id": "navigation:selected",
             "category": "Navigation",
             "state": "selected",
-            "components": ["cem-tabs", "cem-stepper"],
+            "components": [
+                "cem-tabs",
+                "cem-stepper"
+            ],
             "interaction": "Distinguish the selected tab from its unselected peer through ARIA state.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects action, loading, disabled, expanded, selected, and focus states on native controls",
-            "assertions": ["expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"],
+            "test": "reflects selected state on native tabs",
+            "assertions": [
+                "expect(tabs.map((tab) => tab.getAttribute('aria-selected')).join('|')).toBe('true|false');"
+            ],
             "componentEvidence": [
                 {
                     "component": "cem-tabs",

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-menu-item — property playground</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window);
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
+<header><h1>cem-menu-item playground</h1><p>Change every implemented attribute and inspect the production source.</p></header>
+<main><cem-element><template type="text/cem-ml">
+{slice @name=label | Run command}
+{slice @name=disabled | absent}
+{slice @name=expanded | absent}
+{slice @name=hidden | absent}
+{slice @name=class | custom-command}
+{div @class=workspace | {section @class=properties @aria-label="Command properties" | {h2 | Properties}
+{cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+{div @class=property-groups |
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=menu-item-disabled @slice=disabled @slice-event=change @slice-value="$target.value" | {legend @id=menu-item-disabled | disabled} {div @class=property-options |
+{cem-radio @name=menu-item-disabled @value=absent @checked=true | absent}
+{cem-radio @name=menu-item-disabled @value=false | false}
+{cem-radio @name=menu-item-disabled @value=true | true}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=menu-item-expanded @slice=expanded @slice-event=change @slice-value="$target.value" | {legend @id=menu-item-expanded | expanded} {div @class=property-options |
+{cem-radio @name=menu-item-expanded @value=absent @checked=true | absent}
+{cem-radio @name=menu-item-expanded @value=false | false}
+{cem-radio @name=menu-item-expanded @value=true | true}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=menu-item-hidden @slice=hidden @slice-event=change @slice-value="$target.value" | {legend @id=menu-item-hidden | hidden} {div @class=property-options |
+{cem-radio @name=menu-item-hidden @value=absent @checked=true | absent}
+{cem-radio @name=menu-item-hidden @value=false | false}
+{cem-radio @name=menu-item-hidden @value=true | true}
+}}
+}} {section @aria-label="Command preview" | {h2 | Preview} {div @class=preview |
+{cem-menu-item @id=command-preview @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
+} {p | Disabled and hidden use attribute presence, including the text false. Expanded reports a disclosure state; the command does not open a popup itself. A click records its event without toggling a persistent selection.}
+{p | Label is the fallback command text. Default slot content replaces it. The native button exposes the menuitem role; a complete menu owns navigation and focus between commands.}
+}}
+</template></cem-element>
+<h2>Attribute inventory</h2><ul><li data-command-attribute="class"><code>class</code></li>
+<li data-command-attribute="disabled"><code>disabled</code></li>
+<li data-command-attribute="expanded"><code>expanded</code></li>
+<li data-command-attribute="hidden"><code>hidden</code></li>
+<li data-command-attribute="label"><code>label</code></li></ul>
+<cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class"><template slot="source">
+<cem-menu-item id="command-default"></cem-menu-item>
+<cem-menu-item id="command-configured" label="Configured command" class="consumer-command" expanded="false" ></cem-menu-item>
+<cem-menu-item id="command-disabled" label="Disabled by presence" disabled="false"></cem-menu-item>
+<cem-menu-item id="command-expanded" label="Expanded command" expanded="true"></cem-menu-item>
+<cem-menu-item id="command-hidden" label="Hidden by presence" hidden="false"></cem-menu-item>
+<cem-menu-item id="command-content" label="Projected command"><span>Projected content</span></cem-menu-item>
+</template></cem-demo-element>
+<cem-element><template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem:if @test="datadom.slices.sourceUrl" |
+ {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}}
+ {cem-demo-element @legend="Canonical menu-item source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template></cem-element>
+</main></cem-theme-switch></body></html>

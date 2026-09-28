@@ -1,21 +1,3 @@
-cem-icon-button > button,
-cem-menu-item > button {
-    background-color: var(--cem-action-contextual-default-background);
-    color: var(--cem-action-contextual-default-text);
-}
-
-cem-icon-button > button:enabled:hover,
-cem-menu-item > button:enabled:hover {
-    background-color: var(--cem-action-contextual-hover-background);
-    color: var(--cem-action-contextual-hover-text);
-}
-
-cem-icon-button > button:enabled:active,
-cem-menu-item > button:enabled:active {
-    background-color: var(--cem-action-contextual-active-background);
-    color: var(--cem-action-contextual-active-text);
-}
-
 cem-list[selectable] > select.cem-list.cem-list--selectable,
 cem-chip[checkable] > button.cem-chip {
     background-color: var(--cem-content-interaction-default-background);
@@ -1114,7 +1096,7 @@ cem-autocomplete .cem-autocomplete__control:where(:focus-visible, :checked, [ari
 cem-datepicker > .cem-datepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
 cem-timepicker > .cem-timepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
 cem-checkbox > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
-cem-radio > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-radio > label > input:where(:focus-visible, [aria-invalid='true']:enabled, [data-state='loading']:enabled)::before,
 cem-switch > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
     box-shadow:
         0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
@@ -1306,7 +1288,6 @@ cem-switch > label > input:enabled:focus-visible {
 }
 
 cem-checkbox > label > input:checked,
-cem-radio > label > input:checked,
 cem-switch > label > input:checked {
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
@@ -2118,7 +2099,7 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-datepicker > .cem-datepicker > input[slot='input'],
     cem-timepicker > .cem-timepicker > input[slot='input'],
     cem-checkbox > label > input,
-    cem-radio > label > input,
+    cem-radio > label > input::before,
     cem-switch > label > input {
         box-shadow: none;
     }
@@ -2133,7 +2114,7 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     }
 
     cem-checkbox > label > input:enabled:hover,
-    cem-radio > label > input:enabled:hover,
+    cem-radio > label > input:enabled:hover::before,
     cem-switch > label > input:enabled:hover {
         outline: var(--cem-stroke-boundary) solid Highlight;
         outline-offset: var(--cem-stroke-indicator-offset);
@@ -2146,7 +2127,7 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
     cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
     cem-checkbox > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
-    cem-radio > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-radio > label > input[data-state='loading']:enabled:not([aria-invalid='true'])::before,
     cem-switch > label > input[data-state='loading']:enabled:not([aria-invalid='true']) {
         outline: var(--cem-stroke-pending) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
@@ -2163,7 +2144,7 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible,
     cem-timepicker > .cem-timepicker > button[slot='toggle']:focus-visible,
     cem-checkbox > label > input:enabled:focus-visible,
-    cem-radio > label > input:enabled:focus-visible,
+    cem-radio > label > input:enabled:focus-visible::before,
     cem-switch > label > input:enabled:focus-visible,
     cem-field input[data-state='loading']:enabled:focus-visible,
     cem-text-field input[data-state='loading']:enabled:focus-visible,
@@ -2172,7 +2153,7 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,
     cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,
     cem-checkbox > label > input[data-state='loading']:enabled:focus-visible,
-    cem-radio > label > input[data-state='loading']:enabled:focus-visible,
+    cem-radio > label > input[data-state='loading']:enabled:focus-visible::before,
     cem-switch > label > input[data-state='loading']:enabled:focus-visible {
         outline: var(--cem-stroke-focus) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
@@ -2246,4 +2227,19 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-timepicker .cem-timepicker__option[aria-disabled='true'] {
         color: GrayText;
     }
+}
+
+/* Native radio appearance ignores border-radius on the input box in Chromium.
+   A decorative pseudo-element follows its circle while the native dot stays intact. */
+cem-radio > label > input {
+    position: relative;
+    outline: none;
+}
+
+cem-radio > label > input::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--cem-bend-circle);
+    pointer-events: none;
 }

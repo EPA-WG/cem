@@ -338,6 +338,10 @@ The transform does not fix a semantic-role count. Input components omit the shad
 anchor using `--cem-stroke-boundary`; pending uses `--cem-stroke-pending`. Focus
 and selection activate independent stripes using `--cem-zebra-strip-size`.
 Choice indicators paint the native input rather than its enclosing label.
+Native radios use their built-in dot for selection and omit an additional selected
+stripe. Their focus, invalid and pending outlines use a decorative `::before` on the
+input with `--cem-bend-circle` to follow the native circle; the native dot and
+input appearance remain intact. Checkbox and switch selection stripes remain.
 Inactive anchor width is zero; outside stripe changes do not affect layout. A component-friendly property such as
 `--cem-input-indicator-appearance` is an adapter hook, not a canonical D5 token; its supported values are references to
 the two tokens above.
