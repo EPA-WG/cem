@@ -29,13 +29,16 @@
         "./playgrounds/cem-action.html": "./dist/cem-action.html",
         "./playgrounds/cem-action-gallery.html": "./dist/cem-action-gallery.html",
         "./playgrounds/cem-theme-switch.html": "./dist/cem-theme-switch.html",
-        "./playgrounds/cem-select.html": "./dist/cem-select.html"
+        "./playgrounds/cem-select.html": "./dist/cem-select.html",
+        "./components.xhtml": "./dist/components.xhtml",
+        "./playgrounds/cem-bundle.html": "./dist/cem-bundle.html"
     },
     "files": [
         "dist",
         "src/components/**/*.xhtml",
         "!**/*.tsbuildinfo",
-        "playgrounds"
+        "playgrounds",
+        "build"
     ],
     "dependencies": {
         "@epa-wg/cem-demo-element": "^0.1.1",

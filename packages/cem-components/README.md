@@ -519,3 +519,25 @@ for independent switches. Load the canonical declaration through the page's
 module map; see [the shared playground convention](docs/conventions.md#playground-theme-control).
 The installed companion page is exported as
 `@epa-wg/cem-components/playgrounds/cem-theme-switch.html`.
+
+## Combined XHTML release bundle
+
+The package exports `@epa-wg/cem-components/components.xhtml` alongside individual
+component definitions. Load a template by its unique ID:
+
+```html
+<cem-element tag="cem-action" src="./components.xhtml#cem-action"></cem-element>
+<cem-element tag="cem-select" capability="choice-select"
+             src="./components.xhtml#cem-select"></cem-element>
+```
+
+Resolve the document URL through your module map or package deployment. The
+native CEM AST build derives the bundle from canonical XHTML and preserves the
+original resource base with `xml:base`. It includes action, select and theme
+switch; legacy registry components are outside this declaration bundle.
+
+The [bundle playground](playgrounds/cem-bundle.html) is exported at
+`@epa-wg/cem-components/playgrounds/cem-bundle.html`. Canonical source,
+playgrounds, and [build inputs](build/README.md) remain in the package.
+`yarn nx run @epa-wg/cem-components:build:bundle` regenerates the artifact;
+`verify-playgrounds` checks source and isolated-package loading.

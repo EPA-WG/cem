@@ -41,6 +41,7 @@ pub mod legacy_custom_element;
 pub mod lifecycle;
 pub mod module_resolution;
 pub mod navigation_links;
+pub mod resource_base;
 pub mod observability;
 pub mod operation_control;
 pub mod operation_handle;

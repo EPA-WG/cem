@@ -44,6 +44,7 @@ import initCemQlWasm, {
     renderTemplateSource,
     resolveModuleUrl as resolveModuleUrlWasm,
     resolveNavigationLinks as resolveNavigationLinksWasm,
+    resolveResourceBase as resolveResourceBaseWasm,
     templateArtifactPayloadKey,
     templateModuleImports,
     retainXsltComponent,
@@ -362,6 +363,12 @@ let initPromise: Promise<void> | undefined;
 let ready = false;
 
 /** Resolve authored navigation attributes before slot insertion and patch comparison. */
+/** Validate scalar XML Base metadata through the shared native URL boundary. */
+export async function resolveDeclarationResourceBase(documentUrl: string, bases: string[]): Promise<string> {
+    await ensureRuntimeReady();
+    return resolveResourceBaseWasm(documentUrl, JSON.stringify(bases));
+}
+
 export async function resolveRenderPlanLinks(nodes: RenderPlanNode[], sourceUrl?: string | null): Promise<RenderPlanNode[]> {
     if (sourceUrl == null) return nodes;
     const hrefs: string[] = [];

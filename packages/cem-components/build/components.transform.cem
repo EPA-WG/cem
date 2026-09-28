@@ -1,0 +1,10 @@
+{@doc cem-ml 1}
+{run |
+  {import @id=declarations @src="../src/components/**/*.xhtml" @content-type="application/xml" |
+    {join @id=components @mode=collect |
+      {transform @id=bundle @src="components.cemt" @template-content-type="text/cem-ml" |
+        {export @id=xhtml @out="../dist/components.xhtml" @content-type="application/xhtml+xml"}
+      }
+    }
+  }
+}

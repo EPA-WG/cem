@@ -1,6 +1,6 @@
 # Release bundle source context
 
-Status: decision needed, 2026-09-28.
+Status: recommended approach approved and implemented, 2026-09-28.
 
 The accepted [component development pattern](component-development-pattern.md)
 requires a generated combined XHTML document and verification of relative
@@ -8,9 +8,9 @@ dependencies before release. The native transform graph supports collecting
 canonical source artifacts; the unresolved part is the resource context of a
 copied template when loaded through `components.xhtml#tag`.
 
-## Verified behavior
+## Original characterization
 
-The browser fixture
+The original browser fixture
 `packages/cem-elements/src/lib/bundle-source-context.stories.ts` loads identical
 CEM-ML template text from an individual XHTML declaration and a combined XHTML
 document. Its `cem-module-url` requests `./icon.svg`.
@@ -22,9 +22,9 @@ document. Its `cem-module-url` requests `./icon.svg`.
 
 The combined fixture retains
 `xml:base="../src/components/card/card.xhtml"` on the enclosing declaration.
-The runtime still uses the fetched bundle URL as its resource base. The test
-asserts both the URL slice and rendered link and passes under the current
-contract. It is a characterization of existing behavior, not bundle acceptance.
+Before the fix, the runtime used the fetched bundle URL as its resource base.
+The original test characterized that behavior through the URL slice and rendered
+link. The updated test now requires source-base parity.
 
 The source loader selects the fragment template and supplies the fetched
 document's resource base to compilation. Metadata on the enclosing declaration
@@ -32,7 +32,7 @@ is not inherited by that fragment-loading path. For example, callers currently
 supply `capability="choice-select"` explicitly; merely copying the declaration
 wrapper does not change the loader contract.
 
-## Decision
+## Decision (approved)
 
 1. **Preserve the original source context (recommended).** Add a shared runtime
    contract for retained source-base metadata, emitted by the native AST bundle
@@ -47,20 +47,22 @@ wrapper does not change the loader contract.
    expressions and fail unsupported relocation cases rather than silently
    changing their meaning.
 
-Preserving source context fits the requirement that individual and bundled
-loading behave alike without rewriting dynamic CEM-ML expressions. This is a
-shared loading-contract change, so execution stops here under the user's
-instruction to stop for open decisions. No release bundle or runtime behavior
-change has been made.
+The user approved option 1. The runtime now applies the selected template's
+`xml:base` ancestor chain through the shared native URL boundary. The updated
+browser fixture expects the original dependency location in both loading forms,
+and covers invalid bases, redirects, separate fragment bases and CSS imports.
+The historical behavior table above records the issue before this change.
 
-## Next after the decision
+## Delivery
 
-- Add native tests for the chosen source-context or relocation contract, then
-  implement the shared mechanism.
-- Generate the XHTML bundle through the native CEM AST graph, retaining unique
-  template IDs, canonical declarations and source/playground distribution.
-- Verify individual and fragment loading, relative dependencies, retained style
-  ownership and duplicate-registration diagnostics from source and packages.
+The native CEM AST graph in `packages/cem-components/build/` generates
+`dist/components.xhtml` from canonical declarations. The package exports it and
+ships the source definitions, build inputs and bundle playground. Generated
+containers retain relative `xml:base` metadata. Individual and bundled template
+text and declaration metadata match.
 
-Verification: `yarn nx run cem-elements:test
-packages/cem-elements/src/lib/bundle-source-context.stories.ts` passes (one story).
+Verification passes: three native URL tests, the native CLI bundle fixture,
+77 browser stories, and source/isolated-package playground journeys. Browser
+checks include relative CSS imports, redirects, two fragment bases in one cached
+document, invalid metadata, unique IDs, stylesheet ownership and duplicate
+registration rejection. Existing fragment capability declarations remain explicit.

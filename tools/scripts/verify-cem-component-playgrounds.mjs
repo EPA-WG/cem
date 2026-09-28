@@ -25,6 +25,7 @@ try {
     await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
     await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
+    await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
@@ -35,6 +36,7 @@ try {
     await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
     await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
+    await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     console.log('Action, select and theme-switch playgrounds verified from source and isolated package archives.');
 } finally {
@@ -568,5 +570,65 @@ async function verifyPendingTheme(url) {
         assert.equal(await cell.evaluate(node => getComputedStyle(node).backgroundImage), 'none');
         assert.equal(await cell.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
         console.log('Pending theme gradients verified:', url);
+    } finally { await page.close(); }
+}
+
+
+async function verifyBundle(url) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(url);
+        await page.locator('#bundle-action button').waitFor();
+        await page.locator('#bundle-select [role=combobox]').waitFor();
+        await page.evaluate(async () => {
+            for (const host of document.querySelectorAll('#bundle-action, #bundle-select, #bundle-theme')) {
+                await window.cemPlaygroundRuntime.whenRenderSettled(host);
+            }
+        });
+        const result = await page.evaluate(async () => {
+            const runtime = window.cemPlaygroundRuntime;
+            const declaration = [...document.querySelectorAll('cem-element[tag="cem-action"]')][0];
+            const bundleUrl = declaration.getAttribute('src').split('#')[0];
+            const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
+            const checks = [];
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch']) {
+                const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
+                const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
+                const template = bundle.getElementById(tag);
+                const originalTemplate = original.getElementById(tag);
+                checks.push({ tag, same: template?.textContent === originalTemplate?.textContent,
+                    count: bundle.querySelectorAll(`[id="${tag}"]`).length,
+                    base: document.querySelector(tag)[Symbol.for('@epa-wg/cem-elements/resource-base-url')], sourceUrl });
+                const attrs = node => [...node.attributes].filter(a => a.name !== 'xmlns').map(a => [a.name, a.value]).sort();
+                checks.at(-1).metadata = JSON.stringify(attrs(template.parentElement)) === JSON.stringify(attrs(originalTemplate.parentElement));
+            }
+            const styleCount = document.querySelectorAll('style[data-cem-declaration-style]').length;
+            const duplicate = document.createElement('cem-element');
+            duplicate.setAttribute('tag', 'cem-action');
+            duplicate.setAttribute('src', declaration.getAttribute('src'));
+            declaration.parentElement.append(duplicate);
+            await runtime.whenDeclarationSettled(duplicate);
+            const diagnostics = runtime.diagnosticsFor(duplicate).map(item => item.code);
+            const stylesAfter = document.querySelectorAll('style[data-cem-declaration-style]').length;
+            duplicate.remove();
+            return { checks, invalidXml: !!bundle.querySelector('parsererror'), styleCount, stylesAfter, diagnostics };
+        });
+        assert.equal(result.invalidXml, false);
+        for (const check of result.checks) {
+            assert.equal(check.same, true, `${check.tag}: bundle template text differs`);
+            assert.equal(check.metadata, true, `${check.tag}: declaration metadata differs`);
+            assert.equal(check.count, 1);
+            assert.equal(check.base, check.sourceUrl);
+        }
+        assert.equal(result.styleCount, 3);
+        assert.equal(result.stylesAfter, result.styleCount);
+        assert.ok(result.diagnostics.includes('cem-element.registry_same_scope_duplicate'));
+        assert.equal(await page.locator('#bundle-action button').getAttribute('aria-pressed'), 'true');
+        await page.locator('#bundle-select [role=combobox]').click();
+        await page.locator('#bundle-select [role=option]').filter({ hasText: 'Grace' }).click();
+        assert.equal(await page.locator('#bundle-select').evaluate(host => host.value), 'grace');
+        assert.deepEqual(errors, []);
     } finally { await page.close(); }
 }

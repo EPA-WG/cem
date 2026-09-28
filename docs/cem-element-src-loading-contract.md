@@ -93,6 +93,29 @@ Template-visible resource state MUST follow the portable lifecycle names and tra
 [CEM-ML Resource And AST Stream Lifecycle](./cem-ml-resource-lifecycle.md). Hosts MAY expose additional internal states,
 but they MUST map to the CEM-ML lifecycle before templates observe them.
 
+## Retained source bases in external fragments
+
+For external `src="url#id"` declarations, `xml:base` on the selected template
+and its source-document ancestors preserves the original resource location.
+Values resolve from outermost ancestor to the selected template against the
+loader's final document URL, including redirects. Empty values inherit the
+current base. Invalid URLs or values containing fragments reject registration
+with `cem-element.src_base_invalid`; there is no fallback to the bundle URL.
+
+The shared native URL boundary validates the scalar base chain. The effective
+base feeds the existing declaration identity, module URL context, template
+imports, nested declarations, resource requests and retained stylesheet loader.
+Acquisition provenance still identifies the fetched document and selected
+fragment. This metadata performs no fetch and does not change resource policy.
+
+A generated bundle can wrap a copied declaration in a container such as
+`<section xml:base="../src/components/cem-select/cem-select.xhtml">` while keeping
+the original declaration and template intact. Consumers continue to supply
+capability metadata, such as `capability="choice-select"`, explicitly. Other
+source-wrapper attributes are not inherited. This addition applies to external
+fragment loading; inline, local-fragment and whole-document loading retain their
+existing contracts.
+
 ## Ordinary Navigation Links
 
 `<cem-element link-base="source" src="./docs/page.html">` opts the declaration's

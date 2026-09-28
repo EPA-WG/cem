@@ -608,3 +608,24 @@ fn direct_cli_reports_import_cycles_depth_limits_and_recursion_limits() {
         "cem.transform_template.recursion_limit"
     ));
 }
+
+#[test]
+fn component_bundle_preserves_template_text_and_source_base() {
+    let root = fixture_root("component-bundle");
+    let graph = root.join("build/components.transform.cem");
+    write(&graph, include_str!("../../cem-components/build/components.transform.cem"));
+    write(&root.join("build/components.cemt"), include_str!("../../cem-components/build/components.cemt"));
+    for name in ["cem-alpha", "cem-beta"] {
+        write(&root.join(format!("src/components/{name}/{name}.xhtml")), &format!(
+            r#"<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="{name}" capability="choice-select"><template id="{name}" type="text/cem-ml">{{p | A &amp; B &lt; C}}</template></cem-element>"#));
+    }
+    let output = cem_ml(&["transform", "--config", graph.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(EXIT_OK), "{}", stderr(&output));
+    let bundle = fs::read_to_string(root.join("dist/components.xhtml")).unwrap();
+    for name in ["cem-alpha", "cem-beta"] {
+        assert!(bundle.contains(&format!("xml:base=\"../src/components/{name}/{name}.xhtml\"")), "{bundle}");
+        assert!(bundle.contains(&format!("id=\"{name}\"")), "{bundle}");
+    }
+    assert_eq!(bundle.matches("capability=\"choice-select\"").count(), 2);
+    assert_eq!(bundle.matches("{p | A &amp; B &lt; C}").count(), 2, "{bundle}");
+}

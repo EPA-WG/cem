@@ -734,3 +734,30 @@ Completed 2026-09-28.
   component and two runtime warnings. Legacy state-suite debt remains separate.
 - Next: generate and verify the combined release XHTML bundle through the CEM
   AST pipeline, including fragment loading, dependencies and style ownership.
+
+## Release XHTML bundle and retained source context
+
+Completed 2026-09-28 after the user approved preserving source bases.
+
+- Added shared native URL-chain validation, exposed through WASM. External
+  fragment declarations apply the selected template's `xml:base` ancestor chain
+  against the final fetched URL. Invalid metadata rejects registration. The
+  effective base reaches existing resource/style identities while acquisition
+  provenance retains the fetched document and fragment.
+- Added a native CEM AST graph that collects canonical XHTML and exports
+  `components.xhtml`, with copied declarations under source-base containers.
+  Template text is unchanged. The package exports the bundle and includes its
+  original sources, build inputs and companion playground.
+- Native checks: three source-base tests and one CLI bundle fixture pass.
+  Browser checks: all 77 stories in the main runtime and source-context files
+  pass. Source and isolated-package playground journeys verify all three bundled
+  components, unique IDs, exact template text, metadata, effective bases, one
+  retained stylesheet per declaration, selection and duplicate rejection.
+  Separate stories cover redirects, relative CSS imports, distinct fragment
+  bases in one cached document and invalid metadata.
+- Component/runtime lint, typecheck and package checks pass. Lint retains the
+  existing 48 component and two runtime warnings. Overlapping verification
+  initially raced on generated CEM-ML WASM package files; sequential rebuilding
+  and verification passed. No build retry or wait-limit workaround was added.
+- The accepted component development pattern is complete. Next: investigate the
+  recorded legacy component state-suite failures before continuing migration.

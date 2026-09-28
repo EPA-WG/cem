@@ -23,4 +23,9 @@
   {import @id=legacy-icon @src="../../custom-element/material/components/icon.html" @content-type="text/html" @opaque=true |
     {export @id=icon-html @out="../dist/icon.html" @content-type="text/html"}
   }
+  {import @id=bundle-playground @src="cem-bundle.html" @content-type="text/html" |
+    {rewrite-importmap @id=bundle-map @source-map="bundle.importmap.source.json" @target-map="bundle.importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=bundle-html @out="../dist/cem-bundle.html" @content-type="text/html"}
+    }
+  }
 }

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CEM release bundle playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components.xhtml": "../dist/components.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+window.cemPlaygroundRuntime = installCemElementRuntime(window);
+</script>
+<style>body { margin: 0; font-family: system-ui, sans-serif; } #bundle-theme { padding: 2rem; min-height: 100vh; box-sizing: border-box; } main { display: grid; gap: 1.5rem; max-width: 40rem; } </style>
+</head>
+<body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=bundleUrl @src="@epa-wg/cem-components/components.xhtml"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.bundleUrl" |
+  {cem-element @tag=cem-action @src="{$datadom.slices.bundleUrl}#cem-action"}
+  {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.bundleUrl}#cem-select"}
+  {cem-element @tag=cem-theme-switch @src="{$datadom.slices.bundleUrl}#cem-theme-switch"}
+}
+</template></cem-element>
+<cem-theme-switch id="bundle-theme" mode="light">
+<h1>CEM release bundle</h1>
+<p>These components load from the generated <code>components.xhtml</code> through their template IDs.</p>
+<main>
+<cem-action id="bundle-action" label="Bundled action" size="large" selected selectable></cem-action>
+<cem-select id="bundle-select" label="Bundled select" name="person" value="ada">
+<cem-option value="ada">Ada</cem-option><cem-option value="grace">Grace</cem-option>
+</cem-select>
+<p><a href="./cem-action.html">Action properties</a> · <a href="./cem-select.html">Select properties</a></p>
+<p>Individual definitions and their source playgrounds remain included. The bundle preserves each declaration's original resource base.</p>
+</main>
+</cem-theme-switch>
+</body></html>

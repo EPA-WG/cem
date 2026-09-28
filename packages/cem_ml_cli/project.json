@@ -116,6 +116,8 @@
         },
         "test": {
             "inputs": [
+                "{workspaceRoot}/packages/cem-components/build/*.cem",
+                "{workspaceRoot}/packages/cem-components/build/*.cemt",
                 "default",
                 "^default",
                 "{workspaceRoot}/packages/cem-elements/demo/data-table-view.xslt"
@@ -180,6 +182,8 @@
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
+                "{workspaceRoot}/packages/cem-components/build/*.cem",
+                "{workspaceRoot}/packages/cem-components/build/*.cemt",
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/**/*.rs",
                 "{projectRoot}/Cargo.toml",

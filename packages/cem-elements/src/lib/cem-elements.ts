@@ -34,6 +34,7 @@ import {
     convertLegacyTemplate,
     processCemMlTemplate,
     resolveRenderPlanLinks,
+    resolveDeclarationResourceBase,
     preflightCemMlTemplateModules,
     preflightXsltModules,
     type CemXsltComponentOptions,
@@ -2195,8 +2196,32 @@ export class CemElementRuntime {
             ]);
             return;
         }
+        let resourceBaseUrl = loaded.source.resourceBaseUrl;
+        if (loaded.kind !== 'xslt' && reference.id.length > 0) {
+            const bases: string[] = [];
+            const target = document.getElementById(reference.id);
+            // Metadata belongs to the selected source, before template cloning.
+            const selected = target?.localName === 'template' ? target
+                : target ? directTemplateChildren(target)[0] ?? target : null;
+            for (let element: Element | null = selected; element; element = element.parentElement) {
+                const base = element.getAttribute('xml:base');
+                if (base !== null) bases.unshift(base);
+            }
+            if (bases.length) {
+                try {
+                    resourceBaseUrl = await resolveDeclarationResourceBase(resourceBaseUrl, bases);
+                } catch (error) {
+                    this.recordDiagnostics(declarationElement, [declarationDiagnostic(
+                        'cem-element.src_base_invalid',
+                        `invalid source base for \`${src}\`: ${String(error)}`, tag,
+                    )]);
+                    return;
+                }
+            }
+        }
         await this.registerResolvedDeclaration(declarationElement, tag, declarationVersion, sourceTemplate, [], declarationScope, {
             ...loaded.source,
+            resourceBaseUrl,
             ...(loaded.kind === 'xslt'
                 ? {
                       templateLanguage: 'xslt' as const,

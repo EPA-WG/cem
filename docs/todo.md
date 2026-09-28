@@ -8,18 +8,19 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
-## Immediate: Release bundle source-context decision
+## Completed: Release XHTML bundle and source context
 
 - [x] Fixture: characterize relative module URLs in individual and combined
       fragment sources, including retained `xml:base`.
-- [ ] Decide whether the shared loader should preserve original source-base
-      metadata (recommended), or the native bundle transform should relocate
-      relative dependencies. Stop before changing the loading contract.
+- [x] Decision: preserve original source-base metadata in the shared loader
+      (user approved the recommended approach).
+- [x] Fixture: native source-base chain validation and browser fragment parity,
+      invalid metadata, source identity, dependencies and styles.
 
-The passing fixture confirms that moving unchanged template text into the bundle
-changes relative module URLs; retained `xml:base` is currently ignored by fragment
-loading. See the [evidence and options](component-bundle-source-context.md).
-The bundle remains unshipped pending this decision.
+The generated `components.xhtml` bundle and its playground now ship alongside
+canonical source. The shared loader preserves original resource bases through
+`xml:base`, with native validation. Source and isolated-package checks pass;
+see [delivery evidence](component-bundle-source-context.md).
 
 ## Completed: Component galleries and module-URL startup settlement
 
@@ -35,7 +36,7 @@ The action gallery covers all 20 explicitly implemented attributes. The select
 companion and listbox scrolling fix are complete. Verification and remaining
 scope are recorded in the [completion log](archive/todo-completed-2026-09-27.md#component-galleries-and-module-url-settlement)
 and [startup review](browser-stabilization-review.tmp.md#gallery-module-url-settlement-recurrence).
-The next component-development item is the release XHTML bundle below.
+The release XHTML bundle is also complete; remaining migration work is below.
 
 ## Completed: Selected actions and state-specific input indicators
 
@@ -378,7 +379,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
 - [x] Fixture: action playground enumerated options use visible, labeled radio
       groups; verify initial selection, mouse and keyboard changes, exclusivity
       and retained selection after other property edits in source/package previews.
-- [ ] Implement the accepted [component development pattern](component-development-pattern.md)
+- [x] Implement the accepted [component development pattern](component-development-pattern.md)
       first for `cem-action`, then apply it to `cem-select` and future components.
     - [x] Fixture: event bindings read the live string value of form-associated
           custom controls through `$target.value`, value aliases, defaults and
@@ -406,7 +407,7 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
               during initial rendering and keyboard navigation.
     - [x] Fixture: characterize individual/bundled resource bases; record the
           [source-context decision](component-bundle-source-context.md) above.
-    - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
+    - [x] Fixture: generate the release XHTML bundle through the CEM AST pipeline
           and compare individual versus `#ID` loading, relative dependencies,
           style ownership and duplicate registration; ship source and playground.
 - [ ] Migrate remaining Studio and Site visible DOM construction, UI listeners,

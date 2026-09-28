@@ -223,6 +223,10 @@ if (packageJson.exports?.['./catalog/cem.components.catalog.json'] !== publicCat
     );
 }
 
+if (packageJson.exports?.['./components.xhtml'] !== './dist/components.xhtml') {
+    throw new Error('package.json must export the generated component bundle');
+}
+
 if (packageJson.exports?.['./components/*'] !== publicComponentExport) {
     throw new Error(`package.json must export declarative component XHTML from ${publicComponentExport}`);
 }
@@ -282,12 +286,12 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
-    for (const page of ['cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
+    for (const page of ['cem-bundle.html', 'cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
         if (packageJson.exports?.[`./playgrounds/${page}`] !== `./dist/${page}` || !packedFiles.includes(`dist/${page}`)) {
             throw new Error(`npm pack must expose the built playground ${page}`);
         }
     }
-    for (const source of ['playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
+    for (const source of ['dist/components.xhtml', 'build/components.cemt', 'build/components.transform.cem', 'playgrounds/cem-bundle.html', 'playgrounds/bundle.importmap.source.json', 'playgrounds/bundle.importmap.package.json', 'playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
         if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
     }
 

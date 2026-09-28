@@ -140,6 +140,15 @@ enum WasmModuleUrlReferrer {
     Context { context: CemResolutionContextHandle },
 }
 
+/// Scalar source-base metadata transport; no AST/DOM handoff.
+#[wasm_bindgen(js_name = "resolveResourceBase")]
+pub fn resolve_resource_base_json(document_url: &str, bases_json: &str) -> Result<String, JsValue> {
+    let bases: Vec<String> = serde_json::from_str(bases_json)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    crate::resource_base::resolve_resource_base(document_url, &bases)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
 /// Scalar navigation URL transport, with no AST/DOM or module-map handoff.
 #[wasm_bindgen(js_name = "resolveNavigationLinks")]
 pub fn resolve_navigation_links_json(source_url: &str, hrefs_json: &str) -> Result<String, JsValue> {

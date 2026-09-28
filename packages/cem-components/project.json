@@ -4,6 +4,30 @@
     "sourceRoot": "packages/cem-components/src",
     "projectType": "library",
     "targets": {
+        "build:bundle": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "cwd": "packages/cem-components",
+                "command": "../../dist/target/cem_ml_cli/debug/cem-ml transform --config build/components.transform.cem"
+            },
+            "inputs": [
+                "{projectRoot}/build/**/*",
+                "{projectRoot}/src/components/**/*.xhtml"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/components.xhtml",
+                "{projectRoot}/dist/components.xhtml.map"
+            ]
+        },
         "build:playgrounds": {
             "cache": true,
             "executor": "nx:run-commands",
@@ -28,7 +52,8 @@
                 "{projectRoot}/dist/cem-select.html",
                 "{projectRoot}/dist/cem-theme-switch.html",
                 "{projectRoot}/dist/cem-action-gallery.html",
-                "{projectRoot}/dist/icon.html"
+                "{projectRoot}/dist/icon.html",
+                "{projectRoot}/dist/cem-bundle.html"
             ]
         },
         "verify-playgrounds": {
@@ -54,7 +79,7 @@
             "outputs": []
         },
         "build": {
-            "dependsOn": ["^build", "build:styles", "build:catalog", "build:playgrounds"]
+            "dependsOn": ["^build", "build:styles", "build:catalog", "build:playgrounds", "build:bundle"]
         },
         "test": {
             "dependsOn": [
