@@ -623,3 +623,30 @@ Spacing mode overrides (`cem-dim-spacing-overrides`) produce no new token names 
 - [D5. Stroke & Separation](./cem-stroke.md) — boundaries, dividers, focus/selection/target indicators
 - [D6. Typography](./cem-voice-fonts-typography.md) — reading rhythm validation
 - [D7. Time & Motion](./cem-timing.md) — rhythm perception
+
+## Decision: optional component dimensions and compact hit areas
+
+Control size belongs to [D2c Controls](./cem-controls.md),
+while [D2 Coupling](./cem-coupling.md) owns operability and D1 owns layout spacing.
+Do not map control `size="large"` to the D1 spacing token `--cem-dim-large`.
+
+- Omitted size keeps inherited control geometry (currently a `2.5rem` visual
+  minimum); content and container flex/grid allocation determine the final box.
+- Optional small / medium / large / x-large profiles use minimum visible heights
+  of `2.5rem` / `3rem` / `4rem` / `6rem`. Large profiles support vertical rhythm
+  when actions participate in layouts. They do not fix width or cap growth.
+- Containers select `data-cem-size`; action exposes `size` as a local override.
+  Removing it restores inheritance. Other controls can adopt this shared pattern.
+- The native control owns at least `--cem-coupling-zone-min` in both axes
+  (currently `3rem`). Small requested geometry reserves a transparent hit border
+  inside that box; profiles meeting the minimum need no expansion. This includes
+  the omitted/default and compact-coupling cases, not just explicit `small`.
+- Paint retains the compact surface and theme curvature; zebra encloses the
+  operable bounds. The expanded region is clickable, participates in layout,
+  and respects guard spacing. There is no overlapping absolute hit halo or
+  extra interactive element.
+- Typography, icons and padding retain their existing theme values in this
+  increment. Size, spacing and coupling remain separate choices.
+
+The `3rem` target is CEM policy, not a claim of automatic ADA conformance. At a
+16px root it is 48 CSS pixels; consumers must assess actual computed dimensions.

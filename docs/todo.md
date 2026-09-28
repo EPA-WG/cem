@@ -8,6 +8,20 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Action dimensions and compact hit areas
+
+- [x] Document optional theme size profiles and conditional native hit areas in the dimensions, controls and coupling specifications.
+- [x] Generate reusable size profiles and preserve their public token exports.
+- [x] Apply inherited/explicit sizes to action and reserve compact hit areas in layout.
+- [x] Fixture: verify size inheritance/removal, both-axis targets, compact edge activation, disabled/form behavior, spacing, stretching, bends and pending/focus paint.
+- [x] Add size radios and layout examples to the property playground; verify source and installed-package pages.
+- [x] Finish theme generator verification, record evidence, commit and push.
+
+Verification: 13 action browser stories, source/isolated-package playgrounds,
+component package/style checks and typecheck pass. Lint passes with existing
+non-null assertion warnings. Theme generation, token exports, manifest validation
+and the Phase 13 browser verifier pass. See [completion evidence](archive/todo-completed-2026-09-27.md#action-dimensions-and-compact-hit-areas).
+
 ## Completed: Theme switch component and playground integration
 
 - [x] Add a reusable `cem-theme-switch` component with visible Light / Dark /

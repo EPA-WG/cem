@@ -579,3 +579,35 @@ playground checks pass, including reduced-motion and forced-colors coverage.
 - The clean full browser run does not attribute or close the older intermittent
   startup investigations. The next component development step is the companion
   property playground/source view for `cem-select`, using this shared switch.
+
+
+## Action dimensions and compact hit areas
+
+- Recorded the shared dimension decision in `cem-dimension.md`, with controls,
+  coupling and shape specifications carrying their respective contracts.
+- Added Markdown-owned control height profiles: small 2.5rem, medium 3rem,
+  large 4rem, x-large 6rem. Generated CSS exposes inherited `data-cem-size`
+  profiles; public token exports retain all four new properties.
+- Action's optional `size` selects the theme profile on its host. Omission or
+  removal restores inherited geometry; content and flex/grid layout can grow
+  the control. Typography, icon sizes and padding retain existing theme values.
+- Native buttons reserve at least the coupling minimum in both axes. Compact
+  requested geometry uses a transparent border with padding-box background
+  clipping; profiles meeting the minimum have zero hit border. No extra
+  interactive element or JavaScript behavior was introduced. Layout owners
+  continue to provide the coupling guard between targets.
+- Round geometry re-resolves at local size boundaries. Public host radius
+  overrides remain effective, and zebra encloses the complete operable target.
+- Added size radios and content/inherited/stretched examples to the playground.
+  Source and isolated-package verification exercise every size and removal.
+- Verification: 13 action browser stories pass, including size inheritance,
+  instance overrides/removal, custom profile/radius values, compact/forgiving
+  coupling, icon targets, stretch, native edge clicks and form submission,
+  disabled behavior, pending gradients and keyboard zebra. Theme generation,
+  token exports, all manifest checks and the Phase 13 generator/browser verifier
+  pass. Component declarative/style/package checks, typecheck and source/package
+  playgrounds pass. Lint passes with 48 existing non-null assertion warnings;
+  fixed the existing unused style-read expression and documented the HTML-only
+  playground dependency for Nx dependency checking.
+- Next component development item: the `cem-select` companion property
+  playground/source view with the shared theme switch and package preview checks.

@@ -8,6 +8,119 @@ const meta = preview.meta({
     loaders: [async () => { await loadCemDeclaration('cem-action', declarationSource); return {}; }],
 });
 
+export const Dimensions = meta.story({
+    render: () => `<section class="cem-theme-light" data-cem-size="large" style="display:grid;gap:var(--cem-coupling-guard-min);justify-items:start">
+        <cem-action class="cem-bend-round">Inherited</cem-action>
+        ${['small', 'medium', 'large', 'x-large'].map(size => `<cem-action size="${size}" class="cem-bend-round">${size}</cem-action>`).join('')}
+        <div style="display:flex;width:320px;height:160px"><cem-action size="medium" style="flex:1">Stretched</cem-action></div>
+        <cem-action size="small" aria-label="Icon action"><span aria-hidden="true">+</span></cem-action>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('section') as HTMLElement;
+        const hosts = [...container.querySelectorAll<HTMLElement>('cem-action')];
+        for (const host of hosts) await whenCemRendered(host);
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const control = (host: HTMLElement) => host.querySelector('button') as HTMLButtonElement;
+        const check = async (host: HTMLElement, height: number) => {
+            const button = control(host);
+            const rect = button.getBoundingClientRect();
+            const style = getComputedStyle(button);
+            await expect(rect.height).toBeCloseTo(Math.max(3, height) * rem);
+            await expect(rect.width).toBeGreaterThanOrEqual(3 * rem);
+            await expect(parseFloat(style.borderTopWidth)).toBeCloseTo(Math.max(0, (3 - height) / 2) * rem);
+            await expect(style.backgroundClip).toBe('padding-box');
+            await expect(parseFloat(style.borderRadius) * 2).toBeCloseTo(rect.height);
+            await expect(host.getBoundingClientRect().height).toBeCloseTo(rect.height);
+        };
+        for (const [i, height] of [4, 2.5, 3, 4, 6].entries()) await check(hosts[i], height);
+        const original = control(hosts[0]);
+        hosts[0].setAttribute('size', 'small');
+        await whenCemRendered(hosts[0]);
+        await check(hosts[0], 2.5);
+        hosts[0].removeAttribute('size');
+        await whenCemRendered(hosts[0]);
+        await check(hosts[0], 4);
+        container.setAttribute('data-cem-size', 'x-large');
+        await check(hosts[0], 6);
+        await check(hosts[1], 2.5);
+        hosts[0].setAttribute('size', 'unknown');
+        await whenCemRendered(hosts[0]);
+        await check(hosts[0], 6);
+        await expect(control(hosts[0])).toBe(original);
+        const stretched = control(hosts[5]).getBoundingClientRect();
+        await expect(stretched.width).toBe(320);
+        await expect(stretched.height).toBe(160);
+        await expect(parseFloat(getComputedStyle(control(hosts[5])).borderTopWidth)).toBe(0);
+        const icon = control(hosts[6]).getBoundingClientRect();
+        await expect(icon.width).toBeGreaterThanOrEqual(3 * rem);
+        await expect(icon.height).toBeGreaterThanOrEqual(3 * rem);
+        // Consumers may override a public profile without losing the safety minimum.
+        container.style.setProperty('--cem-control-height-small', '2rem');
+        await check(hosts[1], 2);
+        container.removeAttribute('data-cem-size');
+        hosts[0].removeAttribute('size');
+        await whenCemRendered(hosts[0]);
+        await check(hosts[0], 2.5);
+        hosts[0].style.setProperty('--cem-action-border-radius', '3px');
+        await whenCemRendered(hosts[0]);
+        await expect(parseFloat(getComputedStyle(original).borderRadius) - parseFloat(getComputedStyle(original).borderTopWidth)).toBe(3);
+        hosts[0].style.removeProperty('--cem-action-border-radius');
+        await whenCemRendered(hosts[0]);
+        await check(hosts[0], 2.5);
+        const root = document.documentElement;
+        const coupling = root.getAttribute('data-cem-coupling');
+        try {
+            for (const [mode, height] of [['compact', 2.25], ['forgiving', 2.75]] as const) {
+                root.setAttribute('data-cem-coupling', mode);
+                await check(hosts[0], height);
+                await check(hosts[2], 3);
+            }
+        } finally {
+            if (coupling === null) root.removeAttribute('data-cem-coupling');
+            else root.setAttribute('data-cem-coupling', coupling);
+        }
+    },
+});
+
+export const CompactHitArea = meta.story({
+    parameters: { docs: { description: { story: 'Trusted edge clicks run in the Vitest browser runner; the entire transparent compact border belongs to the native button.' } } },
+    render: () => `<form class="cem-theme-light" style="display:flex;gap:var(--cem-coupling-guard-min)">
+        <cem-action size="small" type="submit">Save</cem-action>
+        <cem-action size="small" disabled loading="true">Disabled</cem-action>
+    </form>`,
+    play: async ({ canvasElement }) => {
+        const form = canvasElement.querySelector('form') as HTMLFormElement;
+        const hosts = [...form.querySelectorAll<HTMLElement>('cem-action')];
+        for (const host of hosts) await whenCemRendered(host);
+        const [button, disabled] = hosts.map(host => host.querySelector('button') as HTMLButtonElement);
+        let clicks = 0, submits = 0, disabledClicks = 0;
+        button.addEventListener('click', () => clicks++);
+        disabled.addEventListener('click', () => disabledClicks++);
+        form.addEventListener('submit', event => { event.preventDefault(); submits++; });
+        const first = button.getBoundingClientRect();
+        const second = disabled.getBoundingClientRect();
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        await expect(second.left - first.right).toBeGreaterThanOrEqual(.5 * rem);
+        await expect(document.elementFromPoint(first.left + 1, first.top + first.height / 2)).toBe(button);
+        await expect(document.elementFromPoint(first.right + (second.left - first.right) / 2, first.top + first.height / 2)).not.toBe(button);
+        await expect(getComputedStyle(disabled).backgroundImage).toContain('linear-gradient(45deg');
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        await native.click(button, { position: { x: 1, y: first.height / 2 } });
+        await expect(clicks).toBe(1);
+        await expect(submits).toBe(1);
+        await native.click(disabled, { position: { x: 1, y: second.height / 2 }, force: true });
+        await expect(disabledClicks).toBe(0);
+        await expect(submits).toBe(1);
+        button.focus();
+        await native.keyboard('[Space]');
+        await expect(clicks).toBe(2);
+        await expect(submits).toBe(2);
+        await expect(button.matches(':focus-visible')).toBe(true);
+        await expect(getComputedStyle(button).boxShadow).not.toBe('none');
+    },
+});
+
 export const ThemeOverrides = meta.story({
     parameters: { docs: { description: { story: 'Container and individual host overrides use existing theme tokens. Trusted hover/active checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light"><cem-action>First</cem-action><cem-action>Sibling</cem-action></section>`,
@@ -150,7 +263,7 @@ export const LoadingColors = meta.story({
             host.setAttribute('loading', 'true');
             await whenCemRendered(host);
             await expect(button).toHaveAttribute('aria-busy', 'true');
-            getComputedStyle(button).backgroundColor;
+            void getComputedStyle(button).backgroundColor;
             const transitions = button.getAnimations();
             if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 await expect(transitions.length).toBeGreaterThan(0);

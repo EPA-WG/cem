@@ -9,7 +9,19 @@
             display: none;
         }
         :scope {
-            display: inline-block;
+            display: inline-flex;
+        }
+        :scope:where([size="small"]) {
+            --cem-control-height: var(--cem-control-height-small);
+        }
+        :scope:where([size="medium"]) {
+            --cem-control-height: var(--cem-control-height-medium);
+        }
+        :scope:where([size="large"]) {
+            --cem-control-height: var(--cem-control-height-large);
+        }
+        :scope:where([size="x-large"]) {
+            --cem-control-height: var(--cem-control-height-x-large);
         }
         :scope > button[part~='control'] {
             display: inline-flex;
@@ -18,24 +30,28 @@
             white-space: nowrap;
             gap: var(--cem-dim-x-small);
             box-sizing: border-box;
-            min-block-size: var(--cem-shape-height, var(--cem-control-height));
+            flex: 1;
+            min-inline-size: var(--cem-coupling-zone-min);
+            min-block-size: max(var(--cem-coupling-zone-min), var(--cem-shape-height, var(--cem-control-height)));
             padding-inline: var(--cem-control-padding-x);
             padding-block: var(--cem-control-padding-y);
             appearance: none;
-            border: 0;
-            border-radius: var(--cem-action-border-radius);
+            /* The transparent native border reserves compact hit space in layout. */
+            border: max(0px, calc((var(--cem-coupling-zone-min) - var(--cem-shape-height, var(--cem-control-height))) / 2)) solid transparent;
+            background-clip: padding-box;
+            border-radius: calc(var(--cem-action-border-radius) + max(0px, calc((var(--cem-coupling-zone-min) - var(--cem-shape-height, var(--cem-control-height))) / 2)));
             width: 100%;
         }
-        :scope:is(.cem-bend-sharp, .cem-bend-smooth, .cem-bend-round) {
+        :scope:where(.cem-bend-sharp, .cem-bend-smooth, .cem-bend-round) {
             --cem-action-border-radius: var(--cem-bend);
         }
-        :scope.cem-bend-sharp {
+        :scope:where(.cem-bend-sharp) {
             --cem-bend: var(--cem-bend-sharp);
         }
-        :scope.cem-bend-smooth {
+        :scope:where(.cem-bend-smooth) {
             --cem-bend: var(--cem-bend-smooth);
         }
-        :scope.cem-bend-round {
+        :scope:where(.cem-bend-round) {
             --cem-bend: var(--cem-bend-round);
         }
         :scope > button[part~='control']:where([aria-busy='true']) {

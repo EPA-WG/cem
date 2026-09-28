@@ -112,9 +112,9 @@ async function verify(url) {
             }, { label, option: option.toLowerCase() });
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
-        assert.equal(await page.getByRole('radiogroup').count(), 7);
-        assert.equal(await page.getByRole('radio').count(), 21);
-        for (const [label, value] of [['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
+        assert.equal(await page.getByRole('radiogroup').count(), 8);
+        assert.equal(await page.getByRole('radio').count(), 26);
+        for (const [label, value] of [['Size', 'Inherited'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             for (const radio of await group.getByRole('radio').all()) assert(await radio.isVisible());
@@ -122,6 +122,16 @@ async function verify(url) {
         for (const variant of ['Explicit', 'Contextual', 'Alternate', 'Destructive', 'Primary']) {
             await choose('Intent', variant);
             await page.waitForFunction(variant => document.querySelector('#action-preview')?.getAttribute('variant') === variant, variant.toLowerCase());
+        }
+        for (const [size, height] of [['Small', 3], ['Medium', 3], ['Large', 4], ['X-large', 6], ['Inherited', 3]]) {
+            await choose('Size', size);
+            await page.waitForFunction(({ size, height }) => {
+                const host = document.querySelector('#action-preview');
+                const button = host?.querySelector('button');
+                const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+                return host?.getAttribute('size') === (size === 'Inherited' ? null : size.toLowerCase()) &&
+                    button?.getBoundingClientRect().height === height * rem;
+            }, { size, height });
         }
         const primary = page.getByRole('radiogroup', { name: 'Intent', exact: true }).getByRole('radio', { name: 'Primary', exact: true });
         await primary.focus();
@@ -188,7 +198,7 @@ async function verify(url) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());
         }
-        for (const [label, value] of [['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Expanded', 'Unset']]) {
+        for (const [label, value] of [['Size', 'Inherited'], ['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             assert.equal(await group.locator('input:checked').count(), 1);
@@ -204,7 +214,7 @@ async function verify(url) {
         assert(await button.evaluate(node => node.matches(':focus-visible')));
         assert.notEqual(await button.evaluate(node => getComputedStyle(node).boxShadow), 'none');
         assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
-        assert.equal(await page.locator('cem-action').count(), 1);
+        assert.equal(await page.locator('cem-action').count(), 4);
         assert.equal(await page.locator('cem-demo-element cem-action, cem-demo-element cem-element').count(), 0);
         assert((await page.locator('cem-demo-element').innerText()).includes('id="cem-action"'));
         assert.equal(await page.locator('cem-element[tag="cem-action"]').count(), 1);

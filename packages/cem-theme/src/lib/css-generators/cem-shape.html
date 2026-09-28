@@ -79,6 +79,11 @@
   /* endregion action component bindings */
 }
 
+/* Re-resolve height-dependent geometry at local profile boundaries. */
+:where([data-cem-size], [size]) {```{cem:for-each @select="$datadom.slices.basis" @as="row" |{cem:if @test='row.token == "--cem-bend-round"' |```
+  ```{$row.token}: {$row.value};}}```
+}
+
 /* region shape mode: sharp — technical, precise brand expression */
 :root[data-cem-shape="sharp"] {```{call @from=docs @template=css-properties @with:rows={datadom.slices.sharp} @with:indent="  "}```
 }

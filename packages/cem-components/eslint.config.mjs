@@ -8,6 +8,8 @@ export default [
       '@nx/dependency-checks': [
         'error',
         {
+          // Loaded by the shipped HTML playgrounds through page-level import maps.
+          ignoredDependencies: ['@epa-wg/cem-demo-element'],
           ignoredFiles: [
             '{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}',
             '{projectRoot}/vite.config.{js,ts,mjs,mts}',

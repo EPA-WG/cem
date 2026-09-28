@@ -24,7 +24,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-controls-template"
           data-token-url="../../../dist/lib/tokens/cem-controls.xhtml"
-          data-slices="geometry=cem-controls-geometry progress=cem-progress-geometry slider=cem-slider-geometry overrides=cem-controls-geometry-overrides">
+          data-slices="sizes=cem-controls-size-profiles geometry=cem-controls-geometry progress=cem-progress-geometry slider=cem-slider-geometry overrides=cem-controls-geometry-overrides">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -79,7 +79,13 @@
   ```{$row.token}: {$row.compact};}```
 }
 /* endregion coupling mode: compact */
-```}}
+
+/* Optional inherited size profiles; explicit geometry wins over coupling height. */
+```{cem:for-each @select="$datadom.slices.sizes" @as="row" |```
+:root[data-cem-size="```{$row.size}```"], :where([data-cem-size="```{$row.size}```"]) {
+  --cem-control-height: ```{$row.height}```;
+}
+```} }}
 }
 }
 </template>

@@ -162,7 +162,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
+| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large"` overrides inherited control height. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
 | `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
@@ -417,3 +417,14 @@ Eligible authored descendants retain their own focus styling. Static dialog
 wrappers, feedback hosts, and sheets receive no `tabindex`, `:focus-within`, or
 component focus paint, and focus never changes their geometry, DOM, ARIA, or
 lifecycle state.
+
+### Action dimensions
+
+`size` selects a theme minimum visible height: small `2.5rem`, medium `3rem`,
+large `4rem`, x-large `6rem`. Omit/remove it to inherit container geometry,
+including `data-cem-size`. Width and flex/grid stretch remain CSS layout concerns.
+The native button reserves at least `--cem-coupling-zone-min` in both axes;
+compact profiles use a transparent hit border and clip paint to the padding box.
+This border is not a visible intent outline. Zebra marks the complete target.
+Keep at least `--cem-coupling-guard-min` between neighboring targets.
+See the [dimension decision](../../cem-theme/src/lib/tokens/cem-dimension.md#decision-optional-component-dimensions-and-compact-hit-areas).

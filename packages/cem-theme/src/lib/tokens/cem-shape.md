@@ -780,3 +780,12 @@ Generator derivation rules:
 - [D2c. Controls](./cem-controls.md) — visual control geometry, including `--cem-control-height`
 - [D6. Typography](./cem-voice-fonts-typography.md) — voice and typography tokens
 - [D7. Time & Motion](./cem-timing.md) — timing and easing tokens
+
+### Local size boundaries
+
+The generator re-emits the canonical `--cem-bend-round` formula at
+`[data-cem-size]` and component `[size]` boundaries so it resolves against the selected control height.
+This avoids inheriting a radius already computed from an ancestor's height.
+Components select geometry and bind bend on their host so public instance
+overrides retain their precedence. Compact hit-area borders add their inset to the outer
+radius so the clipped painted surface retains the theme radius.

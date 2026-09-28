@@ -495,3 +495,13 @@ Generator derivation rules:
 - `zone-min` and `guard-min` are never overridden per mode (mode-invariant).
 - Visual control geometry (`--cem-control-*`, `--cem-icon-button-*`, row heights) is owned by D2c Controls and is NOT
   declared by this generator. See [`cem-controls.md`](./cem-controls.md) §7.
+
+### Compact action implementation
+
+Action uses its native button for the whole operable zone. A transparent border
+reserves hit space when the requested visible height is below zone-min; CSS clips
+paint to the padding box. The border becomes zero for geometry at or above the
+minimum. Focus surrounds the target, disabled applies to all of it, and adjacent
+targets must retain guard-min spacing. Prefer this layout-reserved approach to an
+absolute halo that overlaps neighboring controls. See the
+[dimensions decision](./cem-dimension.md#decision-optional-component-dimensions-and-compact-hit-areas).

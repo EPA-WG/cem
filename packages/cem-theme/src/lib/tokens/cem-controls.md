@@ -82,6 +82,10 @@ Boundary heuristic:
 | Token                         | Value                          | Description                                                       | tier        |
 |-------------------------------|--------------------------------|-------------------------------------------------------------------|-------------|
 | `--cem-control-height`        | `2.5rem`                       | Generic control height                                            | recommended |
+| `--cem-control-height-small` | `2.5rem` | Small control profile minimum visible height | recommended |
+| `--cem-control-height-medium` | `3rem` | Medium control profile minimum visible height | recommended |
+| `--cem-control-height-large` | `4rem` | Large control profile minimum visible height | recommended |
+| `--cem-control-height-x-large` | `6rem` | X-large control profile minimum visible height | recommended |
 | `--cem-control-padding-x`     | `0.75rem`                      | Generic control inline padding                                    | recommended |
 | `--cem-control-padding-y`     | `0.5rem`                       | Generic control block padding                                     | recommended |
 | `--cem-icon-button-size`      | `var(--cem-coupling-zone-min)` | Icon button visible container size; meets zone minimum by default | recommended |
@@ -90,6 +94,36 @@ Boundary heuristic:
 | `--cem-list-popup-rows`       | `8`                            | Default maximum visible rows in a transient list popup            | recommended |
 | `--cem-menu-row-height`       | `3rem`                         | Menu row height                                                   | recommended |
 | `--cem-table-row-height`      | `2.5rem`                       | Data table row height                                             | recommended |
+
+### 3.1.1 Optional size profiles
+
+`data-cem-size="small|medium|large|x-large"` selects an inherited control-height
+profile on any container. Components may expose `size` with the same values and
+select the corresponding public height token on their host. Omission (or an unknown
+value) adds no local height override. Removing an explicit size restores the
+container's geometry. Local custom properties can override the selected profile.
+
+###### cem-controls-size-profiles
+| Size | Height |
+|---|---|
+| `small` | `var(--cem-control-height-small)` |
+| `medium` | `var(--cem-control-height-medium)` |
+| `large` | `var(--cem-control-height-large)` |
+| `x-large` | `var(--cem-control-height-x-large)` |
+
+These are minimum visible heights, not fixed boxes. Width and stretch remain
+owned by content and CSS layout. Typography, icon sizes and padding retain their
+existing inherited values. Coupling modes remain independent; an explicit size
+profile selects height while coupling continues to govern padding and safety.
+On the same element, a size profile wins over a coupling height override.
+
+Small/default geometry below D2's minimum reserves a transparent native-button
+border inside the operable bounds. Paint is clipped to the padding box; focus
+surrounds the complete target. The inset is half the positive difference between
+the operable minimum and requested visual height, otherwise zero. Layout growth
+can enlarge the surface without enlarging the allocated box. This is not a
+visible outline and does not replace zebra. Containers must leave at least the
+D2 guard between targets. Size profiles never change the safety minimum.
 
 ### 3.2 Progress graphic geometry
 
@@ -236,11 +270,13 @@ A draft becomes "canonical" when all of the following are true:
 | Source table | Section | Description |
 |---|---|---|
 | `cem-controls-geometry` | §3.1 | Baseline visual control geometry: height, padding, icon-button, list/menu/table row sizes |
+| `cem-controls-size-profiles` | §3.1.1 | Size selectors referencing baseline profile tokens; no additional tokens |
 | `cem-progress-geometry` | §3.2 | Circular-progress diameter and shared progress-track thickness |
 | `cem-slider-geometry` | §3.3 | Slider track thickness and visible thumb diameter |
 | `cem-controls-geometry-overrides` | §3.4 | Forgiving/compact override values for visual geometry (generator-only; no new tokens) |
 
 Generator derivation rules:
+- `cem-controls-size-profiles` → `[data-cem-size]` height overrides, emitted after coupling rules.
 - `cem-controls-geometry` → token list (tier in last column).
 - `cem-progress-geometry` → token list (tier in last column).
 - `cem-slider-geometry` → token list (tier in last column).
