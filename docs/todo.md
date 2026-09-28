@@ -10,6 +10,11 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Fixture: canonical action and select respect native host hidden states,
+      initial/live visibility, keyboard exclusion, retained control/state and
+      case-insensitive until-found semantics. Document the shared convention,
+      remove the legacy invisible demo and verify source/package galleries.
+
 - [x] Align the legacy custom-element package license and all eight Material
       demo footers with the repository MIT license; clarify historical records.
       Verified matching license text, package metadata and footer references.

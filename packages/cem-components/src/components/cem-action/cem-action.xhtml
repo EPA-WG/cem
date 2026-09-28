@@ -5,6 +5,9 @@
     {attribute @name=type | button}
     {style @type="text/css" |```
 
+        :scope[hidden]:where(:not([hidden="until-found" i])) {
+            display: none;
+        }
         :scope {
             display: inline-block;
             --_cem-action-default-background: var(--cem-action-primary-default-background);

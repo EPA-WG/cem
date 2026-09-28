@@ -105,6 +105,8 @@ ToDO
             Action triggers the flow by changing the data <var>slice</var> or following the <var>href</var> attribute URL.
             Inspired by <a href="https://mui.com/material-ui/react-button/">MUI</a>
         </p>
+        <p>Visibility uses the native HTML <code>hidden</code> attribute.
+            See the <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/docs/conventions.md#native-visibility">shared visibility convention</a>.</p>
         <h1>Attributes</h1>
         <div> <code>label</code> provides fallback button text when no child content is supplied. Child text or icons replace that fallback.</div>
         <div> <code>class</code> specific: <var>cem-bend-sharp</var>, <var>cem-bend-smooth</var>(default), <var>cem-bend-round</var>.</div>
@@ -205,34 +207,6 @@ ToDO
         </template>
     </cem-demo-element>
 
-
-    <cem-demo-element legend="invisible attribute">
-        <p slot="description">
-            hides button, animated
-        </p>
-        <template>
-    <cem-element>
-        <template lang="custom-element-v0">
-            <label>
-                <input type="checkbox" slice="is-checked" value="on" />
-                invisible</label>
-<cem-action variant="explicit" aria-label="Open mail">
-    <if test="/datadom/slice/is-checked = 'on'">
-        <attribute name="invisible">on</attribute>
-    </if>
-    <cem-icon image="mail" ></cem-icon>
-</cem-action>
-    &nbsp;
-<cem-action variant="explicit" aria-label="Open mail">
-    <if test="/datadom/slice/is-checked = 'on'">
-        <attribute name="invisible">on</attribute>
-    </if>
-    <cem-icon image="mail" ></cem-icon>
-</cem-action>
-        </template>
-    </cem-element>
-        </template>
-    </cem-demo-element>
 
     <cem-demo-element legend="Action variations matrix">
         <p slot="description">Compare all five CEM action intents. Hover, press or

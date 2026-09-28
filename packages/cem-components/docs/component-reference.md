@@ -157,6 +157,9 @@ Known deferrals remain outside the Phase 3.2 trigger:
 
 ## Actions
 
+Host visibility follows the [shared native visibility convention](./conventions.md#native-visibility).
+
+
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |

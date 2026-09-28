@@ -49,6 +49,9 @@
 
       {body |
         {style @type="text/css" |```
+          :scope[hidden]:where(:not([hidden="until-found" i])) {
+              display: none;
+          }
           :host {
             display: inline-block;
             inline-size: 100%;

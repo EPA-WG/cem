@@ -78,6 +78,38 @@ set (item 5) MUST satisfy.
   generated roots also require the direct CEM instance data island, so native
   `<th scope>` semantics remain untouched.
 
+### Native visibility
+
+`hidden` is a standard HTML global attribute on the component host, not a
+component-specific state API. Put it on `<cem-action>`, `<cem-select>`, or another
+component host to hide the whole component. Ordinary hidden content occupies no
+layout space and its controls leave keyboard navigation and accessibility exposure.
+
+- Use `hidden`, `hidden=""` or `hidden="hidden"` to hide. Remove the attribute to
+  reveal; `hidden="false"` still hides. Do not bind a false string to mean visible.
+- `hidden="until-found"` is a distinct, case-insensitive native state. Keep the
+  browser's content-visibility and find/fragment reveal behavior; do not replace
+  it with `display: none` or a CEM reveal handler. No polyfill is supplied.
+- Component host layout CSS must respect ordinary hidden values, including before
+  and after rendering. Canonical components use the scoped rule below so their
+  default display declarations do not override native hiding.
+- Do not forward the host attribute to internal controls or redeclare it with a
+  component default. Hiding preserves the instance, control identities and values;
+  it does not disable controls or remove them from form submission.
+- `hidden` does not promise a fade animation. CSS `visibility: hidden` preserves
+  layout space. `aria-hidden="true"` affects accessibility exposure without hiding
+  content visually or preventing keyboard focus. These are different behaviors.
+- `invisible` is not a CEM visibility API. New components and migrations use this
+  shared convention; legacy `invisible` demonstrations are removed without an alias.
+
+```css
+:scope[hidden]:where(:not([hidden="until-found" i])) {
+    display: none;
+}
+```
+
+See the [HTML hidden specification](https://html.spec.whatwg.org/multipage/interaction.html#the-hidden-attribute).
+
 ### 1.3 CSS hooks
 
 - Components expose state to CSS via reflected attributes (`data-state`,

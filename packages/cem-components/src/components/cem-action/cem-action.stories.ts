@@ -8,6 +8,60 @@ const meta = preview.meta({
     loaders: [async () => { await loadCemDeclaration('cem-action', declarationSource); return {}; }],
 });
 
+export const NativeHidden = meta.story({
+    parameters: { docs: { description: { story: 'Native host visibility and state retention. Trusted keyboard checks run only in the Vitest browser runner.' } } },
+    render: () => `<button data-before>Before</button><cem-action hidden loading="true" label="Save"></cem-action><button data-after>After</button>`,
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-action')!;
+        await whenCemRendered(host);
+        const control = host.querySelector('button')!;
+        const verifyHidden = async () => {
+            await expect(getComputedStyle(host).display).toBe('none');
+            await expect(host.getClientRects().length).toBe(0);
+            await expect(control.getClientRects().length).toBe(0);
+            await expect(control.hasAttribute('hidden')).toBe(false);
+            if (import.meta.env.MODE === 'test') {
+                const { userEvent: native } = await import('vitest/browser');
+                canvasElement.querySelector<HTMLButtonElement>('[data-before]')!.focus();
+                await native.keyboard('{Tab}');
+                await expect(document.activeElement).toBe(canvasElement.querySelector('[data-after]'));
+            }
+        };
+        await verifyHidden();
+        for (const value of ['', 'hidden', 'false']) {
+            host.removeAttribute('hidden');
+            await whenCemRendered(host);
+            await expect(getComputedStyle(host).display).not.toBe('none');
+            await expect(host.getClientRects().length).toBeGreaterThan(0);
+            await expect(host.querySelector('button')!).toBe(control);
+            await expect(control).toHaveAttribute('aria-busy', 'true');
+            await expect(control).toHaveTextContent('Save');
+            host.setAttribute('hidden', value);
+            await whenCemRendered(host);
+            await verifyHidden();
+        }
+        for (const value of ['until-found', 'UnTiL-FoUnD']) {
+            host.setAttribute('hidden', value);
+            await whenCemRendered(host);
+            await expect(host.hidden).toBe('until-found');
+            await expect(getComputedStyle(host).display).not.toBe('none');
+            await expect(getComputedStyle(host).contentVisibility).toBe('hidden');
+            await expect(host.querySelector('button')!).toBe(control);
+        }
+        host.removeAttribute('hidden');
+        await whenCemRendered(host);
+        await expect(host.querySelector('button')!).toBe(control);
+        await expect(control).toHaveAttribute('aria-busy', 'true');
+        await expect(control).toHaveTextContent('Save');
+        if (import.meta.env.MODE === 'test') {
+            const { userEvent: native } = await import('vitest/browser');
+            canvasElement.querySelector<HTMLButtonElement>('[data-before]')!.focus();
+            await native.keyboard('{Tab}');
+            await expect(document.activeElement).toBe(control);
+        }
+    },
+});
+
 export const LoadingColors = meta.story({
     parameters: { docs: { description: { story: 'Pending gradients and continuous loading motion. Trusted hover/focus checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light">${['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(variant =>

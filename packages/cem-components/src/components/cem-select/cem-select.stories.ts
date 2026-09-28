@@ -30,6 +30,58 @@ const meta = preview.meta({
     }],
 });
 
+export const NativeHidden = meta.story({
+    parameters: { docs: { description: { story: 'Native host visibility and state retention. Trusted keyboard checks run only in the Vitest browser runner.' } } },
+    render: () => `<button data-before>Before</button><cem-select hidden label="Role"><cem-option value="author">Author</cem-option><cem-option value="editor" selected>Editor</cem-option></cem-select><button data-after>After</button>`,
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-select')!;
+        await whenCemRendered(host);
+        const control = host.querySelector<HTMLElement>('[role=combobox]')!;
+        const verifyHidden = async () => {
+            await expect(getComputedStyle(host).display).toBe('none');
+            await expect(host.getClientRects().length).toBe(0);
+            await expect(control.getClientRects().length).toBe(0);
+            await expect(control.hasAttribute('hidden')).toBe(false);
+            if (import.meta.env.MODE === 'test') {
+                const { userEvent: native } = await import('vitest/browser');
+                canvasElement.querySelector<HTMLButtonElement>('[data-before]')!.focus();
+                await native.keyboard('{Tab}');
+                await expect(document.activeElement).toBe(canvasElement.querySelector('[data-after]'));
+            }
+        };
+        await verifyHidden();
+        for (const value of ['', 'hidden', 'false']) {
+            host.removeAttribute('hidden');
+            await whenCemRendered(host);
+            await expect(getComputedStyle(host).display).not.toBe('none');
+            await expect(host.getClientRects().length).toBeGreaterThan(0);
+            await expect(host.querySelector<HTMLElement>('[role=combobox]')!).toBe(control);
+            await expect((host as CemSelectElement).value).toBe('editor');
+            host.setAttribute('hidden', value);
+            await whenCemRendered(host);
+            await verifyHidden();
+        }
+        for (const value of ['until-found', 'UnTiL-FoUnD']) {
+            host.setAttribute('hidden', value);
+            await whenCemRendered(host);
+            await expect(host.hidden).toBe('until-found');
+            await expect(getComputedStyle(host).display).not.toBe('none');
+            await expect(getComputedStyle(host).contentVisibility).toBe('hidden');
+            await expect(host.querySelector<HTMLElement>('[role=combobox]')!).toBe(control);
+        }
+        host.removeAttribute('hidden');
+        await whenCemRendered(host);
+        await expect(host.querySelector<HTMLElement>('[role=combobox]')!).toBe(control);
+        await expect((host as CemSelectElement).value).toBe('editor');
+        if (import.meta.env.MODE === 'test') {
+            const { userEvent: native } = await import('vitest/browser');
+            canvasElement.querySelector<HTMLButtonElement>('[data-before]')!.focus();
+            await native.keyboard('{Tab}');
+            await expect(document.activeElement).toBe(control);
+        }
+    },
+});
+
 export const Default = meta.story({
     render: () => `
         <cem-select name="role" label="Role">

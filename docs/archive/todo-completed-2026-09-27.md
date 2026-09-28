@@ -456,3 +456,23 @@ records retain the original license with an explicit current-license note.
 Third-party vendor licenses are unchanged. Verified exact root/package license
 text equality, MIT package metadata, all eight footer references and clean diff
 formatting.
+
+## Native host visibility convention
+
+Canonical action and select now respect ordinary native hidden states despite
+their inline-block host layout. The selector uses `:where` around the until-found
+exclusion to stay within the scoped CSS specificity ceiling. Until-found values
+remain browser-owned, including case-insensitive spelling; no internal control
+attribute forwarding, invisible alias, animation or reveal polyfill was added.
+
+Shared conventions explain hidden values, removing the attribute to reveal,
+state/form preservation and the distinctions from visibility and aria-hidden.
+The legacy invisible gallery sample is removed and the action reference links
+to the shared guidance. The gallery now has seven samples and 36 buttons.
+
+All 18 action/select stories pass, including initial/live hiding, zero layout
+rectangles, native keyboard exclusion and re-entry, retained control identity,
+action busy/label state, select value and both until-found spellings. Source and
+isolated-package gallery checks pass, as do runtime typecheck/lint. IDE browser
+inspection confirms hidden and hidden=false produce display:none, while mixed-case
+until-found retains inline-block with native content-visibility:hidden.
