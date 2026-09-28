@@ -255,7 +255,7 @@ async function verify(url) {
             if (sample.size === 'xx-large') assert(sample.height >= 8 * sample.rem);
         }
         assert(await page.locator('.choice-content img').evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0)));
-        assert(await page.locator('.icon-actions').evaluate(node => {
+        assert(await page.locator('.icon-actions').filter({ has: page.locator('#size-icon') }).evaluate(node => {
             const buttons = node.querySelectorAll('button');
             const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
             return buttons[1].getBoundingClientRect().left - buttons[0].getBoundingClientRect().right >= .5 * rem;

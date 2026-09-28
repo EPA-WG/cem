@@ -1194,7 +1194,9 @@ cem-autocomplete .cem-autocomplete__control[readonly]:enabled {
 cem-field input[data-state='loading']:enabled,
 cem-text-field input[data-state='loading']:enabled,
 cem-textarea textarea[data-state='loading']:enabled,
-cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled {
+cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled,
+cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled,
+cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
 }
@@ -2141,6 +2143,8 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-text-field input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-textarea textarea[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
     cem-checkbox > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-radio > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-switch > label > input[data-state='loading']:enabled:not([aria-invalid='true']) {
@@ -2165,6 +2169,8 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-text-field input[data-state='loading']:enabled:focus-visible,
     cem-textarea textarea[data-state='loading']:enabled:focus-visible,
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:focus-visible,
+    cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,
+    cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,
     cem-checkbox > label > input[data-state='loading']:enabled:focus-visible,
     cem-radio > label > input[data-state='loading']:enabled:focus-visible,
     cem-switch > label > input[data-state='loading']:enabled:focus-visible {

@@ -19,6 +19,7 @@ const themeCss = await readFile(join(repoRoot, 'packages', 'cem-theme', 'dist', 
 const browser = await chromium.launch({ headless: true });
 
 try {
+    await verifyNativeIndicators();
     const context = await browser.newContext({ forcedColors: 'active', javaScriptEnabled: true });
     const page = await context.newPage();
     await page.setContent(`
@@ -125,10 +126,12 @@ try {
     assert(binaryFocus.binary.outlineWidth === binaryFocus.tokens.focus, 'binary focus fallback has the wrong width');
     assert(binaryFocus.binary.outlineColor === binaryFocus.system.canvasText, 'binary focus did not map to CanvasText');
 
+    // Native forced-color controls may retain a UA outline at rest.
+    // Hover must preserve that treatment rather than add the enabled outline.
     await page.locator('#disabled-binary').hover();
     const disabledHover = await page.evaluate(captureForcedColorState);
     assert(
-        disabledHover.disabledBinary.outlineWidth === disabledHover.tokens.none,
+        JSON.stringify(disabledHover.disabledBinary) === JSON.stringify(baseline.disabledBinary),
         'disabled binary control acquired a hover outline',
     );
 
@@ -165,6 +168,107 @@ try {
     console.log('cem-components input indicator forced-colors contract verified.');
 } finally {
     await browser.close();
+}
+
+// Exercise the CSS boundary independently of legacy host-attribute bindings.
+// Runtime reflection remains covered by states.browser.spec.ts and component plays.
+async function verifyNativeIndicators() {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        await page.setContent(`
+            <style>${themeCss}\n${componentCss}\n${selectCss}</style>
+            <section>
+                <button id="start">Start</button>
+                <cem-field><input id="field" aria-label="Field"></cem-field>
+                <cem-text-field><input id="text" aria-label="Text"></cem-text-field>
+                <cem-textarea><textarea id="area" aria-label="Area"></textarea></cem-textarea>
+                <cem-autocomplete><input id="autocomplete" class="cem-autocomplete__control" aria-label="Autocomplete"></cem-autocomplete>
+                <cem-datepicker><div class="cem-datepicker"><input id="date" slot="input" aria-label="Date"></div></cem-datepicker>
+                <cem-timepicker><div class="cem-timepicker"><input id="time" slot="input" aria-label="Time"></div></cem-timepicker>
+                <cem-select><button id="select" part="control" class="cem-select__control">Select</button></cem-select>
+                <cem-checkbox><label><input id="checkbox" type="checkbox">Checkbox</label></cem-checkbox>
+                <cem-radio><label><input id="radio" type="radio">Radio</label></cem-radio>
+                <cem-switch><label><input id="switch" type="checkbox" role="switch">Switch</label></cem-switch>
+            </section>
+        `);
+        const ids = ['field', 'text', 'area', 'autocomplete', 'date', 'time', 'select', 'checkbox', 'radio', 'switch'];
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            await page.locator('section').evaluate((node, mode) => { node.className = `cem-theme-${mode}`; }, mode);
+            for (const id of ids) {
+                const control = page.locator(`#${id}`);
+                const read = () => control.evaluate(node => {
+                    const style = getComputedStyle(node);
+                    const rect = node.getBoundingClientRect();
+                    return { shadow: style.boxShadow, width: rect.width, height: rect.height };
+                });
+                const baseline = await read();
+                const check = async (active, state) => {
+                    const actual = await read();
+                    assert((actual.shadow !== 'none') === active, `${mode}/${id}/${state}: unexpected shadow ${actual.shadow}`);
+                    if (active) {
+                        assert([...actual.shadow.matchAll(/(-?\d*\.?\d+)px/g)].some(match => Number(match[1]) !== 0), `${mode}/${id}/${state}: feedback has zero width`);
+                    }
+                    assert(actual.width === baseline.width && actual.height === baseline.height, `${mode}/${id}/${state}: indicator changed geometry`);
+                    assert(await page.locator('label').evaluateAll(labels => labels.every(label => getComputedStyle(label).boxShadow === 'none')), `${mode}/${id}/${state}: label acquired a shadow`);
+                };
+                await check(false, 'rest');
+                await control.hover();
+                await check(false, 'hover');
+                await page.mouse.move(0, 0);
+                await page.locator('#start').focus();
+                await page.keyboard.press('Tab');
+                await control.focus();
+                assert(await control.evaluate(node => node.matches(':focus-visible')), `${mode}/${id}: focus-visible missing`);
+                await check(true, 'focus');
+                await control.evaluate(node => node.blur());
+                await check(false, 'blur');
+                for (const [attribute, value] of [['aria-invalid', 'true'], ['data-state', 'loading']]) {
+                    await control.evaluate((node, [attribute, value]) => node.setAttribute(attribute, value), [attribute, value]);
+                    await check(true, value);
+                    await control.evaluate(node => { node.disabled = true; });
+                    await check(false, `disabled ${value}`);
+                    await control.evaluate((node, attribute) => { node.disabled = false; node.removeAttribute(attribute); }, attribute);
+                    await check(false, `removed ${value}`);
+                }
+                if (['checkbox', 'radio', 'switch'].includes(id)) {
+                    await control.check();
+                    await control.evaluate(node => node.blur());
+                    await check(true, 'checked');
+                    await control.evaluate(node => { node.checked = false; });
+                    await check(false, 'unchecked');
+                }
+                if (id === 'checkbox') {
+                    await control.evaluate(node => { node.indeterminate = true; node.setAttribute('aria-checked', 'mixed'); });
+                    await check(true, 'mixed');
+                    await control.evaluate(node => { node.indeterminate = false; node.removeAttribute('aria-checked'); });
+                    await check(false, 'mixed removed');
+                }
+            }
+        }
+        await page.emulateMedia({ forcedColors: 'active' });
+        for (const id of ids) {
+            const control = page.locator(`#${id}`);
+            await control.evaluate(node => node.setAttribute('data-state', 'loading'));
+            const checkOutline = async token => {
+                const state = await control.evaluate((node, token) => {
+                    const style = getComputedStyle(node);
+                    return { shadow: style.boxShadow, style: style.outlineStyle, width: style.outlineWidth, expected: style.getPropertyValue(token).trim() };
+                }, token);
+                assert(state.shadow === 'none' && state.style === 'solid' && state.width === state.expected, `${id}: forced-color outline must use ${token}: ${JSON.stringify(state)}`);
+            };
+            await checkOutline('--cem-stroke-pending');
+            await page.locator('#start').focus();
+            await page.keyboard.press('Tab');
+            await control.focus();
+            assert(await control.evaluate(node => node.matches(':focus-visible')), `${id}: forced-color keyboard focus missing`);
+            await checkOutline('--cem-stroke-focus');
+            await control.evaluate(node => { node.blur(); node.removeAttribute('data-state'); });
+        }
+        console.log('Native input indicators verified: ten controls across five theme modes, resting labels, focus, checked/mixed, invalid, pending, disabled and forced-color states.');
+    } finally {
+        await context.close();
+    }
 }
 
 function captureForcedFocusState({ control, target }) {

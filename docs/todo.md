@@ -8,31 +8,28 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
-## Selected actions and state-specific input indicators
+## Completed: Selected actions and state-specific input indicators
 
 - [x] Replace blanket input shadows with state-specific native-control feedback; revise shared/theme contracts.
 - [x] Restore controlled selected action state, zebra and accessible selectable-button semantics.
 - [x] Replace Expanded in the playground with Selected and add a container-owned choice example.
-- [ ] Fixture: resting inputs/labels, focus, checked/mixed, invalid, pending and forced-colors feedback.
-- [ ] Fixture: selected action presence/removal, no automatic toggling, accessibility and combined states across modes.
-- [ ] Verify source/package playgrounds, theme and component gates; record completion and commit/push.
+- [x] Fixture: resting inputs/labels, focus, checked/mixed, invalid, pending and forced-colors feedback.
+    - [x] Verify native control CSS states directly across theme modes so legacy
+          boolean-binding failures cannot hide feedback regressions; preserve
+          the separate component behavior assertions and baseline repair task.
+- [x] Fixture: selected action presence/removal, no automatic toggling, accessibility and combined states across modes.
+- [x] Verify source/package playgrounds, theme and component gates; record completion and commit/push.
 
-Implementation and fixtures are authored. Type checking, lint, declarative and
-style contracts, state-matrix registration, documentation compilation and
-component artifact builds pass. DevTools checks pass on the IDE source page:
-all ten input types retain state feedback without resting/label shadows; action
-selection persists in 15 theme/state combinations, remains separate from
-keyboard focus, and follows presence/removal and container ownership. All ten
-fresh browser generator outputs match the CSS artifacts byte for byte, and
-current theme manifests validate against them.
+Browser and package verification now runs in the unrestricted session. Native
+CSS checks cover all ten controls across five theme modes and forced colors;
+source and isolated-package playgrounds pass. The follow-up fixes missing
+pending feedback on date/time inputs and scopes the icon-spacing fixture to its
+intended sample. No theme token definitions were removed.
 
-Remaining gates are blocked by this session's environment: headless Chromium
-fails in `sandbox_host_linux.cc` with `Operation not permitted`; package checking
-fails with `spawnSync npm EPERM`; `.git` is mounted read-only. Run the action and
-select stories, input state/timepicker tests, forced-colors and isolated-package
-playground checks before marking the fixtures complete and committing/pushing.
-No theme token definitions were removed. Theme CSS artifacts were restored after
-the failed headless build and then checked against fresh DevTools generation.
+The legacy state suite remains 3 passing / 18 failing, with exactly the same
+failed test names as the documented baseline. Its boolean-binding failures
+still block later component assertions; direct CSS coverage does not close that
+separate repair task. See [completion evidence](archive/todo-completed-2026-09-27.md#selected-actions-and-state-specific-input-indicators).
 
 ## Completed: Action size roles and content compositions
 

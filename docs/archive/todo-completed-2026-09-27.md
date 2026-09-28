@@ -673,3 +673,38 @@ playground checks pass, including reduced-motion and forced-colors coverage.
   activate all samples, validate image loading, verify 360px layout/hero stacking,
   compact-only hit borders and icon guard spacing. Desktop composition inspected
   in Chromium.
+
+
+## Selected actions and state-specific input indicators
+
+Completed 2026-09-28, following the implementation in `c56d95c1`.
+
+- Verified controlled action selection, attribute presence/removal, no automatic
+  toggling, `aria-pressed`, keyboard focus, disabled/loading combinations and
+  five theme modes. All 27 action/select stories pass in the browser runner.
+- Added direct CSS verification to `verify-input-indicator-forced-colors` for
+  ten native control owners across five modes: resting/hovered inputs and labels
+  have no extra shadow; focus, checked/mixed, invalid and pending feedback has
+  visible width and preserves geometry. Disabled controls suppress invalid and
+  pending shadows. All ten controls retain pending/focus outlines in forced
+  colors, and the existing forced-color keyboard/option assertions pass.
+- The direct fixture exposed missing pending selectors for datepicker and
+  timepicker native inputs. Added their pending width/color, forced-color outline
+  and focused-pending precedence. All seven timepicker browser tests pass.
+- Preserved the disabled native radio's resting forced-color treatment when
+  checking hover suppression; a browser-provided outline need not be zero.
+- Scoped playground icon spacing to the group containing `#size-icon`; the
+  selected-choice example also uses `.icon-actions`. Source and isolated archive
+  checks pass for action/theme-switch playgrounds, selected container ownership,
+  responsive compositions, theme controls and pending theme gradients.
+- Theme generation/manifests and Phase 13 checks pass. Theme and component package
+  checks, component declarative/style/state-matrix/catalog gates, typecheck and
+  lint pass; lint retains 48 existing warnings and no errors. Nx reused valid
+  cached prerequisites where applicable. An initial overlapping build invocation
+  raced while copying runtime output; sequential build-dependent checks passed.
+- The legacy state file reports 3 passing / 18 failing. Compared all failed names
+  with `cem-components-baseline-2026-09-27.md`: no additions or removals. The
+  indicator test now stops at missing checked-state geometry because the legacy
+  empty `checked` attribute is not reflected. Its component assertions remain
+  intact; the direct CSS fixture verifies presentation without claiming to repair
+  host reflection. The broader legacy package test gate remains open.
