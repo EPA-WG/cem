@@ -84,6 +84,10 @@ source-only view. The action gallery is owned at
 `packages/cem-components/playgrounds/cem-action-gallery.html`; its attribute
 inventory and executable examples must match the canonical declaration.
 
-The combined release document remains next work in [todo.md](todo.md).
+The combined release document is waiting on the
+[source-context decision](component-bundle-source-context.md) in [todo.md](todo.md).
+A browser fixture confirms that relative dependencies currently resolve against
+the bundle URL after a template is moved; retained `xml:base` is not applied by
+fragment loading.
 The original Material action URL remains available and links the playground. In the standalone legacy adapter archive, that link opens the
 repository source; the CEM component package includes both interactive pages.

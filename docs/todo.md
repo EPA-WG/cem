@@ -8,6 +8,19 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Immediate: Release bundle source-context decision
+
+- [x] Fixture: characterize relative module URLs in individual and combined
+      fragment sources, including retained `xml:base`.
+- [ ] Decide whether the shared loader should preserve original source-base
+      metadata (recommended), or the native bundle transform should relocate
+      relative dependencies. Stop before changing the loading contract.
+
+The passing fixture confirms that moving unchanged template text into the bundle
+changes relative module URLs; retained `xml:base` is currently ignored by fragment
+loading. See the [evidence and options](component-bundle-source-context.md).
+The bundle remains unshipped pending this decision.
+
 ## Completed: Component galleries and module-URL startup settlement
 
 - [x] Decision: batch sibling module-URL results before rendering, matching
@@ -391,6 +404,8 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
         - [x] Fixture: keep the page scroll position when persistent select
               examples mount; reveal active options within their own listbox
               during initial rendering and keyboard navigation.
+    - [x] Fixture: characterize individual/bundled resource bases; record the
+          [source-context decision](component-bundle-source-context.md) above.
     - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
           and compare individual versus `#ID` loading, relative dependencies,
           style ownership and duplicate registration; ship source and playground.
