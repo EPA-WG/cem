@@ -11,7 +11,7 @@ const meta = preview.meta({
 export const Dimensions = meta.story({
     render: () => `<section class="cem-theme-light" data-cem-size="large" style="display:grid;gap:var(--cem-coupling-guard-min);justify-items:start">
         <cem-action class="cem-bend-round">Inherited</cem-action>
-        ${['small', 'medium', 'large', 'x-large'].map(size => `<cem-action size="${size}" class="cem-bend-round">${size}</cem-action>`).join('')}
+        ${['small', 'medium', 'large', 'x-large', 'xx-large'].map(size => `<cem-action size="${size}" class="cem-bend-round">${size}</cem-action>`).join('')}
         <div style="display:flex;width:320px;height:160px"><cem-action size="medium" style="flex:1">Stretched</cem-action></div>
         <cem-action size="small" aria-label="Icon action"><span aria-hidden="true">+</span></cem-action>
     </section>`,
@@ -32,7 +32,7 @@ export const Dimensions = meta.story({
             await expect(parseFloat(style.borderRadius) * 2).toBeCloseTo(rect.height);
             await expect(host.getBoundingClientRect().height).toBeCloseTo(rect.height);
         };
-        for (const [i, height] of [4, 2.5, 3, 4, 6].entries()) await check(hosts[i], height);
+        for (const [i, height] of [4, 2.5, 3, 4, 6, 8].entries()) await check(hosts[i], height);
         const original = control(hosts[0]);
         hosts[0].setAttribute('size', 'small');
         await whenCemRendered(hosts[0]);
@@ -46,12 +46,18 @@ export const Dimensions = meta.story({
         hosts[0].setAttribute('size', 'unknown');
         await whenCemRendered(hosts[0]);
         await check(hosts[0], 6);
+        container.setAttribute('data-cem-size', 'xx-large');
+        await check(hosts[0], 8);
+        container.style.setProperty('--cem-control-height-xx-large', '9rem');
+        await check(hosts[0], 9);
+        await check(hosts[5], 9);
+        container.style.removeProperty('--cem-control-height-xx-large');
         await expect(control(hosts[0])).toBe(original);
-        const stretched = control(hosts[5]).getBoundingClientRect();
+        const stretched = control(hosts[6]).getBoundingClientRect();
         await expect(stretched.width).toBe(320);
         await expect(stretched.height).toBe(160);
-        await expect(parseFloat(getComputedStyle(control(hosts[5])).borderTopWidth)).toBe(0);
-        const icon = control(hosts[6]).getBoundingClientRect();
+        await expect(parseFloat(getComputedStyle(control(hosts[6])).borderTopWidth)).toBe(0);
+        const icon = control(hosts[7]).getBoundingClientRect();
         await expect(icon.width).toBeGreaterThanOrEqual(3 * rem);
         await expect(icon.height).toBeGreaterThanOrEqual(3 * rem);
         // Consumers may override a public profile without losing the safety minimum.
@@ -79,6 +85,41 @@ export const Dimensions = meta.story({
             if (coupling === null) root.removeAttribute('data-cem-coupling');
             else root.setAttribute('data-cem-coupling', coupling);
         }
+    },
+});
+
+export const ContentDimensions = meta.story({
+    render: () => `<section class="cem-theme-light" style="display:grid;gap:var(--cem-coupling-guard-min);width:320px;max-width:100%">
+        <cem-action size="medium">A standalone label that can wrap within its container</cem-action>
+        <cem-action size="x-large"><span style="display:grid;gap:var(--cem-dim-small);min-width:0;text-align:start">
+            <img alt="" width="320" height="180" style="width:100%;height:auto" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 180'%3E%3Cpath fill='%23548c89' d='M0 180 160 0 320 180z'/%3E%3C/svg%3E">
+            <strong>Choose the mountain image for this page</strong>
+        </span></cem-action>
+        <cem-action size="xx-large"><span style="display:grid;gap:var(--cem-dim-small);min-width:0;text-align:start">
+            <strong>Choose the mountain campaign</strong>
+            <span>Featured content grows with the available space. A long description must remain visible when the container gets narrow, including an unbroken reference: mountain_campaign_preview_image_for_the_featured_page.</span>
+        </span></cem-action>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const section = canvasElement.querySelector('section') as HTMLElement;
+        const hosts = [...section.querySelectorAll<HTMLElement>('cem-action')];
+        for (const host of hosts) await whenCemRendered(host);
+        const buttons = hosts.map(host => host.querySelector('button') as HTMLButtonElement);
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        const wideHeight = buttons[2].getBoundingClientRect().height;
+        section.style.width = '160px';
+        await expect(buttons[2].getBoundingClientRect().height).toBeGreaterThan(wideHeight);
+        for (const [index, button] of buttons.entries()) {
+            await expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual([3, 6, 8][index] * rem);
+            await expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth);
+            await expect(parseFloat(getComputedStyle(button).borderTopWidth)).toBe(0);
+            await expect(button.querySelectorAll('a,button,input,select,textarea').length).toBe(0);
+        }
+        let activations = 0;
+        buttons[1].addEventListener('click', () => activations++);
+        await userEvent.click(buttons[1].querySelector('strong') as HTMLElement);
+        await expect(activations).toBe(1);
+        await expect(buttons[1]).toHaveAccessibleName('Choose the mountain image for this page');
     },
 });
 

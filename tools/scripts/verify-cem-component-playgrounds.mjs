@@ -113,7 +113,7 @@ async function verify(url) {
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
         assert.equal(await page.getByRole('radiogroup').count(), 8);
-        assert.equal(await page.getByRole('radio').count(), 26);
+        assert.equal(await page.getByRole('radio').count(), 27);
         for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
@@ -123,7 +123,7 @@ async function verify(url) {
             await choose('Intent', variant);
             await page.waitForFunction(variant => document.querySelector('#action-preview')?.getAttribute('variant') === variant, variant.toLowerCase());
         }
-        for (const [size, height] of [['Small', 3], ['Medium', 3], ['Large', 4], ['X-large', 6], ['Undefined', 3]]) {
+        for (const [size, height] of [['Small', 3], ['Medium', 3], ['Large', 4], ['X-large', 6], ['XX-large', 8], ['Undefined', 3]]) {
             await choose('Size', size);
             await page.waitForFunction(({ size, height }) => {
                 const host = document.querySelector('#action-preview');
@@ -236,7 +236,32 @@ async function verify(url) {
         assert(await button.evaluate(node => node.matches(':focus-visible')));
         assert.notEqual(await button.evaluate(node => getComputedStyle(node).boxShadow), 'none');
         assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
-        assert.equal(await page.locator('cem-action').count(), 4);
+        assert.equal(await page.locator('cem-action').count(), 9);
+        for (const [id, result] of [['size-inline', 'Change undone.'], ['size-text', 'Draft saved.'], ['size-icon', 'Item added.'], ['size-play', 'Playback sample activated.'], ['size-tile', 'Mountain image selected.'], ['size-hero', 'Mountain campaign selected.']]) {
+            await page.locator(`#${id} button`).click();
+            await page.waitForFunction(result => document.querySelector('#dimension-example-result')?.textContent.trim() === result, result);
+        }
+        await page.setViewportSize({ width: 360, height: 800 });
+        const samples = await page.locator('.dimension-examples button').evaluateAll(nodes => nodes.map(button => ({
+            size: button.parentElement.getAttribute('size'),
+            border: parseFloat(getComputedStyle(button).borderTopWidth),
+            width: button.clientWidth, scrollWidth: button.scrollWidth,
+            height: button.getBoundingClientRect().height,
+            rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        })));
+        for (const sample of samples) {
+            assert(sample.scrollWidth <= sample.width, `Sample ${sample.size} must wrap without horizontal overflow`);
+            assert.equal(sample.border > 0, sample.size === 'small');
+            if (sample.size === 'xx-large') assert(sample.height >= 8 * sample.rem);
+        }
+        assert(await page.locator('.choice-content img').evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0)));
+        assert(await page.locator('.icon-actions').evaluate(node => {
+            const buttons = node.querySelectorAll('button');
+            const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            return buttons[1].getBoundingClientRect().left - buttons[0].getBoundingClientRect().right >= .5 * rem;
+        }));
+        assert(await page.locator('.hero-content').evaluate(node => getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length === 1));
+        await page.setViewportSize({ width: 1280, height: 720 });
         assert.equal(await page.locator('cem-demo-element cem-action, cem-demo-element cem-element').count(), 0);
         assert((await page.locator('cem-demo-element').innerText()).includes('id="cem-action"'));
         assert.equal(await page.locator('cem-element[tag="cem-action"]').count(), 1);

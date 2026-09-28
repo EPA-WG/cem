@@ -162,7 +162,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large"` overrides inherited control height. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
+| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
 | `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 

@@ -86,6 +86,7 @@ Boundary heuristic:
 | `--cem-control-height-medium` | `3rem` | Medium control profile minimum visible height | recommended |
 | `--cem-control-height-large` | `4rem` | Large control profile minimum visible height | recommended |
 | `--cem-control-height-x-large` | `6rem` | X-large control profile minimum visible height | recommended |
+| `--cem-control-height-xx-large` | `8rem` | XX-large control profile minimum visible height; content may grow beyond it | recommended |
 | `--cem-control-padding-x`     | `0.75rem`                      | Generic control inline padding                                    | recommended |
 | `--cem-control-padding-y`     | `0.5rem`                       | Generic control block padding                                     | recommended |
 | `--cem-icon-button-size`      | `var(--cem-coupling-zone-min)` | Icon button visible container size; meets zone minimum by default | recommended |
@@ -97,7 +98,7 @@ Boundary heuristic:
 
 ### 3.1.1 Optional size profiles
 
-`data-cem-size="small|medium|large|x-large"` selects an inherited control-height
+`data-cem-size="small|medium|large|x-large|xx-large"` selects an inherited control-height
 profile on any container. Components may expose `size` with the same values and
 select the corresponding public height token on their host. Omission (or an unknown
 value) adds no local height override. Removing an explicit size restores the
@@ -110,12 +111,19 @@ container's geometry. Local custom properties can override the selected profile.
 | `medium` | `var(--cem-control-height-medium)` |
 | `large` | `var(--cem-control-height-large)` |
 | `x-large` | `var(--cem-control-height-x-large)` |
+| `xx-large` | `var(--cem-control-height-xx-large)` |
 
 These are minimum visible heights, not fixed boxes. Width and stretch remain
 owned by content and CSS layout. Typography, icon sizes and padding retain their
 existing inherited values. Coupling modes remain independent; an explicit size
 profile selects height while coupling continues to govern padding and safety.
 On the same element, a size profile wins over a coupling height override.
+
+Choose the profile for available space and prominence; an icon alone does not
+require a large control. Image/title and hero compositions may use x-large and
+xx-large while growing with their content. Size does not select a content layout
+or change an action into a navigation link. See the
+[dimension decision](./cem-dimension.md#decision-optional-component-dimensions-and-compact-hit-areas).
 
 Small/default geometry below D2's minimum reserves a transparent native-button
 border inside the operable bounds. Paint is clipped to the padding box; focus

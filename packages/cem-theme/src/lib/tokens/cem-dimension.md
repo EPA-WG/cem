@@ -632,8 +632,8 @@ Do not map control `size="large"` to the D1 spacing token `--cem-dim-large`.
 
 - Omitted size keeps inherited control geometry (currently a `2.5rem` visual
   minimum); content and container flex/grid allocation determine the final box.
-- Optional small / medium / large / x-large profiles use minimum visible heights
-  of `2.5rem` / `3rem` / `4rem` / `6rem`. Large profiles support vertical rhythm
+- Optional small / medium / large / x-large / xx-large profiles use minimum visible heights
+  of `2.5rem` / `3rem` / `4rem` / `6rem` / `8rem`. Large profiles support vertical rhythm
   when actions participate in layouts. They do not fix width or cap growth.
 - Containers select `data-cem-size`; action exposes `size` as a local override.
   Removing it restores inheritance. Other controls can adopt this shared pattern.
@@ -650,3 +650,51 @@ Do not map control `size="large"` to the D1 spacing token `--cem-dim-large`.
 
 The `3rem` target is CEM policy, not a claim of automatic ADA conformance. At a
 16px root it is 48 CSS pixels; consumers must assess actual computed dimensions.
+
+### Size roles and composition
+
+Size expresses available space and prominence. Content type suggests useful
+examples, but does not select size automatically. Keep `medium` as the API
+spelling for an ordinary standalone action; `normal` is not an additional value.
+
+| Profile | Typical use | Minimum visible height |
+|---|---|---|
+| Omitted | Content-sized or container-sized action; inherits theme geometry | Inherited |
+| `small` | Inline action, table-row control, compact toolbar icon | `2.5rem` |
+| `medium` | Standalone text action, text with icon, ordinary icon action | `3rem` |
+| `large` | Prominent confirmation or large playback control | `4rem` |
+| `x-large` | One choice represented by an image and title | `6rem` |
+| `xx-large` | Featured choice or CMS hero composition with one action | `8rem` |
+
+An icon-only action can use any profile. Glyph size, content layout, intent,
+coupling and control height remain independent. The xx-large baseline continues
+the 4/6/8rem progression for large controls; it is a starting minimum, not a
+fixed hero height or a reuse of the D1 `--cem-dim-xx-large` spacing token.
+Images, wrapping text and responsive container layout determine the final size.
+Only requested geometry below the coupling minimum adds the transparent hit
+border. Medium and larger default profiles add none, including tiles and heroes.
+An overridden profile below that minimum still receives the safety inset.
+
+Compose image/title content through the default slot using noninteractive
+phrasing content, such as spans, images and strong text. The action permits label
+wrapping; the author owns stacked or responsive layouts inside the projected
+content. Size never silently changes row/column layout, font scale or image size.
+Keep content readable under zoom and narrow containers rather than clipping it
+to a preset height. A small profile stretched by layout retains its reserved
+compact inset; this policy follows requested geometry, not DOM measurement.
+
+Semantics follow behavior at every size: a command uses a native button and a
+destination uses a native link. The current `cem-action` owns a native button;
+the image and hero playground samples therefore choose content, not navigate.
+Adding native-link support is a separate component contract change. A card with
+an interactive preview or several actions keeps those controls separate; do not
+nest them inside one action. The legacy material `demo-list-card` follows this
+composition: the preview is a sibling of a title/description link with a 6rem
+minimum height.
+
+This decision draws on [Angular Material buttons](https://github.com/angular/components/blob/main/src/material/button/button.md),
+[Material 3 Expressive button sizes](https://github.com/material-components/material-components-android/blob/master/docs/components/CommonButton.md#sizes),
+[icon button sizes](https://github.com/material-components/material-components-android/blob/master/docs/components/IconButton.md),
+and [Angular Material card composition](https://github.com/angular/components/blob/main/src/material/card/card.md).
+Material offers size choices for both text and icon buttons; CEM retains its own
+theme scale and coupling minimum.

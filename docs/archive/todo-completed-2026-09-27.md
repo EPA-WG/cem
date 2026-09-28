@@ -643,3 +643,33 @@ playground checks pass, including reduced-motion and forced-colors coverage.
   existing non-null assertion warnings). Source and isolated-package playground
   checks cover Undefined/removal and both contrast modes, including reduced
   motion and forced colors.
+
+
+## Action size roles and content compositions
+
+- Recorded the size-role decision in D1 dimensions: optional inherited sizing,
+  independent glyph/content layout, small inline controls, ordinary medium
+  controls, prominent large controls, image/title tiles and hero compositions.
+- Added the Markdown-owned `--cem-control-height-xx-large: 8rem` profile, generated
+  inherited selectors and exported token. Action exposes the same `xx-large`
+  value; all heights remain minimums, and labels/content can wrap and grow.
+- Preserved conditional native hit borders only for requested geometry below
+  the 3rem coupling target. Medium and larger defaults add no extra hit area;
+  compact defaults and consumer overrides still receive the safety inset.
+- Added working inline, text, medium/large icon, image-choice and hero-choice
+  examples with a shared result announcement. Hero content stacks on narrow
+  screens. Samples use one native command button each and no nested controls;
+  native-link support for destination tiles remains a separate API addition.
+- Added XX-large to the property radios. Sample graphics are self-contained
+  authored SVG data URLs, so source and installed-package pages need no image
+  service. Adjacent icon samples use the theme guard gap.
+- Verification: 15 action browser stories pass, including profile inheritance,
+  token overrides, both-axis targets, compact edge activation, wrapping long
+  content and single activation from projected content. Theme build:tokens and
+  a fresh Phase 13 verifier pass (manifest/presentation, shape, contrast,
+  focus/target size, reduced motion and forced colors). Component declarative,
+  style and package checks, typecheck and lint pass; lint retains 48 existing
+  non-null assertion warnings. Source and isolated-package playground checks
+  activate all samples, validate image loading, verify 360px layout/hero stacking,
+  compact-only hit borders and icon guard spacing. Desktop composition inspected
+  in Chromium.

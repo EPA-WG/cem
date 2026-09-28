@@ -36,10 +36,21 @@
         .property-group > legend { padding: 0; margin-block-end: var(--cem-dim-small); font-weight: bold; }
         .property-options { display: flex; flex-wrap: wrap; gap: var(--cem-dim-small); }
         .dimension-examples { display: grid; gap: max(var(--cem-dim-medium), var(--cem-coupling-guard-min)); }
+        .dimension-examples > article { min-inline-size: 0; }
+        .dimension-examples .icon-glyph { font-size: var(--cem-icon-button-icon-size); }
+        .icon-actions { display: flex; align-items: center; gap: var(--cem-coupling-guard-min); }
+        .dimension-examples .tile-choice { inline-size: min(100%, 22rem); }
+        .dimension-examples .hero-choice { display: flex; }
+        .choice-content { display: grid; gap: var(--cem-dim-small); min-inline-size: 0; text-align: start; }
+        .choice-content > img { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+        .choice-copy { display: grid; gap: var(--cem-dim-small); min-inline-size: 0; }
+        .hero-content { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+        .hero-content strong { font-size: var(--cem-typography-size-xl); }
         .dimension-examples .stretch { display: flex; min-block-size: 8rem; }
         .dimension-examples .stretch > cem-action { flex: 1; }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 480px) { .hero-content { grid-template-columns: minmax(0, 1fr); } }
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } .workspace > section:last-child { position: static; } }
     </style>
 </head>
@@ -109,6 +120,7 @@
         {cem-radio @name=action-property-size @value=medium | Medium}
         {cem-radio @name=action-property-size @value=large | Large}
         {cem-radio @name=action-property-size @value=x-large | X-large}
+        {cem-radio @name=action-property-size @value=xx-large | XX-large}
     }
 }
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=action-property-type @slice=type @slice-event=change @slice-value="$target.value" |
@@ -149,19 +161,64 @@
         }
         {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
         {p | Set Loading to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Each loop takes two seconds. Contrast modes keep the background at the surface color and animate a zebra outline instead. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Loading to False to stop it and restore normal interaction colors. Disabled actions keep the pending indicator while loading but cannot be activated or focused. Reduced-motion settings freeze the pending indicator; forced colors use a static pending boundary.}
-        {p | Size sets a minimum visible height: small 2.5rem, medium 3rem, large 4rem, x-large 6rem. Undefined removes the size attribute and inherits the container or theme. Compact actions reserve a transparent hit border inside a minimum 3rem target; larger profiles need no extra hit border. Content and layout can enlarge the control.}
+        {p | Size sets a minimum visible height: small 2.5rem, medium 3rem, large 4rem, x-large 6rem, xx-large 8rem. Undefined removes the size attribute and inherits the container or theme. Compact actions reserve a transparent hit border inside a minimum 3rem target; larger profiles need no extra hit border. Content and layout can enlarge the control.}
         {p | Submit and reset can be inspected here; this preview is outside a form. Form behavior is covered in the automated stories.}
         {p | {a @href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts" | Automated stories}}
     }
 }
 </template>
 </cem-element>
-<section class="dimension-examples" aria-label="Action dimension examples">
-<h2>Dimensions in layouts</h2>
-<div><cem-action size="small">Content-sized action</cem-action></div>
-<div data-cem-size="large"><cem-action>Inherited large action</cem-action></div>
-<div class="stretch"><cem-action size="x-large">Container-stretched action</cem-action></div>
-</section>
+<cem-element>
+<template type="text/cem-ml">
+{slice @name=exampleResult | No sample activated yet.}
+{section @class=dimension-examples @aria-label="Action dimension examples" |
+    {h2 | Dimensions in use}
+    {p | Choose size for space and prominence. Icons can appear at any size. These command samples update the result below; image and hero choices each contain one action.}
+    {article |
+        {h3 | Small — inline action}
+        {p | Change saved. {cem-action @id=size-inline @size=small @variant=contextual @slice=exampleResult @slice-event=click @slice-value="'Change undone.'" | Undo}}
+    }
+    {article |
+        {h3 | Medium — standalone text}
+        {cem-action @id=size-text @size=medium @variant=explicit @slice=exampleResult @slice-event=click @slice-value="'Draft saved.'" | Save draft}
+    }
+    {article |
+        {h3 | Icons — size follows the task}
+        {p | An ordinary icon action fits medium; a prominent playback control can use large.}
+        {div @class=icon-actions |
+            {cem-action @id=size-icon @size=medium @variant=contextual @aria-label="Add item" @slice=exampleResult @slice-event=click @slice-value="'Item added.'" | {span @class=icon-glyph @aria-hidden=true | +}}
+            {cem-action @id=size-play @size=large @variant=primary @aria-label="Play preview" @slice=exampleResult @slice-event=click @slice-value="'Playback sample activated.'" | {span @class=icon-glyph @aria-hidden=true | ▶}}
+        }
+    }
+    {article |
+        {h3 | X-large — image and title choice}
+        {cem-action @id=size-tile @class=tile-choice @size=x-large @variant=alternate @slice=exampleResult @slice-event=click @slice-value="'Mountain image selected.'" |
+            {span @class=choice-content |
+                {img @src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 320 180%22%3E%3Cpath fill=%22%23d9f1ed%22 d=%22M0 0h320v180H0z%22/%3E%3Ccircle fill=%22%23f5bb58%22 cx=%22252%22 cy=%2245%22 r=%2224%22/%3E%3Cpath fill=%22%23548c89%22 d=%22M0 154 100 35l120 145H0z%22/%3E%3Cpath fill=%22%23255262%22 d=%22m105 180 132-117 83 80v37z%22/%3E%3C/svg%3E" @alt="" @width=320 @height=180}
+                {strong | Choose mountain image}
+                {span | A visual choice with a wrapping title and preview.}
+            }
+        }
+    }
+    {article |
+        {h3 | XX-large — hero choice}
+        {cem-action @id=size-hero @class=hero-choice @size=xx-large @variant=explicit @slice=exampleResult @slice-event=click @slice-value="'Mountain campaign selected.'" |
+            {span @class="choice-content hero-content" |
+                {img @src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 320 180%22%3E%3Cpath fill=%22%23d9f1ed%22 d=%22M0 0h320v180H0z%22/%3E%3Ccircle fill=%22%23f5bb58%22 cx=%22252%22 cy=%2245%22 r=%2224%22/%3E%3Cpath fill=%22%23548c89%22 d=%22M0 154 100 35l120 145H0z%22/%3E%3Cpath fill=%22%23255262%22 d=%22m105 180 132-117 83 80v37z%22/%3E%3C/svg%3E" @alt="" @width=320 @height=180}
+                {span @class=choice-copy |
+                    {strong | Choose the mountain campaign}
+                    {span | Featured imagery and supporting text share one action. Resize the page: the content stacks and grows beyond the 8rem minimum.}
+                }
+            }
+        }
+    }
+    {p @id=dimension-example-result @role=status | {$datadom.slices.exampleResult}}
+    {h3 | Inheritance and container layout}
+    {div @data-cem-size=large | {cem-action | Inherited large action}}
+    {div @class=stretch | {cem-action @size=x-large | Container-stretched action}}
+}
+</template>
+</cem-element>
 <cem-element>
 <template type="text/cem-ml">
 {cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-action"}

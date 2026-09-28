@@ -10,6 +10,7 @@
         }
         :scope {
             display: inline-flex;
+            min-inline-size: 0;
         }
         :scope:where([size="small"]) {
             --cem-control-height: var(--cem-control-height-small);
@@ -23,11 +24,15 @@
         :scope:where([size="x-large"]) {
             --cem-control-height: var(--cem-control-height-x-large);
         }
+        :scope:where([size="xx-large"]) {
+            --cem-control-height: var(--cem-control-height-xx-large);
+        }
         :scope > button[part~='control'] {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            white-space: nowrap;
+            white-space: normal;
+            overflow-wrap: anywhere;
             gap: var(--cem-dim-x-small);
             box-sizing: border-box;
             position: relative;

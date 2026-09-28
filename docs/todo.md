@@ -8,6 +8,18 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Action size roles and content compositions
+
+- [x] Document size roles, independent content layout, native navigation semantics and compact-only hit expansion in the dimensions specification.
+- [x] Add the theme-owned xx-large minimum profile and allow action labels to wrap within constrained layouts.
+- [x] Fixture: cover xx-large inheritance/overrides, compact-only hit borders and growing image/title content in action stories.
+- [x] Add working inline, text, icon, image-choice and hero-choice playground samples; verify responsive source and installed-package pages.
+- [x] Run theme and component checks and record evidence.
+
+Verification: 15 action stories, theme generation and fresh Phase 13 checks,
+component package/style/declarative checks, typecheck, lint and responsive
+source/isolated-package playgrounds pass. See [completion evidence](archive/todo-completed-2026-09-27.md#action-size-roles-and-content-compositions).
+
 ## Completed: Playground undefined size and contrast contract
 
 - [x] Fixture: Size radios expose Undefined, small, medium, large and x-large; Undefined removes the attribute in source and packaged playgrounds.
