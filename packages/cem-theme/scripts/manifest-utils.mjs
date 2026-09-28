@@ -179,6 +179,7 @@ function deriveColorManifest(xhtml) {
     addTableCategory(xhtml, "cem-zebra-tokens", "d0-zebra", tokens, warnings);
     addTableCategory(xhtml, "cem-input-indicator-colors", "d0-input-indicator", tokens, warnings);
     addTableCategory(xhtml, "cem-pending-colors", "d0-action", tokens, warnings);
+    addTableCategory(xhtml, "cem-action-outline-colors", "d0-action", tokens, warnings);
     addTableCategory(xhtml, "cem-select-state-colors", "d0-select", tokens, warnings);
     addTableCategory(xhtml, "cem-navigation-item-state-colors", "d0-navigation", tokens, warnings);
     addTableCategory(
@@ -301,6 +302,7 @@ function deriveStrokeManifest(xhtml) {
         "cem-stroke-semantic",
         "cem-stroke-zebra-pattern",
         "cem-stroke-pending-pattern",
+        "cem-stroke-action-outline",
         "cem-stroke-rings",
         "cem-stroke-indicator-appearance",
     ]) {

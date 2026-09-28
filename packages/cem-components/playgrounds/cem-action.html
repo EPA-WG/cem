@@ -73,7 +73,7 @@
 <template type="text/cem-ml">
 {slice @name=intent | primary}
 {slice @name=bend | smooth}
-{slice @name=size | inherited}
+{slice @name=size | undefined}
 {slice @name=type | button}
 {slice @name=disabled | false}
 {slice @name=loading | false}
@@ -104,7 +104,7 @@
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=action-property-size @slice=size @slice-event=change @slice-value="$target.value" |
     {legend @id=action-property-size | Size}
     {div @class=property-options |
-        {cem-radio @name=action-property-size @value=inherited @checked=true | Inherited}
+        {cem-radio @name=action-property-size @value=undefined @checked=true | Undefined}
         {cem-radio @name=action-property-size @value=small | Small}
         {cem-radio @name=action-property-size @value=medium | Medium}
         {cem-radio @name=action-property-size @value=large | Large}
@@ -145,11 +145,11 @@
     {section @aria-label="Action preview" |
         {h2 | Preview}
         {div @class=preview |
-            {cem-action @id=action-preview @size={if datadom.slices.size == "inherited" { null } else { datadom.slices.size }} @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @loading="{$datadom.slices.loading}" @expanded={if datadom.slices.expanded == "unset" { null } else { datadom.slices.expanded }} }
+            {cem-action @id=action-preview @size={if datadom.slices.size == "undefined" { null } else { datadom.slices.size }} @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @loading="{$datadom.slices.loading}" @expanded={if datadom.slices.expanded == "unset" { null } else { datadom.slices.expanded }} }
         }
         {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
-        {p | Set Loading to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Each loop takes two seconds. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Loading to False to stop it and restore normal interaction colors. Disabled actions keep the pending gradient while loading but cannot be activated or focused. Reduced-motion settings freeze the gradient; forced colors use a static pending boundary.}
-        {p | Size sets a minimum visible height: small 2.5rem, medium 3rem, large 4rem, x-large 6rem. Inherited removes the local size override. Compact actions reserve a transparent hit border inside a minimum 3rem target; larger profiles need no extra hit border. Content and layout can enlarge the control.}
+        {p | Set Loading to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Each loop takes two seconds. Contrast modes keep the background at the surface color and animate a zebra outline instead. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Loading to False to stop it and restore normal interaction colors. Disabled actions keep the pending indicator while loading but cannot be activated or focused. Reduced-motion settings freeze the pending indicator; forced colors use a static pending boundary.}
+        {p | Size sets a minimum visible height: small 2.5rem, medium 3rem, large 4rem, x-large 6rem. Undefined removes the size attribute and inherits the container or theme. Compact actions reserve a transparent hit border inside a minimum 3rem target; larger profiles need no extra hit border. Content and layout can enlarge the control.}
         {p | Submit and reset can be inspected here; this preview is outside a form. Form behavior is covered in the automated stories.}
         {p | {a @href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts" | Automated stories}}
     }

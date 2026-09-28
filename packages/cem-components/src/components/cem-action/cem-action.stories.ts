@@ -121,6 +121,87 @@ export const CompactHitArea = meta.story({
     },
 });
 
+export const ContrastContours = meta.story({
+    globals: { cemTheme: 'light' },
+    parameters: { docs: { description: { story: 'Contrast modes keep flat surfaces and animate the pending zebra contour. Trusted pointer checks run in the browser runner.' } } },
+    render: () => ['contrast-light', 'contrast-dark'].map(mode => `<section class="cem-theme-${mode}" style="display:flex;flex-wrap:wrap;gap:1rem">${
+        ['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(intent => `<cem-action variant="${intent}">${intent}</cem-action>`).join('')
+    }</section>`).join(''),
+    play: async ({ canvasElement }) => {
+        const native = import.meta.env.MODE === 'test' ? (await import('vitest/browser')).userEvent : null;
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
+            await whenCemRendered(host);
+            const button = host.querySelector('button') as HTMLButtonElement;
+            const section = host.parentElement as HTMLElement;
+            const probe = document.createElement('span');
+            probe.style.backgroundColor = 'var(--cem-palette-comfort)';
+            section.append(probe);
+            const surface = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            const contour = () => getComputedStyle(button, '::before');
+            const rect = button.getBoundingClientRect();
+            await expect(getComputedStyle(button).backgroundColor).toBe(surface);
+            await expect(colorContrast(surface, getComputedStyle(button).color)).toBeGreaterThanOrEqual(4.5);
+            await expect(contour().display).toBe('block');
+            await expect(contour().maskComposite.split(', ').every(value => value === 'exclude')).toBe(true);
+            await expect(parseFloat(contour().paddingTop)).toBe(1);
+            await expect(colorContrast(surface, contour().backgroundColor)).toBeGreaterThanOrEqual(3);
+            if (native) {
+                await native.hover(button);
+                await expect(parseFloat(contour().paddingTop)).toBe(2);
+                button.focus();
+                await native.keyboard('[Space>]');
+                await expect(parseFloat(contour().paddingTop)).toBe(3);
+                await expect(getComputedStyle(button).backgroundColor).toBe(surface);
+                await native.keyboard('[/Space]');
+                await native.unhover(button);
+            }
+            host.setAttribute('loading', 'true');
+            await whenCemRendered(host);
+            await expect(contour().backgroundImage).toContain('linear-gradient(45deg');
+            await expect(contour().animationIterationCount).toBe('infinite');
+            await expect(contour().animationDuration).toBe('2s');
+            await expect(getComputedStyle(button).backgroundColor).toBe(surface);
+            const animations = button.getAnimations({ subtree: true });
+            await expect(animations.length).toBeGreaterThan(0);
+            for (const animation of animations) { animation.pause(); animation.currentTime = 500; }
+            const position = contour().backgroundPositionX;
+            for (const animation of animations) animation.currentTime = 1000;
+            await expect(contour().backgroundPositionX).not.toBe(position);
+            for (const animation of animations) animation.currentTime = 2500;
+            await expect(contour().backgroundPositionX).toBe(position);
+            for (const animation of animations) animation.play();
+            if (native) {
+                button.focus();
+                await native.keyboard('[Space]');
+                await expect(button.matches(':focus-visible')).toBe(true);
+                await expect(getComputedStyle(button).boxShadow).not.toBe('none');
+            }
+            host.setAttribute('disabled', '');
+            await whenCemRendered(host);
+            await expect(contour().animationIterationCount).toBe('infinite');
+            await expect(contour().display).toBe('block');
+            await expect(getComputedStyle(button).backgroundColor).toBe(surface);
+            let clicks = 0;
+            button.addEventListener('click', () => clicks++);
+            button.click();
+            await expect(clicks).toBe(0);
+            await expect(button.getBoundingClientRect().height).toBe(rect.height);
+            await expect(button.getBoundingClientRect().width).toBe(rect.width);
+            const mode = section.className;
+            section.className = 'cem-theme-light';
+            await expect(contour().display).toBe('none');
+            section.className = mode;
+            await expect(contour().display).toBe('block');
+            host.setAttribute('loading', 'false');
+            await whenCemRendered(host);
+            await expect(button.getAnimations()).toHaveLength(0);
+            await expect(contour().backgroundColor).toBe(getComputedStyle(button).color);
+            button.blur();
+        }
+    },
+});
+
 export const ThemeOverrides = meta.story({
     parameters: { docs: { description: { story: 'Container and individual host overrides use existing theme tokens. Trusted hover/active checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light"><cem-action>First</cem-action><cem-action>Sibling</cem-action></section>`,
@@ -350,7 +431,13 @@ export const DestructivePendingModes = meta.story({
             probe.remove();
             const paint = getComputedStyle(button);
             await expect(paint.backgroundImage).toContain(stripe);
-            await expect(colorContrast(pending, stripe)).toBeGreaterThan(1.8);
+            if (host.parentElement?.className.includes('contrast-')) {
+                await expect(pending).toBe(stripe);
+                await expect(getComputedStyle(button, '::before').backgroundImage).toContain('linear-gradient(45deg');
+                await expect(getComputedStyle(button, '::before').display).toBe('block');
+            } else {
+                await expect(colorContrast(pending, stripe)).toBeGreaterThan(1.8);
+            }
             await expect(colorContrast(pending, paint.color)).toBeGreaterThanOrEqual(4.5);
             await expect(colorContrast(stripe, paint.color), `${host.parentElement!.className}: stripe=${stripe}, text=${paint.color}`).toBeGreaterThanOrEqual(4.5);
             await expect(button.disabled).toBe(true);

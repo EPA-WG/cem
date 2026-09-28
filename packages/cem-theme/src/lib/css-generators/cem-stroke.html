@@ -23,7 +23,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-stroke-template"
           data-token-url="../../../dist/lib/tokens/cem-stroke.xhtml"
-          data-slices="basis=cem-stroke-basis semantic=cem-stroke-semantic pending=cem-stroke-pending-pattern zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
+          data-slices="action=cem-stroke-action-outline basis=cem-stroke-basis semantic=cem-stroke-semantic pending=cem-stroke-pending-pattern zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -74,6 +74,13 @@
 
   /* region ring recipes — box-shadow composition referencing D0 zebra tokens */```{call @from=docs @template=css-properties @with:rows={datadom.slices.rings} @with:indent="  "}```
   /* endregion ring recipes */
+}
+
+/* Action contour presence is inherited across explicit theme boundaries. */
+:root, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-light, .cem-theme-dark, .cem-theme-contrast-light, .cem-theme-contrast-dark {```{call @from=docs @template=css-properties @with:rows={datadom.slices.action} @with:indent="  "}```
+}
+[data-theme="cem-theme-contrast-light"], [data-theme="cem-theme-contrast-dark"], .cem-theme-contrast-light, .cem-theme-contrast-dark {```{cem:for-each @select="$datadom.slices.action" @as="row" |```
+  ```{$row.token}: {$row.contrast};}```
 }
 
 /* region forced-colors fallback — collapse rings to a single Highlight outline (Principle P4) */

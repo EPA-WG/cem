@@ -427,23 +427,23 @@ disabled → readonly → editable → default → indeterminate → hover → a
 
 #### 7.2.2 State formulas (normative)
 ###### cem-action-state-color
-| State         | Background formula (palette-level)                                                        | Text token                               | tier |
-|---------------|-------------------------------------------------------------------------------------------|------------------------------------------|------|
-| disabled      | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `var(--cem-palette-conservative-text-x)` | required |
-| readonly      | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      | recommended |
-| editable      | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      | recommended |
-| default       | `var(--cem-palette-[emotion])`                                                            | `var(--cem-palette-[emotion]-text)`      | required |
-| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      | recommended |
-| hover         | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text)`      | required |
-| active        | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    | required |
-| pending       | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))`    | `var(--cem-palette-[emotion]-text-x)`    | recommended |
+| State | Background formula (palette-level) | Text token | Contrast background | Contrast text | tier |
+| --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------ | --- | --- | ------ |
+| disabled | `color-mix(in srgb, var(--cem-palette-[emotion]) 30%, var(--cem-palette-conservative-x))` | `var(--cem-palette-conservative-text-x)` | `var(--cem-palette-comfort)` | `color-mix(in srgb, var(--cem-palette-comfort-text) 38%, var(--cem-palette-comfort))` | required |
+| readonly | `color-mix(in srgb, var(--cem-palette-[emotion]) 80%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
+| editable | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
+| default | `var(--cem-palette-[emotion])` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
+| indeterminate | `color-mix(in srgb, var(--cem-palette-[emotion]) 90%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
+| hover | `color-mix(in srgb, var(--cem-palette-[emotion]) 70%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
+| active | `color-mix(in srgb, var(--cem-palette-[emotion]) 25%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | required |
+| pending | `color-mix(in srgb, var(--cem-palette-[emotion])  5%, var(--cem-palette-[emotion]-x))` | `var(--cem-palette-[emotion]-text-x)` | `var(--cem-palette-comfort)` | `var(--cem-palette-comfort-text)` | recommended |
 
 **Applying this to action intents:** substitute `[emotion]` with the emotional palette mapped by the intent (see §7.1).
 The resulting values populate `--cem-action-{intent}-{state}-background` and `--cem-action-{intent}-{state}-text`.
 
 #### Pending gradient and continuous motion
 
-Pending actions MUST show a repeating 45-degree background gradient while their
+Outside contrast modes, pending actions MUST show a repeating 45-degree background gradient while their
 busy source is true. A one-shot color fade is not the pending-motion contract.
 Use the intent's pending background and active background as the two gradient
 colors, with its pending text color throughout. Destructive actions use
@@ -515,12 +515,41 @@ may be implemented through zebra/markers rather than fill.
 
 ### 7.5 Contrast themes: collapse fills, keep semantics
 
-In `contrast-light` and `contrast-dark`, background tokens SHOULD converge on the base surface (
-`--cem-palette-comfort`), with state primarily expressed via:
+In `contrast-light` and `contrast-dark`, all action background tokens MUST resolve
+to the base surface (`--cem-palette-comfort`). Text uses surface ink, including
+for destructive actions; disabled ink is subdued. The contrast columns in the
+state table are canonical. There is no intent or state fill progression.
 
-- zebra outline strip colors (`--cem-zebra-color-*`)
-- markers (required/indeterminate)
-- typography deltas (weight/decoration), if needed
+Intent moves to a contour, colored by the intent's extreme palette endpoint.
+D5 defines its resting/hover/active thickness; keyboard focus retains its
+independent zebra rings. Loading, including disabled loading, uses an animated
+45-degree zebra contour instead of the background gradient. Its alternating
+surface and surface-ink endpoints remain visible in either contrast scheme.
+Reduced motion freezes the contour. Forced colors uses the existing static
+system-color pending boundary. Changing back to light/dark/native restores the
+ordinary gradient. This is the explicit contrast exception to the pending background contract in §7.2.2.
+
+###### cem-action-outline-colors
+| Token | Value | Description | tier |
+|---|---|---|---|
+| `--cem-action-primary-outline-color` | `var(--cem-palette-creativity-x)` | Primary intent contour | required |
+| `--cem-action-explicit-outline-color` | `var(--cem-palette-trust-x)` | Explicit intent contour | required |
+| `--cem-action-contextual-outline-color` | `var(--cem-palette-comfort-x)` | Contextual intent contour | required |
+| `--cem-action-alternate-outline-color` | `var(--cem-palette-enthusiasm-x)` | Alternate intent contour | required |
+| `--cem-action-destructive-outline-color` | `var(--cem-palette-danger-x)` | Destructive intent contour | required |
+| `--cem-action-pending-outline-image` | `linear-gradient(var(--cem-zebra-angle), var(--cem-palette-comfort-text) 0%, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-text) 50%, var(--cem-palette-comfort) 75%, var(--cem-palette-comfort-text) 100%)` | Pending zebra contour; D5 masks the center | recommended |
+
+###### cem-action-contrast-overrides
+| Token | Value |
+|---|---|
+| `--cem-action-destructive-pending-stripe-background` | `var(--cem-palette-comfort)` |
+| `--cem-slider-thumb-hover-color` | `var(--cem-palette-creativity-x)` |
+| `--cem-slider-thumb-active-color` | `var(--cem-palette-comfort-text)` |
+
+This override table declares no new tokens; it suppresses the destructive
+pending fill stripe in contrast modes. Slider thumbs are foreground markers,
+so their hover/active ink must not inherit collapsed action backgrounds.
+Preserve all ordinary-mode endpoints.
 
 ---
 
@@ -1106,7 +1135,9 @@ from these tables using the same logic as `cem-colors.html`.
 |--------------------------------------------------------|-------------------------------|-------------------------------------|
 | `cem-color-hue-variant`                                | `--cem-color-*` (35 tokens)   | one token per row                   |
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
-| `cem-pending-colors` | `--cem-pending-color-*` (2 tokens) | one token per row |
+| `cem-pending-colors` | Two pending color inputs and destructive stripe endpoint (3 tokens) | one token per row |
+| `cem-action-outline-colors` | Five intent contours and pending contour image (6 tokens) | one token per row |
+| `cem-action-contrast-overrides` | Existing destructive stripe and slider marker endpoints | overrides only; no new tokens |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
@@ -1117,6 +1148,9 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-separator-colors`                                  | `--cem-separator-*` (1 token) | one token per row                     |
 | `cem-workflow-step-colors`                              | `--cem-workflow-*` (4 tokens) | one token per row                     |
 | `cem-action-intent-emotion` × `cem-action-state-color` | `--cem-action-*` (80 tokens)  | intent × state × {background, text} |
+The contrast columns in `cem-action-state-color` generate mode overrides of
+existing intent × state background/text tokens; they declare no additional tokens.
+
 ## 15. References
 
 ### Internal

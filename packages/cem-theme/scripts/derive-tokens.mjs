@@ -65,6 +65,7 @@ function deriveColorTokens(xhtml) {
     addTableTokens(xhtml, "cem-zebra-tokens", spec, "d0-zebra", tokens, warnings);
     addTableTokens(xhtml, "cem-input-indicator-colors", spec, "d0-input-indicator", tokens, warnings);
     addTableTokens(xhtml, "cem-pending-colors", spec, "d0-action", tokens, warnings);
+    addTableTokens(xhtml, "cem-action-outline-colors", spec, "d0-action", tokens, warnings);
     addTableTokens(xhtml, "cem-select-state-colors", spec, "d0-select", tokens, warnings);
     addTableTokens(xhtml, "cem-navigation-item-state-colors", spec, "d0-navigation", tokens, warnings);
     addTableTokens(xhtml, "cem-content-interaction-state-colors", spec, "d0-content-interaction", tokens, warnings);
@@ -219,6 +220,7 @@ function deriveStrokeTokens(xhtml) {
         "cem-stroke-semantic",
         "cem-stroke-zebra-pattern",
         "cem-stroke-pending-pattern",
+        "cem-stroke-action-outline",
         "cem-stroke-rings",
         "cem-stroke-indicator-appearance",
     ]) {

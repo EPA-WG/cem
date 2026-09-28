@@ -35,7 +35,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
+          data-slices="outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
 {table @id=cem-color-hue-variant @data-selected-token="" |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} Branded colors}
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
@@ -130,7 +130,7 @@
                             {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
                                 @style='{str:concat(("--cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, if intent.action_intent == "destructive" { "-pending-stripe" } else { "-active" }, "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
-                                @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette), "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", str:replace(state.text_token, "[emotion]", intent.emotional_palette)))}' | Aa}
+                                @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) }, "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) }))}' | Aa}
                         }
                     }
                 }}
@@ -314,6 +314,8 @@
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
     ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette)};
     --cem-action-{$intent.action_intent}-{$state.state}-text: {$str:replace(state.text_token, "[emotion]", intent.emotional_palette)};}}```
+    /* action contour colors resolve in the active theme */```{cem:for-each @select="$datadom.slices.outline" @as="row" |```
+    ```{$row.token}: {$row.value};}```
     /* pending gradient color inputs */```{cem:for-each @select="$datadom.slices.pending" @as="row" |```
     ```{$row.token}: {$row.value};}```
     --cem-zebra-color-0: var(--cem-palette-comfort);
@@ -369,6 +371,13 @@
   }
   /* endregion native */
 
+  /* Contrast action surfaces and ink come from the canonical state columns. */
+  [data-theme="cem-theme-contrast-light"], [data-theme="cem-theme-contrast-dark"], .cem-theme-contrast-light, .cem-theme-contrast-dark {```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
+    --cem-action-```{$intent.action_intent}-{$state.state}-background: {$state.contrast_background};```
+    --cem-action-```{$intent.action_intent}-{$state.state}-text: {$state.contrast_text};}}{cem:for-each @select="$datadom.slices.contrast" @as="row" |```
+    ```{$row.token}: {$row.value};}```
+  }
+
   @media (forced-colors: active) {
     &, [data-theme*="cem-theme-"], .cem-theme-native, .cem-theme-contrast-light, .cem-theme-contrast-dark, .cem-theme-light, .cem-theme-dark {```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
       ```{$row.token}: {$row.forced_colors};}```
@@ -388,6 +397,7 @@
 
 /* Pending utility: D0 colors, D5 geometry, D7 continuous motion. */
 .cem-pending {
+    position: relative;
     background-image: linear-gradient(var(--cem-pending-angle),
                 var(--cem-pending-color-1) 0%, var(--cem-pending-color-2) 25%,
                 var(--cem-pending-color-1) 50%, var(--cem-pending-color-2) 75%,
@@ -398,14 +408,30 @@
             animation-timing-function: var(--cem-easing-uniform);
             animation-iteration-count: infinite;
 }
+/* The theme preview uses the same contrast contour as action. */
+.cem-pending::before {
+    content: '';
+    display: var(--cem-action-outline-display);
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    padding: var(--cem-stroke-pending);
+    border-radius: inherit;
+    background-image: var(--cem-action-pending-outline-image);
+    background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+    mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
+    mask-composite: exclude;
+    animation: cem-pending-shift var(--cem-duration-pending-cycle) var(--cem-easing-uniform) infinite;
+}
 @keyframes cem-pending-shift {
     from { background-position-x: 0px; }
     to { background-position-x: var(--cem-pending-tile-size); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .cem-pending { animation: none; }
+    .cem-pending, .cem-pending::before { animation: none; }
 }
 @media (forced-colors: active) {
+    .cem-pending::before { display: none; }
     .cem-pending {
         background-image: none;
         animation: none;

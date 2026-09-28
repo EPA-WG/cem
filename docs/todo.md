@@ -8,6 +8,17 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Playground undefined size and contrast contract
+
+- [x] Fixture: Size radios expose Undefined, small, medium, large and x-large; Undefined removes the attribute in source and packaged playgrounds.
+- [x] Resolve pending-gradient versus contrast-outline policy: user selected animated loading zebra with collapsed fills.
+- [x] Generate contrast action fills/ink and implement zebra state feedback from the canonical theme.
+- [x] Fixture: verify contrast-light/dark default, hover, active, focus, disabled and loading, including theme switching and accessible state feedback.
+
+Verification: 14 action stories, theme generator/manifest checks, component
+package/style/declarative checks, typecheck, lint and source/isolated-package
+playgrounds pass. See [completion evidence](archive/todo-completed-2026-09-27.md#undefined-size-and-contrast-action-contours).
+
 ## Completed: Action dimensions and compact hit areas
 
 - [x] Document optional theme size profiles and conditional native hit areas in the dimensions, controls and coupling specifications.

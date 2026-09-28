@@ -114,7 +114,7 @@ async function verify(url) {
         assert.equal(await page.getByRole('combobox').count(), 0);
         assert.equal(await page.getByRole('radiogroup').count(), 8);
         assert.equal(await page.getByRole('radio').count(), 26);
-        for (const [label, value] of [['Size', 'Inherited'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
+        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             for (const radio of await group.getByRole('radio').all()) assert(await radio.isVisible());
@@ -123,13 +123,13 @@ async function verify(url) {
             await choose('Intent', variant);
             await page.waitForFunction(variant => document.querySelector('#action-preview')?.getAttribute('variant') === variant, variant.toLowerCase());
         }
-        for (const [size, height] of [['Small', 3], ['Medium', 3], ['Large', 4], ['X-large', 6], ['Inherited', 3]]) {
+        for (const [size, height] of [['Small', 3], ['Medium', 3], ['Large', 4], ['X-large', 6], ['Undefined', 3]]) {
             await choose('Size', size);
             await page.waitForFunction(({ size, height }) => {
                 const host = document.querySelector('#action-preview');
                 const button = host?.querySelector('button');
                 const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-                return host?.getAttribute('size') === (size === 'Inherited' ? null : size.toLowerCase()) &&
+                return host?.getAttribute('size') === (size === 'Undefined' ? null : size.toLowerCase()) &&
                     button?.getBoundingClientRect().height === height * rem;
             }, { size, height });
         }
@@ -166,6 +166,26 @@ async function verify(url) {
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().duration), 2000);
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         await verifyThemeControls(page);
+        const modes = page.getByRole('radiogroup', { name: 'Theme', exact: true });
+        const contrastToggle = page.getByRole('checkbox', { name: 'Contrast', exact: true });
+        for (const mode of ['Dark', 'Light']) {
+            await modes.getByRole('radio', { name: mode, exact: true }).click();
+            await contrastToggle.check();
+            await page.waitForFunction(mode => document.querySelector('#playground-theme')?.getAttribute('data-theme') === `cem-theme-contrast-${mode}`, mode.toLowerCase());
+            const contour = await button.evaluate(node => {
+                const style = getComputedStyle(node, '::before');
+                const probe = document.createElement('span');
+                probe.style.backgroundColor = 'var(--cem-palette-comfort)';
+                node.append(probe);
+                const surface = getComputedStyle(probe).backgroundColor;
+                probe.remove();
+                return { display: style.display, image: style.backgroundImage, position: style.backgroundPositionX, fill: getComputedStyle(node).backgroundColor, surface };
+            });
+            assert.equal(contour.display, 'block');
+            assert.match(contour.image, /linear-gradient\(45deg/);
+            assert.equal(contour.fill, contour.surface);
+            await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button'), '::before').backgroundPositionX !== position, contour.position);
+        }
         assert.equal(await label.inputValue(), 'Publish now');
         assert.equal(await button.innerText(), 'Publish now');
         assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
@@ -185,12 +205,14 @@ async function verify(url) {
         await choose('Loading', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
         assert.deepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
-        assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
+        assert.equal(await button.evaluate(node => node.getAnimations({ subtree: true }).length), 0);
+        assert.match(await button.evaluate(node => getComputedStyle(node, '::before').backgroundImage), /linear-gradient\(45deg/);
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         await page.emulateMedia({ forcedColors: 'active' });
         assert.equal(await button.evaluate(node => getComputedStyle(node).backgroundImage), 'none');
         assert.equal(await button.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
-        assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
+        assert.equal(await button.evaluate(node => getComputedStyle(node, '::before').display), 'none');
+        assert.equal(await button.evaluate(node => node.getAnimations({ subtree: true }).length), 0);
         await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
         await choose('Disabled', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === false);
@@ -198,7 +220,7 @@ async function verify(url) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());
         }
-        for (const [label, value] of [['Size', 'Inherited'], ['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Expanded', 'Unset']]) {
+        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             assert.equal(await group.locator('input:checked').count(), 1);
@@ -297,7 +319,7 @@ async function verifyPendingTheme(url) {
         });
         assert.equal(cycle[0], cycle[1]);
         await page.emulateMedia({ reducedMotion: 'reduce' });
-        assert.equal(await cell.evaluate(node => node.getAnimations().length), 0);
+        assert.equal(await cell.evaluate(node => node.getAnimations({ subtree: true }).length), 0);
         assert.match(await cell.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         await page.emulateMedia({ forcedColors: 'active' });
         assert.equal(await cell.evaluate(node => getComputedStyle(node).backgroundImage), 'none');

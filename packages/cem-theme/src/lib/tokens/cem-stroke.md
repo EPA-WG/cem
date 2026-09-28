@@ -598,12 +598,13 @@ Treat as **minor/patch** if you:
 | `cem-stroke-basis`         | §3.1    | Stroke basis: `--cem-stroke-{none,hair,standard,strong}`                                                          |
 | `cem-stroke-semantic`      | §4.1    | Semantic endpoints: `--cem-stroke-{boundary,boundary-strong,divider,grid,focus,selected,target,pending,indicator-offset}` |
 | `cem-stroke-zebra-pattern` | §5.2    | `--cem-zebra-angle` (gradient-mode geometry)                                                                      |
+| `cem-stroke-action-outline` | Contrast action contours | Action contour display at ordinary/contrast theme boundaries |
 | `cem-stroke-rings`         | §5.3    | Ring composition recipes: `--cem-ring-zebra-3`, `--cem-ring-zebra-4`                                              |
 | `cem-stroke-rings-forced`  | §5.3    | Forced-colors fallback values for the rings (generator-only; no new tokens)                                       |
 | `cem-stroke-indicator-appearance` | §5.4 | Unitless outline/underline geometry selectors                                                               |
 
 Generator derivation rules:
-- `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings`,
+- `cem-stroke-basis`, `cem-stroke-semantic`, `cem-stroke-zebra-pattern`, `cem-stroke-rings`, `cem-stroke-action-outline`,
   `cem-stroke-indicator-appearance` → token list (tier in last column).
 - `cem-stroke-rings-forced` → override data emitted inside `@media (forced-colors: active) :root { … }`; no new
   tokens.
@@ -631,3 +632,20 @@ Generator derivation rules:
   - https://dev.to/dhutaryan/how-to-make-angular-material-inputs-look-like-simple-fields-3oe5
 - MUI System borders utilities — https://mui.com/system/borders/
 - MUI Joy UI Input variables (focus thickness/offset) — https://mui.com/joy-ui/react-input/
+
+## Contrast action contours
+
+###### cem-stroke-action-outline
+| Token | Value | Contrast | Description | tier |
+|---|---|---|---|---|
+| `--cem-action-outline-display` | `none` | `block` | Enable the action contour in contrast themes; reset in light/dark/native scopes | required |
+
+This source table is part of the D5 token manifest. The generator emits Value
+at the root and every theme boundary, then Contrast at contrast-light/dark
+boundaries. Geometry uses existing stroke endpoints: boundary at rest, standard
+on enabled hover, strong during activation, and pending while loading. Disabled
+suppresses pointer state changes. The contour sits inside the painted surface,
+so changing thickness does not change the hit area or layout. Focus zebra stays
+outside the operable bounds. Pending animates D0's zebra contour image with the
+existing D7 pending duration and D5 tile size; the center is masked out. Reduced
+motion freezes it, and forced colors replaces it with the native pending outline.

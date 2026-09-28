@@ -428,3 +428,13 @@ compact profiles use a transparent hit border and clip paint to the padding box.
 This border is not a visible intent outline. Zebra marks the complete target.
 Keep at least `--cem-coupling-guard-min` between neighboring targets.
 See the [dimension decision](../../cem-theme/src/lib/tokens/cem-dimension.md#decision-optional-component-dimensions-and-compact-hit-areas).
+
+### Action contrast modes
+
+Contrast-light/dark collapse action fills to the surface and use surface ink.
+Intent appears in the contour; hover and active increase its thickness without
+changing layout. Keyboard zebra remains independent. Loading animates a masked
+zebra contour, including while disabled, with a flat surface behind the label.
+Reduced motion freezes that contour; forced colors uses a static system outline.
+Ordinary light/dark/native modes retain pending background gradients. Both the
+contrast state values and contour tokens are generated from canonical theme docs.

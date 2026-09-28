@@ -611,3 +611,35 @@ playground checks pass, including reduced-motion and forced-colors coverage.
   playground dependency for Nx dependency checking.
 - Next component development item: the `cem-select` companion property
   playground/source view with the shared theme switch and package preview checks.
+
+
+## Undefined size and contrast action contours
+
+- The playground's size radios now expose Undefined, Small, Medium, Large and
+  X-large. Undefined removes `size` and restores inherited theme geometry.
+- Fixed contrast-light/dark action tokens reusing ordinary branded fills.
+  Canonical D0 state-table columns now collapse all action fills to the surface,
+  use surface ink and subdue disabled ink. Existing tokens remain in the release.
+- User decision: contrast loading also keeps a collapsed fill and uses an
+  animated zebra contour. Ordinary light/dark/native pending gradients remain.
+- Added Markdown-owned intent contour colors, pending contour image and D5
+  contour visibility. Action uses existing stroke widths for resting, hover,
+  active and pending feedback. The masked pseudo-element has no pointer behavior
+  or layout footprint; outer keyboard zebra and native disabled behavior remain.
+- Disabled loading retains the contour loop. Reduced motion freezes it; forced
+  colors suppresses it and preserves the existing static system-color boundary.
+  Theme preview utilities and displayed contrast formulas follow the same policy.
+- Preserved visible slider hover/active thumb markers: these foreground colors
+  no longer inherit collapsed action fills in contrast scopes.
+- Registered selector-only size profiles and contour visibility in the theme
+  presentation verifier's generator-only table inventory. D0/D5 manifest and
+  export derivation include the new canonical source tables.
+- Verification: all 14 action stories pass, covering both contrast modes and
+  all five intents, text/contour contrast, pointer/keyboard states, disabled
+  loading, theme restoration, unchanged geometry and the two-second repeating
+  contour loop. Theme generation/exports and Phase 13 manifest, presentation,
+  contrast, focus/target-size, reduced-motion and forced-colors checks pass.
+  Component declarative/style/package checks, typecheck and lint pass (48
+  existing non-null assertion warnings). Source and isolated-package playground
+  checks cover Undefined/removal and both contrast modes, including reduced
+  motion and forced colors.

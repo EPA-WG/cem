@@ -30,6 +30,7 @@
             white-space: nowrap;
             gap: var(--cem-dim-x-small);
             box-sizing: border-box;
+            position: relative;
             flex: 1;
             min-inline-size: var(--cem-coupling-zone-min);
             min-block-size: max(var(--cem-coupling-zone-min), var(--cem-shape-height, var(--cem-control-height)));
@@ -181,12 +182,56 @@
                 var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 50%, var(--cem-action-destructive-pending-stripe-background, var(--cem-action-destructive-active-background)) 75%,
                 var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 100%);
         }
+        :scope > [part~='control']::before {
+            content: '';
+            display: var(--cem-action-outline-display);
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            pointer-events: none;
+            border-radius: var(--cem-action-border-radius);
+            padding: var(--cem-stroke-boundary);
+            background-color: var(--cem-action-primary-outline-color);
+            mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
+            mask-composite: exclude;
+        }
+        :scope:where([variant="explicit"]) > [part~='control']::before {
+            background-color: var(--cem-action-explicit-outline-color);
+        }
+        :scope:where([variant="contextual"]) > [part~='control']::before {
+            background-color: var(--cem-action-contextual-outline-color);
+        }
+        :scope:where([variant="alternate"]) > [part~='control']::before {
+            background-color: var(--cem-action-alternate-outline-color);
+        }
+        :scope:where([variant="destructive"]) > [part~='control']::before {
+            background-color: var(--cem-action-destructive-outline-color);
+        }
+        :scope > [part~='control']:where(:enabled:hover)::before {
+            padding: var(--cem-stroke-standard);
+        }
+        :scope > [part~='control']:where(:enabled:active)::before {
+            padding: var(--cem-stroke-strong);
+        }
+        :scope > [part~='control']:where(:disabled:not([aria-busy='true']))::before {
+            background-color: currentColor;
+        }
+        :scope > [part~='control']:where([aria-busy='true'])::before {
+            padding: var(--cem-stroke-pending);
+            background-image: var(--cem-action-pending-outline-image);
+            background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+            animation-name: cem-pending-shift;
+            animation-duration: var(--cem-duration-pending-cycle);
+            animation-timing-function: var(--cem-easing-uniform);
+            animation-iteration-count: infinite;
+        }
         @keyframes cem-pending-shift {
             from { background-position-x: 0px; }
             to { background-position-x: var(--cem-pending-tile-size); }
         }
         @media (prefers-reduced-motion: reduce) {
-            :scope > button[part~='control']:where([aria-busy='true']) {
+            :scope > button[part~='control']:where([aria-busy='true']),
+            :scope > [part~='control']:where([aria-busy='true'])::before {
                 animation: none;
             }
         }
@@ -199,6 +244,9 @@
                 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
         }
         @media (forced-colors: active) {
+            :scope > [part~='control']::before {
+                display: none;
+            }
             :scope > button[part~='control']:where([aria-busy='true']) {
                 animation: none;
                 background-color: ButtonFace;

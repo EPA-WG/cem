@@ -210,3 +210,13 @@ intents exercised in its colocated stories. Its native button exposes
 `part="control"`. Only the unmigrated icon/menu rules remain in global CSS.
 The primary rows above describe the default intent; other supported variants
 substitute their intent name in the same state-token pairs.
+
+## Contrast-mode contour exception
+
+The canonical D0 contrast contract collapses action fills to the surface.
+In contrast-light/dark, a masked contour uses the existing D5 boundary,
+standard and strong stroke widths for resting, hover and active feedback.
+It does not alter native-control padding, hit area or layout. Pending replaces
+that contour with the animated zebra pattern, including when disabled; keyboard
+focus remains an independent outer zebra. Ordinary theme behavior remains as
+specified above. See `cem-colors.md` §7.5 and `cem-stroke.md` contrast contours.
