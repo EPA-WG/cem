@@ -355,3 +355,14 @@ after other edits, preview identity and the existing source/gallery checks.
 The IDE browser confirms all six groups and their initial choices render.
 The development pattern now calls for visible radio groups for mutually
 exclusive enumerated properties.
+
+## Action native border reset
+
+The canonical action now sets `appearance: none` and `border: 0` for its
+native button. This removes the browser's 2px outset border across all five
+intents while preserving theme curvature, paint and zebra focus rings.
+
+All six action stories and source/isolated-package playground checks pass.
+DevTools confirms zero border width and no native appearance for each intent.
+A separate browser check under forced colors confirms keyboard focus retains
+the solid 3px system-color outline with no box shadow.

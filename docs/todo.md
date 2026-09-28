@@ -10,6 +10,10 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Reset the native button border for every `cem-action` intent; verify
+      action stories and source/package playgrounds retain zebra focus and
+      the forced-colors outline.
+
 The local `~/aWork/custom-element/demo/` comparison found that current-gallery
 verification is not a one-to-one legacy case audit. In particular, anonymous
 whole-file XSLT loading and XSLT selected by `file.xhtml#id` initially lacked
