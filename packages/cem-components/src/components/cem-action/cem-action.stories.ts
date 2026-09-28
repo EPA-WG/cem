@@ -219,6 +219,35 @@ export const LoadingColors = meta.story({
     },
 });
 
+export const DestructivePendingModes = meta.story({
+    // Branded mode samples must not inherit the Storybook native palette override.
+    globals: { cemTheme: 'light' },
+    render: () => ['native', 'light', 'dark', 'contrast-light', 'contrast-dark'].map(mode =>
+        `<section class="cem-theme-${mode}"><cem-action variant="destructive" loading="true" disabled>${mode}</cem-action></section>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
+            await whenCemRendered(host);
+            const button = host.querySelector('button')!;
+            const probe = document.createElement('span');
+            host.append(probe);
+            probe.style.backgroundColor = 'var(--cem-action-destructive-pending-background)';
+            const pending = getComputedStyle(probe).backgroundColor;
+            probe.style.backgroundColor = 'var(--cem-action-destructive-pending-stripe-background)';
+            const stripe = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            const paint = getComputedStyle(button);
+            await expect(paint.backgroundImage).toContain(stripe);
+            await expect(colorContrast(pending, stripe)).toBeGreaterThan(1.8);
+            await expect(colorContrast(pending, paint.color)).toBeGreaterThanOrEqual(4.5);
+            await expect(colorContrast(stripe, paint.color), `${host.parentElement!.className}: stripe=${stripe}, text=${paint.color}`).toBeGreaterThanOrEqual(4.5);
+            await expect(button.disabled).toBe(true);
+            if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                await expect(button.getAnimations()[0].effect!.getTiming().iterations).toBe(Infinity);
+            }
+        }
+    },
+});
+
 export const SubmittedPending = meta.story({
     render: () => '<form><cem-action type="submit">Send</cem-action></form>',
     play: async ({ canvasElement }) => {

@@ -529,3 +529,17 @@ playground checks pass, including reduced-motion and forced-colors coverage.
   style contract and source/isolated-package playgrounds including endpoint
   contrast, animation, reduced motion and forced colors. DevTools confirmed
   animation movement in the IDE preview, left on Destructive + Loading=True.
+
+## Destructive pending dark-mode stripe separation
+
+- Updated the canonical destructive pending-stripe token's dark branch to mix
+  active background with 50% black. Dark and contrast-dark stripes now pair
+  approximately #b61919 with #530a0a (about 2.22:1 endpoint separation), replacing
+  the barely separated #b61919/#a61415 pair. The light branch is preserved.
+- Added a five-mode disabled/loading story covering visible stripe separation,
+  at least 4.5:1 text contrast at both endpoints and continuous animation.
+  Branded story samples use a branded base so they do not inherit Storybook's
+  native palette override.
+- Verification: all 11 action stories, theme Phase 13 and source/isolated-package
+  playground checks pass. DevTools confirmed the dark scheme and new gradient
+  in the IDE action playground, left on contrast-dark + destructive + loading.
