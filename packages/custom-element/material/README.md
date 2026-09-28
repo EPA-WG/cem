@@ -78,3 +78,11 @@ material files for the bounded `cem_ml::legacy_custom_element` lowering path. Th
 conversion diagnostic. The original POC `xslt-*` test stories
 (`~/aWork/custom-element-dist/src/stories`) are ported into the substrate twin stories rather than
 copied verbatim (they were bound to the POC's runtime and project layout).
+
+## Migration notices
+
+The action page is marked **Legacy Material demo** and links to its canonical
+`cem-components` declaration. Apply the same notice and replacement link to
+each Material page as its component migrates, including examples hosted under
+`cem-elements`. Link the new companion playground when available. Follow the
+[Material demo transition pattern](../../../docs/component-development-pattern.md#material-demo-transition).

@@ -39,6 +39,20 @@ component/runtime, not page-local JavaScript behavior.
 The full demo remains useful for comparing samples side by side. It imports the
 same definition and does not own another implementation.
 
+## Material demo transition
+
+When migrating a Material component from `custom-element` or `cem-elements` to
+`cem-components`, mark its old demo page visibly as **Legacy Material demo** and
+include “Legacy” in the page title. Link to the canonical CEM component. Once
+its companion playground exists, link that page as the current interactive demo.
+Keep the old URL usable during the transition and load the canonical definition
+where the page still demonstrates the migrated component. Links must work from
+both the repository preview and the packaged gallery; a repository source link
+is suitable until the new playground has a published URL.
+
+Apply the notice as each component migrates. Do not label an unmigrated page as
+having a replacement that does not exist.
+
 ## Release output
 
 Generate a combined XHTML document with unique template IDs, allowing consumers

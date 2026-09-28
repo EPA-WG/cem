@@ -195,6 +195,8 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       311/312 stories; `Payload Css Readiness And Hydration` expected one style
       but observed zero. Its complete 12-story file passed on isolated rerun.
       Preserve the readiness assertion and reproduce before changing behavior.
+- [x] Mark the old Material action page as legacy, link its canonical CEM
+      component, and document the same transition step for other Material pages.
 - [ ] Implement the accepted [component development pattern](component-development-pattern.md)
       first for `cem-action`, then apply it to `cem-select` and future components.
     - [ ] Fixture: companion property form drives one canonical action instance
@@ -202,7 +204,8 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           native hover/active/keyboard focus remain usable.
     - [ ] Fixture: source-only view fetches the canonical XHTML without executing
           another declaration; link the full demo and verify IDE/module-map and
-          packaged preview loading.
+          packaged preview loading. Update the legacy Material page to link
+          the new playground when available.
     - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
           and compare individual versus `#ID` loading, relative dependencies,
           style ownership and duplicate registration; ship source and playground.

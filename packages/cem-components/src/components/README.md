@@ -48,3 +48,7 @@ The accepted [component development pattern](../../../../docs/component-developm
 separate from a companion property playground and source view. A generated
 `#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
 the canonical XHTML and colocated story structure.
+
+When migrating a Material component, mark its previous demo as legacy and link
+to this canonical component, then its companion playground when available. See
+the [transition checklist](../../../../docs/component-development-pattern.md#material-demo-transition).
