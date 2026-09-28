@@ -340,3 +340,18 @@ package previews. No page-specific event handler was added.
 Final source/isolated-archive playground checks and runtime typecheck/lint pass.
 The IDE page also confirms the updated handler protects focus and selecting
 Destructive updates the action variant and red theme paint.
+
+## Visible radio options in the action playground
+
+The six enumerated property controls now use labeled `cem-radio` groups:
+intent, bend, button type, disabled, loading and expanded. All 18 options are
+visible. The label remains a text field. Native radio names enforce one choice
+per group, and declarative change bindings update the same action instance.
+The playground no longer loads the select declaration.
+
+Source and isolated-package browser checks pass for initial checked values,
+all property changes, native arrow-key selection, exclusivity, persistence
+after other edits, preview identity and the existing source/gallery checks.
+The IDE browser confirms all six groups and their initial choices render.
+The development pattern now calls for visible radio groups for mutually
+exclusive enumerated properties.

@@ -7,7 +7,6 @@
         "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
         "@epa-wg/cem-components/styles.css": "./styles.css",
         "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
-        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
         "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
         "@epa-wg/cem-components/action-playground": "./cem-action.html"
     }

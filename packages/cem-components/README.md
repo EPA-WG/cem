@@ -469,8 +469,9 @@ the canonical XHTML and colocated story structure.
 ## Action property playground
 
 Open [`playgrounds/cem-action.html`](playgrounds/cem-action.html) through an HTTP
-server (including the IDE preview). The form edits one action's intent, bend,
-label, type, disabled, loading and expanded attributes. Hover, held pointer/Space
+server (including the IDE preview). Visible radio groups edit intent, bend,
+type, disabled, loading and expanded; a text field edits the label. Each group
+uses native exclusive selection and arrow-key navigation. Hover, held pointer/Space
 and keyboard focus use native browser states. The source-only panel fetches the
 canonical XHTML; the full gallery link opens all 52 variation samples.
 

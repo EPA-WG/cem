@@ -23,6 +23,8 @@ module maps, so IDE HTTP previews and packaged previews use the same convention.
 The page contains:
 
 - One live component instance and a property form using shared CEM controls.
+- Visible radio groups for mutually exclusive enumerated options, so users
+  can compare choices without opening a menu. Use shared CEM controls.
 - Controls for every supported public option. For action, start with intent,
   bend, label, type, disabled, loading and expanded.
 - The fetched canonical XHTML source, displayed without executing a second copy
@@ -68,7 +70,7 @@ style ownership and duplicate-registration behavior before publishing it.
 The source/test split is implemented for `cem-select` and `cem-action`.
 The action companion is implemented at
 `packages/cem-components/playgrounds/cem-action.html`. Its property form uses
-`cem-select` and the existing `cem-field` control. The source viewer is a static
+visible `cem-radio` groups for enumerated options and `cem-field` for the label. The source viewer is a static
 sibling of the reactive form, so parent updates do not own its rendered regions.
 The package publishes `dist/cem-action.html` and `dist/cem-action-gallery.html`;
 the native build rewrites page-level import maps and copies the gallery's legacy

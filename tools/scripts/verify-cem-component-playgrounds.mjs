@@ -50,14 +50,34 @@ async function verify(url) {
         assert.equal(await button.innerText(), 'Save changes');
         await page.evaluate(() => { window.originalPreview = document.querySelector('#action-preview button'); });
         const choose = async (label, option) => {
-            const select = page.locator(`cem-select[label="${label}"]`);
-            await select.getByRole('combobox').click();
-            await select.getByRole('option', { name: option, exact: true }).click({ delay: 180 });
+            const group = page.getByRole('radiogroup', { name: label, exact: true });
+            const radio = group.getByRole('radio', { name: option, exact: true });
+            await radio.click({ delay: 180 });
+            await page.waitForFunction(({ label, option }) => {
+                const group = [...document.querySelectorAll('[role=radiogroup]')].find(node => node.querySelector('legend')?.textContent.trim() === label);
+                const checked = group?.querySelectorAll('input:checked');
+                return checked?.length === 1 && checked[0].value === option;
+            }, { label, option: option.toLowerCase() });
         };
+        assert.equal(await page.getByRole('combobox').count(), 0);
+        assert.equal(await page.getByRole('radiogroup').count(), 6);
+        assert.equal(await page.getByRole('radio').count(), 18);
+        for (const [label, value] of [['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
+            const group = page.getByRole('radiogroup', { name: label, exact: true });
+            assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
+            for (const radio of await group.getByRole('radio').all()) assert(await radio.isVisible());
+        }
         for (const variant of ['Explicit', 'Contextual', 'Alternate', 'Destructive', 'Primary']) {
             await choose('Intent', variant);
             await page.waitForFunction(variant => document.querySelector('#action-preview')?.getAttribute('variant') === variant, variant.toLowerCase());
         }
+        const primary = page.getByRole('radiogroup', { name: 'Intent', exact: true }).getByRole('radio', { name: 'Primary', exact: true });
+        await primary.focus();
+        await page.keyboard.press('ArrowRight');
+        await page.waitForFunction(() => document.querySelector('#action-preview')?.getAttribute('variant') === 'explicit');
+        assert(await page.getByRole('radio', { name: 'Explicit', exact: true }).isChecked());
+        await page.keyboard.press('ArrowLeft');
+        await page.waitForFunction(() => document.querySelector('#action-preview')?.getAttribute('variant') === 'primary');
         await choose('Bend', 'Round');
         await page.waitForFunction(() => document.querySelector('#action-preview')?.classList.contains('cem-bend-round'));
         const label = page.getByRole('textbox', { name: 'Label', exact: true });
@@ -76,6 +96,11 @@ async function verify(url) {
         for (const value of ['True','False','Unset']) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());
+        }
+        for (const [label, value] of [['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Expanded', 'Unset']]) {
+            const group = page.getByRole('radiogroup', { name: label, exact: true });
+            assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
+            assert.equal(await group.locator('input:checked').count(), 1);
         }
         await button.hover();
         assert(await button.evaluate(node => node.matches(':hover')));

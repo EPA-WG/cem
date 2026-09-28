@@ -201,6 +201,9 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       focus and the popup open until release, then commits once; outside clicks
       close the popup without taking focus back. Verify every
       action playground choice with a real press/release delay.
+- [x] Fixture: action playground enumerated options use visible, labeled radio
+      groups; verify initial selection, mouse and keyboard changes, exclusivity
+      and retained selection after other property edits in source/package previews.
 - [ ] Implement the accepted [component development pattern](component-development-pattern.md)
       first for `cem-action`, then apply it to `cem-select` and future components.
     - [x] Fixture: event bindings read the live string value of form-associated
