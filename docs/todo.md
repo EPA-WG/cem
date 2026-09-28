@@ -8,6 +8,12 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Shared demo property layout
+
+- [x] Put property fieldsets in a wrapping flex container and stack their options
+      vertically using shared `cem-components/demo.css` classes in every property
+      playground; include the shared stylesheet in published packages.
+
 ## Immediate: Canonical icon-button and menu-item migration
 
 - [ ] Migrate `cem-icon-button` and `cem-menu-item` into per-component XHTML,

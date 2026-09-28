@@ -38,6 +38,7 @@
         "src/components/**/*.xhtml",
         "!**/*.tsbuildinfo",
         "playgrounds",
+        "demo.css",
         "build"
     ],
     "dependencies": {

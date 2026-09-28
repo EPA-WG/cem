@@ -28,14 +28,12 @@
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
+    <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
         #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
-        .properties { display: grid; gap: var(--cem-dim-medium); align-content: start; }
-        .property-group { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
-        .property-group > legend { margin-block-end: var(--cem-dim-small); font-weight: bold; }
-        .property-options { display: flex; flex-wrap: wrap; gap: var(--cem-dim-small); }
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
         .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
         .examples > article { min-inline-size: 0; }
@@ -87,7 +85,8 @@
         {cem-field @label="Form name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
         {cem-field @label="Value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
         {cem-field @label="Autocomplete" @value="{$datadom.slices.autocomplete}" @slice=autocomplete @slice-event=input @slice-value="$target.value"}
-        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-indicator @slice=indicator @slice-event=change @slice-value="$target.value" |
+        {div @class=property-groups |
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-indicator @slice=indicator @slice-event=change @slice-value="$target.value" |
             {legend @id=select-property-indicator | Indicator}
             {div @class=property-options |
                 {cem-radio @name=select-property-indicator @value="underline" @checked=true | Underline}
@@ -137,6 +136,7 @@
                 {cem-radio @name=select-property-invalid @value="false" @checked=true | False}
                 {cem-radio @name=select-property-invalid @value="true" | True}
             }
+        }
         }
     }
     {section @aria-label="Select preview" |

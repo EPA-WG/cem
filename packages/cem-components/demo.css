@@ -39,3 +39,35 @@ cem-stack {
     display: grid;
     gap: var(--cem-gap-group);
 }
+
+.properties {
+    display: grid;
+    gap: var(--cem-dim-medium);
+    align-content: start;
+}
+
+.property-groups {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--cem-dim-medium);
+}
+
+.property-group {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.property-group > legend {
+    padding: 0;
+    margin-block-end: var(--cem-dim-small);
+    font-weight: bold;
+}
+
+.property-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cem-dim-small);
+}
