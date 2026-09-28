@@ -66,7 +66,6 @@ Action variation
             table { border-spacing: 1.25rem; }
             th { text-align: left; }
             var{ color: darkgreen; font-weight: bold; }
-            flex-3x{ display: inline-flex; flex-wrap: wrap;gap:3rem; max-width:12rem;}
             cem-action{display: inline-block;}
         }
     </style>
@@ -107,7 +106,7 @@ ToDO
             Inspired by <a href="https://mui.com/material-ui/react-button/">MUI</a>
         </p>
         <h1>Attributes</h1>
-        <div> <code>label</code> optional attribute defines the text inside the button.</div>
+        <div> <code>label</code> provides fallback button text when no child content is supplied. Child text or icons replace that fallback.</div>
         <div> <code>class</code> specific: <var>cem-bend-sharp</var>, <var>cem-bend-smooth</var>(default), <var>cem-bend-round</var>.</div>
         <div> <code>variant</code> selects primary, explicit, contextual, alternate or destructive (danger).</div>
         <div> <code>disabled</code> disables the native button by attribute presence.</div>
@@ -176,12 +175,13 @@ ToDO
 
     <cem-demo-element legend="Icon actions">
         <p slot="description">
-
+            Child icons supply the visible content. Use aria-label to name
+            icon-only actions for assistive technology.
         </p>
         <template>
-<cem-action variant="contextual" label="0"   > <cem-icon image="far fa-envelope"></cem-icon> </cem-action>
-<cem-action variant="contextual" label="999+"                  > <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
-<cem-action variant="contextual" label="999+"  dot             > <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
+<cem-action variant="contextual" aria-label="Open messages"> <cem-icon image="far fa-envelope"></cem-icon> </cem-action>
+<cem-action variant="contextual" aria-label="Open cart"> <cem-icon image="🛒" vertical="middle"></cem-icon>  </cem-action>
+<cem-action variant="contextual" aria-label="Open notifications"> <cem-icon image="notifications" vertical="middle"></cem-icon>  </cem-action>
         </template>
     </cem-demo-element>
 
@@ -190,11 +190,11 @@ ToDO
             Alternate actions use the theme’s enthusiasm palette.
         </p>
         <template>
-<cem-action variant="alternate" label="0"                     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" label="1"     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" label="2"   > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" label="3"     > <cem-icon image="✉"></cem-icon> </cem-action>
-<cem-action variant="alternate" label="4"       > <cem-icon image="✉"></cem-icon> </cem-action>
+<cem-action variant="alternate"><cem-icon image="✉"></cem-icon>Compose</cem-action>
+<cem-action variant="alternate"><cem-icon image="✉"></cem-icon>Reply</cem-action>
+<cem-action variant="alternate"><cem-icon image="✉"></cem-icon>Reply all</cem-action>
+<cem-action variant="alternate"><cem-icon image="✉"></cem-icon>Forward</cem-action>
+<cem-action variant="alternate"><cem-icon image="✉"></cem-icon>Open inbox</cem-action>
         </template>
     </cem-demo-element>
 
@@ -216,14 +216,14 @@ ToDO
             <label>
                 <input type="checkbox" slice="is-checked" value="on" />
                 invisible</label>
-<cem-action variant="explicit" label="1"  >
+<cem-action variant="explicit" aria-label="Open mail">
     <if test="/datadom/slice/is-checked = 'on'">
         <attribute name="invisible">on</attribute>
     </if>
     <cem-icon image="mail" ></cem-icon>
 </cem-action>
     &nbsp;
-<cem-action variant="explicit" dot>
+<cem-action variant="explicit" aria-label="Open mail">
     <if test="/datadom/slice/is-checked = 'on'">
         <attribute name="invisible">on</attribute>
     </if>
@@ -231,28 +231,6 @@ ToDO
 </cem-action>
         </template>
     </cem-element>
-        </template>
-    </cem-demo-element>
-
-    <cem-demo-element legend="align attribute">
-        <p slot="description">
-            sets vertical( top, middle, bottom ) and horizontal( left, center, right) button align.<br/>
-            Default is right top.
-        </p>
-        <template>
-<flex-3x>
-    <cem-action variant="alternate" label="1" align="left top"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="2" align="center top" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="3" align="right top"  ><cem-icon image="mail" ></cem-icon></cem-action>
-
-    <cem-action variant="alternate" label="4" align="left middle"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="5" align="center middle" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="6" align="right middle"  ><cem-icon image="mail" ></cem-icon></cem-action>
-
-    <cem-action variant="alternate" label="7" align="left bottom"   ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="8" align="center bottom" ><cem-icon image="mail" ></cem-icon></cem-action>
-    <cem-action variant="alternate" label="9" align="right bottom"  ><cem-icon image="mail" ></cem-icon></cem-action>
-</flex-3x>
         </template>
     </cem-demo-element>
 

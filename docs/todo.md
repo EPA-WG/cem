@@ -10,6 +10,9 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Remove the unsupported action alignment demo and redundant icon-example
+      labels; retain the fallback-label example and verify the source/package gallery.
+
 - [x] Fixture: disabled loading actions retain pending animation while native
       disabled semantics block activation; verify all intents, submit workflow,
       loading completion and reduced-motion/forced-colors package previews.

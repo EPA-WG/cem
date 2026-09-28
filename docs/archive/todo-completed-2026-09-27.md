@@ -427,3 +427,15 @@ loading and disabled together and prevents repeat submission. Source and isolate
 package playground checks cover the combination, real movement, loading completion,
 reduced motion and forced colors. The IDE preview confirms both attributes are
 active and the background position continues advancing.
+
+## Legacy action gallery attribute cleanup
+
+Removed the nine-button alignment sample and its unused layout rule. The current
+action has no align API; the historical declaration also did not consume its
+declared align value. Removed redundant numeric label attributes from icon
+examples and unsupported dot attributes on actions. The typical-use sample
+retains label as an explicit fallback-text example. Icon-only actions now have
+aria-label names, and alternate actions demonstrate ordinary child text with icons.
+
+The gallery verification inventory is now eight samples and 43 buttons.
+Source and isolated-package playground/gallery checks pass.
