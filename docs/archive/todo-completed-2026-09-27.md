@@ -319,3 +319,24 @@ including the six action stories and the new custom-control event cases. This
 run also passes the previously intermittent stylesheet hydration case; its
 separate investigation remains open because one passing run does not explain
 the earlier failure.
+
+## Select mouse selection in the action playground
+
+A real mouse press blurred the combobox while the pointer was still held over
+an option. Its focusout handler closed the popup before click could commit the
+selection. Earlier immediate-click checks missed the interval between press
+and release. The shared choice-select capability now prevents the option's
+primary mousedown from moving focus, preserving the aria-activedescendant
+combobox owner. Outside pointerdown still closes the popup, but its closing
+render no longer takes focus back from the clicked control.
+
+The colocated `NativeMouseSelection` story failed before the fix. It now holds
+a trusted pointer for 250 ms over a rich option, asserts focus/open state and
+no early event, verifies one input/change pair on release, and verifies outside
+click focus. All eight select stories pass. Playground integration checks now
+use a 180 ms native click delay for every option, in both source and isolated
+package previews. No page-specific event handler was added.
+
+Final source/isolated-archive playground checks and runtime typecheck/lint pass.
+The IDE page also confirms the updated handler protects focus and selecting
+Destructive updates the action variant and red theme paint.

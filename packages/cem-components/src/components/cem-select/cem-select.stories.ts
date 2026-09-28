@@ -300,3 +300,50 @@ export const Disabled = meta.story({
         await expect(control).toHaveAttribute('aria-expanded', 'false');
     },
 });
+
+export const NativeMouseSelection = meta.story({
+    parameters: { docs: { description: { story: 'Hold and release an option with the mouse. Trusted pointer assertions run in the Vitest browser runner.' } } },
+    render: () => `<button type="button">Outside select</button><cem-select label="Mouse selection" value="primary">
+        <cem-option value="primary">Primary</cem-option>
+        <cem-option value="destructive"><strong>Destructive</strong></cem-option>
+    </cem-select>`,
+    play: async ({ canvasElement }) => {
+        const select = canvasElement.querySelector('cem-select') as CemSelectElement;
+        await whenCemRendered(select);
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        const canvas = within(canvasElement);
+        const control = canvas.getByRole('combobox', { name: 'Mouse selection' });
+        const events: string[] = [];
+        select.addEventListener('input', () => events.push('input'));
+        select.addEventListener('change', () => events.push('change'));
+        await native.click(control);
+        await whenCemRendered(select);
+        const option = canvas.getByRole('option', { name: 'Destructive' });
+        const down = new Promise<void>(resolve => option.addEventListener('pointerdown', () => resolve(), { once: true }));
+        const click = Promise.resolve(native.click(option.querySelector('strong') as HTMLElement, { delay: 250 }));
+        try {
+            await down;
+            await new Promise(resolve => setTimeout(resolve, 80));
+            await expect(document.activeElement).toBe(control);
+            await expect(control).toHaveAttribute('aria-expanded', 'true');
+            await expect(select.value).toBe('primary');
+            await expect(events).toEqual([]);
+        } finally {
+            await click;
+        }
+        await whenCemRendered(select);
+        await expect(select.value).toBe('destructive');
+        await expect(control).toHaveAttribute('aria-expanded', 'false');
+        await expect(document.activeElement).toBe(control);
+        await expect(events).toEqual(['input', 'change']);
+        await native.click(control);
+        await whenCemRendered(select);
+        const outside = canvas.getByRole('button', { name: 'Outside select' });
+        await native.click(outside);
+        await whenCemRendered(select);
+        await expect(document.activeElement).toBe(outside);
+        await expect(control).toHaveAttribute('aria-expanded', 'false');
+        await expect(events).toEqual(['input', 'change']);
+    },
+});

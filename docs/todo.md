@@ -197,6 +197,10 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       Preserve the readiness assertion and reproduce before changing behavior.
 - [x] Mark the old Material action page as legacy, link its canonical CEM
       component, and document the same transition step for other Material pages.
+- [x] Fixture: a held native mouse click on a select option keeps combobox
+      focus and the popup open until release, then commits once; outside clicks
+      close the popup without taking focus back. Verify every
+      action playground choice with a real press/release delay.
 - [ ] Implement the accepted [component development pattern](component-development-pattern.md)
       first for `cem-action`, then apply it to `cem-select` and future components.
     - [x] Fixture: event bindings read the live string value of form-associated

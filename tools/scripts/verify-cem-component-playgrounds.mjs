@@ -52,7 +52,7 @@ async function verify(url) {
         const choose = async (label, option) => {
             const select = page.locator(`cem-select[label="${label}"]`);
             await select.getByRole('combobox').click();
-            await select.getByRole('option', { name: option, exact: true }).click();
+            await select.getByRole('option', { name: option, exact: true }).click({ delay: 180 });
         };
         for (const variant of ['Explicit', 'Contextual', 'Alternate', 'Destructive', 'Primary']) {
             await choose('Intent', variant);

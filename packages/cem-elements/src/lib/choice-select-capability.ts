@@ -48,6 +48,7 @@ interface SelectState {
     connected: boolean;
     warnedPayloadSignature: string;
     onClick?: EventListener;
+    onMouseDown?: EventListener;
     onKeyDown?: EventListener;
     onFocusOut?: EventListener;
     onDocumentPointerDown?: EventListener;
@@ -70,6 +71,14 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         state.connected = true;
 
         state.onClick = (event) => handleClick(instance, state, event);
+        state.onMouseDown = (event) => {
+            if (!(event instanceof MouseEvent) || event.button !== 0 ||
+                state.mode !== 'dropdown' || !state.expanded || isDisabled(instance, state)) return;
+            const option = event.target instanceof Element ? event.target.closest('[data-option-index]') : null;
+            // Options use aria-activedescendant: focus stays on the combobox.
+            // Native mousedown would otherwise blur it and close the popup before click.
+            if (option && instance.contains(option)) event.preventDefault();
+        };
         state.onKeyDown = (event) => handleKeyDown(instance, state, event as KeyboardEvent);
         state.onFocusOut = () => {
             queueMicrotask(() => {
@@ -81,9 +90,13 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         state.onDocumentPointerDown = (event) => {
             if (state.expanded && !instance.contains(event.target as Node | null)) {
                 commitPreview(instance, state, true);
+                // Pointerdown precedes the outside target's native focus change.
+                // The closing render must not pull focus back into this select.
+                state.refocus = false;
             }
         };
         instance.addEventListener('click', state.onClick);
+        instance.addEventListener('mousedown', state.onMouseDown);
         instance.addEventListener('keydown', state.onKeyDown);
         instance.addEventListener('focusout', state.onFocusOut);
         instance.ownerDocument.addEventListener('pointerdown', state.onDocumentPointerDown, true);
@@ -117,6 +130,7 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
         if (!state.connected) return;
         state.connected = false;
         if (state.onClick) instance.removeEventListener('click', state.onClick);
+        if (state.onMouseDown) instance.removeEventListener('mousedown', state.onMouseDown);
         if (state.onKeyDown) instance.removeEventListener('keydown', state.onKeyDown);
         if (state.onFocusOut) instance.removeEventListener('focusout', state.onFocusOut);
         if (state.onDocumentPointerDown) {
