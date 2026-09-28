@@ -103,7 +103,7 @@
             background-color: var(--_cem-action-active-background);
             color: var(--_cem-action-active-text);
         }
-        :scope > button[part~='control']:where(:enabled[aria-busy='true']) {
+        :scope > button[part~='control']:where([aria-busy='true']) {
             background-color: var(--_cem-action-pending-background);
             color: var(--_cem-action-pending-text);
             --cem-pending-color-1: var(--_cem-action-pending-background);
@@ -135,12 +135,12 @@
                 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
                 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
         }
-        :scope > button[part~='control']:where(:disabled) {
+        :scope > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
             background-color: var(--_cem-action-disabled-background);
             color: var(--_cem-action-disabled-text);
         }
         @media (forced-colors: active) {
-            :scope > button[part~='control']:where(:enabled[aria-busy='true']) {
+            :scope > button[part~='control']:where([aria-busy='true']) {
                 background-image: none;
                 animation: none;
                 background-color: ButtonFace;

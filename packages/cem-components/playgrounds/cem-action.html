@@ -126,7 +126,7 @@
             {cem-action @id=action-preview @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @loading="{$datadom.slices.loading}" @expanded={if datadom.slices.expanded == "unset" { null } else { datadom.slices.expanded }} }
         }
         {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
-        {p | Set Loading to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Each loop takes two seconds. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Loading to False to stop it and restore normal interaction colors. Disabled colors take priority. Reduced-motion settings freeze the gradient; forced colors use a static pending boundary.}
+        {p | Set Loading to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Each loop takes two seconds. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Loading to False to stop it and restore normal interaction colors. Disabled actions keep the pending gradient while loading but cannot be activated or focused. Reduced-motion settings freeze the gradient; forced colors use a static pending boundary.}
         {p | Submit and reset can be inspected here; this preview is outside a form. Form behavior is covered in the automated stories.}
         {p | {a @href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts" | Automated stories}}
     }

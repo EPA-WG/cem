@@ -10,6 +10,10 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Fixture: disabled loading actions retain pending animation while native
+      disabled semantics block activation; verify all intents, submit workflow,
+      loading completion and reduced-motion/forced-colors package previews.
+
 - [x] Fixture: restore canonical pending gradients (45-degree tilt, seamless
       two-second loop) in theme specs, token generation, generator previews and
       cem-action. Verify intent colors, movement across cycles, disabled/loading

@@ -175,9 +175,11 @@ See the [action hover contract](./action-hover-contract.md) and
 For `cem-action`, `loading="true"` reflects `aria-busy="true"` and shows the
 canonical 45-degree pending gradient with a seamless two-second loop. Colors
 come from the current intent's pending/active background pair and pending text.
-Pending paint takes precedence over hover/active; disabled takes precedence over
-pending. Hover/focus preserve the continuous animation and zebra focus remains
-independent. Clearing loading restores interaction paint. Reduced motion freezes
+Pending paint takes precedence over hover/active and disabled paint. A disabled
+loading button keeps the gradient while native disabled semantics block activation
+and focus. Clearing loading while disabled restores disabled colors. Hover/focus
+preserve the continuous animation and zebra focus remains independent. Clearing
+loading restores interaction paint. Reduced motion freezes
 the gradient; forced colors use system colors and a static pending boundary.
 Loading preserves dimensions and activation; use `disabled` to block activation.
 

@@ -106,6 +106,12 @@ async function verify(url) {
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().duration), 2000);
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         const pendingPaint = await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]);
+        await choose('Disabled', 'True');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === true);
+        assert.deepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
+        assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
+        const disabledPosition = await button.evaluate(node => getComputedStyle(node).backgroundPositionX);
+        await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button')).backgroundPositionX !== position, disabledPosition);
         await choose('Loading', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'false');
         assert.notDeepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
@@ -120,6 +126,8 @@ async function verify(url) {
         assert.equal(await button.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
         assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
         await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
+        await choose('Disabled', 'False');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === false);
         for (const value of ['True','False','Unset']) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());

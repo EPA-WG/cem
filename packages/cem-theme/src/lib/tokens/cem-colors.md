@@ -469,7 +469,10 @@ Keep zebra focus rings independent of background motion.
 The generated `.cem-pending` theme utility demonstrates this recipe. Consumers
 bind the two color inputs and pending foreground for their intent. Canonical
 components own the same recipe in their embedded scoped CSS. `cem-action`
-activates it only for an enabled button with `loading="true"`; disabled wins.
+activates it for `loading="true"`, including disabled buttons. Pending paint
+takes precedence over disabled paint while loading; native disabled semantics
+still block activation and focus. Clearing loading while disabled restores the
+disabled colors.
 Loading does not itself disable activation. Hover and focus do not restart or
 replace the continuous animation. Clearing loading removes the gradient and
 motion and restores current interaction paint.

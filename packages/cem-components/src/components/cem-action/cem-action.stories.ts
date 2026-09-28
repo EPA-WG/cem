@@ -73,16 +73,56 @@ export const LoadingColors = meta.story({
             }
             host.setAttribute('disabled', '');
             await whenCemRendered(host);
+            await expect(button.disabled).toBe(true);
+            await expect(paint()).toEqual(expected('pending'));
+            await expect(getComputedStyle(button).backgroundImage).toContain('linear-gradient(45deg');
+            if (animation) await expect(button.getAnimations()[0]).toBe(animation);
+            let clicks = 0;
+            button.addEventListener('click', () => clicks++);
+            button.click();
+            await expect(clicks).toBe(0);
+            host.setAttribute('loading', 'false');
+            await whenCemRendered(host);
             await expect(paint()).toEqual(expected('disabled'));
             await expect(getComputedStyle(button).backgroundImage).toBe('none');
             await expect(button.getAnimations()).toHaveLength(0);
             host.removeAttribute('disabled');
-            host.setAttribute('loading', 'false');
             await whenCemRendered(host);
             await expect(button).toHaveAttribute('aria-busy', 'false');
             await expect(paint()).toEqual(expected('default'));
             await expect(button.getAnimations()).toHaveLength(0);
         }
+    },
+});
+
+export const SubmittedPending = meta.story({
+    render: () => '<form><cem-action type="submit">Send</cem-action></form>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-action')!;
+        await whenCemRendered(host);
+        const button = host.querySelector('button')!;
+        let submissions = 0;
+        canvasElement.querySelector('form')!.addEventListener('submit', event => {
+            event.preventDefault();
+            submissions++;
+            host.setAttribute('loading', 'true');
+            host.setAttribute('disabled', '');
+        });
+        await userEvent.click(button);
+        await whenCemRendered(host);
+        await expect(submissions).toBe(1);
+        await expect(button.disabled).toBe(true);
+        await expect(button).toHaveAttribute('aria-busy', 'true');
+        await expect(getComputedStyle(button).backgroundImage).toContain('linear-gradient(45deg');
+        button.click();
+        await expect(submissions).toBe(1);
+        await userEvent.tab();
+        await expect(document.activeElement).not.toBe(button);
+        host.setAttribute('loading', 'false');
+        await whenCemRendered(host);
+        await expect(button.disabled).toBe(true);
+        await expect(button.getAnimations()).toHaveLength(0);
+        await expect(getComputedStyle(button).backgroundImage).toBe('none');
     },
 });
 

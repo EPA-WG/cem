@@ -412,3 +412,18 @@ package browser checks pass for both action and theme generator pages, including
 25 pending swatches, 50 gradient-endpoint text contrast checks at 4.5:1 or better,
 real background movement, reduced motion and forced colors. The IDE preview
 confirms a 45-degree gradient, two-second infinite duration and changing position.
+
+## Disabled actions retain pending feedback
+
+Pending action visuals now take precedence over disabled paint. A button with
+both `loading="true"` and `disabled` retains the moving gradient, while native
+disabled behavior still blocks activation and focus. Clearing loading leaves
+the button disabled and restores disabled colors. The theme contract, component
+reference and playground explanation now describe this combined state.
+
+All eight action stories pass, including all five intents, unchanged animation
+identity when disabling, blocked clicks and a submitted-form fixture that sets
+loading and disabled together and prevents repeat submission. Source and isolated
+package playground checks cover the combination, real movement, loading completion,
+reduced motion and forced colors. The IDE preview confirms both attributes are
+active and the background position continues advancing.
