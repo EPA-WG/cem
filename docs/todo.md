@@ -8,6 +8,23 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Next: Theme switch component and playground integration
+
+- [ ] Add a reusable `cem-theme-switch` component with visible Light / Dark /
+      Native choices and a separate Contrast toggle. Author a canonical XHTML
+      definition with colocated CSF stories, following the shared component
+      authoring and public CSS ownership rules.
+- [ ] Define how Native interacts with the Contrast toggle before implementation;
+      use the existing light, dark, native, contrast-light and contrast-dark
+      theme modes without inventing a parallel theme model.
+- [ ] Add the shared theme switch to component playground pages, starting with
+      the action playground, and make it part of the pattern for future
+      playgrounds. Apply the selected theme to the page, including its live
+      preview, while preserving the component's current property selections.
+- [ ] Fixture: verify mouse and keyboard operation, accessible labels and state,
+      all supported mode/contrast combinations, retained preview state, and
+      source/packaged playground loading through page-level module maps.
+
 ## Immediate: Destructive pending dark-mode stripes
 
 - [x] Fixture: darken the destructive pending stripe in dark and contrast-dark themes; verify endpoint separation, readable text, animation and browser preview.
