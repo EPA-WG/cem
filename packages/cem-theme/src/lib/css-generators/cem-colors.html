@@ -4,6 +4,8 @@
     <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <meta charset="UTF-8">
     <title>CEM colors CSS generator</title>
+    <link rel="stylesheet" href="../../../dist/lib/css/cem-stroke.css">
+    <link rel="stylesheet" href="../../../dist/lib/css/cem-timing.css">
     <style>
         main { display: block; white-space: pre; font-family: monospace; }
         table { white-space: normal; border-collapse: collapse; }
@@ -33,7 +35,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
+          data-slices="pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
 {table @id=cem-color-hue-variant @data-selected-token="" |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} Branded colors}
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
@@ -125,8 +127,8 @@
                     {tr |
                         {th | {$state.state}}
                         {cem:for-each @select="$datadom.slices.intent" @as="intent" |
-                            {td
-                                @style='{str:concat(("background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
+                            {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
+                                @style='{str:concat(("--cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, "-active-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
                                 @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette), "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", str:replace(state.text_token, "[emotion]", intent.emotional_palette)))}' | Aa}
                         }
@@ -312,6 +314,8 @@
     /* action intent tokens: cem-action-[intent]-[state]-[background|text] */```{cem:for-each @select="$datadom.slices.intent" @as="intent" |{cem:for-each @select="$datadom.slices.state" @as="state" |```
     ```--cem-action-{$intent.action_intent}-{$state.state}-background: {$str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette)};
     --cem-action-{$intent.action_intent}-{$state.state}-text: {$str:replace(state.text_token, "[emotion]", intent.emotional_palette)};}}```
+    /* pending gradient color inputs */```{cem:for-each @select="$datadom.slices.pending" @as="row" |```
+    ```{$row.token}: {$row.value};}```
     --cem-zebra-color-0: var(--cem-palette-comfort);
     --cem-zebra-color-1: var(--cem-palette-comfort);
     --cem-zebra-color-2: var(--cem-palette-comfort);
@@ -379,6 +383,37 @@
 
   background-color: var(--cem-palette-comfort);
   color: var(--cem-palette-comfort-text);
+}
+
+
+/* Pending utility: D0 colors, D5 geometry, D7 continuous motion. */
+.cem-pending {
+    background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-pending-color-1) 0%, var(--cem-pending-color-2) 25%,
+                var(--cem-pending-color-1) 50%, var(--cem-pending-color-2) 75%,
+                var(--cem-pending-color-1) 100%);
+            background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+            animation-name: cem-pending-shift;
+            animation-duration: var(--cem-duration-pending-cycle);
+            animation-timing-function: var(--cem-easing-uniform);
+            animation-iteration-count: infinite;
+}
+@keyframes cem-pending-shift {
+    from { background-position-x: 0px; }
+    to { background-position-x: var(--cem-pending-tile-size); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .cem-pending { animation: none; }
+}
+@media (forced-colors: active) {
+    .cem-pending {
+        background-image: none;
+        animation: none;
+        background-color: ButtonFace !important;
+        color: ButtonText !important;
+        outline: var(--cem-stroke-pending) solid ButtonText;
+        outline-offset: calc(-1 * var(--cem-stroke-pending));
+    }
 }
 ```}}
 </template>

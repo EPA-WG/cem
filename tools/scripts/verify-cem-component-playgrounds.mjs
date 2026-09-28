@@ -23,6 +23,7 @@ try {
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true });
     await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
+    await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
@@ -30,6 +31,7 @@ try {
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
     await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
+    await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     console.log('Action playground verified from source and isolated package archives.');
 } finally {
     await browser?.close();
@@ -97,8 +99,12 @@ async function verify(url) {
         });
         await choose('Loading', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
-        await page.waitForFunction(() => window.loadingTransitions.some(name => name.startsWith('cem-action-loading-')));
-        await button.evaluate(async node => { await Promise.all(node.getAnimations().map(animation => animation.finished)); });
+        await page.waitForFunction(() => window.loadingTransitions.some(name => name.startsWith('cem-pending-shift-')));
+        const movingPosition = await button.evaluate(node => getComputedStyle(node).backgroundPositionX);
+        await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button')).backgroundPositionX !== position, movingPosition);
+        assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().iterations), Infinity);
+        assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().duration), 2000);
+        assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         const pendingPaint = await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]);
         await choose('Loading', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'false');
@@ -108,7 +114,12 @@ async function verify(url) {
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
         assert.deepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
         assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
-        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
+        await page.emulateMedia({ forcedColors: 'active' });
+        assert.equal(await button.evaluate(node => getComputedStyle(node).backgroundImage), 'none');
+        assert.equal(await button.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+        assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
+        await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
         for (const value of ['True','False','Unset']) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());
@@ -151,5 +162,72 @@ async function verify(url) {
     } catch (error) {
         console.error(url, errors, await page.locator('body').innerText());
         throw error;
+    } finally { await page.close(); }
+}
+
+
+async function verifyPendingTheme(url) {
+    const page = await browser.newPage();
+    try {
+        await page.goto(url);
+        await page.locator('td.cem-pending').first().waitFor();
+        const cells = page.locator('td.cem-pending');
+        assert.equal(await cells.count(), 25);
+        const styles = await cells.evaluateAll(nodes => nodes.map(node => {
+            const style = getComputedStyle(node);
+            return { image: style.backgroundImage, duration: style.animationDuration, iterations: style.animationIterationCount };
+        }));
+        for (const style of styles) {
+            assert.match(style.image, /linear-gradient\(45deg/);
+            assert.equal(style.duration, '2s');
+            assert.equal(style.iterations, 'infinite');
+        }
+        const contrastRatios = await cells.evaluateAll(nodes => {
+            const context = document.createElement('canvas').getContext('2d');
+            const luminance = color => {
+                context.clearRect(0, 0, 1, 1);
+                context.fillStyle = color;
+                context.fillRect(0, 0, 1, 1);
+                const rgb = [...context.getImageData(0, 0, 1, 1).data].slice(0, 3).map(value => {
+                    const channel = value / 255;
+                    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+                });
+                return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+            };
+            return nodes.flatMap(node => {
+                const probe = document.createElement('span');
+                node.append(probe);
+                const foreground = luminance(getComputedStyle(node).color);
+                const ratios = [1, 2].map(index => {
+                    probe.style.backgroundColor = `var(--cem-pending-color-${index})`;
+                    const background = luminance(getComputedStyle(probe).backgroundColor);
+                    return (Math.max(background, foreground) + 0.05) / (Math.min(background, foreground) + 0.05);
+                });
+                probe.remove();
+                return ratios;
+            });
+        });
+        for (const ratio of contrastRatios) assert(ratio >= 4.5, `Pending text contrast ${ratio}`);
+        const cell = cells.first();
+        const position = await cell.evaluate(node => getComputedStyle(node).backgroundPositionX);
+        await page.waitForFunction(position => getComputedStyle(document.querySelector('td.cem-pending')).backgroundPositionX !== position, position);
+        const cycle = await cell.evaluate(node => {
+            const animation = node.getAnimations()[0];
+            animation.pause();
+            animation.currentTime = 500;
+            const first = getComputedStyle(node).backgroundPositionX;
+            animation.currentTime = 2500;
+            const second = getComputedStyle(node).backgroundPositionX;
+            animation.play();
+            return [first, second];
+        });
+        assert.equal(cycle[0], cycle[1]);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        assert.equal(await cell.evaluate(node => node.getAnimations().length), 0);
+        assert.match(await cell.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
+        await page.emulateMedia({ forcedColors: 'active' });
+        assert.equal(await cell.evaluate(node => getComputedStyle(node).backgroundImage), 'none');
+        assert.equal(await cell.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+        console.log('Pending theme gradients verified:', url);
     } finally { await page.close(); }
 }

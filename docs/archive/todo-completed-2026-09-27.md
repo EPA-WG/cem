@@ -386,3 +386,29 @@ keyboard focus, zebra, stable dimensions and disabled precedence. Source and
 isolated-package playground checks verify animation start, loading toggles and
 reduced motion. Runtime typecheck/lint pass. The IDE preview shows the description
 and resolves the scoped animation name with the theme's 250ms duration.
+
+## Canonical pending gradient restoration
+
+This supersedes the one-shot action loading fade above. The historical
+`custom-element-dist` Base Principles describes a 45-degree moving gradient;
+its older consumer stylesheet implemented a separate 90-degree variant.
+The canonical D0 contract now specifies the 45-degree pattern, binds its colors
+to each intent's pending/active backgrounds, and retains pending text. D5 owns
+the angle and square tile size; D7 owns a two-second pending cycle. Manifest
+derivation and token exports include the five added tokens.
+
+Generated theme CSS provides `.cem-pending`, and the color generator animates
+all 25 intent/mode pending swatches. The canonical action owns the same recipe
+in scoped CSS while enabled and loading. Hover and focus preserve its loop;
+disabled and clearing loading remove it. Reduced motion freezes the gradient.
+Forced colors suppress gradients/motion and use an inset system-color outline;
+keyboard focus keeps its separate outer outline. The playground description
+and component reference now describe the continuous pattern.
+
+Theme build/export and all manifests pass (484/484 token coverage). All seven
+action stories pass, covering intent paint, loop position across cycles,
+interaction continuity, geometry and disabled precedence. Source and isolated
+package browser checks pass for both action and theme generator pages, including
+25 pending swatches, 50 gradient-endpoint text contrast checks at 4.5:1 or better,
+real background movement, reduced motion and forced colors. The IDE preview
+confirms a 45-degree gradient, two-second infinite duration and changing position.

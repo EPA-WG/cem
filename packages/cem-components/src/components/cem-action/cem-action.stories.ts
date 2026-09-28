@@ -9,7 +9,7 @@ const meta = preview.meta({
 });
 
 export const LoadingColors = meta.story({
-    parameters: { docs: { description: { story: 'Pending colors and one-shot loading motion. Trusted hover/focus replay checks run only in the Vitest browser runner.' } } },
+    parameters: { docs: { description: { story: 'Pending gradients and continuous loading motion. Trusted hover/focus checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light">${['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(variant =>
         `<cem-action variant="${variant}" loading="false">Save</cem-action>`).join('')}</section>`,
     play: async ({ canvasElement }) => {
@@ -36,38 +36,46 @@ export const LoadingColors = meta.story({
             if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 await expect(transitions.length).toBeGreaterThan(0);
             }
-            await Promise.all(transitions.map(animation => animation.finished));
+            const animation = transitions[0];
+            if (animation) {
+                await expect(animation.effect!.getTiming().iterations).toBe(Infinity);
+                await expect(animation.effect!.getTiming().duration).toBe(2000);
+                animation.pause();
+                animation.currentTime = 500;
+                const firstCycle = getComputedStyle(button).backgroundPositionX;
+                animation.currentTime = 1000;
+                await expect(getComputedStyle(button).backgroundPositionX).not.toBe(firstCycle);
+                animation.currentTime = 2500;
+                await expect(getComputedStyle(button).backgroundPositionX).toBe(firstCycle);
+                animation.play();
+            }
+            await expect(getComputedStyle(button).backgroundImage).toContain('linear-gradient(45deg');
+            await expect(colorContrast(...expected('pending') as [string, string])).toBeGreaterThanOrEqual(4.5);
+            await expect(colorContrast(expected('active')[0], expected('pending')[1])).toBeGreaterThanOrEqual(4.5);
             await expect(paint()).toEqual(expected('pending'));
             await expect(host.querySelector('button')).toBe(button);
             await expect(button.getBoundingClientRect().width).toBe(initial.width);
             await expect(button.getBoundingClientRect().height).toBe(initial.height);
             if (import.meta.env.MODE === 'test' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 const { userEvent: native } = await import('vitest/browser');
-                const finishReplay = async () => {
-                    const animations = button.getAnimations();
-                    await expect(animations.length).toBeGreaterThan(0);
-                    await Promise.all(animations.map(animation => animation.finished));
-                    await expect(paint()).toEqual(expected('pending'));
-                };
                 await native.hover(button);
-                await finishReplay();
+                await expect(button.getAnimations()[0]).toBe(animation);
                 await native.unhover(button);
-                await expect(button.getAnimations()).toHaveLength(0);
-                await native.hover(button);
-                await finishReplay();
+                await expect(button.getAnimations()[0]).toBe(animation);
                 button.focus();
                 await native.keyboard('{Tab}');
                 await native.keyboard('{Shift>}{Tab}{/Shift}');
                 await expect(button.matches(':focus-visible')).toBe(true);
-                await finishReplay();
+                await expect(button.getAnimations()[0]).toBe(animation);
                 await expect(getComputedStyle(button).boxShadow).not.toBe('none');
                 button.blur();
                 await native.unhover(button);
-                await expect(button.getAnimations()).toHaveLength(0);
             }
             host.setAttribute('disabled', '');
             await whenCemRendered(host);
             await expect(paint()).toEqual(expected('disabled'));
+            await expect(getComputedStyle(button).backgroundImage).toBe('none');
+            await expect(button.getAnimations()).toHaveLength(0);
             host.removeAttribute('disabled');
             host.setAttribute('loading', 'false');
             await whenCemRendered(host);

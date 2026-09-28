@@ -106,30 +106,21 @@
         :scope > button[part~='control']:where(:enabled[aria-busy='true']) {
             background-color: var(--_cem-action-pending-background);
             color: var(--_cem-action-pending-text);
-            animation-name: cem-action-loading;
-            animation-duration: var(--cem-duration-action, var(--cem-duration-noticeable));
-            animation-timing-function: var(--cem-easing-smooth);
+            --cem-pending-color-1: var(--_cem-action-pending-background);
+            --cem-pending-color-2: var(--_cem-action-active-background);
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-pending-color-1) 0%, var(--cem-pending-color-2) 25%,
+                var(--cem-pending-color-1) 50%, var(--cem-pending-color-2) 75%,
+                var(--cem-pending-color-1) 100%);
+            background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+            animation-name: cem-pending-shift;
+            animation-duration: var(--cem-duration-pending-cycle);
+            animation-timing-function: var(--cem-easing-uniform);
+            animation-iteration-count: infinite;
         }
-        :scope > button[part~='control']:where(:enabled[aria-busy='true']:hover) {
-            animation-name: cem-action-loading, cem-action-loading-hover;
-        }
-        :scope > button[part~='control']:where(:enabled[aria-busy='true']:focus-visible) {
-            animation-name: cem-action-loading, cem-action-loading-focus;
-        }
-        :scope > button[part~='control']:where(:enabled[aria-busy='true']:hover:focus-visible) {
-            animation-name: cem-action-loading, cem-action-loading-hover, cem-action-loading-focus;
-        }
-        @keyframes cem-action-loading {
-            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
-            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
-        }
-        @keyframes cem-action-loading-hover {
-            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
-            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
-        }
-        @keyframes cem-action-loading-focus {
-            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
-            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
+        @keyframes cem-pending-shift {
+            from { background-position-x: 0px; }
+            to { background-position-x: var(--cem-pending-tile-size); }
         }
         @media (prefers-reduced-motion: reduce) {
             :scope > button[part~='control']:where([aria-busy='true']) {
@@ -149,10 +140,21 @@
             color: var(--_cem-action-disabled-text);
         }
         @media (forced-colors: active) {
+            :scope > button[part~='control']:where(:enabled[aria-busy='true']) {
+                background-image: none;
+                animation: none;
+                background-color: ButtonFace;
+                color: ButtonText;
+                outline: var(--cem-stroke-pending) solid ButtonText;
+                outline-offset: calc(-1 * var(--cem-stroke-pending));
+            }
+
             :scope > button[part~='control']:where(:focus-visible) {
                 box-shadow: none;
-                outline-color: CanvasText;
+                outline: var(--cem-stroke-focus) solid CanvasText;
+                outline-offset: var(--cem-stroke-indicator-offset);
             }
+
         }
         ```}
     {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |

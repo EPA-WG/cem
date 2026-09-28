@@ -262,6 +262,19 @@ D5 treats these as canonical *indicator-pattern tokens*:
 |---------------------|---------|----------------------------------------|-------------|
 | `--cem-zebra-angle` | `45deg` | Stripe angle for gradient-mode zebra   | recommended |
 
+### Pending background geometry
+
+Pending background stripes are separate from zebra focus/selection rings.
+The square tile and diagonal five-stop gradient follow the D0 pending recipe.
+The canonical angle is 45 degrees; arbitrary angles need a matching tile recipe
+to retain seamless edges.
+
+###### cem-stroke-pending-pattern
+| Token | Value | Description | tier |
+| --- | --- | --- | --- |
+| `--cem-pending-angle` | `45deg` | Pending background gradient tilt | recommended |
+| `--cem-pending-tile-size` | `2rem` | Square background tile and distance traveled per cycle | recommended |
+
 ### 5.3 Recommended indicator composition (box-shadow ring)
 
 ```css
@@ -581,6 +594,7 @@ Treat as **minor/patch** if you:
 
 | Source table               | Section | Description                                                                                                       |
 |----------------------------|---------|-------------------------------------------------------------------------------------------------------------------|
+| `cem-stroke-pending-pattern` | §5 | Pending gradient angle and tile geometry |
 | `cem-stroke-basis`         | §3.1    | Stroke basis: `--cem-stroke-{none,hair,standard,strong}`                                                          |
 | `cem-stroke-semantic`      | §4.1    | Semantic endpoints: `--cem-stroke-{boundary,boundary-strong,divider,grid,focus,selected,target,pending,indicator-offset}` |
 | `cem-stroke-zebra-pattern` | §5.2    | `--cem-zebra-angle` (gradient-mode geometry)                                                                      |

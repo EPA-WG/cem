@@ -73,12 +73,16 @@ Easing names reflect intent:
 | `--cem-duration-lingering` | `300ms` | Large change; allow user to track | required |
 | `--cem-duration-action` | `var(--cem-duration-noticeable)` | Default for interactive state changes | recommended |
 | `--cem-duration-overlay` | `var(--cem-duration-lingering)` | Default for overlay entry/exit | recommended |
+| `--cem-duration-pending-cycle` | `2000ms` | One seamless cycle of the pending background gradient; repetition stops under reduced motion | recommended |
 | `--cem-duration-continuous-cycle` | `1000ms` | One neutral cycle of repeated status motion, such as indeterminate progress | recommended |
 
 Normative rules:
 
 - Ordering MUST remain: `instant < noticeable < lingering`.
 - Reduced-motion modes may shorten durations (including to `0ms`), but MUST preserve relative ordering.
+- `pending-cycle` is a dedicated two-second continuous status cycle, with uniform easing.
+  Hover and focus must not restart it; clearing busy stops it. Reduced motion
+  stops repetition and preserves the static gradient.
 - `continuous-cycle` is outside the one-shot ordering scale. A component that repeats it automatically MUST stop the
   repetition under `prefers-reduced-motion: reduce` rather than shortening the cycle.
 

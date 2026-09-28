@@ -10,6 +10,11 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Fixture: restore canonical pending gradients (45-degree tilt, seamless
+      two-second loop) in theme specs, token generation, generator previews and
+      cem-action. Verify intent colors, movement across cycles, disabled/loading
+      toggles, reduced motion, forced colors, and source/package previews.
+
 - [x] Fixture: action loading transitions once into intent pending colors;
       verify all five intents, live toggling, disabled precedence, stable geometry,
       hover/keyboard-focus replay, and reduced-motion behavior in the playground.

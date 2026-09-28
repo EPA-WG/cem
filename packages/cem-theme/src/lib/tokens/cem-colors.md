@@ -441,6 +441,39 @@ disabled → readonly → editable → default → indeterminate → hover → a
 **Applying this to action intents:** substitute `[emotion]` with the emotional palette mapped by the intent (see §7.1).
 The resulting values populate `--cem-action-{intent}-{state}-background` and `--cem-action-{intent}-{state}-text`.
 
+#### Pending gradient and continuous motion
+
+Pending actions MUST show a repeating 45-degree background gradient while their
+busy source is true. A one-shot color fade is not the pending-motion contract.
+Use the intent's pending background and active background as the two gradient
+colors, with its pending text color throughout. Both endpoints and intermediate
+colors must preserve readable text in each theme mode. The existing pending
+background token remains a color, including as the solid fallback.
+
+###### cem-pending-colors
+| Token | Value | Description | tier |
+| --- | --- | --- | --- |
+| `--cem-pending-color-1` | `var(--cem-action-primary-pending-background)` | First gradient color; bind to the current intent's pending background | recommended |
+| `--cem-pending-color-2` | `var(--cem-action-primary-active-background)` | Second gradient color; bind to the current intent's active background | recommended |
+
+D5 owns `--cem-pending-angle` (45deg) and `--cem-pending-tile-size` (2rem).
+D7 owns `--cem-duration-pending-cycle` (2000ms). Use uniform easing and infinite
+iteration. Translate the background by one square tile along the x axis per
+cycle. The five evenly spaced color stops are color-1, color-2, color-1,
+color-2, color-1 (0%, 25%, 50%, 75%, 100%). At 45 degrees, opposite tile edges
+match and translating one tile closes the loop without a jump. Freeze the
+pattern under reduced motion. Under forced colors, suppress the gradient and
+motion and use system button colors with a persistent pending-width boundary.
+Keep zebra focus rings independent of background motion.
+
+The generated `.cem-pending` theme utility demonstrates this recipe. Consumers
+bind the two color inputs and pending foreground for their intent. Canonical
+components own the same recipe in their embedded scoped CSS. `cem-action`
+activates it only for an enabled button with `loading="true"`; disabled wins.
+Loading does not itself disable activation. Hover and focus do not restart or
+replace the continuous animation. Clearing loading removes the gradient and
+motion and restores current interaction paint.
+
 #### 7.2.3 Outline-driven states
 
 `focus`, `selected`, and `target` are primarily expressed through the **zebra outline channel** (§8). Background tokens
@@ -1065,6 +1098,7 @@ from these tables using the same logic as `cem-colors.html`.
 |--------------------------------------------------------|-------------------------------|-------------------------------------|
 | `cem-color-hue-variant`                                | `--cem-color-*` (35 tokens)   | one token per row                   |
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
+| `cem-pending-colors` | `--cem-pending-color-*` (2 tokens) | one token per row |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |

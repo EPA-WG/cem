@@ -23,7 +23,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-stroke-template"
           data-token-url="../../../dist/lib/tokens/cem-stroke.xhtml"
-          data-slices="basis=cem-stroke-basis semantic=cem-stroke-semantic zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
+          data-slices="basis=cem-stroke-basis semantic=cem-stroke-semantic pending=cem-stroke-pending-pattern zebra=cem-stroke-zebra-pattern rings=cem-stroke-rings forced=cem-stroke-rings-forced appearance=cem-stroke-indicator-appearance">
 {module @version="1.0.0" |
 {import @as=docs @src="./cem-token-docs.cemt"}
 {body |
@@ -48,7 +48,7 @@
 {table @id=cem-stroke-zebra-rings |
     {caption | {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#5-2-canonical-zebra-tokens-d5-contract" | cem-stroke-zebra-pattern} + {a @href="../../../dist/lib/tokens/cem-stroke.xhtml#5-3-recommended-indicator-composition-box-shadow-ring" | cem-stroke-rings} — zebra-pattern geometry and ring recipes}
     {thead | {tr | {th | Token}{th | Value}{th | Tier}{th | Description}}}
-    {tbody | {cem:for-each @select="(datadom.slices.zebra,datadom.slices.rings)" @as="row" |
+    {tbody | {cem:for-each @select="(datadom.slices.zebra,datadom.slices.pending,datadom.slices.rings)" @as="row" |
         {tr | {th | {code | {$row.token}}}{td | {code | {$row.value}}}{td | {$row.tier}}{td | {$row.description}}}}}
 }
 {hr | }
@@ -67,7 +67,7 @@
   /* endregion semantic endpoints */
 
   /* region zebra pattern geometry — angle only (strip-size and colors owned by D0) */```{call @from=docs @template=css-properties @with:rows={datadom.slices.zebra} @with:indent="  "}```
-  /* endregion zebra pattern geometry */
+  /* endregion zebra pattern geometry */```{call @from=docs @template=css-properties @with:rows={datadom.slices.pending} @with:indent="  "}```
 
   /* region indicator appearance selectors — outline=0 / underline=1 */```{call @from=docs @template=css-properties @with:rows={datadom.slices.appearance} @with:indent="  "}```
   /* endregion indicator appearance selectors */
