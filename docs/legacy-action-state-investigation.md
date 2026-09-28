@@ -1,6 +1,6 @@
 # Legacy action state investigation
 
-2026-09-28. Status: contract decision needed before owner migration.
+2026-09-28. Status: event scheduling decision resolved; owner migration remains next.
 
 ## Results
 
@@ -31,7 +31,8 @@ tests remain outside this bounded attribution.
 The probe registered copies of the two legacy declarations before the ordinary
 installer, replacing only their disabled expression. It changed no production
 source. The temporary test edits and failure screenshots were removed after the
-comparison; the committed legacy test file is unchanged.
+comparison. The later scheduling change updates the keyboard-release assertion
+as described below.
 
 ## Contract conflict
 
@@ -56,24 +57,21 @@ passes without changing runtime behavior. It checks:
 - Correct `target` and `currentTarget` for each event, and a refreshed payload.
 - The same native button remains mounted.
 
-## Decision and recommendation
+## Scheduling decision
 
-**Recommended:** keep latest-event payload semantics. Revise the active contract
-and its release assertion to distinguish unchanged slice values from refreshed
-click metadata. Preserve full snapshot equality during the held interval, native
-click counts, focus, geometry, styling and exact target assertions. This changes
-an incorrect post-click invariant; it does not remove activation coverage.
+The user requested asynchronous rendering after bubbling and related events
+finish. The runtime now batches each instance's requests into the next task,
+while preserving immediate event capture and latest payload metadata. See
+[event render batching](event-render-batching.md) for verification.
 
-The alternative is to require the complete serialized snapshot to remain
-unchanged when the slice value repeats. That would require deciding which new
-native event metadata to discard or retain elsewhere and changing shared runtime
-behavior. No runtime behavior was changed during this investigation.
+The active contract and release assertion now distinguish unchanged slice,
+form, payload and validation values from a new event payload revision. Held
+interval equality, native click counts, focus, geometry, styling and exact
+target checks remain covered.
 
-Execution stops for this decision under the user's instruction to stop at open
-questions. The legacy component implementation remains frozen migration debt.
-After approval, migrate `cem-icon-button` and `cem-menu-item` to canonical XHTML
-with explicit disabled presence, colocated stories and the accepted companion
-playground pattern; compare the complete legacy failure inventory afterward.
+Next, migrate `cem-icon-button` and `cem-menu-item` to canonical XHTML with
+explicit disabled presence, colocated stories and companion playgrounds; compare
+the complete legacy failure inventory afterward.
 
 ## Verification evidence
 

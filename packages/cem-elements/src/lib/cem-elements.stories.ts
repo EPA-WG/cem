@@ -552,7 +552,7 @@ export const DataIslandCaptureAndRender: Story = {
             island.content,
             'cem-payload\\:payload',
         );
-        const button = requiredElement(instance, 'button');
+        const button = await waitForElement(instance, 'button');
         const contextRoot = requiredElement(island.content, 'cem-island\\:context-root');
 
         assert(
@@ -826,7 +826,7 @@ export const RenderLoopNestedAndDynamic: Story = {
         await nextFrame();
 
         const instance = requiredElement(canvasElement, 'story-render-card');
-        const heading = requiredElement(instance, 'article.card h3');
+        const heading = await waitForElement(instance, 'article.card h3');
         const button = requiredElement(instance, 'article.card button') as HTMLButtonElement;
 
         assertEqual(heading.textContent, 'Tokens', 'nested text interpolation should use host attribute value');
@@ -2295,8 +2295,8 @@ export const LegacyAttributeDefaultsAndHostOverridesParity: Story = {
         const instances = Array.from(canvasElement.querySelectorAll('story-legacy-attr'));
         assertEqual(instances.length, 2, 'legacy attribute parity story renders two instances');
 
-        const fallbackButton = requiredElement(instances[0], 'button');
-        const overrideButton = requiredElement(instances[1], 'button');
+        const fallbackButton = await waitForElement(instances[0], 'button');
+        const overrideButton = await waitForElement(instances[1], 'button');
         assertEqual(fallbackButton.textContent, 'Default', 'declared attribute text is used as the default');
         assertEqual(fallbackButton.getAttribute('data-label'), 'Default', 'default attribute resolves in AVT output');
         assertEqual(overrideButton.textContent, 'Override', 'host attribute overrides the declared default');
@@ -2386,7 +2386,7 @@ export const LegacySliceInputEventParity: Story = {
     play: async ({ canvasElement }) => {
         await nextFrame();
         const instance = requiredElement(canvasElement, 'story-legacy-slice');
-        const input = requiredElement(instance, 'input') as HTMLInputElement;
+        const input = await waitForElement(instance, 'input') as HTMLInputElement;
 
         input.value = 'typed value';
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -3793,7 +3793,8 @@ export const LegacyBridgeTemplateParity: Story = {
         const engineLanguageInstance = document.createElement('story-legacy-engine-language-dom');
         root.append(instance, implicitInstance, engineLanguageInstance);
 
-        await runtime.whenRenderSettled(instance);
+        await Promise.all([instance, implicitInstance, engineLanguageInstance]
+            .map(element => runtime.whenRenderSettled(element)));
         const button = await waitForElement(instance, 'button');
         assertEqual(button.textContent?.trim(), 'Legacy Bridge', 'legacy text interpolation resolves defaults and host attributes');
         assertEqual(button.getAttribute('title'), 'Bridge', 'legacy attribute value templates resolve host attributes');
@@ -3993,7 +3994,7 @@ export const SlotProjectionRepeatedNames: Story = {
     play: async ({ canvasElement }) => {
         await nextFrame();
 
-        const card = requiredElement(canvasElement, 'story-slot-dup div.card');
+        const card = await waitForElement(canvasElement, 'story-slot-dup div.card');
         assert(card.querySelector('slot') === null, 'all repeated slots resolve away');
         assertEqual(
             card.querySelector('[slot="a"]')?.textContent,
@@ -4147,18 +4148,20 @@ export const AttributeInvalidationRerenders: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-attr-label');
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         root.appendChild(instance);
 
         return root;
     },
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const instance = requiredElement(canvasElement, 'story-attr-label');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'fixture exposes its runtime');
+        await runtime.whenRenderSettled(instance as HTMLElement);
         assertEqual(requiredElement(instance, 'span').textContent, 'Save', 'default attribute value renders first');
 
         instance.setAttribute('label', 'Updated');
-        await nextFrame();
+        await runtime.whenRenderSettled(instance as HTMLElement);
 
         assertEqual(
             requiredElement(instance, 'span').textContent,
@@ -4198,20 +4201,22 @@ export const SliceEventInvalidationRerenders: Story = {
         runtime.registerDeclaration(declaration);
 
         const instance = document.createElement('story-slice-field');
+        (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
         root.appendChild(instance);
 
         return root;
     },
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const instance = requiredElement(canvasElement, 'story-slice-field');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'fixture exposes its runtime');
+        await runtime.whenRenderSettled(instance as HTMLElement);
         const input = requiredElement(instance, 'input') as HTMLInputElement;
         assert(!input.hasAttribute('slice-event'), 'slice-event binding metadata should not remain visible');
 
         input.value = 'Tokens';
         input.dispatchEvent(new Event('input', { bubbles: true }));
-        await nextFrame();
+        await runtime.whenRenderSettled(instance as HTMLElement);
 
         assertEqual(
             requiredElement(instance, 'output').textContent,
@@ -4229,7 +4234,7 @@ export const SliceEventInvalidationRerenders: Story = {
 
         retainedInput.value = 'Again';
         retainedInput.dispatchEvent(new Event('input', { bubbles: true }));
-        await nextFrame();
+        await runtime.whenRenderSettled(instance as HTMLElement);
         assertEqual(
             requiredElement(instance, 'output').textContent,
             'Again',
@@ -4719,7 +4724,7 @@ export const RenderMetadataPropagatesToNestedDomNodes: Story = {
         await nextFrame();
 
         const instance = requiredElement(canvasElement, 'story-meta-card');
-        const section = requiredElement(instance, 'section.card');
+        const section = await waitForElement(instance, 'section.card');
         const button = requiredElement(instance, 'button');
         const span = requiredElement(instance, 'span');
 
@@ -4773,9 +4778,10 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
             innerHTML: '<attribute name="label">Save</attribute><button type="button">${$label}</button>',
         }),
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const instance = requiredElement(canvasElement, 'story-meta-revision');
+        const runtime = (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime;
+        assert(runtime, 'fixture exposes its runtime');
+        await runtime.whenRenderSettled(instance as HTMLElement);
         const first = requiredElement(instance, 'button');
         const nodeId = first.getAttribute('data-cem-render-node-id');
         const frame = first.getAttribute('data-cem-source-frame');
@@ -4783,7 +4789,7 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
         (first as Element & { cemRenderNodeId?: string }).cemRenderNodeId = undefined;
 
         instance.setAttribute('label', 'Updated');
-        await nextFrame();
+        await runtime.whenRenderSettled(instance as HTMLElement);
 
         const second = requiredElement(instance, 'button');
         assertEqual(second === first, true, 'rerender updates the existing render-node DOM object in place');
@@ -4802,7 +4808,7 @@ export const RenderMetadataAdvancesDataRevisionOnRerender: Story = {
         assertEqual(second.getAttribute('data-cem-source-frame'), frame, 'source frame stays stable across rerenders');
 
         instance.setAttribute('label', 'Third');
-        await nextFrame();
+        await runtime.whenRenderSettled(instance as HTMLElement);
         assertEqual(
             requiredElement(instance, 'button') === first,
             true,
@@ -5185,8 +5191,8 @@ export const TemplateArtifactIdentityIsStablePerDeclaration: Story = {
 
         const aInstances = Array.from(canvasElement.querySelectorAll('story-artifact-a'));
         assertEqual(aInstances.length, 2, 'both instances of the shared declaration mount');
-        const a1 = requiredElement(aInstances[0], 'button');
-        const a2 = requiredElement(aInstances[1], 'button');
+        const a1 = await waitForElement(aInstances[0], 'button');
+        const a2 = await waitForElement(aInstances[1], 'button');
         const b = requiredElement(requiredElement(canvasElement, 'story-artifact-b'), 'button');
 
         const a1Id = a1.getAttribute('data-cem-template-artifact-id');
@@ -7404,8 +7410,9 @@ function renderInstanceStory(options: InlineDeclarationOptions): HTMLElement {
     if (options.ariaLabel) {
         root.setAttribute('aria-label', options.ariaLabel);
     }
-    registerInlineDeclaration(options);
+    const runtime = registerInlineDeclaration(options);
     const instance = document.createElement(options.producedTag);
+    (instance as HTMLElement & { __runtime?: CemElementRuntime }).__runtime = runtime;
     for (const [name, value] of Object.entries(options.attributes ?? {})) {
         instance.setAttribute(name, value);
     }

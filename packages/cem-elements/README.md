@@ -42,6 +42,16 @@ resolved URL, request ID, content-type hint and integrity metadata. It returns
 response and resolves nested imports and resource URLs. The reader should honor
 the abort signal and reject failed responses.
 
+Render requests are batched per instance into the next task. Event listeners
+capture slice values and event metadata immediately, while `currentTarget` is
+available. Bubbling listeners, nested events, microtask follow-ups, behavior
+updates and observed host changes then share one render of the latest state.
+Separate later tasks can request another render; initialization or form
+reconciliation can also require a follow-up pass. `whenRenderSettled(instance)`
+waits for queued and in-flight rendering. New requests invalidate older in-flight
+results immediately. Disconnected instances skip queued work; reconnect renders
+current state.
+
 In this mode, `whenDeclarationSettled` waits for retained CEM-ML/DOM source
 registration. `whenRenderSettled` also waits for the instance's private, shared and payload
 stylesheet loads, including during hydration. Shared sources apply without an

@@ -51,7 +51,7 @@ export const SelectorsDoNotPierceTheDataIsland: Story = {
         assertEqual(instance.querySelector('[data-iso="payload"]'), null, 'island content is not selectable from the instance');
 
         // The rendered output, by contrast, is live and selectable.
-        const button = requiredElement(instance, 'button');
+        const button = await waitForElement(instance, 'button');
         assert(button.isConnected, 'projected render output is connected to the live document');
 
         assert(!instance.textContent?.includes('payload-secret'), 'island text does not leak into instance.textContent');

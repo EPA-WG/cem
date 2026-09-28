@@ -343,6 +343,7 @@ async function verifyJson(sample: HTMLElement): Promise<void> {
         expect(sample.querySelectorAll('li')).toHaveLength(0);
         assertEqual(localStorage.getItem('cemDemoJson'), raw, 'JSON parsing does not rewrite storage');
         if (raw === 'ABC') {
+            await whenCemRendered(producedInstance(sample));
             assertEqual(cemDiagnosticCodes(producedInstance(sample)).includes('cem-element.local_storage_json_invalid'),
                 true, 'invalid JSON retains the import diagnostic');
         }
@@ -411,6 +412,7 @@ async function verifyJsonBasket(sample: HTMLElement): Promise<void> {
         const stored = `{"cherries":${cherries},"lemons":${lemons}}`;
         await waitForCondition(() => textList(sample, 'dd').join('|') === `${cherries}|${lemons}|${cherries + lemons}`
             && localStorage.getItem('cemDemoBasket') === stored, 'basket fields, total and exact JSON agree');
+        await whenCemRendered(producedInstance(sample));
         expect(Array.from(sample.querySelectorAll('button'))).toEqual(buttons);
     };
     await state(12, 1);

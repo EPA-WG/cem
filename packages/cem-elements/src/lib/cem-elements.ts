@@ -1668,6 +1668,11 @@ export class CemElementRuntime {
     private readonly customValidationMessages = new WeakMap<Element, string>();
     private readonly renderTokens = new WeakMap<HTMLElement, number>();
     private readonly renderSettled = new WeakMap<HTMLElement, Promise<void>>();
+    private readonly queuedRenders = new WeakMap<HTMLElement, {
+        compiled: CompiledDeclaration;
+        formRefreshPass: number;
+        pending: Promise<void>;
+    }>();
     private readonly elementInternals = new WeakMap<HTMLElement, ElementInternals>();
     private readonly declarationSettled = new WeakMap<object, Promise<void>>();
     /** Dedupes the async engine lowering of a legacy-xslt declaration across its instances. */
@@ -1755,13 +1760,13 @@ export class CemElementRuntime {
      */
     async whenRenderSettled(instance: HTMLElement): Promise<void> {
         for (;;) {
-            const render = this.renderSettled.get(instance);
+            const render = this.queuedRenders.get(instance)?.pending ?? this.renderSettled.get(instance);
             await render;
             await this.settleRetainedStylesheets(instance);
             const pending = Object.values(this.instanceStates.get(instance)?.localStorageResources ?? {})
                 .map(active => active.native?.pending).filter((p): p is Promise<void> => !!p);
             await Promise.all(pending);
-            if (render === this.renderSettled.get(instance)) return;
+            if (!this.queuedRenders.has(instance) && render === this.renderSettled.get(instance)) return;
         }
     }
 
@@ -2704,6 +2709,38 @@ export class CemElementRuntime {
     }
 
     private renderInstance(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass = 0): void {
+        if (!instance.isConnected || compiled.declarationScope.disposed) return;
+        // Invalidate in-flight publication as soon as state changes, even though
+        // the replacement snapshot will be captured in the next task.
+        const token = this.nextRenderToken(instance);
+        this.cancelSupersededProcessingRender(instance, token);
+        const queued = this.queuedRenders.get(instance);
+        if (queued) {
+            queued.compiled = compiled;
+            queued.formRefreshPass = formRefreshPass;
+            return;
+        }
+        const request = { compiled, formRefreshPass, pending: Promise.resolve() };
+        this.queuedRenders.set(instance, request);
+        const pending = new Promise<void>((resolve, reject) => {
+            // A microtask can run between native event listeners. A task lets
+            // bubbling, nested dispatch and their microtasks finish first.
+            setTimeout(() => {
+                this.queuedRenders.delete(instance);
+                this.renderSettled.set(instance, Promise.resolve());
+                try {
+                    this.performRender(instance, request.compiled, request.formRefreshPass);
+                    resolve(this.renderSettled.get(instance));
+                } catch (error) {
+                    reject(error);
+                }
+            }, 0);
+        });
+        request.pending = pending;
+        this.renderSettled.set(instance, pending);
+    }
+
+    private performRender(instance: HTMLElement, compiled: CompiledDeclaration, formRefreshPass: number): void {
         // Resource events can arrive after disconnect and still update retained
         // state. Reconnection owns the next render and stylesheet consumer.
         if (!instance.isConnected || compiled.declarationScope.disposed) return;

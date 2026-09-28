@@ -52,6 +52,8 @@ export const EveryAuthoredSample: Story = {
                 throw error;
             }
             readinessCheckpoint('initial-readers-ready', { readers: readers() });
+            await Promise.all([live, initial].map(sample =>
+                whenCemRendered(requiredElement(sample, 'article').parentElement as HTMLElement)));
             const initialValues = definitionEntries(initial);
             readinessCheckpoint('initial-values-captured', { readers: readers() });
             const initialUrl = new URL(originalUrl);

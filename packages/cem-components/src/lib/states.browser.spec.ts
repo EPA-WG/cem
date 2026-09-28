@@ -1484,6 +1484,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(activationEvents).toHaveLength(keyboardEventCount);
 
         await userEvent.keyboard('[/Space]');
+        await runtime.whenRenderSettled(host);
         await nextRenderFrame();
 
         const keyboardReleased = captureActionState(runtime, host, button);
@@ -1493,7 +1494,12 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expectActionStructureAndGeometryAfterActivation(keyboardReleased, keyboardBaseline);
         expect(keyboardReleased.focusTreatment).toEqual(keyboardBaseline.focusTreatment);
         expect(keyboardReleased.forcedColorAdjust).toBe('auto');
-        expect(keyboardReleased.runtime).toBe(keyboardActive.runtime);
+        const beforeRelease = JSON.parse(keyboardActive.runtime);
+        const afterRelease = JSON.parse(keyboardReleased.runtime);
+        for (const field of ['formData', 'payload', 'slices', 'validationState']) {
+            expect(afterRelease[field]).toEqual(beforeRelease[field]);
+        }
+        expect(afterRelease.eventPayloads[slice].revision).toBe(beforeRelease.eventPayloads[slice].revision + 1);
         expect(document.activeElement).toBe(button);
         expect(activationEvents).toEqual(Array.from({ length: keyboardEventCount + 1 }, () => 'click'));
 

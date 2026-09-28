@@ -8,22 +8,34 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
-## Immediate: Repeated action-click state contract
+## Immediate: Canonical icon-button and menu-item migration
 
-- [x] Reproduce the legacy state baseline: 3 passing / 18 failing.
-- [x] Isolate disabled-presence changes in test-owned icon-button/menu-item
-      declarations: 5 passing / 16 failing, no newly failing test names.
-- [x] Fixture: prove that repeated native clicks keep the same slice value while
-      refreshing target metadata; Space hold produces no extra click.
-- [ ] Decide whether repeated activation preserves only slice values while
-      publishing the latest event payload (recommended), or requires the entire
-      serialized runtime state to remain unchanged as the old active contract says.
+- [ ] Migrate `cem-icon-button` and `cem-menu-item` into per-component XHTML,
+      using explicit disabled presence and removing their legacy ownership.
+- [ ] Fixture: colocated stories for every implemented attribute, native
+      pointer/keyboard activation and disabled behavior; companion playgrounds.
+- [ ] Compare the complete legacy state failure inventory after migration;
+      verify source/package output, commit and push.
 
-Stop before changing that contract or its assertions. The
-[investigation](legacy-action-state-investigation.md) records the conflict and
-passing browser regression. Production sources and the legacy suite are unchanged.
-After approval, correct the active assertion and migrate the two action owners
-with explicit disabled presence, retaining pointer/keyboard and geometry checks.
+## Completed: Batch renders after event bursts
+
+- [x] Decision: let bubbling and related synchronous events finish before one
+      asynchronous render of their accumulated state (user instruction).
+- [x] Fixture: nested/bubbling events, microtask follow-ups, host attributes and
+      behavior updates produce one render; retain latest event metadata and
+      make `whenRenderSettled` wait for the queued work.
+- [x] Fixture: disconnected queued instances do not render; reconnected
+      instances render current state and stale in-flight results stay rejected.
+- [x] Update runtime scheduling and the repeated-click contract, verify and
+      commit/push. Continue owner migration after this shared capability.
+
+The [legacy investigation](legacy-action-state-investigation.md) remains the
+owner-failure baseline. Event payloads must be captured while `currentTarget` is
+available; batching concerns rendering, not discarding later events.
+
+All 348 runtime browser stories and 585 unit tests pass. Source/package
+playgrounds pass; the legacy state baseline is unchanged. See
+[event render batching](event-render-batching.md).
 
 ## Completed: Release XHTML bundle and source context
 

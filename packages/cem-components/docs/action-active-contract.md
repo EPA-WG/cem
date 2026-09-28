@@ -74,9 +74,13 @@ Space key through the browser provider, observes the same active token pair
 while keydown is retained, then releases Space and proves default restoration
 plus the native click aftermath. Because the preceding pointer pass already set
 the action's `pressed` slice to the string `"click"`, the repeated keyboard
-activation is intentionally idempotent in serialized runtime data; the new
-trusted click count proves the second release rather than requiring a different
-slice value.
+activation keeps that slice value. The latest event payload still changes: its
+revision advances and it records the keyboard click target and coordinates.
+Runtime rendering is deferred until bubbling, nested events and their microtask
+follow-ups finish, with one render for their accumulated state. Assertions after
+release must await `whenRenderSettled`; whole-runtime equality applies while
+Space is held, not after its new click. The trusted click count proves the second
+release.
 
 Space is the executable keyboard hold because native buttons activate it on
 keyup and expose an observable depressed interval. Enter remains normal native
