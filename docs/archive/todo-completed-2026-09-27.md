@@ -515,3 +515,17 @@ playground checks pass, including reduced-motion and forced-colors coverage.
   keyframes and D5 pending-pattern presentation table. An early source-copy
   mismatch and a browser startup during CSS regeneration were resolved by
   rerunning checks after source/build outputs settled.
+
+## Lighter destructive pending stripes
+
+- Added the canonical D0 `--cem-action-destructive-pending-stripe-background`
+  token, mixing the active endpoint with 25% white in light schemes. Dark
+  schemes retain the active endpoint for text contrast. Existing theme tokens
+  and active action paint are preserved.
+- Action and the theme generator pending preview consume the same stripe token.
+  The light-theme stripe changes from approximately #7d070a to #9e4547 while
+  the darker endpoint stays #6d0106; pending text contrast remains about 5.1:1.
+- Verified 10 action stories, 486/486 token coverage, theme Phase 13, component
+  style contract and source/isolated-package playgrounds including endpoint
+  contrast, animation, reduced motion and forced colors. DevTools confirmed
+  animation movement in the IDE preview, left on Destructive + Loading=True.

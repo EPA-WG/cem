@@ -170,7 +170,12 @@ export const LoadingColors = meta.story({
             }
             await expect(getComputedStyle(button).backgroundImage).toContain('linear-gradient(45deg');
             await expect(colorContrast(...expected('pending') as [string, string])).toBeGreaterThanOrEqual(4.5);
-            await expect(colorContrast(expected('active')[0], expected('pending')[1])).toBeGreaterThanOrEqual(4.5);
+            const stripe = expected(host.getAttribute('variant') === 'destructive' ? 'pending-stripe' : 'active')[0];
+            await expect(colorContrast(stripe, expected('pending')[1])).toBeGreaterThanOrEqual(4.5);
+            if (host.getAttribute('variant') === 'destructive') {
+                await expect(getComputedStyle(button).backgroundImage).toContain(stripe);
+                await expect(colorContrast(stripe, expected('pending')[0])).toBeGreaterThan(1.8);
+            }
             await expect(paint()).toEqual(expected('pending'));
             await expect(host.querySelector('button')).toBe(button);
             await expect(button.getBoundingClientRect().width).toBe(initial.width);

@@ -446,7 +446,10 @@ The resulting values populate `--cem-action-{intent}-{state}-background` and `--
 Pending actions MUST show a repeating 45-degree background gradient while their
 busy source is true. A one-shot color fade is not the pending-motion contract.
 Use the intent's pending background and active background as the two gradient
-colors, with its pending text color throughout. Both endpoints and intermediate
+colors, with its pending text color throughout. Destructive actions use
+`--cem-action-destructive-pending-stripe-background` for the second endpoint:
+its light-scheme mix makes the stripes visibly lighter without changing active
+button paint. Dark schemes retain the active endpoint to preserve text contrast. Both endpoints and intermediate
 colors must preserve readable text in each theme mode. The existing pending
 background token remains a color, including as the solid fallback.
 
@@ -455,6 +458,7 @@ background token remains a color, including as the solid fallback.
 | --- | --- | --- | --- |
 | `--cem-pending-color-1` | `var(--cem-action-primary-pending-background)` | First gradient color; bind to the current intent's pending background | recommended |
 | `--cem-pending-color-2` | `var(--cem-action-primary-active-background)` | Second gradient color; bind to the current intent's active background | recommended |
+| `--cem-action-destructive-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-destructive-active-background) 75%, var(--cem-color-white)), var(--cem-action-destructive-active-background))` | Destructive pending stripe: lighten the active endpoint with 25% white in light schemes; retain active in dark schemes | recommended |
 
 D5 owns `--cem-pending-angle` (45deg) and `--cem-pending-tile-size` (2rem).
 D7 owns `--cem-duration-pending-cycle` (2000ms). Use uniform easing and infinite

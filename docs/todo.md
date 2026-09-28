@@ -8,6 +8,10 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Immediate: Destructive pending stripe contrast
+
+- [x] Fixture: lighten destructive pending stripes through the canonical theme, preserve readable text and motion across modes, and preview in the browser.
+
 ## Immediate: Public CSS property ownership
 
 - [x] Record public component CSS property ownership and the mandatory theme/component conflict decision.

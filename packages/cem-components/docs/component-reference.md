@@ -184,6 +184,8 @@ compatibility aliases. No generic `--cem-action-<state>-*` family is introduced.
 For `cem-action`, `loading="true"` reflects `aria-busy="true"` and shows the
 canonical 45-degree pending gradient with a seamless two-second loop. Colors
 come from the current intent's pending/active background pair and pending text.
+Destructive uses the theme's pending-stripe endpoint for a lighter stripe in
+light schemes; its active button state remains unchanged.
 Pending paint takes precedence over hover/active and disabled paint. A disabled
 loading button keeps the gradient while native disabled semantics block activation
 and focus. Clearing loading while disabled restores disabled colors. Hover/focus

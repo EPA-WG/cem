@@ -128,7 +128,7 @@
                         {th | {$state.state}}
                         {cem:for-each @select="$datadom.slices.intent" @as="intent" |
                             {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
-                                @style='{str:concat(("--cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, "-active-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
+                                @style='{str:concat(("--cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, if intent.action_intent == "destructive" { "-pending-stripe" } else { "-active" }, "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
                                 @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette), "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", str:replace(state.text_token, "[emotion]", intent.emotional_palette)))}' | Aa}
                         }
