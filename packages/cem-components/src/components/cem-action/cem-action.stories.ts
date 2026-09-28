@@ -599,8 +599,11 @@ export const PendingIntentThemeParity = meta.story({
                 }
                 const expectedContour = [...normal];
                 if (scheme === 'light') {
-                    probe.style.color = `color-mix(in srgb, var(--cem-action-${intent}-active-background) 60%, var(--cem-color-white))`;
+                    probe.style.color = intent === 'destructive'
+                        ? 'var(--cem-color-red-xl)'
+                        : `color-mix(in srgb, var(--cem-action-${intent}-active-background) 60%, var(--cem-color-white))`;
                     const brighterStripe = getComputedStyle(probe).color;
+                    if (intent === 'destructive') await expect(brighterStripe).toBe('rgb(255, 180, 171)');
                     await expect(colorContrast(pending, brighterStripe), `${intent}: light outline separation`).toBeGreaterThan(3);
                     await expect(brighterStripe).not.toBe(stripe);
                     expectedContour[0] = normal[0].replaceAll(stripe, brighterStripe);

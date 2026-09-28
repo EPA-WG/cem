@@ -8,6 +8,17 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Extra-light red destructive loading stripe
+
+- [x] Use the palette extra-light red (`--cem-color-red-xl`, `#ffb4ab`) for
+      the destructive light contrast outline; preserve dark mode and normal fills.
+- [x] Fixture: verify the exact extra-light endpoint and retained motion,
+      then run browser/package checks, commit and push.
+
+All 17 action stories pass, plus source/installed-package playgrounds with
+visible motion, reduced-motion and forced-colors checks. Package, style, material
+parity and lint pass (no errors; 48 existing warnings).
+
 ## Completed: Brighter light contrast loading outlines
 
 - [x] Decision: use 40% white for light contrast outline stripes only; preserve

@@ -452,7 +452,7 @@ with 12% white in light schemes and 20% black in dark schemes. Destructive keeps
 25% white / 50% black because its yellow foreground has a different contrast
 range. The default endpoints must exceed 1.8:1 stripe separation and preserve
 at least 4.5:1 text contrast across the gradient. Dark contrast contours share these endpoints. Light contrast contours use
-a brighter 40% white stripe as specified in §7.5. Active button paint is unchanged; the pending
+a brighter stripe (40% white, or extra-light red for destructive) as specified in §7.5. Active button paint is unchanged; the pending
 background remains a color, including as the solid fallback.
 
 ###### cem-pending-colors
@@ -469,11 +469,12 @@ background remains a color, including as the solid fallback.
 | `--cem-action-explicit-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 95% 100%)` | Explicit pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
 | `--cem-action-contextual-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 80%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 80%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 95% 100%)` | Contextual pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
 | `--cem-action-alternate-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 80%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 80%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 95% 100%)` | Alternate pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
-| `--cem-action-destructive-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 95% 100%)` | Destructive pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
+| `--cem-action-destructive-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 0% 5%, light-dark(var(--cem-color-red-xl), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 45% 55%, light-dark(var(--cem-color-red-xl), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 95% 100%)` | Destructive pending recipe; Extra-light red stripe in light contrast; ordinary dark endpoint | recommended |
 
 The intent image recipes use the pending (5%) and active (25%) palette formulas
 directly so contrast fill overrides cannot erase their colors. Dark contours match normal fill endpoints. Light contours mix the active
-palette endpoint with 40% white; the ordinary fill keeps its text-safe stripe.
+palette endpoint with 40% white; destructive uses `--cem-color-red-xl`.
+The ordinary fill keeps its text-safe stripe.
 Existing per-control fill color overrides remain independent.
 
 Native themes retain their system-palette active stripe endpoints for the four
@@ -558,7 +559,9 @@ D5 defines its resting/hover/active thickness; keyboard focus retains its
 independent zebra rings. Loading, including disabled loading, uses an animated
 45-degree zebra contour instead of the background gradient. Motion parameters match the normal gradient. Dark contours also retain the
 normal gradient colors. Light contours brighten the second endpoint with 40%
-white for every intent, giving more than 3:1 stripe separation. This stronger
+white for primary, explicit, contextual and alternate. Destructive uses the
+extra-light red endpoint (`--cem-color-red-xl`, `#ffb4ab`). All five intents
+exceed 3:1 stripe separation. This stronger
 light stripe is confined to the outline; ordinary fills retain their readable
 text contrast. This explicitly supersedes light-mode fill/contour color parity.
 Reduced motion freezes the contour. Forced colors uses the existing static
