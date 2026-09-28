@@ -40,7 +40,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 
 | Category | Component ID | Element name | Primary use | Required token families |
 | --- | --- | --- | --- | --- |
-| Action | `action` | `cem-action` | Text action, submit, and command buttons | action, control, palette, bend, typography |
+| Action | `action` | `cem-action` | Text action, submit, command and container-selected buttons | action, control, palette, bend, typography |
 | Action | `icon-button` | `cem-icon-button` | Compact icon-only command with required accessible name | action, control, palette, stroke, bend |
 | Action | `menu-item` | `cem-menu-item` | Command or navigation row inside menus and action lists | action, palette, gap, inset, typography |
 | Input | `theme-switch` | `cem-theme-switch` | Theme scope with Light/Dark/Native choice and Contrast toggle | palette, control, stroke, gap, typography |
@@ -127,7 +127,7 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 
 | Category | Required MVP states |
 | --- | --- |
-| Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading` |
+| Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`, `selected` |
 | Input | `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`, `checked`, `indeterminate` |
 | Navigation | `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded` |
 | Layout | `default`, `loading`, `empty` |

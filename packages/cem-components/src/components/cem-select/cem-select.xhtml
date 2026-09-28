@@ -72,7 +72,7 @@
           }
 
           [part~='control'] {
-            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
@@ -82,16 +82,6 @@
             );
             background-color: var(--cem-select-popup-background);
             border: var(--cem-stroke-none) solid transparent;
-            box-shadow:
-              0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
-                calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
-                var(--_cem-input-indicator-anchor-color),
-              0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))) 0
-                calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width)))
-                var(--cem-zebra-color-1),
-              0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width))) 0
-                calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width)))
-                var(--cem-input-indicator-selection-color);
             box-sizing: border-box;
             color: var(--cem-select-popup-text);
             font-family: var(--cem-typography-ui-font-family);
@@ -103,6 +93,19 @@
             padding-block: var(--cem-control-padding-y);
             padding-inline: var(--cem-control-padding-x);
             text-align: start;
+          }
+
+          [part~='control']:where(:focus-visible, [aria-expanded='true'], [aria-invalid='true']:not(:disabled):not([aria-disabled='true']), [data-state='loading']:not(:disabled):not([aria-disabled='true'])) {
+            box-shadow:
+              0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+                calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+                var(--_cem-input-indicator-anchor-color),
+              0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))) 0
+                calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width)))
+                var(--cem-zebra-color-1),
+              0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width))) 0
+                calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width)))
+                var(--cem-input-indicator-selection-color);
           }
 
           :host([indicator='outline']) [part~='control'] {
@@ -132,7 +135,7 @@
 
           [part~='control']:where(:disabled, [aria-disabled='true']) {
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
-            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
             cursor: default;
           }
 

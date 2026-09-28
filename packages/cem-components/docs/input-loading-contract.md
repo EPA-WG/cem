@@ -52,7 +52,7 @@ the attribute when the operation settles.
 
 ## Visual and state composition
 
-The loading treatment reuses the input indicator's anchor/state stripe. D0
+The loading treatment activates the input indicator's otherwise absent anchor/state stripe. Choice indicators paint the native input, not its label. D0
 changes its color to `--cem-input-indicator-anchor-pending-color`; D5 changes
 its width from `--cem-stroke-boundary` to `--cem-stroke-pending`. A thicker
 box-shadow stripe does not participate in layout, so underline and outline

@@ -1095,15 +1095,27 @@ cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-datepicker > .cem-datepicker > input[slot='input'],
 cem-timepicker > .cem-timepicker > input[slot='input'],
-cem-checkbox > label,
-cem-radio > label,
-cem-switch > label {
-    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+cem-checkbox > label > input,
+cem-radio > label > input,
+cem-switch > label > input {
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
     --_cem-input-indicator-focus-width: var(--cem-stroke-none);
     --_cem-input-indicator-selection-width: var(--cem-stroke-none);
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
     --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
     --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+}
+
+/* Extra stripes belong only to active states on the native control. */
+cem-field input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-text-field input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-textarea textarea:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-autocomplete .cem-autocomplete__control:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-datepicker > .cem-datepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-timepicker > .cem-timepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-checkbox > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-radio > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
+cem-switch > label > input:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
     box-shadow:
         0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
             calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
@@ -1214,7 +1226,7 @@ cem-autocomplete .cem-autocomplete__control:disabled,
 cem-datepicker > .cem-datepicker > input[slot='input']:disabled,
 cem-timepicker > .cem-timepicker > input[slot='input']:disabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
-    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
 }
 
 cem-field input:focus-visible,
@@ -1232,9 +1244,9 @@ cem-timepicker > .cem-timepicker > input[slot='input'][aria-expanded='true'] {
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
 
-cem-checkbox > label,
-cem-radio > label,
-cem-switch > label {
+cem-checkbox > label > input,
+cem-radio > label > input,
+cem-switch > label > input {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-outline)
@@ -1242,70 +1254,64 @@ cem-switch > label {
     display: inline-block;
 }
 
-cem-checkbox[indicator='underline'] > label,
-cem-radio[indicator='underline'] > label,
-cem-switch[indicator='underline'] > label {
+cem-checkbox[indicator='underline'] > label > input,
+cem-radio[indicator='underline'] > label > input,
+cem-switch[indicator='underline'] > label > input {
     --_cem-input-indicator-appearance: var(
         --cem-input-indicator-appearance,
         var(--cem-indicator-appearance-underline)
     );
 }
 
-cem-checkbox > label:has(> input:enabled:hover),
-cem-radio > label:has(> input:enabled:hover),
-cem-switch > label:has(> input:enabled:hover) {
+cem-checkbox > label > input:enabled:hover,
+cem-radio > label > input:enabled:hover,
+cem-switch > label > input:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
 
-cem-checkbox > label:has(> input[data-state='loading']:enabled),
-cem-radio > label:has(> input[data-state='loading']:enabled),
-cem-switch > label:has(> input[data-state='loading']:enabled) {
+cem-checkbox > label > input[data-state='loading']:enabled,
+cem-radio > label > input[data-state='loading']:enabled,
+cem-switch > label > input[data-state='loading']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
 }
 
-cem-checkbox > label:has(> input[aria-invalid='true']:enabled),
-cem-radio > label:has(> input[aria-invalid='true']:enabled),
-cem-switch > label:has(> input[aria-invalid='true']:enabled) {
+cem-checkbox > label > input[aria-invalid='true']:enabled,
+cem-radio > label > input[aria-invalid='true']:enabled,
+cem-switch > label > input[aria-invalid='true']:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
-cem-checkbox > label:has(> input[aria-invalid='true']:enabled:hover),
-cem-radio > label:has(> input[aria-invalid='true']:enabled:hover),
-cem-switch > label:has(> input[aria-invalid='true']:enabled:hover) {
+cem-checkbox > label > input[aria-invalid='true']:enabled:hover,
+cem-radio > label > input[aria-invalid='true']:enabled:hover,
+cem-switch > label > input[aria-invalid='true']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
-cem-checkbox > label:has(> input:disabled),
-cem-radio > label:has(> input:disabled),
-cem-switch > label:has(> input:disabled) {
+cem-checkbox > label > input:disabled,
+cem-radio > label > input:disabled,
+cem-switch > label > input:disabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
-    --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+    --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
 }
 
-cem-checkbox > label:has(> input:enabled:focus-visible),
-cem-radio > label:has(> input:enabled:focus-visible),
-cem-switch > label:has(> input:enabled:focus-visible) {
+cem-checkbox > label > input:enabled:focus-visible,
+cem-radio > label > input:enabled:focus-visible,
+cem-switch > label > input:enabled:focus-visible {
     --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
 }
 
-cem-checkbox > label:has(> input:checked),
-cem-radio > label:has(> input:checked),
-cem-switch > label:has(> input:checked) {
+cem-checkbox > label > input:checked,
+cem-radio > label > input:checked,
+cem-switch > label > input:checked {
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
 }
 
-cem-checkbox > label:has(> input[aria-checked='mixed']) {
+cem-checkbox > label > input[aria-checked='mixed'] {
     --_cem-input-indicator-selection-color: var(--cem-input-indicator-indeterminate-color);
     --_cem-input-indicator-selection-width: var(--cem-zebra-strip-size);
-}
-
-cem-checkbox input:focus-visible,
-cem-radio input:focus-visible,
-cem-switch input:focus-visible {
-    outline: var(--cem-stroke-none) solid transparent;
 }
 
 cem-datepicker {
@@ -2109,9 +2115,9 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-autocomplete .cem-autocomplete__control,
     cem-datepicker > .cem-datepicker > input[slot='input'],
     cem-timepicker > .cem-timepicker > input[slot='input'],
-    cem-checkbox > label,
-    cem-radio > label,
-    cem-switch > label {
+    cem-checkbox > label > input,
+    cem-radio > label > input,
+    cem-switch > label > input {
         box-shadow: none;
     }
 
@@ -2124,9 +2130,9 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
         border-color: Highlight;
     }
 
-    cem-checkbox > label:has(> input:enabled:hover),
-    cem-radio > label:has(> input:enabled:hover),
-    cem-switch > label:has(> input:enabled:hover) {
+    cem-checkbox > label > input:enabled:hover,
+    cem-radio > label > input:enabled:hover,
+    cem-switch > label > input:enabled:hover {
         outline: var(--cem-stroke-boundary) solid Highlight;
         outline-offset: var(--cem-stroke-indicator-offset);
     }
@@ -2135,9 +2141,9 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-text-field input[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-textarea textarea[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:not([aria-invalid='true']),
-    cem-checkbox > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
-    cem-radio > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])),
-    cem-switch > label:has(> input[data-state='loading']:enabled:not([aria-invalid='true'])) {
+    cem-checkbox > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-radio > label > input[data-state='loading']:enabled:not([aria-invalid='true']),
+    cem-switch > label > input[data-state='loading']:enabled:not([aria-invalid='true']) {
         outline: var(--cem-stroke-pending) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
     }
@@ -2152,16 +2158,16 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-datepicker .cem-datepicker__day:focus-visible,
     cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible,
     cem-timepicker > .cem-timepicker > button[slot='toggle']:focus-visible,
-    cem-checkbox > label:has(> input:enabled:focus-visible),
-    cem-radio > label:has(> input:enabled:focus-visible),
-    cem-switch > label:has(> input:enabled:focus-visible),
+    cem-checkbox > label > input:enabled:focus-visible,
+    cem-radio > label > input:enabled:focus-visible,
+    cem-switch > label > input:enabled:focus-visible,
     cem-field input[data-state='loading']:enabled:focus-visible,
     cem-text-field input[data-state='loading']:enabled:focus-visible,
     cem-textarea textarea[data-state='loading']:enabled:focus-visible,
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:focus-visible,
-    cem-checkbox > label:has(> input[data-state='loading']:enabled:focus-visible),
-    cem-radio > label:has(> input[data-state='loading']:enabled:focus-visible),
-    cem-switch > label:has(> input[data-state='loading']:enabled:focus-visible) {
+    cem-checkbox > label > input[data-state='loading']:enabled:focus-visible,
+    cem-radio > label > input[data-state='loading']:enabled:focus-visible,
+    cem-switch > label > input[data-state='loading']:enabled:focus-visible {
         outline: var(--cem-stroke-focus) solid CanvasText;
         outline-offset: var(--cem-stroke-indicator-offset);
     }

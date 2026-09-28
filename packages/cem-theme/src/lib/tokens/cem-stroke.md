@@ -226,7 +226,7 @@ The current theme implementation uses a **zebra ring** composed of stacked outsi
 - `--cem-zebra-color-0` … `--cem-zebra-color-3`
 - `--cem-action-box-shadow` (used by `.action` components)
 
-In normal themes, a 3-stripe ring is used; in contrast themes, a 4-stripe ring is used (intent + focus + selected + target).
+In normal themes, a 3-stripe ring is used; in contrast themes, a 4-stripe ring is used (intent + focus + target + selected).
 
 **Ownership split (R-D5-1 resolved):** `--cem-zebra-strip-size` and `--cem-zebra-color-{0..3}` are owned by D0
 ([`cem-colors.md`](./cem-colors.md)) and emitted by `cem-colors.html` because they ship with full theme-mode coverage
@@ -249,8 +249,8 @@ D5 treats these as canonical *indicator-pattern tokens*:
   --cem-zebra-angle:      45deg;    /* if stripes are rendered as gradients */
   --cem-zebra-color-0:    Canvas;       /* intent / base stripe (contrast themes) */
   --cem-zebra-color-1:    CanvasText;   /* focus stripe */
-  --cem-zebra-color-2:    SelectedItem; /* selected stripe */
-  --cem-zebra-color-3:    SelectedItem; /* target stripe (or themed alternative) */
+  --cem-zebra-color-2:    Mark;         /* target stripe */
+  --cem-zebra-color-3:    SelectedItem; /* selected stripe (or themed alternative) */
 }
 ```
 
@@ -278,13 +278,13 @@ to retain seamless edges.
 ### 5.3 Recommended indicator composition (box-shadow ring)
 
 ```css
-/* 3-stripe ring: focus/selected/target (normal themes) */
+/* 3-stripe ring: focus/target/selected (normal themes) */
 --cem-ring-zebra-3:
   0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),
   0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
   0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
 
-/* 4-stripe ring: intent + focus + selected + target (contrast themes) */
+/* 4-stripe ring: intent + focus + target + selected (contrast themes) */
 --cem-ring-zebra-4:
   0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-0),
   0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1),
@@ -300,7 +300,7 @@ to retain seamless edges.
 ###### cem-stroke-rings
 | Token                | Value                                                                                                                                                                                                                                                  | Description                                  | tier        |
 |----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|-------------|
-| `--cem-ring-zebra-3` | `0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1), 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2), 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3)`                                     | 3-stripe focus/selected/target ring          | recommended |
+| `--cem-ring-zebra-3` | `0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1), 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2), 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3)`                                     | 3-stripe focus/target/selected ring          | recommended |
 | `--cem-ring-zebra-4` | `0 0 0 calc(1 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-0), 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-1), 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2), 0 0 0 calc(4 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3)` | 4-stripe ring (contrast themes)              | recommended |
 
 ###### cem-stroke-rings-forced
@@ -334,9 +334,11 @@ Y offsets leave only the bottom portions visible. Components MUST compose the sh
 colors and widths resolve at the paint target. A root-declared recipe containing nested `var(--stripe-color)` references
 resolves those references at the declaration scope and can freeze descendant state overrides.
 
-The transform does not fix a semantic-role count. Input components currently compose an anchor/state stripe using
-`--cem-stroke-boundary`, then activate focus and selection stripes using `--cem-zebra-strip-size`. Invalidity recolors
-the anchor instead of adding another stripe. A component-friendly property such as
+The transform does not fix a semantic-role count. Input components omit the shadow stack at rest. Invalid state activates an
+anchor using `--cem-stroke-boundary`; pending uses `--cem-stroke-pending`. Focus
+and selection activate independent stripes using `--cem-zebra-strip-size`.
+Choice indicators paint the native input rather than its enclosing label.
+Inactive anchor width is zero; outside stripe changes do not affect layout. A component-friendly property such as
 `--cem-input-indicator-appearance` is an adapter hook, not a canonical D5 token; its supported values are references to
 the two tokens above.
 
@@ -561,7 +563,7 @@ Joy exposes per-component CSS variables for focus ring geometry (examples):
 | `--cem-stroke-indicator-offset` | Placement | ✓ | Ring/outline offset distance |
 | `--cem-zebra-strip-size` | Pattern | Optional | Stripe thickness for zebra indicators |
 | `--cem-zebra-angle` | Pattern | Optional | Stripe angle for gradient zebra |
-| `--cem-zebra-color-0..3` | Pattern | Optional | Concentric zebra stripe colors (intent/focus/selected/target) |
+| `--cem-zebra-color-0..3` | Pattern | Optional | Concentric zebra stripe colors (intent/focus/target/selected) |
 | `--cem-action-box-shadow` | Adapter hook | Optional | Existing action indicator/shadow hook (implementation detail) |
 
 ---
@@ -649,3 +651,13 @@ so changing thickness does not change the hit area or layout. Focus zebra stays
 outside the operable bounds. Pending animates D0's zebra contour image with the
 existing D7 pending duration and D5 tile size; the center is masked out. Reduced
 motion freezes it, and forced colors replaces it with the native pending outline.
+
+
+### Persistent action selection
+
+`cem-action[selected]` uses the D0 selected stripe (`--cem-zebra-color-3`) with
+D5 zebra geometry even without keyboard focus. Focus is stripe 1, target is
+stripe 2 and selected is stripe 3. Selection does not require a new fill or an
+additional hit area. Hover, held press, disabled and pending do not erase it.
+In forced colors, suppress shadows and retain an inset `SelectedItem` boundary
+separate from the outer focus/pending outline; neither changes layout.

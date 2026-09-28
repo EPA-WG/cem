@@ -88,6 +88,68 @@ export const Dimensions = meta.story({
     },
 });
 
+export const Selected = meta.story({
+    parameters: { docs: { description: { story: 'Container-owned selection across themes and combined states. Trusted keyboard focus checks run in the browser test runner.' } } },
+    render: () => `<section class="cem-theme-light"><cem-action>Command</cem-action><cem-action selectable>Choice</cem-action><cem-action selected>Chosen</cem-action></section>`,
+    play: async ({ canvasElement }) => {
+        const section = canvasElement.querySelector('section') as HTMLElement;
+        const hosts = [...section.querySelectorAll<HTMLElement>('cem-action')];
+        for (const host of hosts) await whenCemRendered(host);
+        const buttons = hosts.map(host => host.querySelector('button') as HTMLButtonElement);
+        await expect(buttons[0]).not.toHaveAttribute('aria-pressed');
+        await expect(buttons[1]).toHaveAttribute('aria-pressed', 'false');
+        await expect(buttons[2]).toHaveAttribute('aria-pressed', 'true');
+        await expect(buttons[2]).not.toHaveAttribute('aria-selected');
+        const selected = hosts[2], button = buttons[2];
+        for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            section.className = `cem-theme-${mode}`;
+            const baseline = button.getBoundingClientRect();
+            button.blur();
+            const ring = getComputedStyle(button).boxShadow;
+            await expect(ring).not.toBe('none');
+            await userEvent.click(button);
+            button.blur();
+            await expect(selected.hasAttribute('selected')).toBe(true);
+            await expect(getComputedStyle(button).boxShadow).toBe(ring);
+            await userEvent.click(buttons[1]);
+            await expect(hosts[1].hasAttribute('selected')).toBe(false);
+            if (import.meta.env.MODE === 'test') {
+                const { userEvent: native } = await import('vitest/browser');
+                buttons[1].focus();
+                await native.keyboard('{Tab}');
+                await expect(document.activeElement).toBe(button);
+                await expect(button.matches(':focus-visible')).toBe(true);
+                await expect(getComputedStyle(button).boxShadow).not.toBe(ring);
+            } else button.focus();
+            await expect(button).toHaveAttribute('aria-pressed', 'true');
+            button.blur();
+            selected.setAttribute('disabled', '');
+            await whenCemRendered(selected);
+            await expect(getComputedStyle(button).boxShadow).toBe(ring);
+            selected.setAttribute('loading', 'true');
+            await whenCemRendered(selected);
+            await expect(button.disabled).toBe(true);
+            await expect(getComputedStyle(button).boxShadow).toBe(ring);
+            await expect(button.getBoundingClientRect().width).toBe(baseline.width);
+            await expect(button.getBoundingClientRect().height).toBe(baseline.height);
+            for (const attribute of ['disabled', 'loading']) selected.removeAttribute(attribute);
+            await whenCemRendered(selected);
+        }
+        selected.setAttribute('selected', 'false');
+        await whenCemRendered(selected);
+        await expect(button).toHaveAttribute('aria-pressed', 'true');
+        selected.setAttribute('selectable', '');
+        selected.removeAttribute('selected');
+        await whenCemRendered(selected);
+        button.blur();
+        await expect(button).toHaveAttribute('aria-pressed', 'false');
+        await expect(getComputedStyle(button).boxShadow).toBe('none');
+        selected.removeAttribute('selectable');
+        await whenCemRendered(selected);
+        await expect(button).not.toHaveAttribute('aria-pressed');
+    },
+});
+
 export const ContentDimensions = meta.story({
     render: () => `<section class="cem-theme-light" style="display:grid;gap:var(--cem-coupling-guard-min);width:320px;max-width:100%">
         <cem-action size="medium">A standalone label that can wrap within its container</cem-action>

@@ -11,6 +11,7 @@
         "layout:loading",
         "action:hover",
         "action:active",
+        "action:selected",
         "input:hover",
         "input:focus-visible",
         "input:loading",
@@ -26,6 +27,25 @@
     ],
     "recommendedNext": null,
     "coverage": [
+        {
+            "id": "action:selected",
+            "category": "Action",
+            "state": "selected",
+            "components": [
+                "cem-action"
+            ],
+            "interaction": "The container sets persistent selection; native button aria-pressed and zebra remain independent of transient interaction, disabled and loading.",
+            "status": "covered",
+            "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
+            "test": "Selected",
+            "assertions": [
+                "await expect(buttons[0]).not.toHaveAttribute('aria-pressed');",
+                "await expect(buttons[1]).toHaveAttribute('aria-pressed', 'false');",
+                "await expect(buttons[2]).toHaveAttribute('aria-pressed', 'true');",
+                "await expect(selected.hasAttribute('selected')).toBe(true);",
+                "await expect(getComputedStyle(button).boxShadow).toBe(ring);"
+            ]
+        },
         {
             "id": "action:default",
             "category": "Action",

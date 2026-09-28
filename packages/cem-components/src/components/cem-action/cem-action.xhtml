@@ -240,7 +240,7 @@
                 animation: none;
             }
         }
-        :scope > button[part~='control']:where(:focus-visible) {
+        :scope > button[part~='control']:where(:focus-visible, [aria-pressed='true']) {
             outline: var(--cem-stroke-focus) solid transparent;
             outline-offset: var(--cem-stroke-indicator-offset);
             box-shadow:
@@ -251,6 +251,18 @@
         @media (forced-colors: active) {
             :scope > [part~='control']::before {
                 display: none;
+            }
+            :scope > button[part~='control']:where([aria-pressed='true']) {
+                box-shadow: none;
+            }
+            :scope > [part~='control']:where([aria-pressed='true'])::before {
+                display: block;
+                background: none;
+                mask: none;
+                padding: 0;
+                border: var(--cem-stroke-selected) solid SelectedItem;
+                inset: calc(var(--cem-stroke-pending) + var(--cem-stroke-indicator-offset));
+                animation: none;
             }
             :scope > button[part~='control']:where([aria-busy='true']) {
                 animation: none;
@@ -266,7 +278,7 @@
             }
         }
         ```}
-    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |
+    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.loading} @aria-expanded={datadom.attributes.expanded} @aria-pressed={if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
       {slot | {$label}}
     }
   </template>

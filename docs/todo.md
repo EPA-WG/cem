@@ -8,6 +8,32 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Selected actions and state-specific input indicators
+
+- [x] Replace blanket input shadows with state-specific native-control feedback; revise shared/theme contracts.
+- [x] Restore controlled selected action state, zebra and accessible selectable-button semantics.
+- [x] Replace Expanded in the playground with Selected and add a container-owned choice example.
+- [ ] Fixture: resting inputs/labels, focus, checked/mixed, invalid, pending and forced-colors feedback.
+- [ ] Fixture: selected action presence/removal, no automatic toggling, accessibility and combined states across modes.
+- [ ] Verify source/package playgrounds, theme and component gates; record completion and commit/push.
+
+Implementation and fixtures are authored. Type checking, lint, declarative and
+style contracts, state-matrix registration, documentation compilation and
+component artifact builds pass. DevTools checks pass on the IDE source page:
+all ten input types retain state feedback without resting/label shadows; action
+selection persists in 15 theme/state combinations, remains separate from
+keyboard focus, and follows presence/removal and container ownership. All ten
+fresh browser generator outputs match the CSS artifacts byte for byte, and
+current theme manifests validate against them.
+
+Remaining gates are blocked by this session's environment: headless Chromium
+fails in `sandbox_host_linux.cc` with `Operation not permitted`; package checking
+fails with `spawnSync npm EPERM`; `.git` is mounted read-only. Run the action and
+select stories, input state/timepicker tests, forced-colors and isolated-package
+playground checks before marking the fixtures complete and committing/pushing.
+No theme token definitions were removed. Theme CSS artifacts were restored after
+the failed headless build and then checked against fresh DevTools generation.
+
 ## Completed: Action size roles and content compositions
 
 - [x] Document size roles, independent content layout, native navigation semantics and compact-only hit expansion in the dimensions specification.

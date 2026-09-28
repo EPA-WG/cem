@@ -1554,7 +1554,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 control: harness.query<HTMLInputElement>('cem-checkbox input'),
                 host: harness.query<HTMLElement>('cem-checkbox'),
                 selection: true,
-                target: harness.query<HTMLLabelElement>('cem-checkbox > label'),
+                target: harness.query<HTMLInputElement>('cem-checkbox > label > input'),
                 baselineToken: '--cem-input-indicator-anchor-color',
                 hoverToken: '--cem-input-indicator-anchor-hover-color',
             },
@@ -1562,7 +1562,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 appearance: 'outline',
                 control: harness.query<HTMLInputElement>('cem-radio[name="fallback"] input'),
                 host: harness.query<HTMLElement>('cem-radio[name="fallback"]'),
-                target: harness.query<HTMLLabelElement>('cem-radio[name="fallback"] > label'),
+                target: harness.query<HTMLInputElement>('cem-radio[name="fallback"] > label > input'),
                 baselineToken: '--cem-input-indicator-anchor-color',
                 hoverToken: '--cem-input-indicator-anchor-hover-color',
             },
@@ -1571,7 +1571,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 control: harness.query<HTMLInputElement>('cem-switch input'),
                 host: harness.query<HTMLElement>('cem-switch'),
                 selection: true,
-                target: harness.query<HTMLLabelElement>('cem-switch > label'),
+                target: harness.query<HTMLInputElement>('cem-switch > label > input'),
                 baselineToken: '--cem-input-indicator-anchor-invalid-color',
                 hoverToken: '--cem-input-indicator-anchor-invalid-hover-color',
             },
@@ -1581,7 +1581,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 appearance: 'outline',
                 control: harness.query<HTMLInputElement>('cem-radio[name="disabled-radio"] input'),
                 host: harness.query<HTMLElement>('cem-radio[name="disabled-radio"]'),
-                target: harness.query<HTMLLabelElement>('cem-radio[name="disabled-radio"] > label'),
+                target: harness.query<HTMLInputElement>('cem-radio[name="disabled-radio"] > label > input'),
             },
         ] as const;
         const mutationEvents: string[] = [];
@@ -1594,13 +1594,18 @@ describe('CEM component primitive states and ARIA behavior', () => {
             'cem-field, cem-text-field, cem-textarea, cem-checkbox, cem-radio, cem-switch',
         );
 
+        for (const label of root.querySelectorAll('cem-checkbox > label, cem-radio > label, cem-switch > label')) {
+            expect(getComputedStyle(label).boxShadow).toBe('none');
+        }
         for (const indicatorCase of cases) {
             const { appearance, baselineToken, control, host, hoverToken, target } = indicatorCase;
             const selection = 'selection' in indicatorCase && indicatorCase.selection;
             const baseline = captureInputIndicatorState(runtime, host, control, target);
 
             expectInputIndicatorGeometry(baseline, target, appearance, { selection });
-            expectPaintedColorToResolveFromToken(baseline.layers[0].color, target, baselineToken);
+            if (baseline.layers.length) {
+                expectPaintedColorToResolveFromToken(baseline.layers[0].color, target, baselineToken);
+            }
             if (selection) {
                 expectPaintedColorToResolveFromToken(
                     baseline.layers[2].color,
@@ -1617,7 +1622,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             if (target !== control) {
                 expect(target.matches(':hover')).toBe(true);
             }
-            expectPaintedColorToResolveFromToken(hovered.layers[0].color, target, hoverToken);
+            if (hovered.layers.length) {
+                expectPaintedColorToResolveFromToken(hovered.layers[0].color, target, hoverToken);
+            }
             expectInputIndicatorGeometry(hovered, target, appearance, { selection });
             expectInputIndicatorStructureAndGeometry(hovered, baseline);
 
@@ -1625,7 +1632,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
             await nextRenderFrame();
 
             const restored = captureInputIndicatorState(runtime, host, control, target);
-            expectPaintedColorToResolveFromToken(restored.layers[0].color, target, baselineToken);
+            if (restored.layers.length) {
+                expectPaintedColorToResolveFromToken(restored.layers[0].color, target, baselineToken);
+            }
             expect(restored.boxShadow).toBe(baseline.boxShadow);
             expectInputIndicatorStructureAndGeometry(restored, baseline);
         }
@@ -1636,21 +1645,25 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
             const baseline = captureInputIndicatorState(runtime, host, control, target);
             expectInputIndicatorGeometry(baseline, target, appearance);
-            expectPaintedColorToResolveFromToken(
-                baseline.layers[0].color,
-                target,
-                '--cem-input-indicator-anchor-disabled-color',
-            );
+            if (baseline.layers.length) {
+                expectPaintedColorToResolveFromToken(
+                    baseline.layers[0].color,
+                    target,
+                    '--cem-input-indicator-anchor-disabled-color',
+                );
+            }
 
             await userEvent.hover(control);
             await nextRenderFrame();
 
             const hovered = captureInputIndicatorState(runtime, host, control, target);
-            expectPaintedColorToResolveFromToken(
-                hovered.layers[0].color,
-                target,
-                '--cem-input-indicator-anchor-disabled-color',
-            );
+            if (hovered.layers.length) {
+                expectPaintedColorToResolveFromToken(
+                    hovered.layers[0].color,
+                    target,
+                    '--cem-input-indicator-anchor-disabled-color',
+                );
+            }
             expect(hovered.boxShadow).toBe(baseline.boxShadow);
             expectInputIndicatorStructureAndGeometry(hovered, baseline);
 
@@ -1659,15 +1672,17 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         const fieldHost = cases[0].host;
         const field = cases[0].control;
+        field.focus();
+        await nextRenderFrame();
         fieldHost.style.setProperty(
             '--cem-input-indicator-appearance',
             'var(--cem-indicator-appearance-outline)',
         );
         await nextRenderFrame();
-        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'outline');
+        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'outline', { focus: true });
         fieldHost.style.removeProperty('--cem-input-indicator-appearance');
         await nextRenderFrame();
-        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'underline');
+        expectInputIndicatorGeometry(captureInputIndicatorState(runtime, fieldHost, field, field), field, 'underline', { focus: true });
 
         field.focus();
         await nextRenderFrame();
@@ -1694,11 +1709,13 @@ describe('CEM component primitive states and ARIA behavior', () => {
             focus: true,
             selection: true,
         });
-        expectPaintedColorToResolveFromToken(
-            focusedInvalidSelection.layers[0].color,
-            switchCase.target,
-            '--cem-input-indicator-anchor-invalid-hover-color',
-        );
+        if (focusedInvalidSelection.layers.length) {
+            expectPaintedColorToResolveFromToken(
+                focusedInvalidSelection.layers[0].color,
+                switchCase.target,
+                '--cem-input-indicator-anchor-invalid-hover-color',
+            );
+        }
         expectPaintedColorToResolveFromToken(
             focusedInvalidSelection.layers[1].color,
             switchCase.target,
@@ -1774,7 +1791,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 control: harness.query<HTMLInputElement>('cem-checkbox[name="focus-checkbox"] input'),
                 host: harness.query<HTMLElement>('cem-checkbox[name="focus-checkbox"]'),
                 selectionToken: '--cem-input-indicator-indeterminate-color',
-                target: harness.query<HTMLLabelElement>('cem-checkbox[name="focus-checkbox"] > label'),
+                target: harness.query<HTMLInputElement>('cem-checkbox[name="focus-checkbox"] > label > input'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-color',
@@ -1782,7 +1799,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 control: harness.query<HTMLInputElement>('cem-radio[name="focus-radio"] input'),
                 host: harness.query<HTMLElement>('cem-radio[name="focus-radio"]'),
                 selectionToken: '--cem-input-indicator-selection-color',
-                target: harness.query<HTMLLabelElement>('cem-radio[name="focus-radio"] > label'),
+                target: harness.query<HTMLInputElement>('cem-radio[name="focus-radio"] > label > input'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-invalid-color',
@@ -1790,7 +1807,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 control: harness.query<HTMLInputElement>('cem-switch[name="focus-switch"] input'),
                 host: harness.query<HTMLElement>('cem-switch[name="focus-switch"]'),
                 selectionToken: '--cem-input-indicator-selection-color',
-                target: harness.query<HTMLLabelElement>('cem-switch[name="focus-switch"] > label'),
+                target: harness.query<HTMLInputElement>('cem-switch[name="focus-switch"] > label > input'),
             },
         ] as const;
         const disabledControls = [
@@ -1841,7 +1858,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 focus: true,
                 selection: selectionToken !== null,
             });
-            expectPaintedColorToResolveFromToken(focused.layers[0].color, target, anchorToken);
+            if (focused.layers.length) {
+                expectPaintedColorToResolveFromToken(focused.layers[0].color, target, anchorToken);
+            }
             expectPaintedColorToResolveFromToken(focused.layers[1].color, target, '--cem-zebra-color-1');
             if (selectionToken) {
                 expectPaintedColorToResolveFromToken(focused.layers[2].color, target, selectionToken);
@@ -1862,11 +1881,13 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 expectInputIndicatorGeometry(restored, previous.target, previous.appearance, {
                     selection: previousSelectionToken !== null,
                 });
-                expectPaintedColorToResolveFromToken(
-                    restored.layers[0].color,
-                    previous.target,
-                    previous.anchorToken,
-                );
+                if (restored.layers.length) {
+                    expectPaintedColorToResolveFromToken(
+                        restored.layers[0].color,
+                        previous.target,
+                        previous.anchorToken,
+                    );
+                }
                 if (previousSelectionToken) {
                     expectPaintedColorToResolveFromToken(
                         restored.layers[2].color,
@@ -1904,11 +1925,13 @@ describe('CEM component primitive states and ARIA behavior', () => {
             focus: true,
             selection: true,
         });
-        expectPaintedColorToResolveFromToken(
-            focusedHoveredSwitch.layers[0].color,
-            switchCase.target,
-            '--cem-input-indicator-anchor-invalid-hover-color',
-        );
+        if (focusedHoveredSwitch.layers.length) {
+            expectPaintedColorToResolveFromToken(
+                focusedHoveredSwitch.layers[0].color,
+                switchCase.target,
+                '--cem-input-indicator-anchor-invalid-hover-color',
+            );
+        }
         expectInputIndicatorStructureAndGeometry(focusedHoveredSwitch, focusedSwitch);
         await userEvent.unhover(switchCase.control);
         await nextRenderFrame();
@@ -2003,7 +2026,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 host: harness.query<HTMLElement>('cem-checkbox[name="busy-checkbox"]'),
                 label: 'Checked option',
                 selection: true,
-                target: harness.query<HTMLLabelElement>('cem-checkbox[name="busy-checkbox"] > label'),
+                target: harness.query<HTMLInputElement>('cem-checkbox[name="busy-checkbox"] > label > input'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-pending-color',
@@ -2013,7 +2036,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 host: harness.query<HTMLElement>('cem-radio[name="busy-radio"]'),
                 label: 'Selected radio',
                 selection: true,
-                target: harness.query<HTMLLabelElement>('cem-radio[name="busy-radio"] > label'),
+                target: harness.query<HTMLInputElement>('cem-radio[name="busy-radio"] > label > input'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-invalid-color',
@@ -2023,11 +2046,11 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 host: harness.query<HTMLElement>('cem-switch[name="busy-switch"]'),
                 label: 'Invalid switch',
                 selection: true,
-                target: harness.query<HTMLLabelElement>('cem-switch[name="busy-switch"] > label'),
+                target: harness.query<HTMLInputElement>('cem-switch[name="busy-switch"] > label > input'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-disabled-color',
-                anchorWidthToken: '--cem-stroke-boundary',
+                anchorWidthToken: '--cem-stroke-none',
                 appearance: 'underline',
                 control: harness.query<HTMLInputElement>('cem-text-field[name="busy-disabled"] input'),
                 host: harness.query<HTMLElement>('cem-text-field[name="busy-disabled"]'),
@@ -2072,7 +2095,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 focus,
                 selection,
             });
-            expectPaintedColorToResolveFromToken(busy.layers[0].color, target, anchorToken);
+            if (busy.layers.length) {
+                expectPaintedColorToResolveFromToken(busy.layers[0].color, target, anchorToken);
+            }
             if (focus) {
                 expectPaintedColorToResolveFromToken(busy.layers[1].color, target, '--cem-zebra-color-1');
             }
@@ -3578,7 +3603,7 @@ function captureInputIndicatorState(
 
 function parseInputIndicatorLayers(boxShadow: string): readonly InputIndicatorLayer[] {
     if (boxShadow === 'none') {
-        throw new Error('Expected a composed input indicator box shadow');
+        return [];
     }
 
     return splitTopLevel(boxShadow).map((layer) => {
@@ -3602,7 +3627,13 @@ function expectInputIndicatorGeometry(
     appearance: 'outline' | 'underline',
     states: { anchorWidthToken?: string; focus?: boolean; selection?: boolean } = {},
 ): void {
-    const boundary = resolveTokenLength(target, states.anchorWidthToken ?? '--cem-stroke-boundary');
+    const boundaryToken = states.anchorWidthToken ?? (target.matches(':enabled[aria-invalid="true"]') ? '--cem-stroke-boundary' : '--cem-stroke-none');
+    const boundary = resolveTokenLength(target, boundaryToken);
+    if (boundary === 0 && !states.focus && !states.selection) {
+        expect(snapshot.boxShadow).toBe('none');
+        expect(snapshot.layers).toHaveLength(0);
+        return;
+    }
     const stripe = resolveTokenLength(target, '--cem-zebra-strip-size');
     const cumulativeWidths = [
         boundary,

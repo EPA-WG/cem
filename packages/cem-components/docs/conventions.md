@@ -65,7 +65,9 @@ set (item 5) MUST satisfy.
 - Boolean attributes use the WHATWG presence convention: present = true, absent = false.
   `disabled`, `required`, `readonly`, `busy`, `selected`, `expanded`, `selectable`,
   `collapsible`, `empty`, `checkable`, and `checked` MUST follow this rule. They MUST NOT be set to the string `"false"`
-  to mean false; remove the attribute.
+  to mean false; remove the attribute. The compatibility exception is
+  `cem-action`'s existing `expanded="true|false"` forwarding to `aria-expanded`;
+  it reports a disclosure state and is not a selection boolean.
 - Enum attributes use a single hyphenated token: `variant="primary"`,
   `intent="destructive"`, `tone="quiet"`. The accepted token set per component is
   enumerated in that component's docs.
@@ -216,7 +218,7 @@ and ARIA computations can observe it:
 | `aria-disabled="true"` | Mirrors the `disabled` attribute on non-form components. |
 | `aria-expanded="true"` | Disclosure or popover open. |
 | `aria-selected="true"` | Native selectable-list option or navigation row currently selected. Passive lists and static table rows do not expose selected state. |
-| `aria-pressed="true|false"` | Checkable chip toggle mirrors its current `checked` slice. |
+| `aria-pressed="true|false"` | Checkable chip mirrors `checked`; selectable action reports container-owned `selected`. Ordinary command buttons omit it. |
 
 These are the **only** attributes a component is allowed to set on itself for state.
 A component MUST NOT set `class` to track state.

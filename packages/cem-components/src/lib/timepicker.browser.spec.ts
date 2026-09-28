@@ -197,9 +197,7 @@ describe('timepicker contract fixture', () => {
 
         await userEvent.hover(parts.input);
         expect(parts.input.matches(':hover')).toBe(true);
-        expect(indicatorLayers(parts.input)[0]?.color).toBe(
-            resolveTokenColor(parts.input, '--cem-input-indicator-anchor-hover-color'),
-        );
+        expect(getComputedStyle(parts.input).boxShadow).toBe('none');
         expect(geometry(parts.input)).toEqual(baselineGeometry);
         await userEvent.unhover(parts.input);
 
@@ -334,11 +332,6 @@ function attributes(element: Element): Record<string, string> {
 function geometry(element: Element): { height: number; width: number; x: number; y: number } {
     const rect = element.getBoundingClientRect();
     return { height: rect.height, width: rect.width, x: rect.x, y: rect.y };
-}
-
-function indicatorLayers(element: Element): Array<{ color: string }> {
-    return [...getComputedStyle(element).boxShadow.matchAll(/rgba?\([^)]*\)/g)]
-        .map((match) => ({ color: match[0] }));
 }
 
 function resolveTokenColor(owner: HTMLElement, token: string): string {

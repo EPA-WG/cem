@@ -90,7 +90,7 @@ export const IndicatorThemeOverrides = meta.story({
         for (const appearance of ['underline', 'outline']) {
             host.setAttribute('indicator', appearance);
             await whenCemRendered(host);
-            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-color']);
+            await expect(shadow()).toBe('none');
             host.setAttribute('busy', '');
             await whenCemRendered(host);
             await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-pending-color']);
@@ -126,7 +126,7 @@ export const IndicatorThemeOverrides = meta.story({
             }
             host.setAttribute('disabled', '');
             await whenCemRendered(host);
-            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-disabled-color']);
+            await expect(shadow()).toBe('none');
             for (const attribute of ['disabled', 'busy', 'invalid']) host.removeAttribute(attribute);
             await whenCemRendered(host);
         }

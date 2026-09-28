@@ -486,6 +486,11 @@ motion and restores current interaction paint.
 
 `focus`, `selected`, and `target` are primarily expressed through the **zebra outline channel** (§8). Background tokens
 MAY remain at `default` for these states; do not rely on fill alone.
+Selection is a first-class persistent state. `cem-action[selected]` MUST paint
+selected zebra even when unfocused, disabled or loading. Focus and selected
+stripes remain independent, and hover/held press do not clear selection.
+The container owns the selected attribute; the action does not infer it from a
+click or from disclosure expansion.
 
 ### 7.3 Attribute channels
 
@@ -585,15 +590,19 @@ Preserve all ordinary-mode endpoints.
 
 ### 7.7 Input indicator stripe colors
 
+Ordinary fields, closed selects and unselected choices have no extra resting
+shadow stack. Native boundaries remain. Choice feedback belongs to the native
+input, never to its enclosing text label. Hover alone does not add a shadow.
+
 Input controls use a state-composed stripe stack rather than assigning one physical stripe to every possible state.
 The stack has three physical classes:
 
-1. an **anchor/state stripe**, always present, whose color changes for interaction, availability, pending, and invalid
+1. an **anchor/state stripe**, absent at rest and activated for pending or invalid
    states;
 2. a **focus stripe**, activated by `:focus-visible` and colored by `--cem-zebra-color-1`;
 3. a **selection stripe**, activated by checked, selected, or indeterminate state.
 
-Invalidity changes the anchor/state stripe color; it does not add geometry. Focus and selection therefore remain
+Invalidity activates the anchor/state stripe at boundary width; pending uses pending width. These outside indicators do not change layout. Focus and selection therefore remain
 independently visible when an input is also invalid. Required state remains a marker/text concern and does not acquire
 an indicator stripe. A component with an explicit, truthful busy source binds loading to the pending anchor color and
 the D5 `--cem-stroke-pending` width so pending does not rely on hue alone. A custom select or editable autocomplete owns
@@ -956,7 +965,7 @@ Use this as a quick “did we wire tokens correctly?” checklist.
 ### 11.2 QA checklist (done-ness)
 
 - Verify **theme switching** (light/dark/contrast/native) does not change semantics (only mappings).
-- Verify all **action intents** have complete state endpoints (default/hover/active/disabled/selected).
+- Verify all **action intents** have complete fill/ink endpoints (default/hover/active/disabled) and independent selected zebra.
 - Verify **zebra focus/selection/target** remains visible across surfaces and in forced-colors.
 - Verify **pending** is perceivable without relying on hue alone (may require motion per D7).
 - Verify **color-blind resilience**: state remains distinguishable via outline/pattern/label/shape.
@@ -1088,7 +1097,7 @@ For each shipped intent (`primary`, `explicit`, `contextual`, `alternate`, `dest
 - `--cem-action-{intent}-hover-background`, `--cem-action-{intent}-hover-text`
 - `--cem-action-{intent}-active-background`, `--cem-action-{intent}-active-text`
 - `--cem-action-{intent}-disabled-background`, `--cem-action-{intent}-disabled-text`
-- `--cem-action-{intent}-selected-background`, `--cem-action-{intent}-selected-text`
+- Persistent selected zebra using `--cem-zebra-color-3` and D5 geometry; no separate selected fill/text tokens are required.
 
 **Navigation items:**
 

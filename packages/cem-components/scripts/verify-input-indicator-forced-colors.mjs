@@ -137,9 +137,9 @@ try {
         { control: '#text-field', target: '#text-field' },
         { control: '#textarea', target: '#textarea' },
         { control: '#select', target: '#select' },
-        { control: '#binary', target: '#binary-label' },
-        { control: '#radio', target: '#radio-label' },
-        { control: '#switch', target: '#switch-label' },
+        { control: '#binary', target: '#binary' },
+        { control: '#radio', target: '#radio' },
+        { control: '#switch', target: '#switch' },
     ];
     await page.mouse.move(0, 0);
     await page.locator('#focus-start').focus();
@@ -213,10 +213,10 @@ function captureForcedColorState() {
     };
     const field = document.querySelector('#field');
     const binary = document.querySelector('#binary');
-    const binaryLabel = document.querySelector('#binary-label');
-    const disabledBinaryLabel = document.querySelector('#disabled-binary-label');
+    const binaryLabel = document.querySelector('#binary');
+    const disabledBinaryLabel = document.querySelector('#disabled-binary');
     const pendingField = document.querySelector('#pending-field');
-    const pendingBinaryLabel = document.querySelector('#pending-binary-label');
+    const pendingBinaryLabel = document.querySelector('#pending-binary');
     const selectPopup = document.querySelector('#select-popup');
     const selectActive = document.querySelector('#select-active');
     const selectSelected = document.querySelector('#select-selected');
@@ -230,11 +230,11 @@ function captureForcedColorState() {
         throw new Error('Expected forced-colors input owners');
     }
     if (
-        !(binaryLabel instanceof HTMLLabelElement) ||
-        !(disabledBinaryLabel instanceof HTMLLabelElement) ||
-        !(pendingBinaryLabel instanceof HTMLLabelElement)
+        !(binaryLabel instanceof HTMLInputElement) ||
+        !(disabledBinaryLabel instanceof HTMLInputElement) ||
+        !(pendingBinaryLabel instanceof HTMLInputElement)
     ) {
-        throw new Error('Expected forced-colors binary label owners');
+        throw new Error('Expected forced-colors binary input owners');
     }
     if (
         !(selectPopup instanceof HTMLElement) ||

@@ -162,7 +162,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
-| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
+| `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. Presence-only `selected` and `selectable` expose container-owned selection with persistent zebra and native-button `aria-pressed`. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
 | `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
@@ -251,26 +251,50 @@ perform asynchronous work, disable editing, create runtime state, or replace
 the control; label, value, focus, and dimensions remain stable. See the
 [input loading contract](./input-loading-contract.md).
 
-The input indicator is one three-stripe stack: anchor/state is always present,
-focus is independent, and checked/indeterminate selection is independent.
-Invalidity changes the anchor color rather than adding geometry, so invalid,
-focus, and selection remain simultaneously legible without defining a fourth
-role. Field-like controls default to `indicator="underline"`; checkbox, radio,
-and switch default to `indicator="outline"`. Either family accepts the other
-value, and a missing or unsupported value falls back to its family default.
+Extra input indicators are state-specific. Resting fields, closed selects and
+unselected choices have no decorative shadow stack; native control boundaries
+remain. Checkbox, radio and switch labels stay clickable but never own the
+indicator. Their native inputs own focus, checked/mixed, invalid and pending
+feedback, so the label text is not enclosed in a second box.
 
-Advanced custom elements can set the inherited
-`--cem-input-indicator-appearance` adapter to
-`var(--cem-indicator-appearance-underline)` or
-`var(--cem-indicator-appearance-outline)`; this adapter wins over the host
-attribute. The stripe colors and widths remain generated CEM theme tokens and
-are not component-local customization endpoints. Pending also consumes the
-generated `--cem-stroke-pending` endpoint so it changes thickness as well as
-color. In forced colors, shadows are removed: hover uses `Highlight`, while
-pending and focus use full `CanvasText` outlines at their semantic widths.
-The state fixture drives real Tab navigation through every enabled input owner,
-proves disabled controls are skipped, and requires focus/blur to preserve DOM,
-ARIA, values, runtime snapshots, and layout geometry.
+When needed, the stack composes an invalid/pending anchor, an independent
+keyboard-focus stripe and an independent checked/mixed or open-popup stripe.
+A normal anchor has zero width. Invalid controls activate the boundary width;
+pending controls activate pending width; invalidity wins when both apply.
+Disabled controls do not acquire an invalid/pending anchor, but retain their
+native checked state and selection indicator. Pointer hover alone adds no extra
+shadow; it can recolor an already active invalid/pending indicator.
+
+Field-like controls default to `indicator="underline"`; checkbox, radio and
+switch default to `indicator="outline"`. These options describe active state
+feedback, not an always-visible decoration. Missing/unsupported values use the
+family default. The inherited `--cem-input-indicator-appearance` adapter still
+wins over the host attribute. Theme tokens remain generated and overridable.
+In forced colors, shadows are removed and native state plus system-color
+outlines preserve feedback. Focus and blur must preserve DOM, values and layout.
+
+### Action selection and disclosure
+
+`cem-action[selected]` represents a persistent choice and draws the selected
+zebra independently of focus, hover, held `:active`, disabled and loading. Its
+container owns selection; clicking never toggles the attribute automatically.
+Use `selectable` on both selected and unselected members of a choice group.
+`selected` implies selectable. Both attributes are presence-only: remove them
+for false; `selected="false"` still means selected.
+
+The native button exposes `aria-pressed="true"` when selected, `"false"` when
+selectable but unselected, and no `aria-pressed` for an ordinary command. Do not
+put `aria-selected` on an ordinary button; menus, tabs and list options retain
+their own role-specific selection contracts. Selection is an outline channel,
+not a required alternate fill. Combined selected/focus/pending cues must remain
+visible without changing dimensions. Forced colors uses an inset selection
+boundary and a separate focus/pending outline.
+
+`expanded="true|false"` is retained as explicit forwarding to `aria-expanded`
+for an action reporting an associated disclosure's state. It does not open a
+panel or indicate selection, and is omitted from the standalone action
+playground. The disclosure owner supplies the behavior and panel association;
+`cem-action` does not currently forward `aria-controls`.
 
 ## Layout
 
