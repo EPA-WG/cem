@@ -551,6 +551,60 @@ export const DestructivePendingModes = meta.story({
     },
 });
 
+export const PendingIntentThemeParity = meta.story({
+    globals: { cemTheme: 'light' },
+    parameters: { docs: { description: { story: 'Loading preserves intent colors and motion when switching between matching normal and contrast themes.' } } },
+    render: () => '<section class="cem-theme-light"><cem-action loading="true">Loading</cem-action></section>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-action');
+        if (!host?.parentElement) throw new Error('Missing action theme fixture');
+        const section = host.parentElement;
+        await whenCemRendered(host);
+        const button = host.querySelector('button');
+        if (!button) throw new Error('Missing rendered action control');
+        const snapshot = (pseudo?: string) => {
+            const style = getComputedStyle(button, pseudo);
+            return [style.backgroundImage, style.backgroundSize, style.animationDuration,
+                style.animationTimingFunction, style.animationIterationCount];
+        };
+        const images = new Map<string, string>();
+        for (const scheme of ['light', 'dark']) {
+            const intentImages = new Set<string>();
+            for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+                host.setAttribute('variant', intent);
+                await whenCemRendered(host);
+                section.className = `cem-theme-${scheme}`;
+                const normal = snapshot();
+                await expect(normal[0]).toContain('linear-gradient(45deg');
+                intentImages.add(normal[0]);
+                images.set(`${scheme}-${intent}`, normal[0]);
+                for (const disabled of [false, true]) {
+                    host.toggleAttribute('disabled', disabled);
+                    await whenCemRendered(host);
+                    section.className = `cem-theme-contrast-${scheme}`;
+                    await expect(snapshot('::before')).toEqual(normal);
+                    await expect(getComputedStyle(button, '::before').display).toBe('block');
+                    section.className = `cem-theme-${scheme}`;
+                    await expect(snapshot()).toEqual(normal);
+                }
+            }
+            await expect(intentImages.size).toBe(5);
+        }
+        for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+            await expect(images.get(`light-${intent}`)).not.toBe(images.get(`dark-${intent}`));
+        }
+        // Both painted areas share customized motion parameters as well as defaults.
+        section.style.setProperty('--cem-pending-angle', '60deg');
+        section.style.setProperty('--cem-pending-tile-size', '3rem');
+        section.style.setProperty('--cem-duration-pending-cycle', '3500ms');
+        const customized = snapshot();
+        section.className = 'cem-theme-contrast-dark';
+        await expect(snapshot('::before')).toEqual(customized);
+        await expect(customized[0]).toContain('linear-gradient(60deg');
+        await expect(customized[2]).toBe('3.5s');
+    },
+});
+
 export const SubmittedPending = meta.story({
     render: () => '<form><cem-action type="submit">Send</cem-action></form>',
     play: async ({ canvasElement }) => {

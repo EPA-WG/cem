@@ -460,6 +460,15 @@ background token remains a color, including as the solid fallback.
 | `--cem-pending-color-1` | `var(--cem-action-primary-pending-background)` | First gradient color; bind to the current intent's pending background | recommended |
 | `--cem-pending-color-2` | `var(--cem-action-primary-active-background)` | Second gradient color; bind to the current intent's active background | recommended |
 | `--cem-action-destructive-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-destructive-active-background) 75%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-destructive-active-background) 50%, black))` | Destructive pending stripe: lighten the active endpoint with 25% white in light schemes; darken it with 50% black in dark schemes | recommended |
+| `--cem-action-primary-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 0%, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 25%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 50%, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 75%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 100%)` | Primary pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-explicit-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 0%, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 25%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 50%, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 75%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 100%)` | Explicit pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-contextual-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 0%, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 25%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 50%, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 75%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 100%)` | Contextual pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-alternate-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 0%, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 25%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 50%, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 75%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 100%)` | Alternate pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-destructive-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 75%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 25%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 75%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 75%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 100%)` | Destructive pending recipe; same palette endpoints in normal and contrast themes | recommended |
+
+The intent image recipes use the pending (5%) and active (25%) palette formulas
+directly so contrast fill overrides cannot erase their colors. These recipes match the normal
+fill endpoints while preserving the existing per-control fill color overrides.
 
 D5 owns `--cem-pending-angle` (45deg) and `--cem-pending-tile-size` (2rem).
 D7 owns `--cem-duration-pending-cycle` (2000ms). Use uniform easing and infinite
@@ -528,8 +537,8 @@ state table are canonical. There is no intent or state fill progression.
 Intent moves to a contour, colored by the intent's extreme palette endpoint.
 D5 defines its resting/hover/active thickness; keyboard focus retains its
 independent zebra rings. Loading, including disabled loading, uses an animated
-45-degree zebra contour instead of the background gradient. Its alternating
-surface and surface-ink endpoints remain visible in either contrast scheme.
+45-degree zebra contour instead of the background gradient. Its intent colors and all motion parameters match the normal gradient in the
+corresponding light or dark scheme; only the painted area changes.
 Reduced motion freezes the contour. Forced colors uses the existing static
 system-color pending boundary. Changing back to light/dark/native restores the
 ordinary gradient. This is the explicit contrast exception to the pending background contract in §7.2.2.
@@ -542,7 +551,7 @@ ordinary gradient. This is the explicit contrast exception to the pending backgr
 | `--cem-action-contextual-outline-color` | `var(--cem-palette-comfort-x)` | Contextual intent contour | required |
 | `--cem-action-alternate-outline-color` | `var(--cem-palette-enthusiasm-x)` | Alternate intent contour | required |
 | `--cem-action-destructive-outline-color` | `var(--cem-palette-danger-x)` | Destructive intent contour | required |
-| `--cem-action-pending-outline-image` | `linear-gradient(var(--cem-zebra-angle), var(--cem-palette-comfort-text) 0%, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-text) 50%, var(--cem-palette-comfort) 75%, var(--cem-palette-comfort-text) 100%)` | Pending zebra contour; D5 masks the center | recommended |
+| `--cem-action-pending-outline-image` | `var(--cem-action-primary-pending-image)` | Default primary pending zebra contour; bind the current intent image; D5 masks the center | recommended |
 
 ###### cem-action-contrast-overrides
 | Token | Value |
@@ -1144,7 +1153,7 @@ from these tables using the same logic as `cem-colors.html`.
 |--------------------------------------------------------|-------------------------------|-------------------------------------|
 | `cem-color-hue-variant`                                | `--cem-color-*` (35 tokens)   | one token per row                   |
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
-| `cem-pending-colors` | Two pending color inputs and destructive stripe endpoint (3 tokens) | one token per row |
+| `cem-pending-colors` | Two color inputs, destructive stripe endpoint, five intent contour images (8 tokens) | one token per row |
 | `cem-action-outline-colors` | Five intent contours and pending contour image (6 tokens) | one token per row |
 | `cem-action-contrast-overrides` | Existing destructive stripe and slider marker endpoints | overrides only; no new tokens |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |

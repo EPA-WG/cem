@@ -652,7 +652,8 @@ boundaries. Geometry uses existing stroke endpoints: boundary at rest, standard
 on enabled hover, strong during activation, and pending while loading. Disabled
 suppresses pointer state changes. The contour sits inside the painted surface,
 so changing thickness does not change the hit area or layout. Focus zebra stays
-outside the operable bounds. Pending animates D0's zebra contour image with the
+outside the operable bounds. Pending animates D0's current-intent gradient, shared with the normal fill in
+the matching light/dark scheme, with the
 existing D7 pending duration and D5 tile size; the center is masked out. Reduced
 motion freezes it, and forced colors replaces it with the native pending outline.
 

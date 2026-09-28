@@ -128,7 +128,7 @@
                         {th | {$state.state}}
                         {cem:for-each @select="$datadom.slices.intent" @as="intent" |
                             {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
-                                @style='{str:concat(("--cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, if intent.action_intent == "destructive" { "-pending-stripe" } else { "-active" }, "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
+                                @style='{str:concat(("--_cem-pending-image: var(--cem-action-", intent.action_intent, "-pending-image); --cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, if intent.action_intent == "destructive" { "-pending-stripe" } else { "-active" }, "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
                                 @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) }, "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) }))}' | Aa}
                         }
@@ -417,7 +417,7 @@
     pointer-events: none;
     padding: var(--cem-stroke-pending);
     border-radius: inherit;
-    background-image: var(--cem-action-pending-outline-image);
+    background-image: var(--_cem-pending-image, var(--cem-action-pending-outline-image));
     background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
     mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
     mask-composite: exclude;

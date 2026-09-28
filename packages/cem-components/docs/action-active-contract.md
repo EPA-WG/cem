@@ -223,6 +223,7 @@ The canonical D0 contrast contract collapses action fills to the surface.
 In contrast-light/dark, a masked contour uses the existing D5 boundary,
 standard and strong stroke widths for resting, hover and active feedback.
 It does not alter native-control padding, hit area or layout. Pending replaces
-that contour with the animated zebra pattern, including when disabled; keyboard
+that contour with the same intent-colored gradient and motion parameters as the
+normal fill in the matching light/dark scheme, including when disabled; keyboard
 focus remains an independent outer zebra. Ordinary theme behavior remains as
 specified above. See `cem-colors.md` §7.5 and `cem-stroke.md` contrast contours.

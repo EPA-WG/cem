@@ -223,12 +223,24 @@
         }
         :scope > [part~='control']:where([aria-busy='true'])::before {
             padding: var(--cem-stroke-pending);
-            background-image: var(--cem-action-pending-outline-image);
+            background-image: var(--cem-action-primary-pending-image);
             background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
             animation-name: cem-pending-shift;
             animation-duration: var(--cem-duration-pending-cycle);
             animation-timing-function: var(--cem-easing-uniform);
             animation-iteration-count: infinite;
+        }
+        :scope:where([variant="explicit"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-explicit-pending-image);
+        }
+        :scope:where([variant="contextual"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-contextual-pending-image);
+        }
+        :scope:where([variant="alternate"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-alternate-pending-image);
+        }
+        :scope:where([variant="destructive"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-destructive-pending-image);
         }
         @keyframes cem-pending-shift {
             from { background-position-x: 0px; }

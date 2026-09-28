@@ -8,6 +8,18 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Intent-colored pending animation
+
+- [x] Fixture: verify every action intent has matching loading colors and motion
+      in light/contrast-light and dark/contrast-dark, including live switching.
+- [x] Update theme recipes, canonical action and generated preview; verify, commit
+      and push. Preserve contrast contour geometry and accessibility fallbacks.
+
+Verification: all 17 canonical action stories; source and installed-package
+playgrounds (including reduced motion and forced colors); package, style contract,
+material parity and declarative architecture gates. Existing per-control normal
+fill color overrides remain covered.
+
 ## Completed: Shared demo property layout
 
 - [x] Put property fieldsets in a wrapping flex container and stack their options

@@ -517,7 +517,8 @@ async function verifyPendingTheme(url) {
         const cells = page.locator('td.cem-pending');
         assert.equal(await cells.count(), 25);
         const styles = await cells.evaluateAll(nodes => nodes.map(node => {
-            const style = getComputedStyle(node);
+            const contour = getComputedStyle(node, '::before');
+            const style = contour.display === 'block' ? contour : getComputedStyle(node);
             return { image: style.backgroundImage, duration: style.animationDuration, iterations: style.animationIterationCount };
         }));
         for (const style of styles) {
