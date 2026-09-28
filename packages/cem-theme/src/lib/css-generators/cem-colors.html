@@ -35,7 +35,7 @@
 <template type="cem-ml; version=0.0"
           id="cem-colors-template"
           data-token-url="../../../dist/lib/tokens/cem-colors.xhtml"
-          data-slices="outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
+          data-slices="nativeaction=cem-action-native-overrides outline=cem-action-outline-colors contrast=cem-action-contrast-overrides pending=cem-pending-colors hue=cem-color-hue-variant native=cem-color-native shift=cem-palette-emotion-shift mode=cem-theme-mode intent=cem-action-intent-emotion state=cem-action-state-color input=cem-input-indicator-colors select=cem-select-state-colors navigation=cem-navigation-item-state-colors content=cem-content-interaction-state-colors separator=cem-separator-colors progress=cem-progress-indicator-colors workflow=cem-workflow-step-colors slider=cem-slider-colors zebra=cem-zebra-tokens zmap=cem-zebra-mode-mapping">
 {table @id=cem-color-hue-variant @data-selected-token="" |
     {caption | {a @href="../../../dist/lib/tokens/cem-colors.xhtml#cem-color-hue-variant" | cem-color-hue-variant} Branded colors}
     {thead | {tr | {th | Token}{th | Hue}{th | Swatch}{th | Label}{th | Value}}}
@@ -128,7 +128,7 @@
                         {th | {$state.state}}
                         {cem:for-each @select="$datadom.slices.intent" @as="intent" |
                             {td @class={if state.state == "pending" { "cem-pending" } else { "" }}
-                                @style='{str:concat(("--_cem-pending-image: var(--cem-action-", intent.action_intent, "-pending-image); --cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, if intent.action_intent == "destructive" { "-pending-stripe" } else { "-active" }, "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
+                                @style='{str:concat(("--_cem-pending-image: var(--cem-action-", intent.action_intent, "-pending-image); --cem-pending-color-1: var(--cem-action-", intent.action_intent, "-pending-background); --cem-pending-color-2: var(--cem-action-", intent.action_intent, "-pending-stripe", "-background); background-color: var(--cem-action-", intent.action_intent, "-", state.state, "-background); color: var(--cem-action-", intent.action_intent, "-", state.state, "-text); min-width: 4rem;"))}'
                                 @title='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background \n --cem-action-", intent.action_intent, "-", state.state, "-text"))}'
                                 @data-cem-value='{str:concat(("--cem-action-", intent.action_intent, "-", state.state, "-background: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_background } else { str:replace(state.background_formula_palette_level, "[emotion]", intent.emotional_palette) }, "; --cem-action-", intent.action_intent, "-", state.state, "-text: ", if str:starts_with(mode.mode, "contrast-") { state.contrast_text } else { str:replace(state.text_token, "[emotion]", intent.emotional_palette) }))}' | Aa}
                         }
@@ -357,6 +357,8 @@
   /* region native theme overrides */
   .cem-theme-native, [data-theme="cem-theme-native"] {```{cem:for-each @select="$datadom.slices.shift" @as="emo" |```
     ```{$emo.token}: {cem:choose |{cem:when @test='emo.native_dark != ""' |light-dark({cem:choose |{cem:when @test='str:starts_with(emo.native_light, "--")' |var({$emo.native_light})}{cem:when @test='str:contains(emo.native_light, "-") && !str:contains(emo.native_light, "(")' |var(--cem-color-{$emo.native_light})}{cem:otherwise |{$emo.native_light}}}, {cem:choose |{cem:when @test='str:starts_with(emo.native_dark, "--")' |var({$emo.native_dark})}{cem:when @test='str:contains(emo.native_dark, "-") && !str:contains(emo.native_dark, "(")' |var(--cem-color-{$emo.native_dark})}{cem:otherwise |{$emo.native_dark}}})}{cem:otherwise |{$emo.native_light}}};}```
+    ```{cem:for-each @select="$datadom.slices.nativeaction" @as="row" |```
+    ```{$row.token}: {$row.value};}```
     ```{cem:for-each @select="$datadom.slices.separator" @as="row" |```
     ```{$row.token}: {$row.forced_colors};}```
     ```{cem:for-each @select="$datadom.slices.progress" @as="row" |```

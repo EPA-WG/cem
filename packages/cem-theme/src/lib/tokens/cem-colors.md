@@ -445,30 +445,47 @@ The resulting values populate `--cem-action-{intent}-{state}-background` and `--
 
 Outside contrast modes, pending actions MUST show a repeating 45-degree background gradient while their
 busy source is true. A one-shot color fade is not the pending-motion contract.
-Use the intent's pending background and active background as the two gradient
-colors, with its pending text color throughout. Destructive actions use
-`--cem-action-destructive-pending-stripe-background` for the second endpoint:
-its light-scheme mix makes the stripes visibly lighter without changing active
-button paint. Dark schemes mix the active endpoint with 50% black to make the darker stripe
-distinct while preserving text contrast. Both endpoints and intermediate
-colors must preserve readable text in each theme mode. The existing pending
-background token remains a color, including as the solid fallback.
+Use the intent's pending background and dedicated pending stripe background as
+its two gradient colors, with pending text throughout. Primary, explicit,
+contextual and alternate use one shared adjustment: mix the active endpoint
+with 12% white in light schemes and 20% black in dark schemes. Destructive keeps
+25% white / 50% black because its yellow foreground has a different contrast
+range. The default endpoints must exceed 1.8:1 stripe separation and preserve
+at least 4.5:1 text contrast across the gradient. These same endpoint recipes
+apply to contrast contours. Active button paint is unchanged; the pending
+background remains a color, including as the solid fallback.
 
 ###### cem-pending-colors
 | Token | Value | Description | tier |
 | --- | --- | --- | --- |
 | `--cem-pending-color-1` | `var(--cem-action-primary-pending-background)` | First gradient color; bind to the current intent's pending background | recommended |
-| `--cem-pending-color-2` | `var(--cem-action-primary-active-background)` | Second gradient color; bind to the current intent's active background | recommended |
+| `--cem-pending-color-2` | `var(--cem-action-primary-pending-stripe-background)` | Second gradient color; bind to the current intent's pending stripe background | recommended |
+| `--cem-action-primary-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-primary-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-primary-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-explicit-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-explicit-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-explicit-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-contextual-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-contextual-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-contextual-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-alternate-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-alternate-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-alternate-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
 | `--cem-action-destructive-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-destructive-active-background) 75%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-destructive-active-background) 50%, black))` | Destructive pending stripe: lighten the active endpoint with 25% white in light schemes; darken it with 50% black in dark schemes | recommended |
-| `--cem-action-primary-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 0%, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 25%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 50%, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 75%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 100%)` | Primary pending recipe; same palette endpoints in normal and contrast themes | recommended |
-| `--cem-action-explicit-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 0%, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 25%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 50%, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 75%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 100%)` | Explicit pending recipe; same palette endpoints in normal and contrast themes | recommended |
-| `--cem-action-contextual-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 0%, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 25%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 50%, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 75%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 100%)` | Contextual pending recipe; same palette endpoints in normal and contrast themes | recommended |
-| `--cem-action-alternate-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 0%, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 25%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 50%, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 75%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 100%)` | Alternate pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-primary-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 80%, black)) 25%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 80%, black)) 75%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 100%)` | Primary pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-explicit-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 25%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 75%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 100%)` | Explicit pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-contextual-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 80%, black)) 25%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-comfort) 25%, var(--cem-palette-comfort-x)) 80%, black)) 75%, color-mix(in srgb, var(--cem-palette-comfort) 5%, var(--cem-palette-comfort-x)) 100%)` | Contextual pending recipe; same palette endpoints in normal and contrast themes | recommended |
+| `--cem-action-alternate-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 80%, black)) 25%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 88%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-enthusiasm) 25%, var(--cem-palette-enthusiasm-x)) 80%, black)) 75%, color-mix(in srgb, var(--cem-palette-enthusiasm) 5%, var(--cem-palette-enthusiasm-x)) 100%)` | Alternate pending recipe; same palette endpoints in normal and contrast themes | recommended |
 | `--cem-action-destructive-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 0%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 75%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 25%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 50%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 75%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-danger) 25%, var(--cem-palette-danger-x)) 50%, black)) 75%, color-mix(in srgb, var(--cem-palette-danger) 5%, var(--cem-palette-danger-x)) 100%)` | Destructive pending recipe; same palette endpoints in normal and contrast themes | recommended |
 
 The intent image recipes use the pending (5%) and active (25%) palette formulas
 directly so contrast fill overrides cannot erase their colors. These recipes match the normal
 fill endpoints while preserving the existing per-control fill color overrides.
+
+Native themes retain their system-palette active stripe endpoints for the four
+ordinary intents; mixing them with fixed white/black can reduce text contrast.
+Destructive retains its existing native recipe.
+
+###### cem-action-native-overrides
+| Token | Value |
+|---|---|
+| `--cem-action-primary-pending-stripe-background` | `var(--cem-action-primary-active-background)` |
+| `--cem-action-explicit-pending-stripe-background` | `var(--cem-action-explicit-active-background)` |
+| `--cem-action-contextual-pending-stripe-background` | `var(--cem-action-contextual-active-background)` |
+| `--cem-action-alternate-pending-stripe-background` | `var(--cem-action-alternate-active-background)` |
 
 D5 owns `--cem-pending-angle` (45deg) and `--cem-pending-tile-size` (2rem).
 D7 owns `--cem-duration-pending-cycle` (2000ms). Use uniform easing and infinite
@@ -556,12 +573,16 @@ ordinary gradient. This is the explicit contrast exception to the pending backgr
 ###### cem-action-contrast-overrides
 | Token | Value |
 |---|---|
+| `--cem-action-primary-pending-stripe-background` | `var(--cem-palette-comfort)` |
+| `--cem-action-explicit-pending-stripe-background` | `var(--cem-palette-comfort)` |
+| `--cem-action-contextual-pending-stripe-background` | `var(--cem-palette-comfort)` |
+| `--cem-action-alternate-pending-stripe-background` | `var(--cem-palette-comfort)` |
 | `--cem-action-destructive-pending-stripe-background` | `var(--cem-palette-comfort)` |
 | `--cem-slider-thumb-hover-color` | `var(--cem-palette-creativity-x)` |
 | `--cem-slider-thumb-active-color` | `var(--cem-palette-comfort-text)` |
 
-This override table declares no new tokens; it suppresses the destructive
-pending fill stripe in contrast modes. Slider thumbs are foreground markers,
+This override table declares no new tokens; it suppresses all intent
+pending fill stripes in contrast modes. Slider thumbs are foreground markers,
 so their hover/active ink must not inherit collapsed action backgrounds.
 Preserve all ordinary-mode endpoints.
 
@@ -1153,8 +1174,9 @@ from these tables using the same logic as `cem-colors.html`.
 |--------------------------------------------------------|-------------------------------|-------------------------------------|
 | `cem-color-hue-variant`                                | `--cem-color-*` (35 tokens)   | one token per row                   |
 | `cem-palette-emotion-shift`                            | `--cem-palette-*` (28 tokens) | one token per row                   |
-| `cem-pending-colors` | Two color inputs, destructive stripe endpoint, five intent contour images (8 tokens) | one token per row |
+| `cem-pending-colors` | Two color inputs, five stripe endpoints and five intent contour images (12 tokens) | one token per row |
 | `cem-action-outline-colors` | Five intent contours and pending contour image (6 tokens) | one token per row |
+| `cem-action-native-overrides` | Existing stripe tokens retain native system colors | no new tokens |
 | `cem-action-contrast-overrides` | Existing destructive stripe and slider marker endpoints | overrides only; no new tokens |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
 | `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |

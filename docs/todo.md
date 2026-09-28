@@ -8,6 +8,19 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Stronger loading stripe contrast
+
+- [x] Fixture: assert stripe separation above 1.8:1 and text contrast of at least
+      4.5:1 for every intent in light/dark, retaining normal/contrast parity.
+- [x] Add coherent theme-owned stripe endpoints across intents, update action
+      and theme preview, verify accessibility fallbacks, commit and push.
+
+Measured light/dark stripe separation: 1.83:1–2.72:1; minimum text contrast:
+4.58:1. All 17 action stories pass, including gradient midpoint contrast and
+normal/contrast parity. Source/package playgrounds, theme preview, package, style,
+material parity and declarative checks pass. Lint has no errors (48 existing
+warnings). Native system-palette stripe endpoints retain their previous behavior.
+
 ## Completed: Intent-colored pending animation
 
 - [x] Fixture: verify every action intent has matching loading colors and motion

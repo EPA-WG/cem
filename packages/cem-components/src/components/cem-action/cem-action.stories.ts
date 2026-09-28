@@ -425,6 +425,8 @@ export const NativeHidden = meta.story({
 });
 
 export const LoadingColors = meta.story({
+    // Keep this branded light fixture independent of the default native palette.
+    globals: { cemTheme: 'light' },
     parameters: { docs: { description: { story: 'Pending gradients and continuous loading motion. Trusted hover/focus checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light">${['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(variant =>
         `<cem-action variant="${variant}" loading="false">Save</cem-action>`).join('')}</section>`,
@@ -467,7 +469,7 @@ export const LoadingColors = meta.story({
             }
             await expect(getComputedStyle(button).backgroundImage).toContain('linear-gradient(45deg');
             await expect(colorContrast(...expected('pending') as [string, string])).toBeGreaterThanOrEqual(4.5);
-            const stripe = expected(host.getAttribute('variant') === 'destructive' ? 'pending-stripe' : 'active')[0];
+            const stripe = expected('pending-stripe')[0];
             await expect(colorContrast(stripe, expected('pending')[1])).toBeGreaterThanOrEqual(4.5);
             if (host.getAttribute('variant') === 'destructive') {
                 await expect(getComputedStyle(button).backgroundImage).toContain(stripe);
@@ -576,6 +578,24 @@ export const PendingIntentThemeParity = meta.story({
                 section.className = `cem-theme-${scheme}`;
                 const normal = snapshot();
                 await expect(normal[0]).toContain('linear-gradient(45deg');
+                const probe = document.createElement('span');
+                section.append(probe);
+                const readColor = (state: string) => {
+                    probe.style.color = `var(--cem-action-${intent}-${state}-background)`;
+                    return getComputedStyle(probe).color;
+                };
+                const pending = readColor('pending');
+                const stripe = readColor('pending-stripe');
+                const ink = getComputedStyle(button).color;
+                await expect(normal[0]).toContain(stripe);
+                await expect(colorContrast(pending, stripe), `${scheme} ${intent}: stripe separation`).toBeGreaterThan(1.8);
+                await expect(colorContrast(pending, ink)).toBeGreaterThanOrEqual(4.5);
+                await expect(colorContrast(stripe, ink)).toBeGreaterThanOrEqual(4.5);
+                for (const weight of [25, 50, 75]) {
+                    probe.style.color = `color-mix(in srgb, ${pending} ${weight}%, ${stripe})`;
+                    await expect(colorContrast(getComputedStyle(probe).color, ink)).toBeGreaterThanOrEqual(4.5);
+                }
+                probe.remove();
                 intentImages.add(normal[0]);
                 images.set(`${scheme}-${intent}`, normal[0]);
                 for (const disabled of [false, true]) {
