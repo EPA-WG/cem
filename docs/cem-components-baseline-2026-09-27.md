@@ -167,3 +167,14 @@ same failing test names and no skipped tests. Six canonical action stories pass
 separately. Workflow fixtures explicitly register the canonical declaration;
 legacy action unit assertions now live in its stories. This establishes no new
 legacy-suite failures, while the existing owner repairs remain open.
+
+## Action state attribution — 2026-09-28
+
+The unchanged state file remains **3 passing / 18 failing**. A temporary
+presence-binding probe for icon-button/menu-item changes this to **5 passing /
+16 failing** without altering assertions or adding failing test names. It also
+exposes a masked post-Space assertion that incorrectly assumes a new native click
+leaves the entire event payload unchanged. A focused runtime regression confirms
+that the slice remains `"click"` while native target metadata refreshes.
+See the [investigation and pending decision](legacy-action-state-investigation.md).
+The probe was removed; no production migration or baseline repair is claimed.

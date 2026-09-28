@@ -8,6 +8,23 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Immediate: Repeated action-click state contract
+
+- [x] Reproduce the legacy state baseline: 3 passing / 18 failing.
+- [x] Isolate disabled-presence changes in test-owned icon-button/menu-item
+      declarations: 5 passing / 16 failing, no newly failing test names.
+- [x] Fixture: prove that repeated native clicks keep the same slice value while
+      refreshing target metadata; Space hold produces no extra click.
+- [ ] Decide whether repeated activation preserves only slice values while
+      publishing the latest event payload (recommended), or requires the entire
+      serialized runtime state to remain unchanged as the old active contract says.
+
+Stop before changing that contract or its assertions. The
+[investigation](legacy-action-state-investigation.md) records the conflict and
+passing browser regression. Production sources and the legacy suite are unchanged.
+After approval, correct the active assertion and migrate the two action owners
+with explicit disabled presence, retaining pointer/keyboard and geometry checks.
+
 ## Completed: Release XHTML bundle and source context
 
 - [x] Fixture: characterize relative module URLs in individual and combined
@@ -310,6 +327,12 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       once-per-declaration scope-contract CEM-token `<style>` and colocated
       CSF Next `<cem-tag>.stories.ts` `play` tests, moving missing reusable behavior into
       `cem-elements`, until both migration targets are zero.
+    - [x] Fixture: a pointer click on button content followed by a Space click
+          keeps the slice value but refreshes native target metadata; confirm
+          that holding Space does not publish another click.
+    - [x] Fixture: isolate the icon-button/menu-item disabled bindings in the
+          unchanged state suite, compare failed test names, and characterize
+          repeated click payloads before changing the active-state contract.
     - [ ] Investigate the legacy component suite failures before claiming a
           green package gate: the cutover trial reports 80 passing / 49 failing;
           empty disabled state and collapsible navigation failures reproduce
