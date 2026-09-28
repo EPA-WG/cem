@@ -10,6 +10,10 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Fixture: action loading transitions once into intent pending colors;
+      verify all five intents, live toggling, disabled precedence, stable geometry,
+      hover/keyboard-focus replay, and reduced-motion behavior in the playground.
+
 - [x] Reset the native button border for every `cem-action` intent; verify
       action stories and source/package playgrounds retain zebra focus and
       the forced-colors outline.

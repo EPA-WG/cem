@@ -91,8 +91,24 @@ async function verify(url) {
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === true);
         await choose('Disabled', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === false);
+        await button.evaluate(node => {
+            window.loadingTransitions = [];
+            node.addEventListener('animationstart', event => window.loadingTransitions.push(event.animationName));
+        });
         await choose('Loading', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
+        await page.waitForFunction(() => window.loadingTransitions.some(name => name.startsWith('cem-action-loading-')));
+        await button.evaluate(async node => { await Promise.all(node.getAnimations().map(animation => animation.finished)); });
+        const pendingPaint = await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]);
+        await choose('Loading', 'False');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'false');
+        assert.notDeepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await choose('Loading', 'True');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
+        assert.deepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
+        assert.equal(await button.evaluate(node => node.getAnimations().length), 0);
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
         for (const value of ['True','False','Unset']) {
             await choose('Expanded', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-expanded') === value, value === 'Unset' ? null : value.toLowerCase());

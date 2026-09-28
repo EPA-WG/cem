@@ -172,6 +172,15 @@ no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
 See the [action hover contract](./action-hover-contract.md) and
 [action active contract](./action-active-contract.md).
 
+For `cem-action`, `loading="true"` reflects `aria-busy="true"` and transitions
+once to the intent's pending background/text colors using D7 action duration
+and smooth easing. This one-shot CSS animation replays on pointer entry or
+keyboard focus while loading, without restarting on pointer/focus exit. Pending paint takes precedence over hover/active; disabled
+paint takes precedence over pending. Clearing loading restores the current
+interaction colors immediately. Reduced-motion preferences disable the
+animation. Loading preserves the button's dimensions and activation behavior;
+use `disabled` separately when activation must be blocked.
+
 ## Inputs
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |

@@ -8,6 +8,76 @@ const meta = preview.meta({
     loaders: [async () => { await loadCemDeclaration('cem-action', declarationSource); return {}; }],
 });
 
+export const LoadingColors = meta.story({
+    parameters: { docs: { description: { story: 'Pending colors and one-shot loading motion. Trusted hover/focus replay checks run only in the Vitest browser runner.' } } },
+    render: () => `<section class="cem-theme-light">${['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(variant =>
+        `<cem-action variant="${variant}" loading="false">Save</cem-action>`).join('')}</section>`,
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
+            await whenCemRendered(host);
+            const button = host.querySelector('button')!;
+            const initial = button.getBoundingClientRect();
+            const paint = () => [getComputedStyle(button).backgroundColor, getComputedStyle(button).color];
+            const expected = (state: string) => {
+                const probe = document.createElement('span');
+                host.append(probe);
+                probe.style.backgroundColor = `var(--cem-action-${host.getAttribute('variant')}-${state}-background)`;
+                probe.style.color = `var(--cem-action-${host.getAttribute('variant')}-${state}-text)`;
+                const result = [getComputedStyle(probe).backgroundColor, getComputedStyle(probe).color];
+                probe.remove();
+                return result;
+            };
+            await expect(paint()).toEqual(expected('default'));
+            host.setAttribute('loading', 'true');
+            await whenCemRendered(host);
+            await expect(button).toHaveAttribute('aria-busy', 'true');
+            getComputedStyle(button).backgroundColor;
+            const transitions = button.getAnimations();
+            if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                await expect(transitions.length).toBeGreaterThan(0);
+            }
+            await Promise.all(transitions.map(animation => animation.finished));
+            await expect(paint()).toEqual(expected('pending'));
+            await expect(host.querySelector('button')).toBe(button);
+            await expect(button.getBoundingClientRect().width).toBe(initial.width);
+            await expect(button.getBoundingClientRect().height).toBe(initial.height);
+            if (import.meta.env.MODE === 'test' && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const { userEvent: native } = await import('vitest/browser');
+                const finishReplay = async () => {
+                    const animations = button.getAnimations();
+                    await expect(animations.length).toBeGreaterThan(0);
+                    await Promise.all(animations.map(animation => animation.finished));
+                    await expect(paint()).toEqual(expected('pending'));
+                };
+                await native.hover(button);
+                await finishReplay();
+                await native.unhover(button);
+                await expect(button.getAnimations()).toHaveLength(0);
+                await native.hover(button);
+                await finishReplay();
+                button.focus();
+                await native.keyboard('{Tab}');
+                await native.keyboard('{Shift>}{Tab}{/Shift}');
+                await expect(button.matches(':focus-visible')).toBe(true);
+                await finishReplay();
+                await expect(getComputedStyle(button).boxShadow).not.toBe('none');
+                button.blur();
+                await native.unhover(button);
+                await expect(button.getAnimations()).toHaveLength(0);
+            }
+            host.setAttribute('disabled', '');
+            await whenCemRendered(host);
+            await expect(paint()).toEqual(expected('disabled'));
+            host.removeAttribute('disabled');
+            host.setAttribute('loading', 'false');
+            await whenCemRendered(host);
+            await expect(button).toHaveAttribute('aria-busy', 'false');
+            await expect(paint()).toEqual(expected('default'));
+            await expect(button.getAnimations()).toHaveLength(0);
+        }
+    },
+});
+
 export const LabelsAndStyles = meta.story({
     render: () => `<cem-action></cem-action><cem-action label="Save"></cem-action>
         <cem-action label="Fallback" aria-label="Publish changes"><strong>Publish</strong><span> changes</span></cem-action>`,

@@ -366,3 +366,23 @@ All six action stories and source/isolated-package playground checks pass.
 DevTools confirms zero border width and no native appearance for each intent.
 A separate browser check under forced colors confirms keyboard focus retains
 the solid 3px system-color outline with no box shadow.
+
+## Action loading motion and replay
+
+`loading="true"` now paints each action intent's pending background/text pair
+with a one-shot fade using D7 action duration and smooth easing. Pointer entry
+and keyboard focus replay the fade while busy. Separate named CSS animations
+preserve completed animations when an interaction ends, preventing exit from
+restarting the fade. Static animation names and separate timing longhands use
+the existing scoped CSS compiler's supported token syntax.
+
+Disabled paint wins over pending; clearing loading immediately restores the
+current interaction paint. Reduced motion suppresses animation while retaining
+pending colors. Loading continues to reflect aria-busy without disabling the
+button or changing its dimensions. The playground explains this below its preview.
+
+All seven action stories pass, including all five intents, pointer re-entry,
+keyboard focus, zebra, stable dimensions and disabled precedence. Source and
+isolated-package playground checks verify animation start, loading toggles and
+reduced motion. Runtime typecheck/lint pass. The IDE preview shows the description
+and resolves the scoped animation name with the theme's 250ms duration.

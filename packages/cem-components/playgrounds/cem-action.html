@@ -126,6 +126,7 @@
             {cem-action @id=action-preview @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @loading="{$datadom.slices.loading}" @expanded={if datadom.slices.expanded == "unset" { null } else { datadom.slices.expanded }} }
         }
         {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
+        {p | Set Loading to True to fade once into the selected intent's pending colors. While loading, moving the pointer onto the action or focusing it with the keyboard replays the fade. It does not loop. Set Loading to False to restore normal interaction colors. Disabled colors take priority, and reduced-motion settings show pending colors without animation.}
         {p | Submit and reset can be inspected here; this preview is outside a form. Form behavior is covered in the automated stories.}
         {p | {a @href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts" | Automated stories}}
     }

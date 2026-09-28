@@ -9,6 +9,8 @@
             display: inline-block;
             --_cem-action-default-background: var(--cem-action-primary-default-background);
             --_cem-action-default-text: var(--cem-action-primary-default-text);
+            --_cem-action-pending-background: var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background));
+            --_cem-action-pending-text: var(--cem-action-primary-pending-text, var(--cem-action-primary-active-text));
             --_cem-action-hover-background: var(--cem-action-primary-hover-background);
             --_cem-action-hover-text: var(--cem-action-primary-hover-text);
             --_cem-action-active-background: var(--cem-action-primary-active-background);
@@ -19,6 +21,8 @@
         :scope[variant="explicit"] {
             --_cem-action-default-background: var(--cem-action-explicit-default-background);
             --_cem-action-default-text: var(--cem-action-explicit-default-text);
+            --_cem-action-pending-background: var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background));
+            --_cem-action-pending-text: var(--cem-action-explicit-pending-text, var(--cem-action-explicit-active-text));
             --_cem-action-hover-background: var(--cem-action-explicit-hover-background);
             --_cem-action-hover-text: var(--cem-action-explicit-hover-text);
             --_cem-action-active-background: var(--cem-action-explicit-active-background);
@@ -29,6 +33,8 @@
         :scope[variant="contextual"] {
             --_cem-action-default-background: var(--cem-action-contextual-default-background);
             --_cem-action-default-text: var(--cem-action-contextual-default-text);
+            --_cem-action-pending-background: var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background));
+            --_cem-action-pending-text: var(--cem-action-contextual-pending-text, var(--cem-action-contextual-active-text));
             --_cem-action-hover-background: var(--cem-action-contextual-hover-background);
             --_cem-action-hover-text: var(--cem-action-contextual-hover-text);
             --_cem-action-active-background: var(--cem-action-contextual-active-background);
@@ -39,6 +45,8 @@
         :scope[variant="alternate"] {
             --_cem-action-default-background: var(--cem-action-alternate-default-background);
             --_cem-action-default-text: var(--cem-action-alternate-default-text);
+            --_cem-action-pending-background: var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background));
+            --_cem-action-pending-text: var(--cem-action-alternate-pending-text, var(--cem-action-alternate-active-text));
             --_cem-action-hover-background: var(--cem-action-alternate-hover-background);
             --_cem-action-hover-text: var(--cem-action-alternate-hover-text);
             --_cem-action-active-background: var(--cem-action-alternate-active-background);
@@ -49,6 +57,8 @@
         :scope[variant="destructive"] {
             --_cem-action-default-background: var(--cem-action-destructive-default-background);
             --_cem-action-default-text: var(--cem-action-destructive-default-text);
+            --_cem-action-pending-background: var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background));
+            --_cem-action-pending-text: var(--cem-action-destructive-pending-text, var(--cem-action-destructive-active-text));
             --_cem-action-hover-background: var(--cem-action-destructive-hover-background);
             --_cem-action-hover-text: var(--cem-action-destructive-hover-text);
             --_cem-action-active-background: var(--cem-action-destructive-active-background);
@@ -92,6 +102,39 @@
         :scope > button[part~='control']:where(:enabled:active) {
             background-color: var(--_cem-action-active-background);
             color: var(--_cem-action-active-text);
+        }
+        :scope > button[part~='control']:where(:enabled[aria-busy='true']) {
+            background-color: var(--_cem-action-pending-background);
+            color: var(--_cem-action-pending-text);
+            animation-name: cem-action-loading;
+            animation-duration: var(--cem-duration-action, var(--cem-duration-noticeable));
+            animation-timing-function: var(--cem-easing-smooth);
+        }
+        :scope > button[part~='control']:where(:enabled[aria-busy='true']:hover) {
+            animation-name: cem-action-loading, cem-action-loading-hover;
+        }
+        :scope > button[part~='control']:where(:enabled[aria-busy='true']:focus-visible) {
+            animation-name: cem-action-loading, cem-action-loading-focus;
+        }
+        :scope > button[part~='control']:where(:enabled[aria-busy='true']:hover:focus-visible) {
+            animation-name: cem-action-loading, cem-action-loading-hover, cem-action-loading-focus;
+        }
+        @keyframes cem-action-loading {
+            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
+            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
+        }
+        @keyframes cem-action-loading-hover {
+            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
+            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
+        }
+        @keyframes cem-action-loading-focus {
+            from { background-color: var(--_cem-action-default-background); color: var(--_cem-action-default-text); }
+            to { background-color: var(--_cem-action-pending-background); color: var(--_cem-action-pending-text); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            :scope > button[part~='control']:where([aria-busy='true']) {
+                animation: none;
+            }
         }
         :scope > button[part~='control']:where(:focus-visible) {
             outline: var(--cem-stroke-focus) solid transparent;
