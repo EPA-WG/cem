@@ -476,3 +476,13 @@ action busy/label state, select value and both until-found spellings. Source and
 isolated-package gallery checks pass, as do runtime typecheck/lint. IDE browser
 inspection confirms hidden and hidden=false produce display:none, while mixed-case
 until-found retains inline-block with native content-visibility:hidden.
+
+## Action CSS redundancy cleanup
+
+Removed the action's forced-colors background-image:none and box-shadow:none
+declarations. Native forced-color adjustment already suppresses non-URL images
+and shadows; explicit animation suppression and accessible outlines remain.
+Consolidated the three identical bend-radius bindings into one :is selector,
+preserving their specificity. The remaining private color mappings and native
+attribute bindings are used. Nine action stories and source/isolated-package
+playground checks pass, including reduced-motion and forced-colors coverage.

@@ -10,6 +10,9 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Remove redundant action forced-color gradient/shadow resets and consolidate
+      bend-radius binding; verify action states and source/package accessibility fallbacks.
+
 - [x] Fixture: canonical action and select respect native host hidden states,
       initial/live visibility, keyboard exclusion, retained control/state and
       case-insensitive until-found semantics. Document the shared convention,
