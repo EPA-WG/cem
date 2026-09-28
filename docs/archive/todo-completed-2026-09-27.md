@@ -708,3 +708,29 @@ Completed 2026-09-28, following the implementation in `c56d95c1`.
   empty `checked` attribute is not reflected. Its component assertions remain
   intact; the direct CSS fixture verifies presentation without claiming to repair
   host reflection. The broader legacy package test gate remains open.
+
+## Component galleries and module-URL settlement
+
+Completed 2026-09-28.
+
+- Routed the action playground to its owned CEM components gallery. Seven
+  example cards explicitly cover all 20 implemented attributes, including size,
+  selected/selectable, presence semantics and native form overrides. The verifier
+  derives the inventory from the canonical declaration and checks examples.
+- Added the select property playground, canonical source view, theme controls
+  and dropdown/persistent/multiple examples. Exported and packaged both pages;
+  source and isolated archive journeys pass.
+- Kept selected options visible by scrolling their listbox. Mounting an offscreen
+  select no longer scrolls the document; the new regression failed before the
+  fix (621px document movement) and passes afterward.
+- Captured partial module-URL startup settlement. Following the user's batching
+  decision, the native resource path commits sibling results together, retaining
+  stale-render/disconnection guards, payload identity and failure diagnostics.
+  Four controlled resolver stories pass; six concurrent gallery probes retain
+  both stylesheet links. Playground checks use the actual bootstrap runtime.
+- Verification: 35 focused browser stories and 74 main runtime stories pass;
+  source/package playgrounds, package checks, component declarative/style/state
+  matrix/catalog gates, lint and typecheck pass. Lint retains the existing 48
+  component and two runtime warnings. Legacy state-suite debt remains separate.
+- Next: generate and verify the combined release XHTML bundle through the CEM
+  AST pipeline, including fragment loading, dependencies and style ownership.

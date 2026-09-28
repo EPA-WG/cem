@@ -282,12 +282,12 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
-    for (const page of ['cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
+    for (const page of ['cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
         if (packageJson.exports?.[`./playgrounds/${page}`] !== `./dist/${page}` || !packedFiles.includes(`dist/${page}`)) {
             throw new Error(`npm pack must expose the built playground ${page}`);
         }
     }
-    for (const source of ['playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
+    for (const source of ['playgrounds/cem-action-gallery.html', 'playgrounds/cem-select.html', 'playgrounds/cem-theme-switch.html', 'playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
         if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
     }
 

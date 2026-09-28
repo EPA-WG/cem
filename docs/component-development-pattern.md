@@ -26,7 +26,7 @@ The page contains:
 - Visible radio groups for mutually exclusive enumerated options, so users
   can compare choices without opening a menu. Use shared CEM controls.
 - Controls for every supported public option. For action, start with intent,
-  bend, label, type, disabled, loading and expanded.
+  bend, size, label, type, disabled, loading and selected.
 - The fetched canonical XHTML source, displayed without executing a second copy
   (`cem-demo-element` supports `demo="false"`).
 - A link to the full examples and variation matrix, plus the automated stories.
@@ -73,11 +73,17 @@ The action companion is implemented at
 visible `cem-radio` groups for enumerated options and `cem-field` for the label. The source viewer is a static
 sibling of the reactive form, so parent updates do not own its rendered regions.
 The package publishes `dist/cem-action.html` and `dist/cem-action-gallery.html`;
-the native build rewrites page-level import maps and copies the gallery's legacy
-icon resource. Both pages load the canonical action definition. Source files and
-build maps ship alongside them. No dependency on `custom-element` is added.
+the native build rewrites page-level import maps. Both pages load the canonical
+action definition. Source files and build maps ship alongside them. No dependency on `custom-element` is added.
 
-The select companion and combined release document remain next work in
-[todo.md](todo.md). The original Material action URL remains available and links
-the playground. In the standalone legacy adapter archive, that link opens the
+The select companion is implemented at
+`packages/cem-components/playgrounds/cem-select.html` and ships as
+`dist/cem-select.html`. Its form edits public options on one retained canonical
+select, with grouped, single-listbox and multiple-listbox examples alongside a
+source-only view. The action gallery is owned at
+`packages/cem-components/playgrounds/cem-action-gallery.html`; its attribute
+inventory and executable examples must match the canonical declaration.
+
+The combined release document remains next work in [todo.md](todo.md).
+The original Material action URL remains available and links the playground. In the standalone legacy adapter archive, that link opens the
 repository source; the CEM component package includes both interactive pages.

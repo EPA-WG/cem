@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-action — attribute gallery</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window);
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { display: block; padding: var(--cem-dim-large); min-block-size: 100vh; box-sizing: border-box; }
+        main { display: grid; gap: var(--cem-dim-large); }
+        cem-demo-element { display: block; min-inline-size: 0; }
+        cem-demo-element [slot=demo] { display: flex; flex-wrap: wrap; align-items: start; gap: var(--cem-dim-medium); }
+        table { border-spacing: var(--cem-dim-medium); }
+        th { text-align: start; }
+        .matrix { overflow-x: auto; max-inline-size: 100%; }
+        .form-example { display: grid; gap: var(--cem-dim-medium); }
+        code { overflow-wrap: anywhere; }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<cem-theme-switch id="playground-theme" mode="light" name="action-gallery-theme">
+<header><h1><code>cem-action</code> attribute gallery</h1>
+<p>Each example uses the canonical component. Change the theme, then try pointer and keyboard interaction.</p>
+<cem-element><template type="text/cem-ml">
+{cem-module-url @slice=playgroundUrl @src="@epa-wg/cem-components/action-playground"}
+{cem:if @test="datadom.slices.playgroundUrl" | {p | {a @href="{$datadom.slices.playgroundUrl}" | Action property playground and source}}}
+</template></cem-element>
+<p><a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts">Automated stories</a></p>
+</header>
+<main>
+<section aria-label="Implemented attributes"><h2>Implemented attributes</h2>
+<p>Boolean presence enables <code>disabled</code>, <code>selected</code>, <code>selectable</code> and <code>formnovalidate</code>, even when their text is <code>false</code>. Loading and expanded use their explicit string values.</p>
+<ul>
+<li data-action-attribute="label"><code>label</code> — Fallback label; child content takes precedence.</li>
+<li data-action-attribute="aria-label"><code>aria-label</code> — Accessible name forwarded to the native button.</li>
+<li data-action-attribute="variant"><code>variant</code> — primary (default), explicit, contextual, alternate and destructive intent.</li>
+<li data-action-attribute="class"><code>class</code> — cem-bend-sharp, cem-bend-smooth and cem-bend-round shape utilities.</li>
+<li data-action-attribute="size"><code>size</code> — Absent inherits the theme; small, medium, large, x-large and xx-large set minimum height.</li>
+<li data-action-attribute="selected"><code>selected</code> — Presence marks a controlled selection and sets aria-pressed=true.</li>
+<li data-action-attribute="selectable"><code>selectable</code> — Presence exposes aria-pressed=false when selected is absent; activation does not toggle it automatically.</li>
+<li data-action-attribute="disabled"><code>disabled</code> — Presence disables native focus and activation.</li>
+<li data-action-attribute="loading"><code>loading</code> — true exposes aria-busy and pending feedback; false restores the resting state.</li>
+<li data-action-attribute="expanded"><code>expanded</code> — true/false reflects aria-expanded; the container owns disclosure state and content.</li>
+<li data-action-attribute="hidden"><code>hidden</code> — Native host visibility, including until-found.</li>
+<li data-action-attribute="type"><code>type</code> — button (default), submit or reset.</li>
+<li data-action-attribute="name"><code>name</code> — Native submitter name.</li>
+<li data-action-attribute="value"><code>value</code> — Native submitter value.</li>
+<li data-action-attribute="form"><code>form</code> — ID of an associated form, including an external form.</li>
+<li data-action-attribute="formaction"><code>formaction</code> — Native submitter destination override.</li>
+<li data-action-attribute="formmethod"><code>formmethod</code> — Native submitter method override.</li>
+<li data-action-attribute="formenctype"><code>formenctype</code> — Native submitter encoding override.</li>
+<li data-action-attribute="formtarget"><code>formtarget</code> — Native submitter browsing-context override.</li>
+<li data-action-attribute="formnovalidate"><code>formnovalidate</code> — Presence bypasses validation for this submitter.</li>
+</ul></section>
+<cem-demo-element legend="Labels and accessible names" data-covers="label aria-label">
+<p slot="description">Child content replaces the fallback label. Icon-only actions need an accessible name.</p>
+<template slot="source">
+<cem-action id="gallery-fallback" label="Fallback label"></cem-action>
+<cem-action label="Unused fallback">Projected child label</cem-action>
+<cem-action id="gallery-icon" aria-label="Add item"><span aria-hidden="true">＋</span></cem-action>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Intent and bend" data-covers="variant class">
+<p slot="description">Hover, hold the pointer or Space, and use Tab to compare native states.</p>
+<template slot="source">
+<div class="matrix"><table><caption>Intent × bend</caption><thead><tr><th>Intent</th><th>Sharp</th><th>Smooth</th><th>Round</th></tr></thead><tbody><tr><th scope="row">primary</th><td><cem-action variant="primary" class="cem-bend-sharp">primary sharp</cem-action></td><td><cem-action variant="primary" class="cem-bend-smooth">primary smooth</cem-action></td><td><cem-action variant="primary" class="cem-bend-round">primary round</cem-action></td></tr><tr><th scope="row">explicit</th><td><cem-action variant="explicit" class="cem-bend-sharp">explicit sharp</cem-action></td><td><cem-action variant="explicit" class="cem-bend-smooth">explicit smooth</cem-action></td><td><cem-action variant="explicit" class="cem-bend-round">explicit round</cem-action></td></tr><tr><th scope="row">contextual</th><td><cem-action variant="contextual" class="cem-bend-sharp">contextual sharp</cem-action></td><td><cem-action variant="contextual" class="cem-bend-smooth">contextual smooth</cem-action></td><td><cem-action variant="contextual" class="cem-bend-round">contextual round</cem-action></td></tr><tr><th scope="row">alternate</th><td><cem-action variant="alternate" class="cem-bend-sharp">alternate sharp</cem-action></td><td><cem-action variant="alternate" class="cem-bend-smooth">alternate smooth</cem-action></td><td><cem-action variant="alternate" class="cem-bend-round">alternate round</cem-action></td></tr><tr><th scope="row">destructive</th><td><cem-action variant="destructive" class="cem-bend-sharp">destructive sharp</cem-action></td><td><cem-action variant="destructive" class="cem-bend-smooth">destructive smooth</cem-action></td><td><cem-action variant="destructive" class="cem-bend-round">destructive round</cem-action></td></tr></tbody></table></div>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Size profiles" data-covers="size">
+<p slot="description">The attribute sets minimum height. Long content can grow beyond that minimum; compact controls retain the native hit-area expansion.</p>
+<template slot="source">
+<cem-action id="gallery-size-default">Inherited size</cem-action>
+<cem-action id="gallery-size-small" size="small">small</cem-action>
+<cem-action id="gallery-size-medium" size="medium">medium</cem-action>
+<cem-action id="gallery-size-large" size="large">large</cem-action>
+<cem-action id="gallery-size-x-large" size="x-large">x-large</cem-action>
+<cem-action id="gallery-size-xx-large" size="xx-large">xx-large</cem-action>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Controlled selection" data-covers="selected selectable">
+<p slot="description">The first two choices have container-owned selection. The remaining examples demonstrate attribute presence and command semantics.</p>
+<template slot="source">
+<cem-element><template type="text/cem-ml">
+{slice @name=choice | compact}
+{div @role=group @aria-label="Layout choice" |
+ {cem-action @id=gallery-compact @selectable=true @selected={if datadom.slices.choice == "compact" { true } else { null }} @slice=choice @slice-event=click @slice-value="'compact'" | Compact}
+ {cem-action @id=gallery-comfortable @selectable=true @selected={if datadom.slices.choice == "comfortable" { true } else { null }} @slice=choice @slice-event=click @slice-value="'comfortable'" | Comfortable}
+}
+</template></cem-element>
+<cem-action id="gallery-selected-false" selected="false">Selected by presence</cem-action>
+<cem-action id="gallery-selectable-false" selectable="false">Selectable by presence</cem-action>
+<cem-action id="gallery-command">Ordinary command</cem-action>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Loading and disabled" data-covers="loading disabled">
+<p slot="description">Loading continues while disabled; disabled actions cannot activate. Reduced motion freezes animation. Forced colors retain a static indicator.</p>
+<template slot="source">
+<cem-action id="gallery-loading" loading="true">Loading</cem-action>
+<cem-action loading="false">Not loading</cem-action>
+<cem-action disabled>Disabled</cem-action>
+<cem-action id="gallery-disabled-false" disabled="false">Disabled by presence</cem-action>
+<cem-action id="gallery-disabled-loading" disabled loading="true">Disabled loading</cem-action>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Expanded and visibility" data-covers="expanded hidden">
+<p slot="description">The container toggles the disclosure and native hidden state together. Expanded reflects accessibility state; it does not open content automatically.</p>
+<template slot="source">
+<cem-element><template type="text/cem-ml">
+{slice @name=open | false}
+{div |
+ {cem-action @id=gallery-disclosure @expanded="{$datadom.slices.open}" @slice=open @slice-event=click @slice-value={if datadom.slices.open == "true" { "'false'" } else { "'true'" }} | Show or hide details}
+ {cem-action @id=gallery-hidden @hidden={if datadom.slices.open == "true" { null } else { true }} | Revealed action}
+ {p | Hidden-until-found content can be revealed with the browser's Find command.}
+ {cem-action @id=gallery-until-found @hidden=until-found | Find this gallery action}
+}
+</template></cem-element>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Native forms" data-covers="type name value form formaction formmethod formenctype formtarget formnovalidate">
+<p slot="description">Submit uses native validation and opens this gallery with form values in a new tab. Reset restores the input. The external submitter overrides destination, method, encoding and target and bypasses validation.</p>
+<template slot="source">
+<div class="form-example">
+<form id="gallery-form" method="get" target="_blank">
+<label>Example title <input name="title" value="Initial title" required></label>
+<cem-action id="gallery-submit" type="submit" name="intent" value="save">Submit</cem-action>
+<cem-action id="gallery-reset" type="reset">Reset</cem-action>
+<cem-action id="gallery-button" type="button">Non-submitting command</cem-action>
+</form>
+<cem-action id="gallery-external" type="submit" form="gallery-form" name="intent" value="external" formaction="cem-action-gallery.html#gallery-form" formmethod="get" formenctype="application/x-www-form-urlencoded" formtarget="_blank" formnovalidate>Submit without validation</cem-action>
+</div>
+</template>
+</cem-demo-element>
+</main>
+<footer><p><a href="https://github.com/EPA-WG/cem/blob/develop/LICENSE">MIT license</a></p></footer>
+</cem-theme-switch>
+</body>
+</html>

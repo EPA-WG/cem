@@ -24,6 +24,7 @@ try {
     browser = await chromium.launch({ headless: true });
     await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
     await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
+    await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
@@ -33,12 +34,212 @@ try {
     }
     await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
     await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
+    await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action and theme-switch playgrounds verified from source and isolated package archives.');
+    console.log('Action, select and theme-switch playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
     await rm(temporary, { recursive: true, force: true });
+}
+
+async function capturePlaygroundReadiness(page) {
+    return page.evaluate(() => {
+        const runtime = window.cemPlaygroundRuntime;
+        const declaration = document.querySelector('body > cem-element');
+        const instance = declaration?.querySelector('[data-cem-anonymous-instance]');
+        const snapshot = runtime && instance ? runtime.snapshotInstance(instance) : null;
+        return {
+            url: location.href,
+            stylesheets: [...document.querySelectorAll('link[rel=stylesheet]')].map(link => ({ href: link.href, loaded: !!link.sheet })),
+            controlHeight: getComputedStyle(document.documentElement).getPropertyValue('--cem-control-height-small'),
+            loaderSlices: snapshot?.slices,
+            dataRevision: snapshot?.dataRevision,
+            diagnostics: runtime && declaration ? runtime.diagnosticsFor(declaration) : [],
+        };
+    }).catch(error => ({ captureError: error.message }));
+}
+
+async function verifyActionGallery(page) {
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#playground-theme')).getPropertyValue('--cem-control-height-small').trim() !== '');
+    await page.waitForFunction(() => {
+        const cards = [...document.querySelectorAll('cem-demo-element')];
+        return cards.length === 7 && cards.every(card => card.getAttribute('data-state') === 'ready');
+    });
+    const declaration = await readFile(join(root, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'), 'utf8');
+    const implemented = [...new Set([
+        ...[...declaration.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+        ...[...declaration.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
+        ...[...declaration.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]),
+        'class',
+    ])].sort();
+    const documented = await page.locator('[data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action-attribute')).sort());
+    const demonstrated = await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort());
+    assert.deepEqual(documented, implemented, 'Gallery attribute inventory must match the canonical declaration');
+    assert.deepEqual(demonstrated, implemented, 'Every implemented attribute needs a live example');
+    assert.equal(await page.locator('#gallery-fallback button').innerText(), 'Fallback label');
+    assert.equal(await page.locator('#gallery-icon button').getAttribute('aria-label'), 'Add item');
+    for (const size of ['small', 'medium', 'large', 'x-large', 'xx-large']) {
+        const sample = page.locator(`#gallery-size-${size}`);
+        await sample.locator('button').waitFor();
+        await sample.evaluate(async host => {
+            await window.cemPlaygroundRuntime.whenRenderSettled(host);
+        });
+        const actual = await sample.evaluate(host => {
+            const button = host.querySelector('button');
+            const probe = document.createElement('span');
+            probe.style.height = `var(--cem-control-height-${host.getAttribute('size')})`;
+            probe.style.position = 'absolute';
+            host.append(probe);
+            const expected = probe.getBoundingClientRect().height;
+            probe.remove();
+            return { actual: button.getBoundingClientRect().height, expected };
+        });
+        assert(actual.expected > 0 && actual.actual >= actual.expected, `${size} minimum height: ${JSON.stringify(actual)}`);
+    }
+    assert.equal(await page.locator('#gallery-size-default').getAttribute('size'), null);
+    assert.equal(await page.locator('#gallery-selected-false button').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#gallery-selectable-false button').getAttribute('aria-pressed'), 'false');
+    await page.locator('#gallery-selectable-false button').click();
+    assert.equal(await page.locator('#gallery-selectable-false button').getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.locator('#gallery-command button').getAttribute('aria-pressed'), null);
+    await page.locator('#gallery-comfortable button').click();
+    await page.waitForFunction(() => document.querySelector('#gallery-comfortable button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#gallery-compact button')?.getAttribute('aria-pressed') === 'false');
+    await verifyThemeControls(page);
+    assert.equal(await page.locator('#gallery-comfortable button').getAttribute('aria-pressed'), 'true');
+    assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('gallery-selected-false'));
+    assert(await page.locator('#gallery-disabled-false button').isDisabled());
+    assert(await page.locator('#gallery-disabled-loading button').isDisabled());
+    assert.equal(await page.locator('#gallery-loading button').getAttribute('aria-busy'), 'true');
+    assert(await page.locator('#gallery-hidden').isHidden());
+    await page.locator('#gallery-disclosure button').click();
+    await page.waitForFunction(() => document.querySelector('#gallery-disclosure button')?.getAttribute('aria-expanded') === 'true' && !document.querySelector('#gallery-hidden')?.hasAttribute('hidden'));
+    await page.locator('#gallery-disclosure button').click();
+    await page.waitForFunction(() => document.querySelector('#gallery-disclosure button')?.getAttribute('aria-expanded') === 'false' && document.querySelector('#gallery-hidden')?.hasAttribute('hidden'));
+    assert.equal(await page.locator('#gallery-until-found').getAttribute('hidden'), 'until-found');
+    await page.locator('#gallery-form').evaluate(form => {
+        window.gallerySubmissions = [];
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            window.gallerySubmissions.push([...new FormData(form, event.submitter)]);
+        });
+    });
+    const title = page.getByRole('textbox', { name: 'Example title', exact: true });
+    await title.fill('');
+    await page.locator('#gallery-submit button').click();
+    assert.equal(await page.evaluate(() => window.gallerySubmissions.length), 0);
+    await title.fill('Ready');
+    await page.locator('#gallery-submit button').click();
+    assert.deepEqual(await page.evaluate(() => window.gallerySubmissions[0]), [['title', 'Ready'], ['intent', 'save']]);
+    await page.locator('#gallery-button button').click();
+    assert.equal(await page.evaluate(() => window.gallerySubmissions.length), 1);
+    await page.locator('#gallery-reset button').click();
+    assert.equal(await title.inputValue(), 'Initial title');
+    await title.fill('');
+    const external = page.locator('#gallery-external button');
+    assert.deepEqual(await external.evaluate(button => ({ form: button.form.id, method: button.formMethod, encoding: button.formEnctype, target: button.formTarget, noValidate: button.formNoValidate, action: new URL(button.formAction).pathname.split('/').pop() })), { form: 'gallery-form', method: 'get', encoding: 'application/x-www-form-urlencoded', target: '_blank', noValidate: true, action: 'cem-action-gallery.html' });
+    await external.click();
+    assert.deepEqual(await page.evaluate(() => window.gallerySubmissions[1]), [['title', ''], ['intent', 'external']]);
+}
+
+async function verifySelect(url) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+    try {
+        await page.goto(url);
+        await page.locator('#select-preview [role=combobox]').waitFor();
+        await page.waitForFunction(() => document.querySelector('cem-demo-element')?.getAttribute('data-state') === 'ready');
+        await page.evaluate(async () => {
+            const runtime = window.cemPlaygroundRuntime;
+            await Promise.all([...document.querySelectorAll('cem-select')].map(host => runtime.whenRenderSettled(host)));
+        });
+        assert.equal(await page.evaluate(() => window.scrollY), 0, 'Listbox examples must not scroll the page on mount');
+        const host = page.locator('#select-preview');
+        const control = () => host.locator('[part~=control]');
+        const properties = page.getByRole('region', { name: 'Select properties', exact: true });
+        const choose = async (label, value) => {
+            const group = properties.getByRole('radiogroup', { name: label, exact: true });
+            await group.getByRole('radio', { name: value, exact: true }).check();
+            assert.equal(await group.getByRole('radio', { checked: true }).count(), 1);
+        };
+        const waitAttribute = (name, value) => page.waitForFunction(({ name, value }) => document.querySelector('#select-preview [part~=control]')?.getAttribute(name) === value, { name, value });
+        await page.evaluate(() => { window.previewSelect = document.querySelector('#select-preview'); });
+        assert.equal(await host.evaluate(node => node.value), 'ada');
+        await control().click();
+        await host.getByRole('option', { name: 'Grace Hopper', exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('#select-committed')?.textContent.includes('grace'));
+        await choose('Indicator', 'Outline');
+        assert.equal(await host.evaluate(node => node.value), 'grace');
+        assert(await page.evaluate(() => window.previewSelect === document.querySelector('#select-preview')));
+        await properties.getByRole('textbox', { name: 'Label', exact: true }).fill('Assignee');
+        await page.getByRole('combobox', { name: 'Assignee', exact: true }).waitFor();
+        assert.equal(await control().getAttribute('aria-describedby'), 'select-preview-help');
+        assert.equal(await page.locator('#select-preview-help').innerText(), 'Choose an available person.');
+        await properties.getByRole('textbox', { name: 'Value', exact: true }).fill('grace');
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.getAttribute('value') === 'grace');
+        await properties.getByRole('textbox', { name: 'Value', exact: true }).fill('ada');
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.value === 'ada');
+        await properties.getByRole('textbox', { name: 'Form name', exact: true }).fill('assignee');
+        await page.waitForFunction(() => new FormData(document.querySelector('#select-preview-form')).get('assignee') === 'ada');
+        await properties.getByRole('textbox', { name: 'Autocomplete', exact: true }).fill('name');
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.getAttribute('autocomplete') === 'name');
+        await choose('Busy', 'True');
+        await waitAttribute('aria-busy', 'true');
+        await choose('Busy', 'False');
+        await waitAttribute('aria-busy', null);
+        await choose('Invalid', 'True');
+        await waitAttribute('aria-invalid', 'true');
+        assert.equal(await control().getAttribute('aria-errormessage'), 'select-preview-error');
+        await choose('Invalid', 'False');
+        await waitAttribute('aria-invalid', null);
+        await choose('Disabled', 'True');
+        await page.waitForFunction(() => document.querySelector('#select-preview button')?.disabled);
+        assert.equal(await page.locator('#select-preview-form').evaluate(form => new FormData(form).get('assignee')), null);
+        await choose('Disabled', 'False');
+        await page.waitForFunction(() => document.querySelector('#select-preview button')?.disabled === false);
+        await choose('Visible rows', '4');
+        await host.getByRole('listbox', { name: 'Assignee' }).waitFor();
+        await choose('Multiple', 'True');
+        await waitAttribute('aria-multiselectable', 'true');
+        await host.getByRole('option', { name: 'Grace Hopper' }).click();
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.selectedValues.join(',') === 'ada,grace');
+        assert.deepEqual(await page.locator('#select-preview-form').evaluate(form => new FormData(form).getAll('assignee')), ['ada', 'grace']);
+        await choose('Multiple', 'False');
+        await waitAttribute('aria-multiselectable', null);
+        await choose('Visible rows', 'Default');
+        await host.getByRole('combobox').waitFor();
+        assert.equal(await host.getAttribute('size'), null);
+        await properties.getByRole('textbox', { name: 'Value', exact: true }).fill('');
+        await page.waitForFunction(() => !document.querySelector('#select-preview')?.hasAttribute('value'));
+        await properties.getByRole('textbox', { name: 'Value', exact: true }).fill('unmatched');
+        await properties.getByRole('textbox', { name: 'Placeholder', exact: true }).fill('Pick a colleague');
+        await page.waitForFunction(() => document.querySelector('#select-preview button')?.textContent.includes('Pick a colleague'));
+        await choose('Required', 'True');
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.validity.valueMissing);
+        await choose('Required', 'False');
+        await page.waitForFunction(() => document.querySelector('#select-preview')?.validity.valid);
+        await verifyThemeControls(page);
+        await page.locator('#example-grouped [role=combobox]').click();
+        await page.locator('#example-grouped').getByRole('option', { name: 'Grace Hopper' }).click();
+        await page.locator('#example-single').getByRole('option', { name: 'High', exact: true }).click();
+        await page.locator('#example-multiple').getByRole('option', { name: 'Chat', exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('#example-grouped')?.value === 'grace' && document.querySelector('#example-single')?.value === 'high' && document.querySelector('#example-multiple')?.selectedValues.join(',') === 'email,chat');
+        const source = await page.getByRole('link', { name: 'Open canonical XHTML' }).getAttribute('href');
+        const response = await page.request.get(new URL(source, page.url()).href);
+        assert(response.ok());
+        assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/src/components/cem-select/cem-select.xhtml'), 'utf8'));
+        assert.equal(await page.locator('cem-demo-element cem-select, cem-demo-element cem-element').count(), 0);
+        assert((await page.locator('cem-demo-element').innerText()).includes('id="cem-select"'));
+        await page.setViewportSize({ width: 360, height: 800 });
+        assert(await page.locator('.workspace').evaluate(node => getComputedStyle(node).gridTemplateColumns.trim().split(/\s+/).length === 1));
+        assert.deepEqual(errors, []);
+    } catch (error) {
+        console.error('Playground readiness', await capturePlaygroundReadiness(page));
+        console.error(url, errors, await page.locator('body').innerText());
+        throw error;
+    } finally { await page.close(); }
 }
 
 async function verifyThemeControls(page) {
@@ -287,16 +488,17 @@ async function verify(url) {
         assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'), 'utf8'));
         assert.equal(await page.getByRole('link', { name: 'Automated stories' }).count(), 1);
         assert.deepEqual(errors, []);
-        const gallery = await page.getByRole('link', { name: 'Full examples and variation matrix (legacy gallery)' }).getAttribute('href');
-        await page.route(/https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|use\.fontawesome\.com)\//, route => route.fulfill({ contentType: 'text/css', body: '' }));
+        const gallery = await page.getByRole('link', { name: 'Full examples and variation matrix' }).getAttribute('href');
+        assert.equal(new URL(gallery, page.url()).href, new URL('cem-action-gallery.html', url).href);
         await page.goto(gallery);
-        await page.waitForFunction(() => document.querySelectorAll('cem-demo-element [slot=demo] button').length === 36);
+        await verifyActionGallery(page);
         assert.equal(await page.locator('cem-demo-element').count(), 7);
         const returnLink = page.getByRole('link', { name: 'Action property playground and source' });
         await returnLink.waitFor();
         assert.equal(new URL(await returnLink.getAttribute('href'), page.url()).href, url);
         assert.deepEqual(errors, []);
     } catch (error) {
+        console.error('Playground readiness', await capturePlaygroundReadiness(page));
         console.error(url, errors, await page.locator('body').innerText());
         throw error;
     } finally { await page.close(); }

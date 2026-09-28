@@ -8,6 +8,22 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Component galleries and module-URL startup settlement
+
+- [x] Decision: batch sibling module-URL results before rendering, matching
+      the DOM fallback (approved by the user on 2026-09-28).
+- [x] Fixture: reproduce partial URL publication with controlled resolver
+      completion; batch results while retaining stale-render/disconnection
+      guards, successful siblings and failure diagnostics.
+- [x] Verify the owned action attribute gallery and select companion from
+      source and isolated packages, including concurrent gallery startup.
+
+The action gallery covers all 20 explicitly implemented attributes. The select
+companion and listbox scrolling fix are complete. Verification and remaining
+scope are recorded in the [completion log](archive/todo-completed-2026-09-27.md#component-galleries-and-module-url-settlement)
+and [startup review](browser-stabilization-review.tmp.md#gallery-module-url-settlement-recurrence).
+The next component-development item is the release XHTML bundle below.
+
 ## Completed: Selected actions and state-specific input indicators
 
 - [x] Replace blanket input shadows with state-specific native-control feedback; revise shared/theme contracts.
@@ -365,8 +381,16 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
           another declaration; link the full demo and verify IDE/module-map and
           packaged preview loading. Update the legacy Material page to link
           the new playground when available.
-    - [ ] Fixture: apply the companion property playground/source-view pattern
+    - [x] Fixture: route the action playground gallery link to the owned
+          cem-components gallery in source and isolated-package previews.
+    - [x] Fixture: cover every explicitly implemented action attribute in the
+          owned gallery, including size, selected/selectable and native form
+          overrides; verify inventory and behavior in source/package previews.
+    - [x] Fixture: apply the companion property playground/source-view pattern
           to `cem-select`, including source and isolated package preview checks.
+        - [x] Fixture: keep the page scroll position when persistent select
+              examples mount; reveal active options within their own listbox
+              during initial rendering and keyboard navigation.
     - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
           and compare individual versus `#ID` loading, relative dependencies,
           style ownership and duplicate registration; ship source and playground.

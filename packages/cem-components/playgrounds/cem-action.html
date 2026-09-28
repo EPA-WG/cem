@@ -13,17 +13,20 @@
         "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
         "@epa-wg/cem-components/styles.css": "../dist/styles.css",
         "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
-        "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
         "@epa-wg/cem-components/action-playground": "./cem-action.html",
         "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
-        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html"
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml"
     }
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
-        await installCemComponentPrimitives(installCemElementRuntime(window));
+        const runtime = installCemElementRuntime(window);
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
     </script>
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
@@ -74,7 +77,7 @@
 <cem-element>
 <template type="text/cem-ml">
 {cem-module-url @slice=demoUrl @src="@epa-wg/cem-components/action-demo"}
-{cem:if @test="datadom.slices.demoUrl" | {p | {a @href="{$datadom.slices.demoUrl}" | Full examples and variation matrix (legacy gallery)}}}
+{cem:if @test="datadom.slices.demoUrl" | {p | {a @href="{$datadom.slices.demoUrl}" | Full examples and variation matrix}}}
 </template>
 </cem-element>
 </header>

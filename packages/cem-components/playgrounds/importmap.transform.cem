@@ -5,13 +5,18 @@
       {export @id=playground-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=select-playground @src="cem-select.html" @content-type="text/html" |
+    {rewrite-importmap @id=select-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=select-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
   {import @id=theme-switch-playground @src="cem-theme-switch.html" @content-type="text/html" |
     {rewrite-importmap @id=theme-switch-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
       {export @id=theme-switch-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
-  {import @id=action-gallery @src="../../custom-element/material/components/action.html" @content-type="text/html" |
-    {rewrite-importmap @id=gallery-map @source-map="../../custom-element/material/action.importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+  {import @id=action-gallery @src="cem-action-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
       {export @id=gallery-html @out="../dist/cem-action-gallery.html" @content-type="text/html"}
     }
   }

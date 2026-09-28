@@ -7,9 +7,10 @@
         "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
         "@epa-wg/cem-components/styles.css": "../dist/styles.css",
         "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
-        "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
         "@epa-wg/cem-components/action-playground": "./cem-action.html",
         "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
-        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html"
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml"
     }
 }

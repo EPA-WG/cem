@@ -30,6 +30,38 @@ const meta = preview.meta({
     }],
 });
 
+export const ListboxScrollOwnership = meta.story({
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const originalScroll = window.scrollY;
+        const section = canvasElement.querySelector('section') as HTMLElement;
+        try {
+            window.scrollTo(0, 0);
+            section.innerHTML = `<div style="height:150vh"></div><cem-select label="Offscreen choices" size="3">${
+                Array.from({ length: 12 }, (_, index) => `<cem-option value="${index}"${index === 11 ? ' selected' : ''}>Choice ${index}</cem-option>`).join('')
+            }</cem-select>`;
+            const host = section.querySelector<HTMLElement>('cem-select') as HTMLElement;
+            await whenCemRendered(host);
+            await expect(window.scrollY).toBe(0);
+            const listbox = host.querySelector<HTMLElement>('[role=listbox]') as HTMLElement;
+            const visible = (option: Element) => {
+                const rect = option.getBoundingClientRect();
+                const box = listbox.getBoundingClientRect();
+                return rect.top >= box.top && rect.bottom <= box.bottom;
+            };
+            await expect(visible(listbox.querySelector('[aria-selected=true]') as HTMLElement)).toBe(true);
+            await userEvent.click(listbox.querySelector('[aria-selected=true]') as HTMLElement);
+            await userEvent.keyboard('{Home}');
+            await whenCemRendered(host);
+            await expect(visible(listbox.querySelector('[role=option]') as HTMLElement)).toBe(true);
+            await expect((host as CemSelectElement).value).toBe('0');
+        } finally {
+            section.replaceChildren();
+            window.scrollTo(0, originalScroll);
+        }
+    },
+});
+
 export const PopupStacking = meta.story({
     render: () => `<section><cem-select label="First"><cem-option value="one">One</cem-option><cem-option value="two">Two</cem-option></cem-select><cem-select label="Second"><cem-option value="one">One</cem-option><cem-option value="two">Two</cem-option></cem-select></section>`,
     play: async ({ canvasElement }) => {

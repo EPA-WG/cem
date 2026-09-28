@@ -6073,3 +6073,58 @@ inventory audit is already reconciled, so further unchanged passing stress
 runs add little evidence. Recommended next independent work is the
 Storybook-owned accessible theme switcher in the declarative UI migration
 backlog; retain the diagnostic targets for recurrence investigation.
+
+
+### Gallery module-URL settlement recurrence
+
+Captured 2026-09-28 while verifying the new component-owned action gallery and
+select playground. The user requested stopping at open decisions.
+
+The full `@epa-wg/cem-components:verify-playgrounds` journey has passed from
+source and isolated package archives. Other runs timed out waiting for the
+canonical control-height token in the action gallery. The failure capture
+contained **zero stylesheet links**, rather than links still downloading. It
+also recurred with the obsolete external-font interceptor removed; that removal
+is fixture cleanup, not a proven correction.
+
+Six concurrent source-gallery probes then awaited the actual page runtime's
+declaration and render settlement. Five retained all four module URL slices and
+both stylesheet links. One retained `themeSwitchUrl`, `actionUrl` and `themeUrl`,
+with **no `stylesUrl` and no stylesheet links**. Its data island had revision 5,
+while the remaining declaration output carried revision 3. No declaration
+diagnostic was recorded. The authored template still contained all four URL
+controls and both conditional stylesheet links. The explicit JSON diagnostic
+capture is preserved locally in `/tmp/cem-gallery-loader-probes.log`; full
+journey logs are `/tmp/cem-playgrounds-complete.log` (failure) and
+`/tmp/cem-gallery-loader-trace.log` (complete passing run).
+
+The native `bindProcessingResourceControls` path starts one
+`startModuleUrlResource` per control. Each completion checks the original render
+token, writes its slice and immediately starts another render. This can
+invalidate still-pending siblings. The DOM fallback instead collects sibling
+module resolutions with `Promise.all` before applying them and requesting one
+render. The token-invalidation explanation is a working hypothesis supported
+by this code path and the captured partial state; a controlled resolver test
+must establish it before a runtime fix.
+
+**Decision approved (2026-09-28):** batch sibling module-URL results before
+rendering, matching the existing DOM fallback. Preserve render-token and
+disconnection guards, resolution diagnostics and source identity.
+
+The playground bootstrap now retains its actual runtime handle for lifecycle
+checks and failure summaries. Calling `installCemElementRuntime` again creates
+an unrelated runtime; it is not a getter for the runtime that owns the page.
+The verification helper uses the retained handle and reports URL slices,
+revision, stylesheet links and diagnostics on failure. No wait limit was raised.
+
+The controlled regression confirmed premature publication: resolving one URL
+while holding three siblings exposed its slice before the batch completed.
+The native path now resolves siblings concurrently, checks the original render
+token and connection once, then applies results and diagnostics before one
+render. Four browser stories cover atomic publication, disconnection, superseded
+renders and two failing siblings alongside successful results. All pass, as do
+74 main runtime stories and 31 action/select/form/validation stories. Source and
+isolated-package playground journeys pass after the fix; six concurrent gallery
+loads all retained both stylesheet links. Logs: `/tmp/cem-batch-guards.log`,
+`/tmp/cem-batch-uri.log`, `/tmp/cem-batch-final-stories.log`,
+`/tmp/cem-batch-playgrounds.log`, `/tmp/cem-batch-probes.json`.

@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-select — property playground</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window);
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .properties { display: grid; gap: var(--cem-dim-medium); align-content: start; }
+        .property-group { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+        .property-group > legend { margin-block-end: var(--cem-dim-small); font-weight: bold; }
+        .property-options { display: flex; flex-wrap: wrap; gap: var(--cem-dim-small); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=selectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.selectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.selectUrl}#cem-select"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
+<header>
+<h1><code>cem-select</code> playground</h1>
+<p>Change the properties, then choose an option in the live preview.</p>
+<p><a href="#examples">Examples and variations</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-select/cem-select.stories.ts">Automated stories</a></p>
+</header>
+<main>
+<cem-element>
+<template type="text/cem-ml">
+{slice @name=label | Person}
+{slice @name=placeholder | Choose a person}
+{slice @name=name | person}
+{slice @name=value | ada}
+{slice @name=autocomplete | off}
+{slice @name=indicator | underline}
+{slice @name=size | unset}
+{slice @name=multiple | false}
+{slice @name=disabled | false}
+{slice @name=required | false}
+{slice @name=busy | false}
+{slice @name=invalid | false}
+{slice @name=committed | No user change yet.}
+{div @class=workspace |
+    {section @class=properties @aria-label="Select properties" |
+        {h2 | Properties}
+        {cem-field @label="Label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+        {cem-field @label="Placeholder" @value="{$datadom.slices.placeholder}" @slice=placeholder @slice-event=input @slice-value="$target.value"}
+        {cem-field @label="Form name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
+        {cem-field @label="Value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
+        {cem-field @label="Autocomplete" @value="{$datadom.slices.autocomplete}" @slice=autocomplete @slice-event=input @slice-value="$target.value"}
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-indicator @slice=indicator @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-indicator | Indicator}
+            {div @class=property-options |
+                {cem-radio @name=select-property-indicator @value="underline" @checked=true | Underline}
+                {cem-radio @name=select-property-indicator @value="outline" | Outline}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-size @slice=size @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-size | Visible rows}
+            {div @class=property-options |
+                {cem-radio @name=select-property-size @value="unset" @checked=true | Default}
+                {cem-radio @name=select-property-size @value="1" | 1}
+                {cem-radio @name=select-property-size @value="4" | 4}
+                {cem-radio @name=select-property-size @value="6" | 6}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-multiple @slice=multiple @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-multiple | Multiple}
+            {div @class=property-options |
+                {cem-radio @name=select-property-multiple @value="false" @checked=true | False}
+                {cem-radio @name=select-property-multiple @value="true" | True}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-disabled @slice=disabled @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-disabled | Disabled}
+            {div @class=property-options |
+                {cem-radio @name=select-property-disabled @value="false" @checked=true | False}
+                {cem-radio @name=select-property-disabled @value="true" | True}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-required @slice=required @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-required | Required}
+            {div @class=property-options |
+                {cem-radio @name=select-property-required @value="false" @checked=true | False}
+                {cem-radio @name=select-property-required @value="true" | True}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-busy @slice=busy @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-busy | Busy}
+            {div @class=property-options |
+                {cem-radio @name=select-property-busy @value="false" @checked=true | False}
+                {cem-radio @name=select-property-busy @value="true" | True}
+            }
+        }
+        {fieldset @class=property-group @role=radiogroup @aria-labelledby=select-property-invalid @slice=invalid @slice-event=change @slice-value="$target.value" |
+            {legend @id=select-property-invalid | Invalid}
+            {div @class=property-options |
+                {cem-radio @name=select-property-invalid @value="false" @checked=true | False}
+                {cem-radio @name=select-property-invalid @value="true" | True}
+            }
+        }
+    }
+    {section @aria-label="Select preview" |
+        {h2 | Preview}
+        {form @id=select-preview-form @class=preview |
+            {cem-select @id=select-preview @label="{$datadom.slices.label}" @placeholder="{$datadom.slices.placeholder}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @autocomplete="{$datadom.slices.autocomplete}" @indicator="{$datadom.slices.indicator}" @size={if datadom.slices.size == "unset" { null } else { datadom.slices.size }} @multiple={if datadom.slices.multiple == "true" { true } else { null }} @disabled={if datadom.slices.disabled == "true" { true } else { null }} @required={if datadom.slices.required == "true" { true } else { null }} @busy={if datadom.slices.busy == "true" { true } else { null }} @invalid={if datadom.slices.invalid == "true" { true } else { null }} @describedby=select-preview-help @error={if datadom.slices.invalid == "true" { "select-preview-error" } else { null }} @slice=committed @slice-event=change @slice-value="$target.value" |
+                {span @slot=help @id=select-preview-help | Choose an available person.}
+                {cem-option @value="" | No selection}
+                {cem-option-group @label=Engineering |
+                    {cem-option @value=ada | {strong | Ada Lovelace}}
+                    {cem-option @value=grace | {strong | Grace Hopper}}
+                    {cem-option @value=unavailable @disabled=true | Unavailable person}
+                }
+            }
+            {cem:if @test='datadom.slices.invalid == "true"' | {p @id=select-preview-error | Example validation message: choose another person.}}
+        }
+        {p @id=select-committed @role=status | Last committed value: {$datadom.slices.committed}}
+        {p | Use Tab to focus the preview. In dropdown mode, Arrow keys preview options, Enter commits and Escape cancels. Multiple mode uses Space or click to toggle choices. Disabled choices are skipped.}
+        {p | Value sets one matching option (ada or grace); an unmatched value clears selection and shows the placeholder. An empty field removes the value attribute and retains the current selection. Choose No selection in the preview to commit an empty value. In multiple mode, use the listbox to choose several. Visible rows above 1 creates a persistent listbox. Multiple creates a listbox at any row setting.}
+        {p | Busy shows pending feedback. Invalid displays the example validation message; Required uses native form validation. Focus, hover and popup expansion follow real interaction.}
+    }
+}
+</template>
+</cem-element>
+<section id="examples">
+<h2>Examples and variations</h2>
+<div class="examples">
+<article><h3>Grouped rich choices</h3>
+<cem-select id="example-grouped" label="Reviewer" name="reviewer">
+<cem-option-group label="Engineering"><cem-option value="ada" selected><strong>Ada</strong> Lovelace</cem-option><cem-option value="grace"><strong>Grace</strong> Hopper</cem-option></cem-option-group>
+<cem-option-group label="Unavailable" disabled><cem-option value="retired">Former reviewer</cem-option></cem-option-group>
+</cem-select></article>
+<article><h3>Single listbox</h3>
+<cem-select id="example-single" label="Priority" size="4" indicator="outline">
+<cem-option value="low">Low</cem-option><cem-option value="normal" selected>Normal</cem-option><cem-option value="high">High</cem-option>
+</cem-select></article>
+<article><h3>Multiple listbox</h3>
+<cem-select id="example-multiple" label="Channels" multiple size="4">
+<cem-option value="email" selected>Email</cem-option><cem-option value="chat">Chat</cem-option><cem-option value="phone" disabled>Phone unavailable</cem-option>
+</cem-select></article>
+</div>
+</section>
+<cem-element>
+<template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem:if @test="datadom.slices.sourceUrl" |
+    {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
+    {cem-demo-element @legend="Canonical select source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template>
+</cem-element>
+</main>
+</cem-theme-switch>
+</body>
+</html>

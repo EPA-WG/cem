@@ -122,7 +122,18 @@ export const CEM_CHOICE_SELECT_CAPABILITY: CemProducedElementBehavior = {
             controlFor(instance)?.focus({ preventScroll: true });
         }
         if (state.expanded || state.mode !== 'dropdown') {
-            instance.querySelector<HTMLElement>(`#${cssEscape(activeOptionId(state))}`)?.scrollIntoView({ block: 'nearest' });
+            const option = instance.querySelector<HTMLElement>(`#${cssEscape(activeOptionId(state))}`);
+            const viewport = option?.closest<HTMLElement>('[role="listbox"]');
+            if (option && viewport) {
+                // Reveal the active row without scrolling ancestor containers
+                // or the document when an offscreen select renders.
+                const bounds = viewport.getBoundingClientRect();
+                const row = option.getBoundingClientRect();
+                const top = bounds.top + viewport.clientTop;
+                const bottom = top + viewport.clientHeight;
+                if (row.top < top) viewport.scrollTop += row.top - top;
+                else if (row.bottom > bottom) viewport.scrollTop += row.bottom - bottom;
+            }
         }
     },
     disconnected(instance) {

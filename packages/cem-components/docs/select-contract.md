@@ -59,6 +59,10 @@ Focus remains on the combobox/listbox and options use
 truthful `aria-expanded="true"`, `aria-controls`, and active-descendant target;
 closed dropdowns omit references to the absent popup.
 
+The active option is revealed within its popup or persistent listbox. Initial
+selection and keyboard navigation scroll that option container; mounting an
+offscreen select preserves the document and ancestor scroll positions.
+
 User commits dispatch bubbling `input`, then `change`. Programmatic setters,
 reset, and state restoration dispatch neither event.
 

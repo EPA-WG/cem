@@ -470,10 +470,13 @@ the canonical XHTML and colocated story structure.
 
 Open [`playgrounds/cem-action.html`](playgrounds/cem-action.html) through an HTTP
 server (including the IDE preview). Visible radio groups edit intent, bend,
-type, disabled, loading and expanded; a text field edits the label. Each group
+size, type, disabled, loading and selected; a text field edits the label. Each group
 uses native exclusive selection and arrow-key navigation. Hover, held pointer/Space
 and keyboard focus use native browser states. The source-only panel fetches the
-canonical XHTML; the full gallery link opens all 52 variation samples.
+canonical XHTML; the full gallery link opens the component-owned
+[attribute gallery](playgrounds/cem-action-gallery.html). It covers all 20
+explicitly implemented attributes, including selected/selectable presence,
+size profiles, disclosure/visibility and native form overrides.
 
 `yarn nx run @epa-wg/cem-components:build` generates `dist/cem-action.html` and
 `dist/cem-action-gallery.html` with package-relative module maps. Serve installed
@@ -481,14 +484,30 @@ packages over HTTP and open the first page. Public exports are
 `@epa-wg/cem-components/playgrounds/cem-action.html` and
 `@epa-wg/cem-components/playgrounds/cem-action-gallery.html`. The demo helper is
 a package dependency; the legacy adapter package is not required. The gallery
-retains a legacy icon declaration as a copied build asset during migration.
+is authored in this package and uses the same canonical action definition.
 
 `yarn nx run @epa-wg/cem-components:verify-playgrounds` tests real interactions
 and source display in the repository and in isolated npm package archives.
 
+## Select property playground
+
+Open [`playgrounds/cem-select.html`](playgrounds/cem-select.html) for one live
+select, its canonical source and grouped/single/multiple examples. Shared CEM
+controls edit label, placeholder, name, value, autocomplete,
+indicator, row count, multiple, disabled, required, busy and invalid state.
+Changes to selection remain native interactions; the last committed value is
+announced below the preview. Form validity and submitted values remain owned by
+the production select.
+
+The build exports `dist/cem-select.html` as
+`@epa-wg/cem-components/playgrounds/cem-select.html`. The playground verifier
+checks properties, form values, retained host identity, examples, source-only
+rendering and narrow layout in source and isolated-package previews.
+
 ## Playground theme switch
 
-Both the [action playground](playgrounds/cem-action.html) and the
+The [action playground](playgrounds/cem-action.html),
+[select playground](playgrounds/cem-select.html), action gallery and
 [theme-switch playground](playgrounds/cem-theme-switch.html) use the shared
 `cem-theme-switch` component. Light / Dark / Native are visible radio choices;
 Contrast selects the existing contrast variants. Native disables Contrast and

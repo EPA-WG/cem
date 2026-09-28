@@ -3650,24 +3650,17 @@ export class CemElementRuntime {
         controls: readonly CemProcessingResourceControl[],
         token: number,
     ): Promise<void> {
-        const settled: Promise<void>[] = [];
+        const modules = controls.filter(
+            (control): control is Extract<CemProcessingResourceControl, { kind: 'module-url' }> =>
+                control.kind === 'module-url',
+        );
+        const settled: Promise<void>[] = modules.length
+            ? [this.startModuleUrlResources(instance, compiled, modules, token)]
+            : [];
         const httpRequests = new Set<string>();
         const repositoryQueries = new Set<string>();
         const storageStatuses = new Set<string>();
         for (const control of controls) {
-            if (control.kind === 'module-url') {
-                settled.push(
-                    this.startModuleUrlResource(
-                        instance,
-                        compiled,
-                        control.sliceName,
-                        control.authoredSpecifier,
-                        control.referrer,
-                        token,
-                        control.referrerSelector,
-                    ),
-                );
-            }
             if (control.kind === 'http-request') {
                 httpRequests.add(control.sliceName);
                 settled.push(
@@ -3723,61 +3716,64 @@ export class CemElementRuntime {
         return settled.length === 0 ? Promise.resolve() : Promise.all(settled).then(() => undefined);
     }
 
-    private async startModuleUrlResource(
+    private async startModuleUrlResources(
         instance: HTMLElement,
         compiled: CompiledDeclaration,
-        sliceName: string,
-        specifier: string,
-        referrer: string | undefined,
+        controls: readonly Extract<CemProcessingResourceControl, { kind: 'module-url' }>[],
         token: number,
-        referrerSelector?: string,
     ): Promise<void> {
-        let value: string | undefined;
-        let error: unknown;
-        try {
-            const resolvedReferrer = this.moduleUrlControlReferrer(
-                instance,
-                referrer,
-                referrerSelector,
-            );
-            value = await this.resolveModuleUrl(specifier, instance, compiled, resolvedReferrer);
-        } catch (caught) {
-            error = caught;
-        }
+        // Commit siblings together: rendering one completion invalidates the
+        // original render token and would discard its still-pending siblings.
+        const results = await Promise.all(controls.map(async (control) => {
+            let value: string | undefined;
+            let error: unknown;
+            try {
+                const referrer = this.moduleUrlControlReferrer(
+                    instance, control.referrer, control.referrerSelector,
+                );
+                value = await this.resolveModuleUrl(control.authoredSpecifier, instance, compiled, referrer);
+            } catch (caught) {
+                error = caught;
+            }
+            return { control, value, error };
+        }));
         if (this.renderTokens.get(instance) !== token || !instance.isConnected) {
             return;
         }
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         let changed = false;
-        if (error !== undefined || value === undefined) {
-            if (Object.hasOwn(state.slices, sliceName)) {
-                delete state.slices[sliceName];
-                changed = true;
-            }
-            delete state.eventPayloads[sliceName];
-            this.recordDiagnostics(instance, [
-                resourceDiagnostic(
+        const diagnostics: CemElementDiagnostic[] = [];
+        for (const { control, value, error } of results) {
+            const { sliceName, authoredSpecifier: specifier, referrer, referrerSelector } = control;
+            if (error !== undefined || value === undefined) {
+                if (Object.hasOwn(state.slices, sliceName)) {
+                    delete state.slices[sliceName];
+                    changed = true;
+                }
+                delete state.eventPayloads[sliceName];
+                diagnostics.push(resourceDiagnostic(
                     'cem-element.module_url_resolve_failed',
                     `cem-module-url \`${specifier}\` could not be resolved: ${
                         error instanceof Error ? error.message : String(error)
                     }`,
                     compiled.producedTag,
-                ),
-            ]);
-        } else {
-            if (state.slices[sliceName] !== value) {
-                state.slices[sliceName] = value;
-                changed = true;
+                ));
+            } else {
+                if (state.slices[sliceName] !== value) {
+                    state.slices[sliceName] = value;
+                    changed = true;
+                }
+                state.eventPayloads[sliceName] = {
+                    type: 'module-url',
+                    src: specifier,
+                    referrer,
+                    ...(referrerSelector === undefined ? {} : { referrerSelector }),
+                    value,
+                };
             }
-            state.eventPayloads[sliceName] = {
-                type: 'module-url',
-                src: specifier,
-                referrer,
-                ...(referrerSelector === undefined ? {} : { referrerSelector }),
-                value,
-            };
         }
+        this.recordDiagnostics(instance, diagnostics);
         if (changed) {
             this.renderInstance(instance, compiled);
             await this.whenRenderSettled(instance);

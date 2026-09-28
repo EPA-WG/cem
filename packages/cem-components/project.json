@@ -21,11 +21,11 @@
             },
             "inputs": [
                 "{projectRoot}/playgrounds/**/*",
-                "{workspaceRoot}/packages/custom-element/material/components/{action,icon}.html",
-                "{workspaceRoot}/packages/custom-element/material/action.importmap.source.json"
+                "{workspaceRoot}/packages/custom-element/material/components/icon.html"
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-action.html",
+                "{projectRoot}/dist/cem-select.html",
                 "{projectRoot}/dist/cem-theme-switch.html",
                 "{projectRoot}/dist/cem-action-gallery.html",
                 "{projectRoot}/dist/icon.html"
