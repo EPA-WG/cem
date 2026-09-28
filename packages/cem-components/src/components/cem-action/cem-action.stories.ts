@@ -555,7 +555,7 @@ export const DestructivePendingModes = meta.story({
 
 export const PendingIntentThemeParity = meta.story({
     globals: { cemTheme: 'light' },
-    parameters: { docs: { description: { story: 'Loading preserves intent colors and motion when switching between matching normal and contrast themes.' } } },
+    parameters: { docs: { description: { story: 'Light contrast outlines brighten the loading stripe; normal fills and dark contours preserve their colors and all modes share motion parameters.' } } },
     render: () => '<section class="cem-theme-light"><cem-action loading="true">Loading</cem-action></section>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector<HTMLElement>('cem-action');
@@ -597,6 +597,14 @@ export const PendingIntentThemeParity = meta.story({
                     probe.style.color = `color-mix(in srgb, ${pending} ${weight}%, ${stripe})`;
                     await expect(colorContrast(getComputedStyle(probe).color, ink)).toBeGreaterThanOrEqual(4.5);
                 }
+                const expectedContour = [...normal];
+                if (scheme === 'light') {
+                    probe.style.color = `color-mix(in srgb, var(--cem-action-${intent}-active-background) 60%, var(--cem-color-white))`;
+                    const brighterStripe = getComputedStyle(probe).color;
+                    await expect(colorContrast(pending, brighterStripe), `${intent}: light outline separation`).toBeGreaterThan(3);
+                    await expect(brighterStripe).not.toBe(stripe);
+                    expectedContour[0] = normal[0].replaceAll(stripe, brighterStripe);
+                }
                 probe.remove();
                 intentImages.add(normal[0]);
                 images.set(`${scheme}-${intent}`, normal[0]);
@@ -604,7 +612,7 @@ export const PendingIntentThemeParity = meta.story({
                     host.toggleAttribute('disabled', disabled);
                     await whenCemRendered(host);
                     section.className = `cem-theme-contrast-${scheme}`;
-                    await expect(snapshot('::before')).toEqual(normal);
+                    await expect(snapshot('::before')).toEqual(expectedContour);
                     await expect(getComputedStyle(button, '::before').display).toBe('block');
                     section.className = `cem-theme-${scheme}`;
                     await expect(snapshot()).toEqual(normal);

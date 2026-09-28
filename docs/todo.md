@@ -8,6 +8,19 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Brighter light contrast loading outlines
+
+- [x] Decision: use 40% white for light contrast outline stripes only; preserve
+      ordinary fills and dark mode (user approved option 1).
+- [x] Fixture: every light contrast intent uses the brighter endpoint, with
+      stripe separation above 3:1; normal fills and dark contours retain their colors.
+- [x] Update theme recipes and documentation, verify, commit and push.
+
+All 17 action stories pass, including the explicit light-outline exception and
+restoration of ordinary fills after switching themes. Source and installed-package
+playgrounds pass visible-frame motion, reduced-motion and forced-colors checks.
+Package, style, material parity and lint pass (48 existing warnings, no errors).
+
 ## Completed: Sharper loading gradient and light contrast motion
 
 - [x] Apply the approved 20% hold / 60% blend / 20% hold pattern to all
