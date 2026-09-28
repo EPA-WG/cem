@@ -1,0 +1,16 @@
+{@doc cem-ml 1}
+{run |
+  {import @id=action-playground @src="cem-action.html" @content-type="text/html" |
+    {rewrite-importmap @id=package-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=playground-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=action-gallery @src="../../custom-element/material/components/action.html" @content-type="text/html" |
+    {rewrite-importmap @id=gallery-map @source-map="../../custom-element/material/action.importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=gallery-html @out="../dist/cem-action-gallery.html" @content-type="text/html"}
+    }
+  }
+  {import @id=legacy-icon @src="../../custom-element/material/components/icon.html" @content-type="text/html" @opaque=true |
+    {export @id=icon-html @out="../dist/icon.html" @content-type="text/html"}
+  }
+}

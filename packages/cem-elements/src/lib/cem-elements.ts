@@ -9393,6 +9393,18 @@ function isWordBoundary(value: string | undefined): boolean {
     return value === undefined || !/[A-Za-z0-9_-]/.test(value);
 }
 
+/** Event values come from live native or form-associated custom controls. */
+function formControlEventValue(target: EventTarget | null): string | null {
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+        return target.value;
+    }
+    if (target instanceof HTMLElement && (target.constructor as typeof HTMLElement & { formAssociated?: boolean }).formAssociated === true) {
+        const value = (target as HTMLElement & { value?: unknown }).value;
+        return typeof value === 'string' ? value : null;
+    }
+    return null;
+}
+
 function evaluateSliceEventValue(
     expression: string | null,
     event: Event,
@@ -9406,14 +9418,7 @@ function evaluateSliceEventValue(
         }
     }
     if (expression === null) {
-        if (
-            target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement ||
-            target instanceof HTMLSelectElement
-        ) {
-            return target.value;
-        }
-        return target instanceof Element ? target.getAttribute('value') : null;
+        return formControlEventValue(target) ?? (target instanceof Element ? target.getAttribute('value') : null);
     }
     return evaluateSliceValue(expression, event, slices);
 }
@@ -9460,11 +9465,7 @@ function evaluateSliceAtom(expression: string, event: Event, slices: Record<stri
         return target instanceof HTMLInputElement ? target.checked : null;
     }
     if (body === '$target.value') {
-        return target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement ||
-            target instanceof HTMLSelectElement
-            ? target.value
-            : null;
+        return formControlEventValue(target);
     }
     if (/^\$[A-Za-z_][\w.-]*$/.test(body)) {
         return toTemplateValue(slices[body.slice(1)]);
@@ -9587,13 +9588,7 @@ function parseConcatArguments(value: string): string[] | null {
 
 function eventAliasValue(name: string, event: Event, target: EventTarget | null): unknown {
     if (name === 'value') {
-        return target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement ||
-            target instanceof HTMLSelectElement
-            ? target.value
-            : target instanceof Element
-              ? target.getAttribute('value')
-              : null;
+        return formControlEventValue(target) ?? (target instanceof Element ? target.getAttribute('value') : null);
     }
     if (name === 'checked') {
         return target instanceof HTMLInputElement ? target.checked : null;
@@ -9661,12 +9656,7 @@ function serializeEventTarget(target: EventTarget | null): SerializedEventTarget
         id: target.getAttribute('id'),
         name: target.getAttribute('name'),
         type: target instanceof HTMLInputElement ? target.type : target.getAttribute('type'),
-        value:
-            target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement ||
-            target instanceof HTMLSelectElement
-                ? target.value
-                : null,
+        value: formControlEventValue(target),
         checked: target instanceof HTMLInputElement ? target.checked : null,
         dataset: target instanceof HTMLElement ? datasetEntries(target) : {},
     };

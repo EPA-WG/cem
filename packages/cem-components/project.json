@@ -4,8 +4,56 @@
     "sourceRoot": "packages/cem-components/src",
     "projectType": "library",
     "targets": {
+        "build:playgrounds": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                {
+                    "projects": [
+                        "cem_ml_cli"
+                    ],
+                    "target": "build"
+                }
+            ],
+            "options": {
+                "cwd": "{projectRoot}",
+                "command": "../../dist/target/cem_ml_cli/debug/cem-ml transform --config playgrounds/importmap.transform.cem"
+            },
+            "inputs": [
+                "{projectRoot}/playgrounds/**/*",
+                "{workspaceRoot}/packages/custom-element/material/components/{action,icon}.html",
+                "{workspaceRoot}/packages/custom-element/material/action.importmap.source.json"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/cem-action.html",
+                "{projectRoot}/dist/cem-action-gallery.html",
+                "{projectRoot}/dist/icon.html"
+            ]
+        },
+        "verify-playgrounds": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build"
+            ],
+            "options": {
+                "command": "node ../../tools/scripts/verify-cem-component-playgrounds.mjs",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/playgrounds/**/*",
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                "{projectRoot}/package.json",
+                "{projectRoot}/src/components/**/*.xhtml",
+                {
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
+                }
+            ],
+            "outputs": []
+        },
         "build": {
-            "dependsOn": ["^build", "build:styles", "build:catalog"]
+            "dependsOn": ["^build", "build:styles", "build:catalog", "build:playgrounds"]
         },
         "test": {
             "dependsOn": [
@@ -508,6 +556,9 @@
             },
             "inputs": [
                 "{projectRoot}/scripts/verify-package.mjs",
+                "{projectRoot}/playgrounds/**/*",
+                "{projectRoot}/dist/*.html",
+                "{projectRoot}/src/components/**/*.xhtml",
                 "{projectRoot}/package.json",
                 "{projectRoot}/src/index.ts",
                 "{projectRoot}/src/lib/cem-components.ts",

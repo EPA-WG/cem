@@ -279,3 +279,43 @@ four other failures (HTTP/local-storage samples and stylesheet staging); all
 seven stories in those three files passed on focused rerun, and the later full
 run passed them. No runtime source changed in this cutover. The runtime aggregate
 is not claimed green; the remaining instability is recorded in TODO.
+
+## Action property playground and source view
+
+The companion page is `packages/cem-components/playgrounds/cem-action.html`.
+It uses the canonical action, canonical select and the existing shared field.
+Seven public options update one stable native preview button: intent, bend,
+label, type, disabled, loading and expanded. Hover, held pointer and keyboard
+focus remain native interactions. The source-only viewer is a static sibling
+of the reactive form and reads the canonical XHTML without executing a second
+copy. The full gallery link is available at the top of the page.
+
+Native import-map rewriting emits `dist/cem-action.html` and
+`dist/cem-action-gallery.html`. The latter uses the existing Material source
+and a byte-preserved icon resource; both pages load the canonical action.
+Source, maps and build configuration ship with the package. The demo helper is
+a direct dependency; the legacy adapter is not a package dependency. Public
+exports expose both interactive pages. The legacy notice links the live page
+in repository previews and its source in the standalone adapter archive.
+
+The playground exposed a shared event binding gap: native controls supplied
+`$target.value`, but form-associated custom controls did not. The runtime now
+reads their live string value in direct bindings, aliases, default slice values
+and serialized event targets. Two new DOM/CEM-ML stories failed before the fix
+and pass after it, alongside five existing input-value stories. Non-form and
+object-valued targets retain the explicit boundary.
+
+Verification: runtime typecheck/lint pass; the component architecture and package
+gates pass (79 packed files). `verify-playgrounds` exercises the repository and
+five isolated npm archives, all properties, node identity, native states, source
+bytes, a single action instance, the 52-button gallery and reciprocal links.
+The adapter test and installed-consumer gates pass (220 locked files). DevTools
+verified the IDE page renders its controls, preview and ready source viewer.
+
+The combined `#ID` release document and select companion remain open TODO work.
+
+The final full `cem-elements:test` run passes all 314 stories across 67 files,
+including the six action stories and the new custom-control event cases. This
+run also passes the previously intermittent stylesheet hydration case; its
+separate investigation remains open because one passing run does not explain
+the earlier failure.

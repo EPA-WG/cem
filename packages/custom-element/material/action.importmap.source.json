@@ -4,6 +4,7 @@
         "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
         "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
         "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css",
-        "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml"
+        "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-playground": "../../../cem-components/playgrounds/cem-action.html"
     }
 }

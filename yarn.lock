@@ -1356,13 +1356,13 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-components@workspace:packages/cem-components"
   dependencies:
-    "@epa-wg/cem-demo-element": "workspace:^"
+    "@epa-wg/cem-demo-element": "npm:^0.1.1"
     "@epa-wg/cem-elements": "npm:^0.1.1"
     "@epa-wg/cem-theme": "npm:^0.1.1"
   languageName: unknown
   linkType: soft
 
-"@epa-wg/cem-demo-element@workspace:^, @epa-wg/cem-demo-element@workspace:packages/cem-demo-element":
+"@epa-wg/cem-demo-element@npm:^0.1.1, @epa-wg/cem-demo-element@workspace:^, @epa-wg/cem-demo-element@workspace:packages/cem-demo-element":
   version: 0.0.0-use.local
   resolution: "@epa-wg/cem-demo-element@workspace:packages/cem-demo-element"
   dependencies:

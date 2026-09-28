@@ -465,3 +465,22 @@ The accepted [component development pattern](../../docs/component-development-pa
 separate from a companion property playground and source view. A generated
 `#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
 the canonical XHTML and colocated story structure.
+
+## Action property playground
+
+Open [`playgrounds/cem-action.html`](playgrounds/cem-action.html) through an HTTP
+server (including the IDE preview). The form edits one action's intent, bend,
+label, type, disabled, loading and expanded attributes. Hover, held pointer/Space
+and keyboard focus use native browser states. The source-only panel fetches the
+canonical XHTML; the full gallery link opens all 52 variation samples.
+
+`yarn nx run @epa-wg/cem-components:build` generates `dist/cem-action.html` and
+`dist/cem-action-gallery.html` with package-relative module maps. Serve installed
+packages over HTTP and open the first page. Public exports are
+`@epa-wg/cem-components/playgrounds/cem-action.html` and
+`@epa-wg/cem-components/playgrounds/cem-action-gallery.html`. The demo helper is
+a package dependency; the legacy adapter package is not required. The gallery
+retains a legacy icon declaration as a copied build asset during migration.
+
+`yarn nx run @epa-wg/cem-components:verify-playgrounds` tests real interactions
+and source display in the repository and in isolated npm package archives.

@@ -538,3 +538,13 @@ unchanged. Empty/null slice writes remove the key, while a native JSON-null
 node writes the literal `null`. Scalar storage types retain their established
 browser-input coercion. Native event values target slices; native component
 attributes use CEMT attribute construction.
+
+### Form-associated custom control event values
+
+Declarative event bindings read a live string `value` from native inputs,
+textareas, selects and custom controls whose constructor declares
+`static formAssociated = true`. This applies to `$target.value`, value aliases,
+the default slice value and serialized event targets. It lets a parent bind a
+`cem-select` change directly to its own slice. Non-string custom values are not
+serialized as event target values; ordinary elements retain attribute fallback
+only for default values and aliases.

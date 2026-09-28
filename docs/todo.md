@@ -199,13 +199,22 @@ gallery cases; the existing `embedded-xsl` fixture actually contains CEM-ML.
       component, and document the same transition step for other Material pages.
 - [ ] Implement the accepted [component development pattern](component-development-pattern.md)
       first for `cem-action`, then apply it to `cem-select` and future components.
-    - [ ] Fixture: companion property form drives one canonical action instance
+    - [x] Fixture: event bindings read the live string value of form-associated
+          custom controls through `$target.value`, value aliases, defaults and
+          serialized event targets; retain native input behavior and reject
+          non-form/object-valued targets.
+    - [x] Fixture: companion property form drives one canonical action instance
           across intent, bend, label, type, disabled, loading and expanded;
           native hover/active/keyboard focus remain usable.
-    - [ ] Fixture: source-only view fetches the canonical XHTML without executing
+    - [x] Fixture: ship the full action gallery and its icon declaration with
+          the component playground, using native import-map rewriting; verify
+          isolated archive loading without the legacy package installed.
+    - [x] Fixture: source-only view fetches the canonical XHTML without executing
           another declaration; link the full demo and verify IDE/module-map and
           packaged preview loading. Update the legacy Material page to link
           the new playground when available.
+    - [ ] Fixture: apply the companion property playground/source-view pattern
+          to `cem-select`, including source and isolated package preview checks.
     - [ ] Fixture: generate the release XHTML bundle through the CEM AST pipeline
           and compare individual versus `#ID` loading, relative dependencies,
           style ownership and duplicate registration; ship source and playground.

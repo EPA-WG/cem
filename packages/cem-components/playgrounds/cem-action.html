@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-action — property playground</title>
+    <script type="importmap">{
+        "imports": {
+                "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+                "@epa-wg/cem-components": "../dist/lib/primitives.js",
+                "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+                "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+                "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+                "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+                "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+                "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
+                "@epa-wg/cem-components/action-playground": "./cem-action.html"
+        }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        await installCemComponentPrimitives(installCemElementRuntime(window));
+    </script>
+    <style>
+        body { margin: var(--cem-dim-large); font-family: system-ui, sans-serif; }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .properties { display: grid; gap: var(--cem-dim-medium); align-content: start; }
+        .workspace > section:last-child { position: sticky; top: var(--cem-dim-medium); align-self: start; }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } .workspace > section:last-child { position: static; } }
+    </style>
+</head>
+<body class="cem-theme-light">
+<header><h1><code>cem-action</code> playground</h1>
+<p>Change the properties to try one live action. The source panel shows the production definition.</p>
+<cem-element>
+<template type="text/cem-ml">
+{cem-module-url @slice=demoUrl @src="@epa-wg/cem-components/action-demo"}
+{cem:if @test="datadom.slices.demoUrl" | {p | {a @href="{$datadom.slices.demoUrl}" | Full examples and variation matrix (legacy gallery)}}}
+</template>
+</cem-element>
+</header>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem-module-url @slice=selectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.selectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.selectUrl}#cem-select"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+<main>
+<cem-element>
+<template type="text/cem-ml">
+{slice @name=intent | primary}
+{slice @name=bend | smooth}
+{slice @name=type | button}
+{slice @name=disabled | false}
+{slice @name=loading | false}
+{slice @name=expanded | unset}
+{slice @name=label | Save changes}
+{div @class=workspace |
+    {section @class=properties @aria-label="Action properties" |
+        {h2 | Properties}
+        {cem-field @label="Label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-select @label="Intent" @value="{$datadom.slices.intent}" @slice=intent @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=primary | Primary}
+    {cem-option @value=explicit | Explicit}
+    {cem-option @value=contextual | Contextual}
+    {cem-option @value=alternate | Alternate}
+    {cem-option @value=destructive | Destructive}
+}
+{cem-select @label="Bend" @value="{$datadom.slices.bend}" @slice=bend @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=sharp | Sharp}
+    {cem-option @value=smooth | Smooth}
+    {cem-option @value=round | Round}
+}
+{cem-select @label="Button type" @value="{$datadom.slices.type}" @slice=type @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=button | Button}
+    {cem-option @value=submit | Submit}
+    {cem-option @value=reset | Reset}
+}
+{cem-select @label="Disabled" @value="{$datadom.slices.disabled}" @slice=disabled @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=false | False}
+    {cem-option @value=true | True}
+}
+{cem-select @label="Loading" @value="{$datadom.slices.loading}" @slice=loading @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=false | False}
+    {cem-option @value=true | True}
+}
+{cem-select @label="Expanded" @value="{$datadom.slices.expanded}" @slice=expanded @slice-event=change @slice-value="$target.value" |
+    {cem-option @value=unset | Unset}
+    {cem-option @value=false | False}
+    {cem-option @value=true | True}
+}
+    }
+    {section @aria-label="Action preview" |
+        {h2 | Preview}
+        {div @class=preview |
+            {cem-action @id=action-preview @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @loading="{$datadom.slices.loading}" @expanded={if datadom.slices.expanded == "unset" { null } else { datadom.slices.expanded }} }
+        }
+        {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
+        {p | Submit and reset can be inspected here; this preview is outside a form. Form behavior is covered in the automated stories.}
+        {p | {a @href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.stories.ts" | Automated stories}}
+    }
+}
+</template>
+</cem-element>
+<p><a href="../src/components/cem-action/cem-action.xhtml">Open canonical XHTML</a></p>
+<cem-demo-element legend="Canonical action source" src="../src/components/cem-action/cem-action.xhtml" type="xml" demo="false"></cem-demo-element>
+</main>
+</body>
+</html>

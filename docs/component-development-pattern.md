@@ -66,6 +66,16 @@ style ownership and duplicate-registration behavior before publishing it.
 ## Delivery status
 
 The source/test split is implemented for `cem-select` and `cem-action`.
-The companion property playground and combined release document are accepted
-next work, tracked in [todo.md](todo.md). Existing action examples already load
-the canonical declaration. They remain at the compatibility gallery URL.
+The action companion is implemented at
+`packages/cem-components/playgrounds/cem-action.html`. Its property form uses
+`cem-select` and the existing `cem-field` control. The source viewer is a static
+sibling of the reactive form, so parent updates do not own its rendered regions.
+The package publishes `dist/cem-action.html` and `dist/cem-action-gallery.html`;
+the native build rewrites page-level import maps and copies the gallery's legacy
+icon resource. Both pages load the canonical action definition. Source files and
+build maps ship alongside them. No dependency on `custom-element` is added.
+
+The select companion and combined release document remain next work in
+[todo.md](todo.md). The original Material action URL remains available and links
+the playground. In the standalone legacy adapter archive, that link opens the
+repository source; the CEM component package includes both interactive pages.

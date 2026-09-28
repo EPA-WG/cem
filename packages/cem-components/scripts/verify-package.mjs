@@ -282,6 +282,15 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
+    for (const page of ['cem-action.html', 'cem-action-gallery.html']) {
+        if (packageJson.exports?.[`./playgrounds/${page}`] !== `./dist/${page}` || !packedFiles.includes(`dist/${page}`)) {
+            throw new Error(`npm pack must expose the built playground ${page}`);
+        }
+    }
+    for (const source of ['playgrounds/cem-action.html', 'playgrounds/importmap.source.json', 'playgrounds/importmap.package.json', 'playgrounds/importmap.transform.cem', 'dist/icon.html']) {
+        if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
+    }
+
     for (const declaration of packedDeclarations) {
         if (!packedFiles.includes(declaration)) {
             throw new Error(`npm pack must contain the public declarative component ${declaration}`);

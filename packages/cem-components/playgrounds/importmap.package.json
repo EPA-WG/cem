@@ -1,0 +1,14 @@
+{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "./lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "./styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html"
+    }
+}

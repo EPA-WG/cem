@@ -28,20 +28,21 @@ Action variation
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
     <title>Legacy action demo — CEM Material gallery</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="../../demo/wc-square.svg" rel="icon"/>
+    <link href="data:," rel="icon"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=shift" />    <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
           integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
     <script type="importmap">
-        {
-          "imports": {
-            "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml",
-            "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
-            "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
-            "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
-            "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css"
-          }
+{
+        "imports": {
+                "@epa-wg/cem-elements": "../../../cem-elements/dist/index.js",
+                "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+                "@epa-wg/cem-demo-element": "../../../cem-demo-element/dist/index.js",
+                "@epa-wg/cem-theme/styles.css": "../../../cem-theme/dist/lib/css/cem-combined.css",
+                "@epa-wg/cem-components/components/cem-action": "../../../cem-components/src/components/cem-action/cem-action.xhtml",
+                "@epa-wg/cem-components/action-playground": "../../../cem-components/playgrounds/cem-action.html"
         }
+}
     </script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
@@ -96,6 +97,10 @@ ToDO
         <p><strong>Legacy Material demo.</strong> This compatibility gallery is retained during migration.
             Use the canonical <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-action/cem-action.xhtml">cem-action component in cem-components</a>
             for new work.</p>
+        <cem-element><template type="text/cem-ml">
+{cem-module-url @slice=playgroundUrl @src="@epa-wg/cem-components/action-playground"}
+{cem:if @test="datadom.slices.playgroundUrl" | {p | {a @href="{$datadom.slices.playgroundUrl}" | Action property playground and source}}}
+        </template></cem-element>
         <p><code>cem-action</code> is the canonical action from <code>@epa-wg/cem-components</code>, loaded by &lt;cem-element&gt;. This page retains the Material example gallery based on the
             <a href="https://m3.material.io/components/buttons/overview">Material Design specification for buttons</a>.<br/>
             Action triggers the flow by changing the data <var>slice</var> or following the <var>href</var> attribute URL.

@@ -86,3 +86,9 @@ The action page is marked **Legacy Material demo** and links to its canonical
 each Material page as its component migrates, including examples hosted under
 `cem-elements`. Link the new companion playground when available. Follow the
 [Material demo transition pattern](../../../docs/component-development-pattern.md#material-demo-transition).
+
+The action notice now links the property playground. Repository previews open
+`cem-components/playgrounds/cem-action.html`; the standalone legacy archive
+links its repository source. The `cem-components` package itself ships working
+playground and full-gallery pages with reciprocal local links, without requiring
+the legacy adapter package to be installed.

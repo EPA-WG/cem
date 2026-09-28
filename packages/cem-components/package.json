@@ -25,19 +25,20 @@
         },
         "./components/*": "./src/components/*/*.xhtml",
         "./styles.css": "./dist/styles.css",
-        "./catalog/cem.components.catalog.json": "./dist/catalog/cem.components.catalog.json"
+        "./catalog/cem.components.catalog.json": "./dist/catalog/cem.components.catalog.json",
+        "./playgrounds/cem-action.html": "./dist/cem-action.html",
+        "./playgrounds/cem-action-gallery.html": "./dist/cem-action-gallery.html"
     },
     "files": [
         "dist",
         "src/components/**/*.xhtml",
-        "!**/*.tsbuildinfo"
+        "!**/*.tsbuildinfo",
+        "playgrounds"
     ],
     "dependencies": {
+        "@epa-wg/cem-demo-element": "^0.1.1",
         "@epa-wg/cem-elements": "^0.1.1",
         "@epa-wg/cem-theme": "^0.1.1"
-    },
-    "devDependencies": {
-        "@epa-wg/cem-demo-element": "workspace:^"
     },
     "publishConfig": {
         "access": "public"
