@@ -439,3 +439,10 @@ aria-label names, and alternate actions demonstrate ordinary child text with ico
 
 The gallery verification inventory is now eight samples and 43 buttons.
 Source and isolated-package playground/gallery checks pass.
+
+## Action variations matrix contains intent and shape
+
+Removed the disabled column from the action variations matrix. It now compares
+five intents across three shapes (15 actions). Disabled examples remain in the
+Interaction states sample. The full gallery contains eight samples and 38 buttons.
+Source and isolated-package playground/gallery verification passes.

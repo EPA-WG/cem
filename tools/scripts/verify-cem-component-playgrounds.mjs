@@ -161,7 +161,7 @@ async function verify(url) {
         const gallery = await page.getByRole('link', { name: 'Full examples and variation matrix (legacy gallery)' }).getAttribute('href');
         await page.route(/https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|use\.fontawesome\.com)\//, route => route.fulfill({ contentType: 'text/css', body: '' }));
         await page.goto(gallery);
-        await page.waitForFunction(() => document.querySelectorAll('cem-demo-element [slot=demo] button').length === 43);
+        await page.waitForFunction(() => document.querySelectorAll('cem-demo-element [slot=demo] button').length === 38);
         assert.equal(await page.locator('cem-demo-element').count(), 8);
         const returnLink = page.getByRole('link', { name: 'Action property playground and source' });
         await returnLink.waitFor();

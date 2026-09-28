@@ -10,6 +10,9 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Keep the action variations matrix limited to intent and shape; remove its
+      disabled column, retain interaction-state examples, and verify both galleries.
+
 - [x] Remove the unsupported action alignment demo and redundant icon-example
       labels; retain the fallback-label example and verify the source/package gallery.
 

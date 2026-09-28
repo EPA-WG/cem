@@ -237,46 +237,42 @@ ToDO
     <cem-demo-element legend="Action variations matrix">
         <p slot="description">Compare all five CEM action intents. Hover, press or
             Tab to an enabled control to compare its states. Each row uses one
-            intent across sharp, smooth, round and disabled controls.</p>
+            intent across sharp, smooth and round shapes. Disabled examples are in
+            the Interaction states sample.</p>
         <template>
 <table>
-    <caption>Action intent × shape and availability</caption>
-    <thead><tr><th scope="col">Intent</th><th scope="col">Sharp</th><th scope="col">Smooth</th><th scope="col">Round</th><th scope="col">Disabled</th></tr></thead>
+    <caption>Action intent × shape</caption>
+    <thead><tr><th scope="col">Intent</th><th scope="col">Sharp</th><th scope="col">Smooth</th><th scope="col">Round</th></tr></thead>
     <tbody>
     <tr>
         <th scope="row">Primary</th>
         <td><cem-action variant="primary" class="cem-bend-sharp">Primary</cem-action></td>
         <td><cem-action variant="primary" class="cem-bend-smooth">Primary</cem-action></td>
         <td><cem-action variant="primary" class="cem-bend-round">Primary</cem-action></td>
-        <td><cem-action variant="primary" disabled>Primary</cem-action></td>
     </tr>
     <tr>
         <th scope="row">Explicit</th>
         <td><cem-action variant="explicit" class="cem-bend-sharp">Explicit</cem-action></td>
         <td><cem-action variant="explicit" class="cem-bend-smooth">Explicit</cem-action></td>
         <td><cem-action variant="explicit" class="cem-bend-round">Explicit</cem-action></td>
-        <td><cem-action variant="explicit" disabled>Explicit</cem-action></td>
     </tr>
     <tr>
         <th scope="row">Contextual</th>
         <td><cem-action variant="contextual" class="cem-bend-sharp">Contextual</cem-action></td>
         <td><cem-action variant="contextual" class="cem-bend-smooth">Contextual</cem-action></td>
         <td><cem-action variant="contextual" class="cem-bend-round">Contextual</cem-action></td>
-        <td><cem-action variant="contextual" disabled>Contextual</cem-action></td>
     </tr>
     <tr>
         <th scope="row">Alternate</th>
         <td><cem-action variant="alternate" class="cem-bend-sharp">Alternate</cem-action></td>
         <td><cem-action variant="alternate" class="cem-bend-smooth">Alternate</cem-action></td>
         <td><cem-action variant="alternate" class="cem-bend-round">Alternate</cem-action></td>
-        <td><cem-action variant="alternate" disabled>Alternate</cem-action></td>
     </tr>
     <tr>
         <th scope="row">Destructive (danger)</th>
         <td><cem-action variant="destructive" class="cem-bend-sharp">Destructive (danger)</cem-action></td>
         <td><cem-action variant="destructive" class="cem-bend-smooth">Destructive (danger)</cem-action></td>
         <td><cem-action variant="destructive" class="cem-bend-round">Destructive (danger)</cem-action></td>
-        <td><cem-action variant="destructive" disabled>Destructive (danger)</cem-action></td>
     </tr>
     </tbody>
 </table>
