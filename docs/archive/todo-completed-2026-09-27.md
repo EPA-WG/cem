@@ -446,3 +446,13 @@ Removed the disabled column from the action variations matrix. It now compares
 five intents across three shapes (15 actions). Disabled examples remain in the
 Interaction states sample. The full gallery contains eight samples and 38 buttons.
 Source and isolated-package playground/gallery verification passes.
+
+## Legacy custom-element license alignment
+
+At the user's direction, the current custom-element package now uses the
+repository MIT license text and package metadata. All eight Material demo
+footers identify MIT. Active package guidance is updated; historical snapshot
+records retain the original license with an explicit current-license note.
+Third-party vendor licenses are unchanged. Verified exact root/package license
+text equality, MIT package metadata, all eight footer references and clean diff
+formatting.

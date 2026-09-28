@@ -10,6 +10,10 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
 ## Immediate: Legacy Demo Case Coverage
 
+- [x] Align the legacy custom-element package license and all eight Material
+      demo footers with the repository MIT license; clarify historical records.
+      Verified matching license text, package metadata and footer references.
+
 - [x] Keep the action variations matrix limited to intent and shape; remove its
       disabled column, retain interaction-state examples, and verify both galleries.
 

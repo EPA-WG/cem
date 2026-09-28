@@ -291,9 +291,10 @@ prove the final byte inventory.
 
 ## npm Identity And Public Surface
 
-The accepted identity rules are:
+The accepted identity rules are (license updated to MIT on 2026-09-27 by
+user instruction, superseding the original Apache-2.0 preservation rule):
 
-- preserve the package name `@epa-wg/custom-element`, Apache-2.0 license,
+- preserve the package name `@epa-wg/custom-element`, MIT license,
   author/funding metadata, public `<custom-element>` tag, and browser entrypoint
   filenames;
 - keep `.` -> `index.js`, `./CustomElement` -> `custom-element.js`, and

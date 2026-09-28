@@ -1,5 +1,8 @@
 # `@epa-wg/custom-element` Package Baseline
 
+> License update (2026-09-27): the current monorepo package uses MIT, matching
+> the repository license. Apache-2.0 references below describe historical snapshots.
+
 > HTTP update (2026-09-17): standalone `http-request.js` is retired and its
 > examples use `cem-elements`. Historical package inventories below preserve
 > their original snapshot. See the [current loader plan](cem-data-loader-plan.md).
