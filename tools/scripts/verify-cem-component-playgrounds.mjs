@@ -390,6 +390,26 @@ async function verify(url) {
             assert.match(contour.image, /linear-gradient\(45deg/);
             assert.equal(contour.fill, contour.surface);
             await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button'), '::before').backgroundPositionX !== position, contour.position);
+            for (const intent of ['Primary', 'Explicit', 'Contextual', 'Alternate', 'Destructive']) {
+                await choose('Intent', intent);
+                await page.waitForFunction(intent => document.querySelector('#action-preview')?.getAttribute('variant') === intent, intent.toLowerCase());
+                await button.evaluate(node => {
+                    for (const animation of node.getAnimations({ subtree: true })) {
+                        animation.pause();
+                        animation.currentTime = 125;
+                    }
+                });
+                const firstFrame = await button.screenshot({ animations: 'allow' });
+                await button.evaluate(node => {
+                    for (const animation of node.getAnimations({ subtree: true })) animation.currentTime = 625;
+                });
+                const secondFrame = await button.screenshot({ animations: 'allow' });
+                assert(!firstFrame.equals(secondFrame), `${mode} ${intent}: loading contour must visibly move`);
+                await button.evaluate(node => {
+                    for (const animation of node.getAnimations({ subtree: true })) animation.play();
+                });
+            }
+            await choose('Intent', 'Primary');
         }
         assert.equal(await label.inputValue(), 'Publish now');
         assert.equal(await button.innerText(), 'Publish now');

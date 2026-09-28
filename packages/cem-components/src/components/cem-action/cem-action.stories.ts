@@ -578,6 +578,8 @@ export const PendingIntentThemeParity = meta.story({
                 section.className = `cem-theme-${scheme}`;
                 const normal = snapshot();
                 await expect(normal[0]).toContain('linear-gradient(45deg');
+                await expect([...normal[0].matchAll(/ (\d+)%/g)].map(match => Number(match[1])))
+                    .toEqual([0, 5, 20, 30, 45, 55, 70, 80, 95, 100]);
                 const probe = document.createElement('span');
                 section.append(probe);
                 const readColor = (state: string) => {

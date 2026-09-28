@@ -8,6 +8,21 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Sharper loading gradient and light contrast motion
+
+- [x] Apply the approved 20% hold / 60% blend / 20% hold pattern to all
+      action loading gradients and theme previews, preserving endpoints/timing.
+- [x] Fixture: verify solid color holds and actual painted motion for every
+      intent in light/dark contrast playgrounds; investigate reported static light mode.
+- [x] Verify browser/package checks, commit and push.
+
+Chromium showed moving pixels for all five intents in both contrast modes before
+and after the change; a stopped light-mode animation was not reproduced. The new
+solid color holds make stripe boundaries sharper without changing the palette,
+text contrast, timing or reduced-motion behavior. All 17 action stories and
+source/installed-package playground checks pass, including actual frame comparisons,
+plus package, style, material parity and lint (no errors; 48 existing warnings).
+
 ## Completed: Stronger loading stripe contrast
 
 - [x] Fixture: assert stripe separation above 1.8:1 and text contrast of at least
