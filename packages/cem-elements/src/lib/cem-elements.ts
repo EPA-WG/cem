@@ -4191,6 +4191,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         element: Element,
     ): void {
+        if (!this.ownsRenderedElement(instance, element)) return;
         const rawTargets = renderedBindingAttribute(element, 'slice') ?? '';
         const sliceNames = parseSliceTargets(rawTargets);
         const attributeNames = parseSliceAttributeTargets(rawTargets);
@@ -4335,7 +4336,7 @@ export class CemElementRuntime {
         compiled: CompiledDeclaration,
         form: HTMLFormElement,
     ): void {
-        if (!this.ownsRenderedFormElement(instance, form)) return;
+        if (!this.ownsRenderedElement(instance, form)) return;
         const sliceNames = parseSliceTargets(form.getAttribute('slice') ?? '');
         if (sliceNames.length > 0) {
             this.formSliceNames.set(form, sliceNames);
@@ -4434,6 +4435,7 @@ export class CemElementRuntime {
         const localStorageSlices = new Set<string>();
         let locationWriter = 0;
         for (const element of resourceElements) {
+            if (!this.ownsRenderedElement(instance, element)) continue;
             const localName = element.localName;
             const sliceName = element.getAttribute('slice')?.trim() ?? '';
             const specifier = element.getAttribute('src')?.trim() ?? '';
@@ -6437,7 +6439,7 @@ export class CemElementRuntime {
         }
         let applied = false;
         for (const element of renderedElementsBetween(bounds, 'form,input,select,textarea,button,fieldset')) {
-            if (!this.ownsRenderedFormElement(instance, element)) continue;
+            if (!this.ownsRenderedElement(instance, element)) continue;
             const expression = this.customValidityExpressions.get(element) ?? element.getAttribute('custom-validity');
             if (expression === null || expression === undefined) {
                 continue;
@@ -6467,14 +6469,14 @@ export class CemElementRuntime {
         }
         const bounds = this.renderBounds.get(instance);
         const forms = bounds ? renderedElementsBetween(bounds, 'form')
-            .filter(form => this.ownsRenderedFormElement(instance, form)) : [];
+            .filter(form => this.ownsRenderedElement(instance, form)) : [];
         const index = Math.max(0, forms.indexOf(form));
         return renderedFormKey(form, this.formSliceNames.get(form), index);
     }
 
-    private ownsRenderedFormElement(instance: HTMLElement, element: Element): boolean {
+    private ownsRenderedElement(instance: HTMLElement, element: Element): boolean {
         for (let parent = element.parentElement; parent && parent !== instance; parent = parent.parentElement) {
-            if (directDataIsland(parent)) return false;
+            if (directDataIsland(parent) || parent.ownerDocument.defaultView?.customElements.get(parent.localName)) return false;
         }
         return true;
     }
@@ -6486,7 +6488,7 @@ export class CemElementRuntime {
             return captured;
         }
         const forms = renderedElementsBetween(bounds, 'form')
-            .filter(form => this.ownsRenderedFormElement(instance, form));
+            .filter(form => this.ownsRenderedElement(instance, form));
         for (const [index, element] of forms.entries()) {
             const form = element as HTMLFormElement;
             const names = this.formSliceNames.get(form);

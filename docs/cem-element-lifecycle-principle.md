@@ -219,3 +219,29 @@ current resolver, privacy, and security policies.
 - Nested initialized DCE instances retain their own islands and render ownership.
 - Serialization must preserve the island before the rendered range so reparsing
   selects resume mode before payload discovery.
+
+## Nested custom-element ownership
+
+A registered custom element owns the output it creates. A CEM parent owns the
+attributes and light-DOM inputs it authored for that element. This applies to
+full render-plan commits and worker patch transactions:
+
+- Update and remove authored attributes normally. Preserve attributes added by
+  the custom element itself, including loading and readiness state.
+- Preserve component-created child nodes. Reconcile only the parent's authored
+  inputs, including their text, order, additions and removals. An unchanged
+  input must not reset the component's rendered output.
+- Do not rewrite render metadata or bind events/resources inside another
+  component's output. A slice on the child host belongs to the parent; slices
+  inside the child's own output belong to the child.
+- CEM instances continue to own their durable islands. Native elements and
+  unregistered tags retain ordinary CEM rendering behavior.
+
+Components that consume/remove their authored inputs should expose subsequent
+updates through attributes or their declared input API. Targeted patches cannot
+update a node the receiving component has removed; existing missing-target
+validation fails before committing that transaction.
+
+Browser evidence is in `custom-element-ownership.stories.ts`; source and packaged
+component playground checks also cover theme changes while the source viewer
+and interactive action preview are live.

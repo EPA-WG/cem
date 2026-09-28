@@ -23,6 +23,7 @@ try {
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true });
     await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
+    await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
@@ -31,12 +32,61 @@ try {
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
     await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
+    await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action playground verified from source and isolated package archives.');
+    console.log('Action and theme-switch playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
     await rm(temporary, { recursive: true, force: true });
+}
+
+async function verifyThemeControls(page) {
+    const group = page.getByRole('radiogroup', { name: 'Theme', exact: true });
+    const contrast = page.getByRole('checkbox', { name: 'Contrast', exact: true });
+    const waitTheme = value => page.waitForFunction(value => document.querySelector('#playground-theme')?.getAttribute('data-theme') === value, value);
+    await group.getByRole('radio', { name: 'Dark', exact: true }).click();
+    await waitTheme('cem-theme-dark');
+    await contrast.check();
+    await waitTheme('cem-theme-contrast-dark');
+    await group.getByRole('radio', { name: 'Native', exact: true }).click();
+    await waitTheme('cem-theme-native');
+    assert(await contrast.isDisabled());
+    assert(!(await contrast.isChecked()));
+    await page.emulateMedia({ colorScheme: 'dark' });
+    const nativeDark = await page.locator('#playground-theme').evaluate(node => getComputedStyle(node).backgroundColor);
+    await page.emulateMedia({ colorScheme: 'light' });
+    const nativeLight = await page.locator('#playground-theme').evaluate(node => getComputedStyle(node).backgroundColor);
+    assert.notEqual(nativeDark, nativeLight);
+    await waitTheme('cem-theme-native');
+    await group.getByRole('radio', { name: 'Light', exact: true }).click();
+    await waitTheme('cem-theme-contrast-light');
+    assert(await contrast.isChecked());
+    await contrast.uncheck();
+    await waitTheme('cem-theme-light');
+}
+
+async function verifyThemeSwitch(url) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
+    try {
+        await page.goto(url);
+        await page.getByRole('radiogroup', { name: 'Theme', exact: true }).waitFor();
+        await page.waitForFunction(() => document.querySelector('cem-demo-element')?.getAttribute('data-state') === 'ready');
+        await page.locator('#retained-value').fill('Retained through themes');
+        await page.evaluate(() => { window.originalInput = document.querySelector('#retained-value'); });
+        await verifyThemeControls(page);
+        assert((await page.locator('cem-demo-element').innerText()).includes('id="cem-theme-switch"'));
+        assert.equal(await page.locator('#retained-value').inputValue(), 'Retained through themes');
+        assert(await page.evaluate(() => window.originalInput === document.querySelector('#retained-value')));
+        const source = await page.getByRole('link', { name: 'Open canonical XHTML' }).getAttribute('href');
+        const response = await page.request.get(new URL(source, page.url()).href);
+        assert(response.ok());
+        assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.xhtml'), 'utf8'));
+        assert.deepEqual(errors, []);
+    } finally { await page.close(); }
 }
 
 async function verify(url) {
@@ -62,8 +112,8 @@ async function verify(url) {
             }, { label, option: option.toLowerCase() });
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
-        assert.equal(await page.getByRole('radiogroup').count(), 6);
-        assert.equal(await page.getByRole('radio').count(), 18);
+        assert.equal(await page.getByRole('radiogroup').count(), 7);
+        assert.equal(await page.getByRole('radio').count(), 21);
         for (const [label, value] of [['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Expanded', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
@@ -105,6 +155,12 @@ async function verify(url) {
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().iterations), Infinity);
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().duration), 2000);
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
+        await verifyThemeControls(page);
+        assert.equal(await label.inputValue(), 'Publish now');
+        assert.equal(await button.innerText(), 'Publish now');
+        assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
+        assert.equal(await button.getAttribute('aria-busy'), 'true');
+        assert(await page.locator('#action-preview').evaluate(node => node.classList.contains('cem-bend-round')));
         const pendingPaint = await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]);
         await choose('Disabled', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === true);

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-theme-switch — property playground</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import '@epa-wg/cem-demo-element';
+        installCemElementRuntime(window);
+    </script>
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+</template>
+</cem-element>
+
+<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
+<header><h1><code>cem-theme-switch</code> playground</h1></header>
+<main>
+<p>Choose Light, Dark or Native. Contrast is available in Light and Dark. Native follows system appearance; the operating system controls contrast.</p>
+<p>Your contrast preference is remembered while Native is selected and restored when you return to Light or Dark.</p>
+<label>Try keeping an edited value while switching themes: <input id="retained-value" value="Draft"></label>
+<p><a href="./cem-action.html">Full demonstration with the action playground</a></p>
+<cem-element>
+<template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.sourceUrl" |
+    {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
+    {cem-demo-element @legend="Canonical theme switch source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template>
+</cem-element>
+</main>
+</cem-theme-switch>
+</body>
+</html>

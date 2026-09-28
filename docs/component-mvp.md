@@ -43,6 +43,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Action | `action` | `cem-action` | Text action, submit, and command buttons | action, control, palette, bend, typography |
 | Action | `icon-button` | `cem-icon-button` | Compact icon-only command with required accessible name | action, control, palette, stroke, bend |
 | Action | `menu-item` | `cem-menu-item` | Command or navigation row inside menus and action lists | action, palette, gap, inset, typography |
+| Input | `theme-switch` | `cem-theme-switch` | Theme scope with Light/Dark/Native choice and Contrast toggle | palette, control, stroke, gap, typography |
 | Input | `field` | `cem-field` | Generic labeled field wrapper for simple form controls | palette, stroke, bend, gap, typography |
 | Input | `text-field` | `cem-text-field` | Single-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |
 | Input | `textarea` | `cem-textarea` | Multi-line text entry with label, help, and validation | palette, stroke, bend, gap, typography |

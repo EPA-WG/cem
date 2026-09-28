@@ -26,6 +26,7 @@
             ],
             "outputs": [
                 "{projectRoot}/dist/cem-action.html",
+                "{projectRoot}/dist/cem-theme-switch.html",
                 "{projectRoot}/dist/cem-action-gallery.html",
                 "{projectRoot}/dist/icon.html"
             ]

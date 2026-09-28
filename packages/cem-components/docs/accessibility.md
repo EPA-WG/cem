@@ -232,6 +232,7 @@ patterns below are the contract for the Phase 3 primitive set.
 | `cem-tree` | Up/Down traverses visible enabled nodes without wrapping; Right opens a closed parent or enters its first enabled child; Left closes an open parent or reaches its nearest enabled ancestor; Home/End reaches boundaries; printable typeahead searches visible labels; native Enter/Space toggles a parent or activates a leaf. |
 | `cem-tooltip` | Native trigger keys remain unchanged. Keyboard focus presents the same description as hover; Escape dismisses immediately without moving focus, trapping focus, or synthesizing activation. Blur dismisses unless pointer or declarative `open` still supplies a visibility reason. |
 | `cem-text-field` | Native text-input behavior. `Escape` does not mutate authored validation state. |
+| `cem-theme-switch` | Native radio arrow keys choose Light/Dark/Native; Tab reaches Contrast and Space toggles it. Native disables and unchecks Contrast while retaining the preference for other modes. |
 | `cem-select` | Dropdown arrows/Home/End/Page/typeahead move the preview; Enter/Space/Tab commit and Escape cancels. Sized single listboxes commit movement. Multiple listboxes use modifier-free Space/click toggle, Shift range, and Ctrl/Cmd+A. |
 | `cem-checkbox` | `Space` toggles. `Enter` MUST NOT toggle (matches native checkbox). |
 | `cem-navigation-list` | `ArrowUp`/`ArrowDown` move focus; `Home`/`End` jump to ends; `Enter` activates. Composite tabstop = single. |

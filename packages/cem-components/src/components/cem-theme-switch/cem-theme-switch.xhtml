@@ -1,0 +1,60 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-theme-switch">
+  <template id="cem-theme-switch" type="text/cem-ml">
+    {slice @name=modeInput}
+    {slice @name=contrastInput}
+    {attribute @name=name | cem-theme-mode}
+    {attribute @name=mode @select='if datadom.eventPayloads.modeInput { datadom.slices.modeInput } else { datadom.attributes.mode ?? "native" }'}
+    {attribute @name=contrast @select='if datadom.eventPayloads.contrastInput { if datadom.slices.contrastInput { "true" } else { "false" } } else { datadom.attributes.contrast ?? "false" }'}
+    {attribute @name=data-theme @select='if $mode == "light" { if $contrast == "true" { "cem-theme-contrast-light" } else { "cem-theme-light" } } else { if $mode == "dark" { if $contrast == "true" { "cem-theme-contrast-dark" } else { "cem-theme-dark" } } else { "cem-theme-native" } }'}
+    {style @type="text/css" |```
+      :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+      :scope {
+        display: block;
+        background-color: var(--cem-palette-comfort);
+        color: var(--cem-palette-comfort-text);
+      }
+      :scope:where([data-theme='cem-theme-native']) { color-scheme: light dark; }
+      [part~='controls'] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--cem-gap-related);
+        font-family: var(--cem-typography-ui-font-family);
+        font-size: var(--cem-typography-ui-font-size);
+        line-height: var(--cem-typography-ui-line-height);
+      }
+      fieldset {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--cem-gap-related);
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      legend { margin-block-end: var(--cem-gap-related); }
+      label { display: inline-flex; align-items: center; gap: var(--cem-dim-x-small); min-block-size: var(--cem-control-height); }
+      input {
+        accent-color: var(--cem-palette-trust);
+      }
+      input:focus-visible {
+        outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1);
+        outline-offset: var(--cem-stroke-indicator-offset);
+      }
+      [part~='help'] { margin-block: var(--cem-gap-related); }
+      @media (forced-colors: active) {
+        input:focus-visible { outline-color: CanvasText; }
+      }
+    ```}
+    {div @part=controls |
+      {fieldset @role=radiogroup @aria-label="Theme" @slice=modeInput @slice-event=change @slice-value="$target.value" |
+        {legend | Theme}
+        {label | {input @type=radio @name="{$name}" @value=light @checked={if $mode == "light" { true } else { null }} } Light}
+        {label | {input @type=radio @name="{$name}" @value=dark @checked={if $mode == "dark" { true } else { null }} } Dark}
+        {label | {input @type=radio @name="{$name}" @value=native @checked={if ($mode != "light") &amp;&amp; ($mode != "dark") { true } else { null }} } Native}
+      }
+      {label | {input @part=contrast @type=checkbox @aria-describedby="{$name}-help" @checked={if (($mode == "light") || ($mode == "dark")) &amp;&amp; ($contrast == "true") { true } else { null }} @disabled={if ($mode == "light") || ($mode == "dark") { null } else { true }} @slice=contrastInput @slice-event=change @slice-value="$target.checked" } Contrast}
+    }
+    {p @part=help @id="{$name}-help" | {$if ($mode == "light") || ($mode == "dark") { "Contrast increases theme emphasis." } else { "Native uses system colors; the operating system controls contrast." }}}
+    {slot}
+  </template>
+</cem-element>

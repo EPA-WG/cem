@@ -102,6 +102,16 @@ export const RENDER_ENGINE_VERSION = '1.6.0';
 export const EDGE_RENDER_STATE_VERSION = '1.1.0';
 
 const renderedAttributeValues = new WeakMap<Element, Map<string, string>>();
+// Authored light-DOM inputs and a custom element's rendered output have different owners.
+const renderedChildren = new WeakMap<Element, { plan?: readonly RenderPlanNode[]; nodes: ChildNode[] }>();
+function isRegisteredCustomElement(element: Element): boolean {
+    return element.namespaceURI === XHTML_NAMESPACE
+        && !!element.ownerDocument.defaultView?.customElements.get(element.localName);
+}
+function rememberRenderedChildren(element: Element, plan: readonly RenderPlanNode[]): void {
+    renderedChildren.set(element, { plan, nodes: Array.from(renderPlanElementChildContainer(element).childNodes) });
+}
+
 type NativeAttributeStore = WeakMap<Element, Map<string, { value: NativeCemValue; projection: string }>>;
 const NATIVE_ATTRIBUTE_STORE = Symbol.for('cem.native-attribute-store.v1');
 // Source and packaged runtimes may coexist on one page. Their components must
@@ -2021,6 +2031,11 @@ export function applyPatchFramesToRange(
     const previousCheckboxBindings = new Map<Element, string>();
     try {
         for (const { operation, target } of resolved) {
+            // Targeted patches may change authored inputs without a parent reconciliation.
+            for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+                const inputs = renderedChildren.get(parent);
+                if (inputs) inputs.plan = undefined;
+            }
             if (operation.op === 'setText') {
                 setRenderedText(target, operation.value);
             } else if (operation.op === 'setAttribute') {
@@ -2059,10 +2074,11 @@ export function applyPatchFramesToRange(
                 });
             } else {
                 trackSelectChildren(target.parentNode);
-                target.parentNode?.replaceChild(
-                    materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document),
-                    target,
-                );
+                const replacement = materializeSerializedNode(operation.node.node, parsed.commit.nextRenderPlan, document);
+                const inputs = target.parentElement ? renderedChildren.get(target.parentElement) : undefined;
+                const index = inputs?.nodes.indexOf(target as ChildNode) ?? -1;
+                if (inputs && index >= 0) inputs.nodes[index] = replacement as ChildNode;
+                target.parentNode?.replaceChild(replacement, target);
             }
         }
         for (const [element, previousSlice] of previousCheckboxBindings) {
@@ -2273,12 +2289,14 @@ function reconcileNodeRenderedAttributes(node: Node, options: RenderPlanApplyOpt
                     !names.has(attribute.name) &&
                     !isRenderMetadataAttribute(attribute.name) &&
                     !options.preserveElementAttribute?.(element, desired, attribute)
+                    && !isRegisteredCustomElement(element)
                 ) {
                     removeRenderPlanAttribute(element, attribute.name);
                 }
             }
         }
-        preserveChildren = options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false;
+        preserveChildren = isRegisteredCustomElement(element)
+            || (options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false);
     }
     if (preserveChildren) {
         return;
@@ -2312,7 +2330,8 @@ function updateNodeRenderMetadata(node: Node, identity: RenderPlanIdentity, opti
         const element = node as Element;
         element.setAttribute(TEMPLATE_ARTIFACT_ID_ATTR, identity.templateArtifactId);
         element.setAttribute(DATA_REVISION_ATTR, identity.dataRevision);
-        preserveChildren = options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false;
+        preserveChildren = isRegisteredCustomElement(element)
+            || (options.preserveElementChildren?.(element, element.cloneNode(false) as Element) ?? false);
     }
     if (preserveChildren) {
         return;
@@ -2358,6 +2377,7 @@ function materializeNode(node: RenderPlanNode, plan: RenderPlan, document: Docum
     for (const child of node.children) {
         childContainer.appendChild(materializeNode(child, plan, document));
     }
+    rememberRenderedChildren(element, node.children);
     syncControlledSelect(element);
     return element;
 }
@@ -2468,6 +2488,10 @@ function mergeRenderPlanChildNodes(
     desiredNodes: readonly RenderPlanNode[],
     context: RenderPlanApplyContext,
 ): void {
+    if (parent.nodeType === 1 && isRegisteredCustomElement(parent as Element) && end === null) {
+        mergeCustomElementInputs(parent as Element, desiredNodes, context);
+        return;
+    }
     trackSelectChildren(parent);
     let current: ChildNode | null = firstCurrent;
     for (const desired of desiredNodes) {
@@ -2491,6 +2515,43 @@ function mergeRenderPlanChildNodes(
         parent.removeChild(current);
         current = next;
     }
+    if (parent.nodeType === 1 && end === null) rememberRenderedChildren(parent as Element, desiredNodes);
+}
+
+/** Patch authored inputs without deleting nodes created by the custom element. */
+function mergeCustomElementInputs(element: Element, desired: readonly RenderPlanNode[], context: RenderPlanApplyContext): void {
+    const previous = renderedChildren.get(element);
+    if (previous?.plan && previous.plan.length === desired.length) {
+        const changes: DomPatchOp[] = [];
+        for (let index = 0; index < desired.length; index++) diffRenderNode(previous.plan[index], desired[index], changes, true);
+        if (changes.length === 0) return;
+    }
+    const remaining = new Set(previous?.nodes ?? []);
+    const next: ChildNode[] = [];
+    for (const node of desired) {
+        const match = [...remaining].filter(child => child.parentNode === element)
+            .map(child => matchRenderPlanNodeAt(child, node, context)).find(candidate => candidate !== null);
+        if (match) {
+            mergeRenderPlanNode(match, node, context);
+            for (let child: ChildNode | null = match.first; child; child = child.nextSibling) {
+                remaining.delete(child);
+                next.push(child);
+                if (child === (match.rangeEnd ?? match.first)) break;
+            }
+        } else {
+            const created = createRenderPlanDomNodes(node, context);
+            element.append(...created);
+            next.push(...created as ChildNode[]);
+        }
+    }
+    for (const child of remaining) if (child.parentNode === element) child.remove();
+    // Reorder only authored children; leave component-owned output in place.
+    for (let index = next.length - 2; index >= 0; index--) {
+        if (next[index].compareDocumentPosition(next[index + 1]) & Node.DOCUMENT_POSITION_PRECEDING) {
+            element.insertBefore(next[index], next[index + 1]);
+        }
+    }
+    renderedChildren.set(element, { plan: desired, nodes: next });
 }
 
 function moveRenderPlanMatchBefore(parent: Node, match: RenderPlanNodeMatch, reference: Node | null): void {
@@ -2578,7 +2639,8 @@ function mergeRenderPlanNode(
     }
 
     const element = match.first as Element;
-    const previousSlice = renderedAttributeValues.get(element)?.get('slice');
+    const previousAttributes = renderedAttributeValues.get(element);
+    const previousSlice = previousAttributes?.get('slice');
     renderedAttributeValues.set(
         element,
         new Map(desired.attributes.map((attribute) => [attribute.name, attribute.value])),
@@ -2591,9 +2653,9 @@ function mergeRenderPlanNode(
     syncAttributes(
         element,
         renderPlanElementAttributes(desired, context.plan),
-        preserveElementAttribute && desiredElement
-            ? (attribute) => preserveElementAttribute(element, desiredElement, attribute)
-            : undefined,
+        (attribute) => (isRegisteredCustomElement(element) && !isRenderMetadataAttribute(attribute.name)
+            && !previousAttributes?.has(attribute.name))
+            || !!(preserveElementAttribute && desiredElement && preserveElementAttribute(element, desiredElement, attribute)),
     );
     syncNativeAttributes(element, desired.attributes);
     syncReboundCheckedControl(element, previousSlice, renderedAttributeValues.get(element));
@@ -2654,6 +2716,7 @@ function createRenderPlanDomNodes(node: RenderPlanNode, context: RenderPlanApply
             childContainer.appendChild(childNode);
         }
     }
+    rememberRenderedChildren(element, node.children);
     return [element];
 }
 

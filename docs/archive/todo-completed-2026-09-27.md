@@ -543,3 +543,39 @@ playground checks pass, including reduced-motion and forced-colors coverage.
 - Verification: all 11 action stories, theme Phase 13 and source/isolated-package
   playground checks pass. DevTools confirmed the dark scheme and new gradient
   in the IDE action playground, left on contrast-dark + destructive + loading.
+
+
+## Theme switch and nested custom-element ownership
+
+- Added canonical `cem-theme-switch` XHTML and colocated stories. Visible
+  Light/Dark/Native radios and a Contrast checkbox select the five existing
+  themes. Native follows OS colors, disables Contrast, and remembers the
+  contrast preference for returning to Light/Dark. Independent scopes use
+  distinct radio-group names.
+- Integrated the shared scope into the action playground and added its own
+  companion playground/source view, page-level module maps, package export,
+  native import-map build output and catalog documentation. Preview values,
+  component identities and source displays survive theme changes. Canonical
+  component inventory is now 3 declarative / 47 legacy.
+- Fixed shared DOM ownership: full renders and worker patches preserve output
+  and attributes created by registered custom elements, while updating/removing
+  authored attributes and reconciling authored child inputs. Parent metadata
+  updates stop at custom-element boundaries. Native and unregistered elements
+  retain normal rendering behavior.
+- Fixed parent slice/resource binding scans taking over nested component
+  controls. Parent-owned host bindings remain active; nested output bindings
+  retain their component owner. The normative lifecycle document records the
+  ownership rule and the boundary for components that consume their inputs.
+- Added six runtime browser regressions for full renders, worker patches,
+  authored child updates/reordering/removal, dynamic text ranges and nested
+  bindings. Source/package playground checks exercise all modes, native OS
+  color changes, retained properties, source display, pending motion, reduced
+  motion and forced colors.
+- Verification: all 332 browser stories and 585 unit tests pass. Typecheck,
+  lint (two existing warnings), declarative architecture, catalog, component
+  style contract, package verification and source/isolated-package playground
+  checks pass. DevTools confirms the IDE preview; it is left on contrast-dark
+  with a destructive, disabled, loading action and a ready source viewer.
+- The clean full browser run does not attribute or close the older intermittent
+  startup investigations. The next component development step is the companion
+  property playground/source view for `cem-select`, using this shared switch.

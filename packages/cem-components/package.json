@@ -27,7 +27,8 @@
         "./styles.css": "./dist/styles.css",
         "./catalog/cem.components.catalog.json": "./dist/catalog/cem.components.catalog.json",
         "./playgrounds/cem-action.html": "./dist/cem-action.html",
-        "./playgrounds/cem-action-gallery.html": "./dist/cem-action-gallery.html"
+        "./playgrounds/cem-action-gallery.html": "./dist/cem-action-gallery.html",
+        "./playgrounds/cem-theme-switch.html": "./dist/cem-theme-switch.html"
     },
     "files": [
         "dist",

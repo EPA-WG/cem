@@ -8,22 +8,36 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
-## Next: Theme switch component and playground integration
+## Completed: Theme switch component and playground integration
 
-- [ ] Add a reusable `cem-theme-switch` component with visible Light / Dark /
+- [x] Add a reusable `cem-theme-switch` component with visible Light / Dark /
       Native choices and a separate Contrast toggle. Author a canonical XHTML
       definition with colocated CSF stories, following the shared component
       authoring and public CSS ownership rules.
-- [ ] Define how Native interacts with the Contrast toggle before implementation;
-      use the existing light, dark, native, contrast-light and contrast-dark
-      theme modes without inventing a parallel theme model.
-- [ ] Add the shared theme switch to component playground pages, starting with
+- [x] Native disables the Contrast toggle; the operating system owns native
+      contrast. Light and Dark map to the existing contrast variants.
+- [x] Add the shared theme switch to component playground pages, starting with
       the action playground, and make it part of the pattern for future
       playgrounds. Apply the selected theme to the page, including its live
       preview, while preserving the component's current property selections.
-- [ ] Fixture: verify mouse and keyboard operation, accessible labels and state,
+- [x] Fixture: verify mouse and keyboard operation, accessible labels and state,
       all supported mode/contrast combinations, retained preview state, and
       source/packaged playground loading through page-level module maps.
+
+### Theme switch integration finding
+
+- [x] Adopt generic nested custom-element ownership: preserve self-rendered
+      output while updating authored attributes and child inputs. Components
+      that consume those inputs expose subsequent updates through their API.
+- [x] Fixture: preserve custom-element output and self-added attributes during
+      full renders and worker patches; verify authored input updates/removals
+      and nested slice/resource binding ownership.
+- [x] Verify source/installed-package playgrounds after the runtime fix, then
+      commit and push the theme-switch integration.
+
+Verification: 332 browser stories and 585 runtime unit tests pass; component
+package, style, source/installed playground checks, typecheck and lint pass.
+See [completion evidence](archive/todo-completed-2026-09-27.md#theme-switch-and-nested-custom-element-ownership).
 
 ## Immediate: Destructive pending dark-mode stripes
 

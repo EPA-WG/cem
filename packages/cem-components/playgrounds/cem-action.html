@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>cem-action — property playground</title>
     <script type="importmap">{
-        "imports": {
-                "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
-                "@epa-wg/cem-components": "../dist/lib/primitives.js",
-                "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
-                "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
-                "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
-                "@epa-wg/cem-components/styles.css": "../dist/styles.css",
-                "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
-                "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
-                "@epa-wg/cem-components/action-playground": "./cem-action.html"
-        }
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "../../custom-element/material/components/action.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html"
+    }
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
@@ -24,7 +26,8 @@
         await installCemComponentPrimitives(installCemElementRuntime(window));
     </script>
     <style>
-        body { margin: var(--cem-dim-large); font-family: system-ui, sans-serif; }
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
         main { display: block; }
         .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
         .properties { display: grid; gap: var(--cem-dim-medium); align-content: start; }
@@ -37,7 +40,21 @@
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } .workspace > section:last-child { position: static; } }
     </style>
 </head>
-<body class="cem-theme-light">
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
 <header><h1><code>cem-action</code> playground</h1>
 <p>Change the properties to try one live action. The source panel shows the production definition.</p>
 <cem-element>
@@ -47,16 +64,7 @@
 </template>
 </cem-element>
 </header>
-<cem-element hidden>
-<template type="text/cem-ml">
-{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
-</template>
-</cem-element>
+
 <main>
 <cem-element>
 <template type="text/cem-ml">
@@ -133,8 +141,16 @@
 }
 </template>
 </cem-element>
-<p><a href="../src/components/cem-action/cem-action.xhtml">Open canonical XHTML</a></p>
-<cem-demo-element legend="Canonical action source" src="../src/components/cem-action/cem-action.xhtml" type="xml" demo="false"></cem-demo-element>
+<cem-element>
+<template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.sourceUrl" |
+    {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
+    {cem-demo-element @legend="Canonical action source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
+}
+</template>
+</cem-element>
 </main>
+</cem-theme-switch>
 </body>
 </html>

@@ -463,7 +463,7 @@ Known deferrals stay outside this trigger:
 
 The accepted [component development pattern](../../docs/component-development-pattern.md) keeps canonical XHTML
 separate from a companion property playground and source view. A generated
-`#ID` bundle is planned as release output. `cem-action` and `cem-select` now use
+`#ID` bundle is planned as release output. `cem-action`, `cem-select`, and `cem-theme-switch` use
 the canonical XHTML and colocated story structure.
 
 ## Action property playground
@@ -485,3 +485,18 @@ retains a legacy icon declaration as a copied build asset during migration.
 
 `yarn nx run @epa-wg/cem-components:verify-playgrounds` tests real interactions
 and source display in the repository and in isolated npm package archives.
+
+## Playground theme switch
+
+Both the [action playground](playgrounds/cem-action.html) and the
+[theme-switch playground](playgrounds/cem-theme-switch.html) use the shared
+`cem-theme-switch` component. Light / Dark / Native are visible radio choices;
+Contrast selects the existing contrast variants. Native disables Contrast and
+uses OS colors. Returning to Light or Dark restores the contrast preference.
+Theme changes preserve edited preview properties and the source display.
+
+Wrap themed content in the component's default slot. Use distinct `name` values
+for independent switches. Load the canonical declaration through the page's
+module map; see [the shared playground convention](docs/conventions.md#playground-theme-control).
+The installed companion page is exported as
+`@epa-wg/cem-components/playgrounds/cem-theme-switch.html`.

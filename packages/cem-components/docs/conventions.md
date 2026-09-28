@@ -409,3 +409,24 @@ Every component MUST degrade gracefully when its custom element is not upgraded 
 - `~/aWork/custom-element-dist/src/material/` — material-style sample components
   used as the parity benchmark for the `<cem-element>` substrate (action,
   autocomplete, badge, dropdown, icon, icon-link, input, menu).
+
+## Playground theme control
+
+Use the canonical `cem-theme-switch` declaration as the theme scope around a
+playground's visible content, including the preview and source viewer. Load its
+XHTML through the page-level source/package module maps. Keep declaration and
+stylesheet loaders outside the projected content. Do not add page-local theme
+JavaScript or duplicate its controls.
+
+The switch reflects `mode` (Light/Dark/Native), `contrast` (the remembered
+preference) and the effective `data-theme`. Native disables and unchecks the
+Contrast control; returning to Light/Dark restores the preference. `mode` defaults
+to `native`; playgrounds may supply `mode="light"`. Native uses system colors
+and permits the browser's light/dark preference. Give independent switch scopes
+distinct radio-group `name` values (default `cem-theme-mode`).
+
+The default slot owns the themed content. Theme changes must preserve projected
+controls, their edited values and nested component identities. Keep each source
+viewer separate from the component's reactive property form, as in the action
+playground. Persistent storage and page-global DOM mutation are not part of this
+component's contract.
