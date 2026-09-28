@@ -283,6 +283,7 @@ function deriveLayeringManifest(xhtml) {
         "cem-layering-rungs",
         "cem-layering-semantic",
         "cem-layering-semantic-optional",
+        "cem-layering-popup-stacking",
     ]) {
         addTableCategory(xhtml, tableId, categoryId, tokens, warnings);
     }

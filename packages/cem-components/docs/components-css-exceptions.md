@@ -1,9 +1,9 @@
 # Component CSS Exceptions
 
-**Status:** One accepted bounded exception. `CEM-CSS-001` was resolved by
+**Status:** One accepted bounded exception for frozen legacy choice components. `CEM-CSS-001` was resolved by
 adopting generated theme tokens. `CEM-CSS-002` authorizes one private physical
-stacking adapter for transient choice popups because D4 deliberately does not
-provide numeric z-index values.
+stacking adapter for transient choice popups until migration. Canonical `cem-select` now consumes the theme-owned public
+`--cem-select-popup-z-index` (§15.1.1 of D4), which defaults to `1`.
 
 ## Token-first rule
 
@@ -26,7 +26,7 @@ None.
 
 | ID | Status | Requirement | Accepted scope |
 | --- | --- | --- | --- |
-| CEM-CSS-002 | Accepted — component-local physical adapter | A select/autocomplete popup must paint above later in-flow, positioned component content while remaining anchored to its input/control. | Only `cem-select .cem-select__popup` and `cem-autocomplete .cem-autocomplete__popup` may declare private `--_cem-choice-popup-z-index: 1` and consume it through `z-index`. The generated D4 overlay endpoint continues to own semantic elevation through `box-shadow`; the private integer carries no semantic tier and is not public API. |
+| CEM-CSS-002 | Accepted — component-local physical adapter | A select/autocomplete popup must paint above later in-flow, positioned component content while remaining anchored to its input/control. | Only the frozen legacy `cem-select .cem-select__popup` and `cem-autocomplete .cem-autocomplete__popup` may declare private `--_cem-choice-popup-z-index: 1` and consume it through `z-index`. The generated D4 overlay endpoint continues to own semantic elevation through `box-shadow`; the private integer carries no semantic tier and is not public API. |
 
 ### CEM-CSS-002 rationale and verifier boundary
 
@@ -37,14 +37,17 @@ rule nevertheless assigned `var(--cem-layer-overlay)` to `z-index`; browsers
 discarded that invalid value, allowing later positioned fields to intercept
 pointer input intended for an open popup.
 
-No generated theme category can represent the missing integer because D4
-requires framework-specific stacking mechanics. The accepted value is the
+At the time of this exception, no generated theme category represented the
+integer. D4 now owns the canonical public choice-popup stacking token; this
+exception remains only for frozen legacy declarations. The accepted value is the
 smallest positive local stacking level and is intentionally private. It does
 not create an overlay ladder, compete with command/modal policy, authorize
 portals, or alter dismissal/focus semantics. The style verifier accepts the
 declaration only on the two choice-popup selectors, requires the exact private
 property and value, rejects `--cem-layer-overlay` as a z-index value, and
-rejects any other component z-index declaration.
+rejects any other legacy component z-index declaration. The canonical select
+gate instead requires the generated `--cem-select-popup-z-index` token and
+rejects a local default or private alias.
 
 ## Closed decisions
 

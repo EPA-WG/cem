@@ -201,6 +201,7 @@ function deriveLayeringTokens(xhtml) {
         "cem-layering-rungs",
         "cem-layering-semantic",
         "cem-layering-semantic-optional",
+        "cem-layering-popup-stacking",
     ]) {
         addTableTokens(xhtml, tableId, spec, spec, tokens, warnings);
     }

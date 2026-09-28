@@ -134,6 +134,39 @@ See the [HTML hidden specification](https://html.spec.whatwg.org/multipage/inter
   for analysis, categorization, and possible adoption into `@epa-wg/cem-theme`.
   The review queue is not a verifier allowlist.
 
+### 1.4 Public CSS property ownership
+
+`--cem-<component>-*` properties are public styling API. Containers may override
+these properties through inheritance, and component styling may deliberately
+bind them for an explicit variation. An `internal` name segment does not make a
+property private or exempt it from this contract.
+
+Theme-owned properties retain their canonical definitions in `cem-theme`.
+Components consume existing semantic tokens directly; they MUST NOT duplicate
+theme defaults or add equivalent aliases that mask inherited overrides.
+Intent/state selection should select the appropriate theme endpoint rather than
+redeclare its value on the component.
+
+Theme variables are generated from canonical Markdown source tables. Do not
+remove them because current CEM components do not reference them: consumer
+components and inherited themes may depend on them. CEM theme and component
+releases retain the full output selected by the manifest tier contract. Any
+future unused-code optimization belongs to an opt-in consumer build, where the
+consumer's complete usage is available; it must not prune CEM release artifacts.
+
+When a component definition conflicts with or duplicates a theme definition,
+STOP for an explicit ownership decision: adopt the theme definition, or adopt
+the component definition into the theme and remove it from the component.
+Do not resolve the conflict by silently renaming, creating a parallel token
+family, or labeling the property internal. Missing semantic values still follow
+the CSS exception review above; existing bounded exceptions are not permission
+to create new public properties.
+
+For action, the accepted decision is to consume
+`--cem-action-<intent>-<state>-{background,text}` directly. Generic
+`--cem-action-<state>-*` aliases are not introduced.
+See the [theme ownership contract](../../cem-theme/src/lib/tokens/index.md#public-css-property-ownership).
+
 ## 2. Attributes & Properties
 
 ### 2.1 Attribute is the source of truth

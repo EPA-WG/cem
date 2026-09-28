@@ -8,6 +8,17 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Immediate: Public CSS property ownership
+
+- [x] Record public component CSS property ownership and the mandatory theme/component conflict decision.
+- [x] Fixture: action consumes existing intent/state theme tokens directly; verify container inheritance, instance overrides, restoration and state behavior.
+- [x] Audit select indicator aliases and popup stacking ownership: adopt existing theme indicators; promote public popup stacking into D4 (user decisions).
+- [x] Fixture: generate/export --cem-select-popup-z-index from D4; verify inherited/instance popup stacking and pointer access.
+- [x] Fixture: remove redundant select focus/selection color aliases and verify theme overrides across underline/outline, pending, invalid, disabled, focused and expanded states (21 action/select stories pass).
+- [x] Preserve all Markdown-generated theme variables; retain select's five existing state/geometry calculations. Record optional unused-code optimization for consumer builds in the roadmap, never CEM release pruning.
+- [x] Verify source and packaged playgrounds after theme ownership migration; record evidence.
+- [x] Commit and push public CSS ownership and theme adoption changes.
+
 ## Immediate: Legacy Demo Case Coverage
 
 - [x] Remove redundant action forced-color gradient/shadow resets and consolidate

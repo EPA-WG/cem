@@ -178,6 +178,13 @@ const PRESENTATION_PROTOCOLS = {
                 projection: [0, 1, 3, 2],
             },
             {
+                id: "cem-layering-popup-stacking",
+                caption: "cem-layering-popup-stacking — physical choice-popup stacking",
+                headers: ["Token", "Value", "Tier", "Description"],
+                sources: ["cem-layering-popup-stacking"],
+                projection: [0, 1, 3, 2],
+            },
+            {
                 id: "cem-layering-rungs-forced",
                 caption: "cem-layering-rungs-forced — forced-colors fallback",
                 headers: ["Token", "Forced-colors value"],
@@ -258,7 +265,7 @@ const PRESENTATION_PROTOCOLS = {
                 id: "cem-stroke-zebra-rings",
                 caption: "cem-stroke-zebra-pattern + cem-stroke-rings — zebra-pattern geometry and ring recipes",
                 headers: ["Token", "Value", "Tier", "Description"],
-                sources: ["cem-stroke-zebra-pattern", "cem-stroke-rings"],
+                sources: ["cem-stroke-zebra-pattern", "cem-stroke-pending-pattern", "cem-stroke-rings"],
                 projection: [0, 1, 3, 2],
             },
             {

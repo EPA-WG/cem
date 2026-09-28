@@ -107,3 +107,12 @@ used as z-index values.
   source changes.
 - Mixed vocabularies, nested groups, interactive option descendants, and
   duplicate values do not receive ambiguous best-effort behavior.
+
+## Public popup stacking
+
+The positioned popup consumes the theme-owned `--cem-select-popup-z-index`
+(default `1`). Set this property on a container or select host to adjust local
+stacking. Removing an override restores the inherited theme value. It is an
+integer stacking value, separate from elevation/shadow tokens, and cannot escape
+ancestor clipping or stacking contexts. The canonical component no longer owns
+the private `--_cem-choice-popup-z-index` default.

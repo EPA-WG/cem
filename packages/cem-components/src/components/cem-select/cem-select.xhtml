@@ -76,8 +76,6 @@
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
-            --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
-            --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
             --_cem-input-indicator-appearance: var(
               --cem-input-indicator-appearance,
               var(--cem-indicator-appearance-underline)
@@ -90,10 +88,10 @@
                 var(--_cem-input-indicator-anchor-color),
               0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))) 0
                 calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width)))
-                var(--_cem-input-indicator-focus-color),
+                var(--cem-zebra-color-1),
               0 calc(var(--_cem-input-indicator-appearance) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width))) 0
                 calc((1 - var(--_cem-input-indicator-appearance)) * (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) + var(--_cem-input-indicator-selection-width)))
-                var(--_cem-input-indicator-selection-color);
+                var(--cem-input-indicator-selection-color);
             box-sizing: border-box;
             color: var(--cem-select-popup-text);
             font-family: var(--cem-typography-ui-font-family);
@@ -169,7 +167,6 @@
           }
 
           [part~='popup'] {
-            --_cem-choice-popup-z-index: 1;
             border: var(--cem-stroke-standard) solid var(--cem-select-popup-border-color);
             border-radius: var(--cem-bend-overlay);
             box-shadow: var(--cem-elevation-3);
@@ -177,7 +174,7 @@
             inset-inline: 0;
             max-block-size: calc(var(--cem-list-row-height) * var(--cem-list-popup-rows));
             position: absolute;
-            z-index: var(--_cem-choice-popup-z-index);
+            z-index: var(--cem-select-popup-z-index);
           }
 
           [part~='listbox'] {

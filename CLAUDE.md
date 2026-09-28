@@ -78,6 +78,18 @@ yarn build:css      # generate CSS only
 yarn build:theme    # build theme package
 ```
 
+## Public CSS property ownership
+
+Follow [component CSS ownership](packages/cem-components/docs/conventions.md#14-public-css-property-ownership)
+and the [theme contract](packages/cem-theme/src/lib/tokens/index.md#public-css-property-ownership).
+`--cem-<component>-*` properties are public. Consume theme-owned definitions
+without duplicate component defaults. On a component/theme conflict, stop for an
+explicit decision to adopt the theme or promote the component definition into
+the theme and remove it from the component. An `internal` name is no exemption.
+Preserve Markdown-generated theme variables even when CEM components do not use
+them. Future unused-code optimization belongs to optional consumer builds;
+never prune CEM theme/component release artifacts based on local usage.
+
 ## Token manifest contract
 
 Tier is encoded as a `tier` column on each **source table** — the same h6+table the generator reads. No separate

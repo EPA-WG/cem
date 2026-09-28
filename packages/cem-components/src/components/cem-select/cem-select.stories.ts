@@ -30,6 +30,111 @@ const meta = preview.meta({
     }],
 });
 
+export const PopupStacking = meta.story({
+    render: () => `<section><cem-select label="First"><cem-option value="one">One</cem-option><cem-option value="two">Two</cem-option></cem-select><cem-select label="Second"><cem-option value="one">One</cem-option><cem-option value="two">Two</cem-option></cem-select></section>`,
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('section')!;
+        const hosts = [...container.querySelectorAll<CemSelectElement>('cem-select')];
+        for (const host of hosts) await whenCemRendered(host);
+        const host = hosts[0];
+        const control = host.querySelector<HTMLElement>('[role=combobox]')!;
+        await userEvent.click(control);
+        await whenCemRendered(host);
+        const popup = host.querySelector<HTMLElement>('[part~=popup]')!;
+        await expect(popup).not.toBeNull();
+        await expect(getComputedStyle(popup).zIndex).toBe('1');
+        container.style.setProperty('--cem-select-popup-z-index', '7');
+        await expect(getComputedStyle(popup).zIndex).toBe('7');
+        host.style.setProperty('--cem-select-popup-z-index', '9');
+        await whenCemRendered(host);
+        await expect(getComputedStyle(popup).zIndex).toBe('9');
+        await expect(getComputedStyle(hosts[1]).getPropertyValue('--cem-select-popup-z-index').trim()).toBe('7');
+        host.style.removeProperty('--cem-select-popup-z-index');
+        await whenCemRendered(host);
+        await expect(getComputedStyle(popup).zIndex).toBe('7');
+        const option = within(popup).getByRole('option', { name: 'Two' });
+        if (import.meta.env.MODE === 'test') {
+            const { userEvent: native } = await import('vitest/browser');
+            await native.click(option);
+        } else {
+            await userEvent.click(option);
+        }
+        await whenCemRendered(host);
+        await expect(host.value).toBe('two');
+        container.style.removeProperty('--cem-select-popup-z-index');
+        await userEvent.click(control);
+        await whenCemRendered(host);
+        await expect(getComputedStyle(host.querySelector<HTMLElement>('[part~=popup]')!).zIndex).toBe('1');
+    },
+});
+
+export const IndicatorThemeOverrides = meta.story({
+    parameters: { docs: { description: { story: 'Existing theme indicator colors inherit through combined select states. Trusted focus and hover checks run only in the Vitest browser runner.' } } },
+    render: () => `<section class="cem-theme-light"><cem-select label="Role"><cem-option value="author">Author</cem-option><cem-option value="editor">Editor</cem-option></cem-select></section>`,
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('section')!;
+        const host = container.querySelector<HTMLElement>('cem-select')!;
+        await whenCemRendered(host);
+        const control = host.querySelector<HTMLElement>('[role=combobox]')!;
+        const colors = {
+            '--cem-input-indicator-anchor-color': 'rgb(11, 22, 33)',
+            '--cem-input-indicator-anchor-hover-color': 'rgb(22, 33, 44)',
+            '--cem-input-indicator-anchor-pending-color': 'rgb(33, 44, 55)',
+            '--cem-input-indicator-anchor-invalid-color': 'rgb(44, 55, 66)',
+            '--cem-input-indicator-anchor-invalid-hover-color': 'rgb(55, 66, 77)',
+            '--cem-input-indicator-anchor-disabled-color': 'rgb(66, 77, 88)',
+            '--cem-input-indicator-selection-color': 'rgb(88, 99, 110)',
+        };
+        Object.entries(colors).forEach(([property, value]) => container.style.setProperty(property, value));
+        const shadow = () => getComputedStyle(control).boxShadow;
+        for (const appearance of ['underline', 'outline']) {
+            host.setAttribute('indicator', appearance);
+            await whenCemRendered(host);
+            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-color']);
+            host.setAttribute('busy', '');
+            await whenCemRendered(host);
+            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-pending-color']);
+            host.setAttribute('invalid', '');
+            await whenCemRendered(host);
+            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-invalid-color']);
+            if (import.meta.env.MODE === 'test') {
+                const { userEvent: native } = await import('vitest/browser');
+                await native.hover(control);
+                await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-invalid-hover-color']);
+                await native.unhover(control);
+                control.focus();
+                await native.keyboard('{ArrowDown}');
+                await whenCemRendered(host);
+                await expect(control.matches(':focus-visible')).toBe(true);
+                await expect(control).toHaveAttribute('aria-expanded', 'true');
+                // The theme binds zebra colors on focused controls for the active mode.
+                const probe = document.createElement('span');
+                probe.style.color = 'var(--cem-zebra-color-1)';
+                control.append(probe);
+                const focusColor = getComputedStyle(probe).color;
+                probe.remove();
+                await expect(shadow()).toContain(focusColor);
+                await expect(shadow()).toContain(colors['--cem-input-indicator-selection-color']);
+                host.style.setProperty('--cem-input-indicator-selection-color', 'rgb(99, 110, 121)');
+                await whenCemRendered(host);
+                await expect(shadow()).toContain('rgb(99, 110, 121)');
+                host.style.removeProperty('--cem-input-indicator-selection-color');
+                await whenCemRendered(host);
+                await expect(shadow()).toContain(colors['--cem-input-indicator-selection-color']);
+                await native.keyboard('{Escape}');
+                control.blur();
+            }
+            host.setAttribute('disabled', '');
+            await whenCemRendered(host);
+            await expect(shadow()).toContain(colors['--cem-input-indicator-anchor-disabled-color']);
+            for (const attribute of ['disabled', 'busy', 'invalid']) host.removeAttribute(attribute);
+            await whenCemRendered(host);
+        }
+        Object.keys(colors).forEach(property => container.style.removeProperty(property));
+        await expect(shadow()).not.toContain(colors['--cem-input-indicator-anchor-color']);
+    },
+});
+
 export const NativeHidden = meta.story({
     parameters: { docs: { description: { story: 'Native host visibility and state retention. Trusted keyboard checks run only in the Vitest browser runner.' } } },
     render: () => `<button data-before>Before</button><cem-select hidden label="Role"><cem-option value="author">Author</cem-option><cem-option value="editor" selected>Editor</cem-option></cem-select><button data-after>After</button>`,

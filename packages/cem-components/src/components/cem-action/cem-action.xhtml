@@ -10,64 +10,6 @@
         }
         :scope {
             display: inline-block;
-            --_cem-action-default-background: var(--cem-action-primary-default-background);
-            --_cem-action-default-text: var(--cem-action-primary-default-text);
-            --_cem-action-pending-background: var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background));
-            --_cem-action-pending-text: var(--cem-action-primary-pending-text, var(--cem-action-primary-active-text));
-            --_cem-action-hover-background: var(--cem-action-primary-hover-background);
-            --_cem-action-hover-text: var(--cem-action-primary-hover-text);
-            --_cem-action-active-background: var(--cem-action-primary-active-background);
-            --_cem-action-active-text: var(--cem-action-primary-active-text);
-            --_cem-action-disabled-background: var(--cem-action-primary-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-primary-disabled-text);
-        }
-        :scope[variant="explicit"] {
-            --_cem-action-default-background: var(--cem-action-explicit-default-background);
-            --_cem-action-default-text: var(--cem-action-explicit-default-text);
-            --_cem-action-pending-background: var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background));
-            --_cem-action-pending-text: var(--cem-action-explicit-pending-text, var(--cem-action-explicit-active-text));
-            --_cem-action-hover-background: var(--cem-action-explicit-hover-background);
-            --_cem-action-hover-text: var(--cem-action-explicit-hover-text);
-            --_cem-action-active-background: var(--cem-action-explicit-active-background);
-            --_cem-action-active-text: var(--cem-action-explicit-active-text);
-            --_cem-action-disabled-background: var(--cem-action-explicit-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-explicit-disabled-text);
-        }
-        :scope[variant="contextual"] {
-            --_cem-action-default-background: var(--cem-action-contextual-default-background);
-            --_cem-action-default-text: var(--cem-action-contextual-default-text);
-            --_cem-action-pending-background: var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background));
-            --_cem-action-pending-text: var(--cem-action-contextual-pending-text, var(--cem-action-contextual-active-text));
-            --_cem-action-hover-background: var(--cem-action-contextual-hover-background);
-            --_cem-action-hover-text: var(--cem-action-contextual-hover-text);
-            --_cem-action-active-background: var(--cem-action-contextual-active-background);
-            --_cem-action-active-text: var(--cem-action-contextual-active-text);
-            --_cem-action-disabled-background: var(--cem-action-contextual-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-contextual-disabled-text);
-        }
-        :scope[variant="alternate"] {
-            --_cem-action-default-background: var(--cem-action-alternate-default-background);
-            --_cem-action-default-text: var(--cem-action-alternate-default-text);
-            --_cem-action-pending-background: var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background));
-            --_cem-action-pending-text: var(--cem-action-alternate-pending-text, var(--cem-action-alternate-active-text));
-            --_cem-action-hover-background: var(--cem-action-alternate-hover-background);
-            --_cem-action-hover-text: var(--cem-action-alternate-hover-text);
-            --_cem-action-active-background: var(--cem-action-alternate-active-background);
-            --_cem-action-active-text: var(--cem-action-alternate-active-text);
-            --_cem-action-disabled-background: var(--cem-action-alternate-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-alternate-disabled-text);
-        }
-        :scope[variant="destructive"] {
-            --_cem-action-default-background: var(--cem-action-destructive-default-background);
-            --_cem-action-default-text: var(--cem-action-destructive-default-text);
-            --_cem-action-pending-background: var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background));
-            --_cem-action-pending-text: var(--cem-action-destructive-pending-text, var(--cem-action-destructive-active-text));
-            --_cem-action-hover-background: var(--cem-action-destructive-hover-background);
-            --_cem-action-hover-text: var(--cem-action-destructive-hover-text);
-            --_cem-action-active-background: var(--cem-action-destructive-active-background);
-            --_cem-action-active-text: var(--cem-action-destructive-active-text);
-            --_cem-action-disabled-background: var(--cem-action-destructive-disabled-background);
-            --_cem-action-disabled-text: var(--cem-action-destructive-disabled-text);
         }
         :scope > button[part~='control'] {
             display: inline-flex;
@@ -82,8 +24,6 @@
             appearance: none;
             border: 0;
             border-radius: var(--cem-action-border-radius);
-            background-color: var(--_cem-action-default-background);
-            color: var(--_cem-action-default-text);
             width: 100%;
         }
         :scope:is(.cem-bend-sharp, .cem-bend-smooth, .cem-bend-round) {
@@ -98,28 +38,132 @@
         :scope.cem-bend-round {
             --cem-bend: var(--cem-bend-round);
         }
-        :scope > button[part~='control']:where(:enabled:hover) {
-            background-color: var(--_cem-action-hover-background);
-            color: var(--_cem-action-hover-text);
-        }
-        :scope > button[part~='control']:where(:enabled:active) {
-            background-color: var(--_cem-action-active-background);
-            color: var(--_cem-action-active-text);
-        }
         :scope > button[part~='control']:where([aria-busy='true']) {
-            background-color: var(--_cem-action-pending-background);
-            color: var(--_cem-action-pending-text);
-            --cem-pending-color-1: var(--_cem-action-pending-background);
-            --cem-pending-color-2: var(--_cem-action-active-background);
-            background-image: linear-gradient(var(--cem-pending-angle),
-                var(--cem-pending-color-1) 0%, var(--cem-pending-color-2) 25%,
-                var(--cem-pending-color-1) 50%, var(--cem-pending-color-2) 75%,
-                var(--cem-pending-color-1) 100%);
             background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
             animation-name: cem-pending-shift;
             animation-duration: var(--cem-duration-pending-cycle);
             animation-timing-function: var(--cem-easing-uniform);
             animation-iteration-count: infinite;
+        }
+        :scope > button[part~='control'] {
+            background-color: var(--cem-action-primary-default-background);
+            color: var(--cem-action-primary-default-text);
+        }
+        :scope > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-primary-hover-background);
+            color: var(--cem-action-primary-hover-text);
+        }
+        :scope > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-primary-active-background);
+            color: var(--cem-action-primary-active-text);
+        }
+        :scope > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
+            background-color: var(--cem-action-primary-disabled-background);
+            color: var(--cem-action-primary-disabled-text);
+        }
+        :scope > button[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background));
+            color: var(--cem-action-primary-pending-text, var(--cem-action-primary-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 0%, var(--cem-action-primary-active-background) 25%,
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 50%, var(--cem-action-primary-active-background) 75%,
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 100%);
+        }
+        :scope:where([variant="explicit"]) > button[part~='control'] {
+            background-color: var(--cem-action-explicit-default-background);
+            color: var(--cem-action-explicit-default-text);
+        }
+        :scope:where([variant="explicit"]) > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-explicit-hover-background);
+            color: var(--cem-action-explicit-hover-text);
+        }
+        :scope:where([variant="explicit"]) > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-explicit-active-background);
+            color: var(--cem-action-explicit-active-text);
+        }
+        :scope:where([variant="explicit"]) > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
+            background-color: var(--cem-action-explicit-disabled-background);
+            color: var(--cem-action-explicit-disabled-text);
+        }
+        :scope:where([variant="explicit"]) > button[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background));
+            color: var(--cem-action-explicit-pending-text, var(--cem-action-explicit-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 0%, var(--cem-action-explicit-active-background) 25%,
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 50%, var(--cem-action-explicit-active-background) 75%,
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 100%);
+        }
+        :scope:where([variant="contextual"]) > button[part~='control'] {
+            background-color: var(--cem-action-contextual-default-background);
+            color: var(--cem-action-contextual-default-text);
+        }
+        :scope:where([variant="contextual"]) > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-contextual-hover-background);
+            color: var(--cem-action-contextual-hover-text);
+        }
+        :scope:where([variant="contextual"]) > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-contextual-active-background);
+            color: var(--cem-action-contextual-active-text);
+        }
+        :scope:where([variant="contextual"]) > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
+            background-color: var(--cem-action-contextual-disabled-background);
+            color: var(--cem-action-contextual-disabled-text);
+        }
+        :scope:where([variant="contextual"]) > button[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background));
+            color: var(--cem-action-contextual-pending-text, var(--cem-action-contextual-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 0%, var(--cem-action-contextual-active-background) 25%,
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 50%, var(--cem-action-contextual-active-background) 75%,
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 100%);
+        }
+        :scope:where([variant="alternate"]) > button[part~='control'] {
+            background-color: var(--cem-action-alternate-default-background);
+            color: var(--cem-action-alternate-default-text);
+        }
+        :scope:where([variant="alternate"]) > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-alternate-hover-background);
+            color: var(--cem-action-alternate-hover-text);
+        }
+        :scope:where([variant="alternate"]) > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-alternate-active-background);
+            color: var(--cem-action-alternate-active-text);
+        }
+        :scope:where([variant="alternate"]) > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
+            background-color: var(--cem-action-alternate-disabled-background);
+            color: var(--cem-action-alternate-disabled-text);
+        }
+        :scope:where([variant="alternate"]) > button[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background));
+            color: var(--cem-action-alternate-pending-text, var(--cem-action-alternate-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 0%, var(--cem-action-alternate-active-background) 25%,
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 50%, var(--cem-action-alternate-active-background) 75%,
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 100%);
+        }
+        :scope:where([variant="destructive"]) > button[part~='control'] {
+            background-color: var(--cem-action-destructive-default-background);
+            color: var(--cem-action-destructive-default-text);
+        }
+        :scope:where([variant="destructive"]) > button[part~='control']:where(:enabled:hover) {
+            background-color: var(--cem-action-destructive-hover-background);
+            color: var(--cem-action-destructive-hover-text);
+        }
+        :scope:where([variant="destructive"]) > button[part~='control']:where(:enabled:active) {
+            background-color: var(--cem-action-destructive-active-background);
+            color: var(--cem-action-destructive-active-text);
+        }
+        :scope:where([variant="destructive"]) > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
+            background-color: var(--cem-action-destructive-disabled-background);
+            color: var(--cem-action-destructive-disabled-text);
+        }
+        :scope:where([variant="destructive"]) > button[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background));
+            color: var(--cem-action-destructive-pending-text, var(--cem-action-destructive-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 0%, var(--cem-action-destructive-active-background) 25%,
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 50%, var(--cem-action-destructive-active-background) 75%,
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 100%);
         }
         @keyframes cem-pending-shift {
             from { background-position-x: 0px; }
@@ -137,10 +181,6 @@
                 0 0 0 var(--cem-zebra-strip-size) var(--cem-zebra-color-1),
                 0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
                 0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
-        }
-        :scope > button[part~='control']:where(:disabled:not([aria-busy='true'])) {
-            background-color: var(--_cem-action-disabled-background);
-            color: var(--_cem-action-disabled-text);
         }
         @media (forced-colors: active) {
             :scope > button[part~='control']:where([aria-busy='true']) {

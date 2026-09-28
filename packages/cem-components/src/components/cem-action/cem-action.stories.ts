@@ -8,6 +8,71 @@ const meta = preview.meta({
     loaders: [async () => { await loadCemDeclaration('cem-action', declarationSource); return {}; }],
 });
 
+export const ThemeOverrides = meta.story({
+    parameters: { docs: { description: { story: 'Container and individual host overrides use existing theme tokens. Trusted hover/active checks run only in the Vitest browser runner.' } } },
+    render: () => `<section class="cem-theme-light"><cem-action>First</cem-action><cem-action>Sibling</cem-action></section>`,
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('section')!;
+        const hosts = [...container.querySelectorAll<HTMLElement>('cem-action')];
+        for (const host of hosts) await whenCemRendered(host);
+        const [host, sibling] = hosts;
+        const button = host.querySelector('button')!;
+        const other = sibling.querySelector('button')!;
+        const paint = (control = button) => [getComputedStyle(control).backgroundColor, getComputedStyle(control).color];
+        const inherited = ['rgb(21, 42, 63)', 'rgb(240, 241, 242)'];
+        const individual = ['rgb(63, 42, 21)', 'rgb(230, 231, 232)'];
+        const native = import.meta.env.MODE === 'test' ? (await import('vitest/browser')).userEvent : null;
+        for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+            for (const item of hosts) item.setAttribute('variant', intent);
+            for (const item of hosts) await whenCemRendered(item);
+            if (native) await native.unhover(button);
+            const original = paint();
+            const properties = ['default', 'hover', 'active', 'disabled', 'pending'].flatMap(state =>
+                ['background', 'text'].map(channel => `--cem-action-${intent}-${state}-${channel}`));
+            properties.forEach((property, index) => container.style.setProperty(property, inherited[index % 2]));
+            await expect(paint()).toEqual(inherited);
+            await expect(paint(other)).toEqual(inherited);
+            properties.forEach((property, index) => host.style.setProperty(property, individual[index % 2]));
+            await whenCemRendered(host);
+            await expect(paint()).toEqual(individual);
+            await expect(paint(other)).toEqual(inherited);
+            if (native) {
+                await native.hover(button);
+                await expect(button.matches(':hover')).toBe(true);
+                await expect(paint()).toEqual(individual);
+                button.focus();
+                await native.keyboard('[Space>]');
+                try {
+                    await expect(button.matches(':active')).toBe(true);
+                    await expect(paint()).toEqual(individual);
+                } finally {
+                    await native.keyboard('[/Space]');
+                }
+                await native.unhover(button);
+                button.blur();
+            }
+            host.setAttribute('disabled', '');
+            await whenCemRendered(host);
+            await expect(paint()).toEqual(individual);
+            host.setAttribute('loading', 'true');
+            await whenCemRendered(host);
+            await expect(paint()).toEqual(individual);
+            await expect(getComputedStyle(button).backgroundImage).toContain(individual[0]);
+            properties.forEach(property => host.style.removeProperty(property));
+            await whenCemRendered(host);
+            await expect(paint()).toEqual(inherited);
+            await expect(getComputedStyle(button).backgroundImage).toContain(inherited[0]);
+            host.removeAttribute('disabled');
+            host.removeAttribute('loading');
+            await whenCemRendered(host);
+            properties.forEach(property => container.style.removeProperty(property));
+            await expect(paint()).toEqual(original);
+            await expect(paint(other)).toEqual(original);
+            await expect(host.querySelector('button')).toBe(button);
+        }
+    },
+});
+
 export const NativeHidden = meta.story({
     parameters: { docs: { description: { story: 'Native host visibility and state retention. Trusted keyboard checks run only in the Vitest browser runner.' } } },
     render: () => `<button data-before>Before</button><cem-action hidden loading="true" label="Save"></cem-action><button data-after>After</button>`,

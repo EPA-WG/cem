@@ -486,3 +486,32 @@ Consolidated the three identical bend-radius bindings into one :is selector,
 preserving their specificity. The remaining private color mappings and native
 attribute bindings are used. Nine action stories and source/isolated-package
 playground checks pass, including reduced-motion and forced-colors coverage.
+
+## Public CSS property ownership and theme adoption
+
+- Recorded `--cem-<component>-*` as public API in component conventions, the
+  theme index and CLAUDE.md. Conflicting definitions require an explicit
+  theme/component ownership decision; an `internal` name is not an exemption.
+- Adopted existing action intent/state theme endpoints directly, removing ten
+  private aliases and component-local pending color bindings. All five intents
+  retain hover, active, disabled, pending gradients and accessibility fallbacks.
+- Promoted `--cem-select-popup-z-index: 1` into the D4 Markdown source table,
+  generator, manifest and numeric DTCG export. Canonical select consumes it
+  without a local default. The old private exception remains bounded to frozen
+  legacy choice implementations until their migration.
+- Removed redundant select focus/selection color aliases. Retained the five
+  state/geometry calculations and all existing generated theme variables.
+  Optional unused-code optimization is deferred to consumer builds in roadmap.md;
+  CEM theme/component releases must not prune public tokens based on local usage.
+- Added colocated browser checks for action container/instance overrides and
+  restoration, select combined indicator states, and select popup stacking
+  inheritance, override isolation and native pointer selection.
+- Verification: 21 action/select browser stories pass; theme token coverage is
+  485/485; the new DTCG property is a numeric `1`; theme Phase 13 verification,
+  component style contract, package checks and action source/isolated-package
+  playground checks pass. Pending gradient motion, reduced motion and forced
+  colors remain covered by the playground verifier.
+- Updated stale verifier expectations for the already-shipped action pending
+  keyframes and D5 pending-pattern presentation table. An early source-copy
+  mismatch and a browser startup during CSS regeneration were resolved by
+  rerunning checks after source/build outputs settled.

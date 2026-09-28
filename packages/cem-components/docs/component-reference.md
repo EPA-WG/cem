@@ -175,6 +175,12 @@ no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
 See the [action hover contract](./action-hover-contract.md) and
 [action active contract](./action-active-contract.md).
 
+Action consumes the theme's `--cem-action-<intent>-<state>-background` and
+`--cem-action-<intent>-<state>-text` properties directly. Override these on a
+container or an individual host; removing an override restores the inherited
+theme value. The former private `--_cem-action-*` aliases are removed without
+compatibility aliases. No generic `--cem-action-<state>-*` family is introduced.
+
 For `cem-action`, `loading="true"` reflects `aria-busy="true"` and shows the
 canonical 45-degree pending gradient with a seamless two-second loop. Colors
 come from the current intent's pending/active background pair and pending text.

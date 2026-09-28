@@ -1,7 +1,7 @@
 # CEM D4 Layering — Signed Depth, Planes, and Appearance Shifts
 
 **Status:** Canonical  
-**Last updated:** 2025-12-21  
+**Last updated:** 2026-09-27
 **Taxonomy placement:** D4. Layering (treats *depth + elevation* as one consumer concept)
 
 CEM uses **layering** as the umbrella term for:
@@ -264,7 +264,9 @@ D4 emits the **semantic-aliases shape**, not per-channel adapter hooks:
   theme-stylesheet concerns: tone is owned by D0's `.cem-theme-{light,dark,contrast-light,contrast-dark,native}`
   blocks; contour is owned by D5; spacing by D1; motion by D7. D4 does not redeclare them.
 
-This keeps D4 focused on rung shape; theme adapters compose the remaining channels.
+D4 also emits the public physical choice-popup stacking integer (§15.1.1),
+separately from these rung recipes. Theme adapters compose the remaining
+appearance channels.
 
 ### 6.5 Per-rung perceivable channels (R-D4-2 resolved)
 
@@ -528,7 +530,28 @@ This matrix maps common component families to **layer endpoints** and their **de
 ### 15.1 Keep semantics separate from z-index
 
 - Use layer endpoints and rung tokens for **meaning**.
-- Use a dedicated z-index policy (framework-specific) for **stacking mechanics**.
+- Use a dedicated z-index policy for **stacking mechanics**; the theme owns the
+  public choice-popup integer below, independently of elevation.
+
+### 15.1.1 Public choice-popup stacking
+
+The theme owns the web choice-popup stacking value. This public physical
+stacking property is independent of semantic elevation: its integer is never a
+rung or priority tier. Containers and individual component hosts may override
+it; components consume it without redeclaring a local default.
+
+###### cem-layering-popup-stacking
+
+| Token | Value | Description | tier |
+| --- | --- | --- | --- |
+| `--cem-select-popup-z-index` | `1` | Integer stacking level for the positioned select/choice popup within its containing stacking context | recommended |
+
+The default places the popup above later in-flow positioned content. It does
+not escape ancestor clipping or stacking contexts, establish a global overlay
+ladder, or replace top-layer/portal policy. Elevation tokens remain shadow
+recipes and MUST NOT be used as z-index values. The canonical select adopts
+this token; frozen legacy choice components retain their bounded private
+adapter until migration.
 
 ### 15.2 Example CSS pattern (illustrative)
 
@@ -619,10 +642,12 @@ This spec is the canonical D4 contract for layering (signed depth).
 | `cem-layering-rungs` | §7.1 | 7 basis rungs as `box-shadow` recipes (`--cem-recess-{2,1}`, `--cem-elevation-{0..4}`) |
 | `cem-layering-semantic` | §8.1 | 5 required semantic endpoints (`--cem-layer-{back,base,work,overlay,command}`) |
 | `cem-layering-semantic-optional` | §8.2 | 2 optional endpoints (`--cem-layer-{back-deep,work-floating}`) |
+| `cem-layering-popup-stacking` | §15.1.1 | Public physical choice-popup stacking integer |
 | `cem-layering-rungs-forced` | §13.2 | Forced-colors rung override values (generator-only; no new tokens) |
 
 Generator derivation rules:
-- `cem-layering-rungs`, `cem-layering-semantic`, `cem-layering-semantic-optional` → token list (tier in last
+- `cem-layering-rungs`, `cem-layering-semantic`, `cem-layering-semantic-optional`,
+  `cem-layering-popup-stacking` → token list (tier in last
   column).
 - `cem-layering-rungs-forced` → override values emitted inside `@media (forced-colors: active) :root { … }`;
   no new tokens.

@@ -30,6 +30,28 @@ user experience over implementation details.
 
 ## Core CEM Principles
 
+### Public CSS property ownership
+
+`--cem-<component>-*` CSS properties are public and may be overridden by
+containers or deliberate internal styling. Theme tokens keep their canonical
+source definitions here; components consume them without duplicating defaults
+or introducing equivalent component aliases that block inheritance. Naming a
+property `internal` does not change its public status.
+
+Preserve variables generated from the canonical Markdown tables, including
+variables unused by current CEM components. Consumer components and inherited
+themes may use those public endpoints. Published CEM theme/component artifacts
+must not be pruned based on the CEM component inventory; existing manifest tiers
+remain authoritative. Future unused-code optimization is an optional consumer
+build operation, using that consumer's usage, rather than a CEM release step.
+
+A conflict between component and theme definitions requires an explicit decision
+before implementation: adopt the theme definition, or promote the component
+definition into the theme and remove it from the component. Promotion must use
+the source-table, generator and manifest contracts below. Do not silently create
+a parallel family to avoid the decision. Component authors follow the
+[shared ownership rule](../../../../cem-components/docs/conventions.md#14-public-css-property-ownership).
+
 ### 1. Semantic Intent First
 
 Tokens express **what** something means to the user, not **how** it's implemented.

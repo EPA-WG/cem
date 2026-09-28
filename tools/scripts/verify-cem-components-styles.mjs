@@ -980,29 +980,51 @@ function assertCanonicalActionStyles() {
     if (!css) { fail('canonical action must own embedded CSS'); return; }
     const label = repoPath(path);
     assertCssUsesTokensOnly(label, css);
-    const rules = parseCssRules(label, css);
+    const rules = parseCssRules(label, css, ['cem-pending-shift']);
     const normal = new Map(rules.filter(rule => !rule.media).map(rule => [rule.selector, rule.declarations]));
+    const animations = postcss.parse(css).nodes.filter(node => node.type === 'atrule' && node.name === 'keyframes');
+    const frames = animations[0]?.nodes ?? [];
+    if (animations.length !== 1 || frames.length !== 2 ||
+        frames[0].selector !== 'from' || frames[1].selector !== 'to' ||
+        frames.some(frame => frame.nodes?.length !== 1 || frame.nodes[0].prop !== 'background-position-x') ||
+        frames[0].nodes[0].value !== '0px' || frames[1].nodes[0].value !== 'var(--cem-pending-tile-size)') {
+        fail(`${label}: pending keyframes must shift exactly one theme tile per cycle`);
+    }
+    if (/--_cem-action-|--cem-action-internal-/.test(css)) {
+        fail(`${label}: action must consume theme endpoints without private state aliases`);
+    }
     for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
-        const selector = intent === 'primary' ? ':scope' : `:scope[variant="${intent}"]`;
-        const declarations = normal.get(selector);
-        for (const state of ['default', 'hover', 'active', 'disabled']) {
-            for (const channel of ['background', 'text']) {
-                const property = `--_cem-action-${state}-${channel}`;
-                if (declarations?.get(property) !== `var(--cem-action-${intent}-${state}-${channel})`) {
-                    fail(`${label}: ${intent} must bind ${property} to its matching theme endpoint`);
+        const host = intent === 'primary' ? ':scope' : `:scope:where([variant="${intent}"])`;
+        for (const [state, suffix] of [
+            ['default', ''], ['hover', ':where(:enabled:hover)'], ['active', ':where(:enabled:active)'],
+            ['disabled', ":where(:disabled:not([aria-busy='true']))"], ['pending', ":where([aria-busy='true'])"],
+        ]) {
+            const declarations = normal.get(`${host} > button[part~='control']${suffix}`);
+            if (['hover', 'active', 'disabled'].includes(state) && declarations?.size !== 2) {
+                fail(`${label}: ${intent} ${state} changes only the color pair`);
+            }
+            for (const [property, channel] of [['background-color', 'background'], ['color', 'text']]) {
+                const expected = state === 'pending'
+                    ? `var(--cem-action-${intent}-pending-${channel}, var(--cem-action-${intent}-active-${channel}))`
+                    : `var(--cem-action-${intent}-${state}-${channel})`;
+                if (declarations?.get(property) !== expected) {
+                    fail(`${label}: ${intent} ${state} must consume its ${channel} theme endpoint directly`);
                 }
             }
         }
     }
-    for (const state of ['default', 'hover', 'active', 'disabled']) {
-        const suffix = state === 'default' ? '' : state === 'disabled' ? ':where(:disabled)' : `:where(:enabled:${state})`;
-        const declarations = normal.get(`:scope > button[part~='control']${suffix}`);
-        if (state !== 'default' && declarations?.size !== 2) fail(`${label}: ${state} changes only the color pair`);
-        for (const [property, channel] of [['background-color', 'background'], ['color', 'text']]) {
-            if (declarations?.get(property) !== `var(--_cem-action-${state}-${channel})`) {
-                fail(`${label}: ${state} must consume its ${channel} binding`);
-            }
-        }
+}
+
+function assertCanonicalSelectStacking(tokenNames) {
+    const path = join(componentRoot, 'src/components/cem-select/cem-select.xhtml');
+    const source = readText(path);
+    const label = repoPath(path);
+    if (!tokenNames.has('--cem-select-popup-z-index')) {
+        fail(`${label}: popup stacking must be exported by the theme`);
+    }
+    if (!source.includes('z-index: var(--cem-select-popup-z-index);') ||
+        /--cem-select-popup-z-index\s*:|--_cem-choice-popup-z-index/.test(source)) {
+        fail(`${label}: consume public theme stacking without a local default or private alias`);
     }
 }
 
@@ -1329,7 +1351,7 @@ function assertExactStateBindings(pathLabel, contract, actualRules, expectedRule
     }
 }
 
-function parseCssRules(pathLabel, cssText) {
+function parseCssRules(pathLabel, cssText, allowedKeyframes = ['cem-progress-spinner-cycle']) {
     let root;
 
     try {
@@ -1347,7 +1369,7 @@ function parseCssRules(pathLabel, cssText) {
             && !['(forced-colors: active)', '(prefers-reduced-motion: reduce)'].includes(atRule.params)
         ) {
             fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
-        } else if (atRule.name === 'keyframes' && atRule.params !== 'cem-progress-spinner-cycle') {
+        } else if (atRule.name === 'keyframes' && !allowedKeyframes.includes(atRule.params)) {
             fail(`${pathLabel}: unsupported component stylesheet keyframes @${atRule.name} ${atRule.params}`);
         } else if (!['media', 'keyframes'].includes(atRule.name)) {
             fail(`${pathLabel}: unsupported component stylesheet at-rule @${atRule.name} ${atRule.params}`);
@@ -1479,6 +1501,7 @@ assertMvpFamiliesResolveToThemeTokens(components, tokenNames, tokenCss);
 assertNoComponentSpecificStyleLiterals();
 assertPublicComponentStyles(components, tokenNames);
 assertCanonicalActionStyles();
+assertCanonicalSelectStacking(tokenNames);
 
 if (failures.length > 0) {
     for (const failure of failures) {

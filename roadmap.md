@@ -92,6 +92,15 @@ Deliverables:
 - iOS Swift output and Android XML/Kotlin output.
 - Validation for generated token modes, reports, native files, and package exports.
 
+Deferred consumer tooling:
+
+- Provide opt-in unused-code optimization for consumer builds, using the
+  consumer application's components, inherited themes and dynamic usage.
+  Preserve all Markdown-generated theme variables in CEM release artifacts
+  under the existing manifest tier contract; CEM component usage alone cannot
+  determine which public properties consumers need. This optimization is not a
+  CEM theme/component release step.
+
 Remaining gates: none under Phase 1. Native toolchain compile gates (Swift, Kotlin/Compose) and the non-Figma
 token-change smoke test moved to [Phase 8 - Native Platform Packages](#phase-8---native-platform-packages) where the
 native artifacts they validate are owned. Figma-specific token validation moved to
