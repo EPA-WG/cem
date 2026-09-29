@@ -47,7 +47,11 @@ authored JavaScript/TypeScript except the required colocated `.stories.ts`
 modules. When CEM-ML lacks a concise required capability, hard-stop
 component/app UI work and add the reusable declarative
 capability to `cem-elements`; never add a component-, story-, or app-local
-JavaScript behavior workaround. The proven reference is
+JavaScript behavior workaround. Each component must also ship a property
+playground linked to its required
+**Full examples and variation matrix** gallery, as specified in
+[`docs/component-development-pattern.md`](docs/component-development-pattern.md).
+The proven reference is
 `packages/cem-components/src/components/cem-select/`.
 The complete normative scoping matrix, specificity, ownership, lifecycle, and
 diagnostic rules are in

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { resolve, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { chromium } from 'playwright';
@@ -27,6 +27,7 @@ try {
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
     for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+    await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
     await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
@@ -40,6 +41,7 @@ try {
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
     for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+    await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     console.log('Action, field, text-field, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
@@ -713,7 +715,9 @@ async function verifyField(url, tag) {
         await page.goto(url);
         await page.waitForSelector('#field-preview input');
         const input = page.locator('#field-preview input');
+        await page.waitForFunction(() => new FormData(document.querySelector('#field-form')).get('account') === 'initial');
         await input.fill('edited');
+        await page.waitForFunction(() => new FormData(document.querySelector('#field-form')).get('account') === 'edited');
         await page.getByRole('button', { name: 'Reset', exact: true }).click();
         await page.waitForFunction(() => document.querySelector('#field-preview input')?.value === 'initial');
         assert.deepEqual(await page.evaluate(() => new FormData(document.querySelector('#field-form')).getAll('account')), ['initial']);
@@ -743,4 +747,72 @@ async function verifyField(url, tag) {
         const diagnostics = await page.evaluate(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('#field-preview')));
         assert.deepEqual(diagnostics, [], tag + ': runtime diagnostics');
     } finally { await context.close(); }
+}
+
+async function verifyGalleries(baseUrl) {
+    const folders = await readdir(join(root, 'packages/cem-components/src/components'), { withFileTypes: true });
+    for (const folder of folders.filter(entry => entry.isDirectory())) {
+        const tag = folder.name;
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        try {
+            await page.goto(new URL(`${tag}.html`, baseUrl).href);
+            const link = page.getByRole('link', { name: 'Full examples and variation matrix', exact: true });
+            await link.waitFor();
+            const href = await link.getAttribute('href');
+            assert.equal(new URL(href, page.url()).href, new URL(`${tag}-gallery.html`, baseUrl).href);
+            await link.click();
+            if (tag === 'cem-action') {
+                // The existing intent/bend matrix uses the shared five-mode switch.
+                await verifyActionGallery(page);
+                await page.getByRole('link', { name: 'Action property playground and source' }).click();
+                assert.equal(new URL(page.url()).pathname, new URL(`${tag}.html`, baseUrl).pathname);
+                continue;
+            }
+            await page.waitForFunction(() => {
+                const samples = [...document.querySelectorAll('[data-gallery-sample]')];
+                return samples.length > 0 && samples.every(node => node.querySelector('[part]'));
+            });
+            assert.equal(await page.locator('[data-gallery-theme]').count(), 5, `${tag}: five theme modes`);
+            await page.waitForFunction(() => {
+                const demos = [...document.querySelectorAll('cem-demo-element')];
+                return demos.length > 0 && demos.every(node => node.getAttribute('data-state') === 'ready');
+            });
+            const declaration = await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8');
+            const implemented = [...new Set([
+                ...[...declaration.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
+                ...[...declaration.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
+                'hidden', 'class',
+            ])].filter(name => name !== 'data-theme');
+            const documented = await page.locator('[data-gallery-attribute], [data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-gallery-attribute') ?? node.getAttribute('data-action-attribute')));
+            for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
+            await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
+            const first = page.locator('[data-gallery-sample]').first();
+            const control = first.locator('[part="control"], input').first();
+            await control.hover();
+            await control.focus();
+            if (tag === 'cem-field' || tag === 'cem-text-field') {
+                assert.equal(await control.evaluate(node => getComputedStyle(node).borderWidth), '0px');
+                await page.locator('#gallery-editable input').fill('edited@example.com');
+                await page.locator('#gallery-reset button').click();
+                await page.waitForFunction(() => document.querySelector('#gallery-editable input')?.value === 'reader@example.com');
+            }
+            if (tag === 'cem-select') {
+                const outline = page.locator('[data-gallery-sample][indicator="outline"]').first().locator('[part="control"]');
+                assert.equal(await outline.evaluate(node => getComputedStyle(node).getPropertyValue('--_cem-input-indicator-appearance').trim()),
+                    await outline.evaluate(node => getComputedStyle(node).getPropertyValue('--cem-indicator-appearance-outline').trim()));
+                await control.click();
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('Enter');
+                assert.equal(await first.evaluate(node => node.value), 'grace');
+            }
+            const diagnostics = await page.evaluate(() => [...document.querySelectorAll('[data-gallery-sample]')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)));
+            assert.deepEqual(diagnostics, [], `${tag}: gallery diagnostics`);
+            const back = page.locator(`a[href="./${tag}.html"]`);
+            if (await back.count()) await back.click();
+            else await page.getByRole('link', { name: 'Action property playground and source' }).click();
+            assert.equal(new URL(page.url()).pathname, new URL(`${tag}.html`, baseUrl).pathname);
+        } finally { await context.close(); }
+    }
+    console.log('All canonical component galleries verified: ' + baseUrl);
 }

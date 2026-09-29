@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-menu-item — Full examples and variation matrix</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<div id="playground-theme" class="cem-theme-light"><header><h1>cem-menu-item: Full examples and variation matrix</h1><p><a href="./cem-menu-item.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts">Automated stories</a></p></header><main>
+<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
+<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<li data-gallery-attribute="disabled"><code>disabled</code></li>
+<li data-gallery-attribute="expanded"><code>expanded</code></li>
+<li data-gallery-attribute="hidden"><code>hidden</code></li>
+<li data-gallery-attribute="class"><code>class</code></li></ul>
+<p><strong>Slots:</strong> The default slot replaces fallback command text.</p>
+<cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class"><template slot="source">
+<cem-menu-item id="command-default"></cem-menu-item>
+<cem-menu-item id="command-configured" label="Configured command" class="consumer-command" expanded="false" ></cem-menu-item>
+<cem-menu-item id="command-disabled" label="Disabled by presence" disabled="false"></cem-menu-item>
+<cem-menu-item id="command-expanded" label="Expanded command" expanded="true"></cem-menu-item>
+<cem-menu-item id="command-hidden" label="Hidden by presence" hidden="false"></cem-menu-item>
+<cem-menu-item id="command-content" label="Projected command"><span>Projected content</span></cem-menu-item>
+</template></cem-demo-element>
+</main></div>
+<section aria-label="Theme and state variation matrix">
+<h2>Theme and state variation matrix</h2>
+<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+
+</section>
+</body></html>

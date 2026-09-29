@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-select — Full examples and variation matrix</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=selectUrl @src="@epa-wg/cem-components/components/cem-select"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.selectUrl" | {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.selectUrl}#cem-select"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<div id="playground-theme" class="cem-theme-light"><header><h1>cem-select: Full examples and variation matrix</h1><p><a href="./cem-select.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-select/cem-select.stories.ts">Automated stories</a></p></header><main>
+<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
+<p>Open dropdowns with click or Arrow keys; Enter commits, Escape cancels. Multiple listboxes use Space or click to toggle choices. Disabled options are skipped. Public option and option-group payloads support selected, disabled, value, labels and rich content.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<li data-gallery-attribute="name"><code>name</code></li>
+<li data-gallery-attribute="value"><code>value</code></li>
+<li data-gallery-attribute="placeholder"><code>placeholder</code></li>
+<li data-gallery-attribute="required"><code>required</code></li>
+<li data-gallery-attribute="disabled"><code>disabled</code></li>
+<li data-gallery-attribute="multiple"><code>multiple</code></li>
+<li data-gallery-attribute="size"><code>size</code></li>
+<li data-gallery-attribute="indicator"><code>indicator</code></li>
+<li data-gallery-attribute="busy"><code>busy</code></li>
+<li data-gallery-attribute="invalid"><code>invalid</code></li>
+<li data-gallery-attribute="describedby"><code>describedby</code></li>
+<li data-gallery-attribute="error"><code>error</code></li>
+<li data-gallery-attribute="hidden"><code>hidden</code></li>
+<li data-gallery-attribute="class"><code>class</code></li></ul>
+<p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>help</code> supplies supporting content. Default payload contains <code>cem-option</code> and <code>cem-option-group</code> choices.</p>
+<cem-demo-element legend="Label and help slots"><template slot="source">
+<cem-select describedby="select-slot-help"><span slot="label">Review owner</span><span slot="help" id="select-slot-help">Choose a reviewer.</span><cem-option value="ada">Ada</cem-option><cem-option value="grace">Grace</cem-option></cem-select>
+</template></cem-demo-element>
+<cem-demo-element legend="Grouped rich choices"><template slot="source">
+<cem-select label="Reviewer"><cem-option-group label="Engineering"><cem-option value="ada" selected><strong>Ada</strong> Lovelace</cem-option><cem-option value="grace">Grace Hopper</cem-option></cem-option-group><cem-option-group label="Unavailable" disabled><cem-option value="former">Former reviewer</cem-option></cem-option-group></cem-select>
+</template></cem-demo-element>
+<cem-demo-element legend="Single and multiple listboxes"><template slot="source">
+<cem-select label="Priority" size="4" indicator="outline" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select label="Channels" multiple size="4" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select>
+</template></cem-demo-element>
+<cem-demo-element legend="Form owner and reset"><template slot="source">
+<form method="get" target="_blank"><cem-select label="Reviewer" name="reviewer" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-action type="submit">Submit</cem-action><cem-action type="reset">Reset</cem-action></form>
+</template></cem-demo-element>
+<cem-demo-element legend="Placeholder and validation"><template slot="source">
+<cem-select label="Unselected" value="missing" placeholder="Choose a reviewer" invalid="true" describedby="select-help" error="select-error" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><p id="select-help">Choose one reviewer.</p><p id="select-error">A reviewer is required.</p>
+</template></cem-demo-element>
+<cem-demo-element legend="Value and presence"><template slot="source">
+<cem-select label="Grace selected" value="grace" class="consumer-select" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select label="Disabled by presence" disabled="false" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select><cem-select hidden="false" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select>
+</template></cem-demo-element>
+</main></div>
+<section aria-label="Theme and state variation matrix">
+<h2>Theme and state variation matrix</h2>
+<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select data-gallery-sample label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Default outline"><h3>Default · outline</h3><cem-select data-gallery-sample label="Default" indicator="outline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-select data-gallery-sample label="Disabled" indicator="underline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-select data-gallery-sample label="Disabled" indicator="outline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required underline"><h3>Required · underline</h3><cem-select data-gallery-sample label="Required" indicator="underline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required outline"><h3>Required · outline</h3><cem-select data-gallery-sample label="Required" indicator="outline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-select data-gallery-sample label="Invalid" indicator="underline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-select data-gallery-sample label="Invalid" indicator="outline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-select data-gallery-sample label="Busy" indicator="underline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-select data-gallery-sample label="Busy" indicator="outline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox underline"><h3>Single listbox · underline</h3><cem-select data-gallery-sample label="Single listbox" indicator="underline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox outline"><h3>Single listbox · outline</h3><cem-select data-gallery-sample label="Single listbox" indicator="outline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple underline"><h3>Multiple · underline</h3><cem-select data-gallery-sample label="Multiple" indicator="underline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select data-gallery-sample label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
+
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select data-gallery-sample label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Default outline"><h3>Default · outline</h3><cem-select data-gallery-sample label="Default" indicator="outline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-select data-gallery-sample label="Disabled" indicator="underline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-select data-gallery-sample label="Disabled" indicator="outline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required underline"><h3>Required · underline</h3><cem-select data-gallery-sample label="Required" indicator="underline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required outline"><h3>Required · outline</h3><cem-select data-gallery-sample label="Required" indicator="outline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-select data-gallery-sample label="Invalid" indicator="underline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-select data-gallery-sample label="Invalid" indicator="outline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-select data-gallery-sample label="Busy" indicator="underline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-select data-gallery-sample label="Busy" indicator="outline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox underline"><h3>Single listbox · underline</h3><cem-select data-gallery-sample label="Single listbox" indicator="underline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox outline"><h3>Single listbox · outline</h3><cem-select data-gallery-sample label="Single listbox" indicator="outline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple underline"><h3>Multiple · underline</h3><cem-select data-gallery-sample label="Multiple" indicator="underline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select data-gallery-sample label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
+
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select data-gallery-sample label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Default outline"><h3>Default · outline</h3><cem-select data-gallery-sample label="Default" indicator="outline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-select data-gallery-sample label="Disabled" indicator="underline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-select data-gallery-sample label="Disabled" indicator="outline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required underline"><h3>Required · underline</h3><cem-select data-gallery-sample label="Required" indicator="underline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required outline"><h3>Required · outline</h3><cem-select data-gallery-sample label="Required" indicator="outline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-select data-gallery-sample label="Invalid" indicator="underline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-select data-gallery-sample label="Invalid" indicator="outline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-select data-gallery-sample label="Busy" indicator="underline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-select data-gallery-sample label="Busy" indicator="outline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox underline"><h3>Single listbox · underline</h3><cem-select data-gallery-sample label="Single listbox" indicator="underline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox outline"><h3>Single listbox · outline</h3><cem-select data-gallery-sample label="Single listbox" indicator="outline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple underline"><h3>Multiple · underline</h3><cem-select data-gallery-sample label="Multiple" indicator="underline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select data-gallery-sample label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
+
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select data-gallery-sample label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Default outline"><h3>Default · outline</h3><cem-select data-gallery-sample label="Default" indicator="outline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-select data-gallery-sample label="Disabled" indicator="underline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-select data-gallery-sample label="Disabled" indicator="outline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required underline"><h3>Required · underline</h3><cem-select data-gallery-sample label="Required" indicator="underline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required outline"><h3>Required · outline</h3><cem-select data-gallery-sample label="Required" indicator="outline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-select data-gallery-sample label="Invalid" indicator="underline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-select data-gallery-sample label="Invalid" indicator="outline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-select data-gallery-sample label="Busy" indicator="underline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-select data-gallery-sample label="Busy" indicator="outline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox underline"><h3>Single listbox · underline</h3><cem-select data-gallery-sample label="Single listbox" indicator="underline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox outline"><h3>Single listbox · outline</h3><cem-select data-gallery-sample label="Single listbox" indicator="outline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple underline"><h3>Multiple · underline</h3><cem-select data-gallery-sample label="Multiple" indicator="underline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select data-gallery-sample label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
+
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-select data-gallery-sample label="Default" indicator="underline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Default outline"><h3>Default · outline</h3><cem-select data-gallery-sample label="Default" indicator="outline"  ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-select data-gallery-sample label="Disabled" indicator="underline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-select data-gallery-sample label="Disabled" indicator="outline" disabled ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required underline"><h3>Required · underline</h3><cem-select data-gallery-sample label="Required" indicator="underline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Required outline"><h3>Required · outline</h3><cem-select data-gallery-sample label="Required" indicator="outline" required ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-select data-gallery-sample label="Invalid" indicator="underline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-select data-gallery-sample label="Invalid" indicator="outline" invalid="true" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-select data-gallery-sample label="Busy" indicator="underline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-select data-gallery-sample label="Busy" indicator="outline" busy ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox underline"><h3>Single listbox · underline</h3><cem-select data-gallery-sample label="Single listbox" indicator="underline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Single listbox outline"><h3>Single listbox · outline</h3><cem-select data-gallery-sample label="Single listbox" indicator="outline" size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple underline"><h3>Multiple · underline</h3><cem-select data-gallery-sample label="Multiple" indicator="underline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article>
+<article data-variation="Multiple outline"><h3>Multiple · outline</h3><cem-select data-gallery-sample label="Multiple" indicator="outline" multiple size="3" ><cem-option value="ada" selected>Ada</cem-option><cem-option value="grace">Grace</cem-option><cem-option value="unavailable" disabled>Unavailable</cem-option></cem-select></article></div></section>
+
+</section>
+</body></html>

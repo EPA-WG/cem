@@ -57,7 +57,13 @@
                 "{projectRoot}/dist/cem-icon-button.html",
                 "{projectRoot}/dist/cem-menu-item.html",
                 "{projectRoot}/dist/cem-field.html",
-                "{projectRoot}/dist/cem-text-field.html"
+                "{projectRoot}/dist/cem-text-field.html",
+                "{projectRoot}/dist/cem-field-gallery.html",
+                "{projectRoot}/dist/cem-menu-item-gallery.html",
+                "{projectRoot}/dist/cem-icon-button-gallery.html",
+                "{projectRoot}/dist/cem-select-gallery.html",
+                "{projectRoot}/dist/cem-text-field-gallery.html",
+                "{projectRoot}/dist/cem-theme-switch-gallery.html"
             ]
         },
         "verify-playgrounds": {

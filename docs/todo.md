@@ -116,10 +116,24 @@ presence. Field assertions pass. Source/package playgrounds, package, style,
 state-matrix and forced-color checks pass. See the
 [field contract](../packages/cem-components/docs/field-controls-contract.md).
 
+## Completed: Required component galleries
+
+- [x] Require a full examples and variation matrix gallery for every component,
+      linked from its property playground and shipped in the package.
+- [x] Add missing galleries for all six introduced canonical components.
+- [x] Fixture: verify select outline styles compile without diagnostics and the
+      gallery applies the outline appearance token.
+- [x] Fixture: verify every canonical playground links its gallery, renders real
+      examples and theme/state variations, and works from source and package archives.
+
+All seven canonical galleries pass source and isolated-package browser checks.
+Package verification passes (119 packed files), and all 12 select stories pass.
+The select outline selector now stays within the scoped-CSS specificity limit.
+
 ## Next: Canonical textarea
 
 - [ ] Migrate `cem-textarea` using the shared form-control capability, with scoped
-      indicator CSS and a canonical source/package playground.
+      indicator CSS, a canonical source/package playground and its required gallery.
 - [ ] Fixture: cover multiline editing, reset, boolean presence, validation,
       retained focus/selection and forced colors; compare remaining legacy failures.
 

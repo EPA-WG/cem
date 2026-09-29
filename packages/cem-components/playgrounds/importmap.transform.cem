@@ -48,4 +48,34 @@
       {export @id=cem-text-field-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-select-gallery @src="cem-select-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-select-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-select-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-theme-switch-gallery @src="cem-theme-switch-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-theme-switch-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-theme-switch-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-icon-button-gallery @src="cem-icon-button-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-icon-button-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-icon-button-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-menu-item-gallery @src="cem-menu-item-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-menu-item-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-menu-item-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-field-gallery @src="cem-field-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-field-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-field-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-text-field-gallery @src="cem-text-field-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-text-field-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-text-field-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
 }

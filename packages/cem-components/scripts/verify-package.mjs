@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +11,8 @@ const builtStylesPath = join(packageRoot, 'dist', 'styles.css');
 const builtCatalogPath = join(packageRoot, 'dist', 'catalog', 'cem.components.catalog.json');
 const publicCatalogPath = './dist/catalog/cem.components.catalog.json';
 const publicComponentExport = './src/components/*/*.xhtml';
-const packedDeclarations = ['src/components/cem-icon-button/cem-icon-button.xhtml', 'src/components/cem-menu-item/cem-menu-item.xhtml', 'src/components/cem-theme-switch/cem-theme-switch.xhtml', 'src/components/cem-select/cem-select.xhtml', 'src/components/cem-action/cem-action.xhtml'];
+const canonicalTags = (await readdir(join(packageRoot, 'src/components'))).filter(tag => existsSync(join(packageRoot, 'src/components', tag, tag + '.xhtml')));
+const packedDeclarations = canonicalTags.map(tag => `src/components/${tag}/${tag}.xhtml`);
 const packageJsonPath = join(packageRoot, 'package.json');
 const sourcePrimitivesPath = join(packageRoot, 'src', 'lib', 'primitives.ts');
 const builtPrimitivesPath = join(packageRoot, 'dist', 'lib', 'primitives.js');
@@ -286,7 +287,7 @@ try {
         throw new Error(`npm pack must contain the public component catalog ${packedCatalogPath}`);
     }
 
-    for (const page of ['cem-icon-button.html', 'cem-menu-item.html', 'cem-bundle.html', 'cem-select.html', 'cem-action.html', 'cem-action-gallery.html', 'cem-theme-switch.html']) {
+    for (const page of ['cem-bundle.html', ...canonicalTags.flatMap(tag => [`${tag}.html`, `${tag}-gallery.html`])]) {
         if (packageJson.exports?.[`./playgrounds/${page}`] !== `./dist/${page}` || !packedFiles.includes(`dist/${page}`)) {
             throw new Error(`npm pack must expose the built playground ${page}`);
         }
@@ -295,6 +296,11 @@ try {
         if (!packedFiles.includes(source)) throw new Error(`npm pack is missing playground source or asset ${source}`);
     }
 
+    for (const tag of canonicalTags) {
+        for (const file of [`${tag}.html`, `${tag}-gallery.html`]) {
+            if (!packedFiles.includes(`playgrounds/${file}`)) throw new Error(`Missing gallery/playground source: ${file}`);
+        }
+    }
     for (const declaration of packedDeclarations) {
         if (!packedFiles.includes(declaration)) {
             throw new Error(`npm pack must contain the public declarative component ${declaration}`);

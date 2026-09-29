@@ -108,7 +108,7 @@
                 var(--cem-input-indicator-selection-color);
           }
 
-          :host([indicator='outline']) [part~='control'] {
+          :scope:where([indicator='outline']) [part~='control'] {
             --_cem-input-indicator-appearance: var(
               --cem-input-indicator-appearance,
               var(--cem-indicator-appearance-outline)

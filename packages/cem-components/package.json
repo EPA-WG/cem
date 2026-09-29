@@ -35,7 +35,13 @@
         "./playgrounds/cem-icon-button.html": "./dist/cem-icon-button.html",
         "./playgrounds/cem-menu-item.html": "./dist/cem-menu-item.html",
         "./playgrounds/cem-field.html": "./dist/cem-field.html",
-        "./playgrounds/cem-text-field.html": "./dist/cem-text-field.html"
+        "./playgrounds/cem-text-field.html": "./dist/cem-text-field.html",
+        "./playgrounds/cem-select-gallery.html": "./dist/cem-select-gallery.html",
+        "./playgrounds/cem-theme-switch-gallery.html": "./dist/cem-theme-switch-gallery.html",
+        "./playgrounds/cem-icon-button-gallery.html": "./dist/cem-icon-button-gallery.html",
+        "./playgrounds/cem-menu-item-gallery.html": "./dist/cem-menu-item-gallery.html",
+        "./playgrounds/cem-field-gallery.html": "./dist/cem-field-gallery.html",
+        "./playgrounds/cem-text-field-gallery.html": "./dist/cem-text-field-gallery.html"
     },
     "files": [
         "dist",

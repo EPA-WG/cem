@@ -543,3 +543,10 @@ The [bundle playground](playgrounds/cem-bundle.html) is exported at
 playgrounds, and [build inputs](build/README.md) remain in the package.
 `yarn nx run @epa-wg/cem-components:build:bundle` regenerates the artifact;
 `verify-playgrounds` checks source and isolated-package loading.
+
+## Required component galleries
+
+Every canonical component has a **Full examples and variation matrix** link
+on its property playground. The gallery provides live examples with source and
+side-by-side theme/state comparisons. Both pages ship under the package
+`playgrounds/` exports. See the [demo protocol](../../docs/component-development-pattern.md#full-examples-and-variation-matrix-required).
