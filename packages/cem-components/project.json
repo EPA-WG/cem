@@ -60,6 +60,8 @@
                 "{projectRoot}/dist/cem-icon-gallery.html",
                 "{projectRoot}/dist/cem-field.html",
                 "{projectRoot}/dist/cem-text-field.html",
+                "{projectRoot}/dist/cem-textarea.html",
+                "{projectRoot}/dist/cem-textarea-gallery.html",
                 "{projectRoot}/dist/cem-field-gallery.html",
                 "{projectRoot}/dist/cem-menu-item-gallery.html",
                 "{projectRoot}/dist/cem-icon-button-gallery.html",

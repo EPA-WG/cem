@@ -240,7 +240,6 @@
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
             "test": "renders input-family MVP primitives as native accessible controls",
             "assertions": [
-                "expect(textarea.value).toBe('Short bio');",
                 "expect(switchInput.getAttribute('role')).toBe('switch');"
             ],
             "componentEvidence": [
@@ -250,6 +249,14 @@
                     "test": "AllAttributes",
                     "assertions": [
                         "expect(input.type).toBe('text');"
+                    ]
+                },
+                {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.type).toBe('textarea');"
                     ]
                 },
                 {
@@ -346,6 +353,14 @@
                     ]
                 },
                 {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(anchor()).toBe(token('--cem-input-indicator-anchor-hover-color'));"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation",
@@ -435,6 +450,14 @@
                     ]
                 },
                 {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(input.matches(':focus-visible')).toBe(true);"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation",
@@ -490,8 +513,14 @@
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textarea.disabled).toBe(true);", "expect(radio.disabled).toBe(true);"],
+            "assertions": ["expect(radio.disabled).toBe(true);"],
             "componentEvidence": [
+                {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+                    "test": "NativeConstraintsAndFormOwnership",
+                    "assertions": ["expect(control.disabled).toBe(true);"]
+                },
                 {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
@@ -581,6 +610,14 @@
                     ]
                 },
                 {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.getAttribute('aria-busy')).toBe('true');"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
@@ -656,13 +693,20 @@
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
             "assertions": [
-                "expect(textField.getAttribute('aria-invalid')).toBe('true');",
-                "expect(textField.getAttribute('aria-errormessage')).toBe('email-error');"
+                "expect(checkedBox.getAttribute('aria-invalid')).toBe('true');"
             ],
             "componentEvidence": [
                 {
                     "component": "cem-text-field",
                     "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.getAttribute(target)).toBe(value);"
+                    ]
+                },
+                {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
                     "test": "AllAttributes",
                     "assertions": [
                         "expect(input.getAttribute(target)).toBe(value);"
@@ -711,16 +755,24 @@
             "id": "input:required",
             "category": "Input",
             "state": "required",
-            "components": ["cem-text-field", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-checkbox"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete", "cem-timepicker", "cem-datepicker", "cem-select", "cem-checkbox"],
             "interaction": "Expose required semantics through native controls and their accessible labels.",
             "status": "covered",
             "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textField.required).toBe(true);", "expect(checkedBox.required).toBe(true);"],
+            "assertions": ["expect(checkedBox.required).toBe(true);"],
             "componentEvidence": [
                 {
                     "component": "cem-text-field",
                     "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.hasAttribute(attribute)).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
                     "test": "AllAttributes",
                     "assertions": [
                         "expect(input.hasAttribute(attribute)).toBe(true);"
@@ -767,16 +819,24 @@
             "id": "input:readonly",
             "category": "Input",
             "state": "readonly",
-            "components": ["cem-text-field", "cem-autocomplete"],
+            "components": ["cem-text-field", "cem-textarea", "cem-autocomplete"],
             "interaction": "Keep a readonly field focusable and submittable while preventing edits.",
             "status": "covered",
-            "owner": "packages/cem-components/src/lib/states.browser.spec.ts",
-            "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
-            "assertions": ["expect(textField.readOnly).toBe(true);"],
+            "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
+            "test": "AllAttributes",
+            "assertions": ["expect(input.hasAttribute(attribute)).toBe(true);"],
             "componentEvidence": [
                 {
                     "component": "cem-text-field",
                     "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.hasAttribute(attribute)).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-textarea",
+                    "owner": "packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts",
                     "test": "AllAttributes",
                     "assertions": [
                         "expect(input.hasAttribute(attribute)).toBe(true);"

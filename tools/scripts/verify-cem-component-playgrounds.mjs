@@ -26,7 +26,7 @@ try {
     await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-    for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+    for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
     await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
     await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
     await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
@@ -41,12 +41,12 @@ try {
     await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-    for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+    for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
     await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
     await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action, field, text-field, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -609,6 +609,8 @@ async function verifyBundle(url) {
     page.on('pageerror', error => errors.push(error.message));
     try {
         await page.goto(url);
+        await page.locator('#bundle-textarea textarea').waitFor();
+        assert.equal(await page.locator('#bundle-textarea textarea').inputValue(), 'First line\nSecond line');
         await page.locator('#bundle-icon [role=img]').waitFor();
         await page.locator('#bundle-action button').waitFor();
         await page.locator('#bundle-select [role=combobox]').waitFor();
@@ -627,7 +629,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field']) {
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field', 'cem-textarea']) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -717,29 +719,37 @@ async function verifyField(url, tag) {
     const page = await context.newPage();
     try {
         await page.goto(url);
-        await page.waitForSelector('#field-preview input');
-        const input = page.locator('#field-preview input');
+        await page.waitForSelector('#field-preview [part="control"]');
+        const input = page.locator('#field-preview [part="control"]');
         await page.waitForFunction(() => new FormData(document.querySelector('#field-form')).get('account') === 'initial');
-        await input.fill('edited');
-        await page.waitForFunction(() => new FormData(document.querySelector('#field-form')).get('account') === 'edited');
+        const edited = tag === 'cem-textarea' ? 'edited\nsecond line' : 'edited';
+        await input.fill(edited);
+        await page.waitForFunction(value => new FormData(document.querySelector('#field-form')).get('account') === value, edited);
         await page.getByRole('button', { name: 'Reset', exact: true }).click();
-        await page.waitForFunction(() => document.querySelector('#field-preview input')?.value === 'initial');
+        await page.waitForFunction(() => document.querySelector('#field-preview [part="control"]')?.value === 'initial');
         assert.deepEqual(await page.evaluate(() => new FormData(document.querySelector('#field-form')).getAll('account')), ['initial']);
+        if (tag === 'cem-textarea') {
+            await page.getByRole('textbox', { name: 'value', exact: true }).fill('first\nsecond');
+            await page.waitForFunction(() => document.querySelector('#field-preview textarea')?.value === 'first\nsecond');
+            await page.getByRole('textbox', { name: 'rows', exact: true }).fill('6');
+            await page.waitForFunction(() => document.querySelector('#field-preview textarea')?.rows === 6);
+        }
+
         for (const attribute of ['disabled', 'required', 'readonly', 'busy']) {
             const group = page.getByRole('radiogroup', { name: attribute, exact: true });
             await group.getByRole('radio', { name: 'false', exact: true }).check();
             await page.waitForFunction(attribute => {
-                const control = document.querySelector('#field-preview input');
+                const control = document.querySelector('#field-preview [part="control"]');
                 return attribute === 'busy' ? control?.getAttribute('aria-busy') === 'true' : control?.hasAttribute(attribute);
             }, attribute);
             await group.getByRole('radio', { name: 'absent', exact: true }).check();
             await page.waitForFunction(attribute => {
-                const control = document.querySelector('#field-preview input');
+                const control = document.querySelector('#field-preview [part="control"]');
                 return !control?.hasAttribute(attribute === 'busy' ? 'aria-busy' : attribute);
             }, attribute);
         }
         await page.getByRole('radiogroup', { name: 'busy', exact: true }).getByRole('radio', { name: 'true', exact: true }).check();
-        await page.waitForFunction(() => getComputedStyle(document.querySelector('#field-preview input')).boxShadow !== 'none');
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('#field-preview [part="control"]')).boxShadow !== 'none');
         await page.emulateMedia({ forcedColors: 'active' });
         assert.equal(await input.evaluate(node => getComputedStyle(node).borderWidth), '0px');
         assert.equal(await input.evaluate(node => getComputedStyle(node).boxShadow), 'none');
@@ -797,11 +807,11 @@ async function verifyGalleries(baseUrl) {
                 await control.hover();
                 await control.focus();
             }
-            if (tag === 'cem-field' || tag === 'cem-text-field') {
+            if (tag === 'cem-field' || tag === 'cem-text-field' || tag === 'cem-textarea') {
                 assert.equal(await control.evaluate(node => getComputedStyle(node).borderWidth), '0px');
-                await page.locator('#gallery-editable input').fill('edited@example.com');
+                await page.locator('#gallery-editable [part=control]').fill('edited@example.com');
                 await page.locator('#gallery-reset button').click();
-                await page.waitForFunction(() => document.querySelector('#gallery-editable input')?.value === 'reader@example.com');
+                await page.waitForFunction(value => document.querySelector('#gallery-editable [part=control]')?.value === value, tag === 'cem-textarea' ? 'First line\nSecond line' : 'reader@example.com');
             }
             if (tag === 'cem-select') {
                 const outline = page.locator('[data-gallery-sample][indicator="outline"]').first().locator('[part="control"]');

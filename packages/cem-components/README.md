@@ -79,8 +79,7 @@ The promise resolves after every accepted declaration settles. Inspect
 application content. Behavior-backed primitives supply stable versioned host
 identities as part of their registration contract.
 
-This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
-`cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
+This registers the remaining legacy primitive tags: `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
 `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
@@ -466,7 +465,7 @@ The accepted [component development pattern](../../docs/component-development-pa
 separate from a companion property playground and source view. A generated
 `#ID` bundle is generated as release output. `cem-action`, `cem-select`,
 `cem-theme-switch`, `cem-icon`, `cem-icon-button`, `cem-menu-item`, `cem-field`, and
-`cem-text-field` use the canonical XHTML and colocated story structure.
+`cem-text-field` and `cem-textarea` use the canonical XHTML and colocated story structure.
 
 ## Action property playground
 
@@ -562,3 +561,11 @@ longer registers it. It supports the legacy source formats and size/direction
 variants while preserving the `name` alias and decorative/labeled semantics.
 See the [icon contract](./docs/icon-contract.md) and
 [Full examples and variation matrix](./playgrounds/cem-icon-gallery.html).
+
+### Multiline text entry
+
+`cem-textarea` is a canonical XHTML component with the shared form-control
+capability. Load its declaration explicitly or use the release bundle; it is
+no longer registered by the legacy primitive installer. See the
+[textarea contract](./docs/textarea-contract.md) and
+[Full examples and variation matrix](./playgrounds/cem-textarea-gallery.html).

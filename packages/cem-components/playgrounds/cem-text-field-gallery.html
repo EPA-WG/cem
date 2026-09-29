@@ -22,7 +22,8 @@
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
-        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml"
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml"
     }
 }</script>
     <script type="module">
@@ -66,7 +67,7 @@
 </cem-element>
 
 <div id="playground-theme" class="cem-theme-light"><header><h1>cem-text-field: Full examples and variation matrix</h1>
-<p class="component-description">A labeled text-entry control with help content, validation, and borderless state indicators. It shares the same input and form contract as <a href="./cem-field-gallery.html"><code>cem-field</code></a>; pair it with <a href="./cem-action-gallery.html"><code>cem-action</code></a> to submit or reset a form.</p>
+<p class="component-description">Use <a href="./cem-textarea-gallery.html"><code>cem-textarea</code></a> for multiline entry. A labeled text-entry control with help content, validation, and borderless state indicators. It shares the same input and form contract as <a href="./cem-field-gallery.html"><code>cem-field</code></a>; pair it with <a href="./cem-action-gallery.html"><code>cem-action</code></a> to submit or reset a form.</p>
 <p><a href="./cem-text-field.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
 <p>Both fields remain borderless. Hover and focus paint their own indicators. Busy preserves editing; disabled, readonly, required and busy use attribute presence, including the text false. Invalid is an ARIA string.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>

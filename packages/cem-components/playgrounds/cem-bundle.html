@@ -21,7 +21,8 @@
         "@epa-wg/cem-components/components.xhtml": "../dist/components.xhtml",
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
-        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml"
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml"
     }
 }</script>
 <script type="module">
@@ -40,6 +41,7 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window);
   {cem-element @tag=cem-icon-button @src="{$datadom.slices.bundleUrl}#cem-icon-button"}
   {cem-element @tag=cem-menu-item @src="{$datadom.slices.bundleUrl}#cem-menu-item"}
   {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.bundleUrl}#cem-field"}
+  {cem-element @tag=cem-textarea @capability=form-control @src="{$datadom.slices.bundleUrl}#cem-textarea"}
   {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.bundleUrl}#cem-text-field"}
   {cem-element @tag=cem-action @src="{$datadom.slices.bundleUrl}#cem-action"}
   {cem-element @tag=cem-select @capability=choice-select @src="{$datadom.slices.bundleUrl}#cem-select"}
@@ -51,6 +53,7 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window);
 <p>These components load from the generated <code>components.xhtml</code> through their template IDs.</p>
 <main>
 <cem-field id="bundle-field" label="Bundled field" value="Field value"></cem-field>
+<cem-textarea id="bundle-textarea" label="Bundled notes" value="First line&#10;Second line"></cem-textarea>
 <cem-text-field id="bundle-text-field" label="Bundled text field" value="Text value"></cem-text-field>
 <cem-icon id="bundle-icon" image="★" label="Bundled star"></cem-icon>
 <cem-icon-button id="bundle-icon-button" name="settings" label="Bundled icon command"></cem-icon-button>

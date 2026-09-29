@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>cem-text-field — property playground</title>
+    <title>cem-textarea — property playground</title>
     <script type="importmap">{
     "imports": {
         "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
@@ -55,8 +55,8 @@
 
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
-{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
-{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-textarea"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-textarea @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-textarea"}}
 {cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
 {cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
@@ -67,13 +67,17 @@
 </cem-element>
 
 <cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
-<h1>cem-text-field playground</h1><p><a href="./cem-text-field-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts">Automated stories</a></p><main><cem-element><template type="text/cem-ml">
+<h1>cem-textarea playground</h1><p class="component-description">A labeled multiline text control with help content, validation, and borderless state indicators. It shares form behavior with <a href="./cem-text-field-gallery.html"><code>cem-text-field</code></a> and <a href="./cem-field-gallery.html"><code>cem-field</code></a>; use <a href="./cem-action-gallery.html"><code>cem-action</code></a> to submit or reset the form.</p><p><a href="./cem-textarea-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-textarea/cem-textarea.stories.ts">Automated stories</a></p><main><cem-element><template type="text/cem-ml">
 {slice @name=class | field-example}
 {slice @name=form | }
 {slice @name=label | Account}
 {slice @name=name | account}
 {slice @name=value | initial}
-{slice @name=type | text}
+{slice @name=rows | 4}
+{slice @name=cols | 30}
+{slice @name=minlength | }
+{slice @name=maxlength | }
+{slice @name=autocomplete | off}
 {slice @name=placeholder | Enter account}
 {slice @name=describedby | field-help}
 {slice @name=error | field-error}
@@ -89,8 +93,12 @@
 {cem-field @label="form" @value="{$datadom.slices.form}" @slice=form @slice-event=input @slice-value="$target.value"}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
-{cem-field @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
-{cem-field @label="type" @value="{$datadom.slices.type}" @slice=type @slice-event=input @slice-value="$target.value"}
+{cem-textarea @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
+{cem-field @label="rows" @value="{$datadom.slices.rows}" @slice=rows @slice-event=input @slice-value="$target.value"}
+{cem-field @label="cols" @value="{$datadom.slices.cols}" @slice=cols @slice-event=input @slice-value="$target.value"}
+{cem-field @label="minlength" @value="{$datadom.slices.minlength}" @slice=minlength @slice-event=input @slice-value="$target.value"}
+{cem-field @label="maxlength" @value="{$datadom.slices.maxlength}" @slice=maxlength @slice-event=input @slice-value="$target.value"}
+{cem-field @label="autocomplete" @value="{$datadom.slices.autocomplete}" @slice=autocomplete @slice-event=input @slice-value="$target.value"}
 {cem-field @label="placeholder" @value="{$datadom.slices.placeholder}" @slice=placeholder @slice-event=input @slice-value="$target.value"}
 {cem-field @label="describedby" @value="{$datadom.slices.describedby}" @slice=describedby @slice-event=input @slice-value="$target.value"}
 {cem-field @label="error" @value="{$datadom.slices.error}" @slice=error @slice-event=input @slice-value="$target.value"}
@@ -130,7 +138,7 @@
 {cem-radio @name=field-indicator @value=outline | outline}
 }}
 }} {section @aria-label="Field preview" | {h2 | Preview} {form @id=field-form |
-{cem-text-field @id=field-preview @class="{$datadom.slices.class}" @form={if datadom.slices.form { datadom.slices.form } else { null }} @label="{$datadom.slices.label}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @type="{$datadom.slices.type}" @placeholder="{$datadom.slices.placeholder}" @describedby="{$datadom.slices.describedby}" @error="{$datadom.slices.error}" @indicator="{$datadom.slices.indicator}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @required={if datadom.slices.required == "absent" { null } else { datadom.slices.required }} @readonly={if datadom.slices.readonly == "absent" { null } else { datadom.slices.readonly }} @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} @invalid={if datadom.slices.invalid == "absent" { null } else { datadom.slices.invalid }} | {span @slot=help @id=field-help | Help text}}
+{cem-textarea @id=field-preview @class="{$datadom.slices.class}" @form={if datadom.slices.form { datadom.slices.form } else { null }} @label="{$datadom.slices.label}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @rows="{$datadom.slices.rows}" @cols="{$datadom.slices.cols}" @minlength="{$datadom.slices.minlength}" @maxlength="{$datadom.slices.maxlength}" @autocomplete="{$datadom.slices.autocomplete}" @placeholder="{$datadom.slices.placeholder}" @describedby="{$datadom.slices.describedby}" @error="{$datadom.slices.error}" @indicator="{$datadom.slices.indicator}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @required={if datadom.slices.required == "absent" { null } else { datadom.slices.required }} @readonly={if datadom.slices.readonly == "absent" { null } else { datadom.slices.readonly }} @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} @invalid={if datadom.slices.invalid == "absent" { null } else { datadom.slices.invalid }} | {span @slot=help @id=field-help | Help text}}
 {p @id=field-error | Error description}
 {cem-action @type=reset | Reset}
 }
@@ -139,9 +147,9 @@
 {form @id=external-field-form @aria-label="External form owner" | {p | Set form to external-field-form to use this form owner.}}
 </template></cem-element></main>
 <cem-demo-element legend="Named label and help">
-<template slot="source"><cem-text-field name="example" value="initial"><span slot="label">Account name</span><span slot="help">Help text</span></cem-text-field></template>
+<template slot="source"><cem-textarea name="example" value="initial"><span slot="label">Notes</span><span slot="help">Help text</span></cem-textarea></template>
 </cem-demo-element><cem-element><template type="text/cem-ml">
-{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-textarea"}
 {cem:if @test="datadom.slices.sourceUrl" |
  {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}}
  {cem-demo-element @legend="Canonical field source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}

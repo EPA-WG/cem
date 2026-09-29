@@ -1071,7 +1071,6 @@ cem-slider .cem-slider__inputs > input[type='range'][data-cem-slider-thumb]:enab
     outline-offset: var(--cem-stroke-indicator-offset);
 }
 
-cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-datepicker > .cem-datepicker > input[slot='input'],
 cem-timepicker > .cem-timepicker > input[slot='input'],
@@ -1087,7 +1086,6 @@ cem-switch > label > input {
 }
 
 /* Extra stripes belong only to active states on the native control. */
-cem-textarea textarea:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
 cem-autocomplete .cem-autocomplete__control:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
 cem-datepicker > .cem-datepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
 cem-timepicker > .cem-timepicker > input[slot='input']:where(:focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled),
@@ -1129,7 +1127,6 @@ cem-switch > label > input:where(:focus-visible, :checked, [aria-checked='mixed'
     outline: var(--cem-stroke-none) solid transparent;
 }
 
-cem-textarea textarea,
 cem-autocomplete .cem-autocomplete__control,
 cem-datepicker > .cem-datepicker > input[slot='input'],
 cem-timepicker > .cem-timepicker > input[slot='input'] {
@@ -1139,7 +1136,6 @@ cem-timepicker > .cem-timepicker > input[slot='input'] {
     );
 }
 
-cem-textarea[indicator='outline'] textarea,
 cem-autocomplete[indicator='outline'] .cem-autocomplete__control,
 cem-datepicker[indicator='outline'] > .cem-datepicker > input[slot='input'],
 cem-timepicker[indicator='outline'] > .cem-timepicker > input[slot='input'] {
@@ -1149,19 +1145,16 @@ cem-timepicker[indicator='outline'] > .cem-timepicker > input[slot='input'] {
     );
 }
 
-cem-textarea textarea:enabled:hover,
 cem-autocomplete .cem-autocomplete__control:enabled:hover,
 cem-datepicker > .cem-datepicker > input[slot='input']:enabled:hover,
 cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
 }
 
-cem-textarea textarea[readonly]:enabled,
 cem-autocomplete .cem-autocomplete__control[readonly]:enabled {
     --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-readonly-color);
 }
 
-cem-textarea textarea[data-state='loading']:enabled,
 cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled,
 cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled,
 cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled {
@@ -1169,7 +1162,6 @@ cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:ena
     --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
 }
 
-cem-textarea textarea[aria-invalid='true']:enabled,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled,
 cem-datepicker > .cem-datepicker > input[slot='input'][aria-invalid='true']:enabled,
 cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled {
@@ -1177,7 +1169,6 @@ cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enab
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
-cem-textarea textarea[aria-invalid='true']:enabled:hover,
 cem-autocomplete .cem-autocomplete__control[aria-invalid='true']:enabled:hover,
 cem-datepicker > .cem-datepicker > input[slot='input'][aria-invalid='true']:enabled:hover,
 cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enabled:hover {
@@ -1185,7 +1176,6 @@ cem-timepicker > .cem-timepicker > input[slot='input'][aria-invalid='true']:enab
     --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
 }
 
-cem-textarea textarea:disabled,
 cem-autocomplete .cem-autocomplete__control:disabled,
 cem-datepicker > .cem-datepicker > input[slot='input']:disabled,
 cem-timepicker > .cem-timepicker > input[slot='input']:disabled {
@@ -1193,7 +1183,6 @@ cem-timepicker > .cem-timepicker > input[slot='input']:disabled {
     --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
 }
 
-cem-textarea textarea:focus-visible,
 cem-autocomplete .cem-autocomplete__control:focus-visible,
 cem-datepicker > .cem-datepicker > input[slot='input']:focus-visible,
 cem-timepicker > .cem-timepicker > input[slot='input']:focus-visible {
@@ -2070,7 +2059,6 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
         outline-offset: var(--cem-stroke-indicator-offset);
     }
 
-    cem-textarea textarea,
     cem-autocomplete .cem-autocomplete__control,
     cem-datepicker > .cem-datepicker > input[slot='input'],
     cem-timepicker > .cem-timepicker > input[slot='input'],
@@ -2080,7 +2068,6 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
         box-shadow: none;
     }
 
-    cem-textarea textarea:enabled:hover,
     cem-autocomplete .cem-autocomplete__control:enabled:hover,
     cem-datepicker > .cem-datepicker > input[slot='input']:enabled:hover,
     cem-timepicker > .cem-timepicker > input[slot='input']:enabled:hover {
@@ -2094,7 +2081,6 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
         outline-offset: var(--cem-stroke-indicator-offset);
     }
 
-    cem-textarea textarea[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:not([aria-invalid='true']),
     cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
     cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:not([aria-invalid='true']),
@@ -2105,7 +2091,6 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
         outline-offset: var(--cem-stroke-indicator-offset);
     }
 
-    cem-textarea textarea:focus-visible,
     cem-autocomplete .cem-autocomplete__control:focus-visible,
     cem-datepicker > .cem-datepicker > input[slot='input']:focus-visible,
     cem-datepicker > .cem-datepicker > button[slot='toggle']:focus-visible,
@@ -2116,7 +2101,6 @@ cem-autocomplete .cem-autocomplete__option[aria-disabled='true'] {
     cem-checkbox > label > input:enabled:focus-visible,
     cem-radio > label > input:enabled:focus-visible::before,
     cem-switch > label > input:enabled:focus-visible,
-    cem-textarea textarea[data-state='loading']:enabled:focus-visible,
     cem-autocomplete .cem-autocomplete__control[data-state='loading']:enabled:focus-visible,
     cem-datepicker > .cem-datepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,
     cem-timepicker > .cem-timepicker > input[slot='input'][data-state='loading']:enabled:focus-visible,

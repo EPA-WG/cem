@@ -43,7 +43,9 @@
         "./playgrounds/cem-field-gallery.html": "./dist/cem-field-gallery.html",
         "./playgrounds/cem-text-field-gallery.html": "./dist/cem-text-field-gallery.html",
         "./playgrounds/cem-icon.html": "./dist/cem-icon.html",
-        "./playgrounds/cem-icon-gallery.html": "./dist/cem-icon-gallery.html"
+        "./playgrounds/cem-icon-gallery.html": "./dist/cem-icon-gallery.html",
+        "./playgrounds/cem-textarea.html": "./dist/cem-textarea.html",
+        "./playgrounds/cem-textarea-gallery.html": "./dist/cem-textarea-gallery.html"
     },
     "files": [
         "dist",

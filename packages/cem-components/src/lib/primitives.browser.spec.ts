@@ -121,9 +121,6 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-textarea name="bio" value="Short bio">
-                    <span slot="label">Bio</span>
-                </cem-textarea>
                 <cem-checkbox name="terms" value="accepted">Accept terms</cem-checkbox>
                 <cem-radio name="plan" value="pro">Pro plan</cem-radio>
                 <cem-switch name="notifications">Notifications</cem-switch>
@@ -131,23 +128,19 @@ describe('CEM component primitives', () => {
         `);
         await waitForPrimitive(root, 'cem-switch input');
 
-        const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
         const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
         const switchInput = harness.query<HTMLInputElement>('cem-switch input');
 
         for (const host of Array.from(
             harness.root.querySelectorAll<HTMLElement>(
-                'cem-textarea, cem-checkbox, cem-radio, cem-switch',
+                'cem-checkbox, cem-radio, cem-switch',
             ),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
         }
 
-        expect(textarea.getAttribute('name')).toBe('bio');
-        expect(textarea.value).toBe('Short bio');
-        expect(assertAccessibleName(textarea, 'Bio')).toBe('Bio');
         expect(checkbox.type).toBe('checkbox');
         expect(checkbox.getAttribute('name')).toBe('terms');
         expect(checkbox.getAttribute('value')).toBe('accepted');

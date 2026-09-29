@@ -182,12 +182,30 @@ Eight icon-button stories pass, including five-theme link state paint.
 Source/package playgrounds, package, style and parity checks pass.
 Lint passes with 48 existing warnings and no errors.
 
-## Next: Canonical textarea
+## Completed: Canonical textarea
 
-- [ ] Migrate `cem-textarea` using the shared form-control capability, with scoped
+- [x] Migrate `cem-textarea` using the shared form-control capability, with scoped
       indicator CSS, a canonical source/package playground and its required gallery.
-- [ ] Fixture: cover multiline editing, reset, boolean presence, validation,
+- [x] Fixture: cover multiline editing, reset, boolean presence, validation,
       retained focus/selection and forced colors; compare remaining legacy failures.
+
+Eight textarea stories pass, covering multiline editing and whitespace, native
+constraints, boolean presence, external form ownership, disabled fieldsets,
+reset, Enter behavior, retained selection, and all five theme modes. Source and
+isolated-package playgrounds, all nine galleries, bundle loading, package
+contents, declarative architecture, catalog/state matrix, style, forced colors,
+and Material parity pass. Lint has no errors and 48 existing warnings. No shared
+runtime change was needed. The final multiline property editor was also checked
+from source and isolated package archives after its update.
+
+Legacy comparison: states remain 4 passing / 15 failing; workflows remain
+13 passing / 1 failing (checkbox required presence). Textarea workflows pass.
+The primitive suite passes all nine tests in an isolated rerun. During concurrent
+package work, one run failed to render eight primitive fixtures; the rerun logged
+Vite dependency reoptimization. A packaged-page preview also timed out once
+during concurrent package work, then passed in the focused source/archive run.
+The cause is not established; keep browser startup investigation open and avoid
+rebuilding shared package artifacts during archive verification.
 
 ## Completed: Native radio selection feedback
 

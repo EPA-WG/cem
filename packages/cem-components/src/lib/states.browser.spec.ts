@@ -1142,9 +1142,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack class="cem-theme-light" gap="sm">
-                <cem-textarea data-fixture="generic" name="field" label="Field" value="alpha"></cem-textarea>
-                <cem-textarea data-fixture="text" name="outlined" label="Outlined field" indicator="outline"></cem-textarea>
-                <cem-textarea name="readonly" label="Readonly notes" readonly>Notes</cem-textarea>
                 <cem-checkbox name="checked" checked>Checked option</cem-checkbox>
                 <cem-radio name="fallback" indicator="unsupported">Fallback option</cem-radio>
                 <cem-switch name="invalid-switch" indicator="underline" checked invalid="true">
@@ -1156,30 +1153,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await waitForStateSelector(root, 'cem-radio[name="disabled-radio"] input');
 
         const cases = [
-            {
-                appearance: 'underline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="generic"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="generic"]'),
-                target: harness.query<HTMLElement>('cem-textarea[data-fixture="generic"] textarea'),
-                baselineToken: '--cem-input-indicator-anchor-color',
-                hoverToken: '--cem-input-indicator-anchor-hover-color',
-            },
-            {
-                appearance: 'outline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="text"]'),
-                target: harness.query<HTMLElement>('cem-textarea[data-fixture="text"] textarea'),
-                baselineToken: '--cem-input-indicator-anchor-color',
-                hoverToken: '--cem-input-indicator-anchor-hover-color',
-            },
-            {
-                appearance: 'underline',
-                control: harness.query<HTMLTextAreaElement>('cem-textarea:not([data-fixture]) textarea'),
-                host: harness.query<HTMLElement>('cem-textarea:not([data-fixture])'),
-                target: harness.query<HTMLElement>('cem-textarea:not([data-fixture]) textarea'),
-                baselineToken: '--cem-input-indicator-anchor-readonly-color',
-                hoverToken: '--cem-input-indicator-anchor-readonly-color',
-            },
             {
                 appearance: 'outline',
                 control: harness.query<HTMLInputElement>('cem-checkbox input'),
@@ -1222,7 +1195,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         assertStateHostsRendered(
             harness.root,
-            'cem-textarea[data-fixture="generic"], cem-textarea[data-fixture="text"], cem-textarea, cem-checkbox, cem-radio, cem-switch',
+            'cem-checkbox, cem-radio, cem-switch',
         );
 
         for (const label of root.querySelectorAll('cem-checkbox > label, cem-radio > label, cem-switch > label')) {
@@ -1359,11 +1332,9 @@ describe('CEM component primitive states and ARIA behavior', () => {
         );
         await userEvent.unhover(switchCase.control);
 
-        expect(cases[0].control.value).toBe('alpha');
-        expect(cases[2].control.readOnly).toBe(true);
-        expect(cases[3].control.checked).toBe(true);
-        expect(cases[5].control.checked).toBe(true);
-        expect(cases[5].control.getAttribute('role')).toBe('switch');
+        expect(cases[0].control.checked).toBe(true);
+        expect(cases[2].control.checked).toBe(true);
+        expect(cases[2].control.getAttribute('role')).toBe('switch');
         expect(mutationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
@@ -1374,14 +1345,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
             <section class="cem-theme-light">
                 <button id="input-focus-start" type="button">Start input focus sequence</button>
                 <cem-stack gap="sm">
-                    <cem-textarea data-fixture="generic" name="focus-field" label="Generic field" value="alpha"></cem-textarea>
-                    <cem-textarea data-fixture="text" name="disabled-field" label="Disabled field" disabled></cem-textarea>
-                    <cem-textarea data-fixture="text"
-                        name="focus-text-field"
-                        label="Outlined text field"
-                        indicator="outline"
-                    ></cem-textarea>
-                    <cem-textarea name="focus-textarea" label="Readonly notes" readonly>Notes</cem-textarea>
                     <cem-checkbox name="focus-checkbox" indeterminate="mixed">Mixed option</cem-checkbox>
                     <cem-checkbox name="disabled-checkbox" disabled>Disabled option</cem-checkbox>
                     <cem-radio name="focus-radio" indicator="underline" checked>Selected radio</cem-radio>
@@ -1395,27 +1358,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         const start = harness.query<HTMLButtonElement>('#input-focus-start');
         const end = harness.query<HTMLButtonElement>('#input-focus-end');
         const cases = [
-            {
-                anchorToken: '--cem-input-indicator-anchor-color',
-                appearance: 'underline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="generic"][name="focus-field"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="generic"][name="focus-field"]'),
-                target: harness.query<HTMLElement>('cem-textarea[data-fixture="generic"][name="focus-field"] textarea'),
-            },
-            {
-                anchorToken: '--cem-input-indicator-anchor-color',
-                appearance: 'outline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="focus-text-field"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="text"][name="focus-text-field"]'),
-                target: harness.query<HTMLElement>('cem-textarea[data-fixture="text"][name="focus-text-field"] textarea'),
-            },
-            {
-                anchorToken: '--cem-input-indicator-anchor-readonly-color',
-                appearance: 'underline',
-                control: harness.query<HTMLTextAreaElement>('cem-textarea[name="focus-textarea"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[name="focus-textarea"]'),
-                target: harness.query<HTMLElement>('cem-textarea[name="focus-textarea"] textarea'),
-            },
             {
                 anchorToken: '--cem-input-indicator-anchor-color',
                 appearance: 'outline',
@@ -1442,7 +1384,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
             },
         ] as const;
         const disabledControls = [
-            harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="disabled-field"] textarea'),
             harness.query<HTMLInputElement>('cem-checkbox[name="disabled-checkbox"] input'),
         ];
         const baselines = cases.map(({ control, host, target }) =>
@@ -1466,7 +1407,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         assertStateHostsRendered(
             harness.root,
-            'cem-textarea[data-fixture="generic"], cem-textarea[data-fixture="text"], cem-textarea, cem-checkbox, cem-radio, cem-switch',
+            'cem-checkbox, cem-radio, cem-switch',
         );
         for (const control of disabledControls) {
             expect(control.disabled).toBe(true);
@@ -1586,13 +1527,11 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(focusOrder).toEqual(
             cases.map(({ control }) => control.getAttribute('name') ?? ''),
         );
-        expect(cases[0].control.value).toBe('alpha');
-        expect(cases[2].control.readOnly).toBe(true);
-        expect(cases[3].control.getAttribute('aria-checked')).toBe('mixed');
-        expect(cases[4].control.checked).toBe(true);
-        expect(cases[5].control.checked).toBe(true);
-        expect(cases[5].control.getAttribute('aria-invalid')).toBe('true');
-        expect(cases[5].control.getAttribute('role')).toBe('switch');
+        expect(cases[0].control.getAttribute('aria-checked')).toBe('mixed');
+        expect(cases[1].control.checked).toBe(true);
+        expect(cases[2].control.checked).toBe(true);
+        expect(cases[2].control.getAttribute('aria-invalid')).toBe('true');
+        expect(cases[2].control.getAttribute('role')).toBe('switch');
         expect(mutationEvents).toEqual([]);
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
@@ -1601,53 +1540,26 @@ describe('CEM component primitive states and ARIA behavior', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack class="cem-theme-light" gap="sm">
-                <cem-textarea data-fixture="generic" name="busy-field" label="Generic field" value="alpha"></cem-textarea>
-                <cem-textarea data-fixture="text"
-                    name="busy-text-field"
-                    label="Outlined field"
-                    value="bravo"
-                    indicator="outline"
-                    busy="false"
-                ></cem-textarea>
-                <cem-textarea name="busy-textarea" label="Readonly notes" value="charlie" readonly busy></cem-textarea>
+                <cem-checkbox name="busy-probe">Pending probe</cem-checkbox>
                 <cem-checkbox name="busy-checkbox" busy checked>Checked option</cem-checkbox>
                 <cem-radio name="busy-radio" indicator="underline" busy checked>Selected radio</cem-radio>
                 <cem-switch name="busy-switch" busy checked invalid="true">Invalid switch</cem-switch>
-                <cem-textarea data-fixture="text" name="busy-disabled" label="Disabled field" busy disabled></cem-textarea>
             </cem-stack>
         `);
-        await waitForStateSelector(root, 'cem-textarea[data-fixture="text"][name="busy-disabled"] textarea');
+        await waitForStateSelector(root, 'cem-switch input');
 
-        const fieldHost = harness.query<HTMLElement>('cem-textarea[data-fixture="generic"][name="busy-field"]');
-        const fieldControl = harness.query<HTMLInputElement>('cem-textarea[data-fixture="generic"][name="busy-field"] textarea');
+        const fieldHost = harness.query<HTMLElement>('cem-checkbox[name="busy-probe"]');
+        const fieldControl = harness.query<HTMLInputElement>('cem-checkbox[name="busy-probe"] input');
         const fieldBaseline = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
         const cases = [
             {
                 anchorToken: '--cem-input-indicator-anchor-pending-color',
                 anchorWidthToken: '--cem-stroke-pending',
-                appearance: 'underline',
+                appearance: 'outline',
                 control: fieldControl,
                 host: fieldHost,
-                label: 'Generic field',
+                label: 'Pending probe',
                 target: fieldControl,
-            },
-            {
-                anchorToken: '--cem-input-indicator-anchor-pending-color',
-                anchorWidthToken: '--cem-stroke-pending',
-                appearance: 'outline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="busy-text-field"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="text"][name="busy-text-field"]'),
-                label: 'Outlined field',
-                target: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="busy-text-field"] textarea'),
-            },
-            {
-                anchorToken: '--cem-input-indicator-anchor-pending-color',
-                anchorWidthToken: '--cem-stroke-pending',
-                appearance: 'underline',
-                control: harness.query<HTMLTextAreaElement>('cem-textarea[name="busy-textarea"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[name="busy-textarea"]'),
-                label: 'Readonly notes',
-                target: harness.query<HTMLTextAreaElement>('cem-textarea[name="busy-textarea"] textarea'),
             },
             {
                 anchorToken: '--cem-input-indicator-anchor-pending-color',
@@ -1679,15 +1591,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 selection: true,
                 target: harness.query<HTMLInputElement>('cem-switch[name="busy-switch"] > label > input'),
             },
-            {
-                anchorToken: '--cem-input-indicator-anchor-disabled-color',
-                anchorWidthToken: '--cem-stroke-none',
-                appearance: 'underline',
-                control: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="busy-disabled"] textarea'),
-                host: harness.query<HTMLElement>('cem-textarea[data-fixture="text"][name="busy-disabled"]'),
-                label: 'Disabled field',
-                target: harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"][name="busy-disabled"] textarea'),
-            },
         ] as const;
         const mutationEvents: string[] = [];
         for (const eventName of ['click', 'input', 'change', 'cem-loaded', 'cem-error', 'cem-cancel']) {
@@ -1704,7 +1607,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         await nextRenderFrame();
 
         const busyField = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
-        expect(harness.query<HTMLInputElement>('cem-textarea[data-fixture="generic"][name="busy-field"] textarea')).toBe(fieldControl);
+        expect(harness.query<HTMLInputElement>('cem-checkbox[name="busy-probe"] input')).toBe(fieldControl);
         expect(document.activeElement).toBe(fieldControl);
         expect(busyField.controlRect).toEqual(fieldBaseline.controlRect);
         expect(busyField.hostRect).toEqual(fieldBaseline.hostRect);
@@ -1747,16 +1650,11 @@ describe('CEM component primitive states and ARIA behavior', () => {
             expect(snapshot.eventPayloads).not.toHaveProperty('loading');
         }
 
-        expect(cases[1].host.getAttribute('busy')).toBe('false');
-        expect(cases[2].control.readOnly).toBe(true);
-        expect(cases[5].control.getAttribute('aria-invalid')).toBe('true');
-        expect(cases[6].control.disabled).toBe(true);
-        expect(cases[0].control.value).toBe('alpha');
-        expect(cases[1].control.value).toBe('bravo');
-        expect(cases[2].control.value).toBe('charlie');
+        expect(cases[0].control.checked).toBe(false);
+        expect(cases[1].control.checked).toBe(true);
+        expect(cases[2].control.checked).toBe(true);
         expect(cases[3].control.checked).toBe(true);
-        expect(cases[4].control.checked).toBe(true);
-        expect(cases[5].control.checked).toBe(true);
+        expect(cases[3].control.getAttribute('aria-invalid')).toBe('true');
         expect(harness.root.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
 
         for (const { host } of cases) {
@@ -1775,7 +1673,7 @@ describe('CEM component primitive states and ARIA behavior', () => {
         }
         expect(document.activeElement).toBe(fieldControl);
         const settledField = captureInputIndicatorState(runtime, fieldHost, fieldControl, fieldControl);
-        expectInputIndicatorGeometry(settledField, fieldControl, 'underline', { focus: true });
+        expectInputIndicatorGeometry(settledField, fieldControl, 'outline', { focus: true });
         expect(settledField.controlRect).toEqual(fieldBaseline.controlRect);
         expect(settledField.hostRect).toEqual(fieldBaseline.hostRect);
         expect(settledField.targetRect).toEqual(fieldBaseline.targetRect);
@@ -1791,17 +1689,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
                 <p id="email-help">Use a work address.</p>
                 <p id="email-error">Email is required.</p>
                 <cem-stack gap="sm">
-                    <cem-textarea data-fixture="text"
-                        name="email"
-                        value="a@b.test"
-                        label="Email"
-                        required
-                        readonly
-                        invalid="true"
-                        describedby="email-help"
-                        error="email-error"
-                    ></cem-textarea>
-                    <cem-textarea name="notes" label="Notes" disabled invalid="true"></cem-textarea>
                     <cem-checkbox name="terms" checked required invalid="true">Accept terms</cem-checkbox>
                     <cem-checkbox name="partial" indeterminate="mixed">Partially selected</cem-checkbox>
                     <cem-radio name="plan" value="pro" checked disabled>Pro plan</cem-radio>
@@ -1811,8 +1698,6 @@ describe('CEM component primitive states and ARIA behavior', () => {
         `);
         await waitForStateSelector(root, 'cem-switch input');
 
-        const textField = harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"] textarea');
-        const textarea = harness.query<HTMLTextAreaElement>('cem-textarea:not([data-fixture]) textarea');
         const checkedBox = harness.query<HTMLInputElement>('cem-checkbox input[name="terms"]');
         const mixedBox = harness.query<HTMLInputElement>('cem-checkbox input[name="partial"]');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
@@ -1820,16 +1705,8 @@ describe('CEM component primitive states and ARIA behavior', () => {
 
         assertStateHostsRendered(
             harness.root,
-            'cem-textarea[data-fixture="text"], cem-textarea, cem-checkbox, cem-radio, cem-switch',
+            'cem-checkbox, cem-radio, cem-switch',
         );
-        expect(textField.required).toBe(true);
-        expect(textField.readOnly).toBe(true);
-        expect(textField.getAttribute('aria-invalid')).toBe('true');
-        expect(textField.getAttribute('aria-describedby')).toBe('email-help');
-        expect(textField.getAttribute('aria-errormessage')).toBe('email-error');
-        expect(assertAccessibleName(textField, 'Email')).toBe('Email');
-        expect(textarea.disabled).toBe(true);
-        expect(textarea.getAttribute('aria-invalid')).toBe('true');
         expect(checkedBox.checked).toBe(true);
         expect(checkedBox.required).toBe(true);
         expect(checkedBox.getAttribute('aria-invalid')).toBe('true');
@@ -1841,39 +1718,16 @@ describe('CEM component primitive states and ARIA behavior', () => {
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 
-    it('captures serializable slice-event payloads for text and boolean controls', async () => {
+    it('captures serializable slice-event payloads for boolean controls', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-textarea data-fixture="text" name="query" value="draft" label="Query"></cem-textarea>
                 <cem-checkbox name="enabled">Enabled</cem-checkbox>
             </cem-stack>
         `);
         await waitForStateSelector(root, 'cem-checkbox input');
 
-        const fieldHost = harness.query<HTMLElement>('cem-textarea[data-fixture="text"]');
         const checkboxHost = harness.query<HTMLElement>('cem-checkbox');
-        const input = harness.query<HTMLInputElement>('cem-textarea[data-fixture="text"] textarea');
-
-        input.value = 'published';
-        input.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-        await nextRenderFrame();
-
-        const textSnapshot = runtime.snapshotInstance(fieldHost);
-        const textPayload = eventPayload(textSnapshot, 'value');
-        expect(textSnapshot.slices.value).toBe('published');
-        expect(textPayload).toMatchObject({
-            bubbles: true,
-            sliceValue: 'published',
-            type: 'input',
-        });
-        expect(textPayload.target).toMatchObject({
-            name: 'query',
-            tag: 'textarea',
-            type: null,
-            value: 'published',
-        });
-
         const nextCheckbox = harness.query<HTMLInputElement>('cem-checkbox input');
         nextCheckbox.checked = true;
         nextCheckbox.dispatchEvent(new Event('change', { bubbles: true, composed: true }));

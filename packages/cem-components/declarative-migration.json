@@ -36,7 +36,6 @@
         "src/lib/tree-behavior.ts": "e1b9c442d60521106920b92c14d80d6bc8f2e091f6af5d796ec705ece5b8dc8c"
     },
     "legacyComponentTags": [
-        "cem-textarea",
         "cem-autocomplete",
         "cem-timepicker",
         "cem-datepicker",

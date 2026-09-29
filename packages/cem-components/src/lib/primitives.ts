@@ -34,16 +34,6 @@ export interface CemComponentPrimitiveInstallResult {
 
 export const CEM_COMPONENT_PRIMITIVES = [
     {
-        tag: 'cem-textarea',
-        description: 'MVP multi-line text field with label and help slots.',
-        cemMl:
-            '{attribute @name=label | Textarea}' +
-            '{attribute @name=indicator | underline}' +
-            '{div @class=cem-textarea |' +
-            ' {label @class=cem-textarea__label | {span | {slot @name=label | {$label}}} {textarea @class=cem-textarea__control @name="{$datadom.attributes.name}" @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | {$datadom.slices.value ?? datadom.attributes.value}}}' +
-            ' {span @class=cem-textarea__help | {slot @name=help}}}',
-    },
-    {
         tag: 'cem-autocomplete',
         description: 'Form-associated editable combobox with declarative suggestions.',
         behavior: CEM_AUTOCOMPLETE_BEHAVIOR,

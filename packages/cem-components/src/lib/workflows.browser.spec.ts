@@ -1,3 +1,4 @@
+import textareaDeclaration from '../components/cem-textarea/cem-textarea.xhtml?raw';
 import fieldDeclaration from '../components/cem-field/cem-field.xhtml?raw';
 import textFieldDeclaration from '../components/cem-text-field/cem-text-field.xhtml?raw';
 import iconButtonDeclaration from '../components/cem-icon-button/cem-icon-button.xhtml?raw';
@@ -43,7 +44,7 @@ describe('CEM component workflow fixtures', () => {
 
     beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
-        for (const markup of [fieldDeclaration, textFieldDeclaration, iconButtonDeclaration, menuItemDeclaration]) {
+        for (const markup of [textareaDeclaration, fieldDeclaration, textFieldDeclaration, iconButtonDeclaration, menuItemDeclaration]) {
             const source = document.createElement('div');
             source.innerHTML = markup;
             const declaration = source.firstElementChild as HTMLElement;
@@ -166,7 +167,7 @@ describe('CEM component workflow fixtures', () => {
 
         const avatar = harness.query<HTMLElement>('cem-avatar [role="img"]');
         const displayName = harness.query<HTMLInputElement>('cem-text-field[name="display-name"] input');
-        const bio = harness.query<HTMLTextAreaElement>('cem-textarea textarea[name="bio"]');
+        const bio = harness.query<HTMLTextAreaElement>('cem-textarea[name="bio"] textarea');
         const publicProfile = harness.query<HTMLInputElement>('cem-switch input[name="public-profile"]');
         const alert = harness.query<HTMLElement>('cem-alert [role="status"]');
         const save = harness.query<HTMLButtonElement>('cem-action button');
@@ -215,7 +216,7 @@ describe('CEM component workflow fixtures', () => {
 
         const thread = harness.query<HTMLElement>('cem-card section');
         const messages = harness.query<HTMLUListElement>('cem-list ul');
-        const reply = harness.query<HTMLTextAreaElement>('cem-textarea textarea[name="reply"]');
+        const reply = harness.query<HTMLTextAreaElement>('cem-textarea[name="reply"] textarea');
         const toast = harness.query<HTMLElement>('cem-toast [role="status"]');
         const alert = harness.query<HTMLElement>('cem-alert [role="alert"]');
         const post = harness.query<HTMLButtonElement>('cem-action button');
