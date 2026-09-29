@@ -14,6 +14,7 @@
         "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
         "@epa-wg/cem-components/components.xhtml": "../dist/components.xhtml",
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
-        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml"
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml"
     }
 }

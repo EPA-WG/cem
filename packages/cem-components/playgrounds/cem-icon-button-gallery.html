@@ -23,7 +23,8 @@
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
-        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml"
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml"
     }
 }</script>
     <script type="module">
@@ -66,7 +67,7 @@
 </cem-element>
 
 <div id="playground-theme" class="cem-theme-light"><header><h1>cem-icon-button: Full examples and variation matrix</h1>
-<p class="component-description">An icon button or link supporting image URLs, Material Icons, Font Awesome, and visible content. Use href for navigation; <a href="./cem-action-gallery.html"><code>cem-action</code></a> supplies form submission and reset, while <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> supplies menu commands.</p>
+<p class="component-description">Use <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> for a passive icon. An icon button or link supporting image URLs, Material Icons, Font Awesome, and visible content. Use href for navigation; <a href="./cem-action-gallery.html"><code>cem-action</code></a> supplies form submission and reset, while <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> supplies menu commands.</p>
 <p><a href="./cem-icon-button.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
 <p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><p>Use href for navigation, icon for an image URL, Font Awesome classes or a Material icon name, and direction for row or column layout. Kind accepts normal, primary, secondary, alert and blend; these share primary link colors as in the legacy implementation. Font icons require their provider stylesheet. Button mode uses contextual colors.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>

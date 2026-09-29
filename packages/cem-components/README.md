@@ -82,7 +82,7 @@ identities as part of their registration contract.
 This registers the minimal primitive tags: `cem-action`, `cem-icon-button`, `cem-menu-item`, `cem-field`,
 `cem-text-field`, `cem-textarea`, `cem-autocomplete`, `cem-timepicker`, `cem-datepicker`, `cem-select`, `cem-option`, `cem-option-group`, `cem-checkbox`,
 `cem-radio`, `cem-switch`, `cem-slider`, `cem-surface`, `cem-text`,
-`cem-icon`, `cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
+`cem-stack`, `cem-grid`, `cem-divider`, `cem-list`, `cem-card`, `cem-expansion`, `cem-table`, `cem-sort-header`, `cem-chip`, `cem-badge`, `cem-avatar`,
 `cem-media-preview`, `cem-tree`, `cem-tree-item`, `cem-app-bar`, `cem-nav`, `cem-tabs`, `cem-tab`, `cem-stepper`, `cem-step`, `cem-paginator`, `cem-tooltip`, `cem-dialog`, `cem-dialog-shell`, `cem-sheet`,
 `cem-toast`, `cem-progress`, `cem-progress-spinner`, `cem-skeleton`, and `cem-alert`.
 
@@ -465,7 +465,7 @@ Known deferrals stay outside this trigger:
 The accepted [component development pattern](../../docs/component-development-pattern.md) keeps canonical XHTML
 separate from a companion property playground and source view. A generated
 `#ID` bundle is generated as release output. `cem-action`, `cem-select`,
-`cem-theme-switch`, `cem-icon-button`, `cem-menu-item`, `cem-field`, and
+`cem-theme-switch`, `cem-icon`, `cem-icon-button`, `cem-menu-item`, `cem-field`, and
 `cem-text-field` use the canonical XHTML and colocated story structure.
 
 ## Action property playground
@@ -553,3 +553,12 @@ side-by-side theme/state comparisons. Both pages ship under the package
 
 The [icon-button contract](docs/icon-button-contract.md) includes legacy icon-link
 navigation, image and font icons, slotted labels, and disabled links.
+
+### Standalone icon
+
+`cem-icon` now ships as a canonical XHTML declaration. Load it explicitly through
+`components/cem-icon` or the release bundle; the legacy registry installer no
+longer registers it. It supports the legacy source formats and size/direction
+variants while preserving the `name` alias and decorative/labeled semantics.
+See the [icon contract](./docs/icon-contract.md) and
+[Full examples and variation matrix](./playgrounds/cem-icon-gallery.html).

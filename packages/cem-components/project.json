@@ -56,6 +56,8 @@
                 "{projectRoot}/dist/cem-bundle.html",
                 "{projectRoot}/dist/cem-icon-button.html",
                 "{projectRoot}/dist/cem-menu-item.html",
+                "{projectRoot}/dist/cem-icon.html",
+                "{projectRoot}/dist/cem-icon-gallery.html",
                 "{projectRoot}/dist/cem-field.html",
                 "{projectRoot}/dist/cem-text-field.html",
                 "{projectRoot}/dist/cem-field-gallery.html",

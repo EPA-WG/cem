@@ -222,15 +222,6 @@ export const CEM_COMPONENT_PRIMITIVES = [
             '{span @class="cem-text cem-text--{$variant}" | {slot | {$text}}}',
     },
     {
-        tag: 'cem-icon',
-        description: 'Decorative or labeled icon text primitive.',
-        cemMl:
-            '{attribute @name=name | circle}' +
-            '{cem:choose |' +
-            ' {cem:when @test="datadom.attributes.label" | {span @class="cem-icon cem-icon--{$name}" @role=img @aria-label="{$datadom.attributes.label}" | {$name}}}' +
-            ' {cem:otherwise | {span @class="cem-icon cem-icon--{$name}" @aria-hidden=true | {$name}}}}',
-    },
-    {
         tag: 'cem-stack',
         description: 'Single-axis layout primitive.',
         cemMl:

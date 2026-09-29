@@ -27,6 +27,7 @@ try {
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
     for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+    await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
     await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
     await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
@@ -41,10 +42,11 @@ try {
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
     for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+    await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
     await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action, field, text-field, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    console.log('Action, field, text-field, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -607,6 +609,7 @@ async function verifyBundle(url) {
     page.on('pageerror', error => errors.push(error.message));
     try {
         await page.goto(url);
+        await page.locator('#bundle-icon [role=img]').waitFor();
         await page.locator('#bundle-action button').waitFor();
         await page.locator('#bundle-select [role=combobox]').waitFor();
         await page.locator('#bundle-field input').waitFor();
@@ -624,7 +627,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field']) {
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field']) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -790,8 +793,10 @@ async function verifyGalleries(baseUrl) {
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
             const first = page.locator('[data-gallery-sample]').first();
             const control = first.locator('[part="control"], input').first();
-            await control.hover();
-            await control.focus();
+            if (tag !== 'cem-icon') {
+                await control.hover();
+                await control.focus();
+            }
             if (tag === 'cem-field' || tag === 'cem-text-field') {
                 assert.equal(await control.evaluate(node => getComputedStyle(node).borderWidth), '0px');
                 await page.locator('#gallery-editable input').fill('edited@example.com');
@@ -850,4 +855,39 @@ async function verifyIconLinkExamples(page) {
     assert.equal(await material.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
     assert.equal(await material.evaluate(node => getComputedStyle(node).boxShadow), 'none');
     await page.emulateMedia({ forcedColors: 'none' });
+}
+
+async function verifyIcon(url) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        await page.goto(url);
+        await page.locator('#icon-preview [role="img"]').waitFor();
+        assert.equal(await page.locator('#icon-preview .material-icons').textContent(), 'settings');
+        await page.getByRole('textbox', { name: 'image', exact: true }).fill('★');
+        await page.waitForFunction(() => document.querySelector('#icon-preview .unicode')?.textContent === '★');
+        await page.getByRole('radio', { name: 'large', exact: true }).check();
+        await page.waitForFunction(() => {
+            const glyph = document.querySelector('#icon-preview [part="icon"]');
+            return glyph && parseFloat(getComputedStyle(glyph).fontSize) === 3 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+        });
+        await page.getByRole('radio', { name: 'column', exact: true }).check();
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('#icon-preview [part="content"]')).flexDirection === 'column');
+        await page.getByRole('radio', { name: 'empty', exact: true }).check();
+        await page.waitForFunction(() => !document.querySelector('#icon-preview [part="icon"]'));
+        await page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^image-mode$/ }) }).getByRole('radio', { name: 'absent', exact: true }).check();
+        await page.waitForFunction(() => document.querySelector('#icon-preview .material-icons')?.textContent === 'circle');
+        await page.getByRole('textbox', { name: 'label', exact: true }).fill('');
+        await page.waitForFunction(() => document.querySelector('#icon-preview [part="icon"]')?.getAttribute('aria-hidden') === 'true');
+        await page.waitForFunction(() => {
+            const image = document.querySelector('#icon-image img');
+            return image?.naturalWidth > 0;
+        });
+        const source = await page.getByRole('link', { name: 'Canonical XHTML', exact: true }).getAttribute('href');
+        const response = await page.request.get(new URL(source, page.url()).href);
+        assert(response.ok());
+        assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/src/components/cem-icon/cem-icon.xhtml'), 'utf8'));
+        assert.deepEqual(await page.evaluate(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('#icon-preview'))), []);
+        console.log('Icon playground verified: ' + url);
+    } finally { await context.close(); }
 }

@@ -68,6 +68,11 @@ Boundary heuristic:
   --cem-icon-button-size: var(--cem-coupling-zone-min);
   --cem-icon-button-icon-size: 1.25rem;
 
+  /* Standalone icons */
+  --cem-icon-size: 2rem;
+  --cem-icon-size-small: 1rem;
+  --cem-icon-size-large: 3rem;
+
   /* Lists / menus */
   --cem-list-row-height: 3rem;
   --cem-list-popup-rows: 8;
@@ -91,6 +96,9 @@ Boundary heuristic:
 | `--cem-control-padding-y`     | `0.5rem`                       | Generic control block padding                                     | recommended |
 | `--cem-icon-button-size`      | `var(--cem-coupling-zone-min)` | Icon button visible container size; meets zone minimum by default | recommended |
 | `--cem-icon-button-icon-size` | `1.25rem`                      | Icon glyph size within an icon button                             | recommended |
+| `--cem-icon-size` | `2rem` | Normal standalone icon size | recommended |
+| `--cem-icon-size-small` | `1rem` | Small standalone icon size | recommended |
+| `--cem-icon-size-large` | `3rem` | Large standalone icon size | recommended |
 | `--cem-list-row-height`       | `3rem`                         | List row height                                                   | recommended |
 | `--cem-list-popup-rows`       | `8`                            | Default maximum visible rows in a transient list popup            | recommended |
 | `--cem-menu-row-height`       | `3rem`                         | Menu row height                                                   | recommended |
@@ -263,7 +271,7 @@ meet `--cem-coupling-zone-min` independently.
 
 A draft becomes "canonical" when all of the following are true:
 
-1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-button-*`, list/menu/table geometry,
+1. **Visual-only contract:** this spec emits only `--cem-control-*`, `--cem-icon-*`, list/menu/table geometry,
    `--cem-progress-*` graphics, and `--cem-slider-*` visual geometry tokens.
    Safety tokens (`--cem-coupling-*`) are NOT emitted here.
 2. **Mode overrides only adjust visuals:** forgiving/compact mode tables touch geometry, never zone/guard.

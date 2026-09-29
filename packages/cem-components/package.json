@@ -41,7 +41,9 @@
         "./playgrounds/cem-icon-button-gallery.html": "./dist/cem-icon-button-gallery.html",
         "./playgrounds/cem-menu-item-gallery.html": "./dist/cem-menu-item-gallery.html",
         "./playgrounds/cem-field-gallery.html": "./dist/cem-field-gallery.html",
-        "./playgrounds/cem-text-field-gallery.html": "./dist/cem-text-field-gallery.html"
+        "./playgrounds/cem-text-field-gallery.html": "./dist/cem-text-field-gallery.html",
+        "./playgrounds/cem-icon.html": "./dist/cem-icon.html",
+        "./playgrounds/cem-icon-gallery.html": "./dist/cem-icon-gallery.html"
     },
     "files": [
         "dist",

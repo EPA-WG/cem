@@ -78,4 +78,14 @@
       {export @id=cem-text-field-gallery-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-icon @src="cem-icon.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-icon-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-icon-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
+  {import @id=cem-icon-gallery @src="cem-icon-gallery.html" @content-type="text/html" |
+    {rewrite-importmap @id=cem-icon-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=cem-icon-gallery-html @out="../dist/{file}" @content-type="text/html"}
+    }
+  }
 }

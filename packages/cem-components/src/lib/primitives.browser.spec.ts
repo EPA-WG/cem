@@ -21,7 +21,6 @@ import {
 const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
     'cem-surface',
     'cem-text',
-    'cem-icon',
     'cem-stack',
     'cem-grid',
     'cem-list',
@@ -54,6 +53,7 @@ describe('CEM component primitives', () => {
 
         const runtime = new CemElementRuntime({ declarationTag: 'cem-components-primitive-reinstall-declaration' });
         const reinstallResult = await installCemComponentPrimitives(runtime);
+
         expect(reinstallResult.registered).toEqual([]);
         expect(reinstallResult.skipped).toEqual(primitiveTags);
         expect(reinstallResult.diagnostics).toEqual([]);
@@ -68,7 +68,6 @@ describe('CEM component primitives', () => {
             <div data-phase3-minimal-primitives>
                 <cem-surface label="Workspace"><span>Surface content</span></cem-surface>
                 <cem-text>Ready</cem-text>
-                <cem-icon name="check" label="Complete"></cem-icon>
                 <cem-stack gap="sm"><span>Stack content</span></cem-stack>
                 <cem-grid columns="2"><span>Grid content</span></cem-grid>
                 <cem-list label="Tasks"><li>Review</li></cem-list>
@@ -87,7 +86,6 @@ describe('CEM component primitives', () => {
         }
 
         expect(assertAccessibleName(substrateHarness.query('cem-surface section'), 'Workspace')).toBe('Workspace');
-        expect(assertAccessibleName(substrateHarness.query('cem-icon [role="img"]'), 'Complete')).toBe('Complete');
         expect(assertAccessibleName(substrateHarness.query('cem-list ul'), 'Tasks')).toBe('Tasks');
         expect(assertAccessibleName(substrateHarness.query('cem-nav nav'), 'Sections')).toBe('Sections');
         expect(assertAccessibleName(substrateHarness.query('cem-dialog-shell [role="dialog"]'), 'Confirm')).toBe('Confirm');
@@ -95,22 +93,20 @@ describe('CEM component primitives', () => {
     });
 
 
-    it('renders field, text, and icon primitives as accessible light DOM', async () => {
+    it('renders text primitives as accessible light DOM', async () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
                 <cem-text variant="caption">Ready</cem-text>
-                <cem-icon name="check" label="Complete"></cem-icon>
             </cem-stack>
         `);
-        await waitForPrimitive(root, 'cem-icon span');
 
+        await waitForPrimitive(root, 'cem-text span');
         const stack = harness.query<HTMLElement>('cem-stack');
         const text = harness.query<HTMLElement>('cem-text .cem-text');
-        const icon = harness.query<HTMLElement>('cem-icon .cem-icon');
 
         for (const host of Array.from(
-            harness.root.querySelectorAll<HTMLElement>('cem-stack, cem-text, cem-icon'),
+            harness.root.querySelectorAll<HTMLElement>('cem-stack, cem-text'),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
@@ -118,8 +114,6 @@ describe('CEM component primitives', () => {
 
         expect(stack.querySelector('.cem-stack')?.getAttribute('data-gap')).toBe('sm');
         expect(text.textContent?.trim()).toBe('Ready');
-        expect(icon.getAttribute('role')).toBe('img');
-        expect(assertAccessibleName(icon, 'Complete')).toBe('Complete');
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
 

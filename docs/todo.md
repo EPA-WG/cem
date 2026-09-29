@@ -8,22 +8,29 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
-## Active: Introduce canonical cem-icon
+## Completed: Introduce canonical cem-icon
 
-- [ ] Decision: approve theme-owned icon sizing proposed in
+- [x] Decision: approve theme-owned icon sizing proposed in
       `packages/cem-components/docs/components-css-exceptions.md` (CEM-CSS-003).
-- [ ] Migrate the frozen registry icon to a canonical XHTML declaration; retain
+- [x] Migrate the frozen registry icon to a canonical XHTML declaration; retain
       `name` and decorative/labeled accessibility, and support legacy `image`
       sources, size, direction, and projected content.
-- [ ] Fixture: add colocated stories for source classification, live attribute
+- [x] Fixture: add colocated stories for source classification, live attribute
       changes, accessible naming, slot content, sizes, hidden state, and themes.
-- [ ] Add the property playground and mandatory Full examples and variation
+- [x] Add the property playground and mandatory Full examples and variation
       matrix, description and related-component links; register the gallery in
       the component index and ship both pages in the package.
-- [ ] Update migration inventory, consumers, documentation, and bundle checks;
+- [x] Update migration inventory, consumers, documentation, and bundle checks;
       assess reuse by cem-icon-button while preserving its public behavior.
-- [ ] Verify stories, declarative architecture, source/installed playgrounds,
+- [x] Verify stories, declarative architecture, source/installed playgrounds,
       package, style contract and lint; commit and push.
+
+All three icon stories and nine legacy primitive tests pass. Source and isolated
+package playgrounds, all eight galleries, bundle loading, package contents,
+declarative architecture, catalog, theme/style contract, and Material parity
+pass. Lint has no errors and 48 existing warnings. The approved standalone
+sizes are theme-owned; icon-button retains its existing glyph rendering and
+size contract. No runtime or application JavaScript behavior was added.
 
 ## Completed: Rename action loading to pending
 

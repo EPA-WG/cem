@@ -1,0 +1,31 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-icon">
+  <template id="cem-icon" type="text/cem-ml">
+    {cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { datadom.attributes.name ?? "circle" }'}
+    {attribute @name=size | normal}
+    {attribute @name=direction | row}
+    {style @type="text/css" |```
+        :scope { display: inline-flex; }
+        :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+        [part~='content'] { display: inline-flex; align-items: center; gap: calc(var(--cem-icon-size) / 4); }
+        [part~='content']:where([data-direction='column']) { flex-direction: column; gap: 0; }
+        [part~='icon'] { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: var(--cem-icon-size); block-size: var(--cem-icon-size); line-height: 1; }
+        :scope:where([size='small']) [part~='icon'] { font-size: var(--cem-icon-size-small); block-size: var(--cem-icon-size-small); }
+        :scope:where([size='large']) [part~='icon'] { font-size: var(--cem-icon-size-large); block-size: var(--cem-icon-size-large); }
+        [part~='glyph'] { font-size: inherit; line-height: inherit; }
+        img[part~='glyph'] { block-size: 100%; inline-size: auto; object-fit: contain; }
+        ```}
+    {span @part=content @data-direction="{$direction}" |
+      {cem:if @test='$imageValue' |
+        {span @class='cem-icon cem-icon--{$imageValue}' @part=icon @role={if datadom.attributes.label { "img" } else { null }} @aria-label={datadom.attributes.label} @aria-hidden={if datadom.attributes.label { null } else { true }} |
+          {cem:choose |
+            {cem:when @test='str:length($imageValue) &lt; 3' | {span @class=unicode @part=glyph @aria-hidden=true | {$imageValue}}}
+            {cem:when @test='str:contains($imageValue, "/")' | {img @part=glyph @src="{$imageValue}" @alt="" @aria-hidden=true}}
+            {cem:when @test='str:contains($imageValue, "fa-")' | {i @class='{$imageValue}' @part=glyph @aria-hidden=true}}
+            {cem:otherwise | {span @class=material-icons @part=glyph @aria-hidden=true | {$imageValue}}}
+          }
+        }
+      }
+      {slot}
+    }
+  </template>
+</cem-element>

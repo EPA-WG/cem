@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-icon — Full examples and variation matrix</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-icon"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-icon @src="{$datadom.slices.commandUrl}#cem-icon"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<div id="playground-theme" class="cem-theme-light"><header><h1>cem-icon: Full examples and variation matrix</h1>
+<p class="component-description">A passive icon with optional adjacent content, supporting Unicode, image URLs, Font Awesome, and Material Icons. Use <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a> for an interactive icon command or link, and <a href="./cem-action-gallery.html"><code>cem-action</code></a> for a general action.</p>
+<p><a href="./cem-icon.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon/cem-icon.stories.ts">Automated stories</a></p></header><main><p><code>image</code> takes precedence over <code>name</code>, including an empty value which hides the icon. Without either attribute, the icon is <code>circle</code>. Values shorter than three Unicode code points render as text; otherwise a slash selects an image, <code>fa-</code> selects Font Awesome, and other values select Material Icons. Font icons require the corresponding stylesheet, loaded by these demos.</p>
+<p><code>label</code> names the icon with one image role. Without a label the icon is decorative. Default slot content remains accessible independently. Icons have no click, hover, focus, selected, or disabled behavior; the containing action owns interactive states. Color is inherited. Hidden uses attribute presence.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="image"><code>image</code></li><li data-gallery-attribute="name"><code>name</code></li><li data-gallery-attribute="label"><code>label</code></li><li data-gallery-attribute="size"><code>size</code></li><li data-gallery-attribute="direction"><code>direction</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li></ul><p><strong>Slots:</strong> Default slot supplies adjacent content; direction arranges the icon and content in a row or column.</p><cem-demo-element legend="Sources, naming, sizes, and content" data-covers="image name label size direction hidden class"><template slot="source">
+<cem-icon id="icon-default"></cem-icon>
+<cem-icon id="icon-material" image="settings" label="Settings"></cem-icon>
+<cem-icon id="icon-unicode" image="★" label="Favorite" size="small"></cem-icon>
+<cem-icon id="icon-emoji" image="😀" label="Happy" size="large"></cem-icon>
+<cem-icon id="icon-fontawesome" image="fas fa-home" label="Home"></cem-icon>
+<cem-icon id="icon-image" image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon>
+<cem-icon id="icon-content" image="check" direction="column" class="consumer-icon"><span>Complete</span></cem-icon>
+<cem-icon id="icon-alias" name="recycling" label="Recycle"></cem-icon>
+<cem-icon id="icon-empty" image="" name="settings"><span>Content without icon</span></cem-icon>
+<cem-icon id="icon-hidden" image="settings" hidden="false"></cem-icon>
+</template></cem-demo-element></main></div><section aria-label="Theme and appearance variation matrix"><h2>Theme and appearance variation matrix</h2><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+<article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
+<article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
+<article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>
+<article><h3>Row</h3><cem-icon data-gallery-sample image="check" direction="row"><span>Complete</span></cem-icon></article>
+<article><h3>Column</h3><cem-icon data-gallery-sample image="check" direction="column"><span>Complete</span></cem-icon></article>
+<article><h3>Font Awesome</h3><cem-icon data-gallery-sample image="fas fa-home" label="Home"></cem-icon></article>
+<article><h3>Image</h3><cem-icon data-gallery-sample image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon></article>
+<article><h3>Empty</h3><cem-icon data-gallery-sample image=""><span>Content only</span></cem-icon></article>
+</div></section>
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+<article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
+<article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
+<article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>
+<article><h3>Row</h3><cem-icon data-gallery-sample image="check" direction="row"><span>Complete</span></cem-icon></article>
+<article><h3>Column</h3><cem-icon data-gallery-sample image="check" direction="column"><span>Complete</span></cem-icon></article>
+<article><h3>Font Awesome</h3><cem-icon data-gallery-sample image="fas fa-home" label="Home"></cem-icon></article>
+<article><h3>Image</h3><cem-icon data-gallery-sample image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon></article>
+<article><h3>Empty</h3><cem-icon data-gallery-sample image=""><span>Content only</span></cem-icon></article>
+</div></section>
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+<article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
+<article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
+<article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>
+<article><h3>Row</h3><cem-icon data-gallery-sample image="check" direction="row"><span>Complete</span></cem-icon></article>
+<article><h3>Column</h3><cem-icon data-gallery-sample image="check" direction="column"><span>Complete</span></cem-icon></article>
+<article><h3>Font Awesome</h3><cem-icon data-gallery-sample image="fas fa-home" label="Home"></cem-icon></article>
+<article><h3>Image</h3><cem-icon data-gallery-sample image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon></article>
+<article><h3>Empty</h3><cem-icon data-gallery-sample image=""><span>Content only</span></cem-icon></article>
+</div></section>
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+<article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
+<article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
+<article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>
+<article><h3>Row</h3><cem-icon data-gallery-sample image="check" direction="row"><span>Complete</span></cem-icon></article>
+<article><h3>Column</h3><cem-icon data-gallery-sample image="check" direction="column"><span>Complete</span></cem-icon></article>
+<article><h3>Font Awesome</h3><cem-icon data-gallery-sample image="fas fa-home" label="Home"></cem-icon></article>
+<article><h3>Image</h3><cem-icon data-gallery-sample image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon></article>
+<article><h3>Empty</h3><cem-icon data-gallery-sample image=""><span>Content only</span></cem-icon></article>
+</div></section>
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+<article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
+<article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
+<article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>
+<article><h3>Row</h3><cem-icon data-gallery-sample image="check" direction="row"><span>Complete</span></cem-icon></article>
+<article><h3>Column</h3><cem-icon data-gallery-sample image="check" direction="column"><span>Complete</span></cem-icon></article>
+<article><h3>Font Awesome</h3><cem-icon data-gallery-sample image="fas fa-home" label="Home"></cem-icon></article>
+<article><h3>Image</h3><cem-icon data-gallery-sample image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" label="Diamond"></cem-icon></article>
+<article><h3>Empty</h3><cem-icon data-gallery-sample image=""><span>Content only</span></cem-icon></article>
+</div></section>
+</section><style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); }</style></body></html>
