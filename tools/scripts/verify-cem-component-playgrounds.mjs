@@ -703,6 +703,7 @@ async function verifyCommand(url, tag) {
         assert.equal(await page.locator('#command-preview').evaluate((host, name) => window.cemPlaygroundRuntime.snapshotInstance(host).slices[name], tag === 'cem-icon-button' ? 'pressed' : 'selected'), 'click');
         await page.setViewportSize({ width: 375, height: 812 });
         assert(await page.locator('.property-groups').evaluate(node => node.getBoundingClientRect().right <= innerWidth));
+        if (tag === 'cem-icon-button') await verifyIconLinkExamples(page);
         assert.deepEqual(errors, []);
     } finally { await page.close(); }
 }
@@ -806,6 +807,7 @@ async function verifyGalleries(baseUrl) {
                 await page.keyboard.press('Enter');
                 assert.equal(await first.evaluate(node => node.value), 'grace');
             }
+            if (tag === 'cem-icon-button') await verifyIconLinkExamples(page);
             const diagnostics = await page.evaluate(() => [...document.querySelectorAll('[data-gallery-sample]')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)));
             assert.deepEqual(diagnostics, [], `${tag}: gallery diagnostics`);
             const back = page.locator(`a[href="./${tag}.html"]`);
@@ -815,4 +817,37 @@ async function verifyGalleries(baseUrl) {
         } finally { await context.close(); }
     }
     console.log('All canonical component galleries verified: ' + baseUrl);
+}
+
+async function verifyIconLinkExamples(page) {
+    const material = page.locator('#legacy-link-material a');
+    await material.waitFor();
+    assert.equal(await material.getAttribute('href'), '#legacy-link-target');
+    assert.equal(await material.getAttribute('aria-label'), null);
+    assert(await material.locator('.material-icons').count() === 1);
+    assert(await page.locator('#legacy-link-font i.fas.fa-cloud-upload-alt').count() === 1);
+    await page.waitForFunction(() => document.querySelector('#legacy-link-image img')?.naturalWidth > 0);
+    assert.equal(await page.locator('#legacy-link-image img').getAttribute('alt'), '');
+    assert.equal(await page.locator('#legacy-link-image a').evaluate(node => getComputedStyle(node).flexDirection), 'column');
+    const original = page.url();
+    await material.click();
+    assert.equal(new URL(page.url()).hash, '#legacy-link-target');
+    await page.evaluate(url => history.replaceState(null, '', url), original);
+    await material.focus();
+    await material.press('Enter');
+    assert.equal(new URL(page.url()).hash, '#legacy-link-target');
+    await page.evaluate(url => history.replaceState(null, '', url), original);
+    const disabled = page.locator('#legacy-link-disabled a');
+    assert.equal(await disabled.getAttribute('href'), null);
+    assert.equal(await disabled.getAttribute('aria-disabled'), 'true');
+    const before = await disabled.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node.parentElement).eventPayloads);
+    await disabled.evaluate(node => node.click());
+    assert.equal(page.url(), original);
+    assert.deepEqual(await disabled.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node.parentElement).eventPayloads), before);
+    await page.emulateMedia({ forcedColors: 'active' });
+    await material.press('Tab');
+    await material.focus();
+    assert.equal(await material.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+    assert.equal(await material.evaluate(node => getComputedStyle(node).boxShadow), 'none');
+    await page.emulateMedia({ forcedColors: 'none' });
 }

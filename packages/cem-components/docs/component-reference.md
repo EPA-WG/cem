@@ -163,7 +163,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. Presence-only `selected` and `selectable` expose container-owned selection with persistent zebra and native-button `aria-pressed`. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
-| `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
+| `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; `icon` selects an image or font glyph; `label` names icon-only controls. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`.
@@ -475,10 +475,10 @@ icon-button also exposes the decorative glyph as `part="icon"`.
 
 | Component | Implemented component attributes | Other explicit attributes |
 | --- | --- | --- |
-| `cem-icon-button` | `label` (accessible name, default Icon action), `name` (decorative text, default circle), `variant` (compatibility class suffix, default quiet), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
+| `cem-icon-button` | `label`, `name`, `icon`, `href`, `kind`, `direction`, `variant`, `disabled` (presence), `expanded` (ARIA value); see [the full contract](icon-button-contract.md) | `hidden`, `class` |
 | `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
 
-Every variant of icon-button keeps the existing contextual state colors. Native
+Icon-button uses contextual state colors for buttons and primary colors for links. Native
 clicks update the `pressed` (icon-button) or `selected` (menu-item) event slice;
 these are event records, not persistent selected/toggle state. Menu navigation and
 popup ownership remain the containing menu's responsibility. Default slot content

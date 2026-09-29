@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
     <title>cem-icon-button — property playground</title>
     <script type="importmap">{
     "imports": {
@@ -73,12 +75,31 @@
 {slice @name=class | custom-command}
 {slice @name=name | settings}
 {slice @name=variant | quiet}
+{slice @name=href | }
+{slice @name=icon | }
+{slice @name=kind | normal}
+{slice @name=direction | row}
 {div @class=workspace | {section @class=properties @aria-label="Command properties" | {h2 | Properties}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
 {cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
 {cem-field @label="variant" @value="{$datadom.slices.variant}" @slice=variant @slice-event=input @slice-value="$target.value"}
+{cem-field @label="href" @value="{$datadom.slices.href}" @slice=href @slice-event=input @slice-value="$target.value"}
+{cem-field @label="icon" @value="{$datadom.slices.icon}" @slice=icon @slice-event=input @slice-value="$target.value"}
 {div @class=property-groups |
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-direction @slice=direction @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-direction | direction} {div @class=property-options |
+{cem-radio @name=icon-button-direction @value=row @checked=true | row}
+{cem-radio @name=icon-button-direction @value=column | column}
+}}
+
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-kind @slice=kind @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-kind | kind} {div @class=property-options |
+{cem-radio @name=icon-button-kind @value=normal @checked=true | normal}
+{cem-radio @name=icon-button-kind @value=primary | primary}
+{cem-radio @name=icon-button-kind @value=secondary | secondary}
+{cem-radio @name=icon-button-kind @value=alert | alert}
+{cem-radio @name=icon-button-kind @value=blend | blend}
+}}
+
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-disabled @slice=disabled @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-disabled | disabled} {div @class=property-options |
 {cem-radio @name=icon-button-disabled @value=absent @checked=true | absent}
 {cem-radio @name=icon-button-disabled @value=false | false}
@@ -95,9 +116,10 @@
 {cem-radio @name=icon-button-hidden @value=true | true}
 }}
 }} {section @aria-label="Command preview" | {h2 | Preview} {div @class=preview |
-{cem-icon-button @id=command-preview @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @name="{$datadom.slices.name}" @variant="{$datadom.slices.variant}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
-} {p | Disabled and hidden use attribute presence, including the text false. Expanded reports a disclosure state; the command does not open a popup itself. A click records its event without toggling a persistent selection.}
-{p | Name supplies decorative icon text. Label supplies the accessible name. Variant is a compatibility class hook; this component uses contextual state colors for every variant.}
+{cem-icon-button @id=command-preview @href={if datadom.slices.href { datadom.slices.href } else { null }} @icon={if datadom.slices.icon { datadom.slices.icon } else { null }} @kind="{$datadom.slices.kind}" @direction="{$datadom.slices.direction}" @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @name="{$datadom.slices.name}" @variant="{$datadom.slices.variant}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
+} {p | Clear href to return to button mode. Clear icon to use name; the examples below also show an explicitly empty icon.}
+{p | Disabled and hidden use attribute presence, including the text false. Expanded reports a disclosure state; the command does not open a popup itself. A click records its event without toggling a persistent selection.}
+{p | Href switches to native navigation. Icon accepts an image URL, Font Awesome classes or a Material icon name and overrides name. An empty icon hides it. Label names icon-only controls; link text supplies the name when label is absent. Kind is a legacy compatibility value; all kinds use primary link colors. Buttons keep contextual colors.}
 }}
 </template></cem-element>
 <h2>Attribute inventory</h2><ul><li data-command-attribute="class"><code>class</code></li>
@@ -106,7 +128,20 @@
 <li data-command-attribute="hidden"><code>hidden</code></li>
 <li data-command-attribute="label"><code>label</code></li>
 <li data-command-attribute="name"><code>name</code></li>
+<li data-command-attribute="href"><code>href</code></li>
+<li data-command-attribute="icon"><code>icon</code></li>
+<li data-command-attribute="kind"><code>kind</code></li>
+<li data-command-attribute="direction"><code>direction</code></li>
 <li data-command-attribute="variant"><code>variant</code></li></ul>
+<cem-demo-element legend="Legacy icon links" data-covers="href icon kind direction"><template slot="source">
+<cem-icon-button id="legacy-link-material" href="#legacy-link-target" icon="recycling">Recycle</cem-icon-button>
+<cem-icon-button id="legacy-link-font" href="#legacy-link-target" icon="fas fa-cloud-upload-alt" kind="primary">Upload</cem-icon-button>
+<cem-icon-button id="legacy-link-image" href="#legacy-link-target" icon="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" direction="column">Image link</cem-icon-button>
+<cem-icon-button id="legacy-link-disabled" href="#legacy-link-target" icon="shopping_cart" disabled="false">Disabled link</cem-icon-button>
+<cem-icon-button href="#legacy-link-target" icon="">Text-only link</cem-icon-button>
+<cem-icon-button href="#legacy-link-target" icon="shopping_cart" label="Open cart"></cem-icon-button>
+<div id="legacy-link-target">Link destination</div>
+</template></cem-demo-element>
 <cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class name variant"><template slot="source">
 <cem-icon-button id="command-default"></cem-icon-button>
 <cem-icon-button id="command-configured" label="Configured command" class="consumer-command" expanded="false" name="settings" variant="quiet"></cem-icon-button>

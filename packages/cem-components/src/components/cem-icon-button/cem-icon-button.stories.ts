@@ -1,4 +1,4 @@
-import { expect, within } from 'storybook/test';
+import { expect, within, waitFor } from 'storybook/test';
 import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-icon-button.xhtml?raw';
 
@@ -63,6 +63,157 @@ export const AllAttributes = meta.story({
         expect(getComputedStyle(host).display).not.toBe('none');
         expect(host.querySelector('button')).toBe(button);
         expect(host.querySelector('style')).toBeNull();
+    },
+});
+
+export const LegacyIconSources = meta.story({
+    render: () => '<cem-icon-button label="Open documentation" href="#documentation" icon="recycling">Documentation</cem-icon-button>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
+        await whenCemRendered(host);
+        const link = within(host).getByRole('link', { name: 'Open documentation' });
+        expect(link.getAttribute('href')).toBe('#documentation');
+        expect(link.textContent).toContain('Documentation');
+        expect(host.querySelector('[part="icon"]')?.classList.contains('material-icons')).toBe(true);
+        host.setAttribute('icon', 'fas fa-cloud-upload-alt');
+        await whenCemRendered(host);
+        expect(host.querySelector('i[part="icon"]')?.classList.contains('fa-cloud-upload-alt')).toBe(true);
+        const image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16"%3E%3C/svg%3E';
+        host.setAttribute('icon', image);
+        await whenCemRendered(host);
+        expect(host.querySelector('img')?.getAttribute('src')).toBe(image);
+        expect(host.querySelector('img')?.getAttribute('alt')).toBe('');
+        expect(host.querySelector('img')?.getAttribute('aria-hidden')).toBe('true');
+        host.setAttribute('name', 'fallback');
+        host.setAttribute('icon', '');
+        await whenCemRendered(host);
+        expect(host.querySelector('[part="icon"]')).toBeNull();
+        host.removeAttribute('icon');
+        await whenCemRendered(host);
+        expect(host.querySelector('[part="icon"]')?.textContent).toBe('fallback');
+        host.setAttribute('kind', 'alert');
+        host.setAttribute('direction', 'column');
+        await whenCemRendered(host);
+        expect(link.getAttribute('data-kind')).toBe('alert');
+        expect(getComputedStyle(link).flexDirection).toBe('column');
+        host.removeAttribute('kind');
+        host.removeAttribute('direction');
+        await whenCemRendered(host);
+        expect(link.getAttribute('data-kind')).toBe('normal');
+        expect(getComputedStyle(link).flexDirection).toBe('row');
+        host.removeAttribute('href');
+        await whenCemRendered(host);
+        expect(within(host).getByRole('button', { name: 'Open documentation' })).toHaveTextContent('Documentation');
+        expect(host.querySelector('a')).toBeNull();
+        expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+    },
+});
+
+export const LegacyLinkNavigation = meta.story({
+    render: () => '<cem-icon-button href="#icon-link-target" icon="shopping_cart">Open cart</cem-icon-button><div id="icon-link-target">Cart</div>',
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
+        await whenCemRendered(host);
+        const link = within(host).getByRole('link', { name: 'Open cart' }) as HTMLAnchorElement;
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const original = location.href;
+        const trusted: boolean[] = [];
+        link.addEventListener('click', event => { trusted.push(event.isTrusted); event.preventDefault(); });
+        try {
+            await userEvent.click(link);
+            expect(link.getAttribute('href')).toBe('#icon-link-target');
+            await whenCemRendered(host);
+            expect(storybookCemRuntime().snapshotInstance(host).slices.pressed).toBe('click');
+            history.replaceState(null, '', original);
+            link.focus();
+            await userEvent.keyboard('{Enter}');
+            expect(link.getAttribute('href')).toBe('#icon-link-target');
+            expect(trusted).toEqual([true, true]);
+            for (const value of ['', 'false', 'true']) {
+                history.replaceState(null, '', original);
+                host.setAttribute('disabled', value);
+                await whenCemRendered(host);
+                const before = storybookCemRuntime().snapshotInstance(host).eventPayloads;
+                expect(link.hasAttribute('href')).toBe(false);
+                expect(link.getAttribute('aria-disabled')).toBe('true');
+                expect(link.tabIndex).toBe(-1);
+                link.click();
+                await whenCemRendered(host);
+                expect(location.href).toBe(original);
+                expect(storybookCemRuntime().snapshotInstance(host).eventPayloads).toEqual(before);
+            }
+            host.removeAttribute('disabled');
+            host.setAttribute('href', '');
+            await whenCemRendered(host);
+            expect(host.querySelector('a')).toBe(link);
+            expect(link.getAttribute('href')).toBe('');
+            expect(link.hasAttribute('aria-disabled')).toBe(false);
+            expect(link.hasAttribute('tabindex')).toBe(false);
+            host.setAttribute('label', 'Named link');
+            await whenCemRendered(host);
+            expect(link).toHaveAccessibleName('Named link');
+        } finally { history.replaceState(null, '', original); }
+    },
+});
+
+export const LegacyLinkPaint = meta.story({
+    render: () => '<section class="cem-theme-light"><cem-icon-button href="#paint" icon="recycling">Recycle</cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent } = await import('vitest/browser');
+        const section = canvasElement.querySelector('section') as HTMLElement;
+        const host = section.querySelector('cem-icon-button') as HTMLElement;
+        await whenCemRendered(host);
+        const link = host.querySelector('a') as HTMLAnchorElement;
+        link.addEventListener('click', event => event.preventDefault());
+        const tokenColor = (name: string) => {
+            const probe = document.createElement('span');
+            probe.style.colorScheme = getComputedStyle(link).colorScheme;
+            probe.style.color = getComputedStyle(link).getPropertyValue(name);
+            section.append(probe);
+            const color = paintedColor(getComputedStyle(probe).color);
+            probe.remove();
+            return color;
+        };
+        const paint = async (state: string) => {
+            const background = tokenColor(`--cem-action-primary-${state}-background`);
+            const foreground = tokenColor(`--cem-action-primary-${state}-text`);
+            await waitFor(() => expect(paintedColor(getComputedStyle(link).backgroundColor)).toBe(background));
+            expect(paintedColor(getComputedStyle(link).color)).toBe(foreground);
+        };
+        for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+            section.className = `cem-theme-${theme}`;
+            host.removeAttribute('disabled');
+            await whenCemRendered(host);
+            await userEvent.unhover(link);
+            await paint('default');
+            for (const kind of ['normal', 'primary', 'secondary', 'alert', 'blend']) {
+                host.setAttribute('kind', kind);
+                await whenCemRendered(host);
+                expect(link.getAttribute('data-kind')).toBe(kind);
+                await paint('default');
+            }
+            const geometry = rectTuple(link);
+            await userEvent.hover(link);
+            await paint('hover');
+            const down = nextTrustedPointerDown(link);
+            const click = userEvent.click(link, { delay: 500 });
+            await eventBeforeInteractionCompletes(down, click, 'pointerdown');
+            await waitForPseudoClass(link, ':active');
+            await paint('active');
+            await click;
+            await whenCemRendered(host);
+            await userEvent.keyboard('{Tab}');
+            link.focus();
+            expect(link.matches(':focus-visible')).toBe(true);
+            expect(getComputedStyle(link).outlineStyle).toBe('solid');
+            expect(rectTuple(link)).toEqual(geometry);
+            host.setAttribute('disabled', 'false');
+            await whenCemRendered(host);
+            await paint('disabled');
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        }
     },
 });
 

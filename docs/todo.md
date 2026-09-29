@@ -145,6 +145,19 @@ The select outline selector now stays within the scoped-CSS specificity limit.
 - [x] Verify all seven index entries, introduction placement, related links,
       and generated gallery pages.
 
+## Completed: Icon-button legacy link parity
+
+- [x] Decision: extend `cem-icon-button` to cover legacy `cem-icon-link`, including navigation.
+- [x] Fixture: icon source selection, empty/removal and precedence, native link
+      activation, disabled navigation, button/link switching, slot naming and state paint.
+- [x] Implement declarative link mode, icon renderers and legacy kind compatibility.
+- [x] Update the property playground, full gallery, contract and legacy transition notice.
+- [x] Verify stories and source/package demos, then commit and push.
+
+Eight icon-button stories pass, including five-theme link state paint.
+Source/package playgrounds, package, style and parity checks pass.
+Lint passes with 48 existing warnings and no errors.
+
 ## Next: Canonical textarea
 
 - [ ] Migrate `cem-textarea` using the shared form-control capability, with scoped

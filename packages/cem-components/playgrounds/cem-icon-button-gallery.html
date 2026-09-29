@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
     <title>cem-icon-button — Full examples and variation matrix</title>
     <script type="importmap">{
     "imports": {
@@ -64,17 +66,30 @@
 </cem-element>
 
 <div id="playground-theme" class="cem-theme-light"><header><h1>cem-icon-button: Full examples and variation matrix</h1>
-<p class="component-description">An icon command with an accessible label and optional additional content. It complements <a href="./cem-action-gallery.html"><code>cem-action</code></a> for compact commands; use <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> for commands that belong to a menu.</p>
+<p class="component-description">An icon button or link supporting image URLs, Material Icons, Font Awesome, and visible content. Use href for navigation; <a href="./cem-action-gallery.html"><code>cem-action</code></a> supplies form submission and reset, while <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> supplies menu commands.</p>
 <p><a href="./cem-icon-button.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><p>Name supplies the icon text; variant defaults to quiet and supplies a class hook. The current contract has one contextual paint treatment.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><p>Use href for navigation, icon for an image URL, Font Awesome classes or a Material icon name, and direction for row or column layout. Kind accepts normal, primary, secondary, alert and blend; these share primary link colors as in the legacy implementation. Font icons require their provider stylesheet. Button mode uses contextual colors.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
 <li data-gallery-attribute="expanded"><code>expanded</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>
 <li data-gallery-attribute="class"><code>class</code></li>
 <li data-gallery-attribute="name"><code>name</code></li>
+<li data-gallery-attribute="href"><code>href</code></li>
+<li data-gallery-attribute="icon"><code>icon</code></li>
+<li data-gallery-attribute="kind"><code>kind</code></li>
+<li data-gallery-attribute="direction"><code>direction</code></li>
 <li data-gallery-attribute="variant"><code>variant</code></li></ul>
-<p><strong>Slots:</strong> The default slot adds content after the icon; label supplies the accessible name.</p>
+<p><strong>Slots:</strong> The default slot adds content after the decorative icon. It names links when label is absent; provide label for icon-only links and buttons.</p>
+<cem-demo-element legend="Legacy icon links" data-covers="href icon kind direction"><template slot="source">
+<cem-icon-button id="legacy-link-material" href="#legacy-link-target" icon="recycling">Recycle</cem-icon-button>
+<cem-icon-button id="legacy-link-font" href="#legacy-link-target" icon="fas fa-cloud-upload-alt" kind="primary">Upload</cem-icon-button>
+<cem-icon-button id="legacy-link-image" href="#legacy-link-target" icon="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" direction="column">Image link</cem-icon-button>
+<cem-icon-button id="legacy-link-disabled" href="#legacy-link-target" icon="shopping_cart" disabled="false">Disabled link</cem-icon-button>
+<cem-icon-button href="#legacy-link-target" icon="">Text-only link</cem-icon-button>
+<cem-icon-button href="#legacy-link-target" icon="shopping_cart" label="Open cart"></cem-icon-button>
+<div id="legacy-link-target">Link destination</div>
+</template></cem-demo-element>
 <cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class name variant"><template slot="source">
 <cem-icon-button id="command-default"></cem-icon-button>
 <cem-icon-button id="command-configured" label="Configured command" class="consumer-command" expanded="false" name="settings" variant="quiet"></cem-icon-button>
@@ -89,27 +104,52 @@
 <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
+<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
+<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
 
 <section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
+<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
+<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
 
 <section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
+<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
+<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
 
 <section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
+<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
+<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
 
 <section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
 <article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
 <article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article></div></section>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
+<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
+<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
 
 </section>
 </body></html>

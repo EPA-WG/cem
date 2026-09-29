@@ -1,8 +1,9 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-icon-button">
   <template id="cem-icon-button" type="text/cem-ml">
-    {attribute @name=label | Icon action}
-    {attribute @name=name | circle}
+    {cem:variable @name=iconValue @select='if seq:count(datadom.attributes.icon) > 0 { datadom.attributes.icon } else { if seq:count(datadom.attributes.name) > 0 { datadom.attributes.name } else { if seq:count(datadom.attributes.href) > 0 { "" } else { "circle" } } }'}
     {attribute @name=variant | quiet}
+    {attribute @name=kind | normal}
+    {attribute @name=direction | row}
     {style @type="text/css" |```
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
         :scope > button[part~='control'] {
@@ -17,10 +18,72 @@
             background-color: var(--cem-action-contextual-active-background);
             color: var(--cem-action-contextual-active-text);
         }
+        :scope > a[part~='control'] {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--cem-gap-related);
+            padding: var(--cem-control-padding-y) var(--cem-control-padding-x);
+            min-block-size: var(--cem-icon-button-size);
+            box-sizing: border-box;
+            border-radius: var(--cem-bend-control-round-ends);
+            background-color: var(--cem-action-primary-default-background);
+            color: var(--cem-action-primary-default-text);
+            text-decoration: none;
+            box-shadow: var(--cem-elevation-1);
+            transition: background-color var(--cem-duration-action), box-shadow var(--cem-duration-action);
+        }
+        :scope > a[part~='control']:where([href]:hover) {
+            background-color: var(--cem-action-primary-hover-background);
+            color: var(--cem-action-primary-hover-text);
+            box-shadow: var(--cem-elevation-3);
+        }
+        :scope > a[part~='control']:where([href]:active) {
+            background-color: var(--cem-action-primary-active-background);
+            color: var(--cem-action-primary-active-text);
+        }
+        :scope > a[part~='control']:where(:focus-visible) {
+            outline: var(--cem-stroke-focus) solid var(--cem-palette-trust);
+            outline-offset: var(--cem-stroke-indicator-offset);
+        }
+        :scope > a[part~='control']:where([aria-disabled='true']) {
+            background-color: var(--cem-action-primary-disabled-background);
+            color: var(--cem-action-primary-disabled-text);
+            box-shadow: none;
+        }
+        [part~='control']:where([data-direction='column']) { flex-direction: column; }
+        [part~='icon'] {
+            block-size: var(--cem-icon-button-icon-size);
+            font-size: var(--cem-icon-button-icon-size);
+            flex-shrink: 0;
+        }
+        img[part~='icon'] { inline-size: auto; object-fit: contain; }
+        @media (forced-colors: active) {
+            :scope > a[part~='control'] { box-shadow: none; }
+            :scope > a[part~='control']:where(:focus-visible) { outline-color: Highlight; }
+        }
         ```}
-    {button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label="{$label}" @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |
-      {span @class="cem-icon cem-icon--{$name}" @part=icon @aria-hidden=true | {$name}}
-      {slot}
+    {cem:choose |
+      {cem:when @test="seq:count(datadom.attributes.href) > 0" |
+        {a @class="cem-icon-button cem-icon-link cem-icon-button--{$variant}" @part=control @data-kind="{$kind}" @data-direction="{$direction}" @role={if seq:count(datadom.attributes.disabled) > 0 { "link" } else { null }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @aria-label={datadom.attributes.label} @aria-expanded={datadom.attributes.expanded} @slice={if seq:count(datadom.attributes.disabled) > 0 { null } else { "pressed" }} @slice-event=click @slice-value="$event.type" |
+          {cem:if @test="seq:count(datadom.attributes.disabled) == 0" | {cem:attribute @name=href @value={datadom.attributes.href}}}
+          {cem:choose |
+            {cem:when @test='str:contains($iconValue, "/")' | {img @class=icon @part=icon @src="{$iconValue}" @alt="" @aria-hidden=true}}
+            {cem:when @test='str:contains($iconValue, "fa-")' | {i @class='icon {$iconValue}' @part=icon @aria-hidden=true}}
+            {cem:when @test='$iconValue' | {span @class='icon material-icons cem-icon cem-icon--{$iconValue}' @part=icon @aria-hidden=true | {$iconValue}}}
+          }
+          {slot}
+        }
+      }
+      {cem:otherwise |
+        {button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label={datadom.attributes.label ?? "Icon action"} @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |
+          {cem:choose |
+            {cem:when @test='str:contains($iconValue, "/")' | {img @class=icon @part=icon @src="{$iconValue}" @alt="" @aria-hidden=true}}
+            {cem:when @test='str:contains($iconValue, "fa-")' | {i @class='icon {$iconValue}' @part=icon @aria-hidden=true}}
+            {cem:when @test='$iconValue' | {span @class='icon material-icons cem-icon cem-icon--{$iconValue}' @part=icon @aria-hidden=true | {$iconValue}}}
+          }
+          {slot}
+        }
+      }
     }
   </template>
 </cem-element>

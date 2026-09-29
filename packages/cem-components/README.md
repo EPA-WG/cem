@@ -550,3 +550,6 @@ Every canonical component has a **Full examples and variation matrix** link
 on its property playground. The gallery provides live examples with source and
 side-by-side theme/state comparisons. Both pages ship under the package
 `playgrounds/` exports. See the [demo protocol](../../docs/component-development-pattern.md#full-examples-and-variation-matrix-required).
+
+The [icon-button contract](docs/icon-button-contract.md) includes legacy icon-link
+navigation, image and font icons, slotted labels, and disabled links.
