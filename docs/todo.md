@@ -90,8 +90,14 @@ fill color overrides remain covered.
 
 ## Next: Canonical field controls
 
+- [x] Audit canonical prototypes for both fields; identify the form-reset contract gap.
+- [ ] Decision: approve an opt-in shared form-control capability in `cem-elements`
+      before resuming migration. See [the migration gate](field-controls-migration-gate.md).
+      Incomplete prototypes were removed; production fields remain unchanged.
 - [ ] Migrate `cem-field` and `cem-text-field` with explicit boolean-presence
       semantics, full attribute coverage and canonical source playgrounds.
+- [ ] Fixture: verify field attributes, boolean presence, input/value events, form reset,
+      retained busy state, scoped indicator paint and source/package playgrounds.
 - [ ] Compare remaining legacy state failures after the migration.
 
 ## Completed: Native radio selection feedback
