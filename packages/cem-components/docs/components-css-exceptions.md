@@ -20,7 +20,23 @@ does not authorize component CSS to bypass the style verifier.
 
 ## Review queue
 
-None.
+### CEM-CSS-003 — Standalone icon sizing (proposed)
+
+Canonical `cem-icon` needs the legacy `normal`, `small`, and `large` sizes.
+The legacy declaration in `packages/custom-element/material/components/icon.html`
+consumes `--cem-icon-size`, `--cem-icon-size-small`, and `--cem-icon-size-large`.
+The archived demo in `packages/custom-element/demo/s1.xml` supplies `2rem`,
+`1rem`, and `3rem`, respectively. These standalone icon tokens are absent from
+the current theme catalog. The existing `--cem-icon-button-icon-size` is
+`1.25rem` and describes glyphs inside buttons, not standalone icon variants.
+
+**Proposed decision:** adopt the three standalone icon tokens into the D2c
+Controls Markdown source table and generated theme output, using the legacy
+demo values above. The component consumes inherited tokens directly and adds
+no local defaults. Keep button glyph sizing under its existing token.
+
+**Alternative:** choose a new standalone icon size scale before implementation.
+No CSS exception or new theme definition is authorized by this proposal.
 
 ## Accepted bounded exceptions
 
