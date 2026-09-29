@@ -133,9 +133,17 @@ The select outline selector now stays within the scoped-CSS specificity limit.
 ## Completed: Component demo index
 
 - [x] Define `packages/cem-components/index.html` as the required component listing
-      in the demo protocol, with exact component names linking to playgrounds.
+      in the demo protocol, with exact component names linking to galleries.
 - [x] List all seven canonical components alphabetically and verify their labels
-      and local playground targets.
+      and local gallery targets.
+
+## Completed: Gallery introductions and index destinations
+
+- [x] Point component index entries directly to their full examples galleries.
+- [x] Require and add a brief component description and relationships paragraph
+      immediately after each gallery heading, with links to related galleries.
+- [x] Verify all seven index entries, introduction placement, related links,
+      and generated gallery pages.
 
 ## Next: Canonical textarea
 

@@ -17,16 +17,18 @@ place to edit, inspect and exercise that same source.
 ## Component index (required)
 
 `packages/cem-components/index.html` is the component listing. Every component
-introduction or migration must add an entry linking to its property playground:
+introduction or migration must add an entry linking to its **Full examples and
+variation matrix** page:
 
 ```html
-<li><a href="./playgrounds/cem-field.html">cem-field</a></li>
+<li><a href="./playgrounds/cem-field-gallery.html">cem-field</a></li>
 ```
 
 The visible link text must exactly match the component name (`cem-<name>`).
-Keep entries alphabetical and point to the playground, where the canonical
-source and full examples gallery are linked. Update the index in the same
-change that introduces the playground, and verify that each link resolves.
+Keep entries alphabetical and point directly to `playgrounds/<tag>-gallery.html`.
+The gallery links to the property playground, where the canonical source is
+available. Update the index in the same change that introduces the gallery,
+and verify that each link resolves.
 Workflow examples may remain below the component listing.
 
 ## Companion property playground
@@ -60,6 +62,10 @@ Every component must have `playgrounds/<tag>-gallery.html`, linked from its
 property playground with the exact label **Full examples and variation matrix**.
 A component introduction or migration is incomplete without this page and link.
 The gallery links back to the property playground and to its automated stories.
+Immediately after the page heading, before navigation links or examples, include
+a brief paragraph explaining what the component does and how it relates to
+other components. Link related component names to their galleries when available;
+describe shared behavior, complementary uses, or when to choose another control.
 
 The gallery must import the canonical production declaration and include:
 

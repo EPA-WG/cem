@@ -49,7 +49,9 @@
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><header><h1>cem-theme-switch: Full examples and variation matrix</h1><p><a href="./cem-theme-switch.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.stories.ts">Automated stories</a></p></header><main>
+<div id="playground-theme" class="cem-theme-light"><header><h1>cem-theme-switch: Full examples and variation matrix</h1>
+<p class="component-description">A theme selector for light, dark, native, and contrast modes that applies the chosen theme to its child content. Use it around components such as <a href="./cem-action-gallery.html"><code>cem-action</code></a>, <a href="./cem-field-gallery.html"><code>cem-field</code></a>, and <a href="./cem-select-gallery.html"><code>cem-select</code></a> to compare their themed appearance.</p>
+<p><a href="./cem-theme-switch.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
 <p>Mode accepts light, dark and native (default); contrast applies only in light and dark. Native follows system colors and disables the contrast checkbox. Each example has its own radio name. The default slot preserves child content while switching.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="mode"><code>mode</code></li>
 <li data-gallery-attribute="contrast"><code>contrast</code></li>
