@@ -130,6 +130,13 @@ All seven canonical galleries pass source and isolated-package browser checks.
 Package verification passes (119 packed files), and all 12 select stories pass.
 The select outline selector now stays within the scoped-CSS specificity limit.
 
+## Completed: Component demo index
+
+- [x] Define `packages/cem-components/index.html` as the required component listing
+      in the demo protocol, with exact component names linking to playgrounds.
+- [x] List all seven canonical components alphabetically and verify their labels
+      and local playground targets.
+
 ## Next: Canonical textarea
 
 - [ ] Migrate `cem-textarea` using the shared form-control capability, with scoped

@@ -14,6 +14,21 @@ This separation lets applications import the component without downloading or
 executing its documentation UI. A development page still provides a single
 place to edit, inspect and exercise that same source.
 
+## Component index (required)
+
+`packages/cem-components/index.html` is the component listing. Every component
+introduction or migration must add an entry linking to its property playground:
+
+```html
+<li><a href="./playgrounds/cem-field.html">cem-field</a></li>
+```
+
+The visible link text must exactly match the component name (`cem-<name>`).
+Keep entries alphabetical and point to the playground, where the canonical
+source and full examples gallery are linked. Update the index in the same
+change that introduces the playground, and verify that each link resolves.
+Workflow examples may remain below the component listing.
+
 ## Companion property playground
 
 Provide a separate page under `playgrounds/`, outside the canonical two-file
