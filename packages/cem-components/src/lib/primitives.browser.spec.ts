@@ -19,7 +19,6 @@ import {
 } from './testing/component-harness.js';
 
 const PHASE3_MINIMAL_PRIMITIVE_TAGS = [
-    'cem-field',
     'cem-surface',
     'cem-text',
     'cem-icon',
@@ -67,7 +66,6 @@ describe('CEM component primitives', () => {
         harness = substrateHarness;
         await substrateHarness.render(`
             <div data-phase3-minimal-primitives>
-                <cem-field name="email" label="Email" value="ada@example.test"></cem-field>
                 <cem-surface label="Workspace"><span>Surface content</span></cem-surface>
                 <cem-text>Ready</cem-text>
                 <cem-icon name="check" label="Complete"></cem-icon>
@@ -88,7 +86,6 @@ describe('CEM component primitives', () => {
             expect(substrateHarness.snapshot(host).outputTarget).toBe('light-dom');
         }
 
-        expect(assertAccessibleName(substrateHarness.query('cem-field input'), 'Email')).toBe('Email');
         expect(assertAccessibleName(substrateHarness.query('cem-surface section'), 'Workspace')).toBe('Workspace');
         expect(assertAccessibleName(substrateHarness.query('cem-icon [role="img"]'), 'Complete')).toBe('Complete');
         expect(assertAccessibleName(substrateHarness.query('cem-list ul'), 'Tasks')).toBe('Tasks');
@@ -102,10 +99,6 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-field name="email" value="a@b.test">
-                    <span slot="label">Email</span>
-                    <span slot="help">Use a work address.</span>
-                </cem-field>
                 <cem-text variant="caption">Ready</cem-text>
                 <cem-icon name="check" label="Complete"></cem-icon>
             </cem-stack>
@@ -113,21 +106,17 @@ describe('CEM component primitives', () => {
         await waitForPrimitive(root, 'cem-icon span');
 
         const stack = harness.query<HTMLElement>('cem-stack');
-        const input = harness.query<HTMLInputElement>('cem-field input');
         const text = harness.query<HTMLElement>('cem-text .cem-text');
         const icon = harness.query<HTMLElement>('cem-icon .cem-icon');
 
         for (const host of Array.from(
-            harness.root.querySelectorAll<HTMLElement>('cem-stack, cem-field, cem-text, cem-icon'),
+            harness.root.querySelectorAll<HTMLElement>('cem-stack, cem-text, cem-icon'),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
         }
 
         expect(stack.querySelector('.cem-stack')?.getAttribute('data-gap')).toBe('sm');
-        expect(input.getAttribute('name')).toBe('email');
-        expect(input.getAttribute('value')).toBe('a@b.test');
-        expect(assertAccessibleName(input, 'Email')).toBe('Email');
         expect(text.textContent?.trim()).toBe('Ready');
         expect(icon.getAttribute('role')).toBe('img');
         expect(assertAccessibleName(icon, 'Complete')).toBe('Complete');
@@ -138,10 +127,6 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-text-field name="email" value="a@b.test" placeholder="name@example.com">
-                    <span slot="label">Email</span>
-                    <span slot="help">Use a work address.</span>
-                </cem-text-field>
                 <cem-textarea name="bio" value="Short bio">
                     <span slot="label">Bio</span>
                 </cem-textarea>
@@ -152,7 +137,6 @@ describe('CEM component primitives', () => {
         `);
         await waitForPrimitive(root, 'cem-switch input');
 
-        const textField = harness.query<HTMLInputElement>('cem-text-field input');
         const textarea = harness.query<HTMLTextAreaElement>('cem-textarea textarea');
         const checkbox = harness.query<HTMLInputElement>('cem-checkbox input');
         const radio = harness.query<HTMLInputElement>('cem-radio input');
@@ -160,18 +144,13 @@ describe('CEM component primitives', () => {
 
         for (const host of Array.from(
             harness.root.querySelectorAll<HTMLElement>(
-                'cem-text-field, cem-textarea, cem-checkbox, cem-radio, cem-switch',
+                'cem-textarea, cem-checkbox, cem-radio, cem-switch',
             ),
         )) {
             assertLightDomRendered(host);
             expect(host.shadowRoot).toBeNull();
         }
 
-        expect(textField.type).toBe('text');
-        expect(textField.getAttribute('name')).toBe('email');
-        expect(textField.getAttribute('value')).toBe('a@b.test');
-        expect(textField.getAttribute('placeholder')).toBe('name@example.com');
-        expect(assertAccessibleName(textField, 'Email')).toBe('Email');
         expect(textarea.getAttribute('name')).toBe('bio');
         expect(textarea.value).toBe('Short bio');
         expect(assertAccessibleName(textarea, 'Bio')).toBe('Bio');
@@ -410,9 +389,6 @@ describe('CEM component primitives', () => {
         harness = createComponentHarness();
         const root = await harness.render(`
             <cem-stack gap="sm">
-                <cem-text-field name="email" value="a@b.test">
-                    <span slot="label">Email</span>
-                </cem-text-field>
                 <cem-surface label="Dashboard">
                     <cem-card label="Summary">
                         <span slot="title">Summary</span>
@@ -430,12 +406,6 @@ describe('CEM component primitives', () => {
         await waitForPrimitive(root, 'cem-card section');
         await waitForPrimitive(root, 'cem-badge .cem-badge');
 
-        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-text-field input')), {
-            family: 'input controls',
-            htmlIncludes: ['class="cem-text-field__control"', 'name="email"', 'value="a@b.test"'],
-            tagName: 'input',
-            text: '',
-        });
         assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-surface section')), {
             display: 'block',
             family: 'layout/content containers',

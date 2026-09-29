@@ -1,3 +1,5 @@
+import fieldDeclaration from '../components/cem-field/cem-field.xhtml?raw';
+import textFieldDeclaration from '../components/cem-text-field/cem-text-field.xhtml?raw';
 import iconButtonDeclaration from '../components/cem-icon-button/cem-icon-button.xhtml?raw';
 import menuItemDeclaration from '../components/cem-menu-item/cem-menu-item.xhtml?raw';
 import { CemElementRuntime } from '@epa-wg/cem-elements';
@@ -41,7 +43,7 @@ describe('CEM component workflow fixtures', () => {
 
     beforeAll(async () => {
         runtime = new CemElementRuntime({ declarationTag: 'cem-components-workflow-declaration' });
-        for (const markup of [iconButtonDeclaration, menuItemDeclaration]) {
+        for (const markup of [fieldDeclaration, textFieldDeclaration, iconButtonDeclaration, menuItemDeclaration]) {
             const source = document.createElement('div');
             source.innerHTML = markup;
             const declaration = source.firstElementChild as HTMLElement;
@@ -75,8 +77,8 @@ describe('CEM component workflow fixtures', () => {
 
         const card = harness.query<HTMLElement>('cem-card section');
         const form = harness.query<HTMLFormElement>('form');
-        const email = harness.query<HTMLInputElement>('cem-text-field input[name="email"]');
-        const password = harness.query<HTMLInputElement>('cem-text-field input[name="password"]');
+        const email = harness.query<HTMLInputElement>('cem-text-field[name="email"] input');
+        const password = harness.query<HTMLInputElement>('cem-text-field[name="password"] input');
         const remember = harness.query<HTMLInputElement>('cem-checkbox input[name="remember"]');
         const submit = harness.query<HTMLButtonElement>('cem-action button');
 
@@ -99,9 +101,9 @@ describe('CEM component workflow fixtures', () => {
         await renderWorkflow(harness, registrationFixture, 'cem-progress progress');
 
         const card = harness.query<HTMLElement>('cem-card section');
-        const fullName = harness.query<HTMLInputElement>('cem-text-field input[name="full-name"]');
-        const email = harness.query<HTMLInputElement>('cem-text-field input[name="email"]');
-        const password = harness.query<HTMLInputElement>('cem-text-field input[name="password"]');
+        const fullName = harness.query<HTMLInputElement>('cem-text-field[name="full-name"] input');
+        const email = harness.query<HTMLInputElement>('cem-text-field[name="email"] input');
+        const password = harness.query<HTMLInputElement>('cem-text-field[name="password"] input');
         const terms = harness.query<HTMLInputElement>('cem-checkbox input[name="terms"]');
         const alert = harness.query<HTMLElement>('cem-alert [role="alert"]');
         const progress = harness.query<HTMLProgressElement>('cem-progress progress');
@@ -136,7 +138,7 @@ describe('CEM component workflow fixtures', () => {
         await renderWorkflow(harness, passwordResetFixture, 'cem-progress progress');
 
         const card = harness.query<HTMLElement>('cem-card section');
-        const email = harness.query<HTMLInputElement>('cem-text-field input[name="email"]');
+        const email = harness.query<HTMLInputElement>('cem-text-field[name="email"] input');
         const alert = harness.query<HTMLElement>('cem-alert [role="status"]');
         const progress = harness.query<HTMLProgressElement>('cem-progress progress');
         const submit = harness.query<HTMLButtonElement>('cem-action button');
@@ -163,7 +165,7 @@ describe('CEM component workflow fixtures', () => {
         await waitForWorkflowText(harness.root, 'cem-switch .cem-switch__label', 'Public profile');
 
         const avatar = harness.query<HTMLElement>('cem-avatar [role="img"]');
-        const displayName = harness.query<HTMLInputElement>('cem-text-field input[name="display-name"]');
+        const displayName = harness.query<HTMLInputElement>('cem-text-field[name="display-name"] input');
         const bio = harness.query<HTMLTextAreaElement>('cem-textarea textarea[name="bio"]');
         const publicProfile = harness.query<HTMLInputElement>('cem-switch input[name="public-profile"]');
         const alert = harness.query<HTMLElement>('cem-alert [role="status"]');

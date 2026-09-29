@@ -197,6 +197,10 @@ Pending preserves dimensions and activation; use `disabled` to block activation.
 
 ## Inputs
 
+`cem-field` and `cem-text-field` use canonical XHTML declarations and the shared
+form-control capability. See the [field controls contract](./field-controls-contract.md)
+for attribute presence, host form ownership, reset and scoped indicators.
+
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-field` | Generic labeled single-line field. | `name`, `value`, `type`, `placeholder`, `indicator`, `busy`; named label/help slots. | input indicator, stroke, zebra, bend, gap, typography | Label slot or `label` attribute must name the input. |

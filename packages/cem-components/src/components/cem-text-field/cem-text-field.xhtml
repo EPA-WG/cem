@@ -1,0 +1,129 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-text-field" capability="form-control">
+  <template id="cem-text-field" type="text/cem-ml">
+    {attribute @name=label | Text field}
+    {attribute @name=type | text}
+    {attribute @name=indicator | underline}
+    {style @type="text/css" |```
+        :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+
+
+        [part~='control'] {
+            border: none;
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+            --_cem-input-indicator-focus-width: var(--cem-stroke-none);
+            --_cem-input-indicator-selection-width: var(--cem-stroke-none);
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
+            --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
+            --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
+        }
+        [part~='control']:where(:enabled:hover, :focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
+            box-shadow:
+                0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
+                    calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
+                    var(--_cem-input-indicator-anchor-color),
+                0
+                    calc(
+                        var(--_cem-input-indicator-appearance) *
+                            (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+                    )
+                    0
+                    calc(
+                        (1 - var(--_cem-input-indicator-appearance)) *
+                            (var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width))
+                    )
+                    var(--_cem-input-indicator-focus-color),
+                0
+                    calc(
+                        var(--_cem-input-indicator-appearance) *
+                            (
+                                var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                                    var(--_cem-input-indicator-selection-width)
+                            )
+                    )
+                    0
+                    calc(
+                        (1 - var(--_cem-input-indicator-appearance)) *
+                            (
+                                var(--_cem-input-indicator-anchor-width) + var(--_cem-input-indicator-focus-width) +
+                                    var(--_cem-input-indicator-selection-width)
+                            )
+                    )
+                    var(--_cem-input-indicator-selection-color);
+            outline: var(--cem-stroke-none) solid transparent;
+        }
+        [part~='control'] {
+            --_cem-input-indicator-appearance: var(
+                --cem-input-indicator-appearance,
+                var(--cem-indicator-appearance-underline)
+            );
+        }
+        :scope:where([indicator='outline']) [part~='control'] {
+            --_cem-input-indicator-appearance: var(
+                --cem-input-indicator-appearance,
+                var(--cem-indicator-appearance-outline)
+            );
+        }
+        [part~='control']:where(:enabled:hover) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-hover-color);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+        }
+        [part~='control']:where([readonly]:enabled) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-readonly-color);
+        }
+        [part~='control']:where([data-state='loading']:enabled) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-pending-color);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-pending);
+        }
+        [part~='control']:where([aria-invalid='true']:enabled) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-color);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+        }
+        [part~='control']:where([aria-invalid='true']:enabled:hover) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-invalid-hover-color);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
+        }
+        [part~='control']:where(:disabled) {
+            --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-disabled-color);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+        }
+        [part~='control']:where(:focus-visible) {
+            --_cem-input-indicator-focus-width: var(--cem-zebra-strip-size);
+        }
+        @media (forced-colors: active) {
+
+            [part~='control'] {
+                box-shadow: none;
+            }
+        }
+        @media (forced-colors: active) {
+
+            [part~='control']:where(:enabled:hover) {
+                outline: var(--cem-stroke-boundary) solid Highlight;
+                outline-offset: var(--cem-stroke-indicator-offset);
+            }
+        }
+        @media (forced-colors: active) {
+
+            [part~='control']:where([data-state='loading']:enabled:not([aria-invalid='true'])) {
+                outline: var(--cem-stroke-pending) solid CanvasText;
+                outline-offset: var(--cem-stroke-indicator-offset);
+            }
+        }
+        @media (forced-colors: active) {
+
+            [part~='control']:focus-visible,
+        [part~='control']:where([data-state='loading']:enabled:focus-visible) {
+                outline: var(--cem-stroke-focus) solid CanvasText;
+                outline-offset: var(--cem-stroke-indicator-offset);
+            }
+        }
+        ```}
+    {div @class=cem-text-field @part=root |
+      {label @class=cem-text-field__label @part=label |
+        {span | {slot @name=label | {$label}}}
+        {input @class=cem-text-field__control @part=control @type="{$type}" @form="" @value={datadom.slices.value} @placeholder={datadom.attributes.placeholder} @disabled={if datadom.slices.formDisabled { true } else { null }} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @readonly={if seq:count(datadom.attributes.readonly) > 0 { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="$target.value" | }
+      }
+      {span @class=cem-text-field__help @part=help | {slot @name=help}}
+    }
+  </template>
+</cem-element>

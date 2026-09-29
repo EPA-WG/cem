@@ -34,28 +34,6 @@ export interface CemComponentPrimitiveInstallResult {
 
 export const CEM_COMPONENT_PRIMITIVES = [
     {
-        tag: 'cem-field',
-        description: 'Labeled text input field with named label/help slots.',
-        cemMl:
-            '{attribute @name=label | Field}' +
-            '{attribute @name=type | text}' +
-            '{attribute @name=indicator | underline}' +
-            '{div @class=cem-field |' +
-            ' {label @class=cem-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
-            ' {span @class=cem-field__help | {slot @name=help}}}',
-    },
-    {
-        tag: 'cem-text-field',
-        description: 'MVP single-line text field with label and help slots.',
-        cemMl:
-            '{attribute @name=label | Text field}' +
-            '{attribute @name=type | text}' +
-            '{attribute @name=indicator | underline}' +
-            '{div @class=cem-text-field |' +
-            ' {label @class=cem-text-field__label | {span | {slot @name=label | {$label}}} {input @class=cem-text-field__control @type="{$type}" @name="{$datadom.attributes.name}" @value={datadom.slices.value ?? datadom.attributes.value} @placeholder="{$datadom.attributes.placeholder}" @disabled={datadom.attributes.disabled} @required={datadom.attributes.required} @readonly={datadom.attributes.readonly} @data-state={if datadom.attributes.busy { "loading" } else { null }} @aria-busy={if datadom.attributes.busy { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="{$target.value}" | }}' +
-            ' {span @class=cem-text-field__help | {slot @name=help}}}',
-    },
-    {
         tag: 'cem-textarea',
         description: 'MVP multi-line text field with label and help slots.',
         cemMl:

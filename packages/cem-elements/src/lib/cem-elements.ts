@@ -119,6 +119,7 @@ import {
     type CemRepositoryRequest,
     type CemRepositoryStatus,
 } from './repository.js';
+import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
@@ -708,6 +709,10 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'form-control': {
+        behavior: CEM_FORM_CONTROL_CAPABILITY,
+        behaviorIdentity: 'cem-elements-form-control-v1',
+    },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
         behaviorIdentity: 'cem-elements-choice-select-v1',

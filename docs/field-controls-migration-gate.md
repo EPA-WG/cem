@@ -1,6 +1,7 @@
 # Field control migration: form contract decision
 
-Status: decision needed before migrating `cem-field` and `cem-text-field`.
+Status: recommended shared capability approved by the user and implemented.
+The capability and canonical field stories now cover the reset failure below.
 This note records investigation evidence; it does not change runtime semantics.
 
 ## Evidence

@@ -15,6 +15,13 @@ const selectDeclaration = await readFile(
 );
 const selectCss = selectDeclaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
 if (!selectCss) throw new Error('cem-select.xhtml must contain embedded CEM-ML style content');
+let fieldCss = '';
+for (const tag of ['cem-field', 'cem-text-field']) {
+    const declaration = await readFile(join(packageRoot, 'src', 'components', tag, tag + '.xhtml'), 'utf8');
+    const css = declaration.match(/\{style(?:\s+[^|{}]*)?\s*\|```([\s\S]*?)```\s*\}/i)?.[1];
+    if (!css) throw new Error(tag + ' must contain embedded CSS');
+    fieldCss += '@scope (' + tag + ') {' + css + '}';
+}
 const themeCss = await readFile(join(repoRoot, 'packages', 'cem-theme', 'dist', 'lib', 'css', 'cem-combined.css'), 'utf8');
 const browser = await chromium.launch({ headless: true });
 
@@ -23,10 +30,10 @@ try {
     const context = await browser.newContext({ forcedColors: 'active', javaScriptEnabled: true });
     const page = await context.newPage();
     await page.setContent(`
-        <style>${themeCss}\n${componentCss}\n${selectCss}</style>
+        <style>${themeCss}\n${componentCss}\n${fieldCss}\n${selectCss}</style>
         <button id="focus-start" type="button">Start</button>
-        <cem-field><input id="field" value="alpha"></cem-field>
-        <cem-text-field><input id="text-field" value="bravo"></cem-text-field>
+        <cem-field><input part="control" id="field" value="alpha"></cem-field>
+        <cem-text-field><input part="control" id="text-field" value="bravo"></cem-text-field>
         <cem-textarea><textarea id="textarea">charlie</textarea></cem-textarea>
         <cem-select>
             <button id="select" class="cem-select__control" part="control" type="button" aria-expanded="true">Delta</button>
@@ -53,7 +60,7 @@ try {
             </label>
         </cem-radio>
         <button id="focus-end" type="button">End</button>
-        <cem-field><input id="pending-field" data-state="loading" aria-busy="true" value="pending"></cem-field>
+        <cem-field><input part="control" id="pending-field" data-state="loading" aria-busy="true" value="pending"></cem-field>
         <cem-checkbox>
             <label id="pending-binary-label">
                 <input id="pending-binary" type="checkbox" data-state="loading" aria-busy="true">
@@ -103,7 +110,9 @@ try {
 
     await page.locator('#field').hover();
     const fieldHover = await page.evaluate(captureForcedColorState);
-    assert(fieldHover.field.borderColor === fieldHover.system.highlight, 'field hover did not map to Highlight');
+    assert(fieldHover.field.outlineColor === fieldHover.system.highlight, 'field hover did not map to Highlight');
+    assert(fieldHover.field.borderWidth === '0px', 'field hover restored a border');
+    assert(baseline.field.borderWidth === '0px', 'field baseline restored a border');
     assert(fieldHover.field.boxShadow === 'none', 'field hover restored a shadow in forced colors');
 
     await page.locator('#field').focus();
@@ -177,11 +186,11 @@ async function verifyNativeIndicators() {
     const page = await context.newPage();
     try {
         await page.setContent(`
-            <style>${themeCss}\n${componentCss}\n${selectCss}</style>
+            <style>${themeCss}\n${componentCss}\n${fieldCss}\n${selectCss}</style>
             <section>
                 <button id="start">Start</button>
-                <cem-field><input id="field" aria-label="Field"></cem-field>
-                <cem-text-field><input id="text" aria-label="Text"></cem-text-field>
+                <cem-field><input part="control" id="field" aria-label="Field"></cem-field>
+                <cem-text-field><input part="control" id="text" aria-label="Text"></cem-text-field>
                 <cem-textarea><textarea id="area" aria-label="Area"></textarea></cem-textarea>
                 <cem-autocomplete><input id="autocomplete" class="cem-autocomplete__control" aria-label="Autocomplete"></cem-autocomplete>
                 <cem-datepicker><div class="cem-datepicker"><input id="date" slot="input" aria-label="Date"></div></cem-datepicker>
@@ -205,6 +214,7 @@ async function verifyNativeIndicators() {
                 const baseline = await read();
                 const check = async (active, state) => {
                     const actual = await read();
+                    if (id === 'field' || id === 'text') assert(await control.evaluate(node => getComputedStyle(node).borderWidth) === '0px', `${mode}/${id}/${state}: native border restored`);
                     assert((actual.shadow !== 'none') === active, `${mode}/${id}/${state}: unexpected shadow ${actual.shadow}`);
                     if (active) {
                         assert([...actual.shadow.matchAll(/(-?\d*\.?\d+)px/g)].some(match => Number(match[1]) !== 0), `${mode}/${id}/${state}: feedback has zero width`);
@@ -223,7 +233,7 @@ async function verifyNativeIndicators() {
                 };
                 await check(false, 'rest');
                 await control.hover();
-                await check(false, 'hover');
+                await check(id === 'field' || id === 'text', 'hover');
                 await page.mouse.move(0, 0);
                 await page.locator('#start').focus();
                 await page.keyboard.press('Tab');
@@ -379,7 +389,7 @@ function captureForcedColorState() {
         disabledBinary: readIndicatorStyles(disabledBinaryStyles),
         field: {
             ...readIndicatorStyles(fieldStyles),
-            borderColor: fieldStyles.borderColor,
+            borderWidth: fieldStyles.borderWidth,
             focusVisible: field.matches(':focus-visible'),
         },
         forcedColors: matchMedia('(forced-colors: active)').matches,

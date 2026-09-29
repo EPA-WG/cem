@@ -240,10 +240,18 @@
             "owner": "packages/cem-components/src/lib/primitives.browser.spec.ts",
             "test": "renders input-family MVP primitives as native accessible controls",
             "assertions": [
-                "expect(textField.type).toBe('text');",
+                "expect(textarea.value).toBe('Short bio');",
                 "expect(switchInput.getAttribute('role')).toBe('switch');"
             ],
             "componentEvidence": [
+                {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.type).toBe('text');"
+                    ]
+                },
                 {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
@@ -322,6 +330,22 @@
             ],
             "componentEvidence": [
                 {
+                    "component": "cem-field",
+                    "owner": "packages/cem-components/src/components/cem-field/cem-field.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(anchor()).toBe(token('--cem-input-indicator-anchor-hover-color'));"
+                    ]
+                },
+                {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(anchor()).toBe(token('--cem-input-indicator-anchor-hover-color'));"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "keeps hover, focus, active, selected, and disabled paint independent without geometry or state mutation",
@@ -394,6 +418,22 @@
                 "expect(mutationEvents).toEqual([]);"
             ],
             "componentEvidence": [
+                {
+                    "component": "cem-field",
+                    "owner": "packages/cem-components/src/components/cem-field/cem-field.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(input.matches(':focus-visible')).toBe(true);"
+                    ]
+                },
+                {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "InteractionPaint",
+                    "assertions": [
+                        "expect(input.matches(':focus-visible')).toBe(true);"
+                    ]
+                },
                 {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
@@ -525,6 +565,22 @@
             ],
             "componentEvidence": [
                 {
+                    "component": "cem-field",
+                    "owner": "packages/cem-components/src/components/cem-field/cem-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.getAttribute('aria-busy')).toBe('true');"
+                    ]
+                },
+                {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.getAttribute('aria-busy')).toBe('true');"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
@@ -605,6 +661,14 @@
             ],
             "componentEvidence": [
                 {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.getAttribute(target)).toBe(value);"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
@@ -655,6 +719,14 @@
             "assertions": ["expect(textField.required).toBe(true);", "expect(checkedBox.required).toBe(true);"],
             "componentEvidence": [
                 {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.hasAttribute(attribute)).toBe(true);"
+                    ]
+                },
+                {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",
                     "test": "supports native migration and projects disabled, readonly, busy, required, and invalid states safely",
@@ -702,6 +774,14 @@
             "test": "reflects form disabled, invalid, required, readonly, checked, and indeterminate states",
             "assertions": ["expect(textField.readOnly).toBe(true);"],
             "componentEvidence": [
+                {
+                    "component": "cem-text-field",
+                    "owner": "packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts",
+                    "test": "AllAttributes",
+                    "assertions": [
+                        "expect(input.hasAttribute(attribute)).toBe(true);"
+                    ]
+                },
                 {
                     "component": "cem-autocomplete",
                     "owner": "packages/cem-components/src/lib/autocomplete.browser.spec.ts",

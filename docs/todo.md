@@ -88,17 +88,40 @@ fill color overrides remain covered.
       vertically using shared `cem-components/demo.css` classes in every property
       playground; include the shared stylesheet in published packages.
 
-## Next: Canonical field controls
+## Completed: Canonical field controls
+
+- [x] Fixture: both fields remain borderless at rest, hover, focus, readonly,
+      invalid, busy and disabled, including themes and forced colors; hover
+      retains a visible theme-owned indicator.
 
 - [x] Audit canonical prototypes for both fields; identify the form-reset contract gap.
-- [ ] Decision: approve an opt-in shared form-control capability in `cem-elements`
+- [x] Decision: approve an opt-in shared form-control capability in `cem-elements`
       before resuming migration. See [the migration gate](field-controls-migration-gate.md).
-      Incomplete prototypes were removed; production fields remain unchanged.
-- [ ] Migrate `cem-field` and `cem-text-field` with explicit boolean-presence
+      User approved the recommended shared capability.
+- [x] Fixture: prove shared form reset, one submission owner, native validity,
+      fieldset disabling and state restoration before component migration.
+- [x] Fixture: preserve native Enter submission, default-submit cancellation,
+      disabled submitters and multiple-control suppression in the shared capability.
+- [x] Implement and verify the shared form-control capability.
+- [x] Migrate `cem-field` and `cem-text-field` with explicit boolean-presence
       semantics, full attribute coverage and canonical source playgrounds.
-- [ ] Fixture: verify field attributes, boolean presence, input/value events, form reset,
+- [x] Fixture: verify field attributes, boolean presence, input/value events, form reset,
       retained busy state, scoped indicator paint and source/package playgrounds.
-- [ ] Compare remaining legacy state failures after the migration.
+- [x] Compare remaining legacy state failures after the migration.
+
+Ten canonical field stories and six shared form/generic-input stories pass.
+Primitive tests pass (9/9). Legacy state tests retain the 4-pass/15-fail baseline;
+workflow tests pass 13/14, with the remaining failure at legacy checkbox required
+presence. Field assertions pass. Source/package playgrounds, package, style,
+state-matrix and forced-color checks pass. See the
+[field contract](../packages/cem-components/docs/field-controls-contract.md).
+
+## Next: Canonical textarea
+
+- [ ] Migrate `cem-textarea` using the shared form-control capability, with scoped
+      indicator CSS and a canonical source/package playground.
+- [ ] Fixture: cover multiline editing, reset, boolean presence, validation,
+      retained focus/selection and forced colors; compare remaining legacy failures.
 
 ## Completed: Native radio selection feedback
 

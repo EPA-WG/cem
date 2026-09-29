@@ -33,7 +33,9 @@
         "./components.xhtml": "./dist/components.xhtml",
         "./playgrounds/cem-bundle.html": "./dist/cem-bundle.html",
         "./playgrounds/cem-icon-button.html": "./dist/cem-icon-button.html",
-        "./playgrounds/cem-menu-item.html": "./dist/cem-menu-item.html"
+        "./playgrounds/cem-menu-item.html": "./dist/cem-menu-item.html",
+        "./playgrounds/cem-field.html": "./dist/cem-field.html",
+        "./playgrounds/cem-text-field.html": "./dist/cem-text-field.html"
     },
     "files": [
         "dist",

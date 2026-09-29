@@ -189,6 +189,19 @@ the input node, focus and selection (clamped to the new length); native input
 sanitization and form reset defaults still apply. File inputs and controls whose
 values already reflect their attributes retain native behavior.
 
+Declarations may opt into `capability="form-control"` for one string-valued
+native input or textarea marked `part="control"`. The produced host owns
+ElementInternals submission and validity. Keep the child unnamed with `form=""`;
+bind its value to `datadom.slices.value`, disabled state to
+`datadom.slices.formDisabled`, and input events to the value slice. The capability
+retains the host's `value` attribute as the reset default, forwards native
+validity, handles fieldset disabling and string state restoration, and exposes
+the form/value/validity host API. It does not change generic input patching.
+Trusted Enter in a single-line control delegates implicit submission to the
+host form, preserving default submitter activation and event cancellation.
+It is not a file, checkbox/radio, or multi-value capability. Template-fragment
+loaders must repeat the capability on their loading declaration.
+
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects
 use the last explicit selection, or native empty-selection rules when no option

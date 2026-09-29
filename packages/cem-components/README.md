@@ -429,6 +429,7 @@ Known deferrals stay outside this trigger:
   regions; mirrors the Tier A semantic-validation catalog enforced by `cem_ml`.
 - [Selectable list contract](./docs/selectable-list-contract.md) — accepted Phase 4 single-select listbox ownership,
   declarative option payload, native interaction boundary, and executable acceptance criteria.
+- [Field controls](./docs/field-controls-contract.md) — canonical field declarations, form ownership and reset.
 - [Input loading contract](./docs/input-loading-contract.md) — explicit presence-only busy projection, native state
   and ARIA markers, tokenized pending indicator, interaction boundaries, and executable acceptance criteria.
 - [Content hover contract](./docs/content-hover-contract.md) — actual native content owners, passive exclusions,
@@ -463,8 +464,9 @@ Known deferrals stay outside this trigger:
 
 The accepted [component development pattern](../../docs/component-development-pattern.md) keeps canonical XHTML
 separate from a companion property playground and source view. A generated
-`#ID` bundle is planned as release output. `cem-action`, `cem-select`, and `cem-theme-switch` use
-the canonical XHTML and colocated story structure.
+`#ID` bundle is generated as release output. `cem-action`, `cem-select`,
+`cem-theme-switch`, `cem-icon-button`, `cem-menu-item`, `cem-field`, and
+`cem-text-field` use the canonical XHTML and colocated story structure.
 
 ## Action property playground
 

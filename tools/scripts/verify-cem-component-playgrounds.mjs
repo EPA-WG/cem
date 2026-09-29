@@ -26,6 +26,7 @@ try {
     await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
     await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+    for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
     await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
@@ -38,9 +39,10 @@ try {
     await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
     await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
     for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+    for (const tag of ['cem-field', 'cem-text-field']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
     await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
     await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    console.log('Action, field, text-field, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -605,8 +607,12 @@ async function verifyBundle(url) {
         await page.goto(url);
         await page.locator('#bundle-action button').waitFor();
         await page.locator('#bundle-select [role=combobox]').waitFor();
+        await page.locator('#bundle-field input').waitFor();
+        await page.locator('#bundle-text-field input').waitFor();
+        assert.equal(await page.locator('#bundle-field input').inputValue(), 'Field value');
+        assert.equal(await page.locator('#bundle-text-field input').inputValue(), 'Text value');
         await page.evaluate(async () => {
-            for (const host of document.querySelectorAll('#bundle-action, #bundle-select, #bundle-theme')) {
+            for (const host of document.querySelectorAll('#bundle-action, #bundle-select, #bundle-theme, #bundle-field, #bundle-text-field')) {
                 await window.cemPlaygroundRuntime.whenRenderSettled(host);
             }
         });
@@ -616,7 +622,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon-button', 'cem-menu-item']) {
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field']) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -645,7 +651,7 @@ async function verifyBundle(url) {
             assert.equal(check.count, 1);
             assert.equal(check.base, check.sourceUrl);
         }
-        assert.equal(result.styleCount, 5);
+        assert.equal(result.styleCount, result.checks.length);
         assert.equal(result.stylesAfter, result.styleCount);
         assert.ok(result.diagnostics.includes('cem-element.registry_same_scope_duplicate'));
         assert.equal(await page.locator('#bundle-action button').getAttribute('aria-pressed'), 'true');
@@ -697,4 +703,44 @@ async function verifyCommand(url, tag) {
         assert(await page.locator('.property-groups').evaluate(node => node.getBoundingClientRect().right <= innerWidth));
         assert.deepEqual(errors, []);
     } finally { await page.close(); }
+}
+
+
+async function verifyField(url, tag) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        await page.goto(url);
+        await page.waitForSelector('#field-preview input');
+        const input = page.locator('#field-preview input');
+        await input.fill('edited');
+        await page.getByRole('button', { name: 'Reset', exact: true }).click();
+        await page.waitForFunction(() => document.querySelector('#field-preview input')?.value === 'initial');
+        assert.deepEqual(await page.evaluate(() => new FormData(document.querySelector('#field-form')).getAll('account')), ['initial']);
+        for (const attribute of ['disabled', 'required', 'readonly', 'busy']) {
+            const group = page.getByRole('radiogroup', { name: attribute, exact: true });
+            await group.getByRole('radio', { name: 'false', exact: true }).check();
+            await page.waitForFunction(attribute => {
+                const control = document.querySelector('#field-preview input');
+                return attribute === 'busy' ? control?.getAttribute('aria-busy') === 'true' : control?.hasAttribute(attribute);
+            }, attribute);
+            await group.getByRole('radio', { name: 'absent', exact: true }).check();
+            await page.waitForFunction(attribute => {
+                const control = document.querySelector('#field-preview input');
+                return !control?.hasAttribute(attribute === 'busy' ? 'aria-busy' : attribute);
+            }, attribute);
+        }
+        await page.getByRole('radiogroup', { name: 'busy', exact: true }).getByRole('radio', { name: 'true', exact: true }).check();
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('#field-preview input')).boxShadow !== 'none');
+        await page.emulateMedia({ forcedColors: 'active' });
+        assert.equal(await input.evaluate(node => getComputedStyle(node).borderWidth), '0px');
+        assert.equal(await input.evaluate(node => getComputedStyle(node).boxShadow), 'none');
+        assert.equal(await input.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+        const sourceUrl = await page.getByRole('link', { name: 'Canonical XHTML', exact: true }).getAttribute('href');
+        const response = await page.request.get(new URL(sourceUrl, page.url()).href);
+        assert(response.ok());
+        assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/src/components', tag, tag + '.xhtml'), 'utf8'));
+        const diagnostics = await page.evaluate(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('#field-preview')));
+        assert.deepEqual(diagnostics, [], tag + ': runtime diagnostics');
+    } finally { await context.close(); }
 }
