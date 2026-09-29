@@ -34,7 +34,7 @@
             "components": [
                 "cem-action"
             ],
-            "interaction": "The container sets persistent selection; native button aria-pressed and zebra remain independent of transient interaction, disabled and loading.",
+            "interaction": "The container sets persistent selection; native button aria-pressed and zebra remain independent of transient interaction, disabled and pending.",
             "status": "covered",
             "owner": "packages/cem-components/src/components/cem-action/cem-action.stories.ts",
             "test": "Selected",
@@ -215,9 +215,9 @@
             ]
         },
         {
-            "id": "action:loading",
+            "id": "action:pending",
             "category": "Action",
-            "state": "loading",
+            "state": "pending",
             "components": [
                 "cem-action"
             ],

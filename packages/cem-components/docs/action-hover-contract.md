@@ -165,7 +165,7 @@ activation states; nothing is available only through hover.
   hover selectors.
 - `action:active` is implemented by the companion
   [`action active contract`](./action-active-contract.md). `action:disabled`,
-  `action:loading`, navigation hover, input hover, content hover, selected rows,
+  `action:pending`, navigation hover, input hover, content hover, selected rows,
   tooltips, menus, and richer action variants remain separate state or
   component contracts.
 

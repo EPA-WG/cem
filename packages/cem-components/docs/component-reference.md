@@ -166,7 +166,7 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | `cem-icon-button` | Native icon-only command button. | `name` selects icon text; `label` provides the accessible name. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
-States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`.
+States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`.
 The canonical `cem-action` declaration embeds its scoped styles for all five
 intents. The legacy icon/menu styles remain in the public component stylesheet.
 All three use paired CEM action tokens for default, enabled native-button hover
@@ -181,19 +181,19 @@ container or an individual host; removing an override restores the inherited
 theme value. The former private `--_cem-action-*` aliases are removed without
 compatibility aliases. No generic `--cem-action-<state>-*` family is introduced.
 
-For `cem-action`, `loading="true"` reflects `aria-busy="true"` and shows the
+For `cem-action`, `pending="true"` reflects `aria-busy="true"` and shows the
 canonical 45-degree pending gradient with a seamless two-second loop. Colors
 come from the current intent's pending/active background pair and pending text.
 Destructive uses the theme's pending-stripe endpoint for a lighter stripe in
 light schemes and a darker stripe in dark schemes; its active button state
 remains unchanged.
 Pending paint takes precedence over hover/active and disabled paint. A disabled
-loading button keeps the gradient while native disabled semantics block activation
-and focus. Clearing loading while disabled restores disabled colors. Hover/focus
+pending button keeps the gradient while native disabled semantics block activation
+and focus. Clearing pending while disabled restores disabled colors. Hover/focus
 preserve the continuous animation and zebra focus remains independent. Clearing
-loading restores interaction paint. Reduced motion freezes
+pending restores interaction paint. Reduced motion freezes
 the gradient; forced colors use system colors and a static pending boundary.
-Loading preserves dimensions and activation; use `disabled` to block activation.
+Pending preserves dimensions and activation; use `disabled` to block activation.
 
 ## Inputs
 

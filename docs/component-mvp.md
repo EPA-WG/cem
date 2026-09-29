@@ -113,7 +113,8 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 | `focus-visible` | Keyboard-focusable actions, inputs, nav, tabs, dialogs, sheets | Shows a visible focus ring using CEM focus tokens. |
 | `active` | Actions, menu items, tabs, nav items, chips | Uses active action treatment and preserves text contrast. |
 | `disabled` | Actions, inputs, nav items, tabs, menu items, chips | Removes activation and tab stop where appropriate while keeping readable labels. |
-| `loading` | Actions, inputs, lists, tables, cards, dialogs, sheets, progress, skeletons | Preserves dimensions and reflects busy status. |
+| `pending` | Actions | Preserves dimensions and reflects an action in progress. |
+| `loading` | Inputs, lists, tables, cards, dialogs, sheets, progress, skeletons | Preserves dimensions and reflects busy status. |
 | `selected` | Nav items, tabs, menu items, table/list rows, chips | Distinguishes current selection from hover and focus. |
 | `expanded` | Nav groups, select, menu item submenus, sheets, dialogs | Mirrors disclosure state with `aria-expanded` where applicable. |
 | `invalid` | Text fields, textareas, selects, checkbox/radio groups, switches, forms | Reflects validation failure with error relationship and error tokens. |
@@ -127,7 +128,7 @@ States are exposed as CEM semantic state names and mirrored to host attributes o
 
 | Category | Required MVP states |
 | --- | --- |
-| Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `loading`, `selected` |
+| Action | `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`, `selected` |
 | Input | `default`, `hover`, `focus-visible`, `disabled`, `loading`, `expanded`, `invalid`, `required`, `readonly`, `checked`, `indeterminate` |
 | Navigation | `default`, `hover`, `focus-visible`, `active`, `disabled`, `selected`, `expanded` |
 | Layout | `default`, `loading`, `empty` |

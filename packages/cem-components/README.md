@@ -470,7 +470,7 @@ the canonical XHTML and colocated story structure.
 
 Open [`playgrounds/cem-action.html`](playgrounds/cem-action.html) through an HTTP
 server (including the IDE preview). Visible radio groups edit intent, bend,
-size, type, disabled, loading and selected; a text field edits the label. Each group
+size, type, disabled, pending and selected; a text field edits the label. Each group
 uses native exclusive selection and arrow-key navigation. Hover, held pointer/Space
 and keyboard focus use native browser states. The source-only panel fetches the
 canonical XHTML; the full gallery link opens the component-owned

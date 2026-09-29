@@ -649,7 +649,7 @@ Generator derivation rules:
 This source table is part of the D5 token manifest. The generator emits Value
 at the root and every theme boundary, then Contrast at contrast-light/dark
 boundaries. Geometry uses existing stroke endpoints: boundary at rest, standard
-on enabled hover, strong during activation, and pending while loading. Disabled
+on enabled hover, strong during activation, and pending while an action is in progress. Disabled
 suppresses pointer state changes. The contour sits inside the painted surface,
 so changing thickness does not change the hit area or layout. Focus zebra stays
 outside the operable bounds. Pending animates D0's current-intent gradient, with a brighter stripe in light

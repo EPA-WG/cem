@@ -126,13 +126,13 @@ export const Selected = meta.story({
             selected.setAttribute('disabled', '');
             await whenCemRendered(selected);
             await expect(getComputedStyle(button).boxShadow).toBe(ring);
-            selected.setAttribute('loading', 'true');
+            selected.setAttribute('pending', 'true');
             await whenCemRendered(selected);
             await expect(button.disabled).toBe(true);
             await expect(getComputedStyle(button).boxShadow).toBe(ring);
             await expect(button.getBoundingClientRect().width).toBe(baseline.width);
             await expect(button.getBoundingClientRect().height).toBe(baseline.height);
-            for (const attribute of ['disabled', 'loading']) selected.removeAttribute(attribute);
+            for (const attribute of ['disabled', 'pending']) selected.removeAttribute(attribute);
             await whenCemRendered(selected);
         }
         selected.setAttribute('selected', 'false');
@@ -189,7 +189,7 @@ export const CompactHitArea = meta.story({
     parameters: { docs: { description: { story: 'Trusted edge clicks run in the Vitest browser runner; the entire transparent compact border belongs to the native button.' } } },
     render: () => `<form class="cem-theme-light" style="display:flex;gap:var(--cem-coupling-guard-min)">
         <cem-action size="small" type="submit">Save</cem-action>
-        <cem-action size="small" disabled loading="true">Disabled</cem-action>
+        <cem-action size="small" disabled pending="true">Disabled</cem-action>
     </form>`,
     play: async ({ canvasElement }) => {
         const form = canvasElement.querySelector('form') as HTMLFormElement;
@@ -259,7 +259,7 @@ export const ContrastContours = meta.story({
                 await native.keyboard('[/Space]');
                 await native.unhover(button);
             }
-            host.setAttribute('loading', 'true');
+            host.setAttribute('pending', 'true');
             await whenCemRendered(host);
             await expect(contour().backgroundImage).toContain('linear-gradient(45deg');
             await expect(contour().animationIterationCount).toBe('infinite');
@@ -296,7 +296,7 @@ export const ContrastContours = meta.story({
             await expect(contour().display).toBe('none');
             section.className = mode;
             await expect(contour().display).toBe('block');
-            host.setAttribute('loading', 'false');
+            host.setAttribute('pending', 'false');
             await whenCemRendered(host);
             await expect(button.getAnimations()).toHaveLength(0);
             await expect(contour().backgroundColor).toBe(getComputedStyle(button).color);
@@ -351,7 +351,7 @@ export const ThemeOverrides = meta.story({
             host.setAttribute('disabled', '');
             await whenCemRendered(host);
             await expect(paint()).toEqual(individual);
-            host.setAttribute('loading', 'true');
+            host.setAttribute('pending', 'true');
             await whenCemRendered(host);
             await expect(paint()).toEqual(individual);
             await expect(getComputedStyle(button).backgroundImage).toContain(individual[0]);
@@ -360,7 +360,7 @@ export const ThemeOverrides = meta.story({
             await expect(paint()).toEqual(inherited);
             await expect(getComputedStyle(button).backgroundImage).toContain(inherited[0]);
             host.removeAttribute('disabled');
-            host.removeAttribute('loading');
+            host.removeAttribute('pending');
             await whenCemRendered(host);
             properties.forEach(property => container.style.removeProperty(property));
             await expect(paint()).toEqual(original);
@@ -372,7 +372,7 @@ export const ThemeOverrides = meta.story({
 
 export const NativeHidden = meta.story({
     parameters: { docs: { description: { story: 'Native host visibility and state retention. Trusted keyboard checks run only in the Vitest browser runner.' } } },
-    render: () => `<button data-before>Before</button><cem-action hidden loading="true" label="Save"></cem-action><button data-after>After</button>`,
+    render: () => `<button data-before>Before</button><cem-action hidden pending="true" label="Save"></cem-action><button data-after>After</button>`,
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector<HTMLElement>('cem-action')!;
         await whenCemRendered(host);
@@ -424,12 +424,12 @@ export const NativeHidden = meta.story({
     },
 });
 
-export const LoadingColors = meta.story({
+export const PendingColors = meta.story({
     // Keep this branded light fixture independent of the default native palette.
     globals: { cemTheme: 'light' },
-    parameters: { docs: { description: { story: 'Pending gradients and continuous loading motion. Trusted hover/focus checks run only in the Vitest browser runner.' } } },
+    parameters: { docs: { description: { story: 'Pending gradients and continuous pending motion. Trusted hover/focus checks run only in the Vitest browser runner.' } } },
     render: () => `<section class="cem-theme-light">${['primary', 'explicit', 'contextual', 'alternate', 'destructive'].map(variant =>
-        `<cem-action variant="${variant}" loading="false">Save</cem-action>`).join('')}</section>`,
+        `<cem-action variant="${variant}" pending="false">Save</cem-action>`).join('')}</section>`,
     play: async ({ canvasElement }) => {
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
             await whenCemRendered(host);
@@ -446,7 +446,7 @@ export const LoadingColors = meta.story({
                 return result;
             };
             await expect(paint()).toEqual(expected('default'));
-            host.setAttribute('loading', 'true');
+            host.setAttribute('pending', 'true');
             await whenCemRendered(host);
             await expect(button).toHaveAttribute('aria-busy', 'true');
             void getComputedStyle(button).backgroundColor;
@@ -504,7 +504,7 @@ export const LoadingColors = meta.story({
             button.addEventListener('click', () => clicks++);
             button.click();
             await expect(clicks).toBe(0);
-            host.setAttribute('loading', 'false');
+            host.setAttribute('pending', 'false');
             await whenCemRendered(host);
             await expect(paint()).toEqual(expected('disabled'));
             await expect(getComputedStyle(button).backgroundImage).toBe('none');
@@ -522,7 +522,7 @@ export const DestructivePendingModes = meta.story({
     // Branded mode samples must not inherit the Storybook native palette override.
     globals: { cemTheme: 'light' },
     render: () => ['native', 'light', 'dark', 'contrast-light', 'contrast-dark'].map(mode =>
-        `<section class="cem-theme-${mode}"><cem-action variant="destructive" loading="true" disabled>${mode}</cem-action></section>`).join(''),
+        `<section class="cem-theme-${mode}"><cem-action variant="destructive" pending="true" disabled>${mode}</cem-action></section>`).join(''),
     play: async ({ canvasElement }) => {
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-action')) {
             await whenCemRendered(host);
@@ -555,8 +555,8 @@ export const DestructivePendingModes = meta.story({
 
 export const PendingIntentThemeParity = meta.story({
     globals: { cemTheme: 'light' },
-    parameters: { docs: { description: { story: 'Light contrast outlines brighten the loading stripe; normal fills and dark contours preserve their colors and all modes share motion parameters.' } } },
-    render: () => '<section class="cem-theme-light"><cem-action loading="true">Loading</cem-action></section>',
+    parameters: { docs: { description: { story: 'Light contrast outlines brighten the pending stripe; normal fills and dark contours preserve their colors and all modes share motion parameters.' } } },
+    render: () => '<section class="cem-theme-light"><cem-action pending="true">Pending</cem-action></section>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector<HTMLElement>('cem-action');
         if (!host?.parentElement) throw new Error('Missing action theme fixture');
@@ -648,7 +648,7 @@ export const SubmittedPending = meta.story({
         canvasElement.querySelector('form')!.addEventListener('submit', event => {
             event.preventDefault();
             submissions++;
-            host.setAttribute('loading', 'true');
+            host.setAttribute('pending', 'true');
             host.setAttribute('disabled', '');
         });
         await userEvent.click(button);
@@ -661,7 +661,7 @@ export const SubmittedPending = meta.story({
         await expect(submissions).toBe(1);
         await userEvent.tab();
         await expect(document.activeElement).not.toBe(button);
-        host.setAttribute('loading', 'false');
+        host.setAttribute('pending', 'false');
         await whenCemRendered(host);
         await expect(button.disabled).toBe(true);
         await expect(button.getAnimations()).toHaveLength(0);
@@ -694,7 +694,7 @@ export const LabelsAndStyles = meta.story({
 });
 
 export const StatesAndActivation = meta.story({
-    render: () => `<cem-action loading="true" expanded="false">Sync</cem-action>
+    render: () => `<cem-action pending="true" expanded="false">Sync</cem-action>
         <cem-action disabled>Unavailable</cem-action><cem-action disabled="false">Presence</cem-action>`,
     play: async ({ canvasElement }) => {
         const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-action')];

@@ -20,9 +20,9 @@ editability remain unchanged. `busy` is not `disabled`, `readonly`, or `inert`;
 authors add those separate states only when the owning workflow requires them.
 
 The public API uses the package's existing `busy` projection vocabulary rather
-than `loading`, whose platform meaning already applies to resource elements and
-whose existing `cem-action[loading]` spelling predates the presence-only
-content/layout contracts. `busy="false"` is therefore present and true; remove
+than `loading`, whose platform meaning already applies to resource elements.
+Actions use `cem-action[pending="true"]`; inputs follow the presence-only
+content/layout `busy` contract. `busy="false"` is therefore present and true; remove
 the attribute when the operation settles.
 
 ## Alternatives considered

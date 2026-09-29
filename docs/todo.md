@@ -8,6 +8,16 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Rename action loading to pending
+
+- [x] Rename the canonical `cem-action` attribute and action state to `pending`;
+      update theme/component docs, examples, playgrounds, stories and state coverage.
+- [x] Verify all 17 action stories, declarative architecture, state matrix and catalog.
+- [x] Verify source and installed-package playgrounds and published package contents.
+
+All 17 action stories, catalog/state-matrix checks, package build and source/installed
+playgrounds pass. The public action attribute is now `pending="true"`.
+
 ## Completed: Extra-light red destructive loading stripe
 
 - [x] Use the palette extra-light red (`--cem-color-red-xl`, `#ffb4ab`) for

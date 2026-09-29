@@ -460,10 +460,10 @@ background remains a color, including as the solid fallback.
 | --- | --- | --- | --- |
 | `--cem-pending-color-1` | `var(--cem-action-primary-pending-background)` | First gradient color; bind to the current intent's pending background | recommended |
 | `--cem-pending-color-2` | `var(--cem-action-primary-pending-stripe-background)` | Second gradient color; bind to the current intent's pending stripe background | recommended |
-| `--cem-action-primary-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-primary-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-primary-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
-| `--cem-action-explicit-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-explicit-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-explicit-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
-| `--cem-action-contextual-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-contextual-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-contextual-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
-| `--cem-action-alternate-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-alternate-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-alternate-active-background) 80%, black))` | Loading stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-primary-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-primary-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-primary-active-background) 80%, black))` | Pending stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-explicit-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-explicit-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-explicit-active-background) 80%, black))` | Pending stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-contextual-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-contextual-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-contextual-active-background) 80%, black))` | Pending stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
+| `--cem-action-alternate-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-alternate-active-background) 88%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-alternate-active-background) 80%, black))` | Pending stripe: 12% white in light schemes; 20% black in dark schemes | recommended |
 | `--cem-action-destructive-pending-stripe-background` | `light-dark(color-mix(in srgb, var(--cem-action-destructive-active-background) 75%, var(--cem-color-white)), color-mix(in srgb, var(--cem-action-destructive-active-background) 50%, black))` | Destructive pending stripe: lighten the active endpoint with 25% white in light schemes; darken it with 50% black in dark schemes | recommended |
 | `--cem-action-primary-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 80%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-creativity) 25%, var(--cem-palette-creativity-x)) 80%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-creativity) 5%, var(--cem-palette-creativity-x)) 95% 100%)` | Primary pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
 | `--cem-action-explicit-pending-image` | `linear-gradient(var(--cem-pending-angle), color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 0% 5%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 20% 30%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 45% 55%, light-dark(color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 60%, var(--cem-color-white)), color-mix(in srgb, color-mix(in srgb, var(--cem-palette-trust) 25%, var(--cem-palette-trust-x)) 80%, black)) 70% 80%, color-mix(in srgb, var(--cem-palette-trust) 5%, var(--cem-palette-trust-x)) 95% 100%)` | Explicit pending recipe; 40% white stripe in light contrast; ordinary dark endpoint | recommended |
@@ -503,12 +503,12 @@ Keep zebra focus rings independent of background motion.
 The generated `.cem-pending` theme utility demonstrates this recipe. Consumers
 bind the two color inputs and pending foreground for their intent. Canonical
 components own the same recipe in their embedded scoped CSS. `cem-action`
-activates it for `loading="true"`, including disabled buttons. Pending paint
-takes precedence over disabled paint while loading; native disabled semantics
-still block activation and focus. Clearing loading while disabled restores the
+activates it for `pending="true"`, including disabled buttons. Pending paint
+takes precedence over disabled paint while pending; native disabled semantics
+still block activation and focus. Clearing pending while disabled restores the
 disabled colors.
-Loading does not itself disable activation. Hover and focus do not restart or
-replace the continuous animation. Clearing loading removes the gradient and
+Pending does not itself disable activation. Hover and focus do not restart or
+replace the continuous animation. Clearing pending removes the gradient and
 motion and restores current interaction paint.
 
 #### 7.2.3 Outline-driven states
@@ -516,7 +516,7 @@ motion and restores current interaction paint.
 `focus`, `selected`, and `target` are primarily expressed through the **zebra outline channel** (§8). Background tokens
 MAY remain at `default` for these states; do not rely on fill alone.
 Selection is a first-class persistent state. `cem-action[selected]` MUST paint
-selected zebra even when unfocused, disabled or loading. Focus and selected
+selected zebra even when unfocused, disabled or pending. Focus and selected
 stripes remain independent, and hover/held press do not clear selection.
 The container owns the selected attribute; the action does not infer it from a
 click or from disclosure expansion.
@@ -556,7 +556,7 @@ state table are canonical. There is no intent or state fill progression.
 
 Intent moves to a contour, colored by the intent's extreme palette endpoint.
 D5 defines its resting/hover/active thickness; keyboard focus retains its
-independent zebra rings. Loading, including disabled loading, uses an animated
+independent zebra rings. Pending, including disabled pending, uses an animated
 45-degree zebra contour instead of the background gradient. Motion parameters match the normal gradient. Dark contours also retain the
 normal gradient colors. Light contours brighten the second endpoint with 40%
 white for primary, explicit, contextual and alternate. Destructive uses the

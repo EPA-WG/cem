@@ -176,7 +176,7 @@ the card neither distinguishes nor announces cancellation.
   fallback, and resource errors do not automatically make an ancestor card
   busy.
 - Action and input loading must define control-specific disabled, value, focus,
-  and event behavior. Existing `cem-action[loading]` is not changed or generalized
+  and event behavior. Existing `cem-action[pending]` is not changed or generalized
   by this contract.
 - `cem-progress`, `cem-skeleton`, `cem-alert`, and status content are feedback or
   presentation composed by the workflow; they do not own the card lifecycle.

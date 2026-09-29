@@ -68,7 +68,7 @@
 </header>
 <main>
 <section aria-label="Implemented attributes"><h2>Implemented attributes</h2>
-<p>Boolean presence enables <code>disabled</code>, <code>selected</code>, <code>selectable</code> and <code>formnovalidate</code>, even when their text is <code>false</code>. Loading and expanded use their explicit string values.</p>
+<p>Boolean presence enables <code>disabled</code>, <code>selected</code>, <code>selectable</code> and <code>formnovalidate</code>, even when their text is <code>false</code>. Pending and expanded use their explicit string values.</p>
 <ul>
 <li data-action-attribute="label"><code>label</code> — Fallback label; child content takes precedence.</li>
 <li data-action-attribute="aria-label"><code>aria-label</code> — Accessible name forwarded to the native button.</li>
@@ -78,7 +78,7 @@
 <li data-action-attribute="selected"><code>selected</code> — Presence marks a controlled selection and sets aria-pressed=true.</li>
 <li data-action-attribute="selectable"><code>selectable</code> — Presence exposes aria-pressed=false when selected is absent; activation does not toggle it automatically.</li>
 <li data-action-attribute="disabled"><code>disabled</code> — Presence disables native focus and activation.</li>
-<li data-action-attribute="loading"><code>loading</code> — true exposes aria-busy and pending feedback; false restores the resting state.</li>
+<li data-action-attribute="pending"><code>pending</code> — true exposes aria-busy and pending feedback; false restores the resting state.</li>
 <li data-action-attribute="expanded"><code>expanded</code> — true/false reflects aria-expanded; the container owns disclosure state and content.</li>
 <li data-action-attribute="hidden"><code>hidden</code> — Native host visibility, including until-found.</li>
 <li data-action-attribute="type"><code>type</code> — button (default), submit or reset.</li>
@@ -131,14 +131,14 @@
 <cem-action id="gallery-command">Ordinary command</cem-action>
 </template>
 </cem-demo-element>
-<cem-demo-element legend="Loading and disabled" data-covers="loading disabled">
-<p slot="description">Loading continues while disabled; disabled actions cannot activate. Reduced motion freezes animation. Forced colors retain a static indicator.</p>
+<cem-demo-element legend="Pending and disabled" data-covers="pending disabled">
+<p slot="description">Pending continues while disabled; disabled actions cannot activate. Reduced motion freezes animation. Forced colors retain a static indicator.</p>
 <template slot="source">
-<cem-action id="gallery-loading" loading="true">Loading</cem-action>
-<cem-action loading="false">Not loading</cem-action>
+<cem-action id="gallery-pending" pending="true">Pending</cem-action>
+<cem-action pending="false">Not pending</cem-action>
 <cem-action disabled>Disabled</cem-action>
 <cem-action id="gallery-disabled-false" disabled="false">Disabled by presence</cem-action>
-<cem-action id="gallery-disabled-loading" disabled loading="true">Disabled loading</cem-action>
+<cem-action id="gallery-disabled-pending" disabled pending="true">Disabled pending</cem-action>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Expanded and visibility" data-covers="expanded hidden">

@@ -113,8 +113,8 @@ async function verifyActionGallery(page) {
     assert.equal(await page.locator('#gallery-comfortable button').getAttribute('aria-pressed'), 'true');
     assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('gallery-selected-false'));
     assert(await page.locator('#gallery-disabled-false button').isDisabled());
-    assert(await page.locator('#gallery-disabled-loading button').isDisabled());
-    assert.equal(await page.locator('#gallery-loading button').getAttribute('aria-busy'), 'true');
+    assert(await page.locator('#gallery-disabled-pending button').isDisabled());
+    assert.equal(await page.locator('#gallery-pending button').getAttribute('aria-busy'), 'true');
     assert(await page.locator('#gallery-hidden').isHidden());
     await page.locator('#gallery-disclosure button').click();
     await page.waitForFunction(() => document.querySelector('#gallery-disclosure button')?.getAttribute('aria-expanded') === 'true' && !document.querySelector('#gallery-hidden')?.hasAttribute('hidden'));
@@ -319,7 +319,7 @@ async function verify(url) {
         assert.equal(await page.getByRole('combobox').count(), 0);
         assert.equal(await page.getByRole('radiogroup').count(), 8);
         assert.equal(await page.getByRole('radio').count(), 27);
-        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'False'], ['Selected', 'Unset']]) {
+        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Pending', 'False'], ['Selected', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             for (const radio of await group.getByRole('radio').all()) assert(await radio.isVisible());
@@ -359,12 +359,12 @@ async function verify(url) {
         await choose('Disabled', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === false);
         await button.evaluate(node => {
-            window.loadingTransitions = [];
-            node.addEventListener('animationstart', event => window.loadingTransitions.push(event.animationName));
+            window.pendingTransitions = [];
+            node.addEventListener('animationstart', event => window.pendingTransitions.push(event.animationName));
         });
-        await choose('Loading', 'True');
+        await choose('Pending', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
-        await page.waitForFunction(() => window.loadingTransitions.some(name => name.startsWith('cem-pending-shift-')));
+        await page.waitForFunction(() => window.pendingTransitions.some(name => name.startsWith('cem-pending-shift-')));
         const movingPosition = await button.evaluate(node => getComputedStyle(node).backgroundPositionX);
         await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button')).backgroundPositionX !== position, movingPosition);
         assert.equal(await button.evaluate(node => node.getAnimations()[0].effect.getTiming().iterations), Infinity);
@@ -404,7 +404,7 @@ async function verify(url) {
                     for (const animation of node.getAnimations({ subtree: true })) animation.currentTime = 625;
                 });
                 const secondFrame = await button.screenshot({ animations: 'allow' });
-                assert(!firstFrame.equals(secondFrame), `${mode} ${intent}: loading contour must visibly move`);
+                assert(!firstFrame.equals(secondFrame), `${mode} ${intent}: pending contour must visibly move`);
                 await button.evaluate(node => {
                     for (const animation of node.getAnimations({ subtree: true })) animation.play();
                 });
@@ -423,11 +423,11 @@ async function verify(url) {
         assert.match(await button.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(45deg/);
         const disabledPosition = await button.evaluate(node => getComputedStyle(node).backgroundPositionX);
         await page.waitForFunction(position => getComputedStyle(document.querySelector('#action-preview button')).backgroundPositionX !== position, disabledPosition);
-        await choose('Loading', 'False');
+        await choose('Pending', 'False');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'false');
         assert.notDeepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
         await page.emulateMedia({ reducedMotion: 'reduce' });
-        await choose('Loading', 'True');
+        await choose('Pending', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('aria-busy') === 'true');
         assert.deepEqual(await button.evaluate(node => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color]), pendingPaint);
         assert.equal(await button.evaluate(node => node.getAnimations({ subtree: true }).length), 0);
@@ -445,7 +445,7 @@ async function verify(url) {
             await choose('Selected', value);
             await page.waitForFunction(value => document.querySelector('#action-preview button')?.getAttribute('aria-pressed') === value, value === 'Unset' ? null : value.toLowerCase());
         }
-        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Loading', 'True'], ['Selected', 'Unset']]) {
+        for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Round'], ['Button type', 'Button'], ['Disabled', 'False'], ['Pending', 'True'], ['Selected', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
             assert.equal(await group.locator('input:checked').count(), 1);
