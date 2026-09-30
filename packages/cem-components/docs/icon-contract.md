@@ -50,3 +50,24 @@ export before appending the template fragment:
 ```
 
 The release bundle also exposes `components.xhtml#cem-icon`.
+
+## Legacy use-case audit
+
+The gallery covers all seven example groups from
+[custom-element-dist 0.0.39](https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/icon.html).
+Each group remains an inspectable, live example:
+
+| Legacy group | Canonical gallery coverage |
+| --- | --- |
+| Direction attribute | [Default row, explicit row, column](../playgrounds/cem-icon-gallery.html#legacy-direction), with Unicode, Material, and Font Awesome sources and adjacent text. |
+| Size attribute | [Small, normal, large](../playgrounds/cem-icon-gallery.html#legacy-size), using the same heart glyph for direct comparison. |
+| Unicode or Emoji | [All 14 legacy glyphs](../playgrounds/cem-icon-gallery.html#legacy-unicode), with and without visible text, plus Unicode/emoji search links. |
+| Google Material icon font | [All 14 legacy ligatures](../playgrounds/cem-icon-gallery.html#legacy-material) and the Material icon search link. |
+| Fontawesome | [All 15 legacy examples](../playgrounds/cem-icon-gallery.html#legacy-fontawesome), including brand, regular, and solid fonts, plus the search link. |
+| Image from importmap module | [Module-resolved logo and external SVG](../playgrounds/cem-icon-gallery.html#legacy-module-image). The current `cem-module-url` resolves the packaged copy of the legacy logo; the external Bulbasaur URL is retained. |
+| Color | [Danger, calm, trust](../playgrounds/cem-icon-gallery.html#legacy-color), inherited by font glyphs and adjacent text. |
+
+The logo lives at `playgrounds/assets/wc-square.svg`, copied from the legacy
+repository asset, and has a matching package export. Source and package import
+maps resolve that export to their respective asset locations. Font stylesheets
+and external example images are still served by their original providers.

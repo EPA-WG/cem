@@ -8,6 +8,23 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Completed: Complete cem-icon legacy examples
+
+- [x] Audit the seven use-case groups in custom-element-dist 0.0.39 against
+      the canonical gallery; restore all source collections, direction/size,
+      module-resolved and external images, resource links, and inherited colors.
+- [x] Fixture: verify Font Awesome families, color inheritance, and all legacy
+      gallery groups, including the packaged import-map image asset.
+- [x] Record the versioned comparison in the icon contract and demo protocol;
+      verify stories, source/package galleries and package contents, commit and push.
+
+The versioned audit covers all seven legacy groups, all 51 literal image values,
+and the dynamically module-resolved logo. Five icon stories pass. Full source
+and isolated-package playground/gallery/bundle checks pass, including exact
+source collections, glyph sizes, inherited colors, and the shipped logo asset.
+Package verification passes with 130 files; lint has no errors and 48 existing
+warnings. The component implementation already supports these use cases.
+
 ## Completed: Introduce canonical cem-icon
 
 - [x] Decision: approve theme-owned icon sizing proposed in

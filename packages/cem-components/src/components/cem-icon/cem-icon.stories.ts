@@ -104,3 +104,49 @@ export const ThemeSizes = meta.story({
         }
     },
 });
+
+export const LegacyCollections = meta.story({
+    render: () => {
+        const unicode = ['»', '🚀', '👁', '🎄', '😭', '🔥', '💀', '🛒', '✨', '😊', '😂', '⭐', '🫶', '🎁', '✅'];
+        const material = ['recycling', 'shopping_cart', 'search', 'home', 'menu', 'close', 'check_circle', 'favorite', 'add', 'star', 'chevron_right', 'logout', 'add_circle', 'cancel'];
+        const fontawesome = ['fab fa-github', 'fas fa-bookmark', 'fab fa-discord', 'fab fa-android', 'fab fa-apple', 'far fa-user', 'far fa-envelope', 'fas fa-thumbs-up', 'far fa-thumbs-down', 'far fa-star', 'fas fa-star', 'fas fa-location-arrow', 'fas fa-map-marker', 'fas fa-map-marked-alt', 'fas fa-globe', 'fas fa-bone', 'fas fa-heart'];
+        return [...unicode.map(image => [image, 'unicode']), ...material.map(image => [image, 'material']), ...fontawesome.map(image => [image, 'fontawesome'])]
+            .map(([image, source]) => `<cem-icon image="${image}" data-source="${source}"><span>${image}</span></cem-icon>`).join('');
+    },
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-icon')];
+        await Promise.all(hosts.map(whenCemRendered));
+        for (const host of hosts) {
+            const image = host.getAttribute('image') as string;
+            const glyph = host.querySelector('[part="glyph"]') as HTMLElement;
+            if (host.dataset.source === 'fontawesome') {
+                expect(glyph.tagName).toBe('I');
+                for (const className of image.split(' ')) expect(glyph.classList.contains(className)).toBe(true);
+            } else {
+                expect(glyph.classList.contains(host.dataset.source === 'unicode' ? 'unicode' : 'material-icons')).toBe(true);
+                expect(glyph.textContent).toBe(image);
+            }
+            expect(host.querySelector('[part="icon"]')?.getAttribute('aria-hidden')).toBe('true');
+            expect(host.querySelector('[part="content"] > span:last-child')?.textContent).toBe(image);
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        }
+    },
+});
+
+export const LegacyColorInheritance = meta.story({
+    render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'].map(theme =>
+        `<section class="cem-theme-${theme}">${['danger', 'calm', 'trust'].map(tone =>
+            `<cem-icon image="fas fa-heart" style="color:var(--cem-palette-${tone})"><span>${tone}</span></cem-icon>`).join('')}</section>`).join(''),
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-icon')];
+        await Promise.all(hosts.map(whenCemRendered));
+        for (const host of hosts) {
+            const glyph = host.querySelector('[part="glyph"]') as HTMLElement;
+            const text = host.querySelector('[part="content"] > span:last-child') as HTMLElement;
+            expect(getComputedStyle(glyph).color).toBe(getComputedStyle(host).color);
+            expect(getComputedStyle(text).color).toBe(getComputedStyle(host).color);
+            host.style.color = 'var(--cem-palette-trust)';
+            expect(getComputedStyle(glyph).color).toBe(getComputedStyle(host).color);
+        }
+    },
+});

@@ -23,7 +23,8 @@
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
-        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml"
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
     }
 }</script>
     <script type="module">
@@ -45,6 +46,7 @@
         .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
         .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
         .examples > article { min-inline-size: 0; }
+        [data-legacy-icon-case] cem-icon { margin: var(--cem-gap-related); }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
     </style>
@@ -81,7 +83,98 @@
 <cem-icon id="icon-alias" name="recycling" label="Recycle"></cem-icon>
 <cem-icon id="icon-empty" image="" name="settings"><span>Content without icon</span></cem-icon>
 <cem-icon id="icon-hidden" image="settings" hidden="false"></cem-icon>
-</template></cem-demo-element></main></div><section aria-label="Theme and appearance variation matrix"><h2>Theme and appearance variation matrix</h2><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
+</template></cem-demo-element><section id="legacy-use-cases" aria-label="Legacy icon use cases">
+<h2>Legacy icon use cases</h2>
+<p>These seven groups cover the examples in <a href="https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/icon.html">custom-element-dist 0.0.39</a>, including every demonstrated icon value. The image module example uses the current declarative module URL loader. Icons with adjacent text are decorative; standalone examples have accessible labels.</p>
+<section id="legacy-direction" data-legacy-icon-case="direction">
+<h3>Direction attribute</h3>
+<cem-demo-element legend="Direction attribute"><template slot="source">
+<cem-icon image="»">Default row</cem-icon>
+<cem-icon image="home" direction="column">Column</cem-icon>
+<cem-icon image="fas fa-bone" direction="row">Row</cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-size" data-legacy-icon-case="size">
+<h3>Size attribute</h3>
+<cem-demo-element legend="Size attribute"><template slot="source">
+<cem-icon image="fas fa-heart" size="small">small</cem-icon>
+<cem-icon image="fas fa-heart" size="normal">normal</cem-icon>
+<cem-icon image="fas fa-heart" size="large">large</cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-unicode" data-legacy-icon-case="unicode">
+<h3>Unicode or Emoji</h3><p><cem-icon image="https://unicodeplus.com/favicon.ico"><a href="https://unicodeplus.com/search">Search Unicode</a></cem-icon> · <cem-icon image="https://emojipedia.org/images/favicon-32x32.png"><a href="https://emojipedia.org/search?q=heart">Search Emoji</a></cem-icon></p>
+<cem-demo-element legend="Unicode or Emoji"><template slot="source">
+<cem-icon image="🚀">Rocket emoji</cem-icon>
+<cem-icon image="👁">Eye Unicode</cem-icon>
+<cem-icon image="🎄" label="Christmas tree"></cem-icon>
+<cem-icon image="😭" label="Crying"></cem-icon>
+<cem-icon image="🔥" label="Fire"></cem-icon>
+<cem-icon image="💀" label="Skull"></cem-icon>
+<cem-icon image="🛒" label="Shopping cart"></cem-icon>
+<cem-icon image="✨" label="Sparkles"></cem-icon>
+<cem-icon image="😊" label="Smiling"></cem-icon>
+<cem-icon image="😂" label="Laughing"></cem-icon>
+<cem-icon image="⭐" label="Star"></cem-icon>
+<cem-icon image="🫶" label="Heart hands"></cem-icon>
+<cem-icon image="🎁" label="Gift"></cem-icon>
+<cem-icon image="✅" label="Check mark"></cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-material" data-legacy-icon-case="material">
+<h3>Google Material icon font</h3><p><cem-icon image="https://www.gstatic.com/images/icons/material/apps/fonts/1x/catalog/v5/favicon.svg">Material Icons · <a href="https://fonts.google.com/icons">Search all</a></cem-icon></p>
+<cem-demo-element legend="Google Material icon font"><template slot="source">
+<cem-icon image="recycling">recycling</cem-icon>
+<cem-icon image="shopping_cart">shopping_cart</cem-icon>
+<cem-icon image="search" label="search"></cem-icon>
+<cem-icon image="home" label="home"></cem-icon>
+<cem-icon image="menu" label="menu"></cem-icon>
+<cem-icon image="close" label="close"></cem-icon>
+<cem-icon image="check_circle" label="check circle"></cem-icon>
+<cem-icon image="favorite" label="favorite"></cem-icon>
+<cem-icon image="add" label="add"></cem-icon>
+<cem-icon image="star" label="star"></cem-icon>
+<cem-icon image="chevron_right" label="chevron right"></cem-icon>
+<cem-icon image="logout" label="logout"></cem-icon>
+<cem-icon image="add_circle" label="add circle"></cem-icon>
+<cem-icon image="cancel" label="cancel"></cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-fontawesome" data-legacy-icon-case="fontawesome">
+<h3>Font Awesome</h3><p><cem-icon image="https://fontawesome.com/images/favicon/icon.svg">Font Awesome · <a href="https://fontawesome.com/icons/">Search all</a></cem-icon></p><p>Brand (<code>fab</code>), regular (<code>far</code>), and solid (<code>fas</code>) styles use the Font Awesome stylesheet loaded by this page.</p>
+<cem-demo-element legend="Font Awesome"><template slot="source">
+<cem-icon image="fab fa-github">GitHub</cem-icon>
+<cem-icon image="fas fa-bookmark">Bookmark</cem-icon>
+<cem-icon image="fab fa-discord" label="discord"></cem-icon>
+<cem-icon image="fab fa-android" label="android"></cem-icon>
+<cem-icon image="fab fa-apple" label="apple"></cem-icon>
+<cem-icon image="far fa-user" label="user"></cem-icon>
+<cem-icon image="far fa-envelope" label="envelope"></cem-icon>
+<cem-icon image="fas fa-thumbs-up" label="thumbs up"></cem-icon>
+<cem-icon image="far fa-thumbs-down" label="thumbs down"></cem-icon>
+<cem-icon image="far fa-star" label="star"></cem-icon>
+<cem-icon image="fas fa-star" label="star"></cem-icon>
+<cem-icon image="fas fa-location-arrow" label="location arrow"></cem-icon>
+<cem-icon image="fas fa-map-marker" label="map marker"></cem-icon>
+<cem-icon image="fas fa-map-marked-alt" label="map marked alt"></cem-icon>
+<cem-icon image="fas fa-globe" label="globe"></cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-module-image" data-legacy-icon-case="module-image">
+<h3>Image from importmap module</h3><p>The package exports its copy of the legacy logo. The import map resolves it in source and installed previews. The second image uses an external URL.</p>
+<cem-demo-element legend="Image from importmap module"><template slot="source">
+<cem-element><template type="text/cem-ml">
+{cem-module-url @slice=logoUrl @src="@epa-wg/cem-components/playgrounds/assets/wc-square.svg"}
+{cem:if @test="datadom.slices.logoUrl" |
+  {cem-icon @id=legacy-module-icon @image="{$datadom.slices.logoUrl}" | custom-element}
+}
+</template></cem-element>
+<cem-icon id="legacy-external-icon" image="https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg">Bulbasaur</cem-icon>
+</template></cem-demo-element></section>
+<section id="legacy-color" data-legacy-icon-case="color">
+<h3>Color</h3><p>Font-based glyphs and their adjacent text inherit the host text color. Image files retain their own colors.</p>
+<cem-demo-element legend="Color"><template slot="source">
+<cem-icon image="fas fa-heart" style="color:var(--cem-palette-danger)">danger</cem-icon>
+<cem-icon image="fas fa-heart" style="color:var(--cem-palette-calm)">calm</cem-icon>
+<cem-icon image="fas fa-heart" style="color:var(--cem-palette-trust)">trust</cem-icon>
+</template></cem-demo-element></section>
+</section>
+</main></div><section aria-label="Theme and appearance variation matrix"><h2>Theme and appearance variation matrix</h2><section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article><h3>Decorative</h3><cem-icon data-gallery-sample image="settings"></cem-icon></article>
 <article><h3>Named</h3><cem-icon data-gallery-sample name="check" label="Complete"></cem-icon></article>
 <article><h3>Small</h3><cem-icon data-gallery-sample image="★" size="small" label="Favorite"></cem-icon></article>
 <article><h3>Large</h3><cem-icon data-gallery-sample image="😀" size="large" label="Happy"></cem-icon></article>

@@ -23,7 +23,8 @@
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
-        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml"
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
     }
 }</script>
     <script type="module">
@@ -108,7 +109,7 @@
 }
 }}}
 </template></cem-element><p><code>image</code> takes precedence over <code>name</code>, including an empty value which hides the icon. Without either attribute, the icon is <code>circle</code>. Values shorter than three Unicode code points render as text; otherwise a slash selects an image, <code>fa-</code> selects Font Awesome, and other values select Material Icons. Font icons require the corresponding stylesheet, loaded by these demos.</p>
-<p><code>label</code> names the icon with one image role. Without a label the icon is decorative. Default slot content remains accessible independently. Icons have no click, hover, focus, selected, or disabled behavior; the containing action owns interactive states. Color is inherited. Hidden uses attribute presence.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="image"><code>image</code></li><li data-gallery-attribute="name"><code>name</code></li><li data-gallery-attribute="label"><code>label</code></li><li data-gallery-attribute="size"><code>size</code></li><li data-gallery-attribute="direction"><code>direction</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li></ul><p><strong>Slots:</strong> Default slot supplies adjacent content; direction arranges the icon and content in a row or column.</p><cem-demo-element legend="Sources, naming, sizes, and content" data-covers="image name label size direction hidden class"><template slot="source">
+<p><code>label</code> names the icon with one image role. Without a label the icon is decorative. Default slot content remains accessible independently. Icons have no click, hover, focus, selected, or disabled behavior; the containing action owns interactive states. Color is inherited. Hidden uses attribute presence.</p><p><a href="./cem-icon-gallery.html#legacy-use-cases">All seven legacy use-case groups</a>: direction, size, Unicode/emoji, Material Icons, Font Awesome families, module/external images, and color inheritance.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="image"><code>image</code></li><li data-gallery-attribute="name"><code>name</code></li><li data-gallery-attribute="label"><code>label</code></li><li data-gallery-attribute="size"><code>size</code></li><li data-gallery-attribute="direction"><code>direction</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li></ul><p><strong>Slots:</strong> Default slot supplies adjacent content; direction arranges the icon and content in a row or column.</p><cem-demo-element legend="Sources, naming, sizes, and content" data-covers="image name label size direction hidden class"><template slot="source">
 <cem-icon id="icon-default"></cem-icon>
 <cem-icon id="icon-material" image="settings" label="Settings"></cem-icon>
 <cem-icon id="icon-unicode" image="★" label="Favorite" size="small"></cem-icon>

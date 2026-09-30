@@ -102,6 +102,12 @@ where the page still demonstrates the migrated component. Links must work from
 both the repository preview and the packaged gallery; a repository source link
 is suitable until the new playground has a published URL.
 
+Audit the exact legacy demo version during migration. Record a linked mapping
+from every legacy example group to its canonical gallery section, including
+source collections, projected content, module-resolved assets, external images,
+and styling examples. Verify those sections in both source and installed-package
+previews. The `cem-icon` contract contains a versioned example of this audit.
+
 Apply the notice as each component migrates. Do not label an unmigrated page as
 having a replacement that does not exist.
 

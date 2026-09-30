@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
-const mime = { '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
+const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -823,6 +823,7 @@ async function verifyGalleries(baseUrl) {
                 assert.equal(await first.evaluate(node => node.value), 'grace');
             }
             if (tag === 'cem-icon-button') await verifyIconLinkExamples(page);
+            if (tag === 'cem-icon') await verifyLegacyIconExamples(page);
             const diagnostics = await page.evaluate(() => [...document.querySelectorAll('[data-gallery-sample]')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)));
             assert.deepEqual(diagnostics, [], `${tag}: gallery diagnostics`);
             const back = page.locator(`a[href="./${tag}.html"]`);
@@ -900,4 +901,42 @@ async function verifyIcon(url) {
         assert.deepEqual(await page.evaluate(() => window.cemPlaygroundRuntime.diagnosticsFor(document.querySelector('#icon-preview'))), []);
         console.log('Icon playground verified: ' + url);
     } finally { await context.close(); }
+}
+
+async function verifyLegacyIconExamples(page) {
+    const cases = ['direction', 'size', 'unicode', 'material', 'fontawesome', 'module-image', 'color'];
+    assert.deepEqual(await page.locator('[data-legacy-icon-case]').evaluateAll(nodes => nodes.map(node => node.dataset.legacyIconCase)), cases);
+    const sources = {
+        unicode: ['🚀', '👁', '🎄', '😭', '🔥', '💀', '🛒', '✨', '😊', '😂', '⭐', '🫶', '🎁', '✅'],
+        material: ['recycling', 'shopping_cart', 'search', 'home', 'menu', 'close', 'check_circle', 'favorite', 'add', 'star', 'chevron_right', 'logout', 'add_circle', 'cancel'],
+        fontawesome: ['fab fa-github', 'fas fa-bookmark', 'fab fa-discord', 'fab fa-android', 'fab fa-apple', 'far fa-user', 'far fa-envelope', 'fas fa-thumbs-up', 'far fa-thumbs-down', 'far fa-star', 'fas fa-star', 'fas fa-location-arrow', 'fas fa-map-marker', 'fas fa-map-marked-alt', 'fas fa-globe'],
+    };
+    for (const [name, expected] of Object.entries(sources)) {
+        const icons = page.locator(`#legacy-${name} cem-demo-element cem-icon`);
+        assert.deepEqual(await icons.evaluateAll(nodes => nodes.map(node => node.getAttribute('image'))), expected);
+        await page.waitForFunction(selector => [...document.querySelectorAll(selector)].every(node => node.querySelector('[part="glyph"]')), `#legacy-${name} cem-demo-element cem-icon`);
+    }
+    const directions = await page.locator('#legacy-direction cem-demo-element cem-icon [part="content"]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).flexDirection));
+    assert.deepEqual(directions, ['row', 'column', 'row']);
+    const sizes = await page.locator('#legacy-size cem-demo-element cem-icon [part="glyph"]').evaluateAll(nodes => nodes.map(node => parseFloat(getComputedStyle(node).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize)));
+    assert.deepEqual(sizes, [1, 2, 3]);
+    const colors = await page.locator('#legacy-color cem-demo-element cem-icon').evaluateAll(nodes => nodes.map(node => ({
+        host: getComputedStyle(node).color,
+        glyph: getComputedStyle(node.querySelector('[part="glyph"]')).color,
+        token: node.style.color,
+    })));
+    assert.deepEqual(colors.map(color => color.token), ['var(--cem-palette-danger)', 'var(--cem-palette-calm)', 'var(--cem-palette-trust)']);
+    for (const color of colors) assert.equal(color.host, color.glyph);
+    assert.equal(new Set(colors.map(color => color.host)).size, 3);
+    await page.waitForFunction(() => document.querySelector('#legacy-module-icon img')?.naturalWidth > 0);
+    const image = page.locator('#legacy-module-icon img');
+    const response = await page.request.get(await image.getAttribute('src'));
+    assert(response.ok());
+    assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/playgrounds/assets/wc-square.svg'), 'utf8'));
+    assert.equal(await page.locator('#legacy-external-icon img').getAttribute('src'), 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg');
+    for (const selector of ['#legacy-unicode a', '#legacy-material a', '#legacy-fontawesome a']) {
+        assert(await page.locator(selector).count() > 0);
+        assert(await page.locator(selector).evaluateAll(nodes => nodes.every(node => !node.closest('[aria-hidden="true"]'))));
+    }
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-legacy-icon-case] cem-icon, #legacy-module-image cem-element')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node))), []);
 }
