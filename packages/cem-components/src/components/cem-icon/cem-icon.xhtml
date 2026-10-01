@@ -12,6 +12,7 @@
         :scope:where([size='small']) [part~='icon'] { font-size: var(--cem-icon-size-small); block-size: var(--cem-icon-size-small); }
         :scope:where([size='large']) [part~='icon'] { font-size: var(--cem-icon-size-large); block-size: var(--cem-icon-size-large); }
         [part~='glyph'] { font-size: inherit; line-height: inherit; }
+        .unicode[part~='glyph'] { position: relative; top: -0.0625em; }
         img[part~='glyph'] { block-size: 100%; inline-size: auto; object-fit: contain; }
         ```}
     {span @part=content @data-direction="{$direction}" |
