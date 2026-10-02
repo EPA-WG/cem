@@ -120,6 +120,9 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
+import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
+import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
+import { CEM_COMPOSITE_MENU_CAPABILITY } from './composite-menu-capability.js';
 import { CEM_CHOICE_SELECT_CAPABILITY } from './choice-select-capability.js';
 import { consumeLocationWriteTrigger } from './internal/runtime-support/location-write-trigger.js';
 
@@ -712,6 +715,18 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
         behaviorIdentity: 'cem-elements-form-control-v1',
+    },
+    'popup': {
+        behavior: CEM_POPUP_CAPABILITY,
+        behaviorIdentity: 'cem-elements-popup-v1',
+    },
+    'action-control': {
+        behavior: CEM_ACTION_CONTROL_CAPABILITY,
+        behaviorIdentity: 'cem-elements-action-control-v1',
+    },
+    'composite-menu': {
+        behavior: CEM_COMPOSITE_MENU_CAPABILITY,
+        behaviorIdentity: 'cem-elements-composite-menu-v1',
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,

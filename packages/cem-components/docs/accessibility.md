@@ -395,3 +395,19 @@ strip it.
 - WCAG 2.2 SC 1.4.11 (Non-Text Contrast), SC 2.4.11 (Focus Not Obscured),
   SC 2.5.8 (Target Size Minimum). Token-driven sizing in cem-theme is the
   enforcement mechanism for size minima.
+
+
+`cem-menu` preserves native Tab navigation unless `keyboard="menu"` is selected.
+Label it with `aria-label` or `aria-labelledby`. Menu mode uses a menubar for row
+roots, menu for columns and submenus, and a single enabled roving stop per open
+menu. Nested owners expose haspopup, controls and expanded relationships;
+Escape restores their focus. Tab and outside activation dismiss without trapping
+focus. Disabled links cannot navigate. Context menus and checkable items are
+outside this contract. See the component reference for composition and keys.
+
+
+`cem-dropdown` uses a native fallback button and a `base` slot for a direct
+focusable trigger. Expanded state and the panel's accessible name reference that
+trigger. Escape restores focus; outside activation preserves the outside target.
+For nested menus, each Escape closes one level before the dropdown closes. Use
+explicit `open="false"` for an initially closed dropdown.

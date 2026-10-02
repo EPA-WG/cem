@@ -19,6 +19,8 @@
         "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
         "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
@@ -64,7 +66,7 @@
 {cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
@@ -76,7 +78,7 @@
 <p class="component-description">A command with the menuitem role, disabled state, and disclosure-state reporting. It complements <a href="./cem-action-gallery.html"><code>cem-action</code></a> and <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a>; the containing menu owns navigation, focus, and any expanded content.</p>
 <p><a href="./cem-menu-item.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="href"><code>href</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li></ul><p><code>href</code> creates a leaf navigation anchor. <code>aria-label</code> names the control separately. The <code>submenu</code> slot accepts a nested <a href="./cem-menu-gallery.html">cem-menu</a>; owners remain buttons. Use root <code>keyboard="menu"</code> to enable popup interaction. A <a href="./cem-dropdown-gallery.html">cem-dropdown</a> can wrap a full menu.</p><cem-demo-element legend="Leaf navigation" description="Leaf href creates a native link; disabled links cannot activate."><template slot="source"><cem-menu-item href="#help" label="Help"></cem-menu-item><cem-menu-item href="#blocked" disabled label="Unavailable"></cem-menu-item></template></cem-demo-element><ul><li data-gallery-attribute="label"><code>label</code></li>
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
 <li data-gallery-attribute="expanded"><code>expanded</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>

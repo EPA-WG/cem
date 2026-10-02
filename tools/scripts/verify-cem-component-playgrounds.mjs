@@ -642,7 +642,7 @@ async function verifyBundle(url) {
             const bundleUrl = declaration.getAttribute('src').split('#')[0];
             const bundle = new DOMParser().parseFromString(await (await fetch(bundleUrl)).text(), 'application/xml');
             const checks = [];
-            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-field', 'cem-text-field', 'cem-textarea']) {
+            for (const tag of ['cem-action', 'cem-select', 'cem-theme-switch', 'cem-icon', 'cem-icon-button', 'cem-menu-item', 'cem-menu', 'cem-dropdown', 'cem-field', 'cem-text-field', 'cem-textarea']) {
                 const sourceUrl = new URL(`../src/components/${tag}/${tag}.xhtml`, bundleUrl).href;
                 const original = new DOMParser().parseFromString(await (await fetch(sourceUrl)).text(), 'application/xml');
                 const template = bundle.getElementById(tag);
@@ -822,7 +822,7 @@ async function verifyGalleries(baseUrl) {
             for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
             const first = page.locator(sampleSelector).first();
-            const control = first.locator('[part="control"], input').first();
+            const control = first.locator(tag === 'cem-menu' ? 'button, a[href]' : '[part="control"], input').first();
             if (tag !== 'cem-icon') {
                 await control.hover();
                 await control.focus();
@@ -1124,7 +1124,7 @@ async function verifyNavigation(baseUrl) {
             const title = source.match(/<cem-gallery-nav heading="([^"]*)"/)[1];
             await page.goto(new URL(file, baseUrl).href);
             const nav = page.getByRole('navigation', { name: 'Gallery navigation' });
-            await nav.waitFor();
+            await nav.waitFor().catch(error => { throw new Error(`Gallery navigation did not render at ${page.url()}`, { cause: error }); });
             assert.equal(await nav.getByRole('heading', { level: 1 }).textContent(), title);
             assert.equal(await page.locator('h1').count(), 1);
             const index = nav.getByRole('link', { name: 'Component playground', exact: true });

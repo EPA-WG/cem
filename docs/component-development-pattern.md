@@ -140,9 +140,9 @@ style ownership and duplicate-registration behavior before publishing it.
 
 ## Delivery status
 
-The source/test split is implemented for all nine canonical components:
+The source/test split is implemented for all eleven canonical components:
 `cem-action`, `cem-select`, `cem-theme-switch`, `cem-icon`, `cem-icon-button`,
-`cem-menu-item`, `cem-field`, `cem-text-field` and `cem-textarea`.
+`cem-menu-item`, `cem-menu`, `cem-dropdown`, `cem-field`, `cem-text-field` and `cem-textarea`.
 The action companion is implemented at
 `packages/cem-components/playgrounds/cem-action.html`. Its property form uses
 visible `cem-radio` groups for enumerated options and `cem-field` for the label. The source viewer is a static

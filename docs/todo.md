@@ -8,6 +8,48 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Autocomplete and suggestions design for CEM inputs
+
+Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/autocomplete.html).
+
+- [ ] Audit and map the source autocomplete API and examples, including its `input`/`menu` slots, explicit data/option values, text-as-value fallback, grouped suggestions, filtering and selected-value behavior; distinguish preserved contracts from extensions.
+- [ ] Design reusable suggestions composition that attaches to existing `cem-field`, `cem-text-field` and applicable CEM input controls through their actual native input; preserve one form owner, naming, value/input/change events, validation, disabled/readonly behavior and normal editing. Decide textarea applicability explicitly.
+- [ ] Evaluate reuse of `cem-dropdown` for autocomplete/suggestions: compare direct dropdown composition with reuse of its shared popup capability/controller for visibility, placement, collision handling and dismissal. Keep focus on the editable input, use combobox/listbox semantics rather than menu semantics, and avoid duplicate triggers, focus restoration handlers or form controls; record the selected composition and tradeoffs before implementation.
+- [ ] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
+- [ ] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
+- [ ] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
+- [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
+- [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
+
+## Source dropdown and menu composition
+
+- [x] Adopt version 0.0.39 dropdown source API (label, open, base/default slots) in a canonical declaration with shared popup lifecycle, positioning and focus.
+- [x] Share popup mechanics between dropdown and nested menus; verify root dropdown menus dismiss together and restore the correct trigger.
+- [x] Fixture: add browser stories for projected base, arbitrary content, external open changes, pointer/keyboard activation, nested menus, dismissal, disabled controls and viewport collisions.
+- [x] Fixture: add property playground and gallery mapping all source examples, five themes, forced colors and nested dropdown/menu composition; verify generated pages and package exports.
+- [x] Update indexes, catalog sources and public attribute/slot contracts; run build, style, declarative and browser checks.
+
+Validation: dropdown/menu browser stories passed, including multilevel Escape
+restoration, native activation and complete-chain dismissal. Source, generated
+and isolated-package galleries passed in all five themes and forced colors,
+including viewport bounds. Build, catalog, declarative/style and package gates
+passed. The shared controller owns popup geometry and focusable-entry selection.
+
+## Source menu and nested interaction
+
+- [x] Implement the persistent wrapping cem-menu declaration, direction/justify defaults, native navigation, item paint, tokens, labelling and disabled behavior.
+- [x] Add generic cem-elements composite navigation, focus, submenu dismissal and collision-aware positioning capabilities; consume them declaratively and extend menu-item links/submenu slots.
+- [x] Fixture: add shared navigation contract tests before implementation, then browser stories for native and composite input, nested focus/restoration/dismissal, dynamic removal, independent siblings and empty/disabled menus.
+- [x] Fixture: add property playground and gallery covering source examples, token overrides, five themes, forced colors, multilevel submenus and RTL; verify source/generated pages.
+- [x] Update indexes, public contracts/inventory, catalog inputs, package exports and legacy source mapping; run Nx runtime/component/build/declarative/style checks.
+
+Validation: 587 runtime unit tests and 11 component browser stories passed.
+Runtime/component builds, lint (two existing runtime warnings), declarative/style,
+state-matrix, catalog, package and source/isolated gallery-navigation checks passed.
+All six source/generated/installed menu/dropdown gallery checks passed across
+five themes and forced colors. Submenu owner href/expanded compatibility,
+dynamic removal/re-enabling and empty/disabled-only panel focus are covered.
+
 ## Gallery heading weight
 
 - [x] Add a theme-owned heading weight endpoint backed by strong voice and consume it in the shared gallery navbar.

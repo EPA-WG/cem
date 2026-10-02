@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-dropdown — property playground</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=dropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+{cem:if @test="datadom.slices.dropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.dropdownUrl}#cem-dropdown"}}
+{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.commandUrl}#cem-menu"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-dropdown: Property playground"></cem-gallery-nav><p>A native trigger opens a positioned panel; compose nested menus in its default slot.</p><p><a href="./cem-dropdown-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-dropdown/cem-dropdown.stories.ts">Automated stories</a></p><main><cem-element><template type="text/cem-ml">
+{slice @name=label | Dropdown}{slice @name=open | true}{slice @name=disabled | absent}{slice @name=hidden | absent}{slice @name=dir | ltr}{slice @name=class | consumer-dropdown}{slice @name=name | Open content}
+{cem-field @label=label @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}{cem-field @label="aria-label" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}{cem-field @label=class @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
+{fieldset @slice=open @slice-event=change @slice-value="$target.value" | {legend | open}{cem-radio @name=dropdown-open @value=true @checked=true | true}{cem-radio @name=dropdown-open @value=false | false}}
+{fieldset @slice=disabled @slice-event=change @slice-value="$target.value" | {legend | disabled}{cem-radio @name=dropdown-disabled @value=absent @checked=true | absent}{cem-radio @name=dropdown-disabled @value=present | present}}
+{fieldset @slice=hidden @slice-event=change @slice-value="$target.value" | {legend | hidden}{cem-radio @name=dropdown-hidden @value=absent @checked=true | absent}{cem-radio @name=dropdown-hidden @value=present | present}}
+{fieldset @slice=dir @slice-event=change @slice-value="$target.value" | {legend | dir}{cem-radio @name=dropdown-dir @value=ltr @checked=true | ltr}{cem-radio @name=dropdown-dir @value=rtl | rtl}}
+{cem-dropdown @label="{$datadom.slices.label}" @aria-label="{$datadom.slices.name}" @open="{$datadom.slices.open}" @dir="{$datadom.slices.dir}" @class="{$datadom.slices.class}" @disabled={if datadom.slices.disabled == "present" { true } else { null }} @hidden={if datadom.slices.hidden == "present" { true } else { null }} | {p | Arbitrary panel content}{cem-menu @direction=column @keyboard=menu @aria-label=Commands | {cem-menu-item @label=Run}{cem-menu-item @label=More | {cem-menu @slot=submenu | {cem-menu-item @label=Nested}}}}}
+</template></cem-element><p>Native interactions change the real open state. Property inputs demonstrate externally controlled attributes. Projected base and multilevel compositions are in the gallery.</p><cem-element><template type="text/cem-ml">{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-dropdown"}{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}}{cem-demo-element @legend="Canonical dropdown source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}</template></cem-element></main></div></body></html>

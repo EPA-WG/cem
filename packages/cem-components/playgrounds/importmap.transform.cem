@@ -106,4 +106,12 @@
       {export @id=cem-textarea-gallery-html @out="../dist/{file}" @content-type="text/html"}
     }
   }
+  {import @id=cem-menu @src="cem-menu.html" @content-type="text/html" | {rewrite-importmap @id=cem-menu-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-menu-html @out="../dist/cem-menu.html" @content-type="text/html"}}}
+
+  {import @id=cem-menu-gallery @src="cem-menu-gallery.html" @content-type="text/html" | {rewrite-importmap @id=cem-menu-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-menu-gallery-html @out="../dist/cem-menu-gallery.html" @content-type="text/html"}}}
+
+  {import @id=cem-dropdown @src="cem-dropdown.html" @content-type="text/html" | {rewrite-importmap @id=cem-dropdown-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-dropdown-html @out="../dist/cem-dropdown.html" @content-type="text/html"}}}
+
+  {import @id=cem-dropdown-gallery @src="cem-dropdown-gallery.html" @content-type="text/html" | {rewrite-importmap @id=cem-dropdown-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-dropdown-gallery-html @out="../dist/cem-dropdown-gallery.html" @content-type="text/html"}}}
+
 }

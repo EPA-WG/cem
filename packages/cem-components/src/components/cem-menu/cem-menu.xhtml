@@ -1,0 +1,34 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-menu" capability="composite-menu">
+  <template id="cem-menu" type="text/cem-ml">
+    {cem-element @tag=cem-menu-item @capability=action-control @src="../cem-menu-item/cem-menu-item.xhtml#cem-menu-item"}
+    {attribute @name=justify | start}
+    {attribute @name=keyboard | native}
+    {style @type="text/css" |```
+        :scope { display: block; }
+        :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+        :scope[slot='submenu'] { display: none; background: var(--cem-action-contextual-default-background); border: var(--cem-stroke-boundary) solid var(--cem-action-contextual-default-text); }
+        :scope > :where([part~='composite']) { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+        :scope[direction='column'] > :where([part~='composite']), :scope:where([slot='submenu']:not([direction='row'])) > :where([part~='composite']) { flex-direction: column; }
+        :scope[justify='end'] > :where([part~='composite']) { justify-content: flex-end; }
+        :scope > :where([part~='composite']) > :is(a, button) {
+            display: flex; align-items: center; gap: var(--cem-gap-related);
+            min-block-size: var(--cem-menu-row-height); box-sizing: border-box;
+            padding: var(--cem-inset-control); border: 0;
+            background: var(--cem-action-contextual-default-background);
+            color: var(--cem-action-contextual-default-text); text-decoration: none;
+            font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
+            font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height);
+        }
+        :scope > :where([part~='composite']) > :is(a, button):where(:not([disabled], [aria-disabled='true']):hover) { background: var(--cem-action-contextual-hover-background); color: var(--cem-action-contextual-hover-text); }
+        :scope > :where([part~='composite']) > :is(a, button):where(:not([disabled], [aria-disabled='true']):active) { background: var(--cem-action-contextual-active-background); color: var(--cem-action-contextual-active-text); }
+        :scope > :where([part~='composite']) > :is(a, button):where([disabled], [aria-disabled='true']) { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); }
+        :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline: var(--cem-stroke-focus) solid currentColor; outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
+        :scope > :where([part~='composite']) > [hidden]:where(:not([hidden='until-found' i])) { display: none; }
+        @media (forced-colors: active) {
+            :scope > :where([part~='composite']) > :is(a, button):focus-visible { outline-color: Highlight; }
+            :scope > :where([part~='composite']) > :is(a, button):where([disabled], [aria-disabled='true']) { color: GrayText; }
+        }
+        ```}
+    {div @part=composite @aria-label="{$datadom.attributes.aria-label}" @aria-labelledby="{$datadom.attributes.aria-labelledby}" | {slot}}
+  </template>
+</cem-element>

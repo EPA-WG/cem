@@ -4,20 +4,21 @@
     <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <meta charset="UTF-8">
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-    <title>Components - custom-element - Material Design</title>
+    <title>Legacy Material demo — menu</title>
     <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
           integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
 
     <script type="importmap">
-        {
-          "imports": {
-            "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
-            "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
-            "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/"
-          }
-        }
+{
+    "imports": {
+        "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
+        "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
+        "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/",
+        "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+    }
+}
     </script>
     <script type="module">
         import "@epa-wg/custom-element/module-url.js";
@@ -50,53 +51,18 @@
     <custom-element src="../index.html#nav-head" ></custom-element>
 </header>
 <main>
+<p><strong>Legacy Material demo</strong> — use <a href="../../../cem-components/playgrounds/cem-menu.html">the canonical cem-menu property playground</a> and <a href="../../../cem-components/playgrounds/cem-menu-gallery.html">Full examples and variation matrix</a>. The source example mapping is documented in the <a href="../../../cem-components/docs/component-reference.md#persistent-and-nested-menus">component contract</a>.</p>
     <p><code>cem-menu</code> is responsive menu component from &lt;custom-element&gt; Material suite based on the
         <a href="https://material.io/components" >Material Design specification</a>.
     </p>
     <p>
         <code>direction</code> attribute defines css <code>row</code> or <code>column</code> flex-direction.
     </p>
-    <custom-element tag="cem-menu" hidden>
-        <template id="cem-menu">
-            <attribute name="direction"></attribute>
-            <attribute name="justify"></attribute>
-            <style>
-
-                &[direction="column"]>*{ flex-direction: column;  }
-                &[direction="row"   ]>*{ flex-direction: row;     }
-                &[justify="end"     ]>*{ justify-content: flex-end;  }
-                &[justify="start"   ]>*{ justify-content: flex-start;}
-
-                dce-root
-                {
-                    display: flex;
-                    flex-direction: row;
-                    flex-wrap: wrap;
-                    &>style{display: none !important;}
-                    &>*
-                    {   display: flex;
-                        align-items: center;
-                        padding: var(--cem-menu-item-padding);
-                        background-color: var( --cem-menu-item-background );
-                        color: var( --cem-menu-item-color );
-                        text-decoration: none;
-                        font-weight: var(--cem-menu-item-font-weight);
-                        &:focus{ z-index: 1; }
-                        &[disabled],&[disabled]:visited{ color:var(--cem-menu-item-color-disabled); pointer-events: none;}
-                        &:visited{ color:var(--cem-menu-item-color); }
-                        &:hover
-                        {
-                            color: var(--cem-menu-item-hover-color);
-                            background-color: var(--cem-menu-item-hover-background);
-                        }
-                        &:empty{ display: none;}
-                    }
-                }
-
-            </style>
-            <slot name=""></slot>
-        </template>
-    </custom-element>
+    <script type="module">
+        import { installCemElementRuntime } from '../../../cem-elements/dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+    <cem-element hidden tag="cem-menu" src="../../../cem-components/src/components/cem-menu/cem-menu.xhtml#cem-menu"></cem-element>
 
 <html-demo-element legend="Default" description="horizontal menu with padding on elements">
     <template>
@@ -134,12 +100,12 @@
     <template>
 <style>
     a{
-        --cem-menu-item-color: yellow;
-        --cem-menu-item-background: lightblue;
-        --cem-menu-item-hover-background: blue;
-        --cem-menu-item-hover-color: red;
-        &:visited{ color:var(--cem-menu-item-color); }
-        &:hover{ color:var(--cem-menu-item-hover-color); }
+        --cem-action-contextual-default-text: yellow;
+        --cem-action-contextual-default-background: lightblue;
+        --cem-action-contextual-hover-background: blue;
+        --cem-action-contextual-hover-text: red;
+        &:visited{ color:var(--cem-action-contextual-default-text); }
+        &:hover{ color:var(--cem-action-contextual-hover-text); }
     }
 </style>
 <cem-menu direction="row">
@@ -162,10 +128,10 @@
     <template>
         <style>
             a
-            {   --cem-menu-item-color:blue;
-                --cem-menu-item-background: salmon;
-                --cem-menu-item-hover-background: blue;
-                --cem-menu-item-hover-color: yellow;
+            {   --cem-action-contextual-default-text:blue;
+                --cem-action-contextual-default-background: salmon;
+                --cem-action-contextual-hover-background: blue;
+                --cem-action-contextual-hover-text: yellow;
             }
         </style>
         <a href="#">link 1</a>

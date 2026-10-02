@@ -19,6 +19,8 @@
         "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
         "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
         "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
@@ -64,7 +66,7 @@
 {cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu-item @capability=action-control @src="{$datadom.slices.commandUrl}#cem-menu-item"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
@@ -75,12 +77,16 @@
 
 <header><p>Change every implemented attribute and inspect the production source.</p><p><a href="./cem-menu-item-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts">Automated stories</a></p></header>
 <main><cem-element><template type="text/cem-ml">
+{slice @name=href | }
+{slice @name=accessibleName | }
 {slice @name=label | Run command}
 {slice @name=disabled | absent}
 {slice @name=expanded | absent}
 {slice @name=hidden | absent}
 {slice @name=class | custom-command}
 {div @class=workspace | {section @class=properties @aria-label="Command properties" | {h2 | Properties}
+{cem-field @label="href" @value="{$datadom.slices.href}" @slice=href @slice-event=input @slice-value="$target.value"}
+{cem-field @label="aria-label" @value="{$datadom.slices.accessibleName}" @slice=accessibleName @slice-event=input @slice-value="$target.value"}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
 {div @class=property-groups |
@@ -100,8 +106,8 @@
 {cem-radio @name=menu-item-hidden @value=true | true}
 }}
 }} {section @aria-label="Command preview" | {h2 | Preview} {div @class=preview |
-{cem-menu-item @id=command-preview @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
-} {p | Disabled and hidden use attribute presence, including the text false. Expanded reports a disclosure state; the command does not open a popup itself. A click records its event without toggling a persistent selection.}
+{cem-menu-item @href={if datadom.slices.href { datadom.slices.href } else { null }} @aria-label={if datadom.slices.accessibleName { datadom.slices.accessibleName } else { null }} @id=command-preview @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
+} {p | Disabled and hidden use attribute presence, including the text false. Expanded reports standalone disclosure state. In menu mode the containing menu owns submenu expansion. Href creates a leaf navigation link. A click records its event without toggling a persistent selection.}
 {p | Label is the fallback command text. Default slot content replaces it. The native button exposes the menuitem role; a complete menu owns navigation and focus between commands.}
 }}
 </template></cem-element>

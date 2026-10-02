@@ -1,0 +1,38 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-dropdown" capability="popup">
+  <template id="cem-dropdown" type="text/cem-ml">
+    {attribute @name=label | Dropdown}
+    {attribute @name=open | true}
+    {style @type="text/css" |```
+        :scope { display: inline-block; }
+        :scope[hidden]:where(:not([hidden='until-found' i])) { display: none; }
+        :scope > [part~='base'] { display: inline-flex; }
+        :scope > [part~='base'] > :where(button) {
+            min-inline-size: calc(4 * var(--cem-control-height)); min-block-size: var(--cem-control-height);
+            padding: var(--cem-control-padding-y) var(--cem-control-padding-x);
+            border: 0; border-radius: var(--cem-bend-control);
+            background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
+            font-family: var(--cem-typography-ui-font-family); font-size: var(--cem-typography-ui-font-size);
+            font-weight: var(--cem-typography-ui-font-weight); line-height: var(--cem-typography-ui-line-height);
+            cursor: pointer;
+        }
+        :scope > :where([part~='base']) > button:where(:enabled:hover) { background: var(--cem-action-contextual-hover-background); color: var(--cem-action-contextual-hover-text); }
+        :scope > :where([part~='base']) > button:where(:enabled:active) { background: var(--cem-action-contextual-active-background); color: var(--cem-action-contextual-active-text); }
+        :scope > :where([part~='base']) > button:where(:disabled) { background: var(--cem-action-contextual-disabled-background); color: var(--cem-action-contextual-disabled-text); }
+        :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline: var(--cem-stroke-focus) solid var(--cem-zebra-color-1); outline-offset: var(--cem-stroke-indicator-offset); box-shadow: var(--cem-ring-zebra-3); }
+        :scope > [part~='popup'] {
+            --_cem-popup-max-height: calc(4 * var(--cem-menu-row-height));
+            display: none; max-block-size: calc(4 * var(--cem-menu-row-height));
+            background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
+            border-radius: var(--cem-autocomplete-container-shape);
+            box-shadow: var(--cem-elevation-3); overflow: auto;
+        }
+        :scope > :where([part~='popup'])[hidden] { display: none; }
+        @media (forced-colors: active) {
+            :scope > :where([part~='popup']) { border: var(--cem-stroke-boundary) solid CanvasText; }
+            :scope > :where([part~='base']) > :where(button,a,[tabindex]):focus-visible { outline-color: Highlight; }
+        }
+        ```}
+    {div @part=base | {slot @name=base | {button @part=control @type=button @aria-label="{$datadom.attributes.aria-label}" @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} | {$label}}}}
+    {aside @part=popup | {slot}}
+  </template>
+</cem-element>

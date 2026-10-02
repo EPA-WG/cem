@@ -48,7 +48,11 @@
         "./playgrounds/cem-textarea-gallery.html": "./dist/cem-textarea-gallery.html",
         "./playgrounds/assets/wc-square.svg": "./playgrounds/assets/wc-square.svg",
         "./playgrounds/index.html": "./dist/index.html",
-        "./playgrounds/cem-gallery-nav.xhtml": "./dist/cem-gallery-nav.xhtml"
+        "./playgrounds/cem-gallery-nav.xhtml": "./dist/cem-gallery-nav.xhtml",
+        "./playgrounds/cem-menu.html": "./dist/cem-menu.html",
+        "./playgrounds/cem-menu-gallery.html": "./dist/cem-menu-gallery.html",
+        "./playgrounds/cem-dropdown.html": "./dist/cem-dropdown.html",
+        "./playgrounds/cem-dropdown-gallery.html": "./dist/cem-dropdown-gallery.html"
     },
     "files": [
         "dist",

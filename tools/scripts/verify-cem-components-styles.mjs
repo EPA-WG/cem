@@ -62,7 +62,7 @@ const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
     [
-        'cem-menu-item > button',
+        'cem-menu-item > :is(button, a)',
         new Map([
             ['background-color', 'var(--cem-action-contextual-default-background)'],
             ['color', 'var(--cem-action-contextual-default-text)'],
@@ -1167,7 +1167,7 @@ function assertPublicComponentStyles(components, tokenNames) {
         assertCssUsesTokensOnly(repoPath(path), css);
         for (const rule of parseCssRules(repoPath(path), css, [])) {
             const selector = rule.selector.replace(':scope', tag).replace("[part~='control']", '').replace(/:where\(([^)]+)\)/g, '$1');
-            if (!rule.media && ACTION_BINDINGS.has(selector)) actionRules.set(selector, rule.declarations);
+            if (!rule.media && ACTION_BINDINGS.has(selector) && rule.declarations.has('background-color')) actionRules.set(selector, rule.declarations);
         }
     }
 

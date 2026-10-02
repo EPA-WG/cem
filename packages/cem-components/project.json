@@ -58,6 +58,10 @@
                 "{projectRoot}/dist/cem-bundle.html",
                 "{projectRoot}/dist/cem-icon-button.html",
                 "{projectRoot}/dist/cem-menu-item.html",
+                "{projectRoot}/dist/cem-menu.html",
+                "{projectRoot}/dist/cem-dropdown.html",
+                "{projectRoot}/dist/cem-dropdown-gallery.html",
+                "{projectRoot}/dist/cem-menu-gallery.html",
                 "{projectRoot}/dist/cem-icon.html",
                 "{projectRoot}/dist/cem-icon-gallery.html",
                 "{projectRoot}/dist/cem-field.html",
@@ -71,6 +75,11 @@
                 "{projectRoot}/dist/cem-text-field-gallery.html",
                 "{projectRoot}/dist/cem-theme-switch-gallery.html"
             ]
+        },
+        "verify-menu-dropdown": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": { "command": "node tools/scripts/verify-cem-menu-dropdown.mjs", "cwd": "{workspaceRoot}" }
         },
         "verify-gallery-navigation": {
             "cache": true,

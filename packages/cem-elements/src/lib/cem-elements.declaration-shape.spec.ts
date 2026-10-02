@@ -11,7 +11,7 @@ import {
 
 describe('cem-element declarative capability contract', () => {
     it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
-        expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['choice-select']);
+        expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['form-control', 'popup', 'action-control', 'composite-menu', 'choice-select']);
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
             'cem-elements-choice-select-v1',
         );

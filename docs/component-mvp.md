@@ -75,6 +75,8 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Content | `tree` | `cem-tree` | Generic expandable hierarchy with composite focus and application-owned selection/loading | palette, content, control, stroke, bend, gap, coupling, typography |
 | Content | `tree-item` | `cem-tree-item` | Inert recursive hierarchy payload consumed by `cem-tree` | palette, content, control, stroke, bend, gap, coupling, typography |
 | Navigation | `app-bar` | `cem-app-bar` | Product title, global actions, and current context | palette, stroke, gap, inset, typography |
+| Navigation | `dropdown` | `cem-dropdown` | Triggered popup for arbitrary content and nested menus | action, palette, stroke, control, bend, typography |
+| Navigation | `menu` | `cem-menu` | Persistent wrapping commands and links with optional nested composite menus | action, palette, stroke, gap, inset, typography |
 | Navigation | `nav` | `cem-nav` | Labeled navigation region and item list | palette, navigation, gap, inset, typography |
 | Navigation | `tabs` | `cem-tabs` | Labeled local-view switching with linked persistent panels | palette, navigation, stroke, bend, gap, coupling, control, typography |
 | Navigation | `tab` | `cem-tab` | Inert labeled local-view payload consumed by `cem-tabs` | palette, navigation, stroke, bend, gap, coupling, control, typography |

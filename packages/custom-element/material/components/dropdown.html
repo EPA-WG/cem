@@ -4,20 +4,21 @@
     <meta name="copyright" content="Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>">
     <meta charset="UTF-8">
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type"/>
-    <title>Components - custom-element - Material Design</title>
+    <title>Legacy Material demo — dropdown</title>
     <link href="../../custom-element/demo/wc-square.svg" rel="icon"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
     <link crossorigin="anonymous" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css"
           integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" rel="stylesheet"/>
 
     <script type="importmap">
-        {
-          "imports": {
-            "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
-            "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
-            "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/"
-          }
-        }
+{
+    "imports": {
+        "@epa-wg/custom-element/": "../../../../node_modules/@epa-wg/custom-element/",
+        "@epa-wg/material": "../../../../node_modules/@epa-wg/custom-element/material",
+        "@epa-wg/material/": "../../../../node_modules/@epa-wg/custom-element/material/",
+        "@epa-wg/cem-ml/wasm": "../../../cem-ml-npm/dist/wasm/browser/cem_ml.js"
+    }
+}
     </script>
     <script type="module">
         import "@epa-wg/custom-element/module-url.js";
@@ -66,59 +67,22 @@
 
 <body>
 <custom-element hidden src="./icon-link.html#cem-icon-link" tag="cem-icon-link"></custom-element>
-<custom-element hidden src="./menu.html#cem-menu" tag="cem-menu"></custom-element>
+<cem-element hidden tag="cem-menu" capability="composite-menu" src="../../../cem-components/src/components/cem-menu/cem-menu.xhtml#cem-menu"></cem-element>
 
 <header class="cem-theme-teal">
     <custom-element src="../index.html#nav-head"></custom-element>
 </header>
 <main>
+<p><strong>Legacy Material demo</strong> — use the <a href="../../../cem-components/playgrounds/cem-dropdown.html">canonical dropdown property playground</a> and <a href="../../../cem-components/playgrounds/cem-dropdown-gallery.html">Full examples and variation matrix</a>.</p>
     <p><code>cem-dropdown</code> is popover component from &lt;custom-element&gt; Material suite based on the
         <a href="https://material.io/components">Material Design specification</a>.
     </p>
     <p>The visibility of dropdown content is driven by <code>open</code> attribute</p>
-    <custom-element hidden tag="cem-dropdown">
-        <template id="cem-dropdown">
-            <attribute name="open"></attribute>
-            <attribute name="label"></attribute>
-            <style>
-                &[open="false"]>*>aside{  max-height: 0; }
-                &>* {
-                    position: relative;
-
-                    --cem-dropdown-shadow: 0px 3px 1px -2px rgba(0, 0, 0, .2), 0px 2px 2px 0px rgba(0, 0, 0, .14), 0px 1px 5px 0px rgba(0, 0, 0, .12);
-                    --cem-dropdown-max-height: 10rem;
-                    --cem-dropdown-base-min-width: 8em;
-
-                    & > label {
-                        min-width: var(--cem-dropdown-base-min-width);
-                        display: inline-block;
-                    }
-
-                    & > aside {
-                        position: absolute;
-                        left: 0;
-                        top: 100%;
-
-                        overflow: hidden;
-                        max-height: var(--cem-dropdown-max-height);
-                        transition: var(--cem-drop-transition);
-
-                        display: flex;
-                        flex-direction: column;
-
-                        border-radius: var(--cem-autocomplete-container-shape);
-                        border-top-left-radius: 0;
-                        border-top-right-radius: 0;
-                        box-shadow: var(--cem-dropdown-shadow);
-                    }
-                }
-            </style>
-            <slot name="base"><label>{$label}</label></slot>
-            <aside>
-                <slot name=""></slot>
-            </aside>
-        </template>
-    </custom-element>
+    <script type="module">
+        import { installCemElementRuntime } from '../../../cem-elements/dist/index.js';
+        installCemElementRuntime(window);
+    </script>
+    <cem-element hidden tag="cem-dropdown" capability="popup" src="../../../cem-components/src/components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown"></cem-element>
 
     <html-demo-element
             legend="HTML in dropdown"

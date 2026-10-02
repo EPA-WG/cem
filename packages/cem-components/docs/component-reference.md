@@ -153,7 +153,7 @@ Known deferrals remain outside the Phase 3.2 trigger:
 - Full application behaviors such as dialog focus trapping, routed navigation, async data loading, and resource
   primitives are follow-up runtime/application work.
 - Post-MVP controls including split actions, date ranges, date/time-zone integration, adapters and alternate calendar views, side-nav variants, breadcrumbs, and richer
-  menu/dropdown families are Phase 4 expansion work.
+  Additional menu/dropdown variants remain future expansion work.
 
 ## Actions
 
@@ -164,6 +164,8 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | --- | --- | --- | --- | --- |
 | `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. Presence-only `selected` and `selectable` expose container-owned selection with persistent zebra and native-button `aria-pressed`. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
 | `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; embedded `cem-icon` receives `image`, `size`, `direction`, `label`, and `aria-label`. Action-theme states include selected/selectable, pending and disabled; selection uses aria-pressed for buttons and aria-current for links. | action, control, palette, stroke, bend | Use `aria-label` for icon-only controls; `label` also provides visible fallback text. |
+| `cem-dropdown` | Triggered panel for arbitrary content and menus. | Base trigger slot and default panel slot. | action, palette, stroke, control, bend, typography | Native button fallback; expanded/controls relationships, Escape restoration and outside/Tab dismissal. |
+| `cem-menu` | Persistent wrapping command/link collection; optional composite submenus. | Default slot accepts links, buttons and menu items. | action, palette, stroke, gap, inset, typography | Native Tab by default; opt-in menu mode owns roving focus and nested popup semantics. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
 States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`, `selected`.
@@ -477,7 +479,7 @@ icon-button also exposes the decorative glyph as `part="icon"`.
 | Component | Implemented component attributes | Other explicit attributes |
 | --- | --- | --- |
 | `cem-icon-button` | `image`, `size`, `label`, `aria-label`, `href`, `type`, `name`, `value`, `form`, `formaction`, `formenctype`, `formmethod`, `formtarget`, `formnovalidate`, `direction`, `variant`, `disabled` (presence), `selected`, `selectable` (presence), `pending="true|false"`; see [the full contract](icon-button-contract.md) | `hidden`, `class` |
-| `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
+| `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (standalone ARIA value), `href` (leaf link), `aria-label`; default and `submenu` slots | `hidden`, `class` |
 
 Icon-button uses the action variants primary (default), explicit, contextual, alternate and destructive in both modes. It supports action bend classes and native button/form attributes. Native
 clicks update the `pressed` (icon-button) or `selected` (menu-item) event slice;
@@ -487,3 +489,80 @@ is supported by both controls. Boolean disabled presence includes `disabled="fal
 
 Each component has a matching property playground under `playgrounds/`, covering
 all listed attributes and showing its canonical source.
+
+
+### Persistent and nested menus
+
+`cem-menu` loads from `components/cem-menu/cem-menu.xhtml#cem-menu`. Its default
+slot preserves links, buttons and `cem-menu-item` controls in a wrapping flex
+container. `direction="row|column"` defaults to row and `justify="start|end"`
+defaults to start. `aria-label` and `aria-labelledby` label the layout container;
+`hidden` uses presence. `dir` inherits normally. Arbitrary content receives no
+item paint.
+
+`keyboard="native|menu"` defaults to native. Native mode keeps ordinary Tab
+navigation. Menu mode exposes a row menubar or column menu with one enabled
+roving stop. Arrows follow orientation and RTL; Home/End and case-insensitive
+typeahead skip disabled and hidden controls. Enter/Space retain native control
+activation. Empty or all-disabled menus have no roving stop.
+
+Place a nested `cem-menu slot="submenu"` directly inside a `cem-menu-item`.
+Submenus require root menu mode, inherit that behavior, default to columns and
+open below row triggers or beside column triggers, flipping/clamping to the
+viewport. Owners remain buttons even when href is supplied. Leaf href items
+render native anchors; disabled leaves omit href and suppress activation.
+Opening focuses the panel's first enabled item. Escape closes the nearest panel
+and restores the trigger. Tab, outside activation and leaf activation dismiss
+open chains without a focus trap; only one sibling panel remains open. Runtime
+IDs link controls, trigger names and panels. Roots remain persistent.
+
+Shared `composite-menu` and `action-control` capabilities own browser behavior
+in cem-elements. Dropdown composition supplies separately triggered root popups;
+context menus, checkbox/radio items and lazy loading are deferred.
+
+Legacy source audit: [Material menu](../../custom-element/material/components/menu.html)
+(version in this repository) maps Default, Vertical, Horizontal, scoped and
+inline styling, wrap menu and wrap menu right to the canonical gallery's
+Default, Vertical, Horizontal, Scoped token overrides, Token overrides,
+Wrapping and End alignment examples respectively. Customization now uses the
+consumed contextual action and inset tokens. No external menu assets are needed.
+
+
+### Dropdown and nested menu composition
+
+`cem-dropdown` loads from `components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown`.
+`label` supplies fallback trigger text (Dropdown); `aria-label` names it separately.
+The `base` slot overrides the fallback native button: supply a direct native button,
+link or focusable trigger. The default slot accepts arbitrary HTML or a menu.
+`open="false"` closes; other values open, including the source's default visible
+state. Use explicit `open="false"` for an initially closed interactive dropdown.
+`disabled` and `hidden` use presence; `dir` and `class` inherit normally.
+
+The trigger toggles on native click/Enter/Space; ArrowDown opens and focuses the
+first enabled panel control. Escape restores trigger focus. Tab, focus leaving
+the component and outside activation dismiss without a trap. Geometry flips and
+clamps within the viewport. The declaration consumes existing action, control,
+bend, menu-row, typography, focus and elevation tokens instead of defining
+component-specific shadow/height/width aliases.
+
+Place `cem-menu direction="column" keyboard="menu"` in the default slot.
+Nested menu-item submenu slots keep their existing composition. Both capabilities
+consume the shared popup controller. The nearest menu handles Escape first;
+only when its submenu chain is closed does the outer dropdown handle Escape.
+Leaf menu activation dispatches shared popup dismissal, closing the complete
+chain. Popup wrappers and menu navigation retain separate ownership; no gallery
+or component JavaScript implements their behavior.
+
+Source audit: [dropdown 0.0.39](https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/dropdown.html)
+maps HTML in dropdown, Menu in dropdown and Hide dropdown dynamically to the
+same-named canonical gallery examples. The source's external image is replaced
+with the shipped custom-element SVG asset. The source's label becomes a native
+button so its existing keyboard focus also supports keyboard activation.
+
+
+External declaration aliases request the intrinsic capability explicitly, as
+with existing form-control/choice-select aliases: use
+`<cem-element tag="cem-menu" capability="composite-menu" src="…#cem-menu">`,
+`<cem-element tag="cem-menu-item" capability="action-control" src="…#cem-menu-item">`
+and `<cem-element tag="cem-dropdown" capability="popup" src="…#cem-dropdown">`.
+Canonical declarations and gallery registration examples include these names.

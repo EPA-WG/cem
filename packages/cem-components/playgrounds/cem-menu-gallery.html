@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cem-menu — Full examples and variation matrix</title>
+    <script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
+    }
+}</script>
+    <script type="module">
+        import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+        import '@epa-wg/cem-demo-element';
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
+    </script>
+    <link rel="stylesheet" href="../demo.css">
+    <style>
+        body { margin: 0; font-family: system-ui, sans-serif; }
+        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
+        main { display: block; }
+        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
+        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
+        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+        .examples > article { min-inline-size: 0; }
+        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<cem-element hidden>
+<template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu"}
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.commandUrl}#cem-menu"}}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+</template>
+</cem-element>
+
+<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-menu: Full examples and variation matrix"></cem-gallery-nav>
+<p class="component-description">A persistent wrapping collection of links and commands. <a href="./cem-menu-item-gallery.html">cem-menu-item</a> supplies command controls and nested submenu owners; <a href="./cem-select-gallery.html">cem-select</a> selects values.</p>
+<p><a href="./cem-menu.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu/cem-menu.stories.ts">Automated stories</a></p>
+<main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="direction"><code>direction</code></li><li data-gallery-attribute="justify"><code>justify</code></li><li data-gallery-attribute="keyboard"><code>keyboard</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li><li data-gallery-attribute="aria-labelledby"><code>aria-labelledby</code></li><li data-gallery-attribute="dir"><code>dir</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li></ul><p><code>direction="row|column"</code> defaults to row; submenu panels default to column. <code>justify="start|end"</code> defaults to start; <code>keyboard="native|menu"</code> defaults to native. <code>aria-label</code>, <code>aria-labelledby</code>, <code>dir</code>, <code>hidden</code> and <code>class</code> are supported. The default slot accepts links, buttons, menu items and content. Nested menus belong in an item's <code>submenu</code> slot. Item <code>href</code> creates a leaf link; submenu owners remain buttons.</p>
+<p>Exercise real hover, press and Tab focus. Menu mode adds orientation arrows, Home/End, typeahead and Escape. Only one sibling submenu opens. Roots remain visible.</p>
+<cem-demo-element legend="Default" description="Persistent row; Tab follows enabled controls."><template slot="source">
+<cem-menu aria-label="Default links"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Vertical" description="Column layout."><template slot="source">
+<cem-menu direction="column"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Horizontal" description="Explicit row layout."><template slot="source">
+<cem-menu direction="row"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Wrapping" description="The actual layout container wraps."><template slot="source">
+<cem-menu style="max-inline-size: 10rem"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="End alignment" description="Wrapped lines align to the end."><template slot="source">
+<cem-menu justify="end" style="max-inline-size: 10rem"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Token overrides" description="Customize consumed tokens."><template slot="source">
+<cem-menu style="--cem-action-contextual-default-text: navy; --cem-action-contextual-default-background: lightblue; --cem-action-contextual-hover-background: navy; --cem-action-contextual-hover-text: white; --cem-inset-control: 1rem"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Scoped token overrides" description="Inherited overrides apply to both menus."><template slot="source">
+<div style="--cem-action-contextual-default-text: darkred; --cem-action-contextual-default-background: mistyrose"><cem-menu><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu><cem-menu direction="column"><a href="#first">First link</a><a href="#second">Second link</a><a href="#third">Third link</a></cem-menu></div>
+</template></cem-demo-element>
+<cem-demo-element legend="Controls and content" description="Links, buttons, commands and icons; arbitrary notes receive no item paint."><template slot="source">
+<cem-menu aria-label="Mixed controls"><a href="#link">Link</a><a href="#blocked" disabled>Disabled link</a><button>Native command</button><cem-menu-item><span aria-hidden="true">★</span> Favorite</cem-menu-item><cem-menu-item disabled label="Disabled command"></cem-menu-item><span>Plain note</span></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Nested and multilevel submenus" description="Activate File, then Export. Arrows navigate, Escape restores focus, Tab and outside activation dismiss. Submenus require menu keyboard mode."><template slot="source">
+<cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="RTL keyboard navigation" description="Horizontal arrows follow RTL; nested panels open beside columns."><template slot="source">
+<div dir="rtl"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu></div>
+</template></cem-demo-element>
+<cem-demo-element legend="Empty and disabled" description="No enabled controls means no roving Tab stop."><template slot="source">
+<cem-menu keyboard="menu" aria-label="Empty"></cem-menu><cem-menu keyboard="menu" aria-label="Disabled commands"><cem-menu-item disabled></cem-menu-item></cem-menu>
+</template></cem-demo-element>
+<cem-demo-element legend="Hidden and labels" description="Hidden uses presence; accessible naming is separate from visible content."><template slot="source">
+<cem-menu aria-label="Named commands"><cem-menu-item aria-label="Save document">Save</cem-menu-item><cem-menu-item hidden label="Hidden"></cem-menu-item></cem-menu>
+</template></cem-demo-element>
+<h2>Five theme variation matrix</h2><cem-demo-element legend="Theme light" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-light" data-gallery-theme="light"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
+<cem-demo-element legend="Theme dark" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-dark" data-gallery-theme="dark"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
+<cem-demo-element legend="Theme contrast-light" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-contrast-light" data-gallery-theme="contrast-light"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
+<cem-demo-element legend="Theme contrast-dark" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-contrast-dark" data-gallery-theme="contrast-dark"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
+<cem-demo-element legend="Theme native" description="Compare default, disabled, expanded and focus states with real input."><template slot="source"><div class="cem-theme-native" data-gallery-theme="native"><cem-menu keyboard="menu" aria-label="Application commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item disabled label="Unavailable"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item href="#help" label="Help"></cem-menu-item></cem-menu><cem-menu><button>Default</button><button disabled>Disabled</button></cem-menu></div></template></cem-demo-element>
+</main></div></body></html>
