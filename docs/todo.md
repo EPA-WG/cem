@@ -8,6 +8,11 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Dropdown demo overlay clearance
+
+- [x] Reserve theme-sized visual space around dropdown gallery examples and the property preview so overlays do not cover source viewers, descriptions or adjacent demos; keep room for nested and RTL panels.
+- [x] Fixture: check open gallery panels and property previews against their reserved demo region in source/generated/installed previews, including all five themes and narrow viewports; rebuild playgrounds. `verify-menu-dropdown` passes with desktop and 390px clearance checks and forced-colors coverage.
+
 ## Autocomplete and suggestions design for CEM inputs
 
 Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/autocomplete.html).

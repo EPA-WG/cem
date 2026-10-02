@@ -35,6 +35,24 @@ try {
             await page.goto(origin + base + tag + '.html');
             await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).waitFor();
             await page.waitForFunction(tag => document.querySelector(`main ${tag} [part]`), tag);
+            if (tag === 'cem-dropdown') {
+                for (const width of [1280, 390]) {
+                    await page.setViewportSize({ width, height: 844 });
+                    const preview = page.locator('main > cem-element:first-child cem-dropdown').first();
+                    const trigger = preview.locator(':scope > [part="base"] > button');
+                    await trigger.scrollIntoViewIfNeeded();
+                    await trigger.focus(); await page.keyboard.press('ArrowDown');
+                    const clear = await preview.evaluate(node => {
+                        const panel = node.querySelector(':scope > [part="popup"]').getBoundingClientRect();
+                        const frame = node.closest('cem-element').getBoundingClientRect();
+                        const properties = node.previousElementSibling.getBoundingClientRect();
+                        return { fits: panel.top >= properties.bottom - 1 && panel.bottom <= frame.bottom + 1, panel: panel.toJSON(), frame: frame.toJSON(), properties: properties.toJSON() };
+                    });
+                    assert(clear.fits, 'property preview reserves space between controls and explanatory content: ' + JSON.stringify(clear));
+                    await page.keyboard.press('Escape');
+                }
+                await page.setViewportSize({ width: 1280, height: 720 });
+            }
             await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).click();
             await page.waitForFunction(() => [...document.querySelectorAll('cem-demo-element')].every(demo => demo.getAttribute('data-state') === 'ready') && document.querySelectorAll('cem-demo-element').length > 0);
             assert.equal(await page.locator('[data-gallery-theme]').count(), 5);
@@ -58,6 +76,13 @@ try {
                 const panel = page.locator('#' + await control.getAttribute('aria-controls'));
                 const bounds = await panel.evaluate(node => { const box = node.getBoundingClientRect(); return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }; });
                 assert(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bounds.width + 1 && bounds.bottom <= bounds.height + 1, `${tag}/${mode}: popup stays in viewport`);
+                if (tag === 'cem-dropdown') {
+                    const region = await control.evaluate(node => {
+                        const box = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]').getBoundingClientRect();
+                        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+                    });
+                    assert(bounds.left >= region.left - 1 && bounds.top >= region.top - 1 && bounds.right <= region.right + 1 && bounds.bottom <= region.bottom + 1, `${tag}/${mode}: popup stays inside reserved demo space`);
+                }
                 if (tag === 'cem-menu') assert.equal(await control.evaluate(node => getComputedStyle(node, '::after').content), '"▴"');
                 await page.keyboard.press('Escape');
                 assert.equal(await control.getAttribute('aria-expanded'), 'false');
@@ -67,6 +92,21 @@ try {
                 assert.equal(await control.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
                 assert.notEqual(await control.evaluate(node => getComputedStyle(node).outlineWidth), '0px');
                 await page.emulateMedia({ forcedColors: 'none' });
+            }
+            if (tag === 'cem-dropdown') {
+                await page.setViewportSize({ width: 390, height: 844 });
+                for (const host of await page.locator('cem-demo-element > [slot="demo"] cem-dropdown:not([disabled], [hidden])').all()) {
+                    const trigger = host.locator(':scope > [part="base"] > button').first();
+                    await trigger.scrollIntoViewIfNeeded();
+                    await trigger.focus(); await page.keyboard.press('ArrowDown');
+                    const clearance = await host.evaluate(node => {
+                        const panel = node.querySelector(':scope > [part="popup"]').getBoundingClientRect();
+                        const demo = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]').getBoundingClientRect();
+                        return panel.top >= demo.top - 1 && panel.bottom <= demo.bottom + 1;
+                    });
+                    assert(clearance, 'narrow dropdown overlay stays in reserved demo space');
+                    await page.keyboard.press('Escape');
+                }
             }
             assert.deepEqual(errors, []);
             await page.close();

@@ -48,6 +48,19 @@
         .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
         .examples > article { min-inline-size: 0; }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        /* Reserve the four-row popup height inside each demonstration, like
+           the legacy hr fillers, while keeping decoration out of sample markup. */
+        #playground-theme cem-demo-element > [slot="demo"] {
+            align-items: flex-start;
+            padding-block: calc(4 * var(--cem-menu-row-height) + var(--cem-gap-group));
+        }
+        [data-gallery-theme] {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--cem-gap-group);
+        }
+        [data-gallery-theme] > cem-dropdown[disabled] { order: -1; }
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
     </style>
 </head>

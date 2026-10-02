@@ -48,6 +48,14 @@
         .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
         .examples > article { min-inline-size: 0; }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        /* Keep the preview's popup above the explanatory text and source viewer. */
+        #playground-theme main > cem-element:first-child {
+            display: block;
+            padding-block-end: calc(4 * var(--cem-menu-row-height) + var(--cem-gap-group));
+        }
+        #playground-theme main > cem-element:first-child cem-dropdown {
+            margin-block-start: calc(4 * var(--cem-menu-row-height) + var(--cem-gap-group));
+        }
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
     </style>
 </head>
