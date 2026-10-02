@@ -12,6 +12,27 @@ When adding any fixture, always add an explicit actionable checkitem in docs/tod
 After completion of work from todo checklist, mark it as done by [x] check.
 Decision notes such as docs/indent-vs-tab-size.md are rationale archives only; do not use them as active instructions, acceptance criteria, or implementation requirements unless a package README, AC document, or docs/todo.md explicitly promotes the decision.
 
+## Gallery examples
+
+Gallery sample markup must not contain IDs or other attributes added solely for
+fixtures/tests. Locate samples by their existing public attributes, scoped to
+the demo's legend/description or other meaningful container attributes. Keep
+IDs only when the example needs them for forms, accessibility references,
+fragment links, or demonstrated behavior. Apply this to every gallery.
+
+## Syntax conversion agent
+
+When a prompt requests conversion to CEM-ML or CEM-QL syntax, delegate the
+conversion to the project `cem-syntax-converter` helper at
+[`tools/agents/cem-syntax-converter/SKILL.md`](tools/agents/cem-syntax-converter/SKILL.md).
+Use a fresh subagent context with that file, the user's exact conversion request,
+the target paths, and relevant constraints. The helper reads syntax references
+on demand and must run the native **tabular** formatter for converted output.
+The parent reviews the result and handles broader verification and delivery.
+If subagents are unavailable, read the same helper and apply it directly.
+This routing instruction provides project invocation without depending on
+user-global configuration. The conversion helper must not delegate to itself.
+
 ## Project overview
 
 CEM (Consumer-Experience Model) is a semantic design token framework using the
