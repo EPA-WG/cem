@@ -118,8 +118,13 @@
 <cem-demo-element legend="Label and help slots"><template slot="source">
 <cem-field name="account" value="Draft" describedby="slot-help"><span slot="label">Account name</span><span slot="help" id="slot-help">Use your public account name.</span></cem-field>
 </template></cem-demo-element>
-<cem-demo-element legend="Form validation, submission and reset"><template slot="source">
-<form id="example-form" method="get" target="_blank"><cem-field label="Email" type="email" name="email" value="reader@example.com" required></cem-field><cem-action type="submit">Submit</cem-action><cem-action type="reset">Reset</cem-action></form><cem-field label="External owner" name="external" form="example-form" value="External"></cem-field>
+<cem-demo-element legend="Form validation, submission and reset" type="cem-ml"><template slot="source">
+{form @id=example-form @method=get @target=_blank |
+    {cem-field @label=Email @name=email @required @type=email @value="reader@example.com"}
+    {cem-action @type=submit | Submit}
+    {cem-action @type=reset | Reset}
+}
+{cem-field @form=example-form @label="External owner" @name=external @value=External}
 </template></cem-demo-element>
 <cem-demo-element legend="Input types and placeholder"><template slot="source">
 <cem-field label="text" type="text" placeholder="Enter text"></cem-field>
@@ -129,11 +134,16 @@
 <cem-field label="tel" type="tel" placeholder="Enter tel"></cem-field>
 <cem-field label="url" type="url" placeholder="Enter url"></cem-field>
 </template></cem-demo-element>
-<cem-demo-element legend="Presence, hidden and consumer class"><template slot="source">
-<cem-field label="Disabled by presence" disabled="false"></cem-field><cem-field label="Readonly by presence" readonly="false" value="Read me"></cem-field><cem-field class="consumer-field" required="false" busy="false" label="Required and busy by presence"></cem-field><cem-field hidden="false" label="Hidden by presence"></cem-field>
+<cem-demo-element legend="Presence, hidden and consumer class" type="cem-ml"><template slot="source">
+{cem-field @disabled=false @label="Disabled by presence"}
+{cem-field @label="Readonly by presence" @readonly=false @value="Read me"}
+{cem-field @busy=false @class=consumer-field @required=false | Required and busy by presence}
+{cem-field @hidden=false @label="Hidden by presence"}
 </template></cem-demo-element>
-<cem-demo-element legend="Validation message"><template slot="source">
-<cem-field label="Invalid entry" invalid="true" describedby="validation-help" error="validation-error"></cem-field><p id="validation-help">Check the account name.</p><p id="validation-error">This name is unavailable.</p>
+<cem-demo-element legend="Validation message" type="cem-ml"><template slot="source">
+{cem-field @describedby=validation-help @error=validation-error @invalid=true @label="Invalid entry"}
+{p @id=validation-help | Check the account name.}
+{p @id=validation-error | This name is unavailable.}
 </template></cem-demo-element>
 </main></div>
 <section aria-label="Theme and state variation matrix">

@@ -123,17 +123,29 @@
 <cem-demo-element legend="Label and help slots"><template slot="source">
 <cem-textarea name="account" value="Draft" describedby="slot-help"><span slot="label">Notes</span><span slot="help" id="slot-help">Describe the requested changes.</span></cem-textarea>
 </template></cem-demo-element>
-<cem-demo-element legend="Form validation, submission and reset"><template slot="source">
-<form id="example-form" method="get" target="_blank"><cem-textarea label="Notes" name="notes" value="First line&#10;Second line" required></cem-textarea><cem-action type="submit">Submit</cem-action><cem-action type="reset">Reset</cem-action></form><cem-textarea label="External owner" name="external" form="example-form" value="External"></cem-textarea>
+<cem-demo-element legend="Form validation, submission and reset" type="cem-ml"><template slot="source">
+{form @id=example-form @method=get @target=_blank |
+    {cem-textarea @label=Notes @name=notes @required @value="First line&#10;Second line"}
+    {cem-action @type=submit | Submit}
+    {cem-action @type=reset | Reset}
+}
+{cem-textarea @form=example-form @label="External owner" @name=external @value=External}
 </template></cem-demo-element>
 <cem-demo-element legend="Multiline text, dimensions, and native constraints"><template slot="source">
 <cem-textarea label="Notes" rows="4" cols="30" minlength="3" maxlength="120" autocomplete="off" placeholder="Enter several lines" value="First line&#10;Second line"></cem-textarea>
 </template></cem-demo-element>
-<cem-demo-element legend="Presence, hidden and consumer class"><template slot="source">
-<cem-textarea label="Disabled by presence" disabled="false"></cem-textarea><cem-textarea label="Readonly by presence" readonly="false" value="Read me"></cem-textarea><cem-textarea class="consumer-field" required="false" busy="false" label="Required and busy by presence"></cem-textarea><cem-textarea hidden="false" label="Hidden by presence"></cem-textarea>
+<cem-demo-element legend="Presence, hidden and consumer class" type="cem-ml"><template slot="source">
+{cem-textarea @disabled=false @label="Disabled by presence"}
+{cem-textarea @label="Readonly by presence" @readonly=false @value="Read me"}
+{cem-textarea @busy=false @class=consumer-field @label="Required and busy by presence"
+    @required=false}
+{cem-textarea @hidden=false @label="Hidden by presence"}
 </template></cem-demo-element>
-<cem-demo-element legend="Validation message"><template slot="source">
-<cem-textarea label="Invalid entry" invalid="true" describedby="validation-help" error="validation-error"></cem-textarea><p id="validation-help">Check the account name.</p><p id="validation-error">This name is unavailable.</p>
+<cem-demo-element legend="Validation message" type="cem-ml"><template slot="source">
+{cem-textarea @describedby=validation-help @error=validation-error @invalid=true
+    @label="Invalid entry"}
+{p @id=validation-help | Check the account name.}
+{p @id=validation-error | This name is unavailable.}
 </template></cem-demo-element>
 </main></div>
 <section aria-label="Theme and state variation matrix">

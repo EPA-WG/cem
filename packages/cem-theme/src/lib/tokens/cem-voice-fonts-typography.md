@@ -174,13 +174,13 @@ Numbers and identifiers require predictable alignment and glyph selection.
      * =========================  *
      * Rule: size scale is theme-invariant. Contrast modes adjust ink/decoration, not the global scale.
      */
-    --cem-typography-size-xxs: 0.75rem;
-    --cem-typography-size-xs: 0.8125rem;
+    --cem-typography-size-xxs: 0.625rem;
+    --cem-typography-size-xs: 0.75rem;
     --cem-typography-size-s: 0.875rem;
     --cem-typography-size-m: 1rem;
-    --cem-typography-size-l: 1.125rem;
-    --cem-typography-size-xl: 1.375rem;
-    --cem-typography-size-xxl: 1.75rem;
+    --cem-typography-size-l: 1.5rem;
+    --cem-typography-size-xl: 2.125rem;
+    --cem-typography-size-xxl: 3rem;
 
 
     /* =========================
@@ -291,6 +291,9 @@ Numbers and identifiers require predictable alignment and glyph selection.
     --cem-typography-reading-speech-rate: var(--cem-voice-regular-speech-rate);
     --cem-typography-reading-speech-pitch: var(--cem-voice-regular-speech-pitch);
     --cem-typography-reading-ssml-emphasis: var(--cem-voice-regular-ssml-emphasis);
+
+    /* Heading weight: strong voice, independent of gentle UI text */
+    --cem-typography-heading-font-weight: var(--cem-voice-strong-ink-thickness);
 
     /* UI */
     --cem-typography-ui-font-family: var(--cem-fontography-ui-family);
@@ -739,16 +742,24 @@ canonical declarations in §5.2 and §6, and add the dark / contrast ink-thickne
 | `--cem-thickness-x-bold`    | `800` | Extra-bold weight     | required |
 | `--cem-thickness-xx-bold`   | `900` | Heaviest weight       | required |
 
+The scale anchors fine print at `0.625rem`, body text at `1rem`, and page
+titles at `3rem`. At a 16px root, the practical sizes are 10, 12, 14, 16,
+24, 34, and 48px. These round geometric steps on each side of the medium
+anchor; the upper sizes progress by approximately √2 for clear heading
+separation. Heading roles below are suggested visual uses, while H1–H3
+still express document structure. All sizes remain relative to the root
+font size and invariant across themes.
+
 ###### cem-typography-size
-| Token                       | Value       | Description                             | tier     |
-|-----------------------------|-------------|-----------------------------------------|----------|
-| `--cem-typography-size-xxs` | `0.75rem`   | Smallest UI text (12px @16px root)      | required |
-| `--cem-typography-size-xs`  | `0.8125rem` | Compact UI text (13px)                  | required |
-| `--cem-typography-size-s`   | `0.875rem`  | Small UI text (14px)                    | required |
-| `--cem-typography-size-m`   | `1rem`      | Default reading/UI size (16px)          | required |
-| `--cem-typography-size-l`   | `1.125rem`  | Large emphasis (18px)                   | required |
-| `--cem-typography-size-xl`  | `1.375rem`  | Sub-headline (22px)                     | required |
-| `--cem-typography-size-xxl` | `1.75rem`   | Headline / brand size (28px)            | required |
+| Token | Value | Description | tier |
+|-------|-------|-------------|------|
+| `--cem-typography-size-xxs` | `0.625rem` | Fine print (10px @16px root) | required |
+| `--cem-typography-size-xs` | `0.75rem` | Compact labels (12px) | required |
+| `--cem-typography-size-s` | `0.875rem` | Supporting text (14px) | required |
+| `--cem-typography-size-m` | `1rem` | Default reading/UI size (16px) | required |
+| `--cem-typography-size-l` | `1.5rem` | Subsection title / H3 (24px) | required |
+| `--cem-typography-size-xl` | `2.125rem` | Section title / H2 (34px) | required |
+| `--cem-typography-size-xxl` | `3rem` | Page title / H1 / brand (48px) | required |
 
 ###### cem-typography-line-height
 | Token                                  | Value | Description                                  | tier     |
@@ -864,6 +875,7 @@ where AA contrast benefits.
 | `--cem-voice-firm-ink-thickness`       | `650`      | Firm (lighter than 700)              |
 | `--cem-voice-strong-ink-thickness`     | `750`      | Strong (lighter than 800)            |
 | `--cem-voice-loud-ink-thickness`       | `850`      | Loud (lighter than 900)              |
+| `--cem-typography-heading-font-weight` | `var(--cem-voice-strong-ink-thickness)` | Resolve heading alias in the themed scope |
 
 ###### cem-typography-voice-ink-thickness-contrast
 | Token                                  | Contrast value | Description                  |
@@ -872,12 +884,21 @@ where AA contrast benefits.
 | `--cem-voice-regular-ink-thickness`    | `500`          | Regular bumped               |
 | `--cem-voice-firm-ink-thickness`       | `750`          | Firm bumped                  |
 | `--cem-voice-strong-ink-thickness`     | `850`          | Strong bumped                |
+| `--cem-typography-heading-font-weight` | `var(--cem-voice-strong-ink-thickness)` | Resolve heading alias in the themed scope |
 
 ### 12.4 Semantic role endpoints
 
 8 role × ~9-10 properties = 76 tokens. Each row is `(token, value)`; tier is `required` for the cross-product
 contract because every role declares every property listed below. Special role-specific properties
 (`font-variant-ligatures`, `font-variant-numeric`, `text-transform`) appear only on the role that uses them.
+
+Heading weight uses `--cem-typography-heading-font-weight`, backed by the
+strong voice: 800 in light/native, 750 in dark, and 850 in contrast themes.
+Use this endpoint for prominent headings while retaining gentle weight for
+ordinary UI text. The dark/contrast override tables redeclare the heading alias in the themed
+scope so nested theme containers resolve their local strong voice. Consumers
+may override heading weight independently. The
+loud/900 weight remains available for explicitly stronger emphasis.
 
 ###### cem-typography-roles
 | Token                                              | Value                                              | tier     |
@@ -891,6 +912,7 @@ contract because every role declares every property listed below. Special role-s
 | `--cem-typography-reading-speech-rate`             | `var(--cem-voice-regular-speech-rate)`             | required |
 | `--cem-typography-reading-speech-pitch`            | `var(--cem-voice-regular-speech-pitch)`            | required |
 | `--cem-typography-reading-ssml-emphasis`           | `var(--cem-voice-regular-ssml-emphasis)`           | required |
+| `--cem-typography-heading-font-weight` | `var(--cem-voice-strong-ink-thickness)` | required |
 | `--cem-typography-ui-font-family`                  | `var(--cem-fontography-ui-family)`                 | required |
 | `--cem-typography-ui-font-size`                    | `var(--cem-typography-size-m)`                     | required |
 | `--cem-typography-ui-line-height`                  | `var(--cem-typography-line-height-ui)`             | required |
@@ -980,7 +1002,7 @@ contract because every role declares every property listed below. Special role-s
 | `cem-typography-voice-ssml-emphasis` | §12.2 | 7 voice → SSML emphasis |
 | `cem-typography-voice-ink-thickness-dark` | §12.3 | Dark theme overrides for voice ink-thickness (override-only) |
 | `cem-typography-voice-ink-thickness-contrast` | §12.3 | Contrast theme overrides for voice ink-thickness (override-only) |
-| `cem-typography-roles` | §12.4 | 76 semantic role endpoint tokens |
+| `cem-typography-roles` | §12.4 | 77 semantic role endpoint tokens |
 
 Generator derivation rules:
 - All foundation tables, the 6 voice-channel tables, and the roles table contribute tokens (tier in last column).

@@ -8,6 +8,32 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Gallery heading weight
+
+- [x] Add a theme-owned heading weight endpoint backed by strong voice and consume it in the shared gallery navbar.
+- [x] Fixture: verify generated token exports and rendered heading weights across all five themes, including independent consumer overrides; build component galleries.
+
+Validation: theme/component builds and manifest coverage (511/511) passed.
+Public token exports and source/generated gallery H1 weights match all five
+themes; consumer heading overrides leave UI text weight unchanged.
+
+## Typography size scale
+
+- [x] Apply the 10/12/14/16/24/34/48px scale to canonical typography tokens and matching documented CSS values, retaining rem units and theme invariance.
+- [x] Fixture: rebuild theme CSS and token exports; verify the seven generated size values and token manifest.
+
+Validation: theme build passed; all seven generated CSS/public token values
+match the scale. All 510 manifest tokens are covered, with no gaps.
+
+## Input gallery CEM-ML examples
+
+- [x] Convert form validation/submission/reset, presence/hidden/class and validation-message examples to native tabular CEM-ML in all three input galleries.
+- [x] Fixture: verify native round-trip structure and component build for the converted examples.
+
+Validation: all nine native XML structure round-trips passed. Component build
+and Chromium checks in all three source/generated galleries passed, including
+form ownership, required validation, reset, presence attributes and messages.
+
 ## Filled and outlined input backgrounds
 
 - [x] Verify Material's filled/outlined background distinction; add a theme-owned filled input background token and attribute-dependent transparent override for all three canonical input controls.

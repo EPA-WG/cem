@@ -182,15 +182,18 @@
 }
             </template>
         </cem-demo-element>
-        <cem-demo-element legend="Form validation, submission and resetSS" type="cem-ml">
-            <template>
+        <cem-demo-element legend="Form validation, submission and reset" type="cem-ml">
+            <template slot="source">
 {form @id=example-form @method=get @target=_blank |
     {cem-text-field @label=Email @name=email @required @type=email @value="reader@example.com"}
-    {cem-action @type=submit | Submit}
-    {cem-action @type=reset | Reset}
-}
+    {cem-action @type=submit |
+        Submit
+    }
+    {cem-action @type=reset |
+        Reset
+}   }
 {cem-text-field @form=example-form @label="External owner" @name=external @value=External}
-            </template>
+</template>
         </cem-demo-element>
         <cem-demo-element legend="Custom required markers" description="Required-marker sets fallback text; the required-marker slot takes precedence and preserves markup. Without required, neither override displays. Native required semantics remain the same, and the decorative marker does not change the accessible name." type="cem-ml">
             <template>
@@ -235,21 +238,25 @@
             </template>
         </cem-demo-element>
         <cem-demo-element legend="Presence, hidden and consumer class" type="cem-ml">
-            <template>
-                {cem-text-field @disabled=false @label="Disabled by presence"}
-                {cem-text-field @label="Readonly by presence" @readonly=false @value="Read me"}
-                {cem-text-field @busy=false @class=consumer-field @label="Required and busy by presence"
-                @required=false}
-                {cem-text-field @hidden=false @label="Hidden by presence"}
-            </template>
+            <template slot="source">
+{cem-text-field @disabled=false @label="Disabled by presence"}
+{cem-text-field @label="Readonly by presence" @readonly=false @value="Read me"}
+{cem-text-field @busy=false @class=consumer-field @label="Required and busy by presence"
+    @required=false}
+{cem-text-field @hidden=false @label="Hidden by presence"}
+</template>
         </cem-demo-element>
         <cem-demo-element legend="Validation message" type="cem-ml">
-            <template>
-                {cem-text-field @describedby=validation-help @error=validation-error @invalid=true
-                @label="Invalid entry"}
-                {p @id=validation-help | Check the account name.}
-                {p @id=validation-error | This name is unavailable.}
-            </template>
+            <template slot="source">
+{cem-text-field @describedby=validation-help @error=validation-error @invalid=true
+    @label="Invalid entry"}
+{p @id=validation-help |
+    Check the account name.
+}
+{p @id=validation-error |
+    This name is unavailable.
+}
+</template>
         </cem-demo-element>
     </main>
 </div>
