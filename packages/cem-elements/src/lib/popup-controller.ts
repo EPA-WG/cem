@@ -15,14 +15,17 @@ export function positionPopup(trigger: HTMLElement, panel: HTMLElement, column =
 }
 export function showPopup(trigger: HTMLElement, panel: HTMLElement, column = false): void {
     if (panel.hidden) panel.hidden = false;
-    panel.style.display = 'block';
+    panel.style.removeProperty('display');
+    if (getComputedStyle(panel).display === 'none') panel.style.display = 'block';
     panel.style.boxSizing = 'border-box';
     if (getComputedStyle(panel).position !== 'absolute') panel.style.position = 'fixed';
-    panel.style.zIndex = '1000';
+    if (getComputedStyle(panel).zIndex === 'auto') panel.style.zIndex = '1000';
     panel.style.maxWidth = 'calc(100vw - 8px)';
     panel.style.maxHeight = 'min(var(--_cem-popup-max-height, 100vh), calc(100vh - 8px))';
     panel.style.overflow = 'auto';
-    positionPopup(trigger, panel, column);
+    // CSS-anchored panels start at their declared position, even offscreen.
+    // Explicit activation and resize can request viewport collision handling.
+    if (getComputedStyle(panel).position !== 'absolute') positionPopup(trigger, panel, column);
 }
 export function hidePopup(panel: HTMLElement): void {
     if (!panel.hidden) panel.hidden = true;

@@ -542,7 +542,9 @@ The trigger toggles on native click/Enter/Space; ArrowDown opens and focuses the
 first enabled panel control. Escape restores trigger focus. Tab, focus leaving
 the component and outside activation dismiss without a trap. Geometry flips and
 clamps within the viewport when opened or resized. Like the legacy source, the
-dropdown uses a relative host and an absolute panel; scrolling moves the panel
+dropdown uses a relative host and an absolute panel at `z-index: 1`, with square
+top corners. Initially open panels retain the CSS position below their triggers,
+including offscreen examples. Scrolling moves the panel
 with its trigger, including beyond the viewport edge. The declaration consumes existing action, control,
 bend, menu-row, typography, focus and elevation tokens instead of defining
 component-specific shadow/height/width aliases.

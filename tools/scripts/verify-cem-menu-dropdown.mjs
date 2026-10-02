@@ -56,6 +56,23 @@ try {
             await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).click();
             await page.waitForFunction(() => [...document.querySelectorAll('cem-demo-element')].every(demo => demo.getAttribute('data-state') === 'ready') && document.querySelectorAll('cem-demo-element').length > 0);
             await page.waitForFunction(() => [...document.querySelectorAll('cem-menu-item')].every(item => item.querySelector(':scope > [part~="control"]')) && [...document.querySelectorAll('cem-menu')].every(menu => menu.querySelector(':scope > [part~="composite"]')) && [...document.querySelectorAll('cem-dropdown')].every(dropdown => dropdown.querySelector(':scope > [part~="popup"]')));
+            if (tag === 'cem-dropdown') {
+                const initial = await page.locator('cem-demo-element > [slot="demo"] cem-dropdown:not([open="false"], [disabled], [hidden])').evaluateAll(nodes => nodes.map(node => {
+                    const panel = node.querySelector(':scope > [part="popup"]');
+                    const trigger = node.querySelector(':scope > [part="base"]');
+                    const region = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]');
+                    const popupBox = panel.getBoundingClientRect(), triggerBox = trigger.getBoundingClientRect(), regionBox = region.getBoundingClientRect();
+                    const style = getComputedStyle(panel);
+                    return { attached: Math.abs(popupBox.top - triggerBox.bottom) < 1, contained: popupBox.top >= regionBox.top - 1 && popupBox.bottom <= regionBox.bottom + 1, zIndex: style.zIndex, display: style.display, topCorners: [style.borderTopLeftRadius, style.borderTopRightRadius] };
+                }));
+                assert(initial.length > 0, 'initially open source examples exist');
+                for (const result of initial) {
+                    assert(result.attached, 'initial panel stays attached below its trigger without viewport clamping');
+                    assert(result.contained, 'initial panel remains inside its reserved demo region');
+                    assert.equal(result.zIndex, '1'); assert.equal(result.display, 'flex');
+                    assert.deepEqual(result.topCorners, ['0px', '0px']);
+                }
+            }
             assert.equal(await page.locator('[data-gallery-theme]').count(), 5);
             for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
                 const sample = page.locator(`[data-gallery-theme="${mode}"] > ${tag}`).first();
@@ -101,6 +118,7 @@ try {
                         return { before, after, position: getComputedStyle(panel).position };
                     });
                     assert.equal(scroll.position, 'absolute');
+                    assert.equal(await panel.evaluate(node => getComputedStyle(node).zIndex), '1', 'interactive opening retains declaration-owned stacking');
                     assert(scroll.after.trigger < 0, 'scroll fixture moves the trigger above the viewport');
                     assert(Math.abs((scroll.after.panel - scroll.before.panel) - (scroll.after.trigger - scroll.before.trigger)) < 1, 'dropdown follows its trigger past the viewport edge: ' + JSON.stringify(scroll));
                     const nestedScroll = await control.evaluate(async node => {

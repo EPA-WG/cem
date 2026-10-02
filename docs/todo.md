@@ -8,6 +8,11 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Dropdown initial stacking and legacy styling
+
+- [x] Adopt the legacy dropdown panel stacking level and attached shape; retain CSS anchoring for initially open panels instead of moving offscreen examples into the viewport.
+- [x] Fixture: verify initial-open panels remain attached to their triggers and within reserved gallery regions before interaction, and verify declaration-owned z-index and shape across source/generated/installed galleries. `verify-menu-dropdown`, 588 runtime unit tests and runtime lint pass.
+
 ## Dropdown scroll anchoring
 
 - [x] Restore legacy relative-container/absolute-panel CSS anchoring for dropdowns while retaining generic collision handling when opened or resized.

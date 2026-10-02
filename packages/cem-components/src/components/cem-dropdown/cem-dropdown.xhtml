@@ -22,9 +22,10 @@
         :scope > [part~='popup'] {
             position: absolute; inset-inline-start: 0; top: 100%;
             --_cem-popup-max-height: calc(4 * var(--cem-menu-row-height));
-            display: none; max-block-size: calc(4 * var(--cem-menu-row-height));
+            display: flex; flex-direction: column; z-index: 1; max-block-size: calc(4 * var(--cem-menu-row-height));
             background: var(--cem-action-contextual-default-background); color: var(--cem-action-contextual-default-text);
             border-radius: var(--cem-autocomplete-container-shape);
+            border-start-start-radius: 0; border-start-end-radius: 0;
             box-shadow: var(--cem-elevation-3); overflow: auto;
         }
         :scope > :where([part~='popup'])[hidden] { display: none; }
