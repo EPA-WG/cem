@@ -8,6 +8,11 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Dropdown sibling filler demonstration
+
+- [x] Add exactly five visible `<hr/>` filler siblings to each dropdown gallery example, including theme and RTL containers, to demonstrate overlay paint over surrounding DOM.
+- [x] Fixture: verify five fillers and hit-test the open panel where it overlaps a filler; verify native pointer hover above the sibling and that closing reveals the same filler, across five themes and source/generated/installed galleries. `verify-menu-dropdown` passes, including narrow layouts, scrolling and forced colors.
+
 ## Dropdown initial stacking and legacy styling
 
 - [x] Adopt the legacy dropdown panel stacking level and attached shape; retain CSS anchoring for initially open panels instead of moving offscreen examples into the viewport.

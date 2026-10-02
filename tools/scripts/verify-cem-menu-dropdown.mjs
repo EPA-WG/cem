@@ -36,12 +36,13 @@ try {
             await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).waitFor();
             await page.waitForFunction(tag => document.querySelector(`main ${tag} [part]`), tag);
             if (tag === 'cem-dropdown') {
+                await page.waitForFunction(() => [...document.querySelectorAll('main cem-menu-item')].every(item => item.querySelector(':scope > [part~="control"]')) && [...document.querySelectorAll('main cem-radio')].every(radio => radio.querySelector('input')));
+                await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
                 for (const width of [1280, 390]) {
                     await page.setViewportSize({ width, height: 844 });
                     const preview = page.locator('main > cem-element:first-child cem-dropdown').first();
                     const trigger = preview.locator(':scope > [part="base"] > button');
                     await trigger.scrollIntoViewIfNeeded();
-                    await trigger.focus(); await page.keyboard.press('ArrowDown');
                     const clear = await preview.evaluate(node => {
                         const panel = node.querySelector(':scope > [part="popup"]').getBoundingClientRect();
                         const frame = node.closest('cem-element').getBoundingClientRect();
@@ -49,7 +50,6 @@ try {
                         return { fits: panel.top >= properties.bottom - 1 && panel.bottom <= frame.bottom + 1, panel: panel.toJSON(), frame: frame.toJSON(), properties: properties.toJSON() };
                     });
                     assert(clear.fits, 'property preview reserves space between controls and explanatory content: ' + JSON.stringify(clear));
-                    await page.keyboard.press('Escape');
                 }
                 await page.setViewportSize({ width: 1280, height: 720 });
             }
@@ -57,6 +57,7 @@ try {
             await page.waitForFunction(() => [...document.querySelectorAll('cem-demo-element')].every(demo => demo.getAttribute('data-state') === 'ready') && document.querySelectorAll('cem-demo-element').length > 0);
             await page.waitForFunction(() => [...document.querySelectorAll('cem-menu-item')].every(item => item.querySelector(':scope > [part~="control"]')) && [...document.querySelectorAll('cem-menu')].every(menu => menu.querySelector(':scope > [part~="composite"]')) && [...document.querySelectorAll('cem-dropdown')].every(dropdown => dropdown.querySelector(':scope > [part~="popup"]')));
             if (tag === 'cem-dropdown') {
+                for (const demo of await page.locator('cem-demo-element > [slot="demo"]').all()) assert.equal(await demo.locator('hr').count(), 5, 'each dropdown example has five real filler siblings');
                 const initial = await page.locator('cem-demo-element > [slot="demo"] cem-dropdown:not([open="false"], [disabled], [hidden])').evaluateAll(nodes => nodes.map(node => {
                     const panel = node.querySelector(':scope > [part="popup"]');
                     const trigger = node.querySelector(':scope > [part="base"]');
@@ -93,6 +94,7 @@ try {
                 await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
                 assert.equal(await control.getAttribute('aria-expanded'), 'true', `${base}${tag}/${mode}: opening completes`);
                 const panel = page.locator('#' + await control.getAttribute('aria-controls'));
+                let fillerPoint;
                 const bounds = await panel.evaluate(node => { const box = node.getBoundingClientRect(); return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }; });
                 assert(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bounds.width + 1 && bounds.bottom <= bounds.height + 1, `${tag}/${mode}: popup stays in viewport`);
                 if (tag === 'cem-dropdown') {
@@ -100,6 +102,22 @@ try {
                         const box = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]').getBoundingClientRect();
                         return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
                     });
+                    fillerPoint = await control.evaluate(node => {
+                        const panel = document.getElementById(node.getAttribute('aria-controls'));
+                        const box = panel.getBoundingClientRect();
+                        const fillers = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]').querySelectorAll('hr');
+                        for (const filler of fillers) {
+                            const line = filler.getBoundingClientRect();
+                            const x = (Math.max(box.left, line.left) + Math.min(box.right, line.right)) / 2;
+                            const y = line.top + line.height / 2;
+                            if (x > box.left && x < box.right && y > box.top && y < box.bottom) return { x, y, panelOnTop: panel.contains(document.elementFromPoint(x, y)) };
+                        }
+                        return null;
+                    });
+                    assert(fillerPoint?.panelOnTop, 'open dropdown paints over the real hr sibling');
+                    await page.mouse.move(fillerPoint.x, fillerPoint.y);
+                    assert(await panel.evaluate(node => node.matches(':hover')), 'pointer hovers the panel above its hr sibling');
+                    await page.mouse.move(0, 0);
                     assert(bounds.left >= region.left - 1 && bounds.top >= region.top - 1 && bounds.right <= region.right + 1 && bounds.bottom <= region.bottom + 1, `${tag}/${mode}: popup stays inside reserved demo space`);
                 }
                 if (tag === 'cem-dropdown') {
@@ -144,6 +162,7 @@ try {
                 if (tag === 'cem-menu') assert.equal(await control.evaluate(node => getComputedStyle(node, '::after').content), '"▴"');
                 await page.keyboard.press('Escape');
                 assert.equal(await control.getAttribute('aria-expanded'), 'false');
+                if (fillerPoint) assert.equal(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, fillerPoint), 'HR', 'closing the panel reveals the same filler sibling');
                 assert.equal(await control.evaluate(node => document.activeElement === node), true);
                 await page.emulateMedia({ forcedColors: 'active' });
                 await page.keyboard.press('Tab'); await control.focus();
