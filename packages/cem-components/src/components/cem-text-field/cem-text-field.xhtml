@@ -2,13 +2,17 @@
   <template id="cem-text-field" type="text/cem-ml">
     {attribute @name=label | Text field}
     {attribute @name=type | text}
+    {attribute @name=required-marker | *}
     {attribute @name=indicator | underline}
     {style @type="text/css" |```
         :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+        [part~="required-marker"] { margin-inline-start: var(--cem-dim-x-small); }
 
 
         [part~='control'] {
             border: none;
+            background-color: var(--cem-input-background-color);
+            color: var(--cem-palette-comfort-text);
             --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);
@@ -58,6 +62,7 @@
             );
         }
         :scope:where([indicator='outline']) [part~='control'] {
+            --cem-input-background-color: transparent;
             --_cem-input-indicator-appearance: var(
                 --cem-input-indicator-appearance,
                 var(--cem-indicator-appearance-outline)
@@ -124,7 +129,10 @@
         ```}
     {div @class=cem-text-field @part=root |
       {label @class=cem-text-field__label @part=label |
-        {span | {slot @name=label | {$label}}}
+        {span |
+          {slot @name=label | {$label}}
+          {cem:if @test="seq:count(datadom.attributes.required) > 0" | {span @part=required-marker @aria-hidden=true | {slot @name=required-marker | {$required-marker}}}}
+        }
         {input @class=cem-text-field__control @part=control @type="{$type}" @form="" @value={datadom.slices.value} @placeholder={datadom.attributes.placeholder} @disabled={if datadom.slices.formDisabled { true } else { null }} @required={if seq:count(datadom.attributes.required) > 0 { true } else { null }} @readonly={if seq:count(datadom.attributes.readonly) > 0 { true } else { null }} @data-state={if seq:count(datadom.attributes.busy) > 0 { "loading" } else { null }} @aria-busy={if seq:count(datadom.attributes.busy) > 0 { true } else { null }} @aria-invalid={datadom.attributes.invalid} @aria-describedby={datadom.attributes.describedby} @aria-errormessage={datadom.attributes.error} @slice=value @slice-event=input @slice-value="$target.value" | }
       }
       {span @class=cem-text-field__help @part=help | {slot @name=help}}

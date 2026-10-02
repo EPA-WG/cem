@@ -161,7 +161,8 @@
             <li data-gallery-attribute="form"><code>form</code></li>
             <li data-gallery-attribute="placeholder"><code>placeholder</code></li>
             <li data-gallery-attribute="disabled"><code>disabled</code></li>
-            <li data-gallery-attribute="required"><code>required</code></li>
+            <li data-gallery-attribute="required-marker"><code>required-marker</code></li>
+<li data-gallery-attribute="required"><code>required</code></li>
             <li data-gallery-attribute="readonly"><code>readonly</code></li>
             <li data-gallery-attribute="busy"><code>busy</code></li>
             <li data-gallery-attribute="invalid"><code>invalid</code></li>
@@ -171,7 +172,7 @@
             <li data-gallery-attribute="hidden"><code>hidden</code></li>
             <li data-gallery-attribute="class"><code>class</code></li>
         </ul>
-        <p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>help</code> supplies supporting
+        <p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>required-marker</code> overrides the marker text/markup when required; <code>help</code> supplies supporting
             content.</p>
         <cem-demo-element legend="Label and help slots" type="cem-ml">
             <template>
@@ -189,6 +190,38 @@
     {cem-action @type=reset | Reset}
 }
 {cem-text-field @form=example-form @label="External owner" @name=external @value=External}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Custom required markers" description="Required-marker sets fallback text; the required-marker slot takes precedence and preserves markup. Without required, neither override displays. Native required semantics remain the same, and the decorative marker does not change the accessible name." type="cem-ml">
+            <template>
+{cem-text-field @label="Text override" @required @required-marker="(required)"}
+{cem-text-field @label="Slotted symbol" @required |
+    {strong @slot=required-marker | ✦}
+}
+{cem-text-field @label="Slot override" @required @required-marker="Fallback" |
+    {strong @slot=required-marker | ✦}
+}
+{cem-text-field @label="Optional field" @required-marker="(required)" |
+    {strong @slot=required-marker | ✦}
+}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Required-field marker" description="Required fields show a star beside the label and participate in native validation. Required uses attribute presence, including required=false. The marker is independent of underline or outline. Remove required to clear both the star and the validation requirement." type="cem-ml">
+            <template>
+{cem-text-field @label="Optional field"}
+{cem-text-field @label="Required field" @required @indicator=underline}
+{cem-text-field @label="Required account" @required @indicator=outline |
+    {span @slot=label | Account name}
+}
+{cem-text-field @label="Required by presence" @required=false}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Indicator appearances" description="Indicator selects appearance: absent or underline uses a subtle filled background and bottom line; outline surrounds the control with a transparent background; unsupported values fall back to underline. Hover each enabled field and use Tab to compare focus. Required controls validation independently of indicator." type="cem-ml">
+            <template>
+{cem-text-field @label="Default underline" @value="Default appearance"}
+{cem-text-field @label="Explicit underline" @indicator=underline @value="Bottom boundary"}
+{cem-text-field @label="Outline" @indicator=outline @value="Full boundary"}
+{cem-text-field @label="Unsupported appearance" @indicator=unsupported @value="Falls back to underline"}
             </template>
         </cem-demo-element>
         <cem-demo-element legend="Input types and placeholder" type="cem-ml">

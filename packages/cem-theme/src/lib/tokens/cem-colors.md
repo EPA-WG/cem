@@ -649,6 +649,7 @@ a truthful `aria-expanded` source and activates the existing selection stripe wh
 ###### cem-input-indicator-colors
 | Token | value-type | default-formula | notes | tier |
 |---|---|---|---|---|
+| `--cem-input-background-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 4%, var(--cem-palette-comfort))` | Subtle filled text-input surface; outlined controls override locally to transparent | required |
 | `--cem-input-indicator-anchor-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-comfort-text) 62%, transparent)` | Resting boundary/anchor stripe | required |
 | `--cem-input-indicator-anchor-hover-color` | `<color>` | `var(--cem-palette-comfort-text)` | Enabled native-control hover | required |
 | `--cem-input-indicator-anchor-disabled-color` | `<color>` | `color-mix(in srgb, var(--cem-palette-conservative-text-x) 38%, transparent)` | Unavailable control; wins over pointer interaction | required |
@@ -658,6 +659,12 @@ a truthful `aria-expanded` source and activates the existing selection stripe wh
 | `--cem-input-indicator-anchor-invalid-hover-color` | `<color>` | `var(--cem-palette-danger-x)` | Invalid enabled control under native hover | required |
 | `--cem-input-indicator-selection-color` | `<color>` | `var(--cem-palette-creativity-x)` | Checked or selected stripe | required |
 | `--cem-input-indicator-indeterminate-color` | `<color>` | `var(--cem-palette-enthusiasm-x)` | Mixed-selection stripe | recommended |
+
+`--cem-input-background-color` is the theme-owned fill for text inputs. Default
+underline controls consume it; `indicator="outline"` sets a local transparent
+override at the native control so the surrounding surface remains visible. This
+variant override does not change ancestor or sibling palette tokens. Required
+markers, focus and validation indicators retain their independent channels.
 
 The anchor precedence is `disabled > invalid-hover > invalid > pending > readonly > hover > default`. Focus and
 selection do not participate in that precedence chain because they occupy independent stripes. If invalid and
@@ -1187,7 +1194,7 @@ from these tables using the same logic as `cem-colors.html`.
 | `cem-action-native-overrides` | Existing stripe tokens retain native system colors | no new tokens |
 | `cem-action-contrast-overrides` | Existing destructive stripe and slider marker endpoints | overrides only; no new tokens |
 | `cem-zebra-tokens`                                     | `--cem-zebra-*` (5 tokens)    | one token per row                   |
-| `cem-input-indicator-colors`                           | `--cem-input-indicator-*` (9 tokens) | one token per row             |
+| `cem-input-indicator-colors`                           | `--cem-input-background-color` + `--cem-input-indicator-*` (10 tokens) | one token per row             |
 | `cem-progress-indicator-colors`                        | `--cem-progress-*` (2 tokens) | one token per row                   |
 | `cem-slider-colors`                                    | `--cem-slider-*` (8 tokens) | one token per row                     |
 | `cem-select-state-colors`                              | `--cem-select-*` (12 tokens) | one token per row                    |

@@ -84,6 +84,7 @@
 <li data-gallery-attribute="form"><code>form</code></li>
 <li data-gallery-attribute="placeholder"><code>placeholder</code></li>
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
+<li data-gallery-attribute="required-marker"><code>required-marker</code></li>
 <li data-gallery-attribute="required"><code>required</code></li>
 <li data-gallery-attribute="readonly"><code>readonly</code></li>
 <li data-gallery-attribute="busy"><code>busy</code></li>
@@ -93,7 +94,27 @@
 <li data-gallery-attribute="indicator"><code>indicator</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>
 <li data-gallery-attribute="class"><code>class</code></li></ul>
-<p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>help</code> supplies supporting content.</p>
+<p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>required-marker</code> overrides the marker text/markup when required; <code>help</code> supplies supporting content.</p>
+<cem-demo-element legend="Custom required markers" description="Required-marker sets fallback text; the required-marker slot takes precedence and preserves markup. Without required, neither override displays. Native required semantics remain the same, and the decorative marker does not change the accessible name."><template slot="source">
+<cem-field label="Text override" required required-marker="(required)"></cem-field>
+<cem-field label="Slotted symbol" required>
+  <strong slot="required-marker">✦</strong>
+</cem-field>
+<cem-field label="Slot override" required required-marker="Fallback"><strong slot="required-marker">✦</strong></cem-field>
+<cem-field label="Optional field" required-marker="(required)"><strong slot="required-marker">✦</strong></cem-field>
+</template></cem-demo-element>
+<cem-demo-element legend="Required-field marker" description="Required fields show a star beside the label and participate in native validation. Required uses attribute presence, including required=false. The marker is independent of underline or outline. Remove required to clear both the star and the validation requirement."><template slot="source">
+<cem-field label="Optional field"></cem-field>
+<cem-field label="Required field" required indicator="underline"></cem-field>
+<cem-field label="Required account" required indicator="outline"><span slot="label">Account name</span></cem-field>
+<cem-field label="Required by presence" required="false"></cem-field>
+</template></cem-demo-element>
+<cem-demo-element legend="Indicator appearances" description="Indicator selects appearance: absent or underline uses a subtle filled background and bottom line; outline surrounds the control with a transparent background; unsupported values fall back to underline. Hover each enabled field and use Tab to compare focus. Required controls validation independently of indicator."><template slot="source">
+<cem-field label="Default underline" value="Default appearance"></cem-field>
+<cem-field label="Explicit underline" indicator="underline" value="Bottom boundary"></cem-field>
+<cem-field label="Outline" indicator="outline" value="Full boundary"></cem-field>
+<cem-field label="Unsupported appearance" indicator="unsupported" value="Falls back to underline"></cem-field>
+</template></cem-demo-element>
 <cem-demo-element legend="Label and help slots"><template slot="source">
 <cem-field name="account" value="Draft" describedby="slot-help"><span slot="label">Account name</span><span slot="help" id="slot-help">Use your public account name.</span></cem-field>
 </template></cem-demo-element>

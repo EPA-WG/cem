@@ -77,6 +77,7 @@
 <p><a href="./cem-text-field-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts">Automated stories</a></p><main><cem-element><template type="text/cem-ml">
 {slice @name=class | field-example}
 {slice @name=form | }
+{slice @name=requiredMarker | *}
 {slice @name=label | Account}
 {slice @name=name | account}
 {slice @name=value | initial}
@@ -95,6 +96,7 @@
 {cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
 {cem-field @label="form" @value="{$datadom.slices.form}" @slice=form @slice-event=input @slice-value="$target.value"}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{cem-field @label="required-marker" @value="{$datadom.slices.requiredMarker}" @slice=requiredMarker @slice-event=input @slice-value="$target.value"}
 {cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
 {cem-field @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
 {cem-field @label="type" @value="{$datadom.slices.type}" @slice=type @slice-event=input @slice-value="$target.value"}
@@ -137,7 +139,7 @@
 {cem-radio @name=field-indicator @value=outline | outline}
 }}
 }} {section @aria-label="Field preview" | {h2 | Preview} {form @id=field-form |
-{cem-text-field @id=field-preview @class="{$datadom.slices.class}" @form={if datadom.slices.form { datadom.slices.form } else { null }} @label="{$datadom.slices.label}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @type="{$datadom.slices.type}" @placeholder="{$datadom.slices.placeholder}" @describedby="{$datadom.slices.describedby}" @error="{$datadom.slices.error}" @indicator="{$datadom.slices.indicator}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @required={if datadom.slices.required == "absent" { null } else { datadom.slices.required }} @readonly={if datadom.slices.readonly == "absent" { null } else { datadom.slices.readonly }} @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} @invalid={if datadom.slices.invalid == "absent" { null } else { datadom.slices.invalid }} | {span @slot=help @id=field-help | Help text}}
+{cem-text-field @id=field-preview @required-marker="{$datadom.slices.requiredMarker}" @class="{$datadom.slices.class}" @form={if datadom.slices.form { datadom.slices.form } else { null }} @label="{$datadom.slices.label}" @name="{$datadom.slices.name}" @value="{$datadom.slices.value}" @type="{$datadom.slices.type}" @placeholder="{$datadom.slices.placeholder}" @describedby="{$datadom.slices.describedby}" @error="{$datadom.slices.error}" @indicator="{$datadom.slices.indicator}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @required={if datadom.slices.required == "absent" { null } else { datadom.slices.required }} @readonly={if datadom.slices.readonly == "absent" { null } else { datadom.slices.readonly }} @busy={if datadom.slices.busy == "absent" { null } else { datadom.slices.busy }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} @invalid={if datadom.slices.invalid == "absent" { null } else { datadom.slices.invalid }} | {span @slot=help @id=field-help | Help text}}
 {p @id=field-error | Error description}
 {cem-action @type=reset | Reset}
 }

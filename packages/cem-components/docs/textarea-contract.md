@@ -41,7 +41,8 @@ populated values; `indicator="outline"` uses a resting outline. Hover, focus,
 readonly, invalid, busy, and disabled styles follow the canonical text field.
 Forced colors replace decorative shadows with system-color outlines. Native
 textarea resizing remains available. Stable parts: `root`, `label`, `control`,
-and `help`.
+`help`, and `required-marker`. Required presence also shows an accessible-name-neutral
+star beside the fallback or projected label, independently of indicator geometry.
 
 - [Property playground](../playgrounds/cem-textarea.html)
 - [Full examples and variation matrix](../playgrounds/cem-textarea-gallery.html)
@@ -51,3 +52,8 @@ Load `components/cem-textarea` through the module URL loader, appending
 `#cem-textarea` to the resolved URL and declaring `capability="form-control"`.
 The release bundle also exposes `components.xhtml#cem-textarea`. The legacy
 primitive registry no longer registers this tag.
+
+Required marker text defaults to `*`. Override it with `required-marker` or provide
+markup in `slot="required-marker"`; the slot takes precedence. Visibility still
+follows `required` attribute presence. These decorative overrides preserve the
+accessible label and native required validation.

@@ -8,6 +8,44 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Filled and outlined input backgrounds
+
+- [x] Verify Material's filled/outlined background distinction; add a theme-owned filled input background token and attribute-dependent transparent override for all three canonical input controls.
+- [x] Fixture: cover empty/populated default/fallback/outline backgrounds, state changes and live restoration in all five themes; add clear standalone marker slot examples to each gallery and verify builds/tests.
+
+Validation: all 24 colocated Chromium tests passed across five themes. Theme
+and component builds, token manifest and style-contract checks passed. Source
+and generated galleries passed background and standalone marker slot checks.
+
+## Customize required markers
+
+- [x] Add required-marker attribute/slot overrides to all three input controls, retaining required presence and slot-over-attribute precedence.
+- [x] Fixture: verify live/default/empty attribute values, slot markup precedence and hidden optional markers; update galleries, playgrounds and public API docs and run browser/build checks.
+
+Validation: all 24 colocated Chromium tests passed. Component build and
+style/declarative/state-matrix gates passed. Source and generated galleries and
+property playgrounds passed marker override and visibility checks.
+
+## Required markers for input controls
+
+- [x] Add the declarative required star to cem-field, cem-text-field and cem-textarea labels, with inherited label color and native required accessibility semantics.
+- [x] Fixture: cover presence values, optional controls, projected labels, validation, disabled/readonly/busy states and independence from indicator appearance in all five themes; add gallery use cases and verify the build.
+
+Validation: all 21 colocated Chromium tests passed. Component build,
+declarative/state-matrix gates and style contract passed; all three source and
+generated gallery marker samples were checked in Chromium.
+
+## Indicator appearance examples
+
+- [x] Add focused underline/outline/default/fallback examples to cem-field, cem-text-field and cem-textarea galleries using the implemented API.
+- [x] Fixture: verify live indicator geometry, retained control/value and unchanged layout across all five themes; build and check source/generated gallery samples.
+- [x] Review local theme documentation for the separate required marker and record an implementation proposal.
+
+Validation: 18 colocated Chromium tests passed; component build and
+declarative/state-matrix gates passed. All three source and generated gallery
+indicator samples render with the expected boundary geometry. Required-marker
+proposal recorded in the field controls contract; marker behavior is deferred.
+
 ## Resting indicators for text inputs
 
 - [x] Validate the Material filled-field resting underline and apply the existing theme boundary/anchor tokens to cem-field, cem-text-field and cem-textarea.

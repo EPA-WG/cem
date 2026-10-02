@@ -68,3 +68,51 @@ forced-color fallback; public theme tokens supply its values.
 Use [the field playground](../playgrounds/cem-field.html) or
 [the text-field playground](../playgrounds/cem-text-field.html) to exercise
 attributes and native reset.
+
+## Indicator examples and required markers
+
+The field, text-field and textarea galleries each include an **Indicator
+appearances** demo: default underline, explicit underline, outline and an
+unsupported value falling back to underline. `indicator` controls boundary
+geometry and fill, independently of the required-field star. Default underline
+uses the theme-owned `--cem-input-background-color`; outline overrides that
+variable to `transparent` at the native control. Changing back restores the
+inherited theme fill. Both appearances preserve
+native values and control dimensions when changed.
+
+The local [theme color specification](../../cem-theme/src/lib/tokens/cem-colors.md#73-attribute-channels)
+lists the required star under the marker/text channel. Its
+[input stripe contract](../../cem-theme/src/lib/tokens/cem-colors.md#77-input-indicator-stripe-colors)
+explicitly keeps requiredness separate from indicator stripes. These controls
+project `required` to native validation and render a star beside the label.
+
+A declarative `*` appears beside the fallback or projected label in all three
+controls when `required` is present, including `required="false"`. Removing the
+attribute removes the marker and validation requirement. The marker exposes
+`part="required-marker"`, inherits label color, and is hidden from assistive
+technology; native required semantics convey the requirement while preserving
+the accessible label. Disabled, readonly and busy controls retain the marker.
+The **Required-field marker** gallery demo shows optional and required controls,
+both indicator appearances, projected labels and presence semantics.
+
+Customize its text with `required-marker="(required)"`; absent attributes use `*`,
+and an explicitly empty attribute leaves the marker text empty. Projected
+`slot="required-marker"` content takes precedence over the attribute and preserves
+markup. Both overrides appear only when `required` is present. All marker content
+remains decorative and hidden from assistive technology.
+
+```html
+<cem-field label="Email" required required-marker="(required)"></cem-field>
+<cem-text-field label="Account" required required-marker="Fallback">
+  <strong slot="required-marker">✦</strong>
+</cem-text-field>
+<cem-textarea label="Notes" required required-marker="✦"></cem-textarea>
+```
+
+The **Custom required markers** gallery demos show attribute text, slotted markup,
+slot precedence, and optional controls whose supplied marker remains hidden.
+The property playgrounds expose `required-marker` alongside `required`.
+
+The marker does not add an indicator stripe or change `indicator`. No new theme
+token is needed for inherited text; any separate marker color would need an
+explicit theme-owned contract first.

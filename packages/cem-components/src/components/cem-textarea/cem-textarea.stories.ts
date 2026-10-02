@@ -137,8 +137,9 @@ export const ThemeStates = meta.story({
         const input = (host.querySelector('textarea') as HTMLTextAreaElement);
         for (const theme of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
             section.className = theme;
-            for (const indicator of ['underline', 'outline', 'unsupported']) {
-                host.setAttribute('indicator', indicator);
+            for (const indicator of [null, 'underline', 'outline', 'unsupported']) {
+                if (indicator === null) host.removeAttribute('indicator');
+                else host.setAttribute('indicator', indicator);
                 for (const value of ['', 'Filled value']) {
                     host.setAttribute('value', value);
                     await whenCemRendered(host);
@@ -146,11 +147,30 @@ export const ThemeStates = meta.story({
                     expect(input.matches(':focus')).toBe(false);
                     expect(getComputedStyle(input).borderWidth).toBe('0px');
                     expect(getComputedStyle(input).boxShadow).not.toBe('none');
+                    const style = getComputedStyle(input);
+                    expect(style.getPropertyValue('--cem-input-background-color').trim() === 'transparent').toBe(indicator === 'outline');
+                    expect(style.backgroundColor === 'rgba(0, 0, 0, 0)').toBe(indicator === 'outline');
+                    const width = parseFloat(style.getPropertyValue('--_cem-input-indicator-anchor-width'));
+                    const offsets = style.boxShadow.match(/-?\d+(?:\.\d+)?px/g)?.slice(0, 4).map(parseFloat);
+                    expect(offsets).toEqual(indicator === 'outline' ? [0, 0, 0, width] : [0, width, 0, 0]);
                     expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(
                         getComputedStyle(input).getPropertyValue('--cem-stroke-boundary').trim());
                     expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-focus-width').trim()).toBe(
                         getComputedStyle(input).getPropertyValue('--cem-stroke-none').trim());
                 }
+                const before = input.getBoundingClientRect();
+                const retainedValue = input.value;
+                host.setAttribute('indicator', indicator === 'outline' ? 'underline' : 'outline');
+                await whenCemRendered(host);
+                expect(host.querySelector('[part="control"]')).toBe(input);
+                expect(input.value).toBe(retainedValue);
+                expect(getComputedStyle(input).backgroundColor === 'rgba(0, 0, 0, 0)').toBe(indicator !== 'outline');
+                const after = input.getBoundingClientRect();
+                expect(after.width).toBe(before.width);
+                expect(after.height).toBe(before.height);
+                if (indicator === null) host.removeAttribute('indicator');
+                else host.setAttribute('indicator', indicator);
+                await whenCemRendered(host);
                 host.setAttribute('busy', '');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).boxShadow).not.toBe('none');
@@ -181,6 +201,7 @@ export const InteractionPaint = meta.story({
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
         const anchor = () => getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-color').trim();
+        const checkBackground = (indicator: string) => expect(getComputedStyle(input).backgroundColor === 'rgba(0, 0, 0, 0)').toBe(indicator === 'outline');
         const token = (name: string) => getComputedStyle(input).getPropertyValue(name).trim();
         for (const theme of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
             host.className = theme;
@@ -193,27 +214,33 @@ export const InteractionPaint = meta.story({
                 expect(input.matches(':hover')).toBe(false);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
                 expect(getComputedStyle(input).boxShadow).not.toBe('none');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-color'));
                 expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(token('--cem-stroke-boundary'));
                 await userEvent.hover(input);
                 expect(getComputedStyle(input).boxShadow).not.toBe('none');
                 expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(token('--cem-stroke-boundary'));
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-hover-color'));
                 host.setAttribute('readonly', '');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-readonly-color'));
                 host.setAttribute('busy', '');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-pending-color'));
                 host.setAttribute('invalid', 'true');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-invalid-hover-color'));
                 await userEvent.hover((canvasElement.querySelector('button') as HTMLButtonElement));
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-invalid-color'));
                 (canvasElement.querySelector('button') as HTMLButtonElement).focus();
                 await userEvent.tab();
@@ -225,6 +252,7 @@ export const InteractionPaint = meta.story({
                 host.setAttribute('disabled', '');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                checkBackground(indicator);
                 expect(anchor()).toBe(token('--cem-input-indicator-anchor-disabled-color'));
             }
         }
@@ -328,5 +356,106 @@ export const WhitespaceAndValueUpdates = meta.story({
         await whenCemRendered(host);
         expect(control.value).toBe('');
         expect(host.querySelector('textarea')).toBe(control);
+    },
+});
+
+export const RequiredMarker = meta.story({
+    render: () => '<cem-textarea label="Email"></cem-textarea><cem-textarea required label="Fallback"><span slot="label">Account name</span></cem-textarea>',
+    play: async ({ canvasElement }) => {
+        const hosts = canvasElement.querySelectorAll('cem-textarea');
+        const host = hosts[0] as HTMLElement;
+        const projected = hosts[1] as HTMLElement;
+        await whenCemRendered(host);
+        await whenCemRendered(projected);
+        const input = within(host).getByRole('textbox', { name: 'Email' }) as HTMLTextAreaElement;
+        expect(host.querySelector('[part="required-marker"]')).toBeNull();
+        expect(input.required).toBe(false);
+        const labeledInput = within(projected).getByRole('textbox', { name: 'Account name' }) as HTMLTextAreaElement;
+        expect(labeledInput.required).toBe(true);
+        expect(projected.querySelector('[part="required-marker"]')?.textContent).toBe('*');
+        for (const theme of ['cem-theme-light', 'cem-theme-dark', 'cem-theme-contrast-light', 'cem-theme-contrast-dark', 'cem-theme-native']) {
+            host.className = theme;
+            for (const indicator of ['underline', 'outline']) {
+                host.setAttribute('indicator', indicator);
+                for (const value of ['', 'false', 'true']) {
+                    host.setAttribute('required', value);
+                    await whenCemRendered(host);
+                    const marker = host.querySelector('[part="required-marker"]') as HTMLElement;
+                    expect(marker).not.toBeNull();
+                    expect(marker.textContent).toBe('*');
+                    expect(marker.getAttribute('aria-hidden')).toBe('true');
+                    expect(getComputedStyle(marker).color).toBe(getComputedStyle(marker.parentElement!).color);
+                    expect(input).toHaveAccessibleName('Email');
+                    expect(input.required).toBe(true);
+                    expect(input.validity.valueMissing).toBe(true);
+                    host.setAttribute('value', 'Filled value');
+                    await whenCemRendered(host);
+                    expect(input.validity.valueMissing).toBe(false);
+                    for (const state of ['disabled', 'readonly', 'busy']) {
+                        host.setAttribute(state, '');
+                        await whenCemRendered(host);
+                        expect(host.querySelectorAll('[part="required-marker"]').length).toBe(1);
+                        expect(input.required).toBe(true);
+                        host.removeAttribute(state);
+                    }
+                    host.removeAttribute('required');
+                    host.removeAttribute('value');
+                    await whenCemRendered(host);
+                    expect(host.querySelector('[part="required-marker"]')).toBeNull();
+                    expect(input.required).toBe(false);
+                    expect(input).toHaveAccessibleName('Email');
+                    expect(host.querySelector('[part="control"]')).toBe(input);
+                }
+            }
+        }
+        expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+    },
+});
+
+export const RequiredMarkerOverrides = meta.story({
+    render: () => '<cem-textarea required label="Email"></cem-textarea><cem-textarea label="Account" required-marker="Attribute"><strong slot="required-marker">Custom</strong></cem-textarea>',
+    play: async ({ canvasElement }) => {
+        const hosts = canvasElement.querySelectorAll('cem-textarea');
+        const host = hosts[0] as HTMLElement;
+        const projected = hosts[1] as HTMLElement;
+        await whenCemRendered(host);
+        await whenCemRendered(projected);
+        const input = within(host).getByRole('textbox', { name: 'Email' }) as HTMLTextAreaElement;
+        expect(host.querySelector('[part="required-marker"]')?.textContent).toBe('*');
+        for (const value of ['(required)', '✦', '']) {
+            host.setAttribute('required-marker', value);
+            await whenCemRendered(host);
+            expect(host.querySelector('[part="required-marker"]')?.textContent).toBe(value);
+            expect(input.required).toBe(true);
+            expect(input).toHaveAccessibleName('Email');
+        }
+        host.removeAttribute('required-marker');
+        await whenCemRendered(host);
+        expect(host.querySelector('[part="required-marker"]')?.textContent).toBe('*');
+        host.removeAttribute('required');
+        host.setAttribute('required-marker', 'Hidden');
+        await whenCemRendered(host);
+        expect(host.querySelector('[part="required-marker"]')).toBeNull();
+        expect(input.required).toBe(false);
+        expect(projected.querySelector('[part="required-marker"]')).toBeNull();
+        expect(projected.querySelector('[slot="required-marker"]')).toBeNull();
+        for (const required of ['', 'false', 'true']) {
+            projected.setAttribute('required', required);
+            await whenCemRendered(projected);
+            const marker = projected.querySelector('[part="required-marker"]') as HTMLElement;
+            expect(marker.textContent).toBe('Custom');
+            expect(marker.querySelector('strong[slot="required-marker"]')).not.toBeNull();
+            expect(marker.getAttribute('aria-hidden')).toBe('true');
+            expect(within(projected).getByRole('textbox')).toHaveAccessibleName('Account');
+            projected.setAttribute('required-marker', 'Changed attribute');
+            await whenCemRendered(projected);
+            expect(marker.textContent).toBe('Custom');
+            projected.removeAttribute('required');
+            await whenCemRendered(projected);
+            expect(projected.querySelector('[part="required-marker"]')).toBeNull();
+            expect(projected.querySelector('[slot="required-marker"]')).toBeNull();
+        }
+        expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        expect(storybookCemRuntime().diagnosticsFor(projected)).toEqual([]);
     },
 });
