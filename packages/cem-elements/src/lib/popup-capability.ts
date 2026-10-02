@@ -15,6 +15,8 @@ function setAttribute(node: Element, name: string, value: string | null): void {
 }
 function synchronize(host: HTMLElement): void {
     const state = stateFor(host);
+    const previousPanel = state.panel;
+    const wasOpen = state.open;
     state.trigger = host.querySelector<HTMLElement>(':scope > [part~="base"] > :is(button,a,[tabindex])') ?? undefined;
     state.panel = host.querySelector<HTMLElement>(':scope > [part~="popup"]') ?? undefined;
     const { trigger, panel } = state;
@@ -29,14 +31,19 @@ function synchronize(host: HTMLElement): void {
     setAttribute(panel, 'aria-labelledby', trigger.id);
     state.open = host.getAttribute('open') !== 'false' && !host.hasAttribute('disabled') && !host.hidden;
     setAttribute(trigger, 'aria-expanded', String(state.open));
-    if (state.open) showPopup(trigger, panel); else hidePopup(panel);
+    if (state.open) {
+        if (!wasOpen || previousPanel !== panel || panel.hidden) showPopup(trigger, panel);
+    } else hidePopup(panel);
 }
 function setOpen(host: HTMLElement, open: boolean, restore = false): void {
     const state = stateFor(host);
     if (host.hasAttribute('disabled') && open) return;
     host.setAttribute('open', String(open));
     synchronize(host);
-    if (open && state.panel) firstPopupControl(state.panel)?.focus();
+    if (open && state.panel && state.trigger) {
+        positionPopup(state.trigger, state.panel);
+        firstPopupControl(state.panel)?.focus();
+    }
     else if (restore) state.trigger?.focus();
 }
 export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
@@ -75,8 +82,15 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
         const view = host.ownerDocument.defaultView;
         const position = () => { if (state.trigger && state.panel && state.open) positionPopup(state.trigger, state.panel); };
         view.addEventListener('resize', position, options);
-        view.addEventListener('scroll', position, { ...options, capture: true });
-        state.observer = new MutationObserver(() => synchronize(host));
+        // Absolute panels follow their containing block during scrolling. Re-clamping
+        // their coordinates on every scroll would pin them to the viewport edge.
+        view.addEventListener('scroll', () => {
+            if (state.panel && getComputedStyle(state.panel).position !== 'absolute') position();
+        }, { ...options, capture: true });
+        state.observer = new MutationObserver(records => {
+            synchronize(host);
+            if (records.some(record => record.attributeName === 'dir')) position();
+        });
         state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'disabled', 'hidden', 'dir'] });
     },
     rendered(host) { synchronize(host); },

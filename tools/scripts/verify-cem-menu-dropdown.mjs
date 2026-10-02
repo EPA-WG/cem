@@ -55,6 +55,7 @@ try {
             }
             await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).click();
             await page.waitForFunction(() => [...document.querySelectorAll('cem-demo-element')].every(demo => demo.getAttribute('data-state') === 'ready') && document.querySelectorAll('cem-demo-element').length > 0);
+            await page.waitForFunction(() => [...document.querySelectorAll('cem-menu-item')].every(item => item.querySelector(':scope > [part~="control"]')) && [...document.querySelectorAll('cem-menu')].every(menu => menu.querySelector(':scope > [part~="composite"]')) && [...document.querySelectorAll('cem-dropdown')].every(dropdown => dropdown.querySelector(':scope > [part~="popup"]')));
             assert.equal(await page.locator('[data-gallery-theme]').count(), 5);
             for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
                 const sample = page.locator(`[data-gallery-theme="${mode}"] > ${tag}`).first();
@@ -72,7 +73,8 @@ try {
                 assert.equal(colors[0], colors[1], `${tag}/${mode}: background`);
                 assert.equal(colors[2], colors[3], `${tag}/${mode}: text`);
                 await control.focus(); await page.keyboard.press('ArrowDown');
-                assert.equal(await control.getAttribute('aria-expanded'), 'true');
+                await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
+                assert.equal(await control.getAttribute('aria-expanded'), 'true', `${base}${tag}/${mode}: opening completes`);
                 const panel = page.locator('#' + await control.getAttribute('aria-controls'));
                 const bounds = await panel.evaluate(node => { const box = node.getBoundingClientRect(); return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }; });
                 assert(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bounds.width + 1 && bounds.bottom <= bounds.height + 1, `${tag}/${mode}: popup stays in viewport`);
@@ -82,6 +84,44 @@ try {
                         return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
                     });
                     assert(bounds.left >= region.left - 1 && bounds.top >= region.top - 1 && bounds.right <= region.right + 1 && bounds.bottom <= region.bottom + 1, `${tag}/${mode}: popup stays inside reserved demo space`);
+                }
+                if (tag === 'cem-dropdown') {
+                    const scroll = await control.evaluate(async node => {
+                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                        const panel = document.getElementById(node.getAttribute('aria-controls'));
+                        const spacer = document.createElement('div');
+                        spacer.style.height = `${innerHeight}px`;
+                        document.body.append(spacer);
+                        const before = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, scroll: window.scrollY };
+                        window.scrollBy(0, node.getBoundingClientRect().bottom + 100);
+                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                        const after = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top };
+                        window.scrollTo(0, before.scroll);
+                        spacer.remove();
+                        return { before, after, position: getComputedStyle(panel).position };
+                    });
+                    assert.equal(scroll.position, 'absolute');
+                    assert(scroll.after.trigger < 0, 'scroll fixture moves the trigger above the viewport');
+                    assert(Math.abs((scroll.after.panel - scroll.before.panel) - (scroll.after.trigger - scroll.before.trigger)) < 1, 'dropdown follows its trigger past the viewport edge: ' + JSON.stringify(scroll));
+                    const nestedScroll = await control.evaluate(async node => {
+                        const panel = document.getElementById(node.getAttribute('aria-controls'));
+                        const region = node.closest('cem-demo-element').querySelector(':scope > [slot="demo"]');
+                        const authoredStyle = region.getAttribute('style');
+                        const host = node.closest('cem-dropdown');
+                        const hostStyle = host.getAttribute('style');
+                        region.style.height = '100px'; region.style.minHeight = '0'; region.style.padding = '0'; region.style.overflow = 'auto';
+                        host.style.marginBlock = '200px'; host.style.flexShrink = '0';
+                        const before = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top };
+                        region.scrollTop = 40;
+                        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                        const after = { trigger: node.getBoundingClientRect().top, panel: panel.getBoundingClientRect().top, scroll: region.scrollTop };
+                        region.scrollTop = 0;
+                        if (hostStyle === null) host.removeAttribute('style'); else host.setAttribute('style', hostStyle);
+                        if (authoredStyle === null) region.removeAttribute('style'); else region.setAttribute('style', authoredStyle);
+                        return { before, after };
+                    });
+                    assert(nestedScroll.after.scroll > 0, 'nested scroll fixture scrolls');
+                    assert(Math.abs((nestedScroll.after.panel - nestedScroll.before.panel) - (nestedScroll.after.trigger - nestedScroll.before.trigger)) < 1, 'dropdown follows its trigger inside a scrolling container');
                 }
                 if (tag === 'cem-menu') assert.equal(await control.evaluate(node => getComputedStyle(node, '::after').content), '"▴"');
                 await page.keyboard.press('Escape');

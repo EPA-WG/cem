@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compositeIndex, popupPosition } from './composite-navigation.js';
+import { compositeIndex, popupPosition, popupLocalPosition } from './composite-navigation.js';
 
 describe('composite navigation contract', () => {
     it('wraps, handles missing active items and empty collections', () => {
@@ -9,6 +9,9 @@ describe('composite navigation contract', () => {
         expect(compositeIndex(0, -1, 'last')).toBe(-1);
         expect(compositeIndex(3, 1, 'first')).toBe(0);
         expect(compositeIndex(3, 1, 'last')).toBe(2);
+    });
+    it('converts viewport coordinates to a scrolled, bordered containing block', () => {
+        expect(popupLocalPosition({ left: 150, top: 240 }, { left: 100, top: 180 }, 20, 30, 2, 3)).toEqual({ left: 68, top: 87 });
     });
     it('flips row and column popups and clamps oversized panels', () => {
         const anchor = { left: 180, right: 200, top: 170, bottom: 190 };

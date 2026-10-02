@@ -8,6 +8,11 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Dropdown scroll anchoring
+
+- [x] Restore legacy relative-container/absolute-panel CSS anchoring for dropdowns while retaining generic collision handling when opened or resized.
+- [x] Fixture: verify popup coordinate conversion and open panels scrolling with their triggers beyond the viewport edge in source/generated/installed galleries and nested scrolling containers. `cem-elements:test:unit` passes 588 tests; runtime lint and `verify-menu-dropdown` pass, including five themes, narrow layouts and forced colors.
+
 ## Dropdown demo overlay clearance
 
 - [x] Reserve theme-sized visual space around dropdown gallery examples and the property preview so overlays do not cover source viewers, descriptions or adjacent demos; keep room for nested and RTL panels.

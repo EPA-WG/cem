@@ -16,3 +16,8 @@ export function popupPosition(anchor: { left: number; right: number; top: number
     top = Math.max(4, Math.min(top, viewportHeight - height - 4));
     return { left, top };
 }
+
+/** Convert viewport popup coordinates into an absolute containing block. */
+export function popupLocalPosition(point: { left: number; top: number }, origin: { left: number; top: number }, scrollLeft: number, scrollTop: number, clientLeft: number, clientTop: number): { left: number; top: number } {
+    return { left: point.left - origin.left + scrollLeft - clientLeft, top: point.top - origin.top + scrollTop - clientTop };
+}
