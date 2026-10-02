@@ -26,7 +26,8 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
     <script type="module">
@@ -48,11 +49,15 @@
         .examples > article { min-inline-size: 0; }
         cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
         @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+        cem-icon-button{ margin: .5rem;}
     </style>
 </head>
 <body>
 <cem-element hidden>
 <template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
 {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
@@ -68,91 +73,334 @@
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><header><h1>cem-icon-button: Full examples and variation matrix</h1>
-<p class="component-description">Use <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> for a passive icon. An icon button or link supporting image URLs, Material Icons, Font Awesome, and visible content. Use href for navigation; <a href="./cem-action-gallery.html"><code>cem-action</code></a> supplies form submission and reset, while <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> supplies menu commands.</p>
+<div id="playground-theme" class="cem-theme-light">
+<cem-gallery-nav heading="cem-icon-button: Full examples and variation matrix"></cem-gallery-nav>
+<header>
+<p class="component-description"><code>cem-icon-button</code> embeds <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> inside a native button or link and applies CEM action-theme states, including selected, pending, disabled and keyboard focus. Use href for navigation; <a href="./cem-action-gallery.html"><code>cem-action</code></a> shares the variant, state, bend and native form APIs, while <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> supplies menu commands.</p>
 <p><a href="./cem-icon-button.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts">Automated stories</a></p></header><main>
+
+<aside aria-label="Embedded icon and shared attributes">
+<h2>Embedded cem-icon and shared attributes</h2>
+<p><code>cem-icon-button</code> embeds <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> inside a native button or link and loads it automatically. It relays <code>image</code>, <code>size</code>, <code>direction</code>, <code>label</code>, <code>aria-label</code>, <code>class</code>, <code>hidden</code>, and default-slot content. Unicode, emoji, image URLs and font glyphs use the same rendering as <code>cem-icon</code>.</p>
+<p><strong>Attribute note:</strong> <code>label</code> supplies visible fallback text; projected content replaces it. For an icon-only control, use <code>aria-label</code> without <code>label</code>. <code>aria-label</code> names both the control and embedded glyph and takes precedence over the control’s <code>label</code> name.</p>
+<p><code>image</code> selects the glyph. An explicitly empty source hides the glyph. Without a source, buttons show circle and links show no glyph. <code>size="small|medium|large|x-large|xx-large"</code> sets action control height and is forwarded unchanged to the icon. Small and large select their icon sizes; other values use the default icon size. Normal or absent size inherits control height. The inherited <code>--cem-icon-size</code>, <code>--cem-icon-size-small</code>, and <code>--cem-icon-size-large</code> tokens control glyph size. Row and column layouts work in both modes.</p>
+<p><code>href</code>, <code>disabled</code>, <code>selected</code>, <code>selectable</code>, <code>pending</code>, <code>variant</code>, and activation remain owned by <code>cem-icon-button</code>. Present <code>href</code> selects a link; absent <code>href</code> selects a button.</p>
+<h2>Action theme support</h2>
+<p>Controls use the same action state model and theme tokens as <a href="./cem-action-gallery.html"><code>cem-action</code></a>: default, hover, active press, disabled, pending, selected and keyboard focus. Variant selects primary (default), explicit, contextual, alternate or destructive action colors in both modes. These states respond to all five CEM theme modes and inherited action-token overrides.</p>
+<p><code>selected</code> keeps the theme’s selection stripe visible, including while disabled or pending. <code>selectable</code> exposes an unselected button choice. The containing application controls selection. <code>pending="true"</code> shows busy feedback and takes precedence over hover, press and disabled paint; <code>disabled</code> still prevents activation. Keyboard focus has an independent stripe. Contrast themes use action contours, reduced motion freezes pending animation, and forced colors use system-color indicators.</p>
+</aside>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Disabled and hidden use presence. Expanded reports disclosure state; the containing menu or disclosure owns navigation and open content. Clicks record activation without toggling selection.</p><p>Use href for navigation, icon for an image URL, Font Awesome classes or a Material icon name, and direction for row or column layout. Kind accepts normal, primary, secondary, alert and blend; these share primary link colors as in the legacy implementation. Font icons require their provider stylesheet. Button mode uses contextual colors.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<p>Disabled, selected, selectable and hidden use presence. Pending uses true or false. The containing application owns selection; clicks record activation without changing selected.</p><p>Use href for navigation, image for a Unicode glyph, emoji, image URL, Font Awesome classes or Material icon name, and direction for row or column layout. Variant selects the same action intent in both modes. Font icons require their provider stylesheet.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
 <li data-gallery-attribute="disabled"><code>disabled</code></li>
-<li data-gallery-attribute="expanded"><code>expanded</code></li>
+<li data-gallery-attribute="selected"><code>selected</code></li>
+<li data-gallery-attribute="selectable"><code>selectable</code></li>
+<li data-gallery-attribute="pending"><code>pending</code></li>
 <li data-gallery-attribute="hidden"><code>hidden</code></li>
 <li data-gallery-attribute="class"><code>class</code></li>
-<li data-gallery-attribute="name"><code>name</code></li>
 <li data-gallery-attribute="href"><code>href</code></li>
-<li data-gallery-attribute="icon"><code>icon</code></li>
-<li data-gallery-attribute="kind"><code>kind</code></li>
+<li data-gallery-attribute="image"><code>image</code></li>
+<li data-gallery-attribute="size"><code>size</code></li>
+<li data-gallery-attribute="aria-label"><code>aria-label</code></li>
 <li data-gallery-attribute="direction"><code>direction</code></li>
+<li data-gallery-attribute="name"><code>name</code></li>
+<li data-gallery-attribute="value"><code>value</code></li>
+<li data-gallery-attribute="form"><code>form</code></li>
+<li data-gallery-attribute="formaction"><code>formaction</code></li>
+<li data-gallery-attribute="formmethod"><code>formmethod</code></li>
+<li data-gallery-attribute="formenctype"><code>formenctype</code></li>
+<li data-gallery-attribute="formtarget"><code>formtarget</code></li>
+<li data-gallery-attribute="formnovalidate"><code>formnovalidate</code></li>
+<li data-gallery-attribute="type"><code>type</code></li>
 <li data-gallery-attribute="variant"><code>variant</code></li></ul>
-<p><strong>Slots:</strong> The default slot adds content after the decorative icon. It names links when label is absent; provide label for icon-only links and buttons.</p>
-<cem-demo-element legend="Legacy icon links" data-covers="href icon kind direction"><template slot="source">
-<cem-icon-button id="legacy-link-material" href="#legacy-link-target" icon="recycling">Recycle</cem-icon-button>
-<cem-icon-button id="legacy-link-font" href="#legacy-link-target" icon="fas fa-cloud-upload-alt" kind="primary">Upload</cem-icon-button>
-<cem-icon-button id="legacy-link-image" href="#legacy-link-target" icon="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" direction="column">Image link</cem-icon-button>
-<cem-icon-button id="legacy-link-disabled" href="#legacy-link-target" icon="shopping_cart" disabled="false">Disabled link</cem-icon-button>
-<cem-icon-button href="#legacy-link-target" icon="">Text-only link</cem-icon-button>
-<cem-icon-button href="#legacy-link-target" icon="shopping_cart" label="Open cart"></cem-icon-button>
-<div id="legacy-link-target">Link destination</div>
+<p><strong>Slots:</strong> The default slot is passed into cem-icon, replacing its visible label fallback. It names links when label and aria-label are absent; use aria-label for icon-only controls.</p>
+<cem-demo-element type="cem-ml" legend="Control and icon sizes" description="Size sets the same minimum control height as cem-action and is forwarded unchanged to cem-icon. Small and large also select the matching icon size; medium, x-large and xx-large use the default icon size. Normal and absent size inherit control height and use the default icon size. Content and the minimum hit area can make controls taller." data-covers="size"><template slot="source">
+{div
+{div @data-cem-size=large |
+    {cem-icon-button @image="★" @label="Inherited"}
+    {cem-icon-button @image="★" @label="small" @size=small}
+    {cem-icon-button @image="★" @label="medium" @size=medium}
+    {cem-icon-button @image="★" @label="normal" @size=normal}
+    {cem-icon-button @image="★" @label="large" @size=large}
+    {cem-icon-button @image="★" @label="x-large" @size=x-large}
+    {cem-icon-button @image="★" @label="xx-large" @size=xx-large}
+}
+{div @data-cem-size=large |
+    {cem-icon-button @image="★" @label="Inherited" @href="#icon-link-target"}
+    {cem-icon-button @image="★" @label="small" @href="#icon-link-target" @size=small}
+    {cem-icon-button @image="★" @label="medium" @href="#icon-link-target" @size=medium}
+    {cem-icon-button @image="★" @label="normal" @href="#icon-link-target" @size=normal}
+    {cem-icon-button @image="★" @label="large" @href="#icon-link-target" @size=large}
+    {cem-icon-button @image="★" @label="x-large" @href="#icon-link-target" @size=x-large}
+    {cem-icon-button @image="★" @label="xx-large" @href="#icon-link-target" @size=xx-large}
+}}
 </template></cem-demo-element>
-<cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class name variant"><template slot="source">
-<cem-icon-button id="command-default"></cem-icon-button>
-<cem-icon-button id="command-configured" label="Configured command" class="consumer-command" expanded="false" name="settings" variant="quiet"></cem-icon-button>
-<cem-icon-button id="command-disabled" label="Disabled by presence" disabled="false"></cem-icon-button>
-<cem-icon-button id="command-expanded" label="Expanded command" expanded="true"></cem-icon-button>
-<cem-icon-button id="command-hidden" label="Hidden by presence" hidden="false"></cem-icon-button>
-<cem-icon-button id="command-content" label="Projected command"><span>Projected content</span></cem-icon-button>
+<cem-demo-element type="cem-ml" legend="Embedded icon attributes" description="Both command and link modes relay the cem-icon source, size, layout, visible label and accessible name. Projected content replaces the label fallback." data-covers="image size direction label aria-label"><template slot="source">
+{div
+    {cem-icon-button @image="★" @label=Favorite @size=small}
+    {cem-icon-button @direction=column @image="😀" @label=Reaction
+        @size=normal}
+    {cem-icon-button @aria-label=Favorite @image=favorite @size=large}
+    {cem-icon-button @direction=column @href="#icon-link-target"
+        @image="★" @label=Fallback @size=large |
+        {strong | Projected favorite}
+    }
+    {cem-icon-button @image="" @label="Text without glyph"}
+}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Icon links" data-covers="href image variant direction"><template slot="source">
+{cem-icon-button @href="#icon-link-target" @image=recycling | Recycle}
+{cem-icon-button @href="#icon-link-target" @image="fas fa-cloud-upload-alt" | Upload}
+{cem-icon-button @direction=column @href="#icon-link-target"
+    @image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" | Image link}
+{cem-icon-button @disabled=false @href="#icon-link-target" @image=shopping_cart | Disabled link}
+{cem-icon-button @href="#icon-link-target" @image="" | Text-only link}
+{cem-icon-button @href="#icon-link-target" @image=shopping_cart @label="Open cart"}
+{div @id=icon-link-target | Link destination}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Command buttons" description="Without href, the control is a native button. Type defaults to button, which does not submit a surrounding form. The default glyph is circle and the default accessible name is Icon action; supply aria-label for a named icon-only command."><template slot="source">
+{cem-icon-button}
+{form |
+    {cem-icon-button @aria-label="Open settings" @image=settings}
+}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Command activation" description="Click the enabled command, or focus it and press Space or Enter. Each activation emits a click and records the component’s pressed event slice without changing the container-owned selected state. The containing example displays the last click."><template slot="source">
+{cem-element |
+    {template @type=text/cem-ml | ```
+{slice @name=activation | None}
+{cem-icon-button @image=check @label="Run command" @slice=activation @slice-event=click @slice-value="$event.type"}
+{p @role=status | Last activation: {$datadom.slices.activation}}
+```
+}   }
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Navigation links" description="Present href selects a native link. Click or Enter follows its URL. Fragments target this page, relative URLs use the document base, absolute URLs navigate to another site, and an empty href navigates to the current document. Text supplies the accessible name when label and aria-label are absent." data-covers="href"><template slot="source">
+{cem-icon-button @href="#icon-link-target" @image=arrow_downward | Jump to destination}
+{cem-icon-button @href=./cem-icon.html @image=open_in_new | Icon playground}
+{cem-icon-button @href=https://github.com/EPA-WG/cem @image=open_in_new | CEM repository}
+{cem-icon-button @href="" | Current document}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Disabled buttons" description="Disabled uses attribute presence: disabled, disabled=false and disabled=true all prevent activation and remove the native button from the tab sequence. Remove the attribute to enable the command." data-covers="disabled"><template slot="source">
+{cem-icon-button @image=check @label="Enabled command"}
+{cem-icon-button @disabled="" @image=check @label="Disabled command"}
+{cem-icon-button @disabled=false @image=check @label="Disabled with false"}
+{cem-icon-button @disabled=true @image=check @label="Disabled with true"}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Disabled links" description="A disabled link retains its link role and aria-disabled=true, omits its native href and activation binding, and leaves the tab sequence. All three disabled values below have the same effect. Removing disabled restores the authored destination." data-covers="href disabled"><template slot="source">
+{cem-icon-button @href="#icon-link-target" @image=shopping_cart | Enabled link}
+{cem-icon-button @disabled="" @href="#icon-link-target" @image=shopping_cart | Disabled link}
+{cem-icon-button @disabled=false @href="#icon-link-target" @image=shopping_cart | Disabled with false}
+{cem-icon-button @disabled=true @href="#icon-link-target" @image=shopping_cart | Disabled with true}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Selection" description="Selected is controlled by the containing application and uses presence: selected=false is still selected. Buttons expose aria-pressed=true; selectable buttons without selected expose aria-pressed=false. Selected links retain navigation semantics and expose aria-current=true. The selection stripe stays visible during hover, press, focus, disabled and pending states; clicks do not toggle selected." data-covers="selected selectable"><template slot="source">
+{cem-icon-button @image=star @label="Ordinary command"}
+{cem-icon-button @image=star @label="Unselected choice" @selectable=""}
+{cem-icon-button @image=star @label="Selectable by presence" @selectable=false}
+{cem-icon-button @image=star @label="Selected choice" @selected=""}
+{cem-icon-button @image=star @label="Selected with false" @selected=false}
+{cem-icon-button @image=star @label="Selected with true" @selected=true}
+{cem-icon-button @disabled="" @image=star @label="Disabled selected choice" @selected=""}
+{cem-icon-button @href="#icon-link-target" @image=home | Unselected link}
+{cem-icon-button @href="#icon-link-target" @image=home @selected="" | Current link}
+{cem-icon-button @href="#icon-link-target" @image=home @selected=false | Current link with false}
+{cem-icon-button @disabled="" @href="#icon-link-target" @image=home @selected="" | Disabled current link}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Pending actions" description="Pending=true exposes aria-busy=true and uses the action theme’s animated pending treatment. Pending=false or removing pending restores the current interaction colors. Pending remains visible when disabled and preserves selection; use disabled to prevent activation. Reduced motion freezes the animation, and forced colors use a static system-color indicator." data-covers="pending"><template slot="source">
+{cem-icon-button @image=sync @label="Ready command" @pending=false}
+{cem-icon-button @image=sync @label="Pending command" @pending=true}
+{cem-icon-button @disabled="" @image=sync @label="Disabled pending command" @pending=true}
+{cem-icon-button @image=sync @label="Selected pending command" @pending=true @selected=""}
+{cem-icon-button @disabled="" @image=sync @label="Selected disabled pending command" @pending=true
+    @selected=""}
+{cem-icon-button @href="#icon-link-target" @image=sync @pending=false | Ready link}
+{cem-icon-button @href="#icon-link-target" @image=sync @pending=true | Pending link}
+{cem-icon-button @disabled="" @href="#icon-link-target" @image=sync @pending=true | Disabled pending link}
+{cem-icon-button @href="#icon-link-target" @image=sync @pending=true @selected="" | Current pending link}
+{cem-icon-button @disabled="" @href="#icon-link-target" @image=sync @pending=true @selected="" | Disabled current pending link}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Action variants" description="Variant selects the same action intent as cem-action: primary (default), explicit, contextual, alternate or destructive. It controls default, hover, active, disabled and pending paint in both button and link modes; selected and keyboard-focus stripes remain independent." data-covers="variant"><template slot="source">
+{cem-icon-button @image=settings @label="Default variant"}
+{cem-icon-button @image=settings @label=primary @variant=primary}
+{cem-icon-button @href="#icon-link-target" @image=settings @variant=primary | primary link}
+{cem-icon-button @image=settings @label=explicit @variant=explicit}
+{cem-icon-button @href="#icon-link-target" @image=settings @variant=explicit | explicit link}
+{cem-icon-button @image=settings @label=contextual @variant=contextual}
+{cem-icon-button @href="#icon-link-target" @image=settings @variant=contextual | contextual link}
+{cem-icon-button @image=settings @label=alternate @variant=alternate}
+{cem-icon-button @href="#icon-link-target" @image=settings @variant=alternate | alternate link}
+{cem-icon-button @image=settings @label=destructive @variant=destructive}
+{cem-icon-button @href="#icon-link-target" @image=settings @variant=destructive | destructive link}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Button types" description="Type defaults to button. Submit participates in native validation and submits the form; reset restores the initial field value. These are the same native button behaviors as cem-action. Submit opens this page in a new tab." data-covers="type name value"><template slot="source">
+{form @id=icon-button-example-form @method=get @target=_blank |
+    {label |
+        Example title&#32;
+        {input @name=title @required="" @value="Initial title"}
+    }
+    {cem-icon-button @image=check @label=Submit @name=intent @type=submit @value=save}
+    {cem-icon-button @image=undo @label=Reset @type=reset @variant=explicit}
+    {cem-icon-button @image=settings @label=Command @type=button @variant=contextual}
+}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="External form ownership" description="Form associates the native button with a form elsewhere in the document. This submitter uses the Example title form above. Name and value identify the submitter in form data; they do not select the image." data-covers="form name value"><template slot="source">
+{cem-icon-button @form=icon-button-example-form @image=send @label="Submit example form"
+    @name=intent @type=submit @value=external}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Submit overrides" description="Formaction, formmethod, formenctype and formtarget override the form settings for this submitter. Formnovalidate uses presence to bypass native validation. Button-only form attributes do not apply in href link mode." data-covers="formaction formmethod formenctype formtarget formnovalidate"><template slot="source">
+{cem-icon-button @form=icon-button-example-form @formaction="#icon-button-example-form"
+    @formenctype=application/x-www-form-urlencoded @formmethod=get @formnovalidate=""
+    @formtarget=_blank @image=send @label="Submit without validation" @name=intent @type=submit
+    @value=override}
+{cem-icon-button @form=icon-button-example-form @formnovalidate=false @image=send
+    @label="Bypass by presence" @type=submit @variant=explicit}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Action bends" description="The cem-bend-sharp, cem-bend-smooth and cem-bend-round classes use the same theme radius settings as cem-action. They apply to both native control modes. Size sets action control height and is also forwarded to the embedded icon." data-covers="class"><template slot="source">
+{cem-icon-button @class=cem-bend-sharp @image=star @label=Sharp}
+{cem-icon-button @class=cem-bend-smooth @image=star @label=Smooth}
+{cem-icon-button @class=cem-bend-round @image=star @label=Round}
+{cem-icon-button @class=cem-bend-sharp @href="#icon-link-target" @image=star | Sharp link}
+{cem-icon-button @class=cem-bend-smooth @href="#icon-link-target" @image=star | Smooth link}
+{cem-icon-button @class=cem-bend-round @href="#icon-link-target" @image=star | Round link}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Host classes" description="Class stays on the outer component and is relayed to the embedded cem-icon. Use it to apply application styles; the native control retains its own component and variant classes." data-covers="class"><template slot="source">
+{cem-icon-button @class=consumer-command @image=settings @label="Classed button"}
+{cem-icon-button @class=consumer-command @href="#icon-link-target" @image=settings | Classed link}
+</template></cem-demo-element>
+<cem-demo-element type="cem-ml" legend="Visibility" description="Hidden applies to the host and embedded icon. Its presence hides the whole control, including hidden=false and hidden=true. Remove hidden to show it again. The visible controls show the absent-attribute case." data-covers="hidden"><template slot="source">
+{cem-icon-button @image=visibility @label="Visible button"}
+{cem-icon-button @hidden="" @image=visibility @label="Hidden button"}
+{cem-icon-button @hidden=false @image=visibility @label="Hidden button with false"}
+{cem-icon-button @hidden=true @image=visibility @label="Hidden button with true"}
+{cem-icon-button @href="#icon-link-target" @image=visibility | Visible link}
+{cem-icon-button @hidden="" @href="#icon-link-target" @image=visibility | Hidden link}
+{cem-icon-button @hidden=false @href="#icon-link-target" @image=visibility | Hidden link with false}
+{cem-icon-button @hidden=true @href="#icon-link-target" @image=visibility | Hidden link with true}
 </template></cem-demo-element>
 </main></div>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
-<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
-<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
-<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
-<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
-<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
-<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
+<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button label="Default" ></cem-icon-button></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button label="Disabled" disabled></cem-icon-button></article>
 
-<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
-<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
-<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
-<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
-<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
-<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
+<article data-variation="Button primary"><h3>Button · primary</h3><cem-icon-button image="star" label="primary" variant="primary"></cem-icon-button></article>
+<article data-variation="Button explicit"><h3>Button · explicit</h3><cem-icon-button image="star" label="explicit" variant="explicit"></cem-icon-button></article>
+<article data-variation="Button contextual"><h3>Button · contextual</h3><cem-icon-button image="star" label="contextual" variant="contextual"></cem-icon-button></article>
+<article data-variation="Button alternate"><h3>Button · alternate</h3><cem-icon-button image="star" label="alternate" variant="alternate"></cem-icon-button></article>
+<article data-variation="Button destructive"><h3>Button · destructive</h3><cem-icon-button image="star" label="destructive" variant="destructive"></cem-icon-button></article>
+<article data-variation="Selectable"><h3>Selectable</h3><cem-icon-button image="star" label="Selectable" selectable></cem-icon-button></article>
+<article data-variation="Selected"><h3>Selected</h3><cem-icon-button image="star" label="Selected" selected></cem-icon-button></article>
+<article data-variation="Selected disabled"><h3>Selected disabled</h3><cem-icon-button image="star" label="Selected disabled" selected disabled></cem-icon-button></article>
+<article data-variation="Pending"><h3>Pending</h3><cem-icon-button image="star" label="Pending" pending="true"></cem-icon-button></article>
+<article data-variation="Pending disabled"><h3>Pending disabled</h3><cem-icon-button image="star" label="Pending disabled" pending="true" disabled></cem-icon-button></article>
+<article data-variation="Selected pending"><h3>Selected pending</h3><cem-icon-button image="star" label="Selected pending" selected pending="true"></cem-icon-button></article>
+<article data-variation="Selected pending disabled"><h3>Selected pending disabled</h3><cem-icon-button image="star" label="Selected pending disabled" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Current link"><h3>Current link</h3><cem-icon-button image="star" label="Current link" href="#icon-link-target" selected></cem-icon-button></article>
+<article data-variation="Pending link"><h3>Pending link</h3><cem-icon-button image="star" label="Pending link" href="#icon-link-target" pending="true"></cem-icon-button></article>
+<article data-variation="Current pending disabled link"><h3>Current pending disabled link</h3><cem-icon-button image="star" label="Current pending disabled link" href="#icon-link-target" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link explicit"><h3>Link · explicit</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="explicit">Recycle</cem-icon-button></article>
+<article data-variation="Link contextual"><h3>Link · contextual</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="contextual">Recycle</cem-icon-button></article>
+<article data-variation="Link alternate"><h3>Link · alternate</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="alternate">Recycle</cem-icon-button></article>
+<article data-variation="Link destructive"><h3>Link · destructive</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="destructive">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button image="shopping_cart" href="#icon-link-target" disabled>Cart</cem-icon-button></article></div></section>
 
-<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
-<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
-<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
-<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
-<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
-<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button label="Default" ></cem-icon-button></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button label="Disabled" disabled></cem-icon-button></article>
 
-<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
-<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
-<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
-<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
-<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
-<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
+<article data-variation="Button primary"><h3>Button · primary</h3><cem-icon-button image="star" label="primary" variant="primary"></cem-icon-button></article>
+<article data-variation="Button explicit"><h3>Button · explicit</h3><cem-icon-button image="star" label="explicit" variant="explicit"></cem-icon-button></article>
+<article data-variation="Button contextual"><h3>Button · contextual</h3><cem-icon-button image="star" label="contextual" variant="contextual"></cem-icon-button></article>
+<article data-variation="Button alternate"><h3>Button · alternate</h3><cem-icon-button image="star" label="alternate" variant="alternate"></cem-icon-button></article>
+<article data-variation="Button destructive"><h3>Button · destructive</h3><cem-icon-button image="star" label="destructive" variant="destructive"></cem-icon-button></article>
+<article data-variation="Selectable"><h3>Selectable</h3><cem-icon-button image="star" label="Selectable" selectable></cem-icon-button></article>
+<article data-variation="Selected"><h3>Selected</h3><cem-icon-button image="star" label="Selected" selected></cem-icon-button></article>
+<article data-variation="Selected disabled"><h3>Selected disabled</h3><cem-icon-button image="star" label="Selected disabled" selected disabled></cem-icon-button></article>
+<article data-variation="Pending"><h3>Pending</h3><cem-icon-button image="star" label="Pending" pending="true"></cem-icon-button></article>
+<article data-variation="Pending disabled"><h3>Pending disabled</h3><cem-icon-button image="star" label="Pending disabled" pending="true" disabled></cem-icon-button></article>
+<article data-variation="Selected pending"><h3>Selected pending</h3><cem-icon-button image="star" label="Selected pending" selected pending="true"></cem-icon-button></article>
+<article data-variation="Selected pending disabled"><h3>Selected pending disabled</h3><cem-icon-button image="star" label="Selected pending disabled" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Current link"><h3>Current link</h3><cem-icon-button image="star" label="Current link" href="#icon-link-target" selected></cem-icon-button></article>
+<article data-variation="Pending link"><h3>Pending link</h3><cem-icon-button image="star" label="Pending link" href="#icon-link-target" pending="true"></cem-icon-button></article>
+<article data-variation="Current pending disabled link"><h3>Current pending disabled link</h3><cem-icon-button image="star" label="Current pending disabled link" href="#icon-link-target" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link explicit"><h3>Link · explicit</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="explicit">Recycle</cem-icon-button></article>
+<article data-variation="Link contextual"><h3>Link · contextual</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="contextual">Recycle</cem-icon-button></article>
+<article data-variation="Link alternate"><h3>Link · alternate</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="alternate">Recycle</cem-icon-button></article>
+<article data-variation="Link destructive"><h3>Link · destructive</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="destructive">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button image="shopping_cart" href="#icon-link-target" disabled>Cart</cem-icon-button></article></div></section>
 
-<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button data-gallery-sample label="Default" ></cem-icon-button></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button data-gallery-sample label="Disabled" disabled></cem-icon-button></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-icon-button data-gallery-sample label="Expanded" expanded="true"></cem-icon-button></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-icon-button data-gallery-sample label="Collapsed" expanded="false"></cem-icon-button></article><article data-variation="Link normal"><h3>Link · normal</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="normal">Recycle</cem-icon-button></article>
-<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="primary">Recycle</cem-icon-button></article>
-<article data-variation="Link secondary"><h3>Link · secondary</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="secondary">Recycle</cem-icon-button></article>
-<article data-variation="Link alert"><h3>Link · alert</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="alert">Recycle</cem-icon-button></article>
-<article data-variation="Link blend"><h3>Link · blend</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="recycling" kind="blend">Recycle</cem-icon-button></article>
-<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button data-gallery-sample href="#legacy-link-target" icon="shopping_cart" disabled>Cart</cem-icon-button></article></div></section>
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button label="Default" ></cem-icon-button></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button label="Disabled" disabled></cem-icon-button></article>
+
+<article data-variation="Button primary"><h3>Button · primary</h3><cem-icon-button image="star" label="primary" variant="primary"></cem-icon-button></article>
+<article data-variation="Button explicit"><h3>Button · explicit</h3><cem-icon-button image="star" label="explicit" variant="explicit"></cem-icon-button></article>
+<article data-variation="Button contextual"><h3>Button · contextual</h3><cem-icon-button image="star" label="contextual" variant="contextual"></cem-icon-button></article>
+<article data-variation="Button alternate"><h3>Button · alternate</h3><cem-icon-button image="star" label="alternate" variant="alternate"></cem-icon-button></article>
+<article data-variation="Button destructive"><h3>Button · destructive</h3><cem-icon-button image="star" label="destructive" variant="destructive"></cem-icon-button></article>
+<article data-variation="Selectable"><h3>Selectable</h3><cem-icon-button image="star" label="Selectable" selectable></cem-icon-button></article>
+<article data-variation="Selected"><h3>Selected</h3><cem-icon-button image="star" label="Selected" selected></cem-icon-button></article>
+<article data-variation="Selected disabled"><h3>Selected disabled</h3><cem-icon-button image="star" label="Selected disabled" selected disabled></cem-icon-button></article>
+<article data-variation="Pending"><h3>Pending</h3><cem-icon-button image="star" label="Pending" pending="true"></cem-icon-button></article>
+<article data-variation="Pending disabled"><h3>Pending disabled</h3><cem-icon-button image="star" label="Pending disabled" pending="true" disabled></cem-icon-button></article>
+<article data-variation="Selected pending"><h3>Selected pending</h3><cem-icon-button image="star" label="Selected pending" selected pending="true"></cem-icon-button></article>
+<article data-variation="Selected pending disabled"><h3>Selected pending disabled</h3><cem-icon-button image="star" label="Selected pending disabled" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Current link"><h3>Current link</h3><cem-icon-button image="star" label="Current link" href="#icon-link-target" selected></cem-icon-button></article>
+<article data-variation="Pending link"><h3>Pending link</h3><cem-icon-button image="star" label="Pending link" href="#icon-link-target" pending="true"></cem-icon-button></article>
+<article data-variation="Current pending disabled link"><h3>Current pending disabled link</h3><cem-icon-button image="star" label="Current pending disabled link" href="#icon-link-target" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link explicit"><h3>Link · explicit</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="explicit">Recycle</cem-icon-button></article>
+<article data-variation="Link contextual"><h3>Link · contextual</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="contextual">Recycle</cem-icon-button></article>
+<article data-variation="Link alternate"><h3>Link · alternate</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="alternate">Recycle</cem-icon-button></article>
+<article data-variation="Link destructive"><h3>Link · destructive</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="destructive">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button image="shopping_cart" href="#icon-link-target" disabled>Cart</cem-icon-button></article></div></section>
+
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button label="Default" ></cem-icon-button></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button label="Disabled" disabled></cem-icon-button></article>
+
+<article data-variation="Button primary"><h3>Button · primary</h3><cem-icon-button image="star" label="primary" variant="primary"></cem-icon-button></article>
+<article data-variation="Button explicit"><h3>Button · explicit</h3><cem-icon-button image="star" label="explicit" variant="explicit"></cem-icon-button></article>
+<article data-variation="Button contextual"><h3>Button · contextual</h3><cem-icon-button image="star" label="contextual" variant="contextual"></cem-icon-button></article>
+<article data-variation="Button alternate"><h3>Button · alternate</h3><cem-icon-button image="star" label="alternate" variant="alternate"></cem-icon-button></article>
+<article data-variation="Button destructive"><h3>Button · destructive</h3><cem-icon-button image="star" label="destructive" variant="destructive"></cem-icon-button></article>
+<article data-variation="Selectable"><h3>Selectable</h3><cem-icon-button image="star" label="Selectable" selectable></cem-icon-button></article>
+<article data-variation="Selected"><h3>Selected</h3><cem-icon-button image="star" label="Selected" selected></cem-icon-button></article>
+<article data-variation="Selected disabled"><h3>Selected disabled</h3><cem-icon-button image="star" label="Selected disabled" selected disabled></cem-icon-button></article>
+<article data-variation="Pending"><h3>Pending</h3><cem-icon-button image="star" label="Pending" pending="true"></cem-icon-button></article>
+<article data-variation="Pending disabled"><h3>Pending disabled</h3><cem-icon-button image="star" label="Pending disabled" pending="true" disabled></cem-icon-button></article>
+<article data-variation="Selected pending"><h3>Selected pending</h3><cem-icon-button image="star" label="Selected pending" selected pending="true"></cem-icon-button></article>
+<article data-variation="Selected pending disabled"><h3>Selected pending disabled</h3><cem-icon-button image="star" label="Selected pending disabled" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Current link"><h3>Current link</h3><cem-icon-button image="star" label="Current link" href="#icon-link-target" selected></cem-icon-button></article>
+<article data-variation="Pending link"><h3>Pending link</h3><cem-icon-button image="star" label="Pending link" href="#icon-link-target" pending="true"></cem-icon-button></article>
+<article data-variation="Current pending disabled link"><h3>Current pending disabled link</h3><cem-icon-button image="star" label="Current pending disabled link" href="#icon-link-target" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link explicit"><h3>Link · explicit</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="explicit">Recycle</cem-icon-button></article>
+<article data-variation="Link contextual"><h3>Link · contextual</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="contextual">Recycle</cem-icon-button></article>
+<article data-variation="Link alternate"><h3>Link · alternate</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="alternate">Recycle</cem-icon-button></article>
+<article data-variation="Link destructive"><h3>Link · destructive</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="destructive">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button image="shopping_cart" href="#icon-link-target" disabled>Cart</cem-icon-button></article></div></section>
+
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-icon-button label="Default" ></cem-icon-button></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-icon-button label="Disabled" disabled></cem-icon-button></article>
+
+<article data-variation="Button primary"><h3>Button · primary</h3><cem-icon-button image="star" label="primary" variant="primary"></cem-icon-button></article>
+<article data-variation="Button explicit"><h3>Button · explicit</h3><cem-icon-button image="star" label="explicit" variant="explicit"></cem-icon-button></article>
+<article data-variation="Button contextual"><h3>Button · contextual</h3><cem-icon-button image="star" label="contextual" variant="contextual"></cem-icon-button></article>
+<article data-variation="Button alternate"><h3>Button · alternate</h3><cem-icon-button image="star" label="alternate" variant="alternate"></cem-icon-button></article>
+<article data-variation="Button destructive"><h3>Button · destructive</h3><cem-icon-button image="star" label="destructive" variant="destructive"></cem-icon-button></article>
+<article data-variation="Selectable"><h3>Selectable</h3><cem-icon-button image="star" label="Selectable" selectable></cem-icon-button></article>
+<article data-variation="Selected"><h3>Selected</h3><cem-icon-button image="star" label="Selected" selected></cem-icon-button></article>
+<article data-variation="Selected disabled"><h3>Selected disabled</h3><cem-icon-button image="star" label="Selected disabled" selected disabled></cem-icon-button></article>
+<article data-variation="Pending"><h3>Pending</h3><cem-icon-button image="star" label="Pending" pending="true"></cem-icon-button></article>
+<article data-variation="Pending disabled"><h3>Pending disabled</h3><cem-icon-button image="star" label="Pending disabled" pending="true" disabled></cem-icon-button></article>
+<article data-variation="Selected pending"><h3>Selected pending</h3><cem-icon-button image="star" label="Selected pending" selected pending="true"></cem-icon-button></article>
+<article data-variation="Selected pending disabled"><h3>Selected pending disabled</h3><cem-icon-button image="star" label="Selected pending disabled" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Current link"><h3>Current link</h3><cem-icon-button image="star" label="Current link" href="#icon-link-target" selected></cem-icon-button></article>
+<article data-variation="Pending link"><h3>Pending link</h3><cem-icon-button image="star" label="Pending link" href="#icon-link-target" pending="true"></cem-icon-button></article>
+<article data-variation="Current pending disabled link"><h3>Current pending disabled link</h3><cem-icon-button image="star" label="Current pending disabled link" href="#icon-link-target" selected pending="true" disabled></cem-icon-button></article>
+<article data-variation="Link primary"><h3>Link · primary</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="primary">Recycle</cem-icon-button></article>
+<article data-variation="Link explicit"><h3>Link · explicit</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="explicit">Recycle</cem-icon-button></article>
+<article data-variation="Link contextual"><h3>Link · contextual</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="contextual">Recycle</cem-icon-button></article>
+<article data-variation="Link alternate"><h3>Link · alternate</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="alternate">Recycle</cem-icon-button></article>
+<article data-variation="Link destructive"><h3>Link · destructive</h3><cem-icon-button href="#icon-link-target" image="recycling" variant="destructive">Recycle</cem-icon-button></article>
+<article data-variation="Disabled link"><h3>Disabled link</h3><cem-icon-button image="shopping_cart" href="#icon-link-target" disabled>Cart</cem-icon-button></article></div></section>
 
 </section>
 </body></html>

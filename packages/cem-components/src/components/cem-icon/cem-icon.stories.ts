@@ -15,7 +15,7 @@ export const SourcesAndLiveAttributes = meta.story({
         await whenCemRendered(host);
         expect(host.querySelector('.material-icons')?.textContent).toBe('circle');
         expect(host.querySelector('[part="icon"]')?.getAttribute('aria-hidden')).toBe('true');
-        host.setAttribute('name', 'check');
+        host.setAttribute('image', 'check');
         await whenCemRendered(host);
         expect(host.querySelector('.material-icons')?.textContent).toBe('check');
         for (const [value, selector] of [['★', '.unicode'], ['😀', '.unicode'], ['fas fa-home', 'i.fa-home'], ['settings', '.material-icons']]) {
@@ -29,11 +29,11 @@ export const SourcesAndLiveAttributes = meta.story({
         expect(image.alt).toBe('');
         expect(image.getAttribute('aria-hidden')).toBe('true');
         await waitFor(() => expect(image.naturalWidth).toBe(24));
-        host.setAttribute('label', 'Status');
+        host.setAttribute('aria-label', 'Status');
         await whenCemRendered(host);
         expect(within(host).getByRole('img', { name: 'Status' })).toBe(host.querySelector('[part="icon"]'));
         expect(within(host).getAllByRole('img')).toHaveLength(1);
-        host.removeAttribute('label');
+        host.removeAttribute('aria-label');
         await whenCemRendered(host);
         expect(within(host).queryByRole('img')).toBeNull();
         host.setAttribute('image', '');
@@ -41,16 +41,13 @@ export const SourcesAndLiveAttributes = meta.story({
         expect(host.querySelector('[part="icon"]')).toBeNull();
         host.removeAttribute('image');
         await whenCemRendered(host);
-        expect(host.querySelector('.material-icons')?.textContent).toBe('check');
-        host.removeAttribute('name');
-        await whenCemRendered(host);
         expect(host.querySelector('.material-icons')?.textContent).toBe('circle');
         expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
     },
 });
 
 export const ContentAndVisibility = meta.story({
-    render: () => '<cem-icon image="★" label="Favorite"><a href="#details">Details</a></cem-icon>',
+    render: () => '<cem-icon image="★" aria-label="Favorite"><a href="#details">Details</a></cem-icon>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon') as HTMLElement;
         await whenCemRendered(host);
@@ -79,7 +76,7 @@ export const ContentAndVisibility = meta.story({
 
 export const ThemeSizes = meta.story({
     render: () => ['light', 'dark', 'contrast-light', 'contrast-dark', 'native'].map(theme =>
-        `<section class="cem-theme-${theme}"><cem-icon image="★" label="Favorite"></cem-icon></section>`).join(''),
+        `<section class="cem-theme-${theme}"><cem-icon image="★" aria-label="Favorite"></cem-icon></section>`).join(''),
     play: async ({ canvasElement }) => {
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon')) {
             await whenCemRendered(host);
@@ -121,7 +118,11 @@ export const LegacyCollections = meta.story({
             const glyph = host.querySelector('[part="glyph"]') as HTMLElement;
             if (host.dataset.source === 'fontawesome') {
                 expect(glyph.tagName).toBe('I');
-                for (const className of image.split(' ')) expect(glyph.classList.contains(className)).toBe(true);
+                for (const className of image.split(' ')) {
+                    expect(glyph.classList.contains(className)).toBe(true);
+                    expect(host.querySelector('[part="icon"]')?.classList.contains(className)).toBe(false);
+                    expect(host.querySelectorAll(`.${className}`)).toHaveLength(1);
+                }
             } else {
                 expect(glyph.classList.contains(host.dataset.source === 'unicode' ? 'unicode' : 'material-icons')).toBe(true);
                 expect(glyph.textContent).toBe(image);
@@ -147,6 +148,47 @@ export const LegacyColorInheritance = meta.story({
             expect(getComputedStyle(text).color).toBe(getComputedStyle(host).color);
             host.style.color = 'var(--cem-palette-trust)';
             expect(getComputedStyle(glyph).color).toBe(getComputedStyle(host).color);
+        }
+    },
+});
+
+export const LabelFallbackAndPayload = meta.story({
+    render: () => '<cem-icon id="fallback" image="★" label="Favorite"></cem-icon><cem-icon id="payload" image="★"><a href="#details"><strong>Details</strong></a></cem-icon><cem-icon id="override" image="★" label="Unused"><a href="#details"><strong>Details</strong></a></cem-icon><cem-icon id="empty" image="★" label=""></cem-icon><cem-icon id="absent" image="★"></cem-icon>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon')) {
+            await whenCemRendered(host);
+            const content = () => host.querySelector('[part="content"]') as HTMLElement;
+            const rich = host.id === 'payload' || host.id === 'override';
+            const expected = rich ? '★Details' : host.id === 'fallback' ? '★Favorite' : '★';
+            expect(content().textContent?.replace(/\s/g, "")).toBe(expected);
+            expect(within(host).queryByRole('img')).toBeNull();
+            for (const label of ['Changed', '', 'Restored']) {
+                host.setAttribute('label', label);
+                await whenCemRendered(host);
+                expect(content().textContent?.replace(/\s/g, "")).toBe(rich ? '★Details' : `★${label}`);
+                if (rich) {
+                    const link = within(host).getByRole('link', { name: 'Details' });
+                    expect(link.querySelector('strong')?.textContent).toBe('Details');
+                    expect(link.getAttribute('href')).toBe('#details');
+                    expect(link.closest('[role="img"], [aria-hidden="true"]')).toBeNull();
+                }
+            }
+            for (const name of ['Glyph', 'New glyph', '']) {
+                host.setAttribute('aria-label', name);
+                await whenCemRendered(host);
+                expect(content().textContent?.replace(/\s/g, "")).toBe(rich ? '★Details' : '★Restored');
+                if (name) expect(within(host).getByRole('img', { name })).toBe(host.querySelector('[part="icon"]'));
+                else expect(host.querySelector('[part="icon"]')?.getAttribute('aria-hidden')).toBe('true');
+            }
+            host.setAttribute('aria-label', 'Glyph');
+            host.setAttribute('image', '');
+            await whenCemRendered(host);
+            expect(host.querySelector('[part="icon"]')).toBeNull();
+            expect(content().textContent?.replace(/\s/g, "")).toBe(rich ? 'Details' : 'Restored');
+            host.removeAttribute('label');
+            await whenCemRendered(host);
+            expect(content().textContent?.replace(/\s/g, "")).toBe(rich ? 'Details' : '');
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
         }
     },
 });

@@ -24,7 +24,8 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
     <script type="module">
@@ -51,6 +52,9 @@
 <body>
 <cem-element hidden>
 <template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
 {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
@@ -66,7 +70,9 @@
 </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><header><h1>cem-menu-item: Full examples and variation matrix</h1>
+<div id="playground-theme" class="cem-theme-light">
+<cem-gallery-nav heading="cem-menu-item: Full examples and variation matrix"></cem-gallery-nav>
+<header>
 <p class="component-description">A command with the menuitem role, disabled state, and disclosure-state reporting. It complements <a href="./cem-action-gallery.html"><code>cem-action</code></a> and <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a>; the containing menu owns navigation, focus, and any expanded content.</p>
 <p><a href="./cem-menu-item.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-menu-item/cem-menu-item.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
@@ -77,40 +83,40 @@
 <li data-gallery-attribute="class"><code>class</code></li></ul>
 <p><strong>Slots:</strong> The default slot replaces fallback command text.</p>
 <cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class"><template slot="source">
-<cem-menu-item id="command-default"></cem-menu-item>
-<cem-menu-item id="command-configured" label="Configured command" class="consumer-command" expanded="false" ></cem-menu-item>
-<cem-menu-item id="command-disabled" label="Disabled by presence" disabled="false"></cem-menu-item>
-<cem-menu-item id="command-expanded" label="Expanded command" expanded="true"></cem-menu-item>
-<cem-menu-item id="command-hidden" label="Hidden by presence" hidden="false"></cem-menu-item>
-<cem-menu-item id="command-content" label="Projected command"><span>Projected content</span></cem-menu-item>
+<cem-menu-item></cem-menu-item>
+<cem-menu-item label="Configured command" class="consumer-command" expanded="false" ></cem-menu-item>
+<cem-menu-item label="Disabled by presence" disabled="false"></cem-menu-item>
+<cem-menu-item label="Expanded command" expanded="true"></cem-menu-item>
+<cem-menu-item label="Hidden by presence" hidden="false"></cem-menu-item>
+<cem-menu-item label="Projected command"><span>Projected content</span></cem-menu-item>
 </template></cem-demo-element>
 </main></div>
 <section aria-label="Theme and state variation matrix">
 <h2>Theme and state variation matrix</h2>
-<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
 
-<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
 
-<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
 
-<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
 
-<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item data-gallery-sample label="Default" ></cem-menu-item></article>
-<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item data-gallery-sample label="Disabled" disabled></cem-menu-item></article>
-<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item data-gallery-sample label="Expanded" expanded="true"></cem-menu-item></article>
-<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item data-gallery-sample label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
+<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default"><h3>Default</h3><cem-menu-item label="Default" ></cem-menu-item></article>
+<article data-variation="Disabled"><h3>Disabled</h3><cem-menu-item label="Disabled" disabled></cem-menu-item></article>
+<article data-variation="Expanded"><h3>Expanded</h3><cem-menu-item label="Expanded" expanded="true"></cem-menu-item></article>
+<article data-variation="Collapsed"><h3>Collapsed</h3><cem-menu-item label="Collapsed" expanded="false"></cem-menu-item></article></div></section>
 
 </section>
 </body></html>

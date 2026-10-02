@@ -45,7 +45,7 @@ const CSS_SPACING_PROPERTY =
     /\b(?:margin|padding|gap|inset|top|right|bottom|left|width|height|min-width|max-width|min-height|max-height|border-radius|border-width|outline-width|font-size|line-height)\s*:[^;{}]*/gi;
 const CSS_SPACING_LITERAL = /\b\d*\.?\d+(?:px|rem|em|vh|vw|vmin|vmax|ch|ex|%)\b|calc\s*\(/i;
 const CSS_VAR_REFERENCE = /var\(\s*(--[^\s,)]+)/g;
-const ACTION_TAGS = new Set(['cem-icon-button', 'cem-menu-item']);
+const ACTION_TAGS = new Set(['cem-menu-item']);
 const CONTENT_INTERACTION_TAGS = new Set(['cem-chip', 'cem-list']);
 const FEEDBACK_TAGS = new Set(['cem-dialog', 'cem-dialog-shell', 'cem-sheet']);
 const NAVIGATION_TAGS = new Set(['cem-nav', 'cem-tabs']);
@@ -61,27 +61,6 @@ const CHOICE_POPUP_STACKING_SELECTORS = new Set([
 const CHOICE_POPUP_Z_INDEX_PROPERTY = '--_cem-choice-popup-z-index';
 const PUBLIC_COMPONENT_ADAPTERS = new Set(['--cem-input-indicator-appearance']);
 const ACTION_BINDINGS = new Map([
-    [
-        'cem-icon-button > button',
-        new Map([
-            ['background-color', 'var(--cem-action-contextual-default-background)'],
-            ['color', 'var(--cem-action-contextual-default-text)'],
-        ]),
-    ],
-    [
-        'cem-icon-button > button:enabled:hover',
-        new Map([
-            ['background-color', 'var(--cem-action-contextual-hover-background)'],
-            ['color', 'var(--cem-action-contextual-hover-text)'],
-        ]),
-    ],
-    [
-        'cem-icon-button > button:enabled:active',
-        new Map([
-            ['background-color', 'var(--cem-action-contextual-active-background)'],
-            ['color', 'var(--cem-action-contextual-active-text)'],
-        ]),
-    ],
     [
         'cem-menu-item > button',
         new Map([
@@ -973,15 +952,7 @@ function assertNoComponentSpecificStyleLiterals() {
     }
 }
 
-function assertCanonicalActionStyles() {
-    const path = join(componentRoot, 'src/components/cem-action/cem-action.xhtml');
-    const source = readText(path);
-    const css = source.match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1];
-    if (!css) { fail('canonical action must own embedded CSS'); return; }
-    const label = repoPath(path);
-    assertCssUsesTokensOnly(label, css);
-    const rules = parseCssRules(label, css, ['cem-pending-shift']);
-    const normal = new Map(rules.filter(rule => !rule.media).map(rule => [rule.selector, rule.declarations]));
+function assertActionPendingKeyframes(label, css) {
     const animations = postcss.parse(css).nodes.filter(node => node.type === 'atrule' && node.name === 'keyframes');
     const frames = animations[0]?.nodes ?? [];
     if (animations.length !== 1 || frames.length !== 2 ||
@@ -990,16 +961,32 @@ function assertCanonicalActionStyles() {
         frames[0].nodes[0].value !== '0px' || frames[1].nodes[0].value !== 'var(--cem-pending-tile-size)') {
         fail(`${label}: pending keyframes must shift exactly one theme tile per cycle`);
     }
+}
+
+function assertCanonicalActionStyles(tag = 'cem-action') {
+    const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
+    const source = readText(path);
+    const css = source.match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1];
+    if (!css) { fail('canonical action must own embedded CSS'); return; }
+    const label = repoPath(path);
+    assertCssUsesTokensOnly(label, css);
+    const rules = parseCssRules(label, css, ['cem-pending-shift']);
+    const normal = new Map(rules.filter(rule => !rule.media).map(rule => [rule.selector, rule.declarations]));
+    assertActionPendingKeyframes(label, css);
     if (/--_cem-action-|--cem-action-internal-/.test(css)) {
         fail(`${label}: action must consume theme endpoints without private state aliases`);
     }
+    const control = tag === 'cem-icon-button' ? ':is(button, a)' : 'button';
     for (const intent of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
         const host = intent === 'primary' ? ':scope' : `:scope:where([variant="${intent}"])`;
         for (const [state, suffix] of [
             ['default', ''], ['hover', ':where(:enabled:hover)'], ['active', ':where(:enabled:active)'],
             ['disabled', ":where(:disabled:not([aria-busy='true']))"], ['pending', ":where([aria-busy='true'])"],
         ]) {
-            const declarations = normal.get(`${host} > button[part~='control']${suffix}`);
+            const adaptedSuffix = tag === 'cem-icon-button'
+                ? suffix.replace(':enabled:hover', ':enabled:hover, [href]:hover').replace(':enabled:active', ':enabled:active, [href]:active').replace(":where(:disabled:not([aria-busy='true']))", ":where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true']))")
+                : suffix;
+            const declarations = normal.get(`${host} > ${control}[part~='control']${adaptedSuffix}`);
             if (['hover', 'active', 'disabled'].includes(state) && declarations?.size !== 2) {
                 fail(`${label}: ${intent} ${state} changes only the color pair`);
             }
@@ -1178,7 +1165,7 @@ function assertPublicComponentStyles(components, tokenNames) {
         const path = join(componentRoot, `src/components/${tag}/${tag}.xhtml`);
         const css = readText(path).match(/\{style[^|]*\|```([\s\S]*?)```\}/)?.[1] ?? '';
         assertCssUsesTokensOnly(repoPath(path), css);
-        for (const rule of parseCssRules(repoPath(path), css)) {
+        for (const rule of parseCssRules(repoPath(path), css, [])) {
             const selector = rule.selector.replace(':scope', tag).replace("[part~='control']", '').replace(/:where\(([^)]+)\)/g, '$1');
             if (!rule.media && ACTION_BINDINGS.has(selector)) actionRules.set(selector, rule.declarations);
         }
@@ -1511,6 +1498,7 @@ assertMvpFamiliesResolveToThemeTokens(components, tokenNames, tokenCss);
 assertNoComponentSpecificStyleLiterals();
 assertPublicComponentStyles(components, tokenNames);
 assertCanonicalActionStyles();
+assertCanonicalActionStyles('cem-icon-button');
 assertCanonicalSelectStacking(tokenNames);
 
 if (failures.length > 0) {

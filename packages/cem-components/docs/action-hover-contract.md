@@ -29,16 +29,13 @@ state.
 | Primitive         | Phase 4 action intent | Default pair                                                                         | Hover pair                                                                       |
 | ----------------- | --------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | `cem-action`      | `primary`             | `--cem-action-primary-default-background`, `--cem-action-primary-default-text`       | `--cem-action-primary-hover-background`, `--cem-action-primary-hover-text`       |
-| `cem-icon-button` | `contextual`          | `--cem-action-contextual-default-background`, `--cem-action-contextual-default-text` | `--cem-action-contextual-hover-background`, `--cem-action-contextual-hover-text` |
+| `cem-icon-button` | `primary`          | `--cem-action-primary-default-background`, `--cem-action-primary-default-text` | `--cem-action-primary-hover-background`, `--cem-action-primary-hover-text` |
 | `cem-menu-item`   | `contextual`          | `--cem-action-contextual-default-background`, `--cem-action-contextual-default-text` | `--cem-action-contextual-hover-background`, `--cem-action-contextual-hover-text` |
 
-`cem-action` accepts `primary` (default), `explicit`, `contextual`,
-`alternate` and `destructive`. Each maps to its matching theme token family. The existing `cem-icon-button` `quiet` variant describes its
-compact visual treatment; it does not create a sixth theme action intent.
-Icon buttons and menu commands are contextual actions, matching the theme's
-documented toolbar/menu use of the contextual token family. Additional action
-intents or variant mappings require their own documented API decision and are
-not inferred from an arbitrary `variant` string.
+`cem-action` and `cem-icon-button` accept `primary` (default), `explicit`,
+`contextual`, `alternate` and `destructive`. Each maps to its matching theme
+token family. Icon-button applies these variants to both buttons and links.
+Menu commands use the contextual token family.
 
 ## Alternatives considered
 

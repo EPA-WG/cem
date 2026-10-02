@@ -8,6 +8,197 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## Resting indicators for text inputs
+
+- [x] Validate the Material filled-field resting underline and apply the existing theme boundary/anchor tokens to cem-field, cem-text-field and cem-textarea.
+- [x] Fixture: extend colocated ThemeStates/InteractionPaint plays for empty and populated resting controls in all five themes and both indicator appearances; verify state precedence and native borders remain unchanged.
+
+Validation: all 18 colocated Chromium story tests passed (three components, five
+themes, resting empty/populated values, hover/focus and state precedence).
+Component build, declarative/state-matrix gates and style contract passed.
+
+## Shared gallery navigation
+
+- [x] Add reusable declarative gallery navigation with Playground link, page H1 (component name and page goal) and a disabled theme icon placeholder; use it on every component/gallery page and package the index/navigation.
+- [x] Fixture: verify shared navigation on source and packaged galleries and component pages, including accessible controls and working index links.
+
+Validation: playground build and focused browser navigation checks passed for all
+20 source pages and their isolated-package copies. The broader playground suite
+currently times out in the icon playground content-projection check.
+
+## Icon-button action and icon sizing
+
+- [x] Reuse action size tokens while forwarding the same size to cem-icon.
+- [x] Add dedicated sizing examples and a colocated fixture for both modes, inheritance and live size changes; run available checks.
+
+Validation: native sizing-sample renders, composition renders, style contract,
+Storybook syntax and Nx builds/gates passed. Browser geometry fixture added;
+execution remains pending under the session’s browser restriction.
+
+## Convert icon-button gallery source syntax
+
+- [x] Convert all 16 gallery demo sources to CEM-ML with the native tabular formatter; verify XML round trips and rendered element/attribute/text parity with the original HTML.
+
+## Align cem-icon-button with the action API
+
+- [x] Replace kind/quiet with cem-action variants and their complete state paint
+      in both modes; reuse bend classes and native button/form attributes.
+- [x] Fixture: cover variant changes, native submit/reset/form ownership and
+      form overrides; retain icon sizing, state and link behavior.
+- [x] Migrate focused samples, property controls, theme matrices, documentation
+      and verification expectations; build and run available native/style checks.
+
+Validation: declarative/state-matrix gates, bundle/playground builds, style-token
+checks, 576 state renders, 33 composition renders, and 30 variant/form renders
+passed. Browser execution of the new stories remains pending because Chromium
+requires host permission unavailable in this session.
+
+## Respect action states in cem-icon-button
+
+- [x] Add selected/selectable and pending semantics with action/theme paint,
+      persistent selection, disabled precedence, contrast contours, independent
+      keyboard focus, reduced motion and forced colors. Remove expanded from
+      the component API, ARIA forwarding, playground and gallery.
+- [x] Fixture: add colocated ActionStates coverage for both native control modes,
+      live state changes, presence semantics and combined states. Update the
+      state-matrix evidence and gallery reduced-motion/forced-color checks.
+- [x] Add focused selection/pending samples, property controls and five-theme
+      matrix rows. Describe action-theme support in the component, contract,
+      playground and gallery. All eleven focused samples and attribute
+      inventories match in source and built pages.
+- [x] Native rendering passes 576 action-state combinations, 33 icon composition
+      cases and 18 page-template cases. Declarative and state-matrix gates,
+      stylesheet contract, bundle and playground builds pass.
+- [ ] Run the new browser state/paint checks and full source/package gallery
+      verification when browser execution is permitted. Restricted session
+      permissions still prevent that verification.
+
+## Focused cem-icon-button samples
+
+- [x] Replace the All implemented attributes sample in gallery and playground
+      with individual command, activation, navigation, disabled, selection, pending,
+      kind, variant, class and visibility examples.
+- [x] Fixture: add browser checks using meaningful demo/attribute selectors;
+      verify all eleven samples and value combinations in source and built pages.
+      Navigation includes absent, empty, fragment, relative and absolute href;
+      disabled and selection cover both modes, and kinds/variants cover defaults
+      and every documented value. Browser execution remains pending below.
+
+## Use image as the sole cem-icon-button source
+
+- [x] Remove icon/name aliases and migrate component consumers, documentation,
+      playground controls and gallery examples to image.
+- [x] Fixture: cover image updates, empty/absent sources and ignored removed
+      aliases in button and link modes; update gallery verification selectors.
+- [x] Declarative verification, bundle/playground builds and 33 native WASM
+      composition cases pass. All 18 playground/gallery template renders have
+      zero diagnostics. Source and built attribute inventories match; browser
+      reruns remain pending under restricted session permissions (see below).
+
+## Compose cem-icon-button from cem-icon
+
+- [x] Embed the canonical icon and relay its public attributes and payload;
+      retain button/link activation, disabled state and expansion. Source aliases
+      were subsequently removed in favor of image (see above).
+- [x] Fixture: cover nested icon rendering, live attribute forwarding, source
+      precedence, label/payload, sizes and both control modes in colocated stories.
+- [x] Document embedding and attribute ownership in the declaration, contract,
+      playground and gallery. Gallery descriptions explain only the current API.
+- [x] Verify declarative architecture, bundle and playground builds, attribute
+      inventories, and bundle dependency paths. All 33 native WASM composition
+      cases and 12 playground/gallery template renders pass without diagnostics.
+- [ ] Rerun focused icon/icon-button browser stories and source/installed-package
+      playground and bundle checks when browser execution is permitted. The first
+      browser run passed 12 of 15 tests; its failures exposed empty-source
+      forwarding and a style assertion that included the nested declaration.
+      Both are corrected; native rendering confirms empty-source preservation.
+      Browser rerun is pending after the session changed to restricted permissions.
+      Command: `yarn nx run cem-elements:test -- packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts packages/cem-components/src/components/cem-icon/cem-icon.stories.ts`.
+
+## Convert five icon gallery demos to CEM-ML
+
+- [x] Convert inline SVG, hidden presence, sizes, Material Icons, and module
+      image samples with the native tabular formatter; preserve all demo metadata.
+- [x] Verify source values, attribute presence, and embedded module-loader
+      semantics through native round trips, then rebuild the gallery.
+      All five pass the demo WASM rendering API with zero diagnostics and
+      preserve rendered elements, attributes, and meaningful text. Browser
+      interaction verification remains subject to the session restriction.
+- [ ] Formatter follow-up: repeated tabular CEM formatting adds blank lines to
+      text-bearing nodes. Keep the first native conversion output for this task;
+      diagnose formatter idempotence separately with a minimal native fixture.
+
+## Remove fixture-only gallery IDs
+
+- [x] Remove test-only component IDs across all nine galleries; preserve native
+      form owners, help/error associations, page styling, and fragment destinations.
+- [x] Fixture: replace gallery ID selectors with existing public attributes
+      scoped to demos; verify removed IDs are not referenced and rebuild galleries.
+      Audited all nine source/built galleries: removed 62 example IDs and 420
+      test-only sample markers. Native form/help/error/fragment references and
+      all other example content are preserved. Declarative and script syntax
+      validation pass. Remaining command-example ID selectors belong to property
+      playgrounds, whose markup is unchanged by this gallery cleanup.
+- [ ] Run source/installed-package browser checks when execution is available.
+- [x] Record the gallery authoring principle in CLAUDE.md and the demo protocol.
+
+## Syntax conversion helper and icon example
+
+- [x] Add a project syntax conversion helper and route explicit conversion
+      requests through dedicated context in CLAUDE.md; require native tabular formatting.
+- [x] Convert the Decorative and accessible glyphs demo to CEM-ML and verify
+      that its five icon cases retain their attributes and source values.
+      Native XML round trip and tabular idempotence pass; gallery rebuild passes.
+      The helper also passed skill validation and query-module formatting.
+      Browser verification remains pending under the existing session restriction.
+
+## Gallery demo headings and descriptions
+
+- [x] Move individual icon case headings/descriptions to demo attributes, remove
+      single-demo sections, and preserve IDs, legacy cases, and resource links.
+- [x] Update gallery verification selectors for the demo-owned case IDs and
+      record the convention in the component development protocol.
+
+## Organize cem-icon gallery examples
+
+- [x] Replace the mixed source/naming/size/content example with focused label,
+      accessible-name, inline/external image, and visibility sections. Preserve
+      the seven legacy groups and five-theme size/direction/source matrix.
+- [x] Fixture: verify separate inline and external image examples, their source
+      URLs, inline image decoding, and hidden presence in source/package galleries.
+- [ ] Run browser gallery verification when session permissions allow it.
+
+## Fix duplicate Font Awesome glyphs in cem-icon
+
+- [x] Remove the source-derived wrapper class, which leaked `fa-*` classes and
+      generated a second glyph in the surrounding text font.
+- [x] Fixture: assert Font Awesome classes occur only on the glyph in icon
+      stories, and verify the gallery wrapper has no generated `::before` content.
+- [ ] Run icon stories and source/installed-package galleries when browser
+      execution is available; current session restrictions still apply.
+
+## Align cem-icon with the label principle
+
+- [x] Document visible label fallback, payload override, and separate aria-label naming.
+- [x] Fixture: cover label/payload combinations, live independent naming updates,
+      rich links, decorative glyphs, and empty sources in stories and source/package previews.
+- [x] Preserve all seven legacy gallery groups, migrate accessible names, and expose both labels in the playground.
+- [x] Remove the `name` glyph alias and playground control; migrate glyphs to
+      `image` and the recycling example to visible `label` text.
+- [x] Fixture: update source/live-attribute coverage to select glyphs through
+      `image` and restore `circle` when it is removed.
+- [ ] Rerun icon stories after removing `name` (browser execution requires host permissions).
+- [x] Before removing `name`, verify all six icon stories, declarative validation, package contents,
+      style contract, and lint (zero errors, 48 existing warnings).
+- [ ] Complete source/installed-package playground verification, then commit and push.
+      The prior playground run was interrupted by the session environment change;
+      `.git` is now read-only and network access is restricted. Package checks
+      passed before that change; the rerun hit `spawnSync npm EPERM`. Stop the
+      restricted reruns and resume these checks in a browser-capable environment
+      with Git write access.
+- [ ] Next: align `cem-icon-button` with the shared label principle; its current
+      accessibility-only `label` remains an inconsistency outside this change.
+
 ## Completed: Complete cem-icon legacy examples
 
 - [x] Audit the seven use-case groups in custom-element-dist 0.0.39 against

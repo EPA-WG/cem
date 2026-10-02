@@ -9,15 +9,19 @@ canonical components and 45 remaining legacy components.
 
 | Component | Explicitly implemented attributes |
 | --- | --- |
-| `cem-icon-button` | `label`, `name`, `variant`, `disabled`, `expanded`, `hidden`, `class` |
+| `cem-icon-button` | `image`, `size`, `direction`, `label`, `aria-label`, `href`, `type`, `name`, `value`, `form`, `formaction`, `formenctype`, `formmethod`, `formtarget`, `formnovalidate`, `variant`, `disabled`, `selected`, `selectable`, `pending`, `hidden`, `class` |
 | `cem-menu-item` | `label`, `disabled`, `expanded`, `hidden`, `class` |
 
-The existing interface is preserved: icon-button's variant is a compatibility
-class hook with contextual state paint; name supplies decorative icon text.
+Icon-button's variant selects primary (default), explicit, contextual, alternate
+or destructive action paint in both modes; native button/form attributes and
+action bend classes are supported;
+image selects the embedded icon. Present href switches to native link navigation.
 Menu-item's default slot replaces its fallback label. Both are native command
 buttons, with menu-item exposing the menuitem role. Disabled uses attribute
 presence, including `disabled="false"`. Click event slices remain `pressed` and
-`selected`, respectively; neither implements persistent toggle selection.
+`selected`, respectively. Icon-button supports container-owned persistent
+selection and pending feedback through the action theme; clicks do not toggle
+its selected attribute.
 
 Each companion playground edits every component attribute, explicitly
 inventories all supported attributes, supplies live examples, and shows the

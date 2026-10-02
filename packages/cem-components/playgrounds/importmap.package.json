@@ -18,6 +18,7 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "../playgrounds/assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "../playgrounds/assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }

@@ -432,3 +432,15 @@ controls, their edited values and nested component identities. Keep each source
 viewer separate from the component's reactive property form, as in the action
 playground. Persistent storage and page-global DOM mutation are not part of this
 component's contract.
+
+## Shared label principle
+
+`label` supplies visible fallback text. Projected payload replaces that fallback
+and preserves its markup. Components whose default slot represents their label
+use `{slot | {$label}}`, following `cem-action`. Components whose default payload
+has another purpose use a named `label` slot. Accessibility-only names use
+`aria-label` separately.
+
+`cem-icon` follows this principle with an empty default label. `cem-icon-button`
+still uses `label` for accessibility-only naming; aligning it is tracked in
+[`docs/todo.md`](../../../docs/todo.md).

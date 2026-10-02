@@ -1,108 +1,332 @@
-import { expect, within, waitFor } from 'storybook/test';
+import { expect, within, waitFor, userEvent } from 'storybook/test';
 import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-icon-button.xhtml?raw';
+
+// Raw declarations need an absolute dependency URL in the Storybook document.
+const iconDeclarationUrl = new URL('../cem-icon/cem-icon.xhtml?no-inline', import.meta.url).href;
 
 const meta = preview.meta({
     component: 'cem-icon-button',
     title: 'CEM Components/cem-icon-button',
-    loaders: [async () => { await loadCemDeclaration('cem-icon-button', declarationSource); return {}; }],
+    loaders: [async () => { await loadCemDeclaration('cem-icon-button', declarationSource.replace('../cem-icon/cem-icon.xhtml#cem-icon', `${iconDeclarationUrl}#cem-icon`)); return {}; }],
+});
+
+export const Dimensions = meta.story({
+    render: () => '<section class="cem-theme-light" data-cem-size="large"><cem-icon-button image="★" aria-label="Command"></cem-icon-button><cem-icon-button href="#target" image="★" aria-label="Navigate"></cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        const container = canvasElement.querySelector('section')!;
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        for (const host of container.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            for (const [size, height, iconSize] of [[null, 4, 2], ['small', 2.5, 1], ['medium', 3, 2], ['normal', 4, 2], ['large', 4, 3], ['x-large', 6, 2], ['xx-large', 8, 2], [null, 4, 2]] as const) {
+                if (size === null) host.removeAttribute('size');
+                else host.setAttribute('size', size);
+                await whenIconButtonRendered(host);
+                const control = host.querySelector<HTMLElement>('[part="control"]')!;
+                const icon = host.querySelector<HTMLElement>('cem-icon')!;
+                expect(icon.getAttribute('size')).toBe(size);
+                expect(parseFloat(getComputedStyle(control).minBlockSize)).toBeCloseTo(Math.max(3, height) * rem);
+                expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(Math.max(3, height) * rem);
+                expect(parseFloat(getComputedStyle(icon.querySelector('[part="icon"]')!).fontSize)).toBeCloseTo(iconSize * rem);
+            }
+        }
+        container.setAttribute('data-cem-size', 'x-large');
+        for (const host of container.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            expect(parseFloat(getComputedStyle(host.querySelector('[part="control"]')!).minBlockSize)).toBeCloseTo(6 * rem);
+        }
+    },
 });
 
 export const AllAttributes = meta.story({
     render: () => '<section class="cem-theme-light"><cem-icon-button></cem-icon-button></section>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const button = within(host).getByRole('button', { name: 'Icon action' }) as HTMLButtonElement;
         expect(button.type).toBe('button');
         expect(button.getAttribute('part')).toBe('control');
         expect(button.disabled).toBe(false);
         expect(button.hasAttribute('aria-expanded')).toBe(false);
         host.setAttribute('label', 'Open settings');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(within(host).getByRole('button', { name: 'Open settings' })).toBe(button);
         host.removeAttribute('label');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(within(host).getByRole('button', { name: 'Icon action' })).toBe(button);
-        expect(button.classList.contains('cem-icon-button--quiet')).toBe(true);
+        expect(button.classList.contains('cem-icon-button--primary')).toBe(true);
         expect(host.querySelector('[part="icon"]')?.textContent?.trim()).toBe('circle');
-        host.setAttribute('name', 'settings');
-        host.setAttribute('variant', 'custom');
-        await whenCemRendered(host);
+        host.setAttribute('image', 'settings');
+        host.setAttribute('variant', 'destructive');
+        await whenIconButtonRendered(host);
         expect(host.querySelector('[part="icon"]')?.textContent?.trim()).toBe('settings');
         expect(host.querySelector('[part="icon"]')?.getAttribute('aria-hidden')).toBe('true');
-        expect(button.classList.contains('cem-icon-button--custom')).toBe(true);
-        host.removeAttribute('name');
+        expect(button.classList.contains('cem-icon-button--destructive')).toBe(true);
+        host.removeAttribute('image');
         host.removeAttribute('variant');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(host.querySelector('[part="icon"]')?.textContent?.trim()).toBe('circle');
-        expect(button.classList.contains('cem-icon-button--quiet')).toBe(true);
+        expect(button.classList.contains('cem-icon-button--primary')).toBe(true);
 
         for (const value of ['', 'false', 'true']) {
             host.setAttribute('disabled', value);
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             expect(button.disabled).toBe(true);
         }
         host.removeAttribute('disabled');
-        for (const value of ['false', 'true']) {
-            host.setAttribute('expanded', value);
-            await whenCemRendered(host);
-            expect(button.getAttribute('aria-expanded')).toBe(value);
-        }
-        host.removeAttribute('expanded');
         host.setAttribute('class', 'consumer-class');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(button.disabled).toBe(false);
         expect(button.hasAttribute('aria-expanded')).toBe(false);
         expect(host.classList.contains('consumer-class')).toBe(true);
         host.hidden = true;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(getComputedStyle(host).display).toBe('none');
         host.hidden = false;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(getComputedStyle(host).display).not.toBe('none');
         expect(host.querySelector('button')).toBe(button);
-        expect(host.querySelector('style')).toBeNull();
+        expect(button.querySelector('style')).toBeNull();
+        expect(host.querySelector('cem-icon style')).toBeNull();
     },
 });
 
+export const RelayedIconAttributes = meta.story({
+    render: () => '<cem-icon-button image="★" label="Favorite" size="small" direction="column" class="consumer-icon"></cem-icon-button><cem-icon-button href="#favorite" image="★" label="Fallback"><strong>Projected favorite</strong></cem-icon-button>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            await whenIconButtonRendered(host);
+            const icon = host.querySelector('cem-icon') as HTMLElement;
+            const control = host.querySelector('button, a') as HTMLElement;
+            expect(icon.parentElement).toBe(control);
+            expect(icon.querySelector('.unicode')?.textContent).toBe('★');
+            const payload = host.querySelector('strong');
+            expect(icon.textContent).toContain(payload ? 'Projected favorite' : 'Favorite');
+            if (payload) expect(icon.textContent).not.toContain('Fallback');
+            host.setAttribute('label', 'Updated label');
+            host.setAttribute('aria-label', 'Accessible favorite');
+            host.setAttribute('class', 'relayed-class');
+            await whenIconButtonRendered(host);
+            expect(icon.getAttribute('label')).toBe('Updated label');
+            expect(icon.classList.contains('relayed-class')).toBe(true);
+            expect(control).toHaveAccessibleName('Accessible favorite');
+            expect(within(icon).getByRole('img', { name: 'Accessible favorite' })).not.toBeNull();
+            expect(icon.textContent).toContain(payload ? 'Projected favorite' : 'Updated label');
+            if (payload) expect(icon.querySelector('strong')).toBe(payload);
+            const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            for (const [size, scale] of [['small', 1], ['normal', 2], ['large', 3]] as const) {
+                host.setAttribute('size', size);
+                await whenIconButtonRendered(host);
+                expect(icon.getAttribute('size')).toBe(size);
+                expect(parseFloat(getComputedStyle(icon.querySelector('[part="icon"]')!).fontSize)).toBeCloseTo(rem * scale);
+            }
+            for (const direction of ['row', 'column']) {
+                host.setAttribute('direction', direction);
+                await whenIconButtonRendered(host);
+                expect(getComputedStyle(icon.querySelector('[part="content"]')!).flexDirection).toBe(direction);
+            }
+            host.setAttribute('image', '');
+            await whenIconButtonRendered(host);
+            expect(icon.querySelector('[part="icon"]')).toBeNull();
+            host.removeAttribute('image');
+            await whenIconButtonRendered(host);
+            expect(icon.getAttribute('image')).toBe(payload ? '' : 'circle');
+            host.removeAttribute('aria-label');
+            host.removeAttribute('size');
+            host.removeAttribute('direction');
+            host.removeAttribute('class');
+            for (const hidden of ['', 'false']) {
+                host.setAttribute('hidden', hidden);
+                await whenIconButtonRendered(host);
+                expect(icon.getAttribute('hidden')).toBe(hidden);
+                expect(getComputedStyle(host).display).toBe('none');
+            }
+            host.removeAttribute('hidden');
+            await whenIconButtonRendered(host);
+            expect(icon.hasAttribute('hidden')).toBe(false);
+            expect(icon.hasAttribute('aria-label')).toBe(false);
+            expect(icon.className).toBe('');
+            expect(getComputedStyle(icon.querySelector('[part="content"]')!).flexDirection).toBe('row');
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+            expect(storybookCemRuntime().diagnosticsFor(icon)).toEqual([]);
+        }
+    },
+});
+
+export const ActionStates = meta.story({
+    globals: { cemTheme: 'light' },
+    parameters: { docs: { description: { story: 'Container-owned selection and pending feedback across all themes, including disabled controls. Trusted focus/hover checks run in the browser test runner.' } } },
+    render: () => '<section class="cem-theme-light"><cem-icon-button image="star" label="Favorite"></cem-icon-button><cem-icon-button href="#current" image="home" label="Home"></cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        const section = canvasElement.querySelector('section')!;
+        const native = import.meta.env.MODE === 'test' ? (await import('vitest/browser')).userEvent : null;
+        for (const host of section.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            await whenIconButtonRendered(host);
+            const control = host.querySelector<HTMLElement>('[part="control"]')!;
+            const link = host.hasAttribute('href');
+            const selectionAttribute = link ? 'aria-current' : 'aria-pressed';
+            const intent = 'primary';
+            control.addEventListener('click', event => event.preventDefault());
+            expect(control.hasAttribute(selectionAttribute)).toBe(false);
+            host.setAttribute('selectable', 'false');
+            await whenIconButtonRendered(host);
+            expect(control.getAttribute('aria-pressed')).toBe(link ? null : 'false');
+            host.setAttribute('expanded', 'true');
+            await whenIconButtonRendered(host);
+            expect(control.hasAttribute('aria-expanded')).toBe(false);
+            expect(control.getAttribute(selectionAttribute)).toBe(link ? null : 'false');
+            host.removeAttribute('expanded');
+            for (const selected of ['', 'false', 'true']) {
+                host.setAttribute('selected', selected);
+                await whenIconButtonRendered(host);
+                expect(control.getAttribute(selectionAttribute)).toBe('true');
+                expect(control.hasAttribute(link ? 'aria-pressed' : 'aria-current')).toBe(false);
+                control.click();
+                await whenIconButtonRendered(host);
+                expect(host.getAttribute('selected')).toBe(selected);
+            }
+            const expected = (state: string) => {
+                const probe = document.createElement('span');
+                probe.style.backgroundColor = `var(--cem-action-${intent}-${state}-background)`;
+                probe.style.color = `var(--cem-action-${intent}-${state}-text)`;
+                host.append(probe);
+                const result = [getComputedStyle(probe).backgroundColor, getComputedStyle(probe).color];
+                probe.remove();
+                return result;
+            };
+            const paint = () => [getComputedStyle(control).backgroundColor, getComputedStyle(control).color];
+            for (const mode of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
+                section.className = `cem-theme-${mode}`;
+                const geometry = rectTuple(control);
+                control.blur();
+                if (native) await native.unhover(control);
+                const selectedRing = getComputedStyle(control).boxShadow;
+                expect(selectedRing).not.toBe('none');
+                host.setAttribute('pending', 'true');
+                await whenIconButtonRendered(host);
+                expect(control.getAttribute('aria-busy')).toBe('true');
+                await waitFor(() => expect(paint()).toEqual(expected('pending')));
+                expect(getComputedStyle(control).backgroundImage).toContain('linear-gradient');
+                expect(getComputedStyle(control).boxShadow).toBe(selectedRing);
+                if (mode.startsWith('contrast')) {
+                    expect(getComputedStyle(control, '::before').display).toBe('block');
+                    expect(getComputedStyle(control, '::before').backgroundImage).toContain('linear-gradient');
+                }
+                if (native) {
+                    await native.hover(control);
+                    await waitFor(() => expect(paint()).toEqual(expected('pending')));
+                    await native.keyboard('{Tab}');
+                    control.focus();
+                    expect(control.matches(':focus-visible')).toBe(true);
+                    expect(control.getAttribute(selectionAttribute)).toBe('true');
+                    expect(getComputedStyle(control).boxShadow).not.toBe('none');
+                    control.blur();
+                    await native.unhover(control);
+                }
+                control.click();
+                await whenIconButtonRendered(host);
+                expect(storybookCemRuntime().snapshotInstance(host).slices.pressed).toBe('click');
+                host.setAttribute('disabled', 'false');
+                await whenIconButtonRendered(host);
+                if (link) expect(control.getAttribute('aria-disabled')).toBe('true');
+                else expect((control as HTMLButtonElement).disabled).toBe(true);
+                if (link) expect(control.hasAttribute('href')).toBe(false);
+                await waitFor(() => expect(paint()).toEqual(expected('pending')));
+                expect(getComputedStyle(control).boxShadow).toBe(selectedRing);
+                const before = storybookCemRuntime().snapshotInstance(host).eventPayloads;
+                control.click();
+                await whenIconButtonRendered(host);
+                expect(storybookCemRuntime().snapshotInstance(host).eventPayloads).toEqual(before);
+                host.setAttribute('pending', 'false');
+                await whenIconButtonRendered(host);
+                await waitFor(() => expect(paint()).toEqual(expected('disabled')));
+                expect(getComputedStyle(control).backgroundImage).toBe('none');
+                expect(getComputedStyle(control).boxShadow).toBe(selectedRing);
+                expect(rectTuple(control)).toEqual(geometry);
+                host.removeAttribute('disabled');
+                host.removeAttribute('pending');
+                await whenIconButtonRendered(host);
+                expect(control.hasAttribute('aria-busy')).toBe(false);
+                if (link) expect(control.getAttribute('href')).toBe('#current');
+            }
+            host.removeAttribute('selected');
+            await whenIconButtonRendered(host);
+            expect(control.getAttribute(selectionAttribute)).toBe(link ? null : 'false');
+            host.removeAttribute('selectable');
+            await whenIconButtonRendered(host);
+            expect(control.hasAttribute('aria-pressed')).toBe(false);
+            expect(control.hasAttribute('aria-current')).toBe(false);
+            expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
+        }
+    },
+});
+
+export const RemovedSourceAliases = meta.story({
+    render: () => '<cem-icon-button></cem-icon-button><cem-icon-button href="#destination" label="Destination"></cem-icon-button>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            host.setAttribute('icon', 'settings');
+            host.setAttribute('name', 'favorite');
+            await whenIconButtonRendered(host);
+            const icon = host.querySelector('cem-icon') as HTMLElement;
+            const defaultImage = host.hasAttribute('href') ? '' : 'circle';
+            expect(icon.getAttribute('image')).toBe(defaultImage);
+            expect(icon.hasAttribute('icon')).toBe(false);
+            expect(icon.hasAttribute('name')).toBe(false);
+            host.setAttribute('image', '★');
+            await whenIconButtonRendered(host);
+            expect(icon.querySelector('.unicode')?.textContent).toBe('★');
+            host.setAttribute('image', '');
+            await whenIconButtonRendered(host);
+            expect(icon.querySelector('[part="icon"]')).toBeNull();
+            host.removeAttribute('image');
+            await whenIconButtonRendered(host);
+            expect(icon.getAttribute('image')).toBe(defaultImage);
+            host.removeAttribute('icon');
+            host.removeAttribute('name');
+            await whenIconButtonRendered(host);
+            expect(icon.getAttribute('image')).toBe(defaultImage);
+        }
+    },
+});
+
+async function whenIconButtonRendered(host: HTMLElement): Promise<void> {
+    await whenCemRendered(host);
+    const icon = host.querySelector('cem-icon') as HTMLElement;
+    expect(icon).not.toBeNull();
+    await whenCemRendered(icon);
+}
+
 export const LegacyIconSources = meta.story({
-    render: () => '<cem-icon-button label="Open documentation" href="#documentation" icon="recycling">Documentation</cem-icon-button>',
+    render: () => '<cem-icon-button image="recycling" label="Open documentation" href="#documentation">Documentation</cem-icon-button>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const link = within(host).getByRole('link', { name: 'Open documentation' });
         expect(link.getAttribute('href')).toBe('#documentation');
         expect(link.textContent).toContain('Documentation');
-        expect(host.querySelector('[part="icon"]')?.classList.contains('material-icons')).toBe(true);
-        host.setAttribute('icon', 'fas fa-cloud-upload-alt');
-        await whenCemRendered(host);
-        expect(host.querySelector('i[part="icon"]')?.classList.contains('fa-cloud-upload-alt')).toBe(true);
+        expect(host.querySelector('[part="glyph"]')?.classList.contains('material-icons')).toBe(true);
+        host.setAttribute('image', 'fas fa-cloud-upload-alt');
+        await whenIconButtonRendered(host);
+        expect(host.querySelector('i[part="glyph"]')?.classList.contains('fa-cloud-upload-alt')).toBe(true);
         const image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16"%3E%3C/svg%3E';
-        host.setAttribute('icon', image);
-        await whenCemRendered(host);
+        host.setAttribute('image', image);
+        await whenIconButtonRendered(host);
         expect(host.querySelector('img')?.getAttribute('src')).toBe(image);
         expect(host.querySelector('img')?.getAttribute('alt')).toBe('');
         expect(host.querySelector('img')?.getAttribute('aria-hidden')).toBe('true');
-        host.setAttribute('name', 'fallback');
-        host.setAttribute('icon', '');
-        await whenCemRendered(host);
+        host.setAttribute('image', '');
+        await whenIconButtonRendered(host);
         expect(host.querySelector('[part="icon"]')).toBeNull();
-        host.removeAttribute('icon');
-        await whenCemRendered(host);
-        expect(host.querySelector('[part="icon"]')?.textContent).toBe('fallback');
-        host.setAttribute('kind', 'alert');
+        host.removeAttribute('image');
+        await whenIconButtonRendered(host);
+        expect(host.querySelector('[part="icon"]')).toBeNull();
         host.setAttribute('direction', 'column');
-        await whenCemRendered(host);
-        expect(link.getAttribute('data-kind')).toBe('alert');
-        expect(getComputedStyle(link).flexDirection).toBe('column');
-        host.removeAttribute('kind');
+        await whenIconButtonRendered(host);
+        expect(getComputedStyle(host.querySelector('cem-icon [part="content"]')!).flexDirection).toBe('column');
         host.removeAttribute('direction');
-        await whenCemRendered(host);
-        expect(link.getAttribute('data-kind')).toBe('normal');
-        expect(getComputedStyle(link).flexDirection).toBe('row');
+        await whenIconButtonRendered(host);
+        expect(getComputedStyle(host.querySelector('cem-icon [part="content"]')!).flexDirection).toBe('row');
         host.removeAttribute('href');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(within(host).getByRole('button', { name: 'Open documentation' })).toHaveTextContent('Documentation');
         expect(host.querySelector('a')).toBeNull();
         expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
@@ -110,10 +334,10 @@ export const LegacyIconSources = meta.story({
 });
 
 export const LegacyLinkNavigation = meta.story({
-    render: () => '<cem-icon-button href="#icon-link-target" icon="shopping_cart">Open cart</cem-icon-button><div id="icon-link-target">Cart</div>',
+    render: () => '<cem-icon-button image="shopping_cart" href="#icon-link-target">Open cart</cem-icon-button><div id="icon-link-target">Cart</div>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const link = within(host).getByRole('link', { name: 'Open cart' }) as HTMLAnchorElement;
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
@@ -123,7 +347,7 @@ export const LegacyLinkNavigation = meta.story({
         try {
             await userEvent.click(link);
             expect(link.getAttribute('href')).toBe('#icon-link-target');
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             expect(storybookCemRuntime().snapshotInstance(host).slices.pressed).toBe('click');
             history.replaceState(null, '', original);
             link.focus();
@@ -133,38 +357,38 @@ export const LegacyLinkNavigation = meta.story({
             for (const value of ['', 'false', 'true']) {
                 history.replaceState(null, '', original);
                 host.setAttribute('disabled', value);
-                await whenCemRendered(host);
+                await whenIconButtonRendered(host);
                 const before = storybookCemRuntime().snapshotInstance(host).eventPayloads;
                 expect(link.hasAttribute('href')).toBe(false);
                 expect(link.getAttribute('aria-disabled')).toBe('true');
                 expect(link.tabIndex).toBe(-1);
                 link.click();
-                await whenCemRendered(host);
+                await whenIconButtonRendered(host);
                 expect(location.href).toBe(original);
                 expect(storybookCemRuntime().snapshotInstance(host).eventPayloads).toEqual(before);
             }
             host.removeAttribute('disabled');
             host.setAttribute('href', '');
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             expect(host.querySelector('a')).toBe(link);
             expect(link.getAttribute('href')).toBe('');
             expect(link.hasAttribute('aria-disabled')).toBe(false);
             expect(link.hasAttribute('tabindex')).toBe(false);
             host.setAttribute('label', 'Named link');
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             expect(link).toHaveAccessibleName('Named link');
         } finally { history.replaceState(null, '', original); }
     },
 });
 
 export const LegacyLinkPaint = meta.story({
-    render: () => '<section class="cem-theme-light"><cem-icon-button href="#paint" icon="recycling">Recycle</cem-icon-button></section>',
+    render: () => '<section class="cem-theme-light"><cem-icon-button image="recycling" href="#paint">Recycle</cem-icon-button></section>',
     play: async ({ canvasElement }) => {
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
         const section = canvasElement.querySelector('section') as HTMLElement;
         const host = section.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const link = host.querySelector('a') as HTMLAnchorElement;
         link.addEventListener('click', event => event.preventDefault());
         const tokenColor = (name: string) => {
@@ -177,21 +401,21 @@ export const LegacyLinkPaint = meta.story({
             return color;
         };
         const paint = async (state: string) => {
-            const background = tokenColor(`--cem-action-primary-${state}-background`);
-            const foreground = tokenColor(`--cem-action-primary-${state}-text`);
+            const background = tokenColor(`--cem-action-${host.getAttribute('variant') ?? 'primary'}-${state}-background`);
+            const foreground = tokenColor(`--cem-action-${host.getAttribute('variant') ?? 'primary'}-${state}-text`);
             await waitFor(() => expect(paintedColor(getComputedStyle(link).backgroundColor)).toBe(background));
             expect(paintedColor(getComputedStyle(link).color)).toBe(foreground);
         };
         for (const theme of ['light', 'dark', 'contrast-light', 'contrast-dark', 'native']) {
             section.className = `cem-theme-${theme}`;
             host.removeAttribute('disabled');
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             await userEvent.unhover(link);
             await paint('default');
-            for (const kind of ['normal', 'primary', 'secondary', 'alert', 'blend']) {
-                host.setAttribute('kind', kind);
-                await whenCemRendered(host);
-                expect(link.getAttribute('data-kind')).toBe(kind);
+            for (const variant of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+                host.setAttribute('variant', variant);
+                await whenIconButtonRendered(host);
+                expect(link.classList.contains(`cem-icon-button--${variant}`)).toBe(true);
                 await paint('default');
             }
             const geometry = rectTuple(link);
@@ -203,14 +427,14 @@ export const LegacyLinkPaint = meta.story({
             await waitForPseudoClass(link, ':active');
             await paint('active');
             await click;
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             await userEvent.keyboard('{Tab}');
             link.focus();
             expect(link.matches(':focus-visible')).toBe(true);
             expect(getComputedStyle(link).outlineStyle).toBe('solid');
             expect(rectTuple(link)).toEqual(geometry);
             host.setAttribute('disabled', 'false');
-            await whenCemRendered(host);
+            await whenIconButtonRendered(host);
             await paint('disabled');
             expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
         }
@@ -223,38 +447,124 @@ export const NativeActivation = meta.story({
         if (import.meta.env.MODE !== 'test') return;
         const { userEvent } = await import('vitest/browser');
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const button = host.querySelector('button') as HTMLButtonElement;
         const runtime = storybookCemRuntime();
         const clicks: boolean[] = [];
         button.addEventListener('click', event => clicks.push(event.isTrusted));
         await userEvent.click(host.querySelector("[part=icon]") as HTMLElement);
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(runtime.snapshotInstance(host).eventPayloads.pressed).toMatchObject({ type: 'click', revision: 1, target: { tag: 'span' }, currentTarget: { tag: 'button' } });
         const before = runtime.snapshotInstance(host);
         await userEvent.keyboard('[Space>]');
         expect(runtime.snapshotInstance(host).eventPayloads).toEqual(before.eventPayloads);
         await userEvent.keyboard('[/Space]');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         await userEvent.keyboard('{Enter}');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         expect(clicks).toEqual([true, true, true]);
         expect(runtime.snapshotInstance(host).slices.pressed).toBe('click');
         expect(runtime.snapshotInstance(host).eventPayloads.pressed).toMatchObject({ revision: 3, target: { tag: 'button' } });
         expect(button.hasAttribute('aria-pressed')).toBe(false);
         host.setAttribute('disabled', '');
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         button.click();
         expect(clicks).toHaveLength(3);
         expect(host.querySelector('button')).toBe(button);
     },
 });
 
+export const ActionVariants = meta.story({
+    render: () => '<section class="cem-theme-light"><cem-icon-button image="★" label="Command"></cem-icon-button><cem-icon-button href="#destination" image="★" label="Navigate"></cem-icon-button></section>',
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')) {
+            for (const variant of ['primary', 'explicit', 'contextual', 'alternate', 'destructive']) {
+                host.setAttribute('variant', variant);
+                for (const state of ['default', 'disabled', 'pending']) {
+                    host.toggleAttribute('disabled', state === 'disabled');
+                    host.setAttribute('pending', String(state === 'pending'));
+                    const background = `--cem-action-${variant}-${state}-background`;
+                    const text = `--cem-action-${variant}-${state}-text`;
+                    host.style.setProperty(background, 'rgb(12, 34, 56)');
+                    host.style.setProperty(text, 'rgb(234, 210, 198)');
+                    await whenIconButtonRendered(host);
+                    const control = host.querySelector<HTMLElement>('[part="control"]')!;
+                    expect(control.classList.contains(`cem-icon-button--${variant}`)).toBe(true);
+                    expect(getComputedStyle(control).backgroundColor).toBe('rgb(12, 34, 56)');
+                    expect(getComputedStyle(control).color).toBe('rgb(234, 210, 198)');
+                    host.style.removeProperty(background);
+                    host.style.removeProperty(text);
+                }
+            }
+            host.removeAttribute('variant');
+            host.removeAttribute('disabled');
+            host.removeAttribute('pending');
+            await whenIconButtonRendered(host);
+            expect(host.querySelector('[part="control"]')?.classList.contains('cem-icon-button--primary')).toBe(true);
+        }
+    },
+});
+
+export const NativeForms = meta.story({
+    render: () => `<form id="icon-button-form"><input aria-label="Required name" name="title" required value="initial" />
+        <cem-icon-button aria-label="Command">Command</cem-icon-button>
+        <cem-icon-button type="submit" name="intent" value="save" aria-label="Submit">Submit</cem-icon-button>
+        <cem-icon-button type="reset" aria-label="Reset">Reset</cem-icon-button>
+        <cem-icon-button type="submit" disabled aria-label="Disabled submit">Disabled submit</cem-icon-button></form>
+        <cem-icon-button type="submit" form="icon-button-form" name="intent" value="external" formaction="/action-override" formmethod="post" formenctype="text/plain" formtarget="action-target" formnovalidate aria-label="External submit">External submit</cem-icon-button>`,
+    play: async ({ canvasElement }) => {
+        await Promise.all([...canvasElement.querySelectorAll<HTMLElement>('cem-icon-button')].map(whenIconButtonRendered));
+        const canvas = within(canvasElement);
+        const form = canvasElement.querySelector('form')!;
+        const input = form.querySelector('input')!;
+        const submissions: Array<{ submitter: HTMLElement | null; entries: Array<[string, FormDataEntryValue]> }> = [];
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            submissions.push({ submitter: event.submitter, entries: [...new FormData(form, event.submitter)] });
+        });
+        const submit = canvas.getByRole('button', { name: 'Submit', exact: true }) as HTMLButtonElement;
+        await userEvent.click(canvas.getByRole('button', { name: 'Command', exact: true }));
+        await expect(submissions.length).toBe(0);
+        input.value = '';
+        await userEvent.click(submit);
+        await expect(submissions.length).toBe(0);
+        await expect(input.validity.valueMissing).toBe(true);
+        input.value = 'ready';
+        await userEvent.click(submit);
+        await expect(submissions[0]).toEqual({ submitter: submit, entries: [['title', 'ready'], ['intent', 'save']] });
+        const disabled = canvas.getByRole('button', { name: 'Disabled submit' }) as HTMLButtonElement;
+        await expect(disabled.disabled).toBe(true);
+        disabled.click();
+        await expect(submissions.length).toBe(1);
+        const external = canvas.getByRole('button', { name: 'External submit' }) as HTMLButtonElement;
+        await expect(external.form).toBe(form);
+        await expect(external.formAction).toBe(new URL('/action-override', location.href).href);
+        await expect(external.formMethod).toBe('post');
+        await expect(external.formEnctype).toBe('text/plain');
+        await expect(external.formTarget).toBe('action-target');
+        await expect(external.formNoValidate).toBe(true);
+        input.value = '';
+        await userEvent.click(external);
+        await expect(submissions[1]).toEqual({ submitter: external, entries: [['title', ''], ['intent', 'external']] });
+        const cancel = (event: Event) => event.preventDefault();
+        submit.addEventListener('click', cancel, { once: true });
+        input.value = 'changed';
+        await userEvent.click(submit);
+        await expect(submissions.length).toBe(2);
+        form.addEventListener('reset', cancel, { once: true });
+        await userEvent.click(canvas.getByRole('button', { name: 'Reset', exact: true }));
+        await expect(input.value).toBe('changed');
+        await userEvent.click(canvas.getByRole('button', { name: 'Reset', exact: true }));
+        await expect(input.value).toBe('initial');
+    },
+});
+
+
 export const ProjectedContent = meta.story({
     render: () => '<section class="cem-theme-light"><cem-icon-button label="Accessible command"><span data-content="projected">Projected command</span></cem-icon-button></section>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-icon-button') as HTMLElement;
-        await whenCemRendered(host);
+        await whenIconButtonRendered(host);
         const button = within(host).getByRole('button', { name: 'Accessible command' });
         expect(button.querySelector('[data-content="projected"]')?.textContent).toBe('Projected command');
         expect(host.shadowRoot).toBeNull();
@@ -264,8 +574,8 @@ export const ProjectedContent = meta.story({
 export const Hover = meta.story({
     render: () => `
             <section class="cem-theme-light">
-                <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
-                <cem-icon-button name="settings" label="Disabled settings" disabled></cem-icon-button>
+                <cem-icon-button image="settings" label="Open settings"></cem-icon-button>
+                <cem-icon-button image="settings" label="Disabled settings" disabled></cem-icon-button>
             </section>
         `,
     play: async ({ canvasElement }) => {
@@ -288,10 +598,10 @@ export const Hover = meta.story({
                 name: 'Open settings',
                 role: null,
                 tokens: {
-                    defaultBackground: '--cem-action-contextual-default-background',
-                    defaultText: '--cem-action-contextual-default-text',
-                    hoverBackground: '--cem-action-contextual-hover-background',
-                    hoverText: '--cem-action-contextual-hover-text',
+                    defaultBackground: '--cem-action-primary-default-background',
+                    defaultText: '--cem-action-primary-default-text',
+                    hoverBackground: '--cem-action-primary-hover-background',
+                    hoverText: '--cem-action-primary-hover-text',
                 },
             },
         ] as const;
@@ -388,8 +698,8 @@ export const Hover = meta.story({
 export const Active = meta.story({
     render: () => `
             <section class="cem-theme-light">
-                <cem-icon-button name="settings" label="Open settings"></cem-icon-button>
-                <cem-icon-button name="settings" label="Disabled settings" disabled></cem-icon-button>
+                <cem-icon-button image="settings" label="Open settings"></cem-icon-button>
+                <cem-icon-button image="settings" label="Disabled settings" disabled></cem-icon-button>
             </section>
         `,
     play: async ({ canvasElement }) => {
@@ -414,12 +724,12 @@ export const Active = meta.story({
                 slice: 'pressed',
                 targetTag: 'span',
                 tokens: {
-                    activeBackground: '--cem-action-contextual-active-background',
-                    activeText: '--cem-action-contextual-active-text',
-                    defaultBackground: '--cem-action-contextual-default-background',
-                    defaultText: '--cem-action-contextual-default-text',
-                    hoverBackground: '--cem-action-contextual-hover-background',
-                    hoverText: '--cem-action-contextual-hover-text',
+                    activeBackground: '--cem-action-primary-active-background',
+                    activeText: '--cem-action-primary-active-text',
+                    defaultBackground: '--cem-action-primary-default-background',
+                    defaultText: '--cem-action-primary-default-text',
+                    hoverBackground: '--cem-action-primary-hover-background',
+                    hoverText: '--cem-action-primary-hover-text',
                 },
             },
         ] as const;

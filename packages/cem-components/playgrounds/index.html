@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>cem-theme-switch — property playground</title>
+    <title>CEM component playground</title>
     <script type="importmap">{
     "imports": {
         "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
@@ -30,13 +30,17 @@
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
+        import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
-        installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
+        window.cemPlaygroundRuntime = runtime;
+        await installCemComponentPrimitives(runtime);
     </script>
+    <link rel="stylesheet" href="../demo.css">
     <style>
         body { margin: 0; font-family: system-ui, sans-serif; }
         #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
-        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        li { margin-block: var(--cem-dim-small); }
     </style>
 </head>
 <body>
@@ -44,37 +48,26 @@
 <template type="text/cem-ml">
 {cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
 {cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
-
-{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
-{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
-{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
-{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
-{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 </template>
 </cem-element>
 
-<cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
-<cem-gallery-nav heading="cem-theme-switch: Property playground"></cem-gallery-nav>
-
-<header><p><a href="./cem-theme-switch-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-theme-switch/cem-theme-switch.stories.ts">Automated stories</a></p></header>
+<div id="playground-theme" class="cem-theme-light">
+<cem-gallery-nav heading="CEM component playground"></cem-gallery-nav>
 <main>
-<p>Choose Light, Dark or Native. Contrast is available in Light and Dark. Native follows system appearance; the operating system controls contrast.</p>
-<p>Your contrast preference is remembered while Native is selected and restored when you return to Light or Dark.</p>
-<label>Try keeping an edited value while switching themes: <input id="retained-value" value="Draft"></label>
-<p><a href="./cem-action.html">Full demonstration with the action playground</a></p>
-<cem-element>
-<template type="text/cem-ml">
-{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
-{cem:if @test="datadom.slices.sourceUrl" |
-    {p | {a @href="{$datadom.slices.sourceUrl}" | Open canonical XHTML}}
-    {cem-demo-element @legend="Canonical theme switch source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}
-}
-</template>
-</cem-element>
-</main>
-</cem-theme-switch>
+<ul>
+    <li><strong>cem-action</strong> — <a href="./cem-action.html">Properties</a> · <a href="./cem-action-gallery.html">Gallery</a></li>
+    <li><strong>cem-field</strong> — <a href="./cem-field.html">Properties</a> · <a href="./cem-field-gallery.html">Gallery</a></li>
+    <li><strong>cem-icon-button</strong> — <a href="./cem-icon-button.html">Properties</a> · <a href="./cem-icon-button-gallery.html">Gallery</a></li>
+    <li><strong>cem-icon</strong> — <a href="./cem-icon.html">Properties</a> · <a href="./cem-icon-gallery.html">Gallery</a></li>
+    <li><strong>cem-menu-item</strong> — <a href="./cem-menu-item.html">Properties</a> · <a href="./cem-menu-item-gallery.html">Gallery</a></li>
+    <li><strong>cem-select</strong> — <a href="./cem-select.html">Properties</a> · <a href="./cem-select-gallery.html">Gallery</a></li>
+    <li><strong>cem-text-field</strong> — <a href="./cem-text-field.html">Properties</a> · <a href="./cem-text-field-gallery.html">Gallery</a></li>
+    <li><strong>cem-textarea</strong> — <a href="./cem-textarea.html">Properties</a> · <a href="./cem-textarea-gallery.html">Gallery</a></li>
+    <li><strong>cem-theme-switch</strong> — <a href="./cem-theme-switch.html">Properties</a> · <a href="./cem-theme-switch-gallery.html">Gallery</a></li>
+</ul>
+<p><a href="./cem-bundle.html">Release bundle</a></p></main>
+</div>
 </body>
 </html>

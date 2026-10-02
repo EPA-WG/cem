@@ -24,14 +24,15 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
-        const runtime = installCemElementRuntime(window);
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
@@ -51,6 +52,9 @@
 <body>
 <cem-element hidden>
 <template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
 {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
@@ -67,7 +71,9 @@
 </cem-element>
 
 <cem-theme-switch id="playground-theme" mode="light" name="action-gallery-theme">
-<header><h1><code>cem-action</code> attribute gallery</h1>
+<cem-gallery-nav heading="cem-action: Full examples and variation matrix"></cem-gallery-nav>
+
+<header>
 <p class="component-description">A button for commands, form submission, and reset, with intent, size, selection, and pending states. Use <a href="./cem-icon-button-gallery.html"><code>cem-icon-button</code></a> for an icon command or <a href="./cem-menu-item-gallery.html"><code>cem-menu-item</code></a> for a command within a menu.</p>
 
 <p>Each example uses the canonical component. Change the theme, then try pointer and keyboard interaction.</p>
@@ -105,9 +111,9 @@
 <cem-demo-element legend="Labels and accessible names" data-covers="label aria-label">
 <p slot="description">Child content replaces the fallback label. Icon-only actions need an accessible name.</p>
 <template slot="source">
-<cem-action id="gallery-fallback" label="Fallback label"></cem-action>
+<cem-action label="Fallback label"></cem-action>
 <cem-action label="Unused fallback">Projected child label</cem-action>
-<cem-action id="gallery-icon" aria-label="Add item"><span aria-hidden="true">＋</span></cem-action>
+<cem-action aria-label="Add item"><span aria-hidden="true">＋</span></cem-action>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Intent and bend" data-covers="variant class">
@@ -119,12 +125,12 @@
 <cem-demo-element legend="Size profiles" data-covers="size">
 <p slot="description">The attribute sets minimum height. Long content can grow beyond that minimum; compact controls retain the native hit-area expansion.</p>
 <template slot="source">
-<cem-action id="gallery-size-default">Inherited size</cem-action>
-<cem-action id="gallery-size-small" size="small">small</cem-action>
-<cem-action id="gallery-size-medium" size="medium">medium</cem-action>
-<cem-action id="gallery-size-large" size="large">large</cem-action>
-<cem-action id="gallery-size-x-large" size="x-large">x-large</cem-action>
-<cem-action id="gallery-size-xx-large" size="xx-large">xx-large</cem-action>
+<cem-action>Inherited size</cem-action>
+<cem-action size="small">small</cem-action>
+<cem-action size="medium">medium</cem-action>
+<cem-action size="large">large</cem-action>
+<cem-action size="x-large">x-large</cem-action>
+<cem-action size="xx-large">xx-large</cem-action>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Controlled selection" data-covers="selected selectable">
@@ -133,23 +139,23 @@
 <cem-element><template type="text/cem-ml">
 {slice @name=choice | compact}
 {div @role=group @aria-label="Layout choice" |
- {cem-action @id=gallery-compact @selectable=true @selected={if datadom.slices.choice == "compact" { true } else { null }} @slice=choice @slice-event=click @slice-value="'compact'" | Compact}
- {cem-action @id=gallery-comfortable @selectable=true @selected={if datadom.slices.choice == "comfortable" { true } else { null }} @slice=choice @slice-event=click @slice-value="'comfortable'" | Comfortable}
+ {cem-action @selectable=true @selected={if datadom.slices.choice == "compact" { true } else { null }} @slice=choice @slice-event=click @slice-value="'compact'" | Compact}
+ {cem-action @selectable=true @selected={if datadom.slices.choice == "comfortable" { true } else { null }} @slice=choice @slice-event=click @slice-value="'comfortable'" | Comfortable}
 }
 </template></cem-element>
-<cem-action id="gallery-selected-false" selected="false">Selected by presence</cem-action>
-<cem-action id="gallery-selectable-false" selectable="false">Selectable by presence</cem-action>
-<cem-action id="gallery-command">Ordinary command</cem-action>
+<cem-action selected="false">Selected by presence</cem-action>
+<cem-action selectable="false">Selectable by presence</cem-action>
+<cem-action>Ordinary command</cem-action>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Pending and disabled" data-covers="pending disabled">
 <p slot="description">Pending continues while disabled; disabled actions cannot activate. Reduced motion freezes animation. Forced colors retain a static indicator.</p>
 <template slot="source">
-<cem-action id="gallery-pending" pending="true">Pending</cem-action>
+<cem-action pending="true">Pending</cem-action>
 <cem-action pending="false">Not pending</cem-action>
 <cem-action disabled>Disabled</cem-action>
-<cem-action id="gallery-disabled-false" disabled="false">Disabled by presence</cem-action>
-<cem-action id="gallery-disabled-pending" disabled pending="true">Disabled pending</cem-action>
+<cem-action disabled="false">Disabled by presence</cem-action>
+<cem-action disabled pending="true">Disabled pending</cem-action>
 </template>
 </cem-demo-element>
 <cem-demo-element legend="Expanded and visibility" data-covers="expanded hidden">
@@ -158,10 +164,10 @@
 <cem-element><template type="text/cem-ml">
 {slice @name=open | false}
 {div |
- {cem-action @id=gallery-disclosure @expanded="{$datadom.slices.open}" @slice=open @slice-event=click @slice-value={if datadom.slices.open == "true" { "'false'" } else { "'true'" }} | Show or hide details}
- {cem-action @id=gallery-hidden @hidden={if datadom.slices.open == "true" { null } else { true }} | Revealed action}
+ {cem-action @expanded="{$datadom.slices.open}" @slice=open @slice-event=click @slice-value={if datadom.slices.open == "true" { "'false'" } else { "'true'" }} | Show or hide details}
+ {cem-action @hidden={if datadom.slices.open == "true" { null } else { true }} | Revealed action}
  {p | Hidden-until-found content can be revealed with the browser's Find command.}
- {cem-action @id=gallery-until-found @hidden=until-found | Find this gallery action}
+ {cem-action @hidden=until-found | Find this gallery action}
 }
 </template></cem-element>
 </template>
@@ -172,11 +178,11 @@
 <div class="form-example">
 <form id="gallery-form" method="get" target="_blank">
 <label>Example title <input name="title" value="Initial title" required></label>
-<cem-action id="gallery-submit" type="submit" name="intent" value="save">Submit</cem-action>
-<cem-action id="gallery-reset" type="reset">Reset</cem-action>
-<cem-action id="gallery-button" type="button">Non-submitting command</cem-action>
+<cem-action type="submit" name="intent" value="save">Submit</cem-action>
+<cem-action type="reset">Reset</cem-action>
+<cem-action type="button">Non-submitting command</cem-action>
 </form>
-<cem-action id="gallery-external" type="submit" form="gallery-form" name="intent" value="external" formaction="cem-action-gallery.html#gallery-form" formmethod="get" formenctype="application/x-www-form-urlencoded" formtarget="_blank" formnovalidate>Submit without validation</cem-action>
+<cem-action type="submit" form="gallery-form" name="intent" value="external" formaction="cem-action-gallery.html#gallery-form" formmethod="get" formenctype="application/x-www-form-urlencoded" formtarget="_blank" formnovalidate>Submit without validation</cem-action>
 </div>
 </template>
 </cem-demo-element>

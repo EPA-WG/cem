@@ -46,7 +46,9 @@
         "./playgrounds/cem-icon-gallery.html": "./dist/cem-icon-gallery.html",
         "./playgrounds/cem-textarea.html": "./dist/cem-textarea.html",
         "./playgrounds/cem-textarea-gallery.html": "./dist/cem-textarea-gallery.html",
-        "./playgrounds/assets/wc-square.svg": "./playgrounds/assets/wc-square.svg"
+        "./playgrounds/assets/wc-square.svg": "./playgrounds/assets/wc-square.svg",
+        "./playgrounds/index.html": "./dist/index.html",
+        "./playgrounds/cem-gallery-nav.xhtml": "./dist/cem-gallery-nav.xhtml"
     },
     "files": [
         "dist",

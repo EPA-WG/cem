@@ -24,14 +24,15 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
-        const runtime = installCemElementRuntime(window);
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
@@ -51,6 +52,9 @@
 <body>
 <cem-element hidden>
 <template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
 {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
@@ -67,8 +71,10 @@
 </cem-element>
 
 <cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
+<cem-gallery-nav heading="cem-select: Property playground"></cem-gallery-nav>
+
 <header>
-<h1><code>cem-select</code> playground</h1>
+
 <p>Change the properties, then choose an option in the live preview.</p>
 <p><a href="#examples">Examples and variations</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-select/cem-select.stories.ts">Automated stories</a></p>
 <p><a href="./cem-select-gallery.html">Full examples and variation matrix</a></p></header>

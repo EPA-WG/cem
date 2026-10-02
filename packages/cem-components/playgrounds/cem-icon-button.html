@@ -26,14 +26,15 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
-        const runtime = installCemElementRuntime(window);
+        const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
@@ -53,6 +54,9 @@
 <body>
 <cem-element hidden>
 <template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
 {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
@@ -69,49 +73,117 @@
 </cem-element>
 
 <cem-theme-switch id="playground-theme" mode="light" name="playground-theme-mode">
-<header><h1>cem-icon-button playground</h1><p>Change every implemented attribute and inspect the production source.</p><p><a href="./cem-icon-button-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts">Automated stories</a></p></header>
-<main><cem-element><template type="text/cem-ml">
+<cem-gallery-nav heading="cem-icon-button: Property playground"></cem-gallery-nav>
+
+<header><p>An icon button or navigation link with embedded cem-icon content and CEM action-theme states. Change its attributes and inspect the production source.</p><p><a href="./cem-icon-button-gallery.html">Full examples and variation matrix</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts">Automated stories</a></p></header>
+<main>
+<aside aria-label="Embedded icon and shared attributes">
+<h2>Embedded cem-icon and shared attributes</h2>
+<p><code>cem-icon-button</code> embeds <a href="./cem-icon-gallery.html"><code>cem-icon</code></a> inside a native button or link and loads it automatically. It relays <code>image</code>, <code>size</code>, <code>direction</code>, <code>label</code>, <code>aria-label</code>, <code>class</code>, <code>hidden</code>, and default-slot content. Unicode, emoji, image URLs and font glyphs use the same rendering as <code>cem-icon</code>.</p>
+<p><strong>Attribute note:</strong> <code>label</code> supplies visible fallback text; projected content replaces it. For an icon-only control, use <code>aria-label</code> without <code>label</code>. <code>aria-label</code> names both the control and embedded glyph and takes precedence over the control’s <code>label</code> name.</p>
+<p><code>image</code> selects the glyph. An explicitly empty source hides the glyph. Without a source, buttons show circle and links show no glyph. <code>size="small|medium|large|x-large|xx-large"</code> sets action control height and is forwarded unchanged to the icon. Small and large select their icon sizes; other values use the default icon size. Normal or absent size inherits control height. The inherited <code>--cem-icon-size</code>, <code>--cem-icon-size-small</code>, and <code>--cem-icon-size-large</code> tokens control glyph size. Row and column layouts work in both modes.</p>
+<p><code>href</code>, <code>disabled</code>, <code>selected</code>, <code>selectable</code>, <code>pending</code>, <code>variant</code>, and activation remain owned by <code>cem-icon-button</code>. Present <code>href</code> selects a link; absent <code>href</code> selects a button.</p>
+<h2>Action theme support</h2>
+<p>Controls use the same action state model and theme tokens as <a href="./cem-action-gallery.html"><code>cem-action</code></a>: default, hover, active press, disabled, pending, selected and keyboard focus. Variant selects primary (default), explicit, contextual, alternate or destructive action colors in both modes. These states respond to all five CEM theme modes and inherited action-token overrides.</p>
+<p><code>selected</code> keeps the theme’s selection stripe visible, including while disabled or pending. <code>selectable</code> exposes an unselected button choice. The containing application controls selection. <code>pending="true"</code> shows busy feedback and takes precedence over hover, press and disabled paint; <code>disabled</code> still prevents activation. Keyboard focus has an independent stripe. Contrast themes use action contours, reduced motion freezes pending animation, and forced colors use system-color indicators.</p>
+</aside>
+<cem-element><template type="text/cem-ml">
 {slice @name=label | Run command}
 {slice @name=disabled | absent}
-{slice @name=expanded | absent}
+{slice @name=selected | absent}
+{slice @name=selectable | absent}
+{slice @name=pending | absent}
 {slice @name=hidden | absent}
 {slice @name=class | custom-command}
-{slice @name=name | settings}
-{slice @name=variant | quiet}
+{slice @name=variant | primary}
 {slice @name=href | }
-{slice @name=icon | }
-{slice @name=kind | normal}
 {slice @name=direction | row}
+{slice @name=image | ★}
+{slice @name=imageMode | absent}
+{slice @name=size | normal}
+{slice @name=ariaLabel | }
+{slice @name=type | button}
+{slice @name=formnovalidate | absent}
+{slice @name=name | }
+{slice @name=value | }
+{slice @name=form | }
+{slice @name=formaction | }
+{slice @name=formmethod | }
+{slice @name=formenctype | }
+{slice @name=formtarget | }
+
 {div @class=workspace | {section @class=properties @aria-label="Command properties" | {h2 | Properties}
 {cem-field @label="label" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
 {cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input @slice-value="$target.value"}
-{cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
-{cem-field @label="variant" @value="{$datadom.slices.variant}" @slice=variant @slice-event=input @slice-value="$target.value"}
 {cem-field @label="href" @value="{$datadom.slices.href}" @slice=href @slice-event=input @slice-value="$target.value"}
-{cem-field @label="icon" @value="{$datadom.slices.icon}" @slice=icon @slice-event=input @slice-value="$target.value"}
+{cem-field @label="image" @value="{$datadom.slices.image}" @slice=image @slice-event=input @slice-value="$target.value"}
+{cem-field @label="aria-label" @value="{$datadom.slices.ariaLabel}" @slice=ariaLabel @slice-event=input @slice-value="$target.value"}
+{cem-field @label="name" @value="{$datadom.slices.name}" @slice=name @slice-event=input @slice-value="$target.value"}
+{cem-field @label="value" @value="{$datadom.slices.value}" @slice=value @slice-event=input @slice-value="$target.value"}
+{cem-field @label="form" @value="{$datadom.slices.form}" @slice=form @slice-event=input @slice-value="$target.value"}
+{cem-field @label="formaction" @value="{$datadom.slices.formaction}" @slice=formaction @slice-event=input @slice-value="$target.value"}
+{cem-field @label="formmethod" @value="{$datadom.slices.formmethod}" @slice=formmethod @slice-event=input @slice-value="$target.value"}
+{cem-field @label="formenctype" @value="{$datadom.slices.formenctype}" @slice=formenctype @slice-event=input @slice-value="$target.value"}
+{cem-field @label="formtarget" @value="{$datadom.slices.formtarget}" @slice=formtarget @slice-event=input @slice-value="$target.value"}
 {div @class=property-groups |
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-variant @slice=variant @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-variant | variant} {div @class=property-options |
+{cem-radio @name=icon-button-variant @value=primary @checked=true | primary}
+{cem-radio @name=icon-button-variant @value=explicit | explicit}
+{cem-radio @name=icon-button-variant @value=contextual | contextual}
+{cem-radio @name=icon-button-variant @value=alternate | alternate}
+{cem-radio @name=icon-button-variant @value=destructive | destructive}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-type @slice=type @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-type | type} {div @class=property-options |
+{cem-radio @name=icon-button-type @value=button @checked=true | button}
+{cem-radio @name=icon-button-type @value=submit | submit}
+{cem-radio @name=icon-button-type @value=reset | reset}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-formnovalidate @slice=formnovalidate @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-formnovalidate | formnovalidate} {div @class=property-options |
+{cem-radio @name=icon-button-formnovalidate @value=absent @checked=true | absent}
+{cem-radio @name=icon-button-formnovalidate @value=false | false}
+{cem-radio @name=icon-button-formnovalidate @value=true | true}
+}}
+
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-selected @slice=selected @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-selected | selected} {div @class=property-options |
+{cem-radio @name=icon-button-selected @value=absent @checked=true | absent}
+{cem-radio @name=icon-button-selected @value=false | false}
+{cem-radio @name=icon-button-selected @value=true | true}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-selectable @slice=selectable @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-selectable | selectable} {div @class=property-options |
+{cem-radio @name=icon-button-selectable @value=absent @checked=true | absent}
+{cem-radio @name=icon-button-selectable @value=false | false}
+{cem-radio @name=icon-button-selectable @value=true | true}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-pending @slice=pending @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-pending | pending} {div @class=property-options |
+{cem-radio @name=icon-button-pending @value=absent @checked=true | absent}
+{cem-radio @name=icon-button-pending @value=false | false}
+{cem-radio @name=icon-button-pending @value=true | true}
+}}
+
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-image-mode @slice=imageMode @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-image-mode | image source} {div @class=property-options |
+{cem-radio @name=icon-button-image-mode @value=absent @checked=true | Use mode default}
+{cem-radio @name=icon-button-image-mode @value=value | Use image}
+{cem-radio @name=icon-button-image-mode @value=empty | Hide glyph}
+}}
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-size @slice=size @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-size | size} {div @class=property-options |
+{cem-radio @name=icon-button-size @value=small | small}
+{cem-radio @name=icon-button-size @value=normal @checked=true | normal}
+{cem-radio @name=icon-button-size @value=large | large}
+{cem-radio @name=icon-button-size @value=medium | medium}
+{cem-radio @name=icon-button-size @value=x-large | x-large}
+{cem-radio @name=icon-button-size @value=xx-large | xx-large}
+}}
+
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-direction @slice=direction @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-direction | direction} {div @class=property-options |
 {cem-radio @name=icon-button-direction @value=row @checked=true | row}
 {cem-radio @name=icon-button-direction @value=column | column}
 }}
 
-{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-kind @slice=kind @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-kind | kind} {div @class=property-options |
-{cem-radio @name=icon-button-kind @value=normal @checked=true | normal}
-{cem-radio @name=icon-button-kind @value=primary | primary}
-{cem-radio @name=icon-button-kind @value=secondary | secondary}
-{cem-radio @name=icon-button-kind @value=alert | alert}
-{cem-radio @name=icon-button-kind @value=blend | blend}
-}}
 
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-disabled @slice=disabled @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-disabled | disabled} {div @class=property-options |
 {cem-radio @name=icon-button-disabled @value=absent @checked=true | absent}
 {cem-radio @name=icon-button-disabled @value=false | false}
 {cem-radio @name=icon-button-disabled @value=true | true}
-}}
-{fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-expanded @slice=expanded @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-expanded | expanded} {div @class=property-options |
-{cem-radio @name=icon-button-expanded @value=absent @checked=true | absent}
-{cem-radio @name=icon-button-expanded @value=false | false}
-{cem-radio @name=icon-button-expanded @value=true | true}
 }}
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=icon-button-hidden @slice=hidden @slice-event=change @slice-value="$target.value" | {legend @id=icon-button-hidden | hidden} {div @class=property-options |
 {cem-radio @name=icon-button-hidden @value=absent @checked=true | absent}
@@ -119,39 +191,176 @@
 {cem-radio @name=icon-button-hidden @value=true | true}
 }}
 }} {section @aria-label="Command preview" | {h2 | Preview} {div @class=preview |
-{cem-icon-button @id=command-preview @href={if datadom.slices.href { datadom.slices.href } else { null }} @icon={if datadom.slices.icon { datadom.slices.icon } else { null }} @kind="{$datadom.slices.kind}" @direction="{$datadom.slices.direction}" @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @name="{$datadom.slices.name}" @variant="{$datadom.slices.variant}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @expanded={if datadom.slices.expanded == "absent" { null } else { datadom.slices.expanded }} @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }}}
-} {p | Clear href to return to button mode. Clear icon to use name; the examples below also show an explicitly empty icon.}
-{p | Disabled and hidden use attribute presence, including the text false. Expanded reports a disclosure state; the command does not open a popup itself. A click records its event without toggling a persistent selection.}
-{p | Href switches to native navigation. Icon accepts an image URL, Font Awesome classes or a Material icon name and overrides name. An empty icon hides it. Label names icon-only controls; link text supplies the name when label is absent. Kind is a legacy compatibility value; all kinds use primary link colors. Buttons keep contextual colors.}
+{cem-icon-button @size="{$datadom.slices.size}" @aria-label={datadom.slices.ariaLabel} @id=command-preview @name={datadom.slices.name} @value={datadom.slices.value} @form={datadom.slices.form} @formaction={datadom.slices.formaction} @formmethod={datadom.slices.formmethod} @formenctype={datadom.slices.formenctype} @formtarget={datadom.slices.formtarget} @type="{$datadom.slices.type}" @formnovalidate={if datadom.slices.formnovalidate == "absent" { null } else { datadom.slices.formnovalidate }} @href={if datadom.slices.href { datadom.slices.href } else { null }} @direction="{$datadom.slices.direction}" @label="{$datadom.slices.label}" @class="{$datadom.slices.class}" @variant="{$datadom.slices.variant}" @disabled={if datadom.slices.disabled == "absent" { null } else { datadom.slices.disabled }} @selected={if datadom.slices.selected == "absent" { null } else { datadom.slices.selected } } @selectable={if datadom.slices.selectable == "absent" { null } else { datadom.slices.selectable } } @pending={if datadom.slices.pending == "absent" { null } else { datadom.slices.pending } } @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} |
+{cem:if @test='datadom.slices.imageMode != "absent"' | {cem:attribute @name=image @value={if datadom.slices.imageMode == "empty" { "" } else { datadom.slices.image }}}}
+}
+} {p | Type and form attributes apply only in button mode. Leave form empty for a command outside a form, or use icon-button-example-form to try the native form below. Formnovalidate uses presence, including false.}
+{p | Clear href to return to button mode. Choose Use mode default, Use image, or Hide glyph to control the image source.}
+{p | Disabled, selected, selectable and hidden use attribute presence, including the text false. Pending uses true or false. The containing application controls selection; clicks record activation without changing selected.}
+{p | Href switches to native navigation. Image selects the embedded icon. An empty source hides the glyph. Label supplies visible fallback text; aria-label names icon-only controls. Variant selects primary, explicit, contextual, alternate or destructive action colors for both buttons and links.}
 }}
 </template></cem-element>
 <h2>Attribute inventory</h2><ul><li data-command-attribute="class"><code>class</code></li>
 <li data-command-attribute="disabled"><code>disabled</code></li>
-<li data-command-attribute="expanded"><code>expanded</code></li>
+<li data-command-attribute="selected"><code>selected</code></li>
+<li data-command-attribute="selectable"><code>selectable</code></li>
+<li data-command-attribute="pending"><code>pending</code></li>
 <li data-command-attribute="hidden"><code>hidden</code></li>
 <li data-command-attribute="label"><code>label</code></li>
-<li data-command-attribute="name"><code>name</code></li>
 <li data-command-attribute="href"><code>href</code></li>
-<li data-command-attribute="icon"><code>icon</code></li>
-<li data-command-attribute="kind"><code>kind</code></li>
+<li data-command-attribute="image"><code>image</code></li>
+<li data-command-attribute="size"><code>size</code></li>
+<li data-command-attribute="aria-label"><code>aria-label</code></li>
 <li data-command-attribute="direction"><code>direction</code></li>
+<li data-command-attribute="name"><code>name</code></li>
+<li data-command-attribute="value"><code>value</code></li>
+<li data-command-attribute="form"><code>form</code></li>
+<li data-command-attribute="formaction"><code>formaction</code></li>
+<li data-command-attribute="formmethod"><code>formmethod</code></li>
+<li data-command-attribute="formenctype"><code>formenctype</code></li>
+<li data-command-attribute="formtarget"><code>formtarget</code></li>
+<li data-command-attribute="formnovalidate"><code>formnovalidate</code></li>
+<li data-command-attribute="type"><code>type</code></li>
 <li data-command-attribute="variant"><code>variant</code></li></ul>
-<cem-demo-element legend="Legacy icon links" data-covers="href icon kind direction"><template slot="source">
-<cem-icon-button id="legacy-link-material" href="#legacy-link-target" icon="recycling">Recycle</cem-icon-button>
-<cem-icon-button id="legacy-link-font" href="#legacy-link-target" icon="fas fa-cloud-upload-alt" kind="primary">Upload</cem-icon-button>
-<cem-icon-button id="legacy-link-image" href="#legacy-link-target" icon="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" direction="column">Image link</cem-icon-button>
-<cem-icon-button id="legacy-link-disabled" href="#legacy-link-target" icon="shopping_cart" disabled="false">Disabled link</cem-icon-button>
-<cem-icon-button href="#legacy-link-target" icon="">Text-only link</cem-icon-button>
-<cem-icon-button href="#legacy-link-target" icon="shopping_cart" label="Open cart"></cem-icon-button>
-<div id="legacy-link-target">Link destination</div>
+<cem-demo-element type="cem-ml" legend="Control and icon sizes" description="Size sets the same minimum control height as cem-action and is forwarded unchanged to cem-icon. Small and large also select the matching icon size; medium, x-large and xx-large use the default icon size. Normal and absent size inherit control height and use the default icon size. Content and the minimum hit area can make controls taller." data-covers="size"><template slot="source">
+{div @data-cem-size=large |
+    {cem-icon-button @image="★" @label="Inherited"}
+    {cem-icon-button @image="★" @label="small" @size=small}
+    {cem-icon-button @image="★" @label="medium" @size=medium}
+    {cem-icon-button @image="★" @label="normal" @size=normal}
+    {cem-icon-button @image="★" @label="large" @size=large}
+    {cem-icon-button @image="★" @label="x-large" @size=x-large}
+    {cem-icon-button @image="★" @label="xx-large" @size=xx-large}
+    {cem-icon-button @image="★" @label="Inherited" @href="#icon-link-target"}
+    {cem-icon-button @image="★" @label="small" @href="#icon-link-target" @size=small}
+    {cem-icon-button @image="★" @label="medium" @href="#icon-link-target" @size=medium}
+    {cem-icon-button @image="★" @label="normal" @href="#icon-link-target" @size=normal}
+    {cem-icon-button @image="★" @label="large" @href="#icon-link-target" @size=large}
+    {cem-icon-button @image="★" @label="x-large" @href="#icon-link-target" @size=x-large}
+    {cem-icon-button @image="★" @label="xx-large" @href="#icon-link-target" @size=xx-large}
+}
 </template></cem-demo-element>
-<cem-demo-element legend="All implemented attributes" data-covers="label disabled expanded hidden class name variant"><template slot="source">
-<cem-icon-button id="command-default"></cem-icon-button>
-<cem-icon-button id="command-configured" label="Configured command" class="consumer-command" expanded="false" name="settings" variant="quiet"></cem-icon-button>
-<cem-icon-button id="command-disabled" label="Disabled by presence" disabled="false"></cem-icon-button>
-<cem-icon-button id="command-expanded" label="Expanded command" expanded="true"></cem-icon-button>
-<cem-icon-button id="command-hidden" label="Hidden by presence" hidden="false"></cem-icon-button>
-<cem-icon-button id="command-content" label="Projected command"><span>Projected content</span></cem-icon-button>
+<cem-demo-element legend="Embedded icon attributes" description="Both command and link modes relay the cem-icon source, size, layout, visible label and accessible name. Projected content replaces the label fallback." data-covers="image size direction label aria-label"><template slot="source">
+<cem-icon-button image="★" size="small" label="Favorite"></cem-icon-button>
+<cem-icon-button image="😀" size="normal" label="Reaction" direction="column"></cem-icon-button>
+<cem-icon-button image="favorite" size="large" aria-label="Favorite"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="★" size="large" direction="column" label="Fallback"><strong>Projected favorite</strong></cem-icon-button>
+<cem-icon-button image="" label="Text without glyph"></cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Icon links" data-covers="href image variant direction"><template slot="source">
+<cem-icon-button image="recycling" href="#icon-link-target">Recycle</cem-icon-button>
+<cem-icon-button image="fas fa-cloud-upload-alt" href="#icon-link-target">Upload</cem-icon-button>
+<cem-icon-button image="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2024%2024%22%3E%3Cpath%20fill=%22%23007880%22%20d=%22M12%202%2022%2012%2012%2022%202%2012Z%22/%3E%3C/svg%3E" href="#icon-link-target" direction="column">Image link</cem-icon-button>
+<cem-icon-button image="shopping_cart" href="#icon-link-target" disabled="false">Disabled link</cem-icon-button>
+<cem-icon-button image="" href="#icon-link-target">Text-only link</cem-icon-button>
+<cem-icon-button image="shopping_cart" href="#icon-link-target" label="Open cart"></cem-icon-button>
+<div id="icon-link-target">Link destination</div>
+</template></cem-demo-element>
+<cem-demo-element legend="Command buttons" description="Without href, the control is a native button. Type defaults to button, which does not submit a surrounding form. The default glyph is circle and the default accessible name is Icon action; supply aria-label for a named icon-only command."><template slot="source">
+<cem-icon-button></cem-icon-button>
+<form>
+<cem-icon-button image="settings" aria-label="Open settings"></cem-icon-button>
+</form>
+</template></cem-demo-element>
+<cem-demo-element legend="Command activation" description="Click the enabled command, or focus it and press Space or Enter. Each activation emits a click and records the component’s pressed event slice without changing the container-owned selected state. The containing example displays the last click."><template slot="source">
+<cem-element><template type="text/cem-ml">
+{slice @name=activation | None}
+{cem-icon-button @image=check @label="Run command" @slice=activation @slice-event=click @slice-value="$event.type"}
+{p @role=status | Last activation: {$datadom.slices.activation}}
+</template></cem-element>
+</template></cem-demo-element>
+<cem-demo-element legend="Navigation links" description="Present href selects a native link. Click or Enter follows its URL. Fragments target this page, relative URLs use the document base, absolute URLs navigate to another site, and an empty href navigates to the current document. Text supplies the accessible name when label and aria-label are absent." data-covers="href"><template slot="source">
+<cem-icon-button href="#icon-link-target" image="arrow_downward">Jump to destination</cem-icon-button>
+<cem-icon-button href="./cem-icon.html" image="open_in_new">Icon playground</cem-icon-button>
+<cem-icon-button href="https://github.com/EPA-WG/cem" image="open_in_new">CEM repository</cem-icon-button>
+<cem-icon-button href="">Current document</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Disabled buttons" description="Disabled uses attribute presence: disabled, disabled=false and disabled=true all prevent activation and remove the native button from the tab sequence. Remove the attribute to enable the command." data-covers="disabled"><template slot="source">
+<cem-icon-button image="check" label="Enabled command"></cem-icon-button>
+<cem-icon-button image="check" label="Disabled command" disabled></cem-icon-button>
+<cem-icon-button image="check" label="Disabled with false" disabled="false"></cem-icon-button>
+<cem-icon-button image="check" label="Disabled with true" disabled="true"></cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Disabled links" description="A disabled link retains its link role and aria-disabled=true, omits its native href and activation binding, and leaves the tab sequence. All three disabled values below have the same effect. Removing disabled restores the authored destination." data-covers="href disabled"><template slot="source">
+<cem-icon-button href="#icon-link-target" image="shopping_cart">Enabled link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="shopping_cart" disabled>Disabled link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="shopping_cart" disabled="false">Disabled with false</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="shopping_cart" disabled="true">Disabled with true</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Selection" description="Selected is controlled by the containing application and uses presence: selected=false is still selected. Buttons expose aria-pressed=true; selectable buttons without selected expose aria-pressed=false. Selected links retain navigation semantics and expose aria-current=true. The selection stripe stays visible during hover, press, focus, disabled and pending states; clicks do not toggle selected." data-covers="selected selectable"><template slot="source">
+<cem-icon-button image="star" label="Ordinary command"></cem-icon-button>
+<cem-icon-button image="star" label="Unselected choice" selectable></cem-icon-button>
+<cem-icon-button image="star" label="Selectable by presence" selectable="false"></cem-icon-button>
+<cem-icon-button image="star" label="Selected choice" selected></cem-icon-button>
+<cem-icon-button image="star" label="Selected with false" selected="false"></cem-icon-button>
+<cem-icon-button image="star" label="Selected with true" selected="true"></cem-icon-button>
+<cem-icon-button image="star" label="Disabled selected choice" selected disabled></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="home">Unselected link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="home" selected>Current link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="home" selected="false">Current link with false</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="home" selected disabled>Disabled current link</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Pending actions" description="Pending=true exposes aria-busy=true and uses the action theme’s animated pending treatment. Pending=false or removing pending restores the current interaction colors. Pending remains visible when disabled and preserves selection; use disabled to prevent activation. Reduced motion freezes the animation, and forced colors use a static system-color indicator." data-covers="pending"><template slot="source">
+<cem-icon-button image="sync" label="Ready command" pending="false"></cem-icon-button>
+<cem-icon-button image="sync" label="Pending command" pending="true"></cem-icon-button>
+<cem-icon-button image="sync" label="Disabled pending command" pending="true" disabled></cem-icon-button>
+<cem-icon-button image="sync" label="Selected pending command" pending="true" selected></cem-icon-button>
+<cem-icon-button image="sync" label="Selected disabled pending command" pending="true" selected disabled></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="sync" pending="false">Ready link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="sync" pending="true">Pending link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="sync" pending="true" disabled>Disabled pending link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="sync" pending="true" selected>Current pending link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="sync" pending="true" selected disabled>Disabled current pending link</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Action variants" description="Variant selects the same action intent as cem-action: primary (default), explicit, contextual, alternate or destructive. It controls default, hover, active, disabled and pending paint in both button and link modes; selected and keyboard-focus stripes remain independent." data-covers="variant"><template slot="source">
+<cem-icon-button image="settings" label="Default variant"></cem-icon-button>
+<cem-icon-button image="settings" label="primary" variant="primary"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" variant="primary">primary link</cem-icon-button>
+<cem-icon-button image="settings" label="explicit" variant="explicit"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" variant="explicit">explicit link</cem-icon-button>
+<cem-icon-button image="settings" label="contextual" variant="contextual"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" variant="contextual">contextual link</cem-icon-button>
+<cem-icon-button image="settings" label="alternate" variant="alternate"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" variant="alternate">alternate link</cem-icon-button>
+<cem-icon-button image="settings" label="destructive" variant="destructive"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" variant="destructive">destructive link</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Button types" description="Type defaults to button. Submit participates in native validation and submits the form; reset restores the initial field value. These are the same native button behaviors as cem-action. Submit opens this page in a new tab." data-covers="type name value"><template slot="source">
+<form id="icon-button-example-form" method="get" target="_blank">
+<label>Example title <input name="title" value="Initial title" required></label>
+<cem-icon-button image="check" label="Submit" type="submit" name="intent" value="save"></cem-icon-button>
+<cem-icon-button image="undo" label="Reset" type="reset" variant="explicit"></cem-icon-button>
+<cem-icon-button image="settings" label="Command" type="button" variant="contextual"></cem-icon-button>
+</form>
+</template></cem-demo-element>
+<cem-demo-element legend="External form ownership" description="Form associates the native button with a form elsewhere in the document. This submitter uses the Example title form above. Name and value identify the submitter in form data; they do not select the image." data-covers="form name value"><template slot="source">
+<cem-icon-button image="send" label="Submit example form" type="submit" form="icon-button-example-form" name="intent" value="external"></cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Submit overrides" description="Formaction, formmethod, formenctype and formtarget override the form settings for this submitter. Formnovalidate uses presence to bypass native validation. Button-only form attributes do not apply in href link mode." data-covers="formaction formmethod formenctype formtarget formnovalidate"><template slot="source">
+<cem-icon-button image="send" label="Submit without validation" type="submit" form="icon-button-example-form" name="intent" value="override" formaction="#icon-button-example-form" formmethod="get" formenctype="application/x-www-form-urlencoded" formtarget="_blank" formnovalidate></cem-icon-button>
+<cem-icon-button image="send" label="Bypass by presence" type="submit" form="icon-button-example-form" formnovalidate="false" variant="explicit"></cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Action bends" description="The cem-bend-sharp, cem-bend-smooth and cem-bend-round classes use the same theme radius settings as cem-action. They apply to both native control modes. Size sets action control height and is also forwarded to the embedded icon." data-covers="class"><template slot="source">
+<cem-icon-button image="star" label="Sharp" class="cem-bend-sharp"></cem-icon-button>
+<cem-icon-button image="star" label="Smooth" class="cem-bend-smooth"></cem-icon-button>
+<cem-icon-button image="star" label="Round" class="cem-bend-round"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="star" class="cem-bend-sharp">Sharp link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="star" class="cem-bend-smooth">Smooth link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="star" class="cem-bend-round">Round link</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Host classes" description="Class stays on the outer component and is relayed to the embedded cem-icon. Use it to apply application styles; the native control retains its own component and variant classes." data-covers="class"><template slot="source">
+<cem-icon-button image="settings" label="Classed button" class="consumer-command"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="settings" class="consumer-command">Classed link</cem-icon-button>
+</template></cem-demo-element>
+<cem-demo-element legend="Visibility" description="Hidden applies to the host and embedded icon. Its presence hides the whole control, including hidden=false and hidden=true. Remove hidden to show it again. The visible controls show the absent-attribute case." data-covers="hidden"><template slot="source">
+<cem-icon-button image="visibility" label="Visible button"></cem-icon-button>
+<cem-icon-button image="visibility" label="Hidden button" hidden></cem-icon-button>
+<cem-icon-button image="visibility" label="Hidden button with false" hidden="false"></cem-icon-button>
+<cem-icon-button image="visibility" label="Hidden button with true" hidden="true"></cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="visibility">Visible link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="visibility" hidden>Hidden link</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="visibility" hidden="false">Hidden link with false</cem-icon-button>
+<cem-icon-button href="#icon-link-target" image="visibility" hidden="true">Hidden link with true</cem-icon-button>
 </template></cem-demo-element>
 <cem-element><template type="text/cem-ml">
 {cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-icon-button"}

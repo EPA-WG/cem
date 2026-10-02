@@ -1,6 +1,7 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-icon">
   <template id="cem-icon" type="text/cem-ml">
-    {cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { datadom.attributes.name ?? "circle" }'}
+    {cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { "circle" }'}
+    {attribute @name=label}
     {attribute @name=size | normal}
     {attribute @name=direction | row}
     {style @type="text/css" |```
@@ -17,7 +18,7 @@
         ```}
     {span @part=content @data-direction="{$direction}" |
       {cem:if @test='$imageValue' |
-        {span @class='cem-icon cem-icon--{$imageValue}' @part=icon @role={if datadom.attributes.label { "img" } else { null }} @aria-label={datadom.attributes.label} @aria-hidden={if datadom.attributes.label { null } else { true }} |
+        {span @class=cem-icon @part=icon @role={if datadom.attributes.aria-label { "img" } else { null }} @aria-label={datadom.attributes.aria-label} @aria-hidden={if datadom.attributes.aria-label { null } else { true }} |
           {cem:choose |
             {cem:when @test='str:length($imageValue) &lt; 3' | {span @class=unicode @part=glyph @aria-hidden=true | {$imageValue}}}
             {cem:when @test='str:contains($imageValue, "/")' | {img @part=glyph @src="{$imageValue}" @alt="" @aria-hidden=true}}
@@ -26,7 +27,7 @@
           }
         }
       }
-      {slot}
+      {slot | {$label}}
     }
   </template>
 </cem-element>

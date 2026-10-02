@@ -1,0 +1,33 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-gallery-nav">
+  <!-- Shared documentation chrome; the theme control is a disabled placeholder. -->
+  <template id="cem-gallery-nav" type="text/cem-ml">
+    {cem-module-url @slice=iconButtonUrl @src="@epa-wg/cem-components/components/cem-icon-button"}
+    {cem:if @test="datadom.slices.iconButtonUrl" | {cem-element @tag=cem-icon-button @src="{$datadom.slices.iconButtonUrl}#cem-icon-button"}}
+    {attribute @name=heading | Components}
+    {attribute @name=index-href | ./index.html}
+    {style @type="text/css" |```
+      :scope { display: block; margin-block-end: var(--cem-dim-large); }
+      [part~='navigation'] {
+        display: flex;
+        align-items: center;
+        gap: var(--cem-gap-related);
+        padding-block: var(--cem-dim-small);
+        border-block-end: var(--cem-stroke-boundary) solid currentColor;
+      }
+      [part~='title'] {
+        flex: 1;
+        min-inline-size: 0;
+        margin: 0;
+        overflow-wrap: anywhere;
+        font-family: var(--cem-typography-ui-font-family);
+        font-size: var(--cem-typography-size-xl);
+        font-weight: var(--cem-typography-ui-font-weight);
+      }
+    ```}
+    {nav @part=navigation @aria-label="Gallery navigation" |
+      {cem-icon-button @part=index @href="{$index-href}" @image="⌂" @variant=contextual @aria-label="Component playground" | Playground}
+      {h1 @part=title | {$heading}}
+      {cem-icon-button @part=theme @image="◐" @variant=contextual @aria-label="Switch theme (coming soon)" @disabled=true}
+    }
+  </template>
+</cem-element>

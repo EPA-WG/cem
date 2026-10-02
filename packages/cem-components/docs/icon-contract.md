@@ -1,13 +1,14 @@
 # cem-icon
 
 `cem-icon` displays a passive icon and optional adjacent default-slot content.
-Use `cem-icon-button` for a command or link; its button glyph size remains
-`--cem-icon-button-icon-size` and it owns interaction states.
+Use `cem-icon-button` for a command or link. It embeds `cem-icon`, relays its
+public attributes and content, and owns interaction states. See the
+[embedding and compatibility notes](icon-button-contract.md#embedded-icon-and-attribute-compatibility).
 
 ## Sources and attributes
 
-- `image` takes precedence over `name`, including an explicitly empty value.
-- Without `image`, `name` defaults to `circle`. Empty source values hide the glyph.
+- `image` selects the glyph and defaults to `circle` when absent.
+- An explicitly empty `image` hides the glyph.
 - Values shorter than three Unicode code points render as Unicode text/emoji.
   Otherwise, a slash selects an image URL, `fa-` selects Font Awesome classes,
   and remaining values select a Material Icons ligature.
@@ -20,13 +21,26 @@ Use `cem-icon-button` for a command or link; its button glyph size remains
   and projected content without a gap. Other values use the row layout.
 - `class` is retained on the host. `hidden` uses native presence semantics.
 
+## Visible label and payload
+
+Following the [shared label principle](conventions.md#shared-label-principle),
+`label` supplies visible default-slot fallback text and defaults to empty.
+Projected payload replaces the fallback, preserving rich markup and links.
+Live label updates change the fallback without replacing projected payload.
+Both remain outside the glyph wrapper.
+
+**Compatibility change:** the `name` glyph alias has been removed; use `image`
+for glyph selection and `label` for visible text. Consumers using `label` solely to name a glyph must
+use `aria-label` instead. `label="Favorite"` now displays Favorite beside the glyph;
+`aria-label="Favorite"` names a glyph without adding visible text.
+
 ## Accessibility and styling
 
-A nonempty `label` gives the glyph wrapper one `role="img"` and an accessible
+A nonempty `aria-label` gives the glyph wrapper one `role="img"` and an accessible
 name. Otherwise it is decorative (`aria-hidden="true"`). Internal glyphs and
 images are hidden from assistive technology; image `alt` is empty to avoid a
 second name. Projected content is outside that wrapper and remains accessible.
-An empty source removes the image role even when a label is supplied.
+An empty source removes the image role even when `aria-label` is supplied; visible label text remains.
 
 The icon inherits color. It has no focus, activation, disabled, pending, or
 selection behavior. The containing control owns those states. Stable parts:

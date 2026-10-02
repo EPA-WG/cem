@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
 const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
+const navigationOnly = process.argv.includes('--navigation-only');
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -22,31 +23,42 @@ try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true });
-    await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
-    await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
-    await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
-    for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-    for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-    await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
-    await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
-    await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
-    await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
+    if (!navigationOnly) {
+        await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
+        await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
+        await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
+        for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+        for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+        await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
+    }
+    await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
+    if (!navigationOnly) {
+        await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
+        await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
+        await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
+    }
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
-    await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
-    await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
-    for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-    for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-    await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
-    await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-    await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
-    await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    if (!navigationOnly) {
+        await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
+        await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
+        await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
+        for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+        for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+        await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
+    }
+    await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (!navigationOnly) {
+        await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
+        await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
+    }
+    if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
+    else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -87,10 +99,10 @@ async function verifyActionGallery(page) {
     const demonstrated = await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort());
     assert.deepEqual(documented, implemented, 'Gallery attribute inventory must match the canonical declaration');
     assert.deepEqual(demonstrated, implemented, 'Every implemented attribute needs a live example');
-    assert.equal(await page.locator('#gallery-fallback button').innerText(), 'Fallback label');
-    assert.equal(await page.locator('#gallery-icon button').getAttribute('aria-label'), 'Add item');
+    assert.equal(await page.locator('cem-demo-element[legend="Labels and accessible names"] cem-action[label="Fallback label"] button').innerText(), 'Fallback label');
+    assert.equal(await page.locator('cem-demo-element[legend="Labels and accessible names"] cem-action[aria-label="Add item"] button').getAttribute('aria-label'), 'Add item');
     for (const size of ['small', 'medium', 'large', 'x-large', 'xx-large']) {
-        const sample = page.locator(`#gallery-size-${size}`);
+        const sample = page.locator(`cem-demo-element[legend="Size profiles"] cem-action[size="${size}"]`);
         await sample.locator('button').waitFor();
         await sample.evaluate(async host => {
             await window.cemPlaygroundRuntime.whenRenderSettled(host);
@@ -107,26 +119,26 @@ async function verifyActionGallery(page) {
         });
         assert(actual.expected > 0 && actual.actual >= actual.expected, `${size} minimum height: ${JSON.stringify(actual)}`);
     }
-    assert.equal(await page.locator('#gallery-size-default').getAttribute('size'), null);
-    assert.equal(await page.locator('#gallery-selected-false button').getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.locator('#gallery-selectable-false button').getAttribute('aria-pressed'), 'false');
-    await page.locator('#gallery-selectable-false button').click();
-    assert.equal(await page.locator('#gallery-selectable-false button').getAttribute('aria-pressed'), 'false');
-    assert.equal(await page.locator('#gallery-command button').getAttribute('aria-pressed'), null);
-    await page.locator('#gallery-comfortable button').click();
-    await page.waitForFunction(() => document.querySelector('#gallery-comfortable button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#gallery-compact button')?.getAttribute('aria-pressed') === 'false');
+    assert.equal(await page.locator('cem-demo-element[legend="Size profiles"] cem-action:not([size])').getAttribute('size'), null);
+    assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] cem-action[selected="false"] button').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] cem-action[selectable="false"] button').getAttribute('aria-pressed'), 'false');
+    await page.locator('cem-demo-element[legend="Controlled selection"] cem-action[selectable="false"] button').click();
+    assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] cem-action[selectable="false"] button').getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] [slot="demo"] > cem-action:not([selected]):not([selectable]) button').getAttribute('aria-pressed'), null);
+    await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').click();
+    await page.waitForFunction(() => document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(1) button')?.getAttribute('aria-pressed') === 'false');
     await verifyThemeControls(page);
-    assert.equal(await page.locator('#gallery-comfortable button').getAttribute('aria-pressed'), 'true');
-    assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('gallery-selected-false'));
-    assert(await page.locator('#gallery-disabled-false button').isDisabled());
-    assert(await page.locator('#gallery-disabled-pending button').isDisabled());
-    assert.equal(await page.locator('#gallery-pending button').getAttribute('aria-busy'), 'true');
-    assert(await page.locator('#gallery-hidden').isHidden());
-    await page.locator('#gallery-disclosure button').click();
-    await page.waitForFunction(() => document.querySelector('#gallery-disclosure button')?.getAttribute('aria-expanded') === 'true' && !document.querySelector('#gallery-hidden')?.hasAttribute('hidden'));
-    await page.locator('#gallery-disclosure button').click();
-    await page.waitForFunction(() => document.querySelector('#gallery-disclosure button')?.getAttribute('aria-expanded') === 'false' && document.querySelector('#gallery-hidden')?.hasAttribute('hidden'));
-    assert.equal(await page.locator('#gallery-until-found').getAttribute('hidden'), 'until-found');
+    assert.equal(await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').getAttribute('aria-pressed'), 'true');
+    assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('selected="false"'));
+    assert(await page.locator('cem-demo-element[legend="Pending and disabled"] cem-action[disabled="false"] button').isDisabled());
+    assert(await page.locator('cem-demo-element[legend="Pending and disabled"] cem-action[disabled][pending="true"] button').isDisabled());
+    assert.equal(await page.locator('cem-demo-element[legend="Pending and disabled"] cem-action[pending="true"]:not([disabled]) button').getAttribute('aria-busy'), 'true');
+    assert(await page.locator('cem-demo-element[legend="Expanded and visibility"] cem-action:not([expanded]):not([hidden="until-found"])').isHidden());
+    await page.locator('cem-demo-element[legend="Expanded and visibility"] cem-action[expanded] button').click();
+    await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Expanded and visibility"] cem-action[expanded] button')?.getAttribute('aria-expanded') === 'true' && !document.querySelector('cem-demo-element[legend="Expanded and visibility"] cem-action:not([expanded]):not([hidden="until-found"])')?.hasAttribute('hidden'));
+    await page.locator('cem-demo-element[legend="Expanded and visibility"] cem-action[expanded] button').click();
+    await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Expanded and visibility"] cem-action[expanded] button')?.getAttribute('aria-expanded') === 'false' && document.querySelector('cem-demo-element[legend="Expanded and visibility"] cem-action:not([expanded]):not([hidden="until-found"])')?.hasAttribute('hidden'));
+    assert.equal(await page.locator('cem-demo-element[legend="Expanded and visibility"] cem-action[hidden="until-found"]').getAttribute('hidden'), 'until-found');
     await page.locator('#gallery-form').evaluate(form => {
         window.gallerySubmissions = [];
         form.addEventListener('submit', event => {
@@ -136,17 +148,17 @@ async function verifyActionGallery(page) {
     });
     const title = page.getByRole('textbox', { name: 'Example title', exact: true });
     await title.fill('');
-    await page.locator('#gallery-submit button').click();
+    await page.locator('cem-demo-element[legend="Native forms"] cem-action[type="submit"][value="save"] button').click();
     assert.equal(await page.evaluate(() => window.gallerySubmissions.length), 0);
     await title.fill('Ready');
-    await page.locator('#gallery-submit button').click();
+    await page.locator('cem-demo-element[legend="Native forms"] cem-action[type="submit"][value="save"] button').click();
     assert.deepEqual(await page.evaluate(() => window.gallerySubmissions[0]), [['title', 'Ready'], ['intent', 'save']]);
-    await page.locator('#gallery-button button').click();
+    await page.locator('cem-demo-element[legend="Native forms"] cem-action[type="button"] button').click();
     assert.equal(await page.evaluate(() => window.gallerySubmissions.length), 1);
-    await page.locator('#gallery-reset button').click();
+    await page.locator('cem-demo-element cem-action[type="reset"] button').click();
     assert.equal(await title.inputValue(), 'Initial title');
     await title.fill('');
-    const external = page.locator('#gallery-external button');
+    const external = page.locator('cem-demo-element[legend="Native forms"] cem-action[form="gallery-form"][value="external"] button');
     assert.deepEqual(await external.evaluate(button => ({ form: button.form.id, method: button.formMethod, encoding: button.formEnctype, target: button.formTarget, noValidate: button.formNoValidate, action: new URL(button.formAction).pathname.split('/').pop() })), { form: 'gallery-form', method: 'get', encoding: 'application/x-www-form-urlencoded', target: '_blank', noValidate: true, action: 'cem-action-gallery.html' });
     await external.click();
     assert.deepEqual(await page.evaluate(() => window.gallerySubmissions[1]), [['title', ''], ['intent', 'external']]);
@@ -502,7 +514,7 @@ async function verify(url) {
         await page.waitForFunction(() => document.querySelector('#choice-comfortable button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#choice-compact button')?.getAttribute('aria-pressed') === 'false');
         assert(await page.locator('cem-radio > label, cem-switch > label, cem-checkbox > label').evaluateAll(nodes => nodes.every(node => getComputedStyle(node).boxShadow === 'none')));
         await page.locator('h1').click();
-        assert.equal(await page.getByRole('textbox', { name: 'Label', exact: true }).evaluate(node => getComputedStyle(node).boxShadow), 'none');
+        assert.notEqual(await page.getByRole('textbox', { name: 'Label', exact: true }).evaluate(node => getComputedStyle(node).boxShadow), 'none');
         await choose('Selected', 'True');
         await choose('Disabled', 'True');
         await page.waitForFunction(() => document.querySelector('#action-preview button')?.disabled === true && document.querySelector('#action-preview button')?.getAttribute('aria-pressed') === 'true');
@@ -613,6 +625,7 @@ async function verifyBundle(url) {
         assert.equal(await page.locator('#bundle-textarea textarea').inputValue(), 'First line\nSecond line');
         await page.locator('#bundle-icon [role=img]').waitFor();
         await page.locator('#bundle-action button').waitFor();
+        await page.locator('cem-icon-button button cem-icon [part="glyph"]').waitFor();
         await page.locator('#bundle-select [role=combobox]').waitFor();
         await page.locator('#bundle-field input').waitFor();
         await page.locator('#bundle-text-field input').waitFor();
@@ -676,7 +689,9 @@ async function verifyCommand(url, tag) {
     try {
         await page.goto(url);
         await page.waitForSelector('#command-preview button');
-        await page.waitForSelector('#command-configured button');
+        await page.waitForSelector(tag === 'cem-icon-button'
+            ? 'cem-demo-element[legend="Action variants"] cem-icon-button[variant="primary"] button'
+            : '#command-configured button');
         await page.evaluate(async () => {
             await Promise.all([...document.querySelectorAll('template[data-cem-island="instance"]')].map(island => window.cemPlaygroundRuntime.whenRenderSettled(island.parentElement)));
         });
@@ -688,10 +703,12 @@ async function verifyCommand(url, tag) {
         ])].sort();
         assert.deepEqual(await page.locator('[data-command-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-command-attribute')).sort()), attributes);
         assert.deepEqual(await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort()), attributes);
-        assert(await page.locator('#command-disabled button').isDisabled());
-        assert(await page.locator('#command-hidden').isHidden());
-        assert.equal(await page.locator('#command-expanded button').getAttribute('aria-expanded'), 'true');
-        assert.equal(await page.locator('#command-configured button').getAttribute('aria-expanded'), 'false');
+        if (tag !== 'cem-icon-button') {
+            assert(await page.locator('#command-disabled button').isDisabled());
+            assert(await page.locator('#command-hidden').isHidden());
+            assert.equal(await page.locator('#command-expanded button').getAttribute('aria-expanded'), 'true');
+            assert.equal(await page.locator('#command-configured button').getAttribute('aria-expanded'), 'false');
+        }
         const layout = await page.locator('.property-groups').evaluate(node => ({ display: getComputedStyle(node).display, wrap: getComputedStyle(node).flexWrap,
             options: [...node.querySelectorAll('.property-options')].map(options => [getComputedStyle(options).display, getComputedStyle(options).flexDirection]) }));
         assert.equal(layout.display, 'flex');
@@ -722,9 +739,11 @@ async function verifyField(url, tag) {
         await page.waitForSelector('#field-preview [part="control"]');
         const input = page.locator('#field-preview [part="control"]');
         await page.waitForFunction(() => new FormData(document.querySelector('#field-form')).get('account') === 'initial');
+        await page.evaluate(() => window.cemPlaygroundRuntime.whenRenderSettled(document.querySelector('#field-preview')));
         const edited = tag === 'cem-textarea' ? 'edited\nsecond line' : 'edited';
         await input.fill(edited);
         await page.waitForFunction(value => new FormData(document.querySelector('#field-form')).get('account') === value, edited);
+        await page.evaluate(() => window.cemPlaygroundRuntime.whenRenderSettled(document.querySelector('#field-preview')));
         await page.getByRole('button', { name: 'Reset', exact: true }).click();
         await page.waitForFunction(() => document.querySelector('#field-preview [part="control"]')?.value === 'initial');
         assert.deepEqual(await page.evaluate(() => new FormData(document.querySelector('#field-form')).getAll('account')), ['initial']);
@@ -783,10 +802,11 @@ async function verifyGalleries(baseUrl) {
                 assert.equal(new URL(page.url()).pathname, new URL(`${tag}.html`, baseUrl).pathname);
                 continue;
             }
-            await page.waitForFunction(() => {
-                const samples = [...document.querySelectorAll('[data-gallery-sample]')];
+            const sampleSelector = `[data-gallery-theme] ${tag}`;
+            await page.waitForFunction(selector => {
+                const samples = [...document.querySelectorAll(selector)];
                 return samples.length > 0 && samples.every(node => node.querySelector('[part]'));
-            });
+            }, sampleSelector);
             assert.equal(await page.locator('[data-gallery-theme]').count(), 5, `${tag}: five theme modes`);
             await page.waitForFunction(() => {
                 const demos = [...document.querySelectorAll('cem-demo-element')];
@@ -801,7 +821,7 @@ async function verifyGalleries(baseUrl) {
             const documented = await page.locator('[data-gallery-attribute], [data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-gallery-attribute') ?? node.getAttribute('data-action-attribute')));
             for (const attribute of implemented) assert(documented.includes(attribute), `${tag}: missing ${attribute} in gallery inventory`);
             await page.getByRole('link', { name: 'Automated stories', exact: true }).waitFor();
-            const first = page.locator('[data-gallery-sample]').first();
+            const first = page.locator(sampleSelector).first();
             const control = first.locator('[part="control"], input').first();
             if (tag !== 'cem-icon') {
                 await control.hover();
@@ -809,12 +829,12 @@ async function verifyGalleries(baseUrl) {
             }
             if (tag === 'cem-field' || tag === 'cem-text-field' || tag === 'cem-textarea') {
                 assert.equal(await control.evaluate(node => getComputedStyle(node).borderWidth), '0px');
-                await page.locator('#gallery-editable [part=control]').fill('edited@example.com');
-                await page.locator('#gallery-reset button').click();
-                await page.waitForFunction(value => document.querySelector('#gallery-editable [part=control]')?.value === value, tag === 'cem-textarea' ? 'First line\nSecond line' : 'reader@example.com');
+                await page.locator('cem-demo-element form :is(cem-field, cem-text-field, cem-textarea)[required] [part=control]').fill('edited@example.com');
+                await page.locator('cem-demo-element cem-action[type="reset"] button').click();
+                await page.waitForFunction(value => document.querySelector('cem-demo-element form :is(cem-field, cem-text-field, cem-textarea)[required] [part=control]')?.value === value, tag === 'cem-textarea' ? 'First line\nSecond line' : 'reader@example.com');
             }
             if (tag === 'cem-select') {
-                const outline = page.locator('[data-gallery-sample][indicator="outline"]').first().locator('[part="control"]');
+                const outline = page.locator(`${sampleSelector}[indicator="outline"]`).first().locator('[part="control"]');
                 assert.equal(await outline.evaluate(node => getComputedStyle(node).getPropertyValue('--_cem-input-indicator-appearance').trim()),
                     await outline.evaluate(node => getComputedStyle(node).getPropertyValue('--cem-indicator-appearance-outline').trim()));
                 await control.click();
@@ -823,8 +843,8 @@ async function verifyGalleries(baseUrl) {
                 assert.equal(await first.evaluate(node => node.value), 'grace');
             }
             if (tag === 'cem-icon-button') await verifyIconLinkExamples(page);
-            if (tag === 'cem-icon') await verifyLegacyIconExamples(page);
-            const diagnostics = await page.evaluate(() => [...document.querySelectorAll('[data-gallery-sample]')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)));
+            if (tag === 'cem-icon') { await verifyLegacyIconExamples(page); await verifyIconLabels(page); await verifyIconImageExamples(page); }
+            const diagnostics = await page.evaluate(selector => [...document.querySelectorAll(selector)].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node)), sampleSelector);
             assert.deepEqual(diagnostics, [], `${tag}: gallery diagnostics`);
             const back = page.locator(`a[href="./${tag}.html"]`);
             if (await back.count()) await back.click();
@@ -835,25 +855,135 @@ async function verifyGalleries(baseUrl) {
     console.log('All canonical component galleries verified: ' + baseUrl);
 }
 
+async function verifyIconButtonSamples(page) {
+    const sample = legend => page.locator(`cem-demo-element[legend="${legend}"]`);
+    const legends = ['Command buttons', 'Command activation', 'Navigation links', 'Disabled buttons', 'Disabled links', 'Selection', 'Pending actions', 'Action variants', 'Button types', 'External form ownership', 'Submit overrides', 'Action bends', 'Host classes', 'Visibility'];
+    assert.equal(await sample('All implemented attributes').count(), 0);
+    for (const legend of legends) {
+        assert.equal(await sample(legend).count(), 1, `${legend}: dedicated sample`);
+        assert(await sample(legend).getAttribute('description'), `${legend}: explanation`);
+        await page.waitForFunction(legend => {
+            const demo = [...document.querySelectorAll('cem-demo-element')].find(node => node.getAttribute('legend') === legend);
+            const hosts = [...demo.querySelectorAll('cem-icon-button')];
+            return hosts.length > 0 && hosts.every(host => host.querySelector('[part="control"] cem-icon [part="content"]'));
+        }, legend);
+    }
+    for (const button of await sample('Command buttons').locator('button').all()) {
+        assert.equal(await button.getAttribute('type'), 'button');
+        assert.equal(await button.getAttribute('aria-expanded'), null);
+    }
+    const activation = sample('Command activation');
+    const command = activation.locator('button');
+    await command.click();
+    await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Command activation"] [role="status"]')?.textContent.includes('click'));
+    await command.press('Space');
+    await command.press('Enter');
+    assert.equal(await command.getAttribute('aria-pressed'), null);
+    const navigation = sample('Navigation links');
+    for (const href of ['#icon-link-target', './cem-icon.html', 'https://github.com/EPA-WG/cem', '']) {
+        const link = navigation.locator(`cem-icon-button[href="${href}"] a`);
+        assert.equal(await link.getAttribute('href'), href);
+    }
+    for (const host of await sample('Disabled buttons').locator('cem-icon-button').all()) {
+        assert.equal(await host.locator('button').isDisabled(), await host.getAttribute('disabled') !== null);
+    }
+    for (const host of await sample('Disabled links').locator('cem-icon-button').all()) {
+        const disabled = await host.getAttribute('disabled') !== null;
+        const link = host.locator('a');
+        assert.equal(await link.getAttribute('href'), disabled ? null : '#icon-link-target');
+        assert.equal(await link.getAttribute('aria-disabled'), disabled ? 'true' : null);
+        assert.equal(await link.getAttribute('tabindex'), disabled ? '-1' : null);
+        if (disabled) {
+            const before = await host.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node).eventPayloads);
+            await link.evaluate(node => node.click());
+            assert.deepEqual(await host.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node).eventPayloads), before);
+        }
+    }
+    for (const host of await sample('Selection').locator('cem-icon-button').all()) {
+        const control = host.locator('[part="control"]');
+        const link = await host.getAttribute('href') !== null;
+        const selected = await host.getAttribute('selected') !== null;
+        const selectable = await host.getAttribute('selectable') !== null;
+        assert.equal(await control.getAttribute('aria-pressed'), link ? null : selected ? 'true' : selectable ? 'false' : null);
+        assert.equal(await control.getAttribute('aria-current'), link && selected ? 'true' : null);
+        assert.equal(await control.getAttribute('aria-expanded'), null);
+        if (selected) assert.notEqual(await control.evaluate(node => getComputedStyle(node).boxShadow), 'none');
+    }
+    for (const host of await sample('Pending actions').locator('cem-icon-button').all()) {
+        const control = host.locator('[part="control"]');
+        const pending = await host.getAttribute('pending');
+        assert.equal(await control.getAttribute('aria-busy'), pending);
+        const image = await control.evaluate(node => getComputedStyle(node).backgroundImage);
+        if (pending === 'true') assert(image.includes('linear-gradient'));
+        else assert.equal(image, 'none');
+    }
+    const pendingControls = sample('Pending actions').locator('cem-icon-button[pending="true"] [part="control"]');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    for (const control of await pendingControls.all()) {
+        assert.equal(await control.evaluate(node => getComputedStyle(node).animationName), 'none');
+        assert.equal(await control.evaluate(node => getComputedStyle(node, '::before').animationName), 'none');
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    for (const control of await pendingControls.all()) {
+        assert.equal(await control.evaluate(node => getComputedStyle(node).backgroundImage), 'none');
+        assert.equal(await control.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+    }
+    for (const control of await sample('Pending actions').locator('cem-icon-button[selected] [part="control"]').all()) {
+        assert.equal(await control.evaluate(node => getComputedStyle(node, '::before').borderTopStyle), 'solid');
+        assert.equal(await control.evaluate(node => getComputedStyle(node, '::before').display), 'block');
+    }
+    await page.emulateMedia({ reducedMotion: 'no-preference', forcedColors: 'none' });
+    for (const host of await sample('Action variants').locator('cem-icon-button').all()) {
+        const variant = await host.getAttribute('variant') ?? 'primary';
+        assert(await host.locator('[part="control"]').evaluate((node, variant) => node.classList.contains(`cem-icon-button--${variant}`), variant));
+    }
+    for (const legend of ['Button types', 'External form ownership', 'Submit overrides']) {
+        for (const host of await sample(legend).locator('cem-icon-button').all()) {
+            const authored = await host.evaluate(node => Object.fromEntries([...node.attributes].map(attr => [attr.name, attr.value])));
+            const button = host.locator('button');
+            assert.equal(await button.getAttribute('type'), authored.type ?? 'button');
+            for (const attribute of ['name', 'value', 'form', 'formaction', 'formenctype', 'formmethod', 'formtarget']) {
+                assert.equal(await button.getAttribute(attribute), authored[attribute] ?? null);
+            }
+            assert.equal(await button.evaluate(node => node.formNoValidate), 'formnovalidate' in authored);
+            assert.equal(await button.evaluate(node => node.form?.id), 'icon-button-example-form');
+        }
+    }
+    for (const host of await sample('Host classes').locator('cem-icon-button').all()) {
+        assert.equal(await host.getAttribute('class'), 'consumer-command');
+        assert.equal(await host.locator('cem-icon').getAttribute('class'), 'consumer-command');
+    }
+    for (const host of await sample('Visibility').locator('cem-icon-button').all()) {
+        assert.equal(await host.isHidden(), await host.getAttribute('hidden') !== null);
+    }
+}
+
 async function verifyIconLinkExamples(page) {
-    const material = page.locator('#legacy-link-material a');
+    await verifyIconButtonSamples(page);
+    const material = page.locator('cem-demo-element[legend="Icon links"] cem-icon-button[image="recycling"] a');
     await material.waitFor();
-    assert.equal(await material.getAttribute('href'), '#legacy-link-target');
+    assert.equal(await material.getAttribute('href'), '#icon-link-target');
     assert.equal(await material.getAttribute('aria-label'), null);
-    assert(await material.locator('.material-icons').count() === 1);
-    assert(await page.locator('#legacy-link-font i.fas.fa-cloud-upload-alt').count() === 1);
-    await page.waitForFunction(() => document.querySelector('#legacy-link-image img')?.naturalWidth > 0);
-    assert.equal(await page.locator('#legacy-link-image img').getAttribute('alt'), '');
-    assert.equal(await page.locator('#legacy-link-image a').evaluate(node => getComputedStyle(node).flexDirection), 'column');
+    await material.locator('cem-icon .material-icons').waitFor();
+    assert(await material.locator('cem-icon .material-icons').count() === 1);
+    const embedded = page.locator('cem-demo-element[legend="Embedded icon attributes"]');
+    await embedded.locator('cem-icon-button[image="★"][size="small"] cem-icon .unicode').waitFor();
+    assert.equal(await embedded.locator('cem-icon-button[image=""] cem-icon [part="icon"]').count(), 0);
+    assert.equal(await embedded.locator('cem-icon-button[image="favorite"] button').getAttribute('aria-label'), 'Favorite');
+    assert.equal(await embedded.locator('cem-icon-button[href] cem-icon strong').textContent(), 'Projected favorite');
+    assert(await page.locator('cem-demo-element[legend="Icon links"] cem-icon-button[image="fas fa-cloud-upload-alt"] i.fas.fa-cloud-upload-alt').count() === 1);
+    await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Icon links"] cem-icon-button[image^="data:image/"] img')?.naturalWidth > 0);
+    assert.equal(await page.locator('cem-demo-element[legend="Icon links"] cem-icon-button[image^="data:image/"] img').getAttribute('alt'), '');
+    assert.equal(await page.locator('cem-demo-element[legend="Icon links"] cem-icon-button[image^="data:image/"] cem-icon [part="content"]').evaluate(node => getComputedStyle(node).flexDirection), 'column');
     const original = page.url();
     await material.click();
-    assert.equal(new URL(page.url()).hash, '#legacy-link-target');
+    assert.equal(new URL(page.url()).hash, '#icon-link-target');
     await page.evaluate(url => history.replaceState(null, '', url), original);
     await material.focus();
     await material.press('Enter');
-    assert.equal(new URL(page.url()).hash, '#legacy-link-target');
+    assert.equal(new URL(page.url()).hash, '#icon-link-target');
     await page.evaluate(url => history.replaceState(null, '', url), original);
-    const disabled = page.locator('#legacy-link-disabled a');
+    const disabled = page.locator('cem-demo-element[legend="Icon links"] cem-icon-button[disabled] a');
     assert.equal(await disabled.getAttribute('href'), null);
     assert.equal(await disabled.getAttribute('aria-disabled'), 'true');
     const before = await disabled.evaluate(node => window.cemPlaygroundRuntime.snapshotInstance(node.parentElement).eventPayloads);
@@ -875,6 +1005,14 @@ async function verifyIcon(url) {
         await page.goto(url);
         await page.locator('#icon-preview [role="img"]').waitFor();
         assert.equal(await page.locator('#icon-preview .material-icons').textContent(), 'settings');
+        await verifyIconLabels(page);
+        await page.getByRole('textbox', { name: 'label', exact: true }).fill('Visible fallback');
+        await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsVisiblefallback');
+        await page.getByRole('textbox', { name: 'content', exact: true }).fill('Projected text');
+        await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsProjectedtext');
+        await page.getByRole('textbox', { name: 'label', exact: true }).fill('Updated fallback');
+        await page.getByRole('textbox', { name: 'content', exact: true }).fill('');
+        await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsUpdatedfallback');
         await page.getByRole('textbox', { name: 'image', exact: true }).fill('★');
         await page.waitForFunction(() => document.querySelector('#icon-preview .unicode')?.textContent === '★');
         await page.getByRole('radio', { name: 'large', exact: true }).check();
@@ -888,10 +1026,10 @@ async function verifyIcon(url) {
         await page.waitForFunction(() => !document.querySelector('#icon-preview [part="icon"]'));
         await page.locator('fieldset').filter({ has: page.locator('legend', { hasText: /^image-mode$/ }) }).getByRole('radio', { name: 'absent', exact: true }).check();
         await page.waitForFunction(() => document.querySelector('#icon-preview .material-icons')?.textContent === 'circle');
-        await page.getByRole('textbox', { name: 'label', exact: true }).fill('');
+        await page.getByRole('textbox', { name: 'aria-label', exact: true }).fill('');
         await page.waitForFunction(() => document.querySelector('#icon-preview [part="icon"]')?.getAttribute('aria-hidden') === 'true');
         await page.waitForFunction(() => {
-            const image = document.querySelector('#icon-image img');
+            const image = document.querySelector('cem-demo-element cem-icon[image^="data:image/svg+xml,"] img');
             return image?.naturalWidth > 0;
         });
         const source = await page.getByRole('link', { name: 'Canonical XHTML', exact: true }).getAttribute('href');
@@ -912,15 +1050,23 @@ async function verifyLegacyIconExamples(page) {
         fontawesome: ['fab fa-github', 'fas fa-bookmark', 'fab fa-discord', 'fab fa-android', 'fab fa-apple', 'far fa-user', 'far fa-envelope', 'fas fa-thumbs-up', 'far fa-thumbs-down', 'far fa-star', 'fas fa-star', 'fas fa-location-arrow', 'fas fa-map-marker', 'fas fa-map-marked-alt', 'fas fa-globe'],
     };
     for (const [name, expected] of Object.entries(sources)) {
-        const icons = page.locator(`#legacy-${name} cem-demo-element cem-icon`);
+        const icons = page.locator(`[data-legacy-icon-case="${name}"] > [slot="demo"] cem-icon`);
         assert.deepEqual(await icons.evaluateAll(nodes => nodes.map(node => node.getAttribute('image'))), expected);
-        await page.waitForFunction(selector => [...document.querySelectorAll(selector)].every(node => node.querySelector('[part="glyph"]')), `#legacy-${name} cem-demo-element cem-icon`);
+        await page.waitForFunction(selector => [...document.querySelectorAll(selector)].every(node => node.querySelector('[part="glyph"]')), `[data-legacy-icon-case="${name}"] > [slot="demo"] cem-icon`);
     }
-    const directions = await page.locator('#legacy-direction cem-demo-element cem-icon [part="content"]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).flexDirection));
+    const wrappers = await page.locator('[data-legacy-icon-case="fontawesome"] > [slot="demo"] cem-icon [part="icon"]').evaluateAll(nodes => nodes.map(node => ({
+        classes: [...node.classList],
+        before: getComputedStyle(node, '::before').content,
+    })));
+    for (const wrapper of wrappers) {
+        assert(!wrapper.classes.some(name => /^(?:fa[brs]?|fa-.*)$/.test(name)), 'Font Awesome classes belong only to the glyph');
+        assert(['none', 'normal'].includes(wrapper.before), 'Icon wrapper must not generate a second glyph');
+    }
+    const directions = await page.locator('[data-legacy-icon-case="direction"] > [slot="demo"] cem-icon [part="content"]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).flexDirection));
     assert.deepEqual(directions, ['row', 'column', 'row']);
-    const sizes = await page.locator('#legacy-size cem-demo-element cem-icon [part="glyph"]').evaluateAll(nodes => nodes.map(node => parseFloat(getComputedStyle(node).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize)));
+    const sizes = await page.locator('[data-legacy-icon-case="size"] > [slot="demo"] cem-icon [part="glyph"]').evaluateAll(nodes => nodes.map(node => parseFloat(getComputedStyle(node).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize)));
     assert.deepEqual(sizes, [1, 2, 3]);
-    const colors = await page.locator('#legacy-color cem-demo-element cem-icon').evaluateAll(nodes => nodes.map(node => ({
+    const colors = await page.locator('[data-legacy-icon-case="color"] > [slot="demo"] cem-icon').evaluateAll(nodes => nodes.map(node => ({
         host: getComputedStyle(node).color,
         glyph: getComputedStyle(node.querySelector('[part="glyph"]')).color,
         token: node.style.color,
@@ -928,15 +1074,70 @@ async function verifyLegacyIconExamples(page) {
     assert.deepEqual(colors.map(color => color.token), ['var(--cem-palette-danger)', 'var(--cem-palette-calm)', 'var(--cem-palette-trust)']);
     for (const color of colors) assert.equal(color.host, color.glyph);
     assert.equal(new Set(colors.map(color => color.host)).size, 3);
-    await page.waitForFunction(() => document.querySelector('#legacy-module-icon img')?.naturalWidth > 0);
-    const image = page.locator('#legacy-module-icon img');
+    await page.waitForFunction(() => document.querySelector('[data-legacy-icon-case="module-image"] cem-icon[image$="/wc-square.svg"] img')?.naturalWidth > 0);
+    const image = page.locator('[data-legacy-icon-case="module-image"] cem-icon[image$="/wc-square.svg"] img');
     const response = await page.request.get(await image.getAttribute('src'));
     assert(response.ok());
     assert.equal(await response.text(), await readFile(join(root, 'packages/cem-components/playgrounds/assets/wc-square.svg'), 'utf8'));
-    assert.equal(await page.locator('#legacy-external-icon img').getAttribute('src'), 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg');
-    for (const selector of ['#legacy-unicode a', '#legacy-material a', '#legacy-fontawesome a']) {
+    assert.equal(await page.locator('[data-legacy-icon-case="module-image"] cem-icon[image^="https://unpkg.com/"] img').getAttribute('src'), 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg');
+    for (const selector of ['[data-legacy-icon-case="unicode"] a', '[data-legacy-icon-case="material"] a', '[data-legacy-icon-case="fontawesome"] a']) {
         assert(await page.locator(selector).count() > 0);
         assert(await page.locator(selector).evaluateAll(nodes => nodes.every(node => !node.closest('[aria-hidden="true"]'))));
     }
-    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-legacy-icon-case] cem-icon, #legacy-module-image cem-element')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node))), []);
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-legacy-icon-case] cem-icon, [data-legacy-icon-case="module-image"] cem-element')].flatMap(node => window.cemPlaygroundRuntime.diagnosticsFor(node))), []);
+}
+
+async function verifyIconLabels(page) {
+    await page.waitForFunction(() => document.querySelector('cem-demo-element cem-icon[label="Favorite"] [part="content"]')?.textContent?.replace(/\s/g, "") === '★Favorite');
+    assert.equal(await page.locator('cem-demo-element cem-icon[label="Favorite"] [part="icon"]').getAttribute('aria-hidden'), 'true');
+    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] [part="content"]').evaluate(node => node.textContent.replace(/\s/g, '')), '★Details');
+    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] a strong').textContent(), 'Details');
+    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] a').evaluate(node => node.closest('[role="img"], [aria-hidden="true"]')), null);
+    assert.equal(await page.locator('cem-demo-element cem-icon[image=""][label="Text without glyph"] [part="content"]').evaluate(node => node.textContent.trim()), 'Text without glyph');
+    assert.equal(await page.locator('cem-demo-element cem-icon[image=""][label="Text without glyph"] [part="icon"]').count(), 0);
+}
+
+async function verifyIconImageExamples(page) {
+    assert.equal(await page.locator('cem-demo-element[legend="Sources, naming, sizes, and content"]').count(), 0);
+    const inline = page.locator('section[aria-label="Image examples"] cem-demo-element cem-icon[image^="data:image/svg+xml,"] img');
+    await inline.waitFor();
+    assert((await inline.getAttribute('src')).startsWith('data:image/svg+xml,'));
+    await page.waitForFunction(() => document.querySelector('section[aria-label="Image examples"] cem-demo-element cem-icon[image^="data:image/svg+xml,"] img')?.naturalWidth > 0);
+    assert.equal(await page.locator('section[aria-label="Image examples"] cem-demo-element cem-icon[image^="https://unpkg.com/"] img').getAttribute('src'), 'https://unpkg.com/pokeapi-sprites@2.0.2/sprites/pokemon/other/dream-world/1.svg');
+    assert.equal(await page.locator('section[aria-label="Image examples"] cem-demo-element').count(), 2);
+    const hidden = page.locator('cem-demo-element[legend="Hidden attribute presence"] cem-icon[hidden]');
+    assert.equal(await hidden.count(), 3);
+    assert(await hidden.evaluateAll(nodes => nodes.every(node => getComputedStyle(node).display === 'none')));
+}
+
+async function verifyNavigation(baseUrl) {
+    const folders = await readdir(join(root, 'packages/cem-components/src/components'), { withFileTypes: true });
+    const pages = folders.filter(entry => entry.isDirectory()).flatMap(({ name }) => [
+        [name + '.html', name], [name + '-gallery.html', name],
+    ]);
+    pages.push(['index.html', 'Components'], ['cem-bundle.html', 'CEM release bundle']);
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        for (const [file] of pages) {
+            const source = await readFile(join(root, 'packages/cem-components/playgrounds', file), 'utf8');
+            const title = source.match(/<cem-gallery-nav heading="([^"]*)"/)[1];
+            await page.goto(new URL(file, baseUrl).href);
+            const nav = page.getByRole('navigation', { name: 'Gallery navigation' });
+            await nav.waitFor();
+            assert.equal(await nav.getByRole('heading', { level: 1 }).textContent(), title);
+            assert.equal(await page.locator('h1').count(), 1);
+            const index = nav.getByRole('link', { name: 'Component playground', exact: true });
+            await index.waitFor();
+            assert.equal(new URL(await index.getAttribute('href'), page.url()).href, new URL('index.html', baseUrl).href);
+            const theme = nav.getByRole('button', { name: 'Switch theme (coming soon)', exact: true });
+            await theme.waitFor();
+            assert.equal(await theme.isDisabled(), true);
+            await index.click();
+            assert.equal(page.url(), new URL('index.html', baseUrl).href);
+            await page.getByRole('heading', { name: 'CEM component playground', exact: true }).waitFor();
+        }
+    } finally {
+        await context.close();
+    }
 }

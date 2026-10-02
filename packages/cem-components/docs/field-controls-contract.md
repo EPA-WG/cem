@@ -51,9 +51,19 @@ Textarea Enter remains ordinary multiline editing.
 `aria-busy="true"` and `data-state="loading"`. Indicator precedence remains
 disabled, invalid-hover, invalid, pending, readonly, hover, then default.
 Both native inputs remain borderless in every state, following the legacy
-Material input design. Hover paints the theme boundary indicator; forced colors
-use an outline without restoring a border. Focus remains independent. Scoped CSS owns the indicator and forced-color
-fallback; public theme tokens supply its values.
+Material input design. Enabled, unfocused fields show the theme boundary-width
+anchor indicator for both empty and populated values. Underline is the default;
+outline uses the same resting boundary around the control. Hover changes its
+color; focus adds its independent stripe. Forced colors use a system-color
+outline without restoring a border.
+
+This follows the filled-field resting affordance in
+[Material Design text fields](https://m2.material.io/design/components/text-fields.html)
+and [Google's Material 3 filled-field tokens](https://github.com/material-components/material-web/blob/main/tokens/versions/v0_192/_md-comp-filled-text-field.scss):
+a 1px baseline uses the on-surface-variant color, with a stronger hover color.
+CEM consumes `--cem-stroke-boundary` and `--cem-input-indicator-anchor-color`
+rather than hardcoded Material values. Scoped CSS owns the indicator and
+forced-color fallback; public theme tokens supply its values.
 
 Use [the field playground](../playgrounds/cem-field.html) or
 [the text-field playground](../playgrounds/cem-text-field.html) to exercise

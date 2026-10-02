@@ -22,17 +22,21 @@
         "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
         "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
-        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml"
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
 }</script>
 <script type="module">
 import { installCemElementRuntime } from '@epa-wg/cem-elements';
-window.cemPlaygroundRuntime = installCemElementRuntime(window);
+window.cemPlaygroundRuntime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
 </script>
 <style>body { margin: 0; font-family: system-ui, sans-serif; } #bundle-theme { padding: 2rem; min-height: 100vh; box-sizing: border-box; } main { display: grid; gap: 1.5rem; max-width: 40rem; } </style>
 </head>
 <body>
 <cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
 {cem-module-url @slice=bundleUrl @src="@epa-wg/cem-components/components.xhtml"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
@@ -49,14 +53,16 @@ window.cemPlaygroundRuntime = installCemElementRuntime(window);
 }
 </template></cem-element>
 <cem-theme-switch id="bundle-theme" mode="light">
-<h1>CEM release bundle</h1>
+<cem-gallery-nav heading="CEM release bundle"></cem-gallery-nav>
+
+
 <p>These components load from the generated <code>components.xhtml</code> through their template IDs.</p>
 <main>
 <cem-field id="bundle-field" label="Bundled field" value="Field value"></cem-field>
 <cem-textarea id="bundle-textarea" label="Bundled notes" value="First line&#10;Second line"></cem-textarea>
 <cem-text-field id="bundle-text-field" label="Bundled text field" value="Text value"></cem-text-field>
-<cem-icon id="bundle-icon" image="★" label="Bundled star"></cem-icon>
-<cem-icon-button id="bundle-icon-button" name="settings" label="Bundled icon command"></cem-icon-button>
+<cem-icon id="bundle-icon" image="★" aria-label="Bundled star"></cem-icon>
+<cem-icon-button image="settings" id="bundle-icon-button" label="Bundled icon command"></cem-icon-button>
 <cem-menu-item id="bundle-menu-item">Bundled menu command</cem-menu-item>
 <cem-action id="bundle-action" label="Bundled action" size="large" selected selectable></cem-action>
 <cem-select id="bundle-select" label="Bundled select" name="person" value="ada">

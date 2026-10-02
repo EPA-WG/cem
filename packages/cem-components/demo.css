@@ -6,8 +6,8 @@ body {
     margin: var(--cem-gap-group);
 }
 
-nav,
-main {
+main, nav
+{
     display: flex;
     gap: var(--cem-gap-group);
     flex-wrap: wrap;
@@ -30,7 +30,9 @@ cem-demo-element {
 }
 
 cem-demo-element > [slot="demo"] {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: var(--cem-gap-group);
 }
 

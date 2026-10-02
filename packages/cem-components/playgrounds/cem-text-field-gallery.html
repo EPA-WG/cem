@@ -24,167 +24,439 @@
         "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
         "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
         "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
-        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg"
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
-}</script>
+}
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
+
         const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
     <link rel="stylesheet" href="../demo.css">
     <style>
-        body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
-        main { display: block; }
-        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
-        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
-        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
-        .examples > article { min-inline-size: 0; }
-        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
-        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+        }
+
+        #playground-theme {
+            box-sizing: border-box;
+            min-block-size: 100vh;
+            padding: var(--cem-dim-large);
+        }
+
+        main {
+            display: block;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+            gap: var(--cem-dim-large);
+        }
+
+        .preview {
+            padding: var(--cem-dim-large);
+            border: var(--cem-stroke-boundary) solid currentColor;
+        }
+
+        .examples {
+            display: grid;
+            gap: var(--cem-dim-large);
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+        }
+
+        .examples > article {
+            min-inline-size: 0;
+        }
+
+        cem-demo-element {
+            display: block;
+            margin-block: var(--cem-dim-large);
+        }
+
+        @media (max-width: 700px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+        }
+        cem-text-field{ padding: .5rem; }
+
     </style>
 </head>
 <body>
 <cem-element hidden>
-<template type="text/cem-ml">
-{cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
-{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+    <template type="text/cem-ml">
+        {cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+        {cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav
+        @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
 
-{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
-{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
-{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
-{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
-{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
-{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
-</template>
+        {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
+        {cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action
+        @src="{$datadom.slices.actionUrl}#cem-action"}}
+
+        {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+        {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control
+        @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+        {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+        {cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control
+        @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+        {cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+        {cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch
+        @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+        {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+        {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+        {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+        {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+    </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><header><h1>cem-text-field: Full examples and variation matrix</h1>
-<p class="component-description">Use <a href="./cem-textarea-gallery.html"><code>cem-textarea</code></a> for multiline entry. A labeled text-entry control with help content, validation, and borderless state indicators. It shares the same input and form contract as <a href="./cem-field-gallery.html"><code>cem-field</code></a>; pair it with <a href="./cem-action-gallery.html"><code>cem-action</code></a> to submit or reset a form.</p>
-<p><a href="./cem-text-field.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts">Automated stories</a></p></header><main>
-<style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
-<p>Both fields remain borderless. Hover and focus paint their own indicators. Busy preserves editing; disabled, readonly, required and busy use attribute presence, including the text false. Invalid is an ARIA string.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
-<li data-gallery-attribute="type"><code>type</code></li>
-<li data-gallery-attribute="value"><code>value</code></li>
-<li data-gallery-attribute="name"><code>name</code></li>
-<li data-gallery-attribute="form"><code>form</code></li>
-<li data-gallery-attribute="placeholder"><code>placeholder</code></li>
-<li data-gallery-attribute="disabled"><code>disabled</code></li>
-<li data-gallery-attribute="required"><code>required</code></li>
-<li data-gallery-attribute="readonly"><code>readonly</code></li>
-<li data-gallery-attribute="busy"><code>busy</code></li>
-<li data-gallery-attribute="invalid"><code>invalid</code></li>
-<li data-gallery-attribute="describedby"><code>describedby</code></li>
-<li data-gallery-attribute="error"><code>error</code></li>
-<li data-gallery-attribute="indicator"><code>indicator</code></li>
-<li data-gallery-attribute="hidden"><code>hidden</code></li>
-<li data-gallery-attribute="class"><code>class</code></li></ul>
-<p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>help</code> supplies supporting content.</p>
-<cem-demo-element legend="Label and help slots"><template slot="source">
-<cem-text-field name="account" value="Draft" describedby="slot-help"><span slot="label">Account name</span><span slot="help" id="slot-help">Use your public account name.</span></cem-text-field>
-</template></cem-demo-element>
-<cem-demo-element legend="Form validation, submission and reset"><template slot="source">
-<form id="example-form" method="get" target="_blank"><cem-text-field id="gallery-editable" label="Email" type="email" name="email" value="reader@example.com" required></cem-text-field><cem-action type="submit">Submit</cem-action><cem-action id="gallery-reset" type="reset">Reset</cem-action></form><cem-text-field label="External owner" name="external" form="example-form" value="External"></cem-text-field>
-</template></cem-demo-element>
-<cem-demo-element legend="Input types and placeholder"><template slot="source">
-<cem-text-field label="text" type="text" placeholder="Enter text"></cem-text-field>
-<cem-text-field label="email" type="email" placeholder="Enter email"></cem-text-field>
-<cem-text-field label="password" type="password" placeholder="Enter password"></cem-text-field>
-<cem-text-field label="search" type="search" placeholder="Enter search"></cem-text-field>
-<cem-text-field label="tel" type="tel" placeholder="Enter tel"></cem-text-field>
-<cem-text-field label="url" type="url" placeholder="Enter url"></cem-text-field>
-</template></cem-demo-element>
-<cem-demo-element legend="Presence, hidden and consumer class"><template slot="source">
-<cem-text-field label="Disabled by presence" disabled="false"></cem-text-field><cem-text-field label="Readonly by presence" readonly="false" value="Read me"></cem-text-field><cem-text-field class="consumer-field" required="false" busy="false" label="Required and busy by presence"></cem-text-field><cem-text-field hidden="false" label="Hidden by presence"></cem-text-field>
-</template></cem-demo-element>
-<cem-demo-element legend="Validation message"><template slot="source">
-<cem-text-field label="Invalid entry" invalid="true" describedby="validation-help" error="validation-error"></cem-text-field><p id="validation-help">Check the account name.</p><p id="validation-error">This name is unavailable.</p>
-</template></cem-demo-element>
-</main></div>
+<div id="playground-theme" class="cem-theme-light">
+    <cem-gallery-nav heading="cem-text-field: Full examples and variation matrix"></cem-gallery-nav>
+
+    <header>
+        <p class="component-description">Use <a href="./cem-textarea-gallery.html"><code>cem-textarea</code></a> for
+            multiline entry. A labeled text-entry control with help content, validation, and borderless state
+            indicators. It shares the same input and form contract as <a
+                href="./cem-field-gallery.html"><code>cem-field</code></a>; pair it with <a
+                href="./cem-action-gallery.html"><code>cem-action</code></a> to submit or reset a form.</p>
+        <p><a href="./cem-text-field.html">Property playground</a> · <a
+            href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-text-field/cem-text-field.stories.ts">Automated
+            stories</a></p></header>
+    <main>
+        <style>
+        [data-gallery-theme] {
+            padding: var(--cem-dim-large);
+            background-color: var(--cem-palette-comfort);
+            color: var(--cem-palette-comfort-text);
+        }
+
+        .examples {
+            display: grid;
+            gap: var(--cem-dim-large);
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+        }
+
+        cem-demo-element {
+            display: block;
+            margin-block: var(--cem-dim-large);
+        }
+        </style>
+        <p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real
+            component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
+        <p>Both fields remain borderless. Enabled, unfocused controls keep a subtle resting indicator. Hover changes its color; focus adds a separate stripe. Busy preserves editing; disabled,
+            readonly, required and busy use attribute presence, including the text false. Invalid is an ARIA string.</p>
+        <h2>Public attributes and slots</h2>
+        <ul>
+            <li data-gallery-attribute="label"><code>label</code></li>
+            <li data-gallery-attribute="type"><code>type</code></li>
+            <li data-gallery-attribute="value"><code>value</code></li>
+            <li data-gallery-attribute="name"><code>name</code></li>
+            <li data-gallery-attribute="form"><code>form</code></li>
+            <li data-gallery-attribute="placeholder"><code>placeholder</code></li>
+            <li data-gallery-attribute="disabled"><code>disabled</code></li>
+            <li data-gallery-attribute="required"><code>required</code></li>
+            <li data-gallery-attribute="readonly"><code>readonly</code></li>
+            <li data-gallery-attribute="busy"><code>busy</code></li>
+            <li data-gallery-attribute="invalid"><code>invalid</code></li>
+            <li data-gallery-attribute="describedby"><code>describedby</code></li>
+            <li data-gallery-attribute="error"><code>error</code></li>
+            <li data-gallery-attribute="indicator"><code>indicator</code></li>
+            <li data-gallery-attribute="hidden"><code>hidden</code></li>
+            <li data-gallery-attribute="class"><code>class</code></li>
+        </ul>
+        <p><strong>Slots:</strong> <code>label</code> replaces the label text; <code>help</code> supplies supporting
+            content.</p>
+        <cem-demo-element legend="Label and help slots" type="cem-ml">
+            <template>
+{cem-text-field @describedby=slot-help @name=account @value=Draft |
+    {span @slot=label | Account name}
+    {span @id=slot-help @slot=help | Use your public account name.}
+}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Form validation, submission and resetSS" type="cem-ml">
+            <template>
+{form @id=example-form @method=get @target=_blank |
+    {cem-text-field @label=Email @name=email @required @type=email @value="reader@example.com"}
+    {cem-action @type=submit | Submit}
+    {cem-action @type=reset | Reset}
+}
+{cem-text-field @form=example-form @label="External owner" @name=external @value=External}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Input types and placeholder" type="cem-ml">
+            <template>
+{cem-text-field @label=text @placeholder="Enter text" @type=text}
+{cem-text-field @label=email @placeholder="Enter email" @type=email}
+{cem-text-field @label=password @placeholder="Enter password" @type=password}
+{cem-text-field @label=search @placeholder="Enter search" @type=search}
+{cem-text-field @label=tel @placeholder="Enter tel" @type=tel}
+{cem-text-field @label=url @placeholder="Enter url" @type=url}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Presence, hidden and consumer class" type="cem-ml">
+            <template>
+                {cem-text-field @disabled=false @label="Disabled by presence"}
+                {cem-text-field @label="Readonly by presence" @readonly=false @value="Read me"}
+                {cem-text-field @busy=false @class=consumer-field @label="Required and busy by presence"
+                @required=false}
+                {cem-text-field @hidden=false @label="Hidden by presence"}
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Validation message" type="cem-ml">
+            <template>
+                {cem-text-field @describedby=validation-help @error=validation-error @invalid=true
+                @label="Invalid entry"}
+                {p @id=validation-help | Check the account name.}
+                {p @id=validation-error | This name is unavailable.}
+            </template>
+        </cem-demo-element>
+    </main>
+</div>
 <section aria-label="Theme and state variation matrix">
-<h2>Theme and state variation matrix</h2>
-<section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-text-field data-gallery-sample label="Default" indicator="underline" ></cem-text-field></article>
-<article data-variation="Default outline"><h3>Default · outline</h3><cem-text-field data-gallery-sample label="Default" indicator="outline" ></cem-text-field></article>
-<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="underline" disabled></cem-text-field></article>
-<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="outline" disabled></cem-text-field></article>
-<article data-variation="Readonly underline"><h3>Readonly · underline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="underline" readonly></cem-text-field></article>
-<article data-variation="Readonly outline"><h3>Readonly · outline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="outline" readonly></cem-text-field></article>
-<article data-variation="Required underline"><h3>Required · underline</h3><cem-text-field data-gallery-sample label="Required" indicator="underline" required></cem-text-field></article>
-<article data-variation="Required outline"><h3>Required · outline</h3><cem-text-field data-gallery-sample label="Required" indicator="outline" required></cem-text-field></article>
-<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="underline" invalid="true"></cem-text-field></article>
-<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="outline" invalid="true"></cem-text-field></article>
-<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-text-field data-gallery-sample label="Busy" indicator="underline" busy></cem-text-field></article>
-<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-text-field data-gallery-sample label="Busy" indicator="outline" busy></cem-text-field></article>
-<article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="underline" disabled busy></cem-text-field></article>
-<article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="outline" disabled busy></cem-text-field></article></div></section>
+    <h2>Theme and state variation matrix</h2>
+    <section data-gallery-theme="light" class="cem-theme-light"><h2>light</h2>
+        <div class="examples">
+            <article data-variation="Default underline"><h3>Default · underline</h3>
+                <cem-text-field label="Default" indicator="underline"></cem-text-field>
+            </article>
+            <article data-variation="Default outline"><h3>Default · outline</h3>
+                <cem-text-field label="Default" indicator="outline"></cem-text-field>
+            </article>
+            <article data-variation="Disabled underline"><h3>Disabled · underline</h3>
+                <cem-text-field label="Disabled" indicator="underline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Disabled outline"><h3>Disabled · outline</h3>
+                <cem-text-field label="Disabled" indicator="outline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Readonly underline"><h3>Readonly · underline</h3>
+                <cem-text-field label="Readonly" indicator="underline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Readonly outline"><h3>Readonly · outline</h3>
+                <cem-text-field label="Readonly" indicator="outline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Required underline"><h3>Required · underline</h3>
+                <cem-text-field label="Required" indicator="underline" required></cem-text-field>
+            </article>
+            <article data-variation="Required outline"><h3>Required · outline</h3>
+                <cem-text-field label="Required" indicator="outline" required></cem-text-field>
+            </article>
+            <article data-variation="Invalid underline"><h3>Invalid · underline</h3>
+                <cem-text-field label="Invalid" indicator="underline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Invalid outline"><h3>Invalid · outline</h3>
+                <cem-text-field label="Invalid" indicator="outline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Busy underline"><h3>Busy · underline</h3>
+                <cem-text-field label="Busy" indicator="underline" busy></cem-text-field>
+            </article>
+            <article data-variation="Busy outline"><h3>Busy · outline</h3>
+                <cem-text-field label="Busy" indicator="outline" busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3>
+                <cem-text-field label="Disabled busy" indicator="underline" disabled busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3>
+                <cem-text-field label="Disabled busy" indicator="outline" disabled busy></cem-text-field>
+            </article>
+        </div>
+    </section>
 
-<section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-text-field data-gallery-sample label="Default" indicator="underline" ></cem-text-field></article>
-<article data-variation="Default outline"><h3>Default · outline</h3><cem-text-field data-gallery-sample label="Default" indicator="outline" ></cem-text-field></article>
-<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="underline" disabled></cem-text-field></article>
-<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="outline" disabled></cem-text-field></article>
-<article data-variation="Readonly underline"><h3>Readonly · underline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="underline" readonly></cem-text-field></article>
-<article data-variation="Readonly outline"><h3>Readonly · outline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="outline" readonly></cem-text-field></article>
-<article data-variation="Required underline"><h3>Required · underline</h3><cem-text-field data-gallery-sample label="Required" indicator="underline" required></cem-text-field></article>
-<article data-variation="Required outline"><h3>Required · outline</h3><cem-text-field data-gallery-sample label="Required" indicator="outline" required></cem-text-field></article>
-<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="underline" invalid="true"></cem-text-field></article>
-<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="outline" invalid="true"></cem-text-field></article>
-<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-text-field data-gallery-sample label="Busy" indicator="underline" busy></cem-text-field></article>
-<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-text-field data-gallery-sample label="Busy" indicator="outline" busy></cem-text-field></article>
-<article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="underline" disabled busy></cem-text-field></article>
-<article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="outline" disabled busy></cem-text-field></article></div></section>
+    <section data-gallery-theme="dark" class="cem-theme-dark"><h2>dark</h2>
+        <div class="examples">
+            <article data-variation="Default underline"><h3>Default · underline</h3>
+                <cem-text-field label="Default" indicator="underline"></cem-text-field>
+            </article>
+            <article data-variation="Default outline"><h3>Default · outline</h3>
+                <cem-text-field label="Default" indicator="outline"></cem-text-field>
+            </article>
+            <article data-variation="Disabled underline"><h3>Disabled · underline</h3>
+                <cem-text-field label="Disabled" indicator="underline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Disabled outline"><h3>Disabled · outline</h3>
+                <cem-text-field label="Disabled" indicator="outline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Readonly underline"><h3>Readonly · underline</h3>
+                <cem-text-field label="Readonly" indicator="underline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Readonly outline"><h3>Readonly · outline</h3>
+                <cem-text-field label="Readonly" indicator="outline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Required underline"><h3>Required · underline</h3>
+                <cem-text-field label="Required" indicator="underline" required></cem-text-field>
+            </article>
+            <article data-variation="Required outline"><h3>Required · outline</h3>
+                <cem-text-field label="Required" indicator="outline" required></cem-text-field>
+            </article>
+            <article data-variation="Invalid underline"><h3>Invalid · underline</h3>
+                <cem-text-field label="Invalid" indicator="underline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Invalid outline"><h3>Invalid · outline</h3>
+                <cem-text-field label="Invalid" indicator="outline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Busy underline"><h3>Busy · underline</h3>
+                <cem-text-field label="Busy" indicator="underline" busy></cem-text-field>
+            </article>
+            <article data-variation="Busy outline"><h3>Busy · outline</h3>
+                <cem-text-field label="Busy" indicator="outline" busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3>
+                <cem-text-field label="Disabled busy" indicator="underline" disabled busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3>
+                <cem-text-field label="Disabled busy" indicator="outline" disabled busy></cem-text-field>
+            </article>
+        </div>
+    </section>
 
-<section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-text-field data-gallery-sample label="Default" indicator="underline" ></cem-text-field></article>
-<article data-variation="Default outline"><h3>Default · outline</h3><cem-text-field data-gallery-sample label="Default" indicator="outline" ></cem-text-field></article>
-<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="underline" disabled></cem-text-field></article>
-<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="outline" disabled></cem-text-field></article>
-<article data-variation="Readonly underline"><h3>Readonly · underline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="underline" readonly></cem-text-field></article>
-<article data-variation="Readonly outline"><h3>Readonly · outline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="outline" readonly></cem-text-field></article>
-<article data-variation="Required underline"><h3>Required · underline</h3><cem-text-field data-gallery-sample label="Required" indicator="underline" required></cem-text-field></article>
-<article data-variation="Required outline"><h3>Required · outline</h3><cem-text-field data-gallery-sample label="Required" indicator="outline" required></cem-text-field></article>
-<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="underline" invalid="true"></cem-text-field></article>
-<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="outline" invalid="true"></cem-text-field></article>
-<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-text-field data-gallery-sample label="Busy" indicator="underline" busy></cem-text-field></article>
-<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-text-field data-gallery-sample label="Busy" indicator="outline" busy></cem-text-field></article>
-<article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="underline" disabled busy></cem-text-field></article>
-<article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="outline" disabled busy></cem-text-field></article></div></section>
+    <section data-gallery-theme="contrast-light" class="cem-theme-contrast-light"><h2>contrast-light</h2>
+        <div class="examples">
+            <article data-variation="Default underline"><h3>Default · underline</h3>
+                <cem-text-field label="Default" indicator="underline"></cem-text-field>
+            </article>
+            <article data-variation="Default outline"><h3>Default · outline</h3>
+                <cem-text-field label="Default" indicator="outline"></cem-text-field>
+            </article>
+            <article data-variation="Disabled underline"><h3>Disabled · underline</h3>
+                <cem-text-field label="Disabled" indicator="underline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Disabled outline"><h3>Disabled · outline</h3>
+                <cem-text-field label="Disabled" indicator="outline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Readonly underline"><h3>Readonly · underline</h3>
+                <cem-text-field label="Readonly" indicator="underline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Readonly outline"><h3>Readonly · outline</h3>
+                <cem-text-field label="Readonly" indicator="outline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Required underline"><h3>Required · underline</h3>
+                <cem-text-field label="Required" indicator="underline" required></cem-text-field>
+            </article>
+            <article data-variation="Required outline"><h3>Required · outline</h3>
+                <cem-text-field label="Required" indicator="outline" required></cem-text-field>
+            </article>
+            <article data-variation="Invalid underline"><h3>Invalid · underline</h3>
+                <cem-text-field label="Invalid" indicator="underline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Invalid outline"><h3>Invalid · outline</h3>
+                <cem-text-field label="Invalid" indicator="outline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Busy underline"><h3>Busy · underline</h3>
+                <cem-text-field label="Busy" indicator="underline" busy></cem-text-field>
+            </article>
+            <article data-variation="Busy outline"><h3>Busy · outline</h3>
+                <cem-text-field label="Busy" indicator="outline" busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3>
+                <cem-text-field label="Disabled busy" indicator="underline" disabled busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3>
+                <cem-text-field label="Disabled busy" indicator="outline" disabled busy></cem-text-field>
+            </article>
+        </div>
+    </section>
 
-<section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-text-field data-gallery-sample label="Default" indicator="underline" ></cem-text-field></article>
-<article data-variation="Default outline"><h3>Default · outline</h3><cem-text-field data-gallery-sample label="Default" indicator="outline" ></cem-text-field></article>
-<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="underline" disabled></cem-text-field></article>
-<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="outline" disabled></cem-text-field></article>
-<article data-variation="Readonly underline"><h3>Readonly · underline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="underline" readonly></cem-text-field></article>
-<article data-variation="Readonly outline"><h3>Readonly · outline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="outline" readonly></cem-text-field></article>
-<article data-variation="Required underline"><h3>Required · underline</h3><cem-text-field data-gallery-sample label="Required" indicator="underline" required></cem-text-field></article>
-<article data-variation="Required outline"><h3>Required · outline</h3><cem-text-field data-gallery-sample label="Required" indicator="outline" required></cem-text-field></article>
-<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="underline" invalid="true"></cem-text-field></article>
-<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="outline" invalid="true"></cem-text-field></article>
-<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-text-field data-gallery-sample label="Busy" indicator="underline" busy></cem-text-field></article>
-<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-text-field data-gallery-sample label="Busy" indicator="outline" busy></cem-text-field></article>
-<article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="underline" disabled busy></cem-text-field></article>
-<article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="outline" disabled busy></cem-text-field></article></div></section>
+    <section data-gallery-theme="contrast-dark" class="cem-theme-contrast-dark"><h2>contrast-dark</h2>
+        <div class="examples">
+            <article data-variation="Default underline"><h3>Default · underline</h3>
+                <cem-text-field label="Default" indicator="underline"></cem-text-field>
+            </article>
+            <article data-variation="Default outline"><h3>Default · outline</h3>
+                <cem-text-field label="Default" indicator="outline"></cem-text-field>
+            </article>
+            <article data-variation="Disabled underline"><h3>Disabled · underline</h3>
+                <cem-text-field label="Disabled" indicator="underline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Disabled outline"><h3>Disabled · outline</h3>
+                <cem-text-field label="Disabled" indicator="outline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Readonly underline"><h3>Readonly · underline</h3>
+                <cem-text-field label="Readonly" indicator="underline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Readonly outline"><h3>Readonly · outline</h3>
+                <cem-text-field label="Readonly" indicator="outline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Required underline"><h3>Required · underline</h3>
+                <cem-text-field label="Required" indicator="underline" required></cem-text-field>
+            </article>
+            <article data-variation="Required outline"><h3>Required · outline</h3>
+                <cem-text-field label="Required" indicator="outline" required></cem-text-field>
+            </article>
+            <article data-variation="Invalid underline"><h3>Invalid · underline</h3>
+                <cem-text-field label="Invalid" indicator="underline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Invalid outline"><h3>Invalid · outline</h3>
+                <cem-text-field label="Invalid" indicator="outline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Busy underline"><h3>Busy · underline</h3>
+                <cem-text-field label="Busy" indicator="underline" busy></cem-text-field>
+            </article>
+            <article data-variation="Busy outline"><h3>Busy · outline</h3>
+                <cem-text-field label="Busy" indicator="outline" busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3>
+                <cem-text-field label="Disabled busy" indicator="underline" disabled busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3>
+                <cem-text-field label="Disabled busy" indicator="outline" disabled busy></cem-text-field>
+            </article>
+        </div>
+    </section>
 
-<section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2><div class="examples"><article data-variation="Default underline"><h3>Default · underline</h3><cem-text-field data-gallery-sample label="Default" indicator="underline" ></cem-text-field></article>
-<article data-variation="Default outline"><h3>Default · outline</h3><cem-text-field data-gallery-sample label="Default" indicator="outline" ></cem-text-field></article>
-<article data-variation="Disabled underline"><h3>Disabled · underline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="underline" disabled></cem-text-field></article>
-<article data-variation="Disabled outline"><h3>Disabled · outline</h3><cem-text-field data-gallery-sample label="Disabled" indicator="outline" disabled></cem-text-field></article>
-<article data-variation="Readonly underline"><h3>Readonly · underline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="underline" readonly></cem-text-field></article>
-<article data-variation="Readonly outline"><h3>Readonly · outline</h3><cem-text-field data-gallery-sample label="Readonly" indicator="outline" readonly></cem-text-field></article>
-<article data-variation="Required underline"><h3>Required · underline</h3><cem-text-field data-gallery-sample label="Required" indicator="underline" required></cem-text-field></article>
-<article data-variation="Required outline"><h3>Required · outline</h3><cem-text-field data-gallery-sample label="Required" indicator="outline" required></cem-text-field></article>
-<article data-variation="Invalid underline"><h3>Invalid · underline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="underline" invalid="true"></cem-text-field></article>
-<article data-variation="Invalid outline"><h3>Invalid · outline</h3><cem-text-field data-gallery-sample label="Invalid" indicator="outline" invalid="true"></cem-text-field></article>
-<article data-variation="Busy underline"><h3>Busy · underline</h3><cem-text-field data-gallery-sample label="Busy" indicator="underline" busy></cem-text-field></article>
-<article data-variation="Busy outline"><h3>Busy · outline</h3><cem-text-field data-gallery-sample label="Busy" indicator="outline" busy></cem-text-field></article>
-<article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="underline" disabled busy></cem-text-field></article>
-<article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3><cem-text-field data-gallery-sample label="Disabled busy" indicator="outline" disabled busy></cem-text-field></article></div></section>
+    <section data-gallery-theme="native" class="cem-theme-native"><h2>native</h2>
+        <div class="examples">
+            <article data-variation="Default underline"><h3>Default · underline</h3>
+                <cem-text-field label="Default" indicator="underline"></cem-text-field>
+            </article>
+            <article data-variation="Default outline"><h3>Default · outline</h3>
+                <cem-text-field label="Default" indicator="outline"></cem-text-field>
+            </article>
+            <article data-variation="Disabled underline"><h3>Disabled · underline</h3>
+                <cem-text-field label="Disabled" indicator="underline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Disabled outline"><h3>Disabled · outline</h3>
+                <cem-text-field label="Disabled" indicator="outline" disabled></cem-text-field>
+            </article>
+            <article data-variation="Readonly underline"><h3>Readonly · underline</h3>
+                <cem-text-field label="Readonly" indicator="underline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Readonly outline"><h3>Readonly · outline</h3>
+                <cem-text-field label="Readonly" indicator="outline" readonly></cem-text-field>
+            </article>
+            <article data-variation="Required underline"><h3>Required · underline</h3>
+                <cem-text-field label="Required" indicator="underline" required></cem-text-field>
+            </article>
+            <article data-variation="Required outline"><h3>Required · outline</h3>
+                <cem-text-field label="Required" indicator="outline" required></cem-text-field>
+            </article>
+            <article data-variation="Invalid underline"><h3>Invalid · underline</h3>
+                <cem-text-field label="Invalid" indicator="underline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Invalid outline"><h3>Invalid · outline</h3>
+                <cem-text-field label="Invalid" indicator="outline" invalid="true"></cem-text-field>
+            </article>
+            <article data-variation="Busy underline"><h3>Busy · underline</h3>
+                <cem-text-field label="Busy" indicator="underline" busy></cem-text-field>
+            </article>
+            <article data-variation="Busy outline"><h3>Busy · outline</h3>
+                <cem-text-field label="Busy" indicator="outline" busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy underline"><h3>Disabled busy · underline</h3>
+                <cem-text-field label="Disabled busy" indicator="underline" disabled busy></cem-text-field>
+            </article>
+            <article data-variation="Disabled busy outline"><h3>Disabled busy · outline</h3>
+                <cem-text-field label="Disabled busy" indicator="outline" disabled busy></cem-text-field>
+            </article>
+        </div>
+    </section>
 
 </section>
-</body></html>
+</body>
+</html>

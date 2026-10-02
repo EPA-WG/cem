@@ -26,7 +26,7 @@ serialized runtime state while the activating input remains held.
 | Primitive         | Phase 4 intent | Active pair                                                                        |
 | ----------------- | -------------- | ---------------------------------------------------------------------------------- |
 | `cem-action`      | `primary`      | `--cem-action-primary-active-background`, `--cem-action-primary-active-text`       |
-| `cem-icon-button` | `contextual`   | `--cem-action-contextual-active-background`, `--cem-action-contextual-active-text` |
+| `cem-icon-button` | `primary`   | `--cem-action-primary-active-background`, `--cem-action-primary-active-text` |
 | `cem-menu-item`   | `contextual`   | `--cem-action-contextual-active-background`, `--cem-action-contextual-active-text` |
 
 The default and hover mappings remain those accepted by the

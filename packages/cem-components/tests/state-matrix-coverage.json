@@ -32,7 +32,8 @@
             "category": "Action",
             "state": "selected",
             "components": [
-                "cem-action"
+                "cem-action",
+                "cem-icon-button"
             ],
             "interaction": "The container sets persistent selection; native button aria-pressed and zebra remain independent of transient interaction, disabled and pending.",
             "status": "covered",
@@ -44,6 +45,17 @@
                 "await expect(buttons[2]).toHaveAttribute('aria-pressed', 'true');",
                 "await expect(selected.hasAttribute('selected')).toBe(true);",
                 "await expect(getComputedStyle(button).boxShadow).toBe(ring);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-icon-button",
+                    "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+                    "test": "ActionStates",
+                    "assertions": [
+                        "expect(control.getAttribute(selectionAttribute)).toBe('true');",
+                        "expect(getComputedStyle(control).boxShadow).toBe(selectedRing);"
+                    ]
+                }
             ]
         },
         {
@@ -61,7 +73,7 @@
             "test": "AllAttributes",
             "assertions": [
                 "expect(button.type).toBe('button');",
-                "expect(button.classList.contains('cem-icon-button--quiet')).toBe(true);"
+                "expect(button.classList.contains('cem-icon-button--primary')).toBe(true);"
             ],
             "componentEvidence": [
                 {
@@ -219,7 +231,8 @@
             "category": "Action",
             "state": "pending",
             "components": [
-                "cem-action"
+                "cem-action",
+                "cem-icon-button"
             ],
             "interaction": "Mark an action busy while preserving its accessible name and control dimensions.",
             "status": "covered",
@@ -228,6 +241,18 @@
             "assertions": [
                 "await expect(control.getAttribute('aria-busy')).toBe('true');",
                 "await expect(control.disabled).toBe(false);"
+            ],
+            "componentEvidence": [
+                {
+                    "component": "cem-icon-button",
+                    "owner": "packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts",
+                    "test": "ActionStates",
+                    "assertions": [
+                        "expect(control.getAttribute('aria-busy')).toBe('true');",
+                        "await waitFor(() => expect(paint()).toEqual(expected('pending')));",
+                        "expect(storybookCemRuntime().snapshotInstance(host).eventPayloads).toEqual(before);"
+                    ]
+                }
             ]
         },
         {

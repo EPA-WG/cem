@@ -163,12 +163,13 @@ Host visibility follows the [shared native visibility convention](./conventions.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-action` | Native button; defaults to command, supports explicit submit/reset. | Default slot or `label` fallback; `variant` selects primary, explicit, contextual, alternate or destructive intent. Optional `size="small|medium|large|x-large|xx-large"` overrides inherited minimum control height. Labels wrap; noninteractive image/title content can grow beyond the minimum. Native form attributes forward to the button. Presence-only `selected` and `selectable` expose container-owned selection with persistent zebra and native-button `aria-pressed`. | action, control, palette, bend, typography | Button text or `aria-label` must name the action. |
-| `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; `icon` selects an image or font glyph; `label` names icon-only controls. | action, control, palette, stroke, bend | `label` is required because icon text is hidden from assistive tech. |
+| `cem-icon-button` | Native icon command or navigation link. | `href` selects link mode; embedded `cem-icon` receives `image`, `size`, `direction`, `label`, and `aria-label`. Action-theme states include selected/selectable, pending and disabled; selection uses aria-pressed for buttons and aria-current for links. | action, control, palette, stroke, bend | Use `aria-label` for icon-only controls; `label` also provides visible fallback text. |
 | `cem-menu-item` | Menu command row. | Default slot is command text. | action, palette, gap, inset, typography | Renders `role="menuitem"` and must be contained by a menu/list context in full menus. |
 
-States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`.
+States: `default`, `hover`, `focus-visible`, `active`, `disabled`, `pending`, `selected`.
 The canonical `cem-action` declaration embeds its scoped styles for all five
-intents. The legacy icon/menu styles remain in the public component stylesheet.
+intents. `cem-icon-button` uses the same five variants in both button and link
+state styles, including persistent selection and pending feedback.
 All three use paired CEM action tokens for default, enabled native-button hover
 and held native-button active states. Hover and active change only background/text color; they add
 no ARIA or active runtime state and exclude disabled buttons through `:enabled`.
@@ -181,7 +182,7 @@ container or an individual host; removing an override restores the inherited
 theme value. The former private `--_cem-action-*` aliases are removed without
 compatibility aliases. No generic `--cem-action-<state>-*` family is introduced.
 
-For `cem-action`, `pending="true"` reflects `aria-busy="true"` and shows the
+For `cem-action` and `cem-icon-button`, `pending="true"` reflects `aria-busy="true"` and shows the
 canonical 45-degree pending gradient with a seamless two-second loop. Colors
 come from the current intent's pending/active background pair and pending text.
 Destructive uses the theme's pending-stripe endpoint for a lighter stripe in
@@ -363,7 +364,7 @@ normal and forced colors without a CSS exception.
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |
 | `cem-text` | Token-scoped inline text and typography owner. | `variant` selects the semantic typography treatment; `text` or the default slot supplies content. | typography, palette | Preserves ordinary inline text semantics and adds no focus or interaction owner. |
-| `cem-icon` | Passive icon with optional adjacent content. | `image` selects Unicode, image URL, Font Awesome or Material Icons; `name` is the fallback alias (default `circle`). Empty `image` hides the glyph. `size="normal|small|large"`, `direction="row|column"`; default slot supplies adjacent content. | icon, typography | Without `label`, the glyph is decorative. A nonempty `label` provides one image role; slotted content stays independently accessible. See the [icon contract](./icon-contract.md). |
+| `cem-icon` | Passive icon with optional adjacent content. | `image` selects Unicode, image URL, Font Awesome or Material Icons; the default is `circle` when `image` is absent. Empty `image` hides the glyph. `size="normal|small|large"`, `direction="row|column"`; default slot supplies adjacent content. | icon, typography | The default slot overrides visible `label` fallback (empty by default), preserving markup. Without `aria-label`, the glyph is decorative. A nonempty `aria-label` provides one image role; slotted content stays independently accessible. See the [icon contract](./icon-contract.md). |
 | `cem-card` | Summary surface and explicit content-loading boundary. | `slot="title"` for heading; default slot for body. Presence-only `busy` retains the authored payload and reflects loading state without starting resource work. | palette, stroke, bend, gap, inset | `label` names the section. Busy state adds exact `data-state="loading"` and `aria-busy="true"` without a live region, inert subtree, or focus move. |
 | `cem-expansion` | One independent general-purpose disclosure panel. | `slot="summary"` or `label` names the native header; default slot supplies persistent panel content. Presence-only `expanded`, `disabled`, and `region`; `heading-level="1..6"` defaults to 3. See the [expansion contract](./expansion-contract.md). | action, palette, stroke, bend, gap, inset, coupling, control, typography | The header is the sole button owner inside a validated heading. Exact `aria-labelledby`, `aria-expanded`, `aria-controls`, and reciprocal panel references remain stable; collapsed content is hidden and disabled blocks only user toggling. |
 | `cem-list` | Passive collection wrapper by default; native single-select listbox with `selectable`. | Passive mode projects `<li>` rows. Selectable mode consumes direct `cem-list-option` payload with required `value` and optional `selected`/`disabled`; parent `label`, `value`, and `size` configure the listbox. | palette, content, stroke, gap, typography | The list or listbox must be named. Selectable mode keeps focus, hover, and keyboard behavior on the native `<select>`, reflects exact option `aria-selected`, and does not participate in forms. |
@@ -475,10 +476,10 @@ icon-button also exposes the decorative glyph as `part="icon"`.
 
 | Component | Implemented component attributes | Other explicit attributes |
 | --- | --- | --- |
-| `cem-icon-button` | `label`, `name`, `icon`, `href`, `kind`, `direction`, `variant`, `disabled` (presence), `expanded` (ARIA value); see [the full contract](icon-button-contract.md) | `hidden`, `class` |
+| `cem-icon-button` | `image`, `size`, `label`, `aria-label`, `href`, `type`, `name`, `value`, `form`, `formaction`, `formenctype`, `formmethod`, `formtarget`, `formnovalidate`, `direction`, `variant`, `disabled` (presence), `selected`, `selectable` (presence), `pending="true|false"`; see [the full contract](icon-button-contract.md) | `hidden`, `class` |
 | `cem-menu-item` | `label` (default-slot fallback, default Menu item), `disabled` (presence), `expanded` (ARIA value) | `hidden`, `class` |
 
-Icon-button uses contextual state colors for buttons and primary colors for links. Native
+Icon-button uses the action variants primary (default), explicit, contextual, alternate and destructive in both modes. It supports action bend classes and native button/form attributes. Native
 clicks update the `pressed` (icon-button) or `selected` (menu-item) event slice;
 these are event records, not persistent selected/toggle state. Menu navigation and
 popup ownership remain the containing menu's responsibility. Default slot content

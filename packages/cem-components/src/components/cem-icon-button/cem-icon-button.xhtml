@@ -1,87 +1,322 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-icon-button">
+  <!-- Embeds cem-icon for image, size, direction, label, aria-label, class and hidden.
+       image selects the glyph. label is visible fallback
+       content; aria-label names the glyph and control. href and interaction
+       states remain owned by cem-icon-button. Action variants and bend classes
+       apply to both modes; buttons also reuse native action form attributes. -->
   <template id="cem-icon-button" type="text/cem-ml">
-    {cem:variable @name=iconValue @select='if seq:count(datadom.attributes.icon) > 0 { datadom.attributes.icon } else { if seq:count(datadom.attributes.name) > 0 { datadom.attributes.name } else { if seq:count(datadom.attributes.href) > 0 { "" } else { "circle" } } }'}
-    {attribute @name=variant | quiet}
-    {attribute @name=kind | normal}
+    {cem-element @tag=cem-icon @src="../cem-icon/cem-icon.xhtml#cem-icon"}
+    {cem:variable @name=imageValue @select='if seq:count(datadom.attributes.image) > 0 { datadom.attributes.image } else { if seq:count(datadom.attributes.href) > 0 { "" } else { "circle" } }'}
+    {attribute @name=variant | primary}
+    {attribute @name=type | button}
     {attribute @name=direction | row}
     {style @type="text/css" |```
-        :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
-        :scope > button[part~='control'] {
-            background-color: var(--cem-action-contextual-default-background);
-            color: var(--cem-action-contextual-default-text);
+
+        :scope[hidden]:where(:not([hidden="until-found" i])) {
+            display: none;
         }
-        :scope > button[part~='control']:where(:enabled:hover) {
-            background-color: var(--cem-action-contextual-hover-background);
-            color: var(--cem-action-contextual-hover-text);
+        :scope {
+            display: inline-flex;
+            min-inline-size: 0;
         }
-        :scope > button[part~='control']:where(:enabled:active) {
-            background-color: var(--cem-action-contextual-active-background);
-            color: var(--cem-action-contextual-active-text);
+        :scope:where([size="small"]) {
+            --cem-control-height: var(--cem-control-height-small);
         }
-        :scope > a[part~='control'] {
+        :scope:where([size="medium"]) {
+            --cem-control-height: var(--cem-control-height-medium);
+        }
+        :scope:where([size="large"]) {
+            --cem-control-height: var(--cem-control-height-large);
+        }
+        :scope:where([size="x-large"]) {
+            --cem-control-height: var(--cem-control-height-x-large);
+        }
+        :scope:where([size="xx-large"]) {
+            --cem-control-height: var(--cem-control-height-xx-large);
+        }
+        :scope > :is(button, a)[part~='control'] {
             display: inline-flex;
             align-items: center;
-            gap: var(--cem-gap-related);
-            padding: var(--cem-control-padding-y) var(--cem-control-padding-x);
-            min-block-size: var(--cem-icon-button-size);
+            justify-content: center;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            gap: var(--cem-dim-x-small);
             box-sizing: border-box;
-            border-radius: var(--cem-bend-control-round-ends);
+            position: relative;
+            flex: 1;
+            min-inline-size: var(--cem-coupling-zone-min);
+            min-block-size: max(var(--cem-coupling-zone-min), var(--cem-shape-height, var(--cem-control-height)));
+            padding-inline: var(--cem-control-padding-x);
+            padding-block: var(--cem-control-padding-y);
+            appearance: none;
+            /* The transparent native border reserves compact hit space in layout. */
+            border: max(0px, calc((var(--cem-coupling-zone-min) - var(--cem-shape-height, var(--cem-control-height))) / 2)) solid transparent;
+            background-clip: padding-box;
+            border-radius: calc(var(--cem-action-border-radius) + max(0px, calc((var(--cem-coupling-zone-min) - var(--cem-shape-height, var(--cem-control-height))) / 2)));
+            width: 100%;
+        }
+        :scope:where(.cem-bend-sharp, .cem-bend-smooth, .cem-bend-round) {
+            --cem-action-border-radius: var(--cem-bend);
+        }
+        :scope:where(.cem-bend-sharp) {
+            --cem-bend: var(--cem-bend-sharp);
+        }
+        :scope:where(.cem-bend-smooth) {
+            --cem-bend: var(--cem-bend-smooth);
+        }
+        :scope:where(.cem-bend-round) {
+            --cem-bend: var(--cem-bend-round);
+        }
+        :scope > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+            animation-name: cem-pending-shift;
+            animation-duration: var(--cem-duration-pending-cycle);
+            animation-timing-function: var(--cem-easing-uniform);
+            animation-iteration-count: infinite;
+        }
+        :scope > :is(button, a)[part~='control'] {
             background-color: var(--cem-action-primary-default-background);
             color: var(--cem-action-primary-default-text);
-            text-decoration: none;
-            box-shadow: var(--cem-elevation-1);
-            transition: background-color var(--cem-duration-action), box-shadow var(--cem-duration-action);
         }
-        :scope > a[part~='control']:where([href]:hover) {
+        :scope > :is(button, a)[part~='control']:where(:enabled:hover, [href]:hover) {
             background-color: var(--cem-action-primary-hover-background);
             color: var(--cem-action-primary-hover-text);
-            box-shadow: var(--cem-elevation-3);
         }
-        :scope > a[part~='control']:where([href]:active) {
+        :scope > :is(button, a)[part~='control']:where(:enabled:active, [href]:active) {
             background-color: var(--cem-action-primary-active-background);
             color: var(--cem-action-primary-active-text);
         }
-        :scope > a[part~='control']:where(:focus-visible) {
-            outline: var(--cem-stroke-focus) solid var(--cem-palette-trust);
-            outline-offset: var(--cem-stroke-indicator-offset);
-        }
-        :scope > a[part~='control']:where([aria-disabled='true']) {
+        :scope > :is(button, a)[part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true'])) {
             background-color: var(--cem-action-primary-disabled-background);
             color: var(--cem-action-primary-disabled-text);
-            box-shadow: none;
         }
-        [part~='control']:where([data-direction='column']) { flex-direction: column; }
-        [part~='icon'] {
-            block-size: var(--cem-icon-button-icon-size);
-            font-size: var(--cem-icon-button-icon-size);
-            flex-shrink: 0;
+        :scope > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background));
+            color: var(--cem-action-primary-pending-text, var(--cem-action-primary-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 0% 5%, var(--cem-action-primary-pending-stripe-background, var(--cem-action-primary-active-background)) 20% 30%,
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 45% 55%, var(--cem-action-primary-pending-stripe-background, var(--cem-action-primary-active-background)) 70% 80%,
+                var(--cem-action-primary-pending-background, var(--cem-action-primary-active-background)) 95% 100%);
         }
-        img[part~='icon'] { inline-size: auto; object-fit: contain; }
+        :scope:where([variant="explicit"]) > :is(button, a)[part~='control'] {
+            background-color: var(--cem-action-explicit-default-background);
+            color: var(--cem-action-explicit-default-text);
+        }
+        :scope:where([variant="explicit"]) > :is(button, a)[part~='control']:where(:enabled:hover, [href]:hover) {
+            background-color: var(--cem-action-explicit-hover-background);
+            color: var(--cem-action-explicit-hover-text);
+        }
+        :scope:where([variant="explicit"]) > :is(button, a)[part~='control']:where(:enabled:active, [href]:active) {
+            background-color: var(--cem-action-explicit-active-background);
+            color: var(--cem-action-explicit-active-text);
+        }
+        :scope:where([variant="explicit"]) > :is(button, a)[part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true'])) {
+            background-color: var(--cem-action-explicit-disabled-background);
+            color: var(--cem-action-explicit-disabled-text);
+        }
+        :scope:where([variant="explicit"]) > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background));
+            color: var(--cem-action-explicit-pending-text, var(--cem-action-explicit-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 0% 5%, var(--cem-action-explicit-pending-stripe-background, var(--cem-action-explicit-active-background)) 20% 30%,
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 45% 55%, var(--cem-action-explicit-pending-stripe-background, var(--cem-action-explicit-active-background)) 70% 80%,
+                var(--cem-action-explicit-pending-background, var(--cem-action-explicit-active-background)) 95% 100%);
+        }
+        :scope:where([variant="contextual"]) > :is(button, a)[part~='control'] {
+            background-color: var(--cem-action-contextual-default-background);
+            color: var(--cem-action-contextual-default-text);
+        }
+        :scope:where([variant="contextual"]) > :is(button, a)[part~='control']:where(:enabled:hover, [href]:hover) {
+            background-color: var(--cem-action-contextual-hover-background);
+            color: var(--cem-action-contextual-hover-text);
+        }
+        :scope:where([variant="contextual"]) > :is(button, a)[part~='control']:where(:enabled:active, [href]:active) {
+            background-color: var(--cem-action-contextual-active-background);
+            color: var(--cem-action-contextual-active-text);
+        }
+        :scope:where([variant="contextual"]) > :is(button, a)[part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true'])) {
+            background-color: var(--cem-action-contextual-disabled-background);
+            color: var(--cem-action-contextual-disabled-text);
+        }
+        :scope:where([variant="contextual"]) > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background));
+            color: var(--cem-action-contextual-pending-text, var(--cem-action-contextual-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 0% 5%, var(--cem-action-contextual-pending-stripe-background, var(--cem-action-contextual-active-background)) 20% 30%,
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 45% 55%, var(--cem-action-contextual-pending-stripe-background, var(--cem-action-contextual-active-background)) 70% 80%,
+                var(--cem-action-contextual-pending-background, var(--cem-action-contextual-active-background)) 95% 100%);
+        }
+        :scope:where([variant="alternate"]) > :is(button, a)[part~='control'] {
+            background-color: var(--cem-action-alternate-default-background);
+            color: var(--cem-action-alternate-default-text);
+        }
+        :scope:where([variant="alternate"]) > :is(button, a)[part~='control']:where(:enabled:hover, [href]:hover) {
+            background-color: var(--cem-action-alternate-hover-background);
+            color: var(--cem-action-alternate-hover-text);
+        }
+        :scope:where([variant="alternate"]) > :is(button, a)[part~='control']:where(:enabled:active, [href]:active) {
+            background-color: var(--cem-action-alternate-active-background);
+            color: var(--cem-action-alternate-active-text);
+        }
+        :scope:where([variant="alternate"]) > :is(button, a)[part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true'])) {
+            background-color: var(--cem-action-alternate-disabled-background);
+            color: var(--cem-action-alternate-disabled-text);
+        }
+        :scope:where([variant="alternate"]) > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background));
+            color: var(--cem-action-alternate-pending-text, var(--cem-action-alternate-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 0% 5%, var(--cem-action-alternate-pending-stripe-background, var(--cem-action-alternate-active-background)) 20% 30%,
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 45% 55%, var(--cem-action-alternate-pending-stripe-background, var(--cem-action-alternate-active-background)) 70% 80%,
+                var(--cem-action-alternate-pending-background, var(--cem-action-alternate-active-background)) 95% 100%);
+        }
+        :scope:where([variant="destructive"]) > :is(button, a)[part~='control'] {
+            background-color: var(--cem-action-destructive-default-background);
+            color: var(--cem-action-destructive-default-text);
+        }
+        :scope:where([variant="destructive"]) > :is(button, a)[part~='control']:where(:enabled:hover, [href]:hover) {
+            background-color: var(--cem-action-destructive-hover-background);
+            color: var(--cem-action-destructive-hover-text);
+        }
+        :scope:where([variant="destructive"]) > :is(button, a)[part~='control']:where(:enabled:active, [href]:active) {
+            background-color: var(--cem-action-destructive-active-background);
+            color: var(--cem-action-destructive-active-text);
+        }
+        :scope:where([variant="destructive"]) > :is(button, a)[part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true'])) {
+            background-color: var(--cem-action-destructive-disabled-background);
+            color: var(--cem-action-destructive-disabled-text);
+        }
+        :scope:where([variant="destructive"]) > :is(button, a)[part~='control']:where([aria-busy='true']) {
+            background-color: var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background));
+            color: var(--cem-action-destructive-pending-text, var(--cem-action-destructive-active-text));
+            background-image: linear-gradient(var(--cem-pending-angle),
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 0% 5%, var(--cem-action-destructive-pending-stripe-background, var(--cem-action-destructive-active-background)) 20% 30%,
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 45% 55%, var(--cem-action-destructive-pending-stripe-background, var(--cem-action-destructive-active-background)) 70% 80%,
+                var(--cem-action-destructive-pending-background, var(--cem-action-destructive-active-background)) 95% 100%);
+        }
+        :scope > [part~='control']::before {
+            content: '';
+            display: var(--cem-action-outline-display);
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            pointer-events: none;
+            border-radius: var(--cem-action-border-radius);
+            padding: var(--cem-stroke-boundary);
+            background-color: var(--cem-action-primary-outline-color);
+            mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
+            mask-composite: exclude;
+        }
+        :scope:where([variant="explicit"]) > [part~='control']::before {
+            background-color: var(--cem-action-explicit-outline-color);
+        }
+        :scope:where([variant="contextual"]) > [part~='control']::before {
+            background-color: var(--cem-action-contextual-outline-color);
+        }
+        :scope:where([variant="alternate"]) > [part~='control']::before {
+            background-color: var(--cem-action-alternate-outline-color);
+        }
+        :scope:where([variant="destructive"]) > [part~='control']::before {
+            background-color: var(--cem-action-destructive-outline-color);
+        }
+        :scope > [part~='control']:where(:enabled:hover, [href]:hover)::before {
+            padding: var(--cem-stroke-standard);
+        }
+        :scope > [part~='control']:where(:enabled:active, [href]:active)::before {
+            padding: var(--cem-stroke-strong);
+        }
+        :scope > [part~='control']:where(:disabled, [aria-disabled='true']):where(:not([aria-busy='true']))::before {
+            background-color: currentColor;
+        }
+        :scope > [part~='control']:where([aria-busy='true'])::before {
+            padding: var(--cem-stroke-pending);
+            background-image: var(--cem-action-primary-pending-image);
+            background-size: var(--cem-pending-tile-size) var(--cem-pending-tile-size);
+            animation-name: cem-pending-shift;
+            animation-duration: var(--cem-duration-pending-cycle);
+            animation-timing-function: var(--cem-easing-uniform);
+            animation-iteration-count: infinite;
+        }
+        :scope:where([variant="explicit"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-explicit-pending-image);
+        }
+        :scope:where([variant="contextual"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-contextual-pending-image);
+        }
+        :scope:where([variant="alternate"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-alternate-pending-image);
+        }
+        :scope:where([variant="destructive"]) > [part~='control']:where([aria-busy='true'])::before {
+            background-image: var(--cem-action-destructive-pending-image);
+        }
+        @keyframes cem-pending-shift {
+            from { background-position-x: 0px; }
+            to { background-position-x: var(--cem-pending-tile-size); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            :scope > :is(button, a)[part~='control']:where([aria-busy='true']),
+            :scope > [part~='control']:where([aria-busy='true'])::before {
+                animation: none;
+            }
+        }
+        :scope > :is(button, a)[part~='control']:where(:focus-visible, [aria-pressed='true'], [aria-current='true']) {
+            outline: var(--cem-stroke-focus) solid transparent;
+            outline-offset: var(--cem-stroke-indicator-offset);
+            box-shadow:
+                0 0 0 var(--cem-zebra-strip-size) var(--cem-zebra-color-1),
+                0 0 0 calc(2 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-2),
+                0 0 0 calc(3 * var(--cem-zebra-strip-size)) var(--cem-zebra-color-3);
+        }
         @media (forced-colors: active) {
-            :scope > a[part~='control'] { box-shadow: none; }
-            :scope > a[part~='control']:where(:focus-visible) { outline-color: Highlight; }
+            :scope > [part~='control']::before {
+                display: none;
+            }
+            :scope > :is(button, a)[part~='control']:where([aria-pressed='true'], [aria-current='true']) {
+                box-shadow: none;
+            }
+            :scope > [part~='control']:where([aria-pressed='true'], [aria-current='true'])::before {
+                display: block;
+                background: none;
+                mask: none;
+                padding: 0;
+                border: var(--cem-stroke-selected) solid SelectedItem;
+                inset: calc(var(--cem-stroke-pending) + var(--cem-stroke-indicator-offset));
+                animation: none;
+            }
+            :scope > :is(button, a)[part~='control']:where([aria-busy='true']) {
+                animation: none;
+                background-image: none;
+                background-color: ButtonFace;
+                color: ButtonText;
+                outline: var(--cem-stroke-pending) solid ButtonText;
+                outline-offset: calc(-1 * var(--cem-stroke-pending));
+            }
+
+            :scope > :is(button, a)[part~='control']:where(:focus-visible) {
+                outline: var(--cem-stroke-focus) solid CanvasText;
+                outline-offset: var(--cem-stroke-indicator-offset);
+            }
         }
+        :scope > a[part~='control'] { text-decoration: none; }
         ```}
     {cem:choose |
       {cem:when @test="seq:count(datadom.attributes.href) > 0" |
-        {a @class="cem-icon-button cem-icon-link cem-icon-button--{$variant}" @part=control @data-kind="{$kind}" @data-direction="{$direction}" @role={if seq:count(datadom.attributes.disabled) > 0 { "link" } else { null }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @aria-label={datadom.attributes.label} @aria-expanded={datadom.attributes.expanded} @slice={if seq:count(datadom.attributes.disabled) > 0 { null } else { "pressed" }} @slice-event=click @slice-value="$event.type" |
+        {a @class="cem-icon-button cem-icon-link cem-icon-button--{$variant}" @part=control @role={if seq:count(datadom.attributes.disabled) > 0 { "link" } else { null }} @aria-disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @tabindex={if seq:count(datadom.attributes.disabled) > 0 { -1 } else { null }} @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label} @aria-busy={datadom.attributes.pending} @aria-current={if seq:count(datadom.attributes.selected) > 0 { "true" } else { null }} @slice={if seq:count(datadom.attributes.disabled) > 0 { null } else { "pressed" }} @slice-event=click @slice-value="$event.type" |
           {cem:if @test="seq:count(datadom.attributes.disabled) == 0" | {cem:attribute @name=href @value={datadom.attributes.href}}}
-          {cem:choose |
-            {cem:when @test='str:contains($iconValue, "/")' | {img @class=icon @part=icon @src="{$iconValue}" @alt="" @aria-hidden=true}}
-            {cem:when @test='str:contains($iconValue, "fa-")' | {i @class='icon {$iconValue}' @part=icon @aria-hidden=true}}
-            {cem:when @test='$iconValue' | {span @class='icon material-icons cem-icon cem-icon--{$iconValue}' @part=icon @aria-hidden=true | {$iconValue}}}
+          {cem-icon @size={datadom.attributes.size} @direction="{$direction}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |
+            {cem:attribute @name=image @value={$imageValue}}
+            {cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}
+            {slot}
           }
-          {slot}
         }
       }
       {cem:otherwise |
-        {button @type=button @class="cem-icon-button cem-icon-button--{$variant}" @aria-label={datadom.attributes.label ?? "Icon action"} @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-expanded={datadom.attributes.expanded} @slice=pressed @slice-event=click @slice-value="$event.type" |
-          {cem:choose |
-            {cem:when @test='str:contains($iconValue, "/")' | {img @class=icon @part=icon @src="{$iconValue}" @alt="" @aria-hidden=true}}
-            {cem:when @test='str:contains($iconValue, "fa-")' | {i @class='icon {$iconValue}' @part=icon @aria-hidden=true}}
-            {cem:when @test='$iconValue' | {span @class='icon material-icons cem-icon cem-icon--{$iconValue}' @part=icon @aria-hidden=true | {$iconValue}}}
+        {button @type="{$type}" @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @class="cem-icon-button cem-icon-button--{$variant}" @aria-label={datadom.attributes.aria-label ?? datadom.attributes.label ?? "Icon action"} @part=control @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-pressed={if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
+          {cem-icon @size={datadom.attributes.size} @direction="{$direction}" @label={datadom.attributes.label} @aria-label={datadom.attributes.aria-label} @class={datadom.attributes.class} |
+            {cem:attribute @name=image @value={$imageValue}}
+            {cem:if @test="seq:count(datadom.attributes.hidden) > 0" | {cem:attribute @name=hidden @value={datadom.attributes.hidden}}}
+            {slot}
           }
-          {slot}
         }
       }
     }

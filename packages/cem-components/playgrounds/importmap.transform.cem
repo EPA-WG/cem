@@ -1,5 +1,13 @@
 {@doc cem-ml 1}
 {run |
+  {import @id=gallery-navigation @src="cem-gallery-nav.xhtml" @content-type="application/xhtml+xml" @opaque=true |
+    {export @id=gallery-navigation-xhtml @out="../dist/cem-gallery-nav.xhtml" @content-type="application/xhtml+xml"}
+  }
+  {import @id=component-index @src="index.html" @content-type="text/html" |
+    {rewrite-importmap @id=index-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
+      {export @id=index-html @out="../dist/index.html" @content-type="text/html"}
+    }
+  }
   {import @id=action-playground @src="cem-action.html" @content-type="text/html" |
     {rewrite-importmap @id=package-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" |
       {export @id=playground-html @out="../dist/{file}" @content-type="text/html"}

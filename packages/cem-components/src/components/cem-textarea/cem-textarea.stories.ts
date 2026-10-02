@@ -139,6 +139,18 @@ export const ThemeStates = meta.story({
             section.className = theme;
             for (const indicator of ['underline', 'outline', 'unsupported']) {
                 host.setAttribute('indicator', indicator);
+                for (const value of ['', 'Filled value']) {
+                    host.setAttribute('value', value);
+                    await whenCemRendered(host);
+                    expect(input.value).toBe(value);
+                    expect(input.matches(':focus')).toBe(false);
+                    expect(getComputedStyle(input).borderWidth).toBe('0px');
+                    expect(getComputedStyle(input).boxShadow).not.toBe('none');
+                    expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(
+                        getComputedStyle(input).getPropertyValue('--cem-stroke-boundary').trim());
+                    expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-focus-width').trim()).toBe(
+                        getComputedStyle(input).getPropertyValue('--cem-stroke-none').trim());
+                }
                 host.setAttribute('busy', '');
                 await whenCemRendered(host);
                 expect(getComputedStyle(input).boxShadow).not.toBe('none');
@@ -177,7 +189,12 @@ export const InteractionPaint = meta.story({
                 for (const name of ['readonly', 'busy', 'invalid', 'disabled']) host.removeAttribute(name);
                 input.blur();
                 await whenCemRendered(host);
+                await userEvent.hover((canvasElement.querySelector('button') as HTMLButtonElement));
+                expect(input.matches(':hover')).toBe(false);
                 expect(getComputedStyle(input).borderWidth).toBe('0px');
+                expect(getComputedStyle(input).boxShadow).not.toBe('none');
+                expect(anchor()).toBe(token('--cem-input-indicator-anchor-color'));
+                expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(token('--cem-stroke-boundary'));
                 await userEvent.hover(input);
                 expect(getComputedStyle(input).boxShadow).not.toBe('none');
                 expect(getComputedStyle(input).getPropertyValue('--_cem-input-indicator-anchor-width').trim()).toBe(token('--cem-stroke-boundary'));

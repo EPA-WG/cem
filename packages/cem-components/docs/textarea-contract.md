@@ -35,7 +35,9 @@ host owns form submission, so the inner textarea never produces a duplicate entr
 
 ## Styling and demos
 
-The embedded scoped CSS consumes theme input-indicator tokens. Hover, focus,
+The embedded scoped CSS consumes theme input-indicator tokens. Enabled,
+unfocused textareas show a boundary-width resting underline for empty and
+populated values; `indicator="outline"` uses a resting outline. Hover, focus,
 readonly, invalid, busy, and disabled styles follow the canonical text field.
 Forced colors replace decorative shadows with system-color outlines. Native
 textarea resizing remains available. Stable parts: `root`, `label`, `control`,

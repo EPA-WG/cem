@@ -48,6 +48,8 @@
                 "{workspaceRoot}/packages/custom-element/material/components/icon.html"
             ],
             "outputs": [
+                "{projectRoot}/dist/index.html",
+                "{projectRoot}/dist/cem-gallery-nav.xhtml",
                 "{projectRoot}/dist/cem-action.html",
                 "{projectRoot}/dist/cem-select.html",
                 "{projectRoot}/dist/cem-theme-switch.html",
@@ -69,6 +71,23 @@
                 "{projectRoot}/dist/cem-text-field-gallery.html",
                 "{projectRoot}/dist/cem-theme-switch-gallery.html"
             ]
+        },
+        "verify-gallery-navigation": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build"],
+            "options": {
+                "command": "node ../../tools/scripts/verify-cem-component-playgrounds.mjs --navigation-only",
+                "cwd": "{projectRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/playgrounds/**/*",
+                "{projectRoot}/src/components/**/*.xhtml",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/tools/scripts/verify-cem-component-playgrounds.mjs",
+                { "dependentTasksOutputFiles": "**/*", "transitive": true }
+            ],
+            "outputs": []
         },
         "verify-playgrounds": {
             "cache": true,

@@ -31,6 +31,10 @@ available. Update the index in the same change that introduces the gallery,
 and verify that each link resolves.
 Workflow examples may remain below the component listing.
 
+Follow the [shared label principle](../packages/cem-components/docs/conventions.md#shared-label-principle):
+show visible fallback text, projected markup overrides, and separate `aria-label` naming
+in component contracts, playgrounds, galleries, and stories.
+
 ## Companion property playground
 
 Provide a separate page under `playgrounds/`, outside the canonical two-file
@@ -66,6 +70,19 @@ Immediately after the page heading, before navigation links or examples, include
 a brief paragraph explaining what the component does and how it relates to
 other components. Link related component names to their galleries when available;
 describe shared behavior, complementary uses, or when to choose another control.
+
+Give each example its heading and explanation through the `cem-demo-element`
+`legend` and `description` attributes. Do not wrap a single demo in a `section`;
+use sections to group multiple demos. Put case explanations on each demo even
+inside a group; do not repeat those headings and descriptions above the demos.
+Keep case IDs on the demo itself so links
+can target it directly.
+
+Keep sample markup useful to consumers: do not add IDs, data attributes, or
+classes solely for test selectors. Fixtures should use existing public
+attributes scoped to the relevant demo. Retain IDs required for form ownership,
+accessibility relationships, fragment links, or behavior demonstrated by the
+example. This applies to every gallery and both HTML and CEM-ML samples.
 
 The gallery must import the canonical production declaration and include:
 
@@ -155,3 +172,14 @@ repository source; the CEM component package includes both interactive pages.
 All seven canonical components now provide linked galleries. The playground
 verification gate discovers canonical component folders and checks each gallery
 in source and isolated-package previews.
+
+Gallery and property pages share the documentation-owned declaration
+`packages/cem-components/playgrounds/cem-gallery-nav.xhtml#cem-gallery-nav`.
+Register it through the playground import-map entry and use
+`<cem-gallery-nav heading="cem-select: Full examples and variation matrix"></cem-gallery-nav>` inside the page's
+theme container. `heading` supplies the page H1 with the component name and page goal; `index-href`
+defaults to `./index.html` and can target another gallery index. The shared bar
+composes production `cem-icon-button` controls with Unicode glyphs so it needs
+no icon font. Its theme button is a disabled placeholder until theme switching
+is implemented. The navigation and index ship in `dist/` alongside the pages.
+Playground hosts use a processing queue of 512 for nested declarative controls.

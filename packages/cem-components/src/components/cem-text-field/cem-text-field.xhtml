@@ -9,14 +9,14 @@
 
         [part~='control'] {
             border: none;
-            --_cem-input-indicator-anchor-width: var(--cem-stroke-none);
+            --_cem-input-indicator-anchor-width: var(--cem-stroke-boundary);
             --_cem-input-indicator-focus-width: var(--cem-stroke-none);
             --_cem-input-indicator-selection-width: var(--cem-stroke-none);
             --_cem-input-indicator-anchor-color: var(--cem-input-indicator-anchor-color);
             --_cem-input-indicator-focus-color: var(--cem-zebra-color-1);
             --_cem-input-indicator-selection-color: var(--cem-input-indicator-selection-color);
         }
-        [part~='control']:where(:enabled:hover, :focus-visible, :checked, [aria-checked='mixed'], [aria-expanded='true'], [aria-invalid='true']:enabled, [data-state='loading']:enabled) {
+        [part~='control']:where(:enabled, :focus-visible) {
             box-shadow:
                 0 calc(var(--_cem-input-indicator-appearance) * var(--_cem-input-indicator-anchor-width)) 0
                     calc((1 - var(--_cem-input-indicator-appearance)) * var(--_cem-input-indicator-anchor-width))
@@ -93,6 +93,10 @@
 
             [part~='control'] {
                 box-shadow: none;
+            }
+            [part~='control']:where(:enabled) {
+                outline: var(--cem-stroke-boundary) solid CanvasText;
+                outline-offset: var(--cem-stroke-indicator-offset);
             }
         }
         @media (forced-colors: active) {
