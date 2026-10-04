@@ -10,6 +10,7 @@ const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
 const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
 const navigationOnly = process.argv.includes('--navigation-only');
+const actionOnly = process.argv.includes('--action-only');
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -25,17 +26,17 @@ try {
     browser = await chromium.launch({ headless: true });
     if (!navigationOnly) {
         await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
-        await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
-        await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
-        for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-        for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-        await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
+        if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
+        if (!actionOnly) await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
+        if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+        if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+        if (!actionOnly) await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
     }
-    await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
+    if (!actionOnly) await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
     if (!navigationOnly) {
-        await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
-        await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
-        await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
+        if (!actionOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
+        if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
+        if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
@@ -45,19 +46,20 @@ try {
     }
     if (!navigationOnly) {
         await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
-        await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
-        await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
-        for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-        for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-        await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
+        if (!actionOnly) await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
+        if (!actionOnly) await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
+        if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+        if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+        if (!actionOnly) await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
     }
-    await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (!actionOnly) await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     if (!navigationOnly) {
-        await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-        await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
-        await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
+        if (!actionOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
+        if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
+    if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
+    else if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
     else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
@@ -86,14 +88,14 @@ async function verifyActionGallery(page) {
     await page.waitForFunction(() => getComputedStyle(document.querySelector('#playground-theme')).getPropertyValue('--cem-control-height-small').trim() !== '');
     await page.waitForFunction(() => {
         const cards = [...document.querySelectorAll('cem-demo-element')];
-        return cards.length === 7 && cards.every(card => card.getAttribute('data-state') === 'ready');
+        return cards.length === 11 && cards.every(card => card.getAttribute('data-state') === 'ready');
     });
     const declaration = await readFile(join(root, 'packages/cem-components/src/components/cem-action/cem-action.xhtml'), 'utf8');
     const implemented = [...new Set([
         ...[...declaration.matchAll(/\{attribute @name=([\w-]+)/g)].map(match => match[1]),
         ...[...declaration.matchAll(/datadom\.attributes\.([\w-]+)/g)].map(match => match[1]),
         ...[...declaration.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]),
-        'class',
+        'class', 'command-target', 'interaction', 'context-key',
     ])].sort();
     const documented = await page.locator('[data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action-attribute')).sort());
     const demonstrated = await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort());
@@ -127,6 +129,7 @@ async function verifyActionGallery(page) {
     assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] [slot="demo"] > cem-action:not([selected]):not([selectable]) button').getAttribute('aria-pressed'), null);
     await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').click();
     await page.waitForFunction(() => document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(1) button')?.getAttribute('aria-pressed') === 'false');
+    await page.locator('cem-demo-element[legend="Controlled selection"] [slot=demo] cem-element').evaluate(async node => { await window.cemPlaygroundRuntime.whenRenderSettled(node); });
     await verifyThemeControls(page);
     assert.equal(await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').getAttribute('aria-pressed'), 'true');
     assert((await page.locator('cem-demo-element[legend="Controlled selection"] [slot=text]').innerText()).includes('selected="false"'));
@@ -162,6 +165,25 @@ async function verifyActionGallery(page) {
     assert.deepEqual(await external.evaluate(button => ({ form: button.form.id, method: button.formMethod, encoding: button.formEnctype, target: button.formTarget, noValidate: button.formNoValidate, action: new URL(button.formAction).pathname.split('/').pop() })), { form: 'gallery-form', method: 'get', encoding: 'application/x-www-form-urlencoded', target: '_blank', noValidate: true, action: 'cem-action-gallery.html' });
     await external.click();
     assert.deepEqual(await page.evaluate(() => window.gallerySubmissions[1]), [['title', ''], ['intent', 'external']]);
+    const sample = legend => page.locator(`cem-demo-element[legend="${legend}"]`);
+    const popover = sample('Native popover commands').locator('[popover]');
+    await sample('Native popover commands').getByRole('button', { name: 'Toggle native details' }).click();
+    assert(await popover.evaluate(node => node.matches(':popover-open')));
+    await popover.getByRole('button', { name: 'Close', exact: true }).click();
+    assert(!await popover.evaluate(node => node.matches(':popover-open')));
+    await sample('Native modal dialog').getByRole('button', { name: 'Open native task' }).click();
+    assert(await sample('Native modal dialog').locator('dialog').evaluate(node => node.matches(':modal')));
+    await page.keyboard.press('Escape');
+    await sample('Native modal dialog').locator('dialog').waitFor({ state: 'hidden' });
+    await sample('Native popover targets').getByRole('button', { name: 'Toggle native hint' }).click();
+    assert(await sample('Native popover targets').locator('[popover]').evaluate(node => node.matches(':popover-open')));
+    await page.keyboard.press('Escape');
+    const scoped = sample('Local command scopes');
+    await scoped.getByRole('button', { name: 'First details', exact: true }).click();
+    await scoped.getByRole('button', { name: 'Second details', exact: true }).click();
+    assert.deepEqual(await scoped.locator('[popover]').evaluateAll(nodes => nodes.map(node => node.matches(':popover-open'))), [true, true]);
+    await scoped.getByRole('button', { name: 'First details', exact: true }).click();
+    await scoped.getByRole('button', { name: 'Second details', exact: true }).click();
 }
 
 async function verifySelect(url) {
@@ -332,11 +354,24 @@ async function verify(url) {
                 const group = [...document.querySelectorAll('[role=radiogroup]')].find(node => node.querySelector('legend')?.textContent.trim() === label);
                 const checked = group?.querySelectorAll('input:checked');
                 return checked?.length === 1 && checked[0].value === option;
-            }, { label, option: option.toLowerCase() });
+            }, { label, option: label === 'Native command' ? ({ 'Toggle popover': 'popover', 'Open modal dialog': 'dialog', None: 'none' })[option] : option.toLowerCase() });
         };
         assert.equal(await page.getByRole('combobox').count(), 0);
-        assert.equal(await page.getByRole('radiogroup').count(), 8);
-        assert.equal(await page.getByRole('radio').count(), 27);
+        assert.equal(await page.getByRole('radiogroup').count(), 9);
+        assert.equal(await page.getByRole('radio').count(), 30);
+        await choose('Native command', 'Toggle popover');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('commandfor') === 'action-preview-popup');
+        await page.locator('#action-preview button').click();
+        assert(await page.locator('#action-preview-popup').evaluate(node => node.matches(':popover-open')));
+        await page.keyboard.press('Escape');
+        await choose('Native command', 'Open modal dialog');
+        await page.waitForFunction(() => document.querySelector('#action-preview button')?.getAttribute('command') === 'show-modal');
+        await page.locator('#action-preview button').click();
+        assert(await page.locator('#action-preview-dialog').evaluate(node => node.matches(':modal')));
+        await page.keyboard.press('Escape');
+        await page.locator('#action-preview-dialog').waitFor({ state: 'hidden' });
+        await choose('Native command', 'None');
+        await page.waitForFunction(() => !document.querySelector('#action-preview button')?.hasAttribute('commandfor'));
         for (const [label, value] of [['Size', 'Undefined'], ['Intent', 'Primary'], ['Bend', 'Smooth'], ['Button type', 'Button'], ['Disabled', 'False'], ['Pending', 'False'], ['Selected', 'Unset']]) {
             const group = page.getByRole('radiogroup', { name: label, exact: true });
             assert(await group.getByRole('radio', { name: value, exact: true }).isChecked());
@@ -479,7 +514,7 @@ async function verify(url) {
         assert(await button.evaluate(node => node.matches(':focus-visible')));
         assert.notEqual(await button.evaluate(node => getComputedStyle(node).boxShadow), 'none');
         assert(await page.evaluate(() => window.originalPreview === document.querySelector('#action-preview button')));
-        assert.equal(await page.locator('cem-action').count(), 11);
+        assert.equal(await page.locator('cem-action').count(), 12);
         for (const [id, result] of [['size-inline', 'Change undone.'], ['size-text', 'Draft saved.'], ['size-icon', 'Item added.'], ['size-play', 'Playback sample activated.'], ['size-tile', 'Mountain image selected.'], ['size-hero', 'Mountain campaign selected.']]) {
             await page.locator(`#${id} button`).click();
             await page.waitForFunction(result => document.querySelector('#dimension-example-result')?.textContent.trim() === result, result);
@@ -534,7 +569,7 @@ async function verify(url) {
         assert.equal(new URL(gallery, page.url()).href, new URL('cem-action-gallery.html', url).href);
         await page.goto(gallery);
         await verifyActionGallery(page);
-        assert.equal(await page.locator('cem-demo-element').count(), 7);
+        assert.equal(await page.locator('cem-demo-element').count(), 11);
         const returnLink = page.getByRole('link', { name: 'Action property playground and source' });
         await returnLink.waitFor();
         assert.equal(new URL(await returnLink.getAttribute('href'), page.url()).href, url);

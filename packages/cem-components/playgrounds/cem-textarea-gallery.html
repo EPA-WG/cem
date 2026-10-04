@@ -58,7 +58,7 @@
 {cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
 
 {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
-{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.actionUrl}#cem-action"}}
 
 {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
 {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}

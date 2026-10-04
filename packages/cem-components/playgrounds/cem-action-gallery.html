@@ -66,7 +66,7 @@
 {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.actionUrl}#cem-action"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
@@ -109,6 +109,18 @@
 <li data-action-attribute="formenctype"><code>formenctype</code> — Native submitter encoding override.</li>
 <li data-action-attribute="formtarget"><code>formtarget</code> — Native submitter browsing-context override.</li>
 <li data-action-attribute="formnovalidate"><code>formnovalidate</code> — Presence bypasses validation for this submitter.</li>
+<li data-action-attribute="commandfor"><code>commandfor</code> — Native command target ID.</li>
+<li data-action-attribute="command"><code>command</code> — Native or custom command sent by the button.</li>
+<li data-action-attribute="popovertarget"><code>popovertarget</code> — Native popover target ID.</li>
+<li data-action-attribute="popovertargetaction"><code>popovertargetaction</code> — Native show, hide or toggle.</li>
+<li data-action-attribute="interestfor"><code>interestfor</code> — Native interest target where supported.</li>
+<li data-action-attribute="aria-controls"><code>aria-controls</code> — Explicit controlled region ID.</li>
+<li data-action-attribute="aria-haspopup"><code>aria-haspopup</code> — Explicit popup kind.</li>
+<li data-action-attribute="aria-describedby"><code>aria-describedby</code> — Existing description references.</li>
+<li data-action-attribute="aria-expanded"><code>aria-expanded</code> — Explicit expansion state, taking precedence over expanded.</li>
+<li data-action-attribute="command-target"><code>command-target</code> — @local-name or #element-id; local names use the nearest interaction-scope.</li>
+<li data-action-attribute="interaction"><code>interaction</code> — Reference to shared command metadata.</li>
+<li data-action-attribute="context-key"><code>context-key</code> — Item key captured with the native invocation source.</li>
 </ul></section>
 <cem-demo-element legend="Labels and accessible names" data-covers="label aria-label">
 <p slot="description">Child content replaces the fallback label. Icon-only actions need an accessible name.</p>
@@ -186,6 +198,47 @@
 </form>
 <cem-action type="submit" form="gallery-form" name="intent" value="external" formaction="cem-action-gallery.html#gallery-form" formmethod="get" formenctype="application/x-www-form-urlencoded" formtarget="_blank" formnovalidate>Submit without validation</cem-action>
 </div>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Native popover commands" data-covers="commandfor command aria-controls aria-haspopup aria-describedby aria-expanded">
+<p slot="description">The native button opens this browser popover directly. Enter, Space and click each activate once. The action does not own visibility.</p>
+<template slot="source">
+<cem-action commandfor="gallery-action-popover" command="toggle-popover" aria-controls="gallery-action-popover" aria-haspopup="dialog" aria-describedby="gallery-action-help" aria-expanded="false">Toggle native details</cem-action>
+<div id="gallery-action-popover" popover="auto" role="dialog" aria-label="Native details">
+<p id="gallery-action-help">This surface uses browser popover presentation.</p>
+<button type="button" popovertarget="gallery-action-popover" popovertargetaction="hide">Close</button>
+</div>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Native modal dialog" data-covers="commandfor command">
+<p slot="description">The browser owns modal focus containment, Escape and restoration. The action forwards show-modal without a simulated click handler.</p>
+<template slot="source">
+<cem-action commandfor="gallery-action-dialog" command="show-modal">Open native task</cem-action>
+<dialog id="gallery-action-dialog" aria-label="Native task">
+<p>A native task with a browser close command.</p>
+<button type="button" commandfor="gallery-action-dialog" command="request-close">Close</button>
+</dialog>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Native popover targets" data-covers="popovertarget popovertargetaction interestfor">
+<p slot="description">Native popovertarget remains usable alongside commandfor in separate invokers. Do not declare both routes on one action.</p>
+<template slot="source">
+<cem-action popovertarget="gallery-action-hint" popovertargetaction="toggle" interestfor="gallery-action-hint">Toggle native hint</cem-action>
+<div id="gallery-action-hint" popover="auto">An ordinary native popover.</div>
+</template>
+</cem-demo-element>
+<cem-demo-element legend="Local command scopes" data-covers="command-target interaction context-key">
+<p slot="description">Both panels have the local name details. Each action resolves only within its nearest explicit scope; generated native IDs remain explicit while scoped names repeat.</p>
+<template slot="source">
+<section interaction-scope>
+<cem-action command-target="@details" command="toggle-popover" context-key="first">First details</cem-action>
+<div id="gallery-action-first-details" interaction-name="details" popover="manual">First local panel.</div>
+</section>
+<section interaction-scope>
+<cem-interaction interaction-name="preview" command-target="@details" command="toggle-popover"></cem-interaction>
+<cem-action interaction="@preview" context-key="second">Second details</cem-action>
+<div id="gallery-action-second-details" interaction-name="details" popover="manual">Second local panel.</div>
+</section>
 </template>
 </cem-demo-element>
 </main>

@@ -79,7 +79,7 @@
 {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+{cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.actionUrl}#cem-action"}}
 {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
 {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
 </template>
@@ -105,6 +105,7 @@
 {slice @name=bend | smooth}
 {slice @name=size | undefined}
 {slice @name=type | button}
+{slice @name=commandMode | none}
 {slice @name=disabled | false}
 {slice @name=pending | false}
 {slice @name=selected | unset}
@@ -165,6 +166,14 @@
             {cem-radio @name=action-property-pending @value="true" | True}
     }
 }
+{fieldset @class=property-group @role=radiogroup @aria-labelledby=action-property-command @slice=commandMode @slice-event=change @slice-value="$target.value" |
+    {legend @id=action-property-command | Native command}
+    {div @class=property-options |
+        {cem-radio @name=action-property-command @value=none @checked=true | None}
+        {cem-radio @name=action-property-command @value=popover | Toggle popover}
+        {cem-radio @name=action-property-command @value=dialog | Open modal dialog}
+    }
+}
 {fieldset @class=property-group @role=radiogroup @aria-labelledby=action-property-selected @slice=selected @slice-event=change @slice-value="$target.value" |
     {legend @id=action-property-selected | Selected}
     {div @class=property-options |
@@ -178,9 +187,15 @@
     {section @aria-label="Action preview" |
         {h2 | Preview}
         {div @class=preview |
-            {cem-action @id=action-preview @size={if datadom.slices.size == "undefined" { null } else { datadom.slices.size }} @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @pending="{$datadom.slices.pending}" @selectable={if datadom.slices.selected == "unset" { null } else { true }} @selected={if datadom.slices.selected == "true" { true } else { null }} }
+            {cem-action @id=action-preview @commandfor={if datadom.slices.commandMode == "popover" { "action-preview-popup" } else { if datadom.slices.commandMode == "dialog" { "action-preview-dialog" } else { null } }} @command={if datadom.slices.commandMode == "popover" { "toggle-popover" } else { if datadom.slices.commandMode == "dialog" { "show-modal" } else { null } }} @size={if datadom.slices.size == "undefined" { null } else { datadom.slices.size }} @label="{$datadom.slices.label}" @variant="{$datadom.slices.intent}" @class="cem-bend-{$datadom.slices.bend}" @type="{$datadom.slices.type}" @disabled={if datadom.slices.disabled == "true" { true } else { null }} @pending="{$datadom.slices.pending}" @selectable={if datadom.slices.selected == "unset" { null } else { true }} @selected={if datadom.slices.selected == "true" { true } else { null }} }
         }
-        {p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
+        {div @id=action-preview-popup @popover=auto | Browser popover for the current action.}
+{dialog @id=action-preview-dialog @aria-label="Action preview task" |
+    {p | Native modal task opened by the current action.}
+    {button @type=button @commandfor=action-preview-dialog @command=request-close | Close}
+}
+{p | Native commands require Type button. Submit and reset remain native form actions.}
+{p | Hover to see hover paint. Hold the pointer or Space for active paint. Use Tab to inspect keyboard focus. Disabled actions cannot be focused or activated.}
         {p | Set Pending to True to show a continuously moving 45-degree gradient in the selected intent's pending colors. Solid color bands hold each endpoint while the shorter blends make stripe movement clearer. Each loop takes two seconds. Contrast modes keep the background at the surface color and animate a zebra outline with matching motion settings. Light contrast outlines use a brighter stripe; dark outlines share the normal gradient colors. Hover and keyboard focus keep the loop running; zebra still marks focus. Set Pending to False to stop it and restore normal interaction colors. Disabled actions keep the pending indicator while pending but cannot be activated or focused. Reduced-motion settings freeze the pending indicator; forced colors use a static pending boundary.}
         {p | Size sets a minimum visible height: small 2.5rem, medium 3rem, large 4rem, x-large 6rem, xx-large 8rem. Undefined removes the size attribute and inherits the container or theme. Compact actions reserve a transparent hit border inside a minimum 3rem target; larger profiles need no extra hit border. Content and layout can enlarge the control.}
         {p | Selected is persistent and controlled by the containing UI. Unset is an ordinary command; False is a selectable, unselected action; True adds selected zebra. Activating this preview does not toggle its selection. Expanded belongs to actions that report an associated disclosure's state and is not part of this standalone preview.}
@@ -264,6 +279,12 @@
 }
 </template>
 </cem-element>
+<section aria-label="Action command wiring">
+<h2>Native command wiring</h2>
+<p>Use Enter, Space or click. The browser owns this surface; custom local references are demonstrated in the full gallery.</p>
+<cem-action commandfor="playground-action-popover" command="toggle-popover" aria-controls="playground-action-popover">Toggle details</cem-action>
+<div id="playground-action-popover" popover="auto">A browser popover opened by the production action.</div>
+</section>
 </main>
 </cem-theme-switch>
 </body>

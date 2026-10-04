@@ -100,7 +100,7 @@
         @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
 
         {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
-        {cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action
+        {cem:if @test="datadom.slices.actionUrl" | {cem-element @tag=cem-action @capability=action-command
         @src="{$datadom.slices.actionUrl}#cem-action"}}
 
         {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}

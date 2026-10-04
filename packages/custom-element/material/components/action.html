@@ -79,7 +79,7 @@ ToDO
     <template type="text/cem-ml">
 {cem-module-url @slice=actionUrl @src="@epa-wg/cem-components/components/cem-action"}
 {cem:if @test="datadom.slices.actionUrl" |
-    {cem-element @tag=cem-action @src="{$datadom.slices.actionUrl}#cem-action"}}
+    {cem-element @tag=cem-action @capability=action-command @src="{$datadom.slices.actionUrl}#cem-action"}}
 {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
 {cem:if @test="datadom.slices.themeUrl" |
     {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}

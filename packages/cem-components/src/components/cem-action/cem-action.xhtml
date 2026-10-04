@@ -1,4 +1,4 @@
-<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-action">
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-action" capability="action-command">
   <template id="cem-action" type="text/cem-ml">
     {attribute @name=label | Action}
     {attribute @name=variant | primary}
@@ -290,7 +290,7 @@
             }
         }
         ```}
-    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-expanded={datadom.attributes.expanded} @aria-pressed={if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
+    {button @type="{$type}" @class="cem-action cem-action--{$variant}" @part=control @name={datadom.attributes.name} @value={datadom.attributes.value} @form={datadom.attributes.form} @formaction={datadom.attributes.formaction} @formenctype={datadom.attributes.formenctype} @formmethod={datadom.attributes.formmethod} @formtarget={datadom.attributes.formtarget} @commandfor={datadom.attributes.commandfor} @command={datadom.attributes.command} @popovertarget={datadom.attributes.popovertarget} @popovertargetaction={datadom.attributes.popovertargetaction} @interestfor={datadom.attributes.interestfor} @aria-controls={datadom.attributes.aria-controls} @aria-haspopup={datadom.attributes.aria-haspopup} @aria-describedby={datadom.attributes.aria-describedby} @aria-label={datadom.attributes.aria-label} @disabled={if seq:count(datadom.attributes.disabled) > 0 { true } else { null }} @formnovalidate={if seq:count(datadom.attributes.formnovalidate) > 0 { true } else { null }} @aria-busy={datadom.attributes.pending} @aria-expanded={if seq:count(datadom.attributes.aria-expanded) > 0 { datadom.attributes.aria-expanded } else { datadom.attributes.expanded }} @aria-pressed={if seq:count(datadom.attributes.selected) > 0 { "true" } else { if seq:count(datadom.attributes.selectable) > 0 { "false" } else { null } }} @slice=pressed @slice-event=click @slice-value="$event.type" |
       {slot | {$label}}
     }
   </template>

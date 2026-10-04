@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { installCemElementRuntime, type CemElementRuntime } from '../src/index.js';
+export { getCemActionInvocation } from '../src/index.js';
 import '@epa-wg/cem-demo-element';
 import '@epa-wg/cem-theme/styles.css';
 import { themeMode } from './theme.js';

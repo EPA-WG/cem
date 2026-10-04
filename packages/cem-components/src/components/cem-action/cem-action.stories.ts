@@ -1,5 +1,5 @@
 import { expect, userEvent, within } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, whenCemRendered, storybookCemRuntime, getCemActionInvocation } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-action.xhtml?raw';
 
 const meta = preview.meta({
@@ -926,3 +926,185 @@ function colorContrast(first: string, second: string): number {
     const a = luminance(first), b = luminance(second);
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
+
+export const NativeInvokerCommands = meta.story({
+    parameters: { docs: { description: { story: 'Native command targets and popover targets. Trusted Enter/Space checks are browser-runner-only.' } } },
+    render: () => `<section>
+        <cem-action commandfor="action-native-popup" command="toggle-popover" aria-controls="action-native-popup" aria-haspopup="dialog">Toggle details</cem-action>
+        <div id="action-native-popup" popover="auto">Native details</div>
+        <cem-action commandfor="action-native-dialog" command="show-modal">Open task</cem-action>
+        <dialog id="action-native-dialog" aria-label="Native task"><button type="button" commandfor="action-native-dialog" command="request-close">Close</button></dialog>
+        <cem-action popovertarget="action-native-hint" popovertargetaction="toggle">Toggle hint</cem-action>
+        <div id="action-native-hint" popover="auto">Native hint</div>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-action')];
+        await Promise.all(hosts.map(whenCemRendered));
+        const controls = hosts.map(host => host.querySelector('button')!);
+        const popup = canvasElement.querySelector<HTMLElement>('#action-native-popup')!;
+        const dialog = canvasElement.querySelector<HTMLDialogElement>('dialog')!;
+        const hint = canvasElement.querySelector<HTMLElement>('#action-native-hint')!;
+        await expect(controls[0]).toHaveAttribute('commandfor', popup.id);
+        await expect(controls[0]).toHaveAttribute('aria-controls', popup.id);
+        await expect(controls[0]).toHaveAttribute('aria-haspopup', 'dialog');
+        await userEvent.click(controls[0]);
+        await expect(popup.matches(':popover-open')).toBe(true);
+        await userEvent.click(controls[0]);
+        await expect(popup.matches(':popover-open')).toBe(false);
+        await userEvent.click(controls[1]);
+        await expect(dialog.matches(':modal')).toBe(true);
+        await userEvent.click(dialog.querySelector('button')!);
+        await expect(dialog.open).toBe(false);
+        await userEvent.click(controls[2]);
+        await expect(hint.matches(':popover-open')).toBe(true);
+        hint.hidePopover();
+        if (import.meta.env.MODE !== 'test') return;
+        const { userEvent: native } = await import('vitest/browser');
+        let commands = 0;
+        popup.addEventListener('command', () => commands++);
+        controls[0].focus();
+        await native.keyboard('{Enter}');
+        await expect(popup.matches(':popover-open')).toBe(true);
+        await native.keyboard('{Space}');
+        await expect(popup.matches(':popover-open')).toBe(false);
+        await expect(commands).toBe(2);
+        const control = controls[0];
+        hosts[0].setAttribute('label', 'Updated label');
+        await whenCemRendered(hosts[0]);
+        await expect(hosts[0].querySelector('button')).toBe(control);
+        await expect(control).toHaveAttribute('commandfor', popup.id);
+    },
+});
+
+export const ScopedCommandTargets = meta.story({
+    render: () => `<section>
+        ${['First', 'Second'].map(label => `<section interaction-scope aria-label="${label} command scope">
+            <cem-action command-target="@details" command="toggle-popover">${label} details</cem-action>
+            <div interaction-name="details" popover="manual">${label} panel</div>
+        </section>`).join('')}
+        <section interaction-scope aria-label="Inner name boundary">
+            <div interaction-name="details" popover="manual">Outer panel</div>
+            <section interaction-scope>
+                <cem-action command-target="@details" command="toggle-popover">Unresolved inner details</cem-action>
+            </section>
+        </section>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-action')];
+        await Promise.all(hosts.map(whenCemRendered));
+        const panels = [...canvasElement.querySelectorAll<HTMLElement>('[popover]')];
+        const controls = hosts.map(host => host.querySelector('button')!);
+        await userEvent.click(controls[0]);
+        await expect(panels[0].matches(':popover-open')).toBe(true);
+        await expect(panels[1].matches(':popover-open')).toBe(false);
+        await userEvent.click(controls[1]);
+        await expect(panels[1].matches(':popover-open')).toBe(true);
+        await expect(panels[0].id).not.toBe(panels[1].id);
+        const errors: string[] = [];
+        hosts[2].addEventListener('cem-interaction-error', event => errors.push((event as CustomEvent).detail.code));
+        await userEvent.click(controls[2]);
+        await expect(errors).toContain('interaction-reference-missing');
+        await expect(panels[2].matches(':popover-open')).toBe(false);
+        panels[0].removeAttribute('interaction-name');
+        await userEvent.click(controls[0]);
+        await expect(controls[0]).not.toHaveAttribute('commandfor');
+        panels[0].setAttribute('interaction-name', 'details');
+        hosts[0].setAttribute('label', 'Rebound');
+        await whenCemRendered(hosts[0]);
+        await userEvent.click(controls[0]);
+        await expect(panels[0].matches(':popover-open')).toBe(false);
+        panels[1].hidePopover();
+    },
+});
+
+export const CommandSourceAndConflicts = meta.story({
+    render: () => `<section interaction-scope>
+        <cem-action command-target="@receiver" command="--record" context-key="invoice-42">Record context</cem-action>
+        <div interaction-name="receiver"></div>
+        <cem-action commandfor="action-conflict-panel" command-target="@receiver" command="toggle-popover">Conflicting route</cem-action>
+        <div id="action-conflict-panel" popover="manual">Conflict target</div>
+        <cem-action commandfor="action-conflict-panel" command="show-popover" disabled>Disabled trigger</cem-action>
+        <form><cem-action type="submit" command-target="@receiver" command="--record" name="decision" value="save">Submit form</cem-action></form>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const hosts = [...canvasElement.querySelectorAll<HTMLElement>('cem-action')];
+        await Promise.all(hosts.map(whenCemRendered));
+        const controls = hosts.map(host => host.querySelector('button')!);
+        const receiver = canvasElement.querySelector<HTMLElement>('[interaction-name="receiver"]')!;
+        const panel = canvasElement.querySelector<HTMLElement>('[popover]')!;
+        const records: Event[] = [];
+        receiver.addEventListener('command', event => records.push(event));
+        await userEvent.click(controls[0]);
+        await expect(records.length).toBe(1);
+        await expect((records[0] as Event & { source: Element }).source).toBe(controls[0]);
+        await expect(getCemActionInvocation(controls[0])?.contextKey).toBe('invoice-42');
+        await expect(getCemActionInvocation(controls[0])?.source).toBe(controls[0]);
+        const errors: string[] = [];
+        hosts[1].addEventListener('cem-interaction-error', event => errors.push((event as CustomEvent).detail.code));
+        await userEvent.click(controls[1]);
+        await expect(errors).toContain('interaction-dual-route');
+        await expect(panel.matches(':popover-open')).toBe(false);
+        await expect(controls[2]).toBeDisabled();
+        controls[2].click();
+        await expect(panel.matches(':popover-open')).toBe(false);
+        let submits = 0;
+        const form = canvasElement.querySelector('form')!;
+        form.addEventListener('submit', event => { event.preventDefault(); submits++; });
+        await userEvent.click(controls[3]);
+        await expect(submits).toBe(1);
+        await expect(records.length).toBe(1);
+    },
+});
+
+export const DescriptorAndDynamicWiring = meta.story({
+    render: () => `<section interaction-scope>
+        <cem-interaction interaction-name="preview" command-target="@panel" command="toggle-popover" context-key="preview-1"></cem-interaction>
+        <cem-action interaction="@preview">Preview</cem-action>
+        <div interaction-name="panel" popover="manual">Preview panel</div>
+    </section>`,
+    play: async ({ canvasElement }) => {
+        const scope = canvasElement.querySelector('section')!;
+        const host = scope.querySelector<HTMLElement>('cem-action')!;
+        const panel = scope.querySelector<HTMLElement>('[popover]')!;
+        await whenCemRendered(host);
+        const button = host.querySelector('button')!;
+        await userEvent.click(button);
+        await expect(panel.matches(':popover-open')).toBe(true);
+        await expect(button).toHaveAttribute('aria-expanded', 'true');
+        await expect(getCemActionInvocation(button)?.contextKey).toBe('preview-1');
+        panel.hidePopover();
+        const duplicate = document.createElement('div');
+        duplicate.setAttribute('interaction-name', 'panel');
+        scope.append(duplicate);
+        const errors: string[] = [];
+        host.addEventListener('cem-interaction-error', event => errors.push((event as CustomEvent).detail.code));
+        await userEvent.click(button);
+        await expect(errors).toContain('interaction-name-duplicate');
+        await expect(panel.matches(':popover-open')).toBe(false);
+        duplicate.remove();
+        await userEvent.click(button);
+        await expect(panel.matches(':popover-open')).toBe(true);
+        panel.hidePopover();
+        host.removeAttribute('interaction');
+        host.removeAttribute('command');
+        await whenCemRendered(host);
+        await expect(host.querySelector('button')).toBe(button);
+        await expect(button).not.toHaveAttribute('commandfor');
+        await expect(button).not.toHaveAttribute('aria-controls');
+        await expect(button).not.toHaveAttribute('aria-expanded');
+        await userEvent.click(button);
+        await expect(panel.matches(':popover-open')).toBe(false);
+        host.setAttribute('commandfor', panel.id);
+        host.setAttribute('command', 'toggle-popover');
+        await whenCemRendered(host);
+        await userEvent.click(button);
+        await expect(panel.matches(':popover-open')).toBe(true);
+        panel.hidePopover();
+        host.remove();
+        scope.append(host);
+        await whenCemRendered(host);
+        await userEvent.click(host.querySelector('button')!);
+        await expect(panel.matches(':popover-open')).toBe(true);
+        panel.hidePopover();
+    },
+});

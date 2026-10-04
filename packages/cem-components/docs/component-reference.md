@@ -301,7 +301,21 @@ boundary and a separate focus/pending outline.
 for an action reporting an associated disclosure's state. It does not open a
 panel or indicate selection, and is omitted from the standalone action
 playground. The disclosure owner supplies the behavior and panel association;
-`cem-action` does not currently forward `aria-controls`.
+`cem-action` forwards native invoker and relationship attributes to its exact button; see the command contract below.
+
+### Action command invokers
+
+The [accepted interaction design](../../../docs/cem-interaction-design.md) governs new action wiring. The declaration consumes the shared `action-command` capability in `cem-elements`; no component-local behavior owns visibility.
+
+Native `commandfor`, `command`, `popovertarget`, `popovertargetaction`, and `interestfor` forward unchanged to the produced button. `aria-controls`, `aria-haspopup`, `aria-describedby`, and `aria-expanded` also forward; explicit `aria-expanded` takes precedence over the existing `expanded` shorthand. Native commands target native owners, never an implicitly selected descendant of a custom host.
+
+`command-target="@name|#id"` resolves an explicit CEM relationship. `@name` resolves only in the nearest `interaction-scope` against `interaction-name`; missing/duplicate names are diagnostics, with no ancestor fallback. Built-in commands resolve a declared native owner (`part="surface"`) or a directly targeted native surface. Custom commands target the provider endpoint. Shared descriptor metadata may supply target/command/context defaults through `interaction`; surface and descriptor component lifecycles are delivered separately.
+
+`context-key` is captured with the actual native source before browser command dispatch, available to shared surface capabilities through `getCemActionInvocation`. This transient metadata does not replace typed CEM context. The target owns popup/dialog state; button-selected business state is unchanged.
+
+Conflicting native/CEM invocation routes are rejected rather than toggled twice. Missing targets rebind as the DOM changes. Submit/reset behavior remains native even when invalid surface wiring is diagnosed. `cem-interaction-error` bubbles from the invoker when no valid target exists. Existing controls and target IDs survive ordinary rerender.
+
+This first delivery implements action-side wiring and native targets. Accepted popup/dialog session commands and their target-side lifecycle are subsequent component deliveries, not simulated by the action.
 
 ## Layout
 

@@ -8,6 +8,33 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## CEM-QL / CEM-ML node references design
+
+- [x] Write a standalone proposal for a reference AST node targeting other node(s) through CEM-QL, including `#` and `{#datadom.attributes.commandfor}`. Define initial parsing/finalization semantics without a template/datadom-only scope. Keep all consumer behavior, CEMT/import IDs, cem-element/browser projection, and AST re-evaluation outside scope. See [the proposal](cem-ql-cem-ml-node-references-design.md); promoted to an accepted design; remaining open decisions are identified explicitly.
+- [x] Adopt # prefix-unary precedence at level 9, with tighter postfix/type/dot operations, looser infix operations, and right-to-left prefix nesting (2026-10-03). Type and existing-reference semantics remain proposed; no implementation is authorized by this documentation change.
+
+- [x] Adopt standalone `{#...}` reference expressions and XML `<cem:expr>#...</cem:expr>` semantic parity (2026-10-03). Do not introduce a separate `cem:reference` vocabulary. Remaining reference type/resolution semantics remain under discussion; syntax is not implemented.
+- [x] Adopt the common contextual-reference resolution model (2026-10-03): reuse existing scope/binding associations and source-position semantics, distinguish binding resolution from target availability, and keep specialized constraints without a new independent context registry. Concrete representation and initial-evaluation boundary details remain under discussion.
+- [x] Adopt context closure as the definite boundary for AST-specific reference resolution (2026-10-03). Retain expressions/dependencies when required context is not yet supplied; later explicit consumer evaluation is possible but its mechanics remain outside this proposal.
+- [x] Adopt any AST node kind as a reference target, including reference nodes, with self-reference and cycles permitted as graph edges (2026-10-03). AST loading retains expressions; context closure resolves contextual bindings without automatically executing reference queries. Explicit evaluation and consumer mechanics are separate. Reference-value preservation versus reference-node targeting remains open.
+- [x] Adopt reuse of existing AST node/owning-graph identity and graph serialization for reference occurrences and target edges (2026-10-03). Do not introduce a separate global reference ID scheme or require persistent identity across reparses; query comparison syntax remains separate.
+- [x] Adopt strict node-valued reference construction and distinguish attribute nodes from their scalar values (2026-10-03). `#` performs no implicit ID/name/selector lookup or expression execution on strings; additional scalar interpretation requires a separate explicit contract. Existing-reference preservation remains proposed.
+- [x] Promote the node-reference proposal to [accepted design](cem-ql-cem-ml-node-references-design.md) on 2026-10-03. Preserve the adopted semantics, remove superseded automatic-query-evaluation wording, and retain unresolved type/storage/reference-preservation choices as explicit open decisions. Keep the former proposal path as a redirect.
+## Interaction design implementation: cem-action
+
+The [accepted interaction design](cem-interaction-design.md) takes precedence over conflicting implementation. Deliver one component at a time; this first step owns the action invoker, not popup/menu/dialog lifecycle.
+
+- [x] Add generic action-command wiring in cem-elements and consume it from the cem-action declaration: native invoker attributes, explicit local/ID references, descriptor defaults, invocation metadata, conflict diagnostics, and cleanup.
+- [x] Fixture: add colocated action stories for real native popover/modal commands, trusted keyboard single activation, local-scope isolation, dynamic rebinding, custom-command source/context, conflicting routes, disabled controls, and native submit preservation.
+- [x] Update action playground/gallery and public documentation; verify declarations, runtime unit/type checks and focused browser stories through Nx.
+
+Validation (2026-10-03): 21 action Chromium stories and 588 runtime unit tests pass. Runtime/component builds, declarative verification, lint (two existing warnings), style contract, and `verify-playgrounds --args=--action-only` pass, including source and isolated-package galleries. Full playground verification still fails the existing cem-menu-item attribute inventory (`aria-label`/`href`), reproduced with the original action gallery. Surface/theme composition below remains unresolved; do not claim complete interaction lifecycle coverage.
+- [ ] Follow-up fixture: preserve unrelated anonymous demo slice state when native popup/modal activation is followed by a theme-switch rerender. The original gallery passes that check; the combined native-surface sequence currently resets the layout-choice demo.
+## Interaction design specification
+
+- [x] Convert the adopted popup/action/menu/dialog proposal into a concrete design with public naming, native-owner lowering, recursive submenu wiring, local references, focus/context, materialization, diagnostics, and an acceptance matrix. See [the design](cem-interaction-design.md); implementation and migration are separate work.
+- [x] Promote [the interaction design](cem-interaction-design.md) to accepted status on 2026-10-03. Its names and contracts govern future implementation; the temporary proposal is a research archive.
+
 ## Dropdown sibling filler demonstration
 
 - [x] Add exactly five visible `<hr/>` filler siblings to each dropdown gallery example, including theme and RTL containers, to demonstrate overlay paint over surrounding DOM.
