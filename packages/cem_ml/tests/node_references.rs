@@ -108,6 +108,106 @@ fn binary_roundtrip_preserves_identity_empty_resolution_and_cycles() {
 }
 
 #[test]
+fn binary_roundtrip_retains_source_and_non_owning_repeated_edges() {
+    let mut doc = parse("{section | {#nodes} {target} {#other} {#empty}}");
+    let ids: Vec<_> = doc
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    if let CemAstNode::Reference { targets, .. } = &mut doc.nodes[ids[0] as usize] {
+        *targets = Some(vec![ids[1], ids[1], ids[0], 0]);
+    }
+    if let CemAstNode::Reference { targets, .. } = &mut doc.nodes[ids[2] as usize] {
+        *targets = Some(vec![]);
+    }
+    let payload = DebugBinaryEncoder::new().encode(&doc);
+    let restored = DebugBinaryDecoder::new().decode(&payload.bytes).unwrap();
+    assert_eq!(restored.nodes.len(), doc.nodes.len());
+    for id in ids {
+        match (doc.get(id), restored.get(id)) {
+            (
+                Some(CemAstNode::Reference {
+                    expression: a,
+                    context: b,
+                    targets: c,
+                    source: d,
+                    ..
+                }),
+                Some(CemAstNode::Reference {
+                    expression: x,
+                    context: y,
+                    targets: z,
+                    source: s,
+                    ..
+                }),
+            ) => {
+                assert_eq!((a, b, c, d), (x, y, z, s));
+                assert!(!s.frames.is_empty());
+            }
+            _ => panic!("reference occurrence changed"),
+        }
+    }
+    match (doc.get(1), restored.get(1)) {
+        (
+            Some(CemAstNode::Element { children: a, .. }),
+            Some(CemAstNode::Element { children: b, .. }),
+        ) => assert_eq!(a, b),
+        _ => panic!("structural owner changed"),
+    }
+}
+
+#[test]
+fn binary_decoder_rejects_invalid_reference_context_and_target_handles() {
+    use cem_ml::ast::decode::DecodeError;
+    for invalid_context in [false, true] {
+        let mut doc = parse("{#nodes}");
+        let invalid = doc.nodes.len() as u32;
+        if let CemAstNode::Reference {
+            context, targets, ..
+        } = &mut doc.nodes[1]
+        {
+            if invalid_context {
+                *context = invalid;
+            } else {
+                *targets = Some(vec![invalid]);
+            }
+        }
+        let payload = DebugBinaryEncoder::new().encode(&doc);
+        assert!(matches!(DebugBinaryDecoder::new().decode(&payload.bytes),
+            Err(DecodeError::InvalidReference(id)) if id == invalid));
+    }
+}
+
+#[test]
+fn version_two_reads_ordinary_nodes_but_rejects_reference_tags() {
+    use cem_ml::ast::{
+        decode::DecodeError,
+        format::{fnv1a64, NodeKindTag},
+    };
+    for (source, has_reference) in [("{section | {target}}", false), ("{#nodes}", true)] {
+        let doc = parse(source);
+        // Ordinary-node layout is unchanged by v3. Relabel that layout as v2
+        // and recompute integrity; reference tags must remain a v3 extension.
+        let mut bytes = DebugBinaryEncoder::new().encode(&doc).bytes;
+        bytes[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let hash_start = bytes.len() - 8;
+        let hash = fnv1a64(&bytes[..hash_start]);
+        bytes[hash_start..].copy_from_slice(&hash.to_le_bytes());
+        let result = DebugBinaryDecoder::new().decode(&bytes);
+        if has_reference {
+            assert!(matches!(result, Err(DecodeError::UnknownKindTag(tag))
+                if tag == NodeKindTag::Reference as u8));
+        } else {
+            assert_eq!(result.unwrap().nodes.len(), doc.nodes.len());
+        }
+    }
+}
+
+#[test]
 fn braces_in_query_strings_do_not_close_reference_islands() {
     let doc = parse("{#nodes['}']} {#nodes[(: } :) true]}");
     let expressions: Vec<_> = doc

@@ -82,7 +82,7 @@ impl DebugBinaryDecoder {
         let transforms = read_transforms(&mut r)?;
         let source_map_frames = read_source_map_frames(&mut r, &source_ids, &transforms, &strings)?;
 
-        let nodes = read_nodes(&mut r, &strings, &source_map_frames)?;
+        let nodes = read_nodes(&mut r, &strings, &source_map_frames, version)?;
         let (attr_map, child_map) = read_edges(&mut r)?;
         let nodes = link_edges(nodes, attr_map, child_map);
         for node in &nodes {
@@ -294,11 +294,16 @@ fn read_nodes(
     r: &mut Reader<'_>,
     strings: &[String],
     frames: &[SourceMapFrame],
+    version: u16,
 ) -> Result<Vec<CemAstNode>, DecodeError> {
     let count = r.read_u32()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
-        let kind = NodeKindTag::from_u8(r.read_u8()?).ok_or(DecodeError::UnknownKindTag(0))?;
+        let tag = r.read_u8()?;
+        let kind = NodeKindTag::from_u8(tag).ok_or(DecodeError::UnknownKindTag(tag))?;
+        if version < 3 && kind == NodeKindTag::Reference {
+            return Err(DecodeError::UnknownKindTag(tag));
+        }
         let node_id = r.read_u32()?;
         let node = match kind {
             NodeKindTag::Document => CemAstNode::Document {

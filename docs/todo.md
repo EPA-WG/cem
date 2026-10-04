@@ -56,6 +56,11 @@ remain open until their adopted contract and verification evidence are met.
       reference traversal depth/work limits and numeric defaults, and cycle or
       limit outcomes. Keep lexical scope depth distinct from chain depth.
       Present unresolved policy choices for decision before implementing them.
+- [ ] Decide the fallback when no effective schema declares unresolved-link
+      disposition: neutral consumer-owned outcome, overridable mandatory
+      failure, or requiring a declaration before resolution. User decision
+      requested on 2026-10-04. Then declare and validate the chosen policy using
+      existing schema constraint and diagnostic machinery before chain traversal.
 - [ ] Fixture: verify schema declarations and policy validation, including
       malformed or conflicting policies and inherited policy. Keep reference
       failures as neutral facts until the effective schema determines their
@@ -175,6 +180,15 @@ implementation. `git diff --check` passes.
 
 ### 6. Preserve references through codecs and inspection
 
+- [x] Fixture: verify CEMB reference states, repeated graph edges and source
+      provenance without structural expansion; reject invalid context/target
+      handles. Read version 2 ordinary nodes and reject version 3 reference
+      tags in a version 2 payload.
+- [x] Enforce version-specific reference tags in the CEMB decoder while
+      preserving version 2 read compatibility and version 3 graph retention.
+      Verification: all ten `node_references` fixtures and nine existing
+      `ast::tests` pass, including the version-tag regression that failed
+      before the decoder fix.
 - [ ] Fixture: extend current CEMB round trips and version compatibility coverage
       for unevaluated source, resolved-empty and ordered/repeated graph edges,
       reference-to-reference edges, self-reference, cycles, source provenance,
