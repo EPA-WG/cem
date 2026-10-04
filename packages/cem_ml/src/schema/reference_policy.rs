@@ -33,12 +33,20 @@ pub enum UnresolvedDisposition {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnresolvedReferenceFact {
-    /// Reference occurrence handle within the consumer's retained document.
-    pub node_id: AstNodeId,
-    pub expression: String,
-    pub reason: String,
+pub struct ReferenceOccurrence {
+    /// Runtime occurrence identity, including its owner. Not an authored ID.
+    pub identity: String,
+    /// Source arena handle when available; constructed native references need
+    /// not belong to a persisted arena or capture a runtime context handle.
+    pub node_id: Option<AstNodeId>,
+    pub expression: Option<String>,
     pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnresolvedReferenceFact {
+    pub occurrence: ReferenceOccurrence,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone)]
@@ -245,26 +253,29 @@ impl ReferenceUnresolvedPolicy {
     /// Apply only to a fact that the consumer has classified as unresolved.
     /// Pending/invalid outcomes and resolved-empty cardinality are separate.
     pub fn apply(&self, fact: &UnresolvedReferenceFact) -> UnresolvedReferenceTreatment {
-        let diagnostic = self.diagnostic.as_ref().map(|definition| Diagnostic {
-            code: definition.code.clone(),
-            severity: definition.severity,
-            message: format!(
-                "{}: {} ({})",
-                definition.message.as_deref().unwrap_or(&definition.code),
-                fact.expression,
-                fact.reason
-            ),
-            node: Some(format!("reference:{}", fact.node_id)),
-            byte_offset: fact
-                .source_map
-                .origin()
-                .and_then(|frame| match &frame.span {
-                    FrameSpan::Single(range) => Some(range.start),
-                    FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+        let diagnostic =
+            self.diagnostic.as_ref().map(|definition| Diagnostic {
+                code: definition.code.clone(),
+                severity: definition.severity,
+                message: format!(
+                    "{}: {} ({})",
+                    definition.message.as_deref().unwrap_or(&definition.code),
+                    fact.occurrence
+                        .expression
+                        .as_deref()
+                        .unwrap_or(&fact.occurrence.identity),
+                    fact.reason
+                ),
+                node: Some(fact.occurrence.identity.clone()),
+                byte_offset: fact.occurrence.source_map.origin().and_then(|frame| {
+                    match &frame.span {
+                        FrameSpan::Single(range) => Some(range.start),
+                        FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+                    }
                 }),
-            source_map: Some(fact.source_map.clone()),
-            ..Diagnostic::default()
-        });
+                source_map: Some(fact.occurrence.source_map.clone()),
+                ..Diagnostic::default()
+            });
         UnresolvedReferenceTreatment {
             fact: fact.clone(),
             disposition: self.disposition,

@@ -174,11 +174,37 @@ implementation. `git diff --check` passes.
 
 ### 4. Add explicit runtime evaluation and bounded chain resolution
 
-- [ ] Decide cycle/limit outcome treatment before shared traversal: incomplete
-      unresolved outcomes governed by scope disposition, or unconditional
-      evaluation failure. Both stop traversal and preserve the authored graph.
-      User decision requested on 2026-10-04; suggested option applies schema
-      disposition while keeping the execution result incomplete.
+- [x] Decide scope-crossing budgets: apply request and destination limits.
+      Destination limits constrain their subtree; repeated entries never reset
+      work accounting within the request (user decision, 2026-10-04).
+- [x] Fixture: verify destination depth/work limits, cumulative work on repeated
+      entry, pruning an exhausted subtree while preserving enclosing siblings,
+      and stricter request caps despite more permissive destination limits.
+- [x] Implement host-owned opaque runtime scope keys and cumulative per-scope
+      budgets alongside the request cap, without authored context/root IDs.
+- [x] Decide cycle/limit outcome treatment before shared traversal. User adopted
+      incomplete unresolved outcomes governed by scope disposition on 2026-10-04.
+      Cycles and limits always stop the affected traversal, preserve the graph,
+      and keep the outcome incomplete even under neutral or ignore disposition.
+- [x] Fixture: verify iterative shared traversal of typed reference graphs,
+      preserving order and repeated targets. Cover branch-local cycles and
+      depth limits, execution-wide work exhaustion, per-link dispositions,
+      explicit denied crossings, pending/invalid/empty outcomes and deep chains
+      without recursive stack growth. Reuse one source with independent runtime
+      evaluations and preserve the authored targets and source provenance.
+      Verify constructed reference occurrences require neither a saved arena
+      handle nor a captured runtime context handle. Verification: 30 focused
+      CEM-ML tests and two CEM-QL runtime consumer fixtures pass.
+- [x] Fixture: connect the shared host-driven resolver to the existing CEM-QL
+      expression mechanism in a consumer fixture. Evaluate the same retained
+      `{#datadom}` source against independent supplied native data trees, with
+      delayed readiness, empty selections and invalid scalar operands, without
+      writing results onto the source or adding authored data-root IDs.
+- [x] Implement an explicit host-driven shared resolver over retained typed
+      nodes. The host supplies evaluation timing/context, occurrence metadata,
+      effective per-link disposition and explicit edge permission. Keep request
+      and cumulative scope budgets, execution-local results, and immutable sources;
+      do not infer scopes from document owners or authored IDs.
 - [ ] Specify the shared evaluation entry point and result ownership using the
       existing CEM-QL expression mechanism. The caller supplies context and
       lifecycle timing; retain source-position lexical meaning. Distinguish
@@ -202,6 +228,20 @@ implementation. `git diff --check` passes.
 
 ### 5. Integrate schema validation and construct reuse
 
+- [x] Decide the first schema consumer: declaration reuse in collections such
+      as `{elements}` during schema compilation (user decision, 2026-10-04).
+      Preserve existing `@base`/`{uses}` behavior. Implementation remains open.
+      Scenarios for later design verification: two sites reuse one declaration
+      without source cloning; wrong target kinds/cardinality diagnose at the
+      reference; existing base/alias fixtures remain compatible.
+- [ ] Decide incomplete declaration selection treatment before integration:
+      retain available declarations with an explicit incomplete model outcome
+      (recommended), or require a complete result per reference. Mandatory
+      failures and invalid expressions still fail compilation. Decision requested
+      2026-10-04. Scenarios for later design verification: one valid declaration
+      plus an unavailable dependency under neutral/warning/ignore remains visibly
+      incomplete; mandatory/invalid results cannot become successful models;
+      pending compilation remains distinct from an empty declaration selection.
 - [ ] Define the existing schema validation/composition sites that consume typed
       node references, their target-kind/cardinality constraints, and required
       evaluation phase. Keep their construct-use and recursive-composition

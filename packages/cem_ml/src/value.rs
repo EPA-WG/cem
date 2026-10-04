@@ -4,6 +4,7 @@ use std::sync::Arc;
 pub mod artifact;
 pub mod json;
 pub mod xpath;
+pub mod reference_resolution;
 
 #[derive(Debug)]
 pub struct CemReference<T>(Arc<[T]>);

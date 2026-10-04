@@ -485,10 +485,18 @@ Lexical scope depth and reference-chain depth are separate limits. Scope rules
 define permitted crossings and applicable policies. Resolution also requires
 a reference traversal depth or work limit from effective scope policy, plus
 cycle detection: a long chain or cycle can stay inside one lexical scope.
-Reaching a limit or detecting a cycle stops that traversal. Diagnostic policy
-does not permit unlimited traversal. Numeric defaults and schema policy
-declarations are actionable work in
-[todo.md](todo.md#ast-node-reference-implementation).
+A cycle or exhausted limit produces an incomplete unresolved outcome under
+that link's schema disposition; even neutral or ignore stops the affected
+traversal. Standard bounds are 128 reference expansions per path and 100000
+visited nodes per request, with positive schema overrides.
+
+Request-wide bounds remain active across crossings. Each destination scope
+additionally constrains its subtree; its depth allowance starts at entry,
+while work accounting is cumulative across repeated entries in the request.
+Ancestor scope constraints also remain active. Request work exhaustion stops
+the request; scope work exhaustion prunes that subtree while preserving
+available enclosing siblings. Runtime scope keys are supplied by the consumer
+and require no authored context/root IDs.
 
 The applicable scope schema determines unresolved-link treatment:
 
@@ -696,9 +704,8 @@ cyclic graph/native output transport compatibility remains explicitly deferred.
 The schema now declares standard traversal limits of 128 reference links per
 path and 100000 work units per resolution. `ReferenceTraversalLimits` reads
 the embedded schema defaults and validates effective scope overrides, retaining
-inherited bounds when a scope omits them. This prepares consumer policy;
-shared chain traversal and unresolved-link disposition are still implementation
-work. XML reference ingestion also retains query-payload source spans when
+inherited bounds when a scope omits them. The explicit consumer resolver applies these bounds together with the
+effective per-link disposition. XML reference ingestion also retains query-payload source spans when
 folding text or CDATA into the retained node.
 
 The native imported CEM query view preserves reference expression, lexical
@@ -719,4 +726,17 @@ effective policy. `apply` treats a consumer-supplied unresolved fact without
 executing its expression, following targets, changing the authored graph, or
 checking empty-result cardinality. Every disposition preserves the fact;
 mandatory marks failure, warning reports, and neutral/ignore emit no diagnostic.
-Cycle/limit outcome treatment and shared chain traversal remain separate work.
+`value::reference_resolution::resolve_reference` now provides an iterative,
+explicit host-driven walker. The host supplies typed nodes, runtime scope keys,
+effective bounds/dispositions, edge permission and evaluation. It preserves
+order, multiplicity, source graphs and original invalid-expression diagnostics.
+Cycle/limit failures remain incomplete under every disposition. Pending and
+invalid states remain distinct from unresolved links and resolved-empty results.
+Occurrence metadata retains runtime identity and source provenance; native
+constructed references need no saved AST handle or captured environment ID.
+
+A CEM-QL consumer fixture uses the existing expression evaluator with retained
+CEM-ML source and independently supplied native data trees, proving owner
+retention and no source writeback. Production schema consumers, lexical/scope
+adapters, empty-result cardinality and authored crossing declarations remain
+open checklist work; this does not adopt deferred public query access syntax.

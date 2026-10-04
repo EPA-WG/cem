@@ -3,8 +3,8 @@ use cem_ml::{
     schema::{
         document_model::{compile_schema_document_model, SchemaDocumentModel},
         reference_policy::{
-            ReferenceScopePolicy, ReferenceUnresolvedPolicy, UnresolvedDisposition,
-            UnresolvedReferenceFact,
+            ReferenceOccurrence, ReferenceScopePolicy, ReferenceUnresolvedPolicy,
+            UnresolvedDisposition, UnresolvedReferenceFact,
         },
     },
     source::{ByteRange, SourceId},
@@ -25,16 +25,19 @@ fn declaration(value: &str) -> SchemaDocumentModel {
 
 fn fact() -> UnresolvedReferenceFact {
     UnresolvedReferenceFact {
-        node_id: 7,
-        expression: "#dependency".into(),
-        reason: "dependency-unavailable".into(),
-        source_map: SourceMapStack {
-            frames: vec![SourceMapFrame {
-                source_id: SourceId(1),
-                span: FrameSpan::Single(ByteRange::new(14, 11)),
-                transform: TransformKind::CemTokenizer,
-            }],
+        occurrence: ReferenceOccurrence {
+            identity: "fixture:7".into(),
+            node_id: Some(7),
+            expression: Some("#dependency".into()),
+            source_map: SourceMapStack {
+                frames: vec![SourceMapFrame {
+                    source_id: SourceId(1),
+                    span: FrameSpan::Single(ByteRange::new(14, 11)),
+                    transform: TransformKind::CemTokenizer,
+                }],
+            },
         },
+        reason: "dependency-unavailable".into(),
     }
 }
 
@@ -75,7 +78,10 @@ fn every_disposition_retains_unresolved_fact_and_its_provenance() {
         assert_eq!(treatment.failed, failed);
         assert_eq!(treatment.diagnostic.as_ref().map(|d| d.severity), severity);
         if let Some(diagnostic) = treatment.diagnostic {
-            assert_eq!(diagnostic.source_map.as_ref(), Some(&input.source_map));
+            assert_eq!(
+                diagnostic.source_map.as_ref(),
+                Some(&input.occurrence.source_map)
+            );
             assert_eq!(diagnostic.byte_offset, Some(14));
             assert!(diagnostic.message.contains("#dependency"));
             assert!(diagnostic.message.contains("dependency-unavailable"));
@@ -197,4 +203,27 @@ fn effective_policy_combines_limits_and_disposition_without_partial_overrides() 
             UnresolvedDisposition::Mandatory
         );
     }
+}
+
+#[test]
+fn native_occurrences_do_not_require_saved_arena_or_context_handles() {
+    let policy = ReferenceUnresolvedPolicy::schema_defaults()
+        .unwrap()
+        .for_scope(&declaration("mandatory"))
+        .unwrap();
+    let fact = UnresolvedReferenceFact {
+        occurrence: ReferenceOccurrence {
+            identity: "native:occurrence".into(),
+            node_id: None,
+            expression: None,
+            source_map: SourceMapStack::default(),
+        },
+        reason: "cycle".into(),
+    };
+    let treatment = policy.apply(&fact);
+    assert_eq!(treatment.fact, fact);
+    let diagnostic = treatment.diagnostic.unwrap();
+    assert_eq!(diagnostic.node.as_deref(), Some("native:occurrence"));
+    assert!(diagnostic.message.contains("native:occurrence"));
+    assert!(diagnostic.byte_offset.is_none());
 }

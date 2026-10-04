@@ -978,7 +978,10 @@ onto the shared authored reference.
 When a consumer requests reference-chain resolution, the suggested default
 follows the chain within effective scope policy, with a reference traversal
 limit and cycle detection. Lexical scope depth alone does not bound a chain
-inside one scope. The applicable scope schema controls mandatory, warning,
+inside one scope. Request limits and destination subtree limits both apply;
+scope work accounting is cumulative across repeated entries in one request.
+Cycle/limit stops produce incomplete unresolved outcomes even under neutral
+or ignore disposition. The applicable scope schema controls mandatory, warning,
 or ignored unresolved-link outcomes. Without an effective disposition rule,
 retain a neutral unresolved outcome for the consumer without emitting a
 diagnostic or implying successful resolution. Omitted child rules inherit;

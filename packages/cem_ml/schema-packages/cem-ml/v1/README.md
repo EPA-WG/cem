@@ -633,8 +633,11 @@ can override either constraint's positive `value`; omitted bounds inherit.
 `for_scope` validates overrides without changing the enclosing policy. Invalid
 or zero values are rejected rather than silently replaced with defaults.
 These limits are separate from lexical scope depth and native output capacity.
-They prepare the effective policy for shared consumer traversal; they do not
-cause reference evaluation during loading or implement that traversal yet.
+The explicit `value::reference_resolution::resolve_reference` walker applies
+request and destination limits together. Runtime scopes use host-owned opaque
+keys; destination depth constrains its subtree, and scope work remains cumulative
+across repeated entries in a request. Enclosing bounds remain active. Evaluation
+is consumer-requested; loading and inspection do not trigger it.
 
 The `reference-unresolved-disposition` constraint declares a neutral standard
 fallback. An omitted child declaration inherits the enclosing disposition;
@@ -662,5 +665,10 @@ applies the effective rule to a consumer-supplied unresolved fact, preserving
 its expression, occurrence handle, reason and source map. Neutral and ignore
 both retain the fact without a diagnostic; mandatory marks failure and warning
 reports. A non-failing treatment does not imply successful resolution.
-This API does not evaluate references or define pending/invalid outcomes,
-empty-result cardinality, cycle/limit disposition, or scope-crossing permissions.
+The explicit walker treats cycles and exhausted bounds as incomplete unresolved
+outcomes under this policy, even for neutral/ignore. It keeps pending and invalid
+states separate; invalid expression diagnostics are never suppressed. Occurrence
+facts preserve runtime identity and provenance without requiring a saved AST
+handle or environment ID. The consumer supplies evaluation, scope selection and
+edge authorization; empty-result cardinality and authored crossing declarations
+remain consumer integration work.
