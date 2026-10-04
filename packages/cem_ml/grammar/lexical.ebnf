@@ -20,7 +20,7 @@ item             = node
                  | text ;
 
 node             = "{" , qname , { attribute } , [ content_boundary ] , { item } , "}" ;
-expression_node  = "{" , "$" , [ content_boundary ] , expression_body , "}" ;
+expression_node  = "{" , ( "$" | "#" ) , [ content_boundary ] , expression_body , "}" ;
 anonymous_scope  = "{" , attribute , { attribute } , [ content_boundary ] , { item } , "}" ;
 
 attribute        = "@" , qname , [ "=" , value ] ;

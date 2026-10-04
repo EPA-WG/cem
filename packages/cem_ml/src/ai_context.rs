@@ -278,6 +278,7 @@ pub struct AiContextExpansionRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AiContextRecordKind {
+    Reference,
     Document,
     Element,
     Attribute,
@@ -1000,12 +1001,14 @@ fn ai_context_node_id(node: &CemAstNode) -> AstNodeId {
         | CemAstNode::ProcessingInstruction { node_id, .. }
         | CemAstNode::Cdata { node_id, .. }
         | CemAstNode::RawText { node_id, .. }
+        | CemAstNode::Reference { node_id, .. }
         | CemAstNode::Error { node_id, .. } => *node_id,
     }
 }
 
 fn ai_context_record_kind(node: &CemAstNode) -> AiContextRecordKind {
     match node {
+        CemAstNode::Reference { .. } => AiContextRecordKind::Reference,
         CemAstNode::Document { .. } => AiContextRecordKind::Document,
         CemAstNode::Element { .. } => AiContextRecordKind::Element,
         CemAstNode::Attribute { .. } => AiContextRecordKind::Attribute,
@@ -1021,6 +1024,7 @@ fn ai_context_record_kind(node: &CemAstNode) -> AiContextRecordKind {
 
 fn ai_context_node_label(node: &CemAstNode) -> String {
     match node {
+        CemAstNode::Reference { .. } => "#reference".to_owned(),
         CemAstNode::Document { .. } => "document".to_owned(),
         CemAstNode::Element { expanded_name, .. } => expanded_name.local_name.clone(),
         CemAstNode::Attribute { expanded_name, .. } => format!("@{}", expanded_name.local_name),
@@ -1036,6 +1040,7 @@ fn ai_context_node_label(node: &CemAstNode) -> String {
 
 fn ai_context_node_text(node: &CemAstNode) -> Option<String> {
     match node {
+        CemAstNode::Reference { expression, .. } => Some(expression.clone()),
         CemAstNode::Attribute { value, .. } => value.clone(),
         CemAstNode::Text { data, .. }
         | CemAstNode::Whitespace { data, .. }
@@ -1140,6 +1145,7 @@ fn ai_context_source_map(node: &CemAstNode) -> Option<&SourceMapStack> {
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => Some(source),
     }
 }

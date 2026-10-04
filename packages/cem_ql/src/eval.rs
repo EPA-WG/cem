@@ -1569,6 +1569,17 @@ impl<'a> EvalCtx<'a> {
     fn eval_unary(&mut self, source: IrId, op: UnaryOp, operand: IrId) -> ItemStream {
         let operand_stream = self.eval_id(operand);
         let item = match op {
+            UnaryOp::Reference => {
+                if operand_stream.error.is_some() { return operand_stream; }
+                if operand_stream.items.iter().any(|item| item.view().is_none_or(|view| view.kind() != QueryItemViewKind::Node)) {
+                    let mut out = self.type_error(source, "reference construction requires AST nodes; scalar lookup is not implicit");
+                    out.extend_diagnostics(operand_stream);
+                    return out;
+                }
+                // A selected reference node is itself an eligible target. Do not
+                // reuse the legacy helper's implicit reference-value unwrapping.
+                Item::native(values::ReferenceView(cem_ml::value::CemReference::new(operand_stream.items.clone())))
+            }
             UnaryOp::Not => Item::Atomic(AtomValue::Boolean(!effective_boolean(
                 &operand_stream.items,
             ))),

@@ -12752,6 +12752,11 @@ fn append_conversion_parse_projection_event(
         return;
     };
     match node {
+        CemAstNode::Reference { expression, .. } => {
+            projection.push(ConversionParseProjectionEvent::Open { name: "cem:expr".into(), attributes: Vec::new() });
+            projection.push(ConversionParseProjectionEvent::Text(expression.clone()));
+            projection.push(ConversionParseProjectionEvent::Close("cem:expr".into()));
+        }
         CemAstNode::Element {
             expanded_name,
             attributes,

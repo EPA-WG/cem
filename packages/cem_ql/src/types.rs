@@ -930,6 +930,14 @@ impl TypeChecker {
     fn infer_unary(&mut self, op: UnaryOp, operand: &Expression, range: ByteRange) -> Type {
         let operand_ty = self.infer_expression(operand);
         match op {
+            UnaryOp::Reference => {
+                let mut item = &operand_ty;
+                while let Type::Stream(inner) = item { item = inner; }
+                if !matches!(item, Type::Any | Type::Empty | Type::Node(_) | Type::SchemaElement(_)) {
+                    self.emit(TYPE_ERROR, format!("reference construction requires AST nodes, got `{operand_ty:?}`"), range);
+                }
+                Type::Node(NodeKind::Node)
+            }
             UnaryOp::Not => {
                 self.expect_subtype(&operand_ty, &boolean_type(), operand.range());
                 boolean_type()

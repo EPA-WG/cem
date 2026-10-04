@@ -135,6 +135,7 @@ fn node_source(node: &CemAstNode) -> &SourceMapStack {
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => source,
     }
 }

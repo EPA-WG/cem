@@ -170,7 +170,43 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
                 if stack.len() <= 1 {
                     return Err("Unbalanced XML document.".into());
                 }
-                stack.pop();
+                let closed = stack.pop().expect("checked XML stack");
+                if let CemAstNode::Element { expanded_name, attributes, children, source, .. } = &b.ast.nodes[closed as usize] {
+                    if expanded_name.local_name == "expr" && expanded_name.namespace_uri == "https://cem.dev/ns/cem-ml/1"
+                        && attributes.iter().all(|id| semantics.omitted.contains(id)) {
+                        let expression = children.iter().map(|id| {
+                            match &b.ast.nodes[*id as usize] {
+                                CemAstNode::Text { data, .. } | CemAstNode::Whitespace { data, .. } | CemAstNode::Cdata { data, .. } => Some(semantics.values.get(id).unwrap_or(data).as_str()),
+                                _ => None,
+                            }
+                        }).collect::<Option<Vec<_>>>().map(|parts| parts.concat());
+                        if let Some(expression) = expression.filter(|text| text.trim_start().starts_with('#')) {
+                            let mut source = source.clone();
+                            // Folding lexical payload into the reference must
+                            // preserve the query's own byte-source locations.
+                            // The opening element range alone cannot locate
+                            // diagnostics within text or CDATA expression input.
+                            for child in children {
+                                if let CemAstNode::Text { source: payload, .. }
+                                | CemAstNode::Whitespace { source: payload, .. }
+                                | CemAstNode::Cdata { source: payload, .. } =
+                                    &b.ast.nodes[*child as usize]
+                                {
+                                    crate::parser::tree::merge_source(&mut source, payload);
+                                }
+                            }
+                            let cut = closed + 1;
+                            b.ast.nodes.truncate(cut as usize);
+                            b.ast.nodes[closed as usize] = CemAstNode::Reference { node_id: closed, expression: expression.trim().into(), context: *stack.last().expect("XML context"), targets: None, source };
+                            for id in &mut event_nodes { if id.is_some_and(|id| id >= cut) { *id = None; } }
+                            for ids in &mut attribute_nodes { ids.retain(|id| *id < cut); }
+                            semantics.values.retain(|id, _| *id < cut);
+                            semantics.sources.retain(|id, _| *id < cut);
+                            semantics.ranges.retain(|id, _| *id < cut);
+                            semantics.omitted.retain(|id| *id < cut);
+                        }
+                    }
+                }
                 continue;
             }
             Text | EntityReference => {

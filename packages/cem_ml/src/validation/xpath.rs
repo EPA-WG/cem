@@ -768,6 +768,7 @@ pub fn xpath_is_qname(value: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum XPathResultNodeKind {
+    Reference,
     Document,
     Element,
     Attribute,

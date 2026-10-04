@@ -236,7 +236,36 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             );
             return;
         }
+        self.finish_reference();
         self.stack.pop();
+    }
+
+    fn finish_reference(&mut self) {
+        let Some(Frame::Element { id, name }) = self.stack.last() else { return; };
+        if name != "$" && name != "cem:expr" { return; }
+        let id = *id;
+        let CemAstNode::Element { attributes, children, source, .. } = &self.doc.nodes[id as usize] else { return; };
+        if !attributes.is_empty() { return; }
+        let mut expression = String::new();
+        for child in children {
+            match &self.doc.nodes[*child as usize] {
+                CemAstNode::Text { data, .. } | CemAstNode::Whitespace { data, .. }
+                | CemAstNode::Cdata { data, .. } | CemAstNode::RawText { data, .. } => expression.push_str(data),
+                _ => return,
+            }
+        }
+        if !expression.trim_start().starts_with('#') { return; }
+        // Text is only the lexical expression payload, not structural targets.
+        // At close it occupies the tail of the parser arena; preserve the
+        // reference's own identity and remove those temporary payload nodes.
+        if children.iter().copied().ne((id + 1)..self.doc.nodes.len() as u32) { return; }
+        let mut source = source.clone();
+        for child in children { if let CemAstNode::Text { source: payload, .. } = &self.doc.nodes[*child as usize] { source.frames.extend(payload.frames.clone()); } }
+        let context = match self.stack.get(self.stack.len() - 2) { Some(Frame::Element { id, .. }) => *id, _ => 0 };
+        self.doc.nodes.truncate(id as usize + 1);
+        self.doc.nodes[id as usize] = CemAstNode::Reference {
+            node_id: id, expression: expression.trim().to_owned(), context, targets: None, source,
+        };
     }
 
     fn flush_pending_attr(

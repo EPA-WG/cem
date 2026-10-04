@@ -303,6 +303,7 @@ impl XPathNativeNode {
     }
     pub fn result_node_kind(&self) -> XPathResultNodeKind {
         match self.data().kind {
+            CemTreeNodeKind::Reference => XPathResultNodeKind::Reference,
             CemTreeNodeKind::Document => XPathResultNodeKind::Document,
             CemTreeNodeKind::Element => XPathResultNodeKind::Element,
             CemTreeNodeKind::Attribute => XPathResultNodeKind::Attribute,
@@ -340,6 +341,19 @@ impl XPathNativeNode {
     }
     pub fn namespace_uri(&self) -> &str {
         self.data().name.as_ref().map_or("", |n| &n.namespace_uri)
+    }
+    /// Retained source is explicit metadata, never an implicit node string value.
+    pub fn reference_expression(&self) -> Option<&str> {
+        match self.tree.ast().get(self.id)? {
+            crate::parser::CemAstNode::Reference { expression, .. } => Some(expression),
+            _ => None,
+        }
+    }
+    pub fn reference_targets(&self) -> Option<Vec<Self>> {
+        match self.tree.ast().get(self.id)? {
+            crate::parser::CemAstNode::Reference { targets, .. } => targets.as_ref().map(|ids| ids.iter().map(|&id| self.at(id)).collect()),
+            _ => None,
+        }
     }
     pub fn semantic_value(&self) -> &str {
         &self.data().value

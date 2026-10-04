@@ -72,7 +72,7 @@ module.exports = grammar({
     // cem-ql parser; Tier A captures it as an opaque balanced span.
     expression_node: $ => seq(
       '{',
-      '$',
+      choice('$', '#'),
       optional($.content_boundary),
       field('body', $.expression_body),
       '}',

@@ -347,7 +347,9 @@ impl IrLowerer {
             }
             Expression::UnaryOp { op, operand, range } => {
                 let operand = self.lower_expr(operand);
-                let ty = if matches!(op, crate::parser::UnaryOp::Not) {
+                let ty = if matches!(op, crate::parser::UnaryOp::Reference) {
+                    Type::Node(crate::types::NodeKind::Node)
+                } else if matches!(op, crate::parser::UnaryOp::Not) {
                     Type::atom(AtomType::Boolean)
                 } else {
                     self.type_of(operand).cloned().unwrap_or(Type::Any)

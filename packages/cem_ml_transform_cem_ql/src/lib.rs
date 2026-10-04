@@ -2423,6 +2423,7 @@ fn cem_ql_token_kind_name(kind: TokenKind) -> &'static str {
         TokenKind::Percent => "Percent",
         TokenKind::AmpAmp => "AmpAmp",
         TokenKind::PipePipe => "PipePipe",
+        TokenKind::Hash => "Hash",
         TokenKind::Bang => "Bang",
         TokenKind::Dollar => "Dollar",
         TokenKind::Coalesce => "Coalesce",
@@ -2528,6 +2529,7 @@ fn cem_ql_token_operator(kind: TokenKind, lexeme: &str) -> Option<&str> {
         TokenKind::Percent => Some("%"),
         TokenKind::AmpAmp => Some("&&"),
         TokenKind::PipePipe => Some("||"),
+        TokenKind::Hash => Some("#"),
         TokenKind::Bang => Some("!"),
         TokenKind::Coalesce => Some("??"),
         TokenKind::Dot => Some("."),
@@ -4521,6 +4523,53 @@ struct CemDocumentQueryView {
     node_id: AstNodeId,
 }
 
+#[cfg(test)]
+mod reference_view_tests {
+    use super::*;
+    use cem_ml::source_map::SourceMapStack;
+
+    fn reference(targets: Option<Vec<AstNodeId>>) -> Item {
+        let mut document = CemDocument::default();
+        document.nodes = vec![
+            CemAstNode::Document {
+                node_id: 0,
+                root_children: vec![1],
+                source: SourceMapStack::default(),
+            },
+            CemAstNode::Reference {
+                node_id: 1,
+                expression: "#nodes".into(),
+                context: 0,
+                targets,
+                source: SourceMapStack::default(),
+            },
+        ];
+        CemDocumentQueryView::item(Arc::new(document), 1)
+    }
+
+    #[test]
+    fn reference_view_distinguishes_unevaluated_from_resolved_empty() {
+        let unevaluated = reference(None);
+        assert!(unevaluated.view().unwrap().field("targets").is_none());
+        assert!(!unevaluated.view().unwrap().fields().unwrap().iter()
+            .any(|(name, _)| name == "targets"));
+        let empty = reference(Some(vec![]));
+        assert!(empty.view().unwrap().field("targets").unwrap().is_empty());
+    }
+
+    #[test]
+    fn reference_view_retains_repeated_cycles_without_following_them() {
+        let reference = reference(Some(vec![1, 1]));
+        let view = reference.view().unwrap();
+        let targets = view.field("targets").unwrap();
+        assert_eq!(targets.len(), 2);
+        for target in targets {
+            assert_eq!(target.view().unwrap().identity(), view.identity());
+        }
+        assert!(view.field("children").unwrap().is_empty());
+    }
+}
+
 impl CemDocumentQueryView {
     fn item(document: Arc<CemDocument>, node_id: AstNodeId) -> Item {
         Item::native(Self { document, node_id })
@@ -4532,6 +4581,7 @@ impl CemDocumentQueryView {
 
     fn field_names(&self) -> &'static [&'static str] {
         match self.node() {
+            Some(CemAstNode::Reference { .. }) => &["kind", "expression", "context", "targets"],
             Some(CemAstNode::Document { .. }) => &["kind", "children"],
             Some(CemAstNode::Element { .. }) => {
                 &["kind", "name", "namespace", "attributes", "children"]
@@ -4579,7 +4629,7 @@ impl QueryItemView for CemDocumentQueryView {
         Some(
             self.field_names()
                 .iter()
-                .map(|name| ((*name).to_owned(), self.field(name).unwrap_or_default()))
+                .filter_map(|name| self.field(name).map(|values| ((*name).to_owned(), values)))
                 .collect(),
         )
     }
@@ -4587,6 +4637,10 @@ impl QueryItemView for CemDocumentQueryView {
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         let node = self.node()?;
         let values = match (node, name) {
+            (CemAstNode::Reference { .. }, "kind") => atom_items("reference"),
+            (CemAstNode::Reference { expression, .. }, "expression") => atom_items(expression.clone()),
+            (CemAstNode::Reference { context, .. }, "context") => vec![Self::item(Arc::clone(&self.document), *context)],
+            (CemAstNode::Reference { targets, .. }, "targets") => self.child_items(targets.as_deref()?),
             (CemAstNode::Document { .. }, "kind") => atom_items("document"),
             (CemAstNode::Document { root_children, .. }, "children") => {
                 self.child_items(root_children)
@@ -4652,6 +4706,7 @@ impl QueryItemView for CemDocumentQueryView {
             | CemAstNode::ProcessingInstruction { source, .. }
             | CemAstNode::Cdata { source, .. }
             | CemAstNode::RawText { source, .. }
+            | CemAstNode::Reference { source, .. }
             | CemAstNode::Error { source, .. } => Some(source.clone()),
         }
     }

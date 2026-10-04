@@ -52,6 +52,13 @@ struct Renderer {
 impl Renderer {
     fn render_node(&mut self, doc: &CemDocument, node: &CemAstNode) {
         match node {
+            CemAstNode::Reference { expression, source, .. } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<cem:expr xmlns:cem=\"https://cem.dev/ns/cem-ml/1\">");
+                escape_text_into(&mut self.out, expression);
+                self.out.push_str("</cem:expr>");
+                self.record_span(start, source);
+            }
             CemAstNode::Document { root_children, .. } => {
                 for child_id in root_children {
                     if let Some(child) = doc.get(*child_id) {

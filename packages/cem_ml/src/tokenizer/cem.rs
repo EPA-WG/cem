@@ -375,6 +375,12 @@ impl CemTokenizer {
                 self.scan_attributes();
                 self.scan_content_until_close();
             }
+            Some('#') => {
+                // The operator remains part of the expression body.
+                let head_range = self.range_from(open_start, self.cursor + 1);
+                self.emit(SchemaTokenKind::NodeStart { name: "$".to_owned() }, head_range);
+                self.scan_expression_body();
+            }
             Some('$') => {
                 // Expression node.
                 self.cursor += 1;
@@ -637,7 +643,7 @@ impl CemTokenizer {
                         probe += 1;
                     }
                     let next = self.scalars.get(probe).map(|(c, _)| *c);
-                    if matches!(next, Some('@') | Some('$'))
+                    if matches!(next, Some('@') | Some('$') | Some('#'))
                         || matches!(next, Some(c) if is_name_start(c))
                     {
                         self.scan_node();
@@ -808,7 +814,24 @@ impl CemTokenizer {
         }
         let start = self.cursor;
         let mut depth = 1u32;
+        let mut quote = None;
+        let mut comment_depth = 0u32;
         while let Some(c) = self.peek() {
+            let next = self.scalars.get(self.cursor + 1).map(|(c, _)| *c);
+            if let Some(delimiter) = quote {
+                if c == '\\' { self.cursor += 1; if self.peek().is_some() { self.cursor += 1; } }
+                else if c == delimiter && next == Some(delimiter) { self.cursor += 2; }
+                else { self.cursor += 1; if c == delimiter { quote = None; } }
+                continue;
+            }
+            if comment_depth > 0 {
+                if c == '(' && next == Some(':') { comment_depth += 1; self.cursor += 2; }
+                else if c == ':' && next == Some(')') { comment_depth -= 1; self.cursor += 2; }
+                else { self.cursor += 1; }
+                continue;
+            }
+            if c == '(' && next == Some(':') { comment_depth = 1; self.cursor += 2; continue; }
+            if c == '\'' || c == '"' { quote = Some(c); self.cursor += 1; continue; }
             match c {
                 '{' => {
                     depth += 1;
@@ -1411,8 +1434,8 @@ mod tests {
             .expect("CEM-ML package source")
             .schema_source
             .replace(
-                r#"{constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}"#,
-                r#"{constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="example.tokenizer.brace" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}"#,
+                r#"@diagnostic="cem.tokenizer.bare_brace_text""#,
+                r#"@diagnostic="example.tokenizer.brace""#,
             )
             .replace(
                 r#"{diagnostic @code="cem.tokenizer.bare_brace_text" @severity="error"}"#,

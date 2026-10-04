@@ -609,3 +609,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     }
 }
 ````
+
+## AST references
+
+The accepted [node reference design](../../../../../docs/cem-ql-cem-ml-node-references-design.md) defines `{#nodes}` and XML `<cem:expr>#nodes</cem:expr>` as equivalent reference expressions. `#` is a prefix-unary CEM-QL operator at precedence 9. It accepts AST nodes or ordered node sequences, including empty sequences and attribute/reference nodes. Strings are not implicit IDs or query source. Loading retains the expression and its original contextual association; it does not execute the selection. Graph targets are not structural children.
+
+The generic schema declares source retention, implicit scope defaults, and the
+runtime context boundary separately. Syntax implies the scope root and matching
+property; inherited defaults use existing schema/namespace scope forms. The
+enclosed child override spelling remains a roadmap decision.
+
+A retained containing-node handle records lexical origin, not a captured
+evaluation environment. A consumer supplies its context and evaluation phase,
+and need not persist results on the source reference. No authored context-root
+ID is required. XML ingestion preserves the query payload's source spans when
+folding text or CDATA into a reference node.
+
+Standard reference traversal bounds are schema-owned: the
+`reference-traversal-depth` constraint declares 128 links per path and
+`reference-traversal-work` declares 100000 work units per resolution. A scope
+can override either constraint's positive `value`; omitted bounds inherit.
+`ReferenceTraversalLimits::schema_defaults` reads these declarations and
+`for_scope` validates overrides without changing the enclosing policy. Invalid
+or zero values are rejected rather than silently replaced with defaults.
+These limits are separate from lexical scope depth and native output capacity.
+They prepare the effective policy for shared consumer traversal; they do not
+cause reference evaluation during loading or implement that traversal yet.

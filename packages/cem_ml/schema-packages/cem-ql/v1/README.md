@@ -1158,3 +1158,21 @@ declare function value() { "second" }
 
 value
 ```
+
+## AST references
+
+The accepted [node reference design](../../../../../docs/cem-ql-cem-ml-node-references-design.md) defines `{#nodes}` and XML `<cem:expr>#nodes</cem:expr>` as equivalent reference expressions. `#` is a prefix-unary CEM-QL operator at precedence 9. It accepts AST nodes or ordered node sequences, including empty sequences and attribute/reference nodes. Strings are not implicit IDs or query source. Loading retains the expression and its original contextual association; it does not execute the selection. Graph targets are not structural children.
+
+The schema distinguishes construction of ordered, duplicate-preserving graph
+edges from consumer-requested resolution. A selected reference is a node target;
+construction does not flatten its chain. Evaluation receives runtime context
+and timing from the caller, independently of the authored source occurrence.
+
+The declared chain-resolution contract requires effective scope-schema policy,
+cycle detection, and a depth/work bound separate from lexical scope depth.
+Mandatory, warning, and ignored unresolved links differ from resolved-empty
+results, whose acceptability follows cardinality. These declarations do not
+claim that shared chain traversal is implemented; concrete policy declarations
+and limits remain action items in [todo.md](../../../../../docs/todo.md#ast-node-reference-implementation).
+Public query reference type/access spelling and consumer element-to-ID behavior
+remain deferred.

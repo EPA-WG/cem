@@ -41,6 +41,7 @@ pub enum TokenKind {
     AmpAmp,
     PipePipe,
     Bang,
+    Hash,
     Dollar,
     Coalesce,
     DotDot,
@@ -164,6 +165,7 @@ impl<'src> Lexer<'src> {
             }
             '=' => self.token(TokenKind::Assign, start, self.cursor, None),
             '!' if self.consume_if('=') => self.token(TokenKind::BangEq, start, self.cursor, None),
+            '#' => self.token(TokenKind::Hash, start, self.cursor, None),
             '!' => self.token(TokenKind::Bang, start, self.cursor, None),
             '$' => self.token(TokenKind::Dollar, start, self.cursor, None),
             '<' if self.consume_if('=') => self.token(TokenKind::Le, start, self.cursor, None),

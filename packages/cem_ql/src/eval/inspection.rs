@@ -165,6 +165,7 @@ fn node_payload_bytes(node: &CemAstNode) -> u64 {
         | Cdata { data, .. }
         | RawText { data, .. } => &[data],
         ProcessingInstruction { target, data, .. } => &[target, data],
+        Reference { expression, .. } => &[expression],
         Error { code, .. } => &[code],
     };
     parts

@@ -260,6 +260,11 @@ impl<'src> Parser<'src> {
             TokenKind::For => self.parse_for(token),
             TokenKind::FnKw => self.parse_lambda(token),
             TokenKind::Pipe | TokenKind::PipePipe => self.parse_rust_closure(token),
+            TokenKind::Hash => {
+                let operand = self.parse_expression(PREC_UNARY)?;
+                let range = join_ranges(token.range, operand.range());
+                Some(Expression::UnaryOp { op: UnaryOp::Reference, operand: Box::new(operand), range })
+            }
             TokenKind::Bang => {
                 let operand = self.parse_expression(PREC_UNARY)?;
                 let range = join_ranges(token.range, operand.range());
@@ -1278,6 +1283,7 @@ impl BinaryOp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum UnaryOp {
+    Reference,
     Negate,
     Not,
 }

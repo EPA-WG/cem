@@ -55,6 +55,7 @@ fn inspection(
         };
         use CemAstNode::*;
         let (kind, name, namespace, value, target) = match node {
+            Reference { .. } => ("reference", None, None, None, None),
             Document { root_children, .. } => {
                 push_children(&mut pending, id, root_children, 0);
                 ("document", None, None, None, None)
@@ -123,7 +124,16 @@ fn inspection(
                 attributes.push(projection_attribute(key, value, source));
             }
         }
+        if let CemAstNode::Reference { expression, context, targets, .. } = node {
+            if let Some(targets) = targets {
+                attributes.push(projection_attribute("target-ids", targets.iter().map(u32::to_string).collect::<Vec<_>>().join(" "), source));
+            }
+            attributes.push(projection_attribute("expression", expression, source));
+            attributes.push(projection_attribute("context-id", context.to_string(), source));
+            attributes.push(projection_attribute("evaluation-state", if targets.is_some() { "resolved" } else { "unevaluated" }, source));
+        }
         if let Some(range) = range {
+
             // Byte-only origins may not have a known line/column.
             if range.line > 0 {
                 attributes.push(projection_attribute("line", range.line.to_string(), source));

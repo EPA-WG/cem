@@ -14,6 +14,7 @@ pub mod package_consistency;
 pub mod package_loader;
 pub mod package_sources;
 pub mod reference_resolution;
+pub mod reference_traversal;
 pub mod registry;
 pub mod scoping;
 pub mod vocab;

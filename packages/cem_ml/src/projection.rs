@@ -547,6 +547,7 @@ fn ast_node_id(node: &CemAstNode) -> AstNodeId {
         | CemAstNode::ProcessingInstruction { node_id, .. }
         | CemAstNode::Cdata { node_id, .. }
         | CemAstNode::RawText { node_id, .. }
+        | CemAstNode::Reference { node_id, .. }
         | CemAstNode::Error { node_id, .. } => *node_id,
     }
 }
@@ -578,6 +579,7 @@ fn ast_node_source_map(node: &CemAstNode) -> &SourceMapStack {
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => source,
     }
 }
@@ -721,6 +723,16 @@ fn write_binary_header(out: &mut Vec<u8>, kind: BinaryProjectionKind) {
 
 fn encode_ast_node(out: &mut Vec<u8>, node: &CemAstNode) {
     match node {
+        CemAstNode::Reference { node_id, expression, context, targets, source } => {
+            write_u8(out, 11);
+            write_u32(out, *node_id);
+            write_source_range(out, stack_origin(source));
+            write_str(out, expression);
+            write_u32(out, *context);
+            write_bool(out, targets.is_some());
+            if let Some(targets) = targets { write_id_list(out, targets); }
+        }
+
         CemAstNode::Document {
             node_id,
             root_children,
@@ -1216,6 +1228,16 @@ impl Serialize for DomJsonNodeRef<'_> {
         S: Serializer,
     {
         match self.node {
+            CemAstNode::Reference { expression, context, targets, source, .. } => {
+                let mut node = serializer.serialize_map(Some(6))?;
+                node.serialize_entry("kind", "reference")?;
+                node.serialize_entry("expression", expression)?;
+                node.serialize_entry("context", context)?;
+                node.serialize_entry("targets", targets)?;
+                node.serialize_entry("byteRange", &stack_origin(source))?;
+                node.serialize_entry("sourceMap", source)?;
+                node.end()
+            }
             CemAstNode::Document { root_children, .. } => {
                 let mut node = serializer.serialize_map(Some(2))?;
                 node.serialize_entry("kind", "document")?;
@@ -1910,6 +1932,11 @@ pub fn cem_tree_nodes_with_source_content_type(
 fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
     let node = doc.get(id)?;
     let value = match node {
+        CemAstNode::Reference { expression, context, targets, source, .. } => json!({
+            "kind": "reference", "expression": expression, "context": context,
+            "targets": targets, "byteRange": project_byte_range(stack_origin(source)), "sourceMap": source,
+        }),
+
         CemAstNode::Document { root_children, .. } => json!({
             "kind": "document",
             "children": root_children.iter().filter_map(|id| project_node(doc, *id)).collect::<Vec<_>>(),
@@ -2009,6 +2036,11 @@ fn project_cem_tree_node(
 ) -> Option<CemTreeAstNode> {
     let node = doc.get(id)?;
     let value = match node {
+        CemAstNode::Reference { expression, source, .. } => CemTreeAstNode::Element {
+            name: "cem:expr".into(), attributes: vec![CemTreeAstAttribute { name: "xmlns:cem".into(), value: Some("https://cem.dev/ns/cem-ml/1".into()), source: source.clone() }],
+            children: vec![CemTreeAstNode::Text { value: expression.clone(), source: source.clone() }],
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
         CemAstNode::Document {
             root_children,
             source,

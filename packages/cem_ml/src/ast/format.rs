@@ -3,9 +3,9 @@
 use crate::source_map::SourceMapFrame;
 
 pub const MAGIC: [u8; 4] = *b"CEMB";
-/// Wire-format version. Bumped to `2` when the Element record gained a
-/// trailing `has_explicit_boundary` byte (cem.lint.relaxed_content_boundary).
-pub const VERSION: u16 = 2;
+/// Version 3 adds retained reference expressions and non-owning target IDs.
+/// Version 2 added the Element `has_explicit_boundary` byte.
+pub const VERSION: u16 = 3;
 pub const FLAGS_NONE: u16 = 0;
 
 /// Kind tag for every variant of `CemAstNode`. Stable across the lifetime
@@ -23,6 +23,7 @@ pub enum NodeKindTag {
     Cdata = 7,
     RawText = 8,
     Error = 9,
+    Reference = 10,
 }
 
 impl NodeKindTag {
@@ -38,6 +39,7 @@ impl NodeKindTag {
             7 => NodeKindTag::Cdata,
             8 => NodeKindTag::RawText,
             9 => NodeKindTag::Error,
+            10 => NodeKindTag::Reference,
             _ => return None,
         })
     }

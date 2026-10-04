@@ -149,6 +149,7 @@ impl QueryItemView for XPathQueryItem {
         match name {
             "id" => text(&node.identity()),
             "kind" => text(match node.result_node_kind() {
+                cem_ml::validation::xpath::XPathResultNodeKind::Reference => "reference",
                 cem_ml::validation::xpath::XPathResultNodeKind::Namespace => "namespace",
                 cem_ml::validation::xpath::XPathResultNodeKind::Document => "document",
                 cem_ml::validation::xpath::XPathResultNodeKind::Element => "element",
@@ -159,6 +160,8 @@ impl QueryItemView for XPathQueryItem {
                     "processing-instruction"
                 }
             }),
+            "expression" => node.reference_expression().and_then(text),
+            "targets" => node.reference_targets().map(|targets| targets.into_iter().map(Self::from_node).collect()),
             "name" => text(node.local_name()),
             "namespace" => text(node.namespace_uri()),
             "value" | "data" => text(node.semantic_value()),

@@ -25829,6 +25829,7 @@ fn template_node_source_map(doc: &CemDocument, node_id: AstNodeId) -> Option<Sou
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => Some(source.clone()),
     }
 }

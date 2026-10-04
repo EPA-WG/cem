@@ -16,23 +16,203 @@ The 2026-10-04 adoption defines implicit scope defaults, runtime-supplied
 evaluation context, consumer reference-chain resolution, and scope-schema
 diagnostic policy. Design adoption does not mark implementation complete.
 
-- [ ] Add schema-owned reference node/operator contracts and public syntax documentation.
-- [ ] Specify schema-owned mandatory, warning, and ignore dispositions for
-      unresolved links, reference traversal depth/work limits and numeric
-      defaults, and cycle outcomes under existing scope error policy. Keep
-      lexical scope depth distinct from reference-chain depth.
-- [ ] Align retained expression/lexical representation and specialized scope
-      records with the accepted contract. Runtime context roots need no authored
-      IDs or mandatory saved context ID; separate execution results from shared
-      source references and define pending/resolved/unresolved/invalid outcomes.
-- [ ] Fixture: verify schema contracts, CEM/XML parsing parity, retained reference AST/source context, binary graph round trips, query precedence and strict node-valued evaluation, including empty/multiple/attribute/reference-node targets.
-- [ ] Implement reference syntax, parser AST retention, query operator lowering/evaluation and native graph integration without consumer behavior or implicit ID lookup.
-- [ ] Implement and verify shared consumer evaluation support for bounded deep
-      reference-chain resolution and scope-schema unresolved-link disposition.
-      Preserve authored edges, target order and multiplicity, and distinct empty
-      versus unresolved outcomes. Record specific fixture items before adding
-      fixtures; `cem-element`-specific projection remains deferred below.
-- [ ] Verify affected Rust packages and CLI/schema fixtures through Nx; record evidence and remaining open decisions.
+Implementation plan recorded on 2026-10-04. Execute the stages in order, with
+the contract fixtures before the corresponding implementation changes. The
+workspace contains initial parser, operator, codec, schema, and fixture work;
+review and reuse it rather than assuming a fresh implementation. All items
+remain open until their adopted contract and verification evidence are met.
+
+### 1. Audit current work and define schema contracts
+
+- [x] Fixture: verify schema-owned standard reference traversal limits and
+      scope overrides, including inheritance and rejection of zero, malformed,
+      or overflowing bounds. Keep these bounds separate from lexical scope
+      depth and native output-artifact limits.
+- [x] Implement schema-sourced reference traversal defaults and validated
+      effective-scope overrides for explicit consumer resolution. User chose
+      overridable standard defaults on 2026-10-04; use depth 128 and work
+      100000, matching the existing native value capacity baseline while
+      retaining a separate reference-resolution policy.
+- [x] Fixture: verify the three reference schema packages declare retained
+      source, runtime-supplied context, non-owning ordered graph edges, and
+      consumer-requested chain resolution separately. Verify optional projection
+      context/target metadata does not require a runtime context ID.
+- [x] Compare the initial reference changes and existing fixtures in `cem_ml`,
+      `cem_ql`, and `cem_ml_transform_cem_ql` against the accepted design.
+      Record covered behavior, gaps, and compatibility obligations, including
+      saved containing-node handles, optional source target lists, the legacy
+      `dom:reference` helper, and existing schema reference-resolution behavior.
+- [x] Declare core schema-owned reference source, node/operator, and graph-edge
+      contracts in the CEM-ML, CEM-QL, and AST projection schema packages.
+      Define retained expression/provenance and lexical semantics separately
+      from runtime evaluation context and outcomes. Update package contract
+      documentation without inventing deferred public query type/access syntax.
+- [ ] Complete reference expression-slot integration with retained expression
+      artifacts, source-position bindings, caller-supplied runtime context, and
+      typed attribute slots. Declaration metadata alone does not implement
+      runtime evaluation or specialized scope linkage.
+- [ ] Specify effective scope-schema policy for mandatory, warning, and ignore
+      dispositions, empty-result cardinality, permitted scope crossings,
+      reference traversal depth/work limits and numeric defaults, and cycle or
+      limit outcomes. Keep lexical scope depth distinct from chain depth.
+      Present unresolved policy choices for decision before implementing them.
+- [ ] Fixture: verify schema declarations and policy validation, including
+      malformed or conflicting policies and inherited policy. Keep reference
+      failures as neutral facts until the effective schema determines their
+      diagnostic disposition; invalid expression/operand types remain invalid.
+
+Audit findings (2026-10-04): the initial implementation retains standalone
+CEM/XML references and implements strict unary `#` construction and CEMB v3
+graph edges. The legacy `dom:reference` helper keeps its separate preservation
+behavior. Saved `context` handles are lexical origins, and optional `targets`
+are representation choices. Shared chain evaluation, per-link schema
+disposition/cardinality, expression artifact linkage, typed attribute slots,
+and schema construct reuse remain incomplete. The parser-backed target view now
+preserves absent unevaluated targets separately from resolved-empty targets,
+including field enumeration. Existing ID-backed name slots are not a `#` resolver.
+
+Completed foundations: schema contract declarations, schema-sourced depth/work
+defaults and validated inherited overrides, numeric graph-label validation,
+and XML query-payload provenance. These do not claim an implemented chain
+resolver or full scope-reference integration.
+
+Verification (2026-10-04): 11 focused CEM-ML reference tests, four CEM-QL
+reference tests, all 99 native query-adapter tests, and the full CEM-QL Nx
+test target pass. The broad CEM-ML target has 2067 passing library tests,
+two ignored tests, and one preexisting failure:
+`legacy_custom_element::tests::material_manifest_primary_templates_convert_under_engine_subset`
+cannot find `template#cem-dropdown`. This failure was reproduced before the
+changes above; keep its gallery/template investigation separate from reference
+implementation. `git diff --check` passes.
+
+### 2. Retain reference syntax and lexical scope
+
+- [x] Fixture: preserve query-payload source spans when XML text or CDATA is
+      folded into a reference node, including namespace aliases and following
+      siblings. Verify foreign `expr` elements remain ordinary elements.
+- [ ] Fixture: extend CEM/XML parsing parity coverage for standalone and
+      attribute expression slots, namespace aliases, forward expressions,
+      query strings/comments containing delimiters, malformed expressions,
+      and source locations. Prove loading and context closure never execute
+      target selection or require an authored context-root ID.
+- [ ] Align tokenizer/event normalization, parser/builders, XML import, lexical
+      grammar, and tree-sitter parity with `{#...}` and `<cem:expr>#...</cem:expr>`.
+      Retain the reference AST kind and expression artifact/source linkage in
+      every supported slot instead of stringifying or inserting target children.
+- [ ] Fixture: verify inherited scope-property defaults, source-position
+      bindings and shadowing, restoration after existing schema/namespace child
+      scopes, and equal IDs in separate vendor scopes. Cover explicit permitted
+      crossings without a document-wide ID scan or repeated root markers.
+- [ ] Align retained lexical/scope information and existing specialized frames
+      with the shared reference contract. Resolve required lexical relationships
+      at their existing context boundaries without treating a containing-node
+      handle as the runtime evaluator environment. Use current scope forms;
+      do not implement the deferred enclosed child override spelling.
+
+### 3. Complete node-valued query construction
+
+- [x] Fixture: distinguish an unevaluated reference's absent targets from a
+      resolved empty target list in the parser-backed typed query view. Verify
+      repeated cyclic edges remain non-owning and are not followed by inspection.
+- [x] Preserve absent versus resolved-empty targets in the existing typed
+      query bridge without adding public target-access syntax or executing the
+      authored reference expression.
+- [x] Correct the initial precedence fixture to inspect typed reference targets
+      through the runtime view rather than assuming an adopted `.targets`
+      query operation. Public query target-access spelling remains deferred.
+- [ ] Fixture: verify unary precedence/grouping and strict operands for every
+      supported AST node kind, attribute nodes, empty sequences, ordered and
+      repeated targets, mixed ordinary/reference nodes, and `##nodes`. Reject
+      statically and dynamically supplied scalars, including strings that look
+      like IDs, URLs, or query source; construction must not follow chains.
+- [ ] Align query parsing, type checking, IR lowering, and evaluation with the
+      schema contracts. Construct non-owning reference edges through retained
+      typed CEM node views, preserving target order, multiplicity, owning
+      document identity, and reference occurrence identity. Keep legacy helper
+      compatibility explicit without changing `#` into implicit dereferencing.
+- [ ] Verify the shared typed bridge used by `cem_ml_transform_cem_ql` exposes
+      references without format-specific evaluation or DOM/JSON substitutes.
+      Treat current generic-node and target-view interfaces as implementation
+      choices, not adoption of the deferred public reference type/access API.
+
+### 4. Add explicit runtime evaluation and bounded chain resolution
+
+- [ ] Specify the shared evaluation entry point and result ownership using the
+      existing CEM-QL expression mechanism. The caller supplies context and
+      lifecycle timing; retain source-position lexical meaning. Distinguish
+      unevaluated source from pending, resolved, unresolved, and invalid runtime
+      outcomes without requiring writeback onto the authored reference.
+- [ ] Fixture: evaluate one retained template against two independent supplied
+      `datadom` trees, including evaluation after inputs become available.
+      Verify independent outcomes, distinct resolved-empty and unresolved
+      results, and unchanged authored expressions/edges without context IDs.
+- [ ] Fixture: cover deep reference chains, mixed node/reference targets,
+      repeated targets, self-reference, cycles, scope crossings, and traversal
+      limits within one lexical scope. Verify mandatory failure, warning, and
+      ignored unresolved links with source provenance, plus separate empty
+      cardinality checks. Ignoring a link must not fabricate a target or remove
+      an authored edge.
+- [ ] Implement shared explicit evaluation and consumer-requested chain
+      resolution under effective scope-schema policy, with cycle detection and
+      bounded work. Preserve target order/multiplicity and the authored graph.
+      Do not add a scheduler, subscriptions, automatic parse-time evaluation,
+      URL/ID lookup, or element-to-ID projection.
+
+### 5. Integrate schema validation and construct reuse
+
+- [ ] Define the existing schema validation/composition sites that consume typed
+      node references, their target-kind/cardinality constraints, and required
+      evaluation phase. Keep their construct-use and recursive-composition
+      rules consumer-owned while applying the shared scope resolution policy.
+- [ ] Fixture: validate referenced constructs and reuse one declaration from
+      multiple schema sites without cloning it into the source tree. Cover
+      invalid target kinds, unresolved links under each disposition, source
+      attribution, independent scopes, and bounded recursive relationships.
+- [ ] Integrate the shared reference evaluation path into those schema sites
+      and specialized scope records. Preserve existing schema/namespace
+      behavior and typed import boundaries; do not replace specialized storage
+      with a mandatory common struct or impose public root IDs.
+
+### 6. Preserve references through codecs and inspection
+
+- [ ] Fixture: extend current CEMB round trips and version compatibility coverage
+      for unevaluated source, resolved-empty and ordered/repeated graph edges,
+      reference-to-reference edges, self-reference, cycles, source provenance,
+      and invalid node handles. Reload source for later evaluation with a newly
+      supplied runtime context without serializing a live environment.
+- [ ] Align AST codec, native graph integration, formatter, XML convention
+      export/import, and typed AST/DOM/event inspection with retained reference
+      identity and source semantics. Inspection must not follow chains or
+      silently turn references into text or structural target subtrees.
+      Keep optional runtime outcomes distinct from source-only export.
+- [ ] Record the supported AST graph round-trip boundary and remaining native
+      output artifact gaps. Do not select cyclic native-output expansion,
+      pending-outcome transport, or new transport contracts in this stage;
+      those decisions remain in the roadmap.
+
+### 7. Verify and document completion
+
+- [ ] Fixture: add focused Rust integration cases through the existing CLI/query
+      and schema paths for retained references and explicit supplied-context
+      evaluation. Confirm URL resolution stays at the resource/import boundary
+      and no projected IDs or browser behavior are needed for CEM-ML references.
+- [ ] Run affected Rust package, schema consistency, grammar parity, codec,
+      and focused CLI checks through the appropriate Nx targets. Record results
+      and remaining failures; browser/WASM integration follows a green native
+      path only where the changed shared boundary requires it.
+- [ ] Update public syntax/package/API documentation and initial implementation
+      notes to match verified behavior. Mark only verified action items complete,
+      record any unsupported cases, and retain deferred decisions and their
+      verification scenarios without claiming full consumer support.
+
+The [enclosed child override syntax](../roadmap.md#deferred-cem-reference-syntax-decision)
+and [public query/transport contracts](../roadmap.md#deferred-cem-reference-query-and-transport-contracts)
+remain deferred. Stages above implement the accepted contract using existing
+forms and internal interfaces; if a specific step requires one of those
+decisions, resolve it explicitly before that step rather than guessing.
+The [cem-element reference mode](#deferred-cem-element-reference-consumption),
+interaction attribute API, and ID generation/extraction remain subsequent
+consumer work.
 
 ### Scenarios for later design verification
 

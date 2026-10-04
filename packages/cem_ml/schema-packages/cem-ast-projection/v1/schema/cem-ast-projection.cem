@@ -27,14 +27,18 @@
         {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id root-id byte-offset byte-length hash" @children="child-link* source-map-delta*"}
         {element @name="child-link" @required-attributes="chunk-id root-id"}
         {element @name="source-map-delta" @required-attributes="source-id byte-offset byte-length transform"}
-        {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace target value source-id byte-offset byte-length line column chunk-id"}
+        {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace target value expression context-id evaluation-state target-ids source-id byte-offset byte-length line column chunk-id"}
         {element @name="token" @required-attributes="id kind lexeme" @optional-attributes="source-id byte-offset byte-length chunk-id"}
         {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="source-id byte-offset byte-length message"}
     }
 
     {attributes |
-        {attribute @name="id" @type="schema:identifier"}
-        {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="target-ids" @type="schema:string"}
+        {attribute @name="expression" @type="schema:string"}
+        {attribute @name="context-id" @type="cemml:integer"}
+        {attribute @name="evaluation-state" @type="schema:identifier" @values="unevaluated resolved"}
+        {attribute @name="id" @type="schema:string"}
+        {attribute @name="parent-id" @type="schema:string"}
         {attribute @name="root-id" @type="schema:string"}
         {attribute @name="chunk-id" @type="schema:identifier"}
         {attribute @name="order" @type="cemml:integer"}
@@ -61,6 +65,9 @@
     }
 
     {constraints |
+        {constraint @kind="reference-context-provenance" @target="node" @policy="a reference row retains its expression and source provenance; optional context-id denotes a containing AST node handle, not an authored ID or a mandatory runtime evaluation context"}
+        {constraint @kind="reference-target-edges" @target="node" @policy="optional target-ids retain graph-local ordered non-owning edges, including repetitions and cycles; inspection does not follow them or insert targets into structural children"}
+        {constraint @kind="reference-source-state" @target="node" @policy="source-only reference rows need no stored target list; unevaluated is distinct from resolved with an empty target list; pending, unresolved, and invalid runtime outcomes belong to the consumer and their transport is separate"}
         {constraint @kind="binary-primary" @target="ast" @policy="application/vnd.cem.ast+cem-bin is canonical for runtime and cache handoff"}
         {constraint @kind="json-debug-view" @target="ast" @policy="application/vnd.cem.ast+json must be derived from the semantic AST projection"}
         {constraint @kind="source-order-preserved" @target="node" @policy="required"}

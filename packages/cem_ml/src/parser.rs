@@ -47,6 +47,19 @@ pub enum CemAstNode {
         has_explicit_boundary: bool,
         source: SourceMapStack,
     },
+    /// Unevaluated reference expression. Targets are non-owning graph edges;
+    /// loading never evaluates the retained query source.
+    Reference {
+        node_id: AstNodeId,
+        expression: String,
+        /// Lexical containing-node handle, not a captured runtime environment
+        /// or an authored ID. Evaluators receive their context from the caller.
+        context: AstNodeId,
+        /// Optional retained graph result. Loading leaves this unevaluated;
+        /// callers can consume execution results without changing the source.
+        targets: Option<Vec<AstNodeId>>,
+        source: SourceMapStack,
+    },
     Attribute {
         node_id: AstNodeId,
         expanded_name: ExpandedName,

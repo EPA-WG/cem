@@ -11,6 +11,7 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CemTreeNodeKind {
     Document,
+    Reference,
     Element,
     Attribute,
     Text,
@@ -165,6 +166,13 @@ impl RetainedCemTree {
         if !matches!(ast.root(), Some(CemAstNode::Document { node_id: 0, .. })) {
             return Err("A retained CEM tree requires a document root at node 0.".into());
         }
+        for node in &ast.nodes {
+            if let CemAstNode::Reference { context, targets, .. } = node {
+                if std::iter::once(context).chain(targets.iter().flatten()).any(|id| *id as usize >= ast.nodes.len()) {
+                    return Err("Invalid reference context or target node ID.".into());
+                }
+            }
+        }
         let line_index = crate::source::line_index::LineIndex::from_utf8(source_text);
         let mut nodes = Vec::with_capacity(ast.nodes.len());
         let mut source_lines_known = Vec::with_capacity(ast.nodes.len());
@@ -272,6 +280,9 @@ impl RetainedCemTree {
                     vec![],
                     vec![],
                     source,
+                ),
+                Reference { node_id, source, .. } => (
+                    *node_id, CemTreeNodeKind::Reference, None, "", vec![], vec![], source,
                 ),
                 Error { .. } => {
                     return Err("A CEM error node cannot enter the semantic tree.".into())

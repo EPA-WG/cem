@@ -83,6 +83,13 @@ struct Renderer {
 impl Renderer {
     fn render_node(&mut self, doc: &CemDocument, node: &CemAstNode) {
         match node {
+            CemAstNode::Reference { expression, source, .. } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<cem:expr xmlns:cem=\"https://cem.dev/ns/cem-ml/1\">");
+                escape_text_into(&mut self.out, expression);
+                self.out.push_str("</cem:expr>");
+                self.record_span(start, source);
+            }
             CemAstNode::Document { root_children, .. } => {
                 // The Document is a virtual wrapper; it has no source
                 // origin of its own. Skip recording a Document-spanning

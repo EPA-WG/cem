@@ -86,6 +86,18 @@ the source-node rows or their values. All external formats enter CEM-ML import
 before inspection; source names and values are inert data. Ordinary content
 serialization and explicit binary/JSON debug exports keep their own contracts.
 
+Reference rows retain `expression` and source provenance. Optional `context-id`
+is a lexical containing-node handle, not an authored ID or a required runtime
+context address. Optional `target-ids` preserves ordered graph-local edges;
+inspection does not traverse those edges or duplicate their targets as children.
+The projection's `id` and `parent-id` are opaque graph labels serialized as
+strings, including numeric arena handles, rather than authored CEM identifiers.
+
+Source-only rows can omit context, targets, and evaluation-state metadata. The
+current retained source representation distinguishes `unevaluated` from
+`resolved`, including a resolved empty target list. Runtime pending, unresolved,
+and invalid outcomes remain separate; their transport contract is deferred.
+
 ## Safety Notes
 
 AST projection data may preserve source text, attribute values, diagnostics,

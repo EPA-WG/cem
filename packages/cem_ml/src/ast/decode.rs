@@ -17,11 +17,13 @@ pub enum DecodeError {
     UnknownTransformTag(u16),
     IntegrityMismatch { expected: u64, actual: u64 },
     InvalidUtf8,
+    InvalidReference(AstNodeId),
 }
 
 impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DecodeError::InvalidReference(id) => write!(f, "invalid reference node or context ID: {id}"),
             DecodeError::BadMagic => f.write_str("invalid magic"),
             DecodeError::BadVersion(v) => write!(f, "unsupported version: {v}"),
             DecodeError::UnexpectedEof => f.write_str("unexpected end of payload"),
@@ -68,7 +70,7 @@ impl DebugBinaryDecoder {
             return Err(DecodeError::BadMagic);
         }
         let version = r.read_u16()?;
-        if version != VERSION {
+        if version != VERSION && version != 2 {
             return Err(DecodeError::BadVersion(version));
         }
         let flags = r.read_u16()?;
@@ -83,6 +85,13 @@ impl DebugBinaryDecoder {
         let nodes = read_nodes(&mut r, &strings, &source_map_frames)?;
         let (attr_map, child_map) = read_edges(&mut r)?;
         let nodes = link_edges(nodes, attr_map, child_map);
+        for node in &nodes {
+            if let CemAstNode::Reference { context, targets, .. } = node {
+                for &id in std::iter::once(context).chain(targets.iter().flatten()) {
+                    if id as usize >= nodes.len() { return Err(DecodeError::InvalidReference(id)); }
+                }
+            }
+        }
 
         let id_table = read_id_table(&mut r, &strings)?;
         let unresolved_slots = read_unresolved_slots(&mut r, &strings, &source_map_frames)?;
@@ -320,6 +329,18 @@ fn read_nodes(
                     has_explicit_boundary,
                     source,
                 }
+            }
+            NodeKindTag::Reference => {
+                let expression = read_string(r, strings)?;
+                let context = r.read_u32()?;
+                let targets = if r.read_u8()? != 0 {
+                    let count = r.read_u32()?;
+                    let mut targets = Vec::new();
+                    for _ in 0..count { targets.push(r.read_u32()?); }
+                    Some(targets)
+                } else { None };
+                let source = read_source_map(r, frames)?;
+                CemAstNode::Reference { node_id, expression, context, targets, source }
             }
             NodeKindTag::Attribute => {
                 let namespace_uri = read_string(r, strings)?;

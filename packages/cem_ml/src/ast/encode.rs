@@ -249,6 +249,10 @@ fn seed_node(d: &mut Dictionaries, node: &CemAstNode) {
             d.intern_string(data);
             seed_source_map(d, source);
         }
+        CemAstNode::Reference { expression, source, .. } => {
+            d.intern_string(expression);
+            seed_source_map(d, source);
+        }
         CemAstNode::Error { code, source, .. } => {
             d.intern_string(code);
             seed_source_map(d, source);
@@ -322,6 +326,18 @@ fn write_nodes(out: &mut Vec<u8>, nodes: &[CemAstNode], d: &Dictionaries) {
                 write_string_ref(out, d, &expanded_name.local_name);
                 out.extend_from_slice(&expanded_name.schema_id.unwrap_or(u32::MAX).to_le_bytes());
                 out.push(if *has_explicit_boundary { 1 } else { 0 });
+                write_source_map(out, d, source);
+            }
+            CemAstNode::Reference { node_id, expression, context, targets, source } => {
+                out.push(NodeKindTag::Reference as u8);
+                out.extend_from_slice(&node_id.to_le_bytes());
+                write_string_ref(out, d, expression);
+                out.extend_from_slice(&context.to_le_bytes());
+                out.push(u8::from(targets.is_some()));
+                if let Some(targets) = targets {
+                    out.extend_from_slice(&(targets.len() as u32).to_le_bytes());
+                    for target in targets { out.extend_from_slice(&target.to_le_bytes()); }
+                }
                 write_source_map(out, d, source);
             }
             CemAstNode::Attribute {

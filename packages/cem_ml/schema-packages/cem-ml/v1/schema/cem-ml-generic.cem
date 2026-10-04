@@ -31,6 +31,7 @@
         {node @name="cdata"}
         {node @name="raw-text"}
         {node @name="expression" @children="text"}
+        {node @name="reference" @children="expression"}
         {node @name="content-scope" @children="content*"}
     }
 
@@ -44,6 +45,8 @@
         {rule @name="bare-value" @value="identifier | number | boolean"}
         {rule @name="quoted-value" @value="single-quoted or double-quoted text"}
         {rule @name="expression-node" @value="dollar expression content scope"}
+        {rule @name="reference-node" @value="hash CEM-QL expression content scope; retains expression without executing on load"}
+        {rule @name="reference-operand" @value="AST node or ordered AST node sequence; no scalar lookup or implicit evaluation"}
         {rule @name="anonymous-content-scope" @value="typed content handoff scope"}
     }
 
@@ -76,6 +79,11 @@
     }
 
     {constraints |
+        {constraint @kind="reference-source-retention" @target="reference" @policy="loading retains the selecting expression, source provenance, and source-position lexical semantics; neither loading nor context closure executes target selection"}
+        {constraint @kind="reference-scope-defaults" @target="reference" @policy="scope syntax implies the root and matching property; inherited defaults and existing child scope rules preserve source-position meaning without repeated references or authored root IDs"}
+        {constraint @kind="reference-runtime-context" @target="reference" @policy="the consumer supplies context and lifecycle timing; a containing-node handle is lexical provenance, not a required runtime context ID; execution outcomes need not be written onto the authored reference"}
+        {constraint @kind="reference-traversal-depth" @target="reference" @value="128" @policy="positive maximum reference links on a resolution path; a scope may override this bound independently of lexical scope depth"}
+        {constraint @kind="reference-traversal-work" @target="reference" @value="100000" @policy="positive maximum traversal work units in one consumer resolution; a scope may override this bound; cycle detection remains required"}
         {constraint @kind="ast-unbalanced-close" @target="document" @diagnostic="cem.ast.unbalanced_close" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unbalanced-close" @policy="close-scope events must match an open element frame"}
         {constraint @kind="ast-unclosed-scope" @target="document" @diagnostic="cem.ast.unclosed_scope" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unclosed-scope" @policy="open element frames must close before end of input"}
         {constraint @kind="ast-unresolved-reference" @target="attribute" @diagnostic="cem.ast.unresolved_reference" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unresolved-reference" @policy="AST reference slots remain neutral facts until schema policy decides their diagnostic disposition"}
@@ -86,7 +94,7 @@
         {constraint @kind="doc-prerelease-unmatched" @target="directive" @diagnostic="cem.doc.prerelease_unmatched" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-prerelease-unmatched" @policy="@doc prerelease constraints require an exact embedded prerelease match"}
         {constraint @kind="doc-version-resolved" @target="directive" @diagnostic="cem.doc.version_resolved" @behavior="cem-ml-doc-report-fact" @fact-kind="doc-version-resolved" @policy="successful @doc resolution records the canonical document format identity"}
         {constraint @kind="tokenizer-unterminated-block-comment" @target="comment" @diagnostic="cem.tokenizer.unterminated_block_comment" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-block-comment" @policy="block comments must close before end of input"}
-        {constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...}"}
+        {constraint @kind="tokenizer-bare-brace-text" @target="text" @diagnostic="cem.tokenizer.bare_brace_text" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-bare-brace-text" @policy="bare brace interpolation in content is rejected; expression content must use {$ ...} or {#...}"}
         {constraint @kind="tokenizer-unterminated-string" @target="attribute" @diagnostic="cem.tokenizer.unterminated_string" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-string" @policy="quoted attribute values must close with their opening quote character"}
         {constraint @kind="tokenizer-unterminated-avt-span" @target="attribute" @diagnostic="cem.tokenizer.unterminated_avt_span" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-avt-span" @policy="attribute CEM-QL spans must close their brace scope"}
         {constraint @kind="tokenizer-unterminated-node" @target="element" @diagnostic="cem.tokenizer.unterminated_node" @behavior="cem-ml-tokenizer-report-fact" @fact-kind="tokenizer-unterminated-node" @policy="node scopes must close before end of input"}

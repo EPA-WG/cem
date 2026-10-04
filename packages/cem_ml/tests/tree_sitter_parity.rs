@@ -64,6 +64,10 @@ fn project_rust(doc: &CemDocument) -> Vec<StructuralEvent> {
 fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) {
     let Some(node) = doc.get(id) else { return };
     match node {
+        CemAstNode::Reference { .. } => {
+            out.push(StructuralEvent::OpenExpressionNode);
+            out.push(StructuralEvent::CloseScope);
+        }
         CemAstNode::Element {
             expanded_name,
             attributes,
@@ -308,4 +312,12 @@ fn every_canonical_fixture_parses_equivalently_in_rust_and_tree_sitter() {
         }
         panic!("rust/tree-sitter parity mismatches:{msg}");
     }
+}
+
+#[test]
+fn reference_expression_editor_parser_parity() {
+    let source = "{section | {#nodes} {#nodes.children}}";
+    let tokenizer = CemTokenizer::from_source(BytesSource::new(SourceId(1), source.as_bytes().to_vec()));
+    let doc = CemAstBuilder::new(CemEventNormalizer::new(tokenizer)).build();
+    assert_eq!(project_rust(&doc), project_tree_sitter(source));
 }

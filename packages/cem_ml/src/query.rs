@@ -730,6 +730,7 @@ pub fn origin_byte_range(node: &CemAstNode) -> Option<ByteRange> {
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => source,
     };
     stack.frames.first().and_then(|frame| match &frame.span {
@@ -771,6 +772,7 @@ pub fn source_map_frames(node: &CemAstNode) -> &[SourceMapFrame] {
         | CemAstNode::ProcessingInstruction { source, .. }
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => source,
     };
     &stack.frames

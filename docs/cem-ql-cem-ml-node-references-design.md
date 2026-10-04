@@ -675,3 +675,11 @@ and consumer projection contracts.
 Adoption does not claim that these initial representations implement every
 2026-10-04 rule. The implementation checklist owns alignment and verification;
 cyclic graph/native output transport compatibility remains explicitly deferred.
+
+The schema now declares standard traversal limits of 128 reference links per
+path and 100000 work units per resolution. `ReferenceTraversalLimits` reads
+the embedded schema defaults and validates effective scope overrides, retaining
+inherited bounds when a scope omits them. This prepares consumer policy;
+shared chain traversal and unresolved-link disposition are still implementation
+work. XML reference ingestion also retains query-payload source spans when
+folding text or CDATA into the retained node.

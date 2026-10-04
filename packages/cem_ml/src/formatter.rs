@@ -87,6 +87,13 @@ fn write_node(
     at_block: bool,
 ) {
     match node {
+        CemAstNode::Reference { expression, .. } => {
+            if at_block { push_indent(out, indent); }
+            out.push('{');
+            out.push_str(expression);
+            out.push('}');
+            if at_block { out.push('\n'); }
+        }
         CemAstNode::Document { root_children, .. } => {
             for id in root_children {
                 if let Some(child) = doc.get(*id) {
@@ -444,6 +451,7 @@ fn first_source_stack(doc: &CemDocument) -> Option<SourceMapStack> {
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
         | CemAstNode::Attribute { source, .. }
+        | CemAstNode::Reference { source, .. }
         | CemAstNode::Error { source, .. } => (!source.frames.is_empty()).then(|| source.clone()),
         CemAstNode::Document { .. } => None,
     })

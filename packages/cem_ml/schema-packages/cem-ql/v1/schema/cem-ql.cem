@@ -64,7 +64,7 @@
         {attribute @name="as" @type="schema:identifier"}
         {attribute @name="scheme" @type="schema:identifier" @values="platform network package local"}
         {attribute @name="policy" @type="schema:identifier"}
-        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact parse-error invalid-utf8 module-uri-missing legacy-syntax import-alias-duplicate declaration-duplicate unresolved-import type-error expression-context-invalid data-binding-missing result-type-mismatch host-capability-denied artifact-hash-mismatch policy-mismatch source-map-unavailable"}
+        {attribute @name="kind" @type="schema:identifier" @values="variable function expression reference module artifact parse-error invalid-utf8 module-uri-missing legacy-syntax import-alias-duplicate declaration-duplicate unresolved-import type-error expression-context-invalid data-binding-missing result-type-mismatch host-capability-denied artifact-hash-mismatch policy-mismatch source-map-unavailable"}
         {attribute @name="name" @type="schema:identifier"}
         {attribute @name="type" @type="schema:string"}
         {attribute @name="nullable" @type="schema:boolean"}
@@ -131,6 +131,11 @@
     }
 
     {constraints |
+        {constraint @kind="reference-prefix-precedence" @target="expression" @policy="hash is prefix unary at precedence 9; right-associative; type tests 10, pipeline 11, and postfix 12 bind tighter"}
+        {constraint @kind="reference-node-operand" @target="expression" @policy="hash requires an AST node or ordered node sequence, including empty; rejects scalars and never performs implicit lookup, evaluation, or dereferencing"}
+        {constraint @kind="reference-target-edges" @target="expression" @policy="reference construction retains non-owning edges to every selected node kind, including reference nodes; preserve owning-document identity, order, and multiplicity without copying structural children or flattening chains"}
+        {constraint @kind="reference-chain-consumer-resolution" @target="expression" @policy="consumer-requested resolution follows effective scope-schema policy with cycle detection and a traversal depth or work bound distinct from lexical scope depth; mandatory, warning, or ignored unresolved links are distinct from resolved empty selections and do not rewrite authored edges"}
+
         {constraint @kind="query-source-parser" @target="module" @diagnostic="cem.ql.parse_error" @behavior="cem-ql-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-cem-ql-crate"}
         {constraint @kind="utf-8-decode" @target="module" @diagnostic="cem.ql.invalid_utf8" @behavior="cem-ql-parse-report-fact" @fact-kind="invalid-utf8" @policy="CEM-QL source bytes must be valid UTF-8 before parsing"}
         {constraint @kind="module-uri-required" @target="module" @diagnostic="cem.ql.module_uri_missing" @behavior="cem-ql-parse-report-fact" @fact-kind="module-uri-missing" @policy="module URI declaration is required"}
