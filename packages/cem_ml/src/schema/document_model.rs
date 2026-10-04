@@ -64,6 +64,7 @@ use crate::tokenizer::cem::CemTokenizer;
 mod value_contract;
 pub use value_contract::{convert_attribute_value, convert_attribute_value_with_check, AttributeValueContract, AttributeValueConversionError, TypedAttributeValue};
 
+pub const MODEL_NOT_READY_CODE: &str = "cem.schema_model.not_ready";
 pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
 pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";
 pub const MISSING_REQUIRED_ATTRIBUTE_CODE: &str = "cem.schema_model.missing_required_attribute";
@@ -125,6 +126,36 @@ pub struct SchemaDocumentModel {
 }
 
 impl SchemaDocumentModel {
+    /// Complete declaration-reference outcomes, with no mandatory/invalid
+    /// reference failure. Legacy structural projections may contain diagnostics
+    /// for behavior supplied by other consumers; those keep existing handling.
+    /// Package activation separately checks hard compilation diagnostics.
+    pub fn is_ready_for_validation(&self) -> bool {
+        self.declaration_references.is_complete()
+            && !self.declaration_references.failed()
+    }
+
+    pub(crate) fn validation_blocker_diagnostics(&self) -> Vec<Diagnostic> {
+        let mut diagnostics = self.compile_diagnostics.clone();
+        if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {
+            let occurrence = self.declaration_references.sites.first().map(|site| &site.occurrence);
+            diagnostics.push(Diagnostic {
+                code: MODEL_NOT_READY_CODE.into(), severity: Severity::Error,
+                message: format!("Final validation requires a complete, valid schema model ({:?})", self.declaration_references.state()),
+                uri: Some(self.schema_uri.clone()),
+                node: occurrence.map(|value| value.identity.clone()),
+                source_map: occurrence.map(|value| value.source_map.clone()),
+                byte_offset: occurrence.and_then(|value| value.source_map.origin()).and_then(|frame| match &frame.span {
+                    FrameSpan::Single(range) => Some(range.start),
+                    FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+                }),
+                details: Some(serde_json::json!({"schema_uri": self.schema_uri, "reference_state": format!("{:?}", self.declaration_references.state())})),
+                ..Diagnostic::default()
+            });
+        }
+        diagnostics
+    }
+
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
@@ -141,6 +172,7 @@ impl SchemaDocumentModel {
 #[derive(Debug, Clone, Default)]
 pub struct SchemaDocumentModelRegistry {
     models_by_schema_uri: BTreeMap<String, SchemaDocumentModel>,
+    active_models_by_schema_uri: BTreeMap<String, SchemaDocumentModel>,
 }
 
 impl SchemaDocumentModelRegistry {
@@ -149,8 +181,16 @@ impl SchemaDocumentModelRegistry {
     }
 
     pub fn register(&mut self, model: SchemaDocumentModel) {
-        self.models_by_schema_uri
-            .insert(model.schema_uri.clone(), model);
+        if model.is_ready_for_validation() {
+            self.active_models_by_schema_uri.insert(model.schema_uri.clone(), model.clone());
+        }
+        self.inspect_candidate(model);
+    }
+
+    /// Preserve a package candidate without activating it. The loader also
+    /// uses this for hard-invalid definitions outside reference evaluation.
+    pub fn inspect_candidate(&mut self, model: SchemaDocumentModel) {
+        self.models_by_schema_uri.insert(model.schema_uri.clone(), model);
     }
 
     pub fn get(&self, schema_uri: &str) -> Option<&SchemaDocumentModel> {
@@ -158,6 +198,21 @@ impl SchemaDocumentModelRegistry {
     }
 
     pub fn resolve_for_identity(
+        &self,
+        schema_uri: Option<&str>,
+        content_type: Option<&str>,
+        schema_registry: Option<&SchemaRegistry>,
+    ) -> Option<&SchemaDocumentModel> {
+        if let Some(schema_uri) = schema_uri {
+            return self.active_models_by_schema_uri.get(schema_uri);
+        }
+        schema_registry?.resolve_content_type(content_type?).ok()
+            .and_then(|descriptor| self.active_models_by_schema_uri.get(&descriptor.schema_uri))
+    }
+
+    /// Inspect the latest candidate even when it is inactive. This prevents an
+    /// inactive explicit candidate from silently falling back to a built-in.
+    pub fn inspect_for_identity(
         &self,
         schema_uri: Option<&str>,
         content_type: Option<&str>,
@@ -1057,7 +1112,7 @@ pub fn load_builtin_document_model_for_identity(
         &package.descriptor.schema_uri,
         package.schema_source,
     ))
-    .filter(|model| !model.is_empty())
+    .filter(|model| !model.is_empty() && model.is_ready_for_validation())
 }
 
 pub fn load_document_model_for_identity(
@@ -1066,10 +1121,18 @@ pub fn load_document_model_for_identity(
     schema_registry: Option<&SchemaRegistry>,
     document_models: Option<&SchemaDocumentModelRegistry>,
 ) -> Option<SchemaDocumentModel> {
-    document_models
-        .and_then(|models| models.resolve_for_identity(schema_uri, content_type, schema_registry))
-        .cloned()
-        .or_else(|| load_builtin_document_model_for_identity(schema_uri, content_type))
+    if let Some(model) = document_models.and_then(|models| {
+        models.resolve_for_identity(schema_uri, content_type, schema_registry)
+    }) {
+        return Some(model.clone());
+    }
+    if document_models.and_then(|models| {
+        models.inspect_for_identity(schema_uri, content_type, schema_registry)
+    }).is_some() {
+        // A candidate without an active registration must not trigger fallback.
+        return None;
+    }
+    load_builtin_document_model_for_identity(schema_uri, content_type)
 }
 
 pub fn validate_document_model(
@@ -1084,6 +1147,9 @@ pub fn validate_document_model_with_behavior_evaluator(
     model: &SchemaDocumentModel,
     behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
 ) -> Vec<Diagnostic> {
+    if !model.is_ready_for_validation() {
+        return model.validation_blocker_diagnostics();
+    }
     let mut diagnostics = Vec::new();
     if model.is_empty() {
         return diagnostics;

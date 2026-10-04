@@ -260,18 +260,65 @@ implementation. `git diff --check` passes.
       failure (`material_manifest_primary_templates_convert_under_engine_subset`).
       Each collection site makes one bounded resolution request; whole-document
       compilation and query-instruction budgets remain separate concerns.
-- [ ] Decide package activation for incomplete compilation: retain models for
-      inspection but keep them inactive for final validation (recommended), or
-      explicitly allow partial models to validate documents. Decision requested
-      2026-10-04. Existing loader/registry checks diagnostics alone; neutral and
-      ignore may be incomplete without diagnostics.
+- [x] Decide package activation for incomplete compilation: retain models for
+      inspection but keep them inactive for final validation (user adopted the
+      recommendation, 2026-10-04). Neutral and ignore may be incomplete without
+      diagnostics; readiness must not be inferred from diagnostics alone.
       Scenarios for later design verification: incomplete neutral/ignored models
       never appear ready accidentally; pending sources remain distinct from
       invalid schemas; completing inputs permits activation without source edits.
-- [ ] Integrate the selected readiness rule at schema package loading, registry
-      resolution and final validation. Preserve per-site states and diagnostics;
-      supply lifecycle evaluation through the consumer, without automatic
-      parser evaluation or a new scheduler.
+- [x] Fixture: block registry lookup, built-in fallback and direct final
+      validation for pending/unresolved/invalid models, including neutral and
+      ignore without link diagnostics. Preserve inspection and original facts;
+      completing the same source permits ready registration and validation.
+- [x] Fixture: load an incomplete or hard-invalid schema package without publishing its schema,
+      converter routes or artifacts. Preserve the inactive model for inspection;
+      retain converter-only package compatibility and ready package activation.
+- [x] Gate initial package publication, registry identity resolution and final
+      validation on complete reference outcomes. Package publication also retains
+      existing hard compile-error checks; legacy structural projections keep
+      their existing handling of behavior delegated to other consumers. Preserve inspection, original link dispositions and diagnostics;
+      direct blocked validation reports a consumer-operation readiness error.
+      Inactive explicit models must not fall back to built-ins. Ready converter-
+      only packages retain their existing behavior.
+      Verification: 41 reference/declaration integration tests, one package
+      readiness unit fixture and two CEM-QL runtime fixtures pass. Nx `cem_ml:test`
+      reports 2068 passing, two ignored and only the existing dropdown-template
+      failure; native-template/transform/XPath projection compatibility is preserved.
+- [x] Decide coordinated refresh of an already-active schema package: retain
+      the last complete package while inspecting an incomplete replacement,
+      then switch schema, converter routes and artifacts together (user adopted
+      recommendation, 2026-10-04). Coordinated switch implementation remains open.
+      Scenarios for later design verification: incomplete replacements cannot
+      mix old converter routes with a new schema; rejected candidates preserve
+      coherent registrations; a complete replacement switches every owned part;
+      candidate inspection remains separate from active validation identity.
+- [x] Decide replacement ownership: require the same manifest origin or an
+      explicit grant for a different origin/built-in override (user decision,
+      2026-10-04). Matching local package IDs alone must not authorize replacement.
+- [x] Decide explicit grant semantics: manifest inclusion alone does not grant
+      replacement authority; require a separate scoped runtime grant naming the
+      expected package and origin (user adopted recommendation, 2026-10-04).
+      Existing override consumers need migration. Scenarios for later design
+      verification: equal local IDs across vendors do not authorize replacement;
+      same-origin refresh works; authorized built-in overrides remain supported;
+      mismatched expected ownership fails without changing active registrations.
+- [x] Separate latest candidate inspection from last-complete active model
+      identity lookup. Incomplete replacements preserve active model/schema/
+      converter/artifact registrations. Initial inactive candidates still block
+      built-in fallback. Registry-level ready model replacement is explicit;
+      coordinated whole-package ready switching remains open.
+- [ ] Implement origin tracking, scoped replacement grants and coordinated ready
+      refresh on staged registries. Reject conflicting ownership without changing
+      active registrations; switch schema, model, converter routes and artifacts
+      together. Migrate existing implicit override callers to scoped grants.
+- [x] Fixture: retain a last complete model for active identity lookup while
+      inspecting an incomplete replacement. Verify final validation uses the
+      active model, later completion switches the model, and initial inactive
+      candidates still block built-in fallback.
+- [ ] Supply explicit lifecycle evaluation for package declaration references
+      through the production consumer host, allowing completion and activation
+      of the same source without automatic parser evaluation or a new scheduler.
 - [ ] Adapt native CEM-QL declaration views to original retained declaration
       owners for the production schema host. Do not serialize or clone source
       ASTs to manufacture target arenas; preserve lexical aliases and boundaries.

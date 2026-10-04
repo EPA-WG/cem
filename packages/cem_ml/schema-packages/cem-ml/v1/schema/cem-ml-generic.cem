@@ -125,6 +125,7 @@
     }
 
     {diagnostics |
+        {diagnostic @code="cem.schema_model.not_ready" @severity="error" @message="Final validation requires a complete, valid schema model"}
         {diagnostic @code="cem.reference.unresolved_required" @severity="error" @message="Required reference is unresolved"}
         {diagnostic @code="cem.reference.unresolved_warning" @severity="warning" @message="Reference remains unresolved"}
         {diagnostic @code="cem.schema.reference_policy_duplicate" @severity="error" @message="Reference policy must be declared once per schema scope"}

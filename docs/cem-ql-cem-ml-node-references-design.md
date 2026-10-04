@@ -767,6 +767,40 @@ handles to its own typed runtime representation, so constructed references do
 not require a fake source arena. Each site makes one bounded resolution request;
 this is not a whole-compilation work budget or an automatic lifecycle service.
 Compilation without an evaluator records unevaluated sites as pending and does
-not request evaluation. Native CEM-QL production adapters and package activation
-of incomplete models remain explicit actionable work in
+not request evaluation. Native CEM-QL production adapters and coordinated package refresh remain
+explicit actionable work in
+[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
+
+
+### Schema readiness and initial package activation (2026-10-04)
+
+Incomplete models remain available for inspection and do not participate in
+final validation. `SchemaDocumentModel::is_ready_for_validation` requires
+complete declaration-reference outcomes with no mandatory/invalid reference
+failure. Legacy structural projections retain their existing treatment of
+behavior supplied by other consumers; package publication separately rejects
+hard compilation diagnostics.
+`SchemaDocumentModelRegistry::get` and `inspect_for_identity` retain candidates;
+`resolve_for_identity` returns the last complete active model. Initial inactive
+candidates block built-in fallback. During refresh, inspection retains the new
+candidate while validation continues using the last complete model.
+
+Final validation does not run structural or behavior checks on inactive models.
+It preserves original compilation diagnostics. When those diagnostics do not
+already express a hard failure, the attempted final operation reports
+`cem.schema_model.not_ready`. This is a consumer-operation readiness error;
+it does not change the schema's neutral/warning/ignore unresolved-link policy
+or insert a diagnostic into the retained model's link facts.
+
+Initial package loading retains incomplete models for inspection and withholds
+schema registration, converter routes and package artifacts. Source-only loading
+records unevaluated declaration references as pending, without executing them.
+Ready packages and converter-only packages keep their existing publication path.
+An incomplete replacement does not replace existing schema/model/converter/
+artifact registrations. Coordinated ready replacement requires the same manifest
+origin or an explicit scoped runtime grant naming the expected package and
+origin for a different-origin or built-in override. Manifest inclusion alone
+does not grant replacement authority. Origin tracking, grant APIs and the
+atomic switch remain open implementation work. Production
+lifecycle evaluation and coordinated replacement remain actionable work, with verification scenarios, in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).

@@ -995,13 +995,15 @@ fn register_validated_schema_package_manifest(
     let package_id_hint = "external-schema-package";
     let mut diagnostics = Vec::new();
 
-    register_schema_document_model_from_validated_schema_package_manifest(
+    if !register_schema_document_model_from_validated_schema_package_manifest(
         context,
         manifest_source,
         manifest_uri,
         package_id_hint,
         &mut diagnostics,
-    );
+    ) {
+        return diagnostics;
+    }
 
     match conversion_descriptors_from_validated_schema_package_manifest(
         package_id_hint,
@@ -1054,17 +1056,17 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
     manifest_uri: &str,
     package_id_hint: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let schema_source_path = match schema_source_path_from_manifest_source(manifest_source) {
         Ok(Some(schema_source_path)) => schema_source_path,
-        Ok(None) => return,
+        Ok(None) => return true,
         Err(error) => {
             diagnostics.push(schema_package_manifest_error_diagnostic(
                 manifest_uri,
                 "schema metadata",
                 error,
             ));
-            return;
+            return false;
         }
     };
     let read = match read_schema_package_schema_source(context, manifest_uri, &schema_source_path) {
@@ -1077,7 +1079,7 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
                     "schema package manifest `{manifest_uri}` references unreadable schema source `{schema_source_path}`: {error}"
                 ),
             ));
-            return;
+            return false;
         }
     };
     let schema_source = match String::from_utf8(read.bytes) {
@@ -1091,7 +1093,7 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
                     read.uri
                 ),
             ));
-            return;
+            return false;
         }
     };
     let descriptor = match schema_descriptor_from_manifest_and_schema_sources(
@@ -1107,18 +1109,19 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
                 "schema metadata",
                 error,
             ));
-            return;
+            return false;
         }
     };
-    let model = compile_schema_document_model(&descriptor.schema_uri, &schema_source);
-    if !model.compile_diagnostics.is_empty() {
-        diagnostics.extend(model.compile_diagnostics.into_iter().map(|mut diagnostic| {
-            if diagnostic.uri.is_none() {
-                diagnostic.uri = Some(read.uri.clone());
-            }
-            diagnostic
-        }));
-        return;
+    let mut model = compile_schema_document_model(&descriptor.schema_uri, &schema_source);
+    for diagnostic in &mut model.compile_diagnostics {
+        if diagnostic.uri.is_none() { diagnostic.uri = Some(read.uri.clone()); }
+    }
+    diagnostics.extend(model.compile_diagnostics.clone());
+    if !model.is_ready_for_validation()
+        || model.compile_diagnostics.iter().any(|d| d.severity.is_hard_violation())
+    {
+        context.schema_document_models.inspect_candidate(model);
+        return false;
     }
     if context
         .schema_registry
@@ -1127,7 +1130,10 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
             schema_descriptor_matches_registered_identity(existing, &descriptor)
         })
     {
-        return;
+        if !model.is_empty() || !model.declaration_references.sites.is_empty() {
+            context.schema_document_models.register(model);
+        }
+        return true;
     }
     if let Err(error) = context.schema_registry.register(descriptor) {
         diagnostics.push(schema_package_load_diagnostic(
@@ -1135,11 +1141,12 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
             "cem.schema_package.schema_registration_failed",
             format!("schema package schema could not be registered: {error}"),
         ));
-        return;
+        return false;
     }
-    if !model.is_empty() {
+    if !model.is_empty() || !model.declaration_references.sites.is_empty() {
         context.schema_document_models.register(model);
     }
+    true
 }
 
 fn schema_descriptor_matches_registered_identity(
@@ -22874,6 +22881,68 @@ mod tests {
             "unexpected diagnostics: {:?}",
             resp.diagnostics
         );
+    }
+
+    #[test]
+    fn schema_package_readiness_gates_schema_converter_and_artifact_publication() {
+        const URI: &str = "https://example.test/ns/readiness/1";
+        const SOURCE_URI: &str = "cem+test://readiness/schema.cem";
+        const PENDING: &[u8] = br#"{schema @name="readiness" @namespace="https://example.test/ns/readiness/1" @version="1.0.0" | {elements | {element @name="shared"} {#library}} }"#;
+        const READY: &[u8] = br#"{schema @name="readiness" @namespace="https://example.test/ns/readiness/1" @version="1.0.0" | {elements | {element @name="shared"}} }"#;
+        let manifest = r#"{package @id="readiness" @version="1.0.0" |
+            {schema @uri="https://example.test/ns/readiness/1" @source="schema.cem"}
+            {content-type @value="application/x-readiness+cem" @primary=true}
+            {converter @id="fixture-readiness" @implementation="rust" @rust-symbol="CemMlDomProjectionConverter" @streamable=true @lossiness="lossless" @implicit=false @readiness="ready" @cost=100 |
+                {from @content-type="application/x-readiness+cem" @schema="https://example.test/ns/readiness/1"}
+                {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+            }
+            {artifact @kind="formatter" @path="formatter.cemt" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="application/x-readiness+cem" @target-schema="https://example.test/ns/readiness/1" @target-category="cem-tree" @function-name="fixture.format" @formatter-profile="compact"}
+        }"#;
+        for (source, ready) in [(PENDING, false), (READY, true)] {
+            let mut context = context_with_resolver("cem+test", ResolvePurpose::Template,
+                MapReadResolver {entries: vec![(SOURCE_URI, source, Some(CEM_SCHEMA_CONTENT_TYPE))]});
+            let before = context.converter_registry.package_artifacts().count();
+            let diagnostics = register_validated_schema_package_manifest(&mut context, manifest, "cem+test://readiness/package.cem");
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+            let model = context.schema_document_models.get(URI).expect("inspectable model");
+            assert_eq!(model.is_ready_for_validation(), ready);
+            assert_eq!(context.schema_registry.schema(URI).is_some(), ready);
+            assert_eq!(context.converter_registry.converter("fixture-readiness").is_some(), ready);
+            assert_eq!(context.converter_registry.package_artifacts().count(), before + usize::from(ready));
+            if !ready {
+                assert_eq!(model.declaration_references.state(), crate::value::reference_resolution::ReferenceResolutionState::Pending);
+                assert!(model.compile_diagnostics.is_empty());
+            } else {
+                context.resolver_registry.register("cem+test", ResolvePurpose::Template, ResolveDirection::Read,
+                    MapReadResolver {entries: vec![(SOURCE_URI, PENDING, Some(CEM_SCHEMA_CONTENT_TYPE))]});
+                let diagnostics = register_validated_schema_package_manifest(&mut context, manifest, "cem+test://readiness/package.cem");
+                assert!(diagnostics.is_empty(), "{diagnostics:?}");
+                assert!(!context.schema_document_models.get(URI).unwrap().is_ready_for_validation());
+                assert!(context.schema_document_models.resolve_for_identity(Some(URI), None, None).unwrap().is_ready_for_validation());
+                assert!(context.schema_registry.schema(URI).is_some());
+                assert!(context.converter_registry.converter("fixture-readiness").is_some());
+                assert_eq!(context.converter_registry.package_artifacts().count(), before + 1);
+            }
+        }
+        let converter_only = manifest.replace(r#"{schema @uri="https://example.test/ns/readiness/1" @source="schema.cem"}"#, "");
+        let mut context = ctx();
+        let before = context.converter_registry.package_artifacts().count();
+        let diagnostics = register_validated_schema_package_manifest(&mut context, &converter_only, "cem+test://readiness/converters.cem");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert!(context.converter_registry.converter("fixture-readiness").is_some());
+        assert_eq!(context.converter_registry.package_artifacts().count(), before + 1);
+
+        const INVALID: &[u8] = br#"{schema @name="readiness" @namespace="https://example.test/ns/readiness/1" @version="1.0.0" | {elements | {element @name="shared"}} {attributes | {attribute @name="own" @values="allowed" @default="outside"}} }"#;
+        let mut context = context_with_resolver("cem+test", ResolvePurpose::Template,
+            MapReadResolver {entries: vec![(SOURCE_URI, INVALID, Some(CEM_SCHEMA_CONTENT_TYPE))]});
+        let before = context.converter_registry.package_artifacts().count();
+        let diagnostics = register_validated_schema_package_manifest(&mut context, manifest, "cem+test://readiness/package.cem");
+        assert!(diagnostics.iter().any(|d| d.severity.is_hard_violation()));
+        assert!(context.schema_document_models.get(URI).is_some());
+        assert!(context.schema_document_models.resolve_for_identity(Some(URI), None, None).is_none());
+        assert!(context.schema_registry.schema(URI).is_none());
+        assert!(context.converter_registry.converter("fixture-readiness").is_none());
+        assert_eq!(context.converter_registry.package_artifacts().count(), before);
     }
 
     #[test]

@@ -1407,6 +1407,14 @@ impl SemanticRule for SchemaDocumentModelRule {
     }
 
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
+        if let Some(model) = ctx.schema_document_models.and_then(|models| {
+            if models.resolve_for_identity(ctx.schema_uri, ctx.content_type, ctx.schema_registry).is_some() {
+                return None;
+            }
+            models.inspect_for_identity(ctx.schema_uri, ctx.content_type, ctx.schema_registry)
+        }) {
+            return model.validation_blocker_diagnostics();
+        }
         run_schema_document_model_rule_with_model(
             ctx,
             load_document_model_for_identity(

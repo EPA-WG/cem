@@ -540,3 +540,214 @@ fn runtime_constructed_references_need_no_saved_arena_or_context_handle() {
     drop(complete);
     assert!(weak_owner.upgrade().is_none());
 }
+
+#[test]
+fn incomplete_models_are_inspectable_but_never_ready_for_final_validation() {
+    use cem_ml::schema::document_model::{
+        load_document_model_for_identity, validate_document_model, SchemaDocumentModelRegistry,
+    };
+    use cem_ml::schema::registry::{SchemaRegistry, CEM_ML_SCHEMA_URI};
+    let source = reference("library");
+    for disposition in ["neutral", "mandatory", "warning", "ignore"] {
+        let mut host = Host::new();
+        host.disposition(disposition);
+        let mut model = host.resolve(source.clone());
+        model.schema_uri = CEM_ML_SCHEMA_URI.into();
+        assert!(!model.is_ready_for_validation());
+        let original_count = model.compile_diagnostics.len();
+        let mut registry = SchemaDocumentModelRegistry::new();
+        registry.register(model.clone());
+        assert!(registry.get(CEM_ML_SCHEMA_URI).is_some());
+        assert!(registry
+            .resolve_for_identity(Some(CEM_ML_SCHEMA_URI), None, None)
+            .is_none());
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        assert!(registry
+            .resolve_for_identity(None, Some("application/cem"), Some(&schemas))
+            .is_none());
+        assert!(load_document_model_for_identity(
+            Some(CEM_ML_SCHEMA_URI),
+            None,
+            Some(&schemas),
+            Some(&registry)
+        )
+        .is_none());
+        assert!(load_document_model_for_identity(
+            None,
+            Some("application/cem"),
+            Some(&schemas),
+            Some(&registry)
+        )
+        .is_none());
+        use cem_ml::validation::{rules::SchemaDocumentModelRule, RuleContext, SemanticRule};
+        let document = parse("{unknown}");
+        let rule_diagnostics = SchemaDocumentModelRule.run(&RuleContext {
+            document: &document,
+            schema_uri: Some(CEM_ML_SCHEMA_URI),
+            content_type: Some("application/cem"),
+            source_uri: Some("input.cem"),
+            resource_reader: None,
+            schema_registry: Some(&schemas),
+            schema_document_models: Some(&registry),
+            upstream_diagnostics: &[],
+            schema_behavior_evaluator: None,
+        });
+        assert!(rule_diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation()));
+        assert!(!rule_diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_model.unknown_element"));
+        let diagnostics = validate_document_model(&parse("{unknown}"), &model);
+        assert!(diagnostics.iter().any(|d| d.severity.is_hard_violation()));
+        assert!(!diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_model.unknown_element"));
+        if disposition != "mandatory" {
+            assert!(diagnostics
+                .iter()
+                .any(|d| d.code == "cem.schema_model.not_ready"));
+        }
+        assert_eq!(model.compile_diagnostics.len(), original_count);
+        assert_eq!(
+            model.declaration_references.state(),
+            ReferenceResolutionState::Unresolved
+        );
+    }
+}
+
+#[test]
+fn completing_the_same_source_activates_the_model_without_source_changes() {
+    use cem_ml::schema::document_model::{validate_document_model, SchemaDocumentModelRegistry};
+    let source = reference("library");
+    let library =
+        parse(r#"{schema | {elements | {element @name="shared" @required-attributes="own"}} }"#);
+    let mut host = Host::new();
+    let mut registry = SchemaDocumentModelRegistry::new();
+    registry.register(host.resolve(source.clone()));
+    assert!(registry
+        .resolve_for_identity(Some("consumer"), None, None)
+        .is_none());
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "element")]),
+    );
+    let ready = host.resolve(source.clone());
+    assert!(ready.is_ready_for_validation());
+    registry.register(ready);
+    let model = registry
+        .resolve_for_identity(Some("consumer"), None, None)
+        .unwrap();
+    assert!(validate_document_model(&parse("{shared @own=present}"), model).is_empty());
+    assert!(validate_document_model(&parse("{shared}"), model)
+        .iter()
+        .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
+    assert!(source
+        .nodes
+        .iter()
+        .any(|value| matches!(value, CemAstNode::Reference { targets: None, .. })));
+}
+
+#[test]
+fn inactive_models_do_not_run_behavior_hooks_or_hide_original_errors() {
+    use cem_ml::schema::document_model::{
+        validate_document_model_with_behavior_evaluator, SchemaBehaviorEvaluator,
+        SchemaDocumentModel,
+    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    #[derive(Debug, Default)]
+    struct Hooks(AtomicUsize);
+    impl SchemaBehaviorEvaluator for Hooks {
+        fn compile_model(&self, _: &SchemaDocumentModel) -> Vec<Diagnostic> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            vec![]
+        }
+        fn validate_document(&self, _: &CemDocument, _: &SchemaDocumentModel) -> Vec<Diagnostic> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            vec![]
+        }
+    }
+    let mut host = Host::new();
+    let pending = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=shared} {#library}} }",
+    );
+    let hooks = Hooks::default();
+    let diagnostics =
+        validate_document_model_with_behavior_evaluator(&parse("{shared}"), &pending, Some(&hooks));
+    assert_eq!(diagnostics[0].code, "cem.schema_model.not_ready");
+    assert_eq!(hooks.0.load(Ordering::Relaxed), 0);
+    let original = Diagnostic {
+        code: "fixture.original-invalid".into(),
+        severity: Severity::Error,
+        message: "original expression failure".into(),
+        ..Default::default()
+    };
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Invalid(vec![original]),
+    );
+    let invalid = host.resolve(reference("library"));
+    let diagnostics =
+        validate_document_model_with_behavior_evaluator(&parse("{shared}"), &invalid, Some(&hooks));
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].code, "fixture.original-invalid");
+    assert_eq!(hooks.0.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn an_incomplete_replacement_preserves_the_last_complete_active_model() {
+    use cem_ml::schema::document_model::{
+        load_document_model_for_identity, validate_document_model, SchemaDocumentModelRegistry,
+    };
+    let library =
+        parse(r#"{schema | {elements | {element @name=shared @required-attributes=own}} }"#);
+    let source = reference("library");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "element")]),
+    );
+    let mut registry = SchemaDocumentModelRegistry::new();
+    registry.register(host.resolve(source.clone()));
+    host.outcomes.clear();
+    registry.register(host.resolve(source.clone()));
+    assert!(!registry.get("consumer").unwrap().is_ready_for_validation());
+    let active = registry
+        .resolve_for_identity(Some("consumer"), None, None)
+        .unwrap();
+    assert!(active.is_ready_for_validation());
+    assert!(active
+        .element("shared")
+        .unwrap()
+        .required_attributes
+        .contains("own"));
+    assert!(
+        load_document_model_for_identity(Some("consumer"), None, None, Some(&registry))
+            .unwrap()
+            .is_ready_for_validation()
+    );
+    assert!(validate_document_model(&parse("{shared}"), active)
+        .iter()
+        .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
+    let replacement =
+        parse(r#"{schema | {elements | {element @name=shared @required-attributes=new}} }"#);
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&replacement, "element")]),
+    );
+    registry.register(host.resolve(source));
+    let active = registry
+        .resolve_for_identity(Some("consumer"), None, None)
+        .unwrap();
+    assert!(active
+        .element("shared")
+        .unwrap()
+        .required_attributes
+        .contains("new"));
+    assert!(!active
+        .element("shared")
+        .unwrap()
+        .required_attributes
+        .contains("own"));
+}

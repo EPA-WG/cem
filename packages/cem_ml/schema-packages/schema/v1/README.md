@@ -2442,5 +2442,18 @@ or ignored unresolved link may have no diagnostic and still be incomplete.
 The ordinary source-only compiler records collection references as pending
 without invoking an evaluator; resolved-empty selections remain distinct.
 
-Package activation/readiness and the production CEM-QL host adapter remain
-tracked in [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+`model.is_ready_for_validation()` requires complete declaration-reference
+outcomes without mandatory/invalid reference failure. Legacy structural
+projections keep their existing handling of behavior supplied by other consumers.
+Package publication separately checks hard compilation diagnostics. Registry `get`/`inspect_for_identity` preserve inactive candidates;
+`resolve_for_identity` selects the last complete active model. An initial
+inactive candidate blocks built-in fallback; an incomplete replacement remains
+inspectable while the last complete model continues validating. Final validation skips structural and behavior checks
+on inactive models, preserving original compile errors or reporting the
+consumer-operation `cem.schema_model.not_ready` error. This does not change
+unresolved-link disposition or mutate the retained model's diagnostics.
+
+Initial package loading retains incomplete models while withholding schema,
+converter and artifact publication. Converter-only packages remain compatible.
+Coordinated refresh of active packages and the production CEM-QL lifecycle host
+remain tracked in [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
