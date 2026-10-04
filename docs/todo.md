@@ -116,6 +116,24 @@ implementation. `git diff --check` passes.
 
 ### 3. Complete node-valued query construction
 
+- [x] Fixture: construct references to all retained AST node kinds, including
+      raw text, errors and retained reference occurrences. Verify repeated and
+      mixed targets, absent versus empty source-reference targets, independent
+      same-content document owners, and dynamic rejection of scalar operands.
+      Preserve existing `data:read(...).id` selection keys across fresh reads
+      while distinguishing their runtime node-owner identities.
+- [x] Align the imported typed query view with retained reference fields and
+      distinguish independently imported document owners from source content
+      fingerprints. Keep authored graph edges separate from structural children.
+      Importable source kinds use the native retained-tree view; explicitly
+      supplied typed error nodes remain eligible operands without changing the
+      semantic import boundary's rejection of source errors. Query-local
+      memoization may reuse one import; independent executions have distinct
+      owners. Eight query reference fixtures, focused import/view tests, and
+      all six viewer-selection compatibility tests pass. Full CEM-QL native
+      verification through Nx passes 829 tests. The initial broad run exposed
+      stable `.id` selection-key compatibility; that behavior is preserved
+      separately from runtime owner identity and covered by the rerun.
 - [x] Fixture: distinguish an unevaluated reference's absent targets from a
       resolved empty target list in the parser-backed typed query view. Verify
       repeated cyclic edges remain non-owning and are not followed by inspection.
@@ -125,12 +143,12 @@ implementation. `git diff --check` passes.
 - [x] Correct the initial precedence fixture to inspect typed reference targets
       through the runtime view rather than assuming an adopted `.targets`
       query operation. Public query target-access spelling remains deferred.
-- [ ] Fixture: verify unary precedence/grouping and strict operands for every
+- [x] Fixture: verify unary precedence/grouping and strict operands for every
       supported AST node kind, attribute nodes, empty sequences, ordered and
       repeated targets, mixed ordinary/reference nodes, and `##nodes`. Reject
       statically and dynamically supplied scalars, including strings that look
       like IDs, URLs, or query source; construction must not follow chains.
-- [ ] Align query parsing, type checking, IR lowering, and evaluation with the
+- [x] Align query parsing, type checking, IR lowering, and evaluation with the
       schema contracts. Construct non-owning reference edges through retained
       typed CEM node views, preserving target order, multiplicity, owning
       document identity, and reference occurrence identity. Keep legacy helper

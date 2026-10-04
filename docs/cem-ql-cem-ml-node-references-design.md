@@ -683,3 +683,15 @@ inherited bounds when a scope omits them. This prepares consumer policy;
 shared chain traversal and unresolved-link disposition are still implementation
 work. XML reference ingestion also retains query-payload source spans when
 folding text or CDATA into the retained node.
+
+The native imported CEM query view preserves reference expression, lexical
+context and optional target edges. Unevaluated targets remain absent, distinct
+from resolved-empty targets. Construction accepts importable source node kinds
+and explicitly supplied typed error nodes; the semantic import boundary still
+rejects source error nodes. Independently imported document owners retain
+distinct runtime identities even for equal source content, while repeated
+selections preserve the same owner's identity. Query-local memoization may
+reuse an import result. Existing `data:read(...).id` selection keys remain
+source-derived across fresh unchanged reads and are distinct from runtime
+owner identity. These view fields do not adopt a new public query
+target-access spelling or implement chain resolution.

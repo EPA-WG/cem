@@ -317,8 +317,13 @@ The matching XPath functions are `Q{urn:cem:source}node-key($node)` and
 `Q{urn:cem:source}line-number($node)`. Both languages use the same native tree
 accessors. Identical source identity, bytes and import/projection profile keep
 the key across rerenders; edits or profile changes invalidate it. Keys do not
-change XPath node identity and do not track nodes across edits. Existing `.id`
-values are unchanged. Parser-only lifecycle/compatibility imports without
+change XPath node identity and do not track nodes across edits. Existing
+`data:read(...).id` values remain source-derived selection keys across unchanged
+rerenders. Runtime node identity distinguishes independently imported CEM
+document owners even when their source bytes and selection keys match;
+Selections and copied handles of one retained owner preserve its runtime identity.
+Repeated reads within one query may reuse its memoized import result.
+Parser-only lifecycle/compatibility imports without
 original input bytes have no source key, though retained locations remain usable.
 
 For CSV, `data:read(source, "text/csv;header=present")` explicitly selects named

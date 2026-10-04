@@ -53,6 +53,7 @@ pub fn imported_cem_tree(tree: Arc<RetainedCemTree>) -> Item {
     Item::native(CemAstView {
         owner: Arc::new(Imported {
             identity: format!("cem:{:p}", Arc::as_ptr(&tree)),
+            selection_key: None,
             tree: Some(tree),
             source: String::new(),
             error: String::new(),
@@ -66,6 +67,9 @@ struct Imported {
     tree: Option<Arc<RetainedCemTree>>,
     source: String,
     identity: String,
+    // Compatibility key for data:read selection across unchanged rerenders.
+    // It is not the identity of a retained document owner.
+    selection_key: Option<String>,
     error: String,
 }
 
@@ -83,11 +87,18 @@ pub(super) fn read(source: &str, format: &str, projection: &str) -> Item {
     if projection == "xpath" {
         return xpath_view::report(tree, error);
     }
+    // Equal source bytes do not identify an independently imported document.
+    // Match the host-supplied retained-tree view's owner identity instead.
+    let identity = tree
+        .as_ref()
+        .map(|tree| format!("cem:{:p}", Arc::as_ptr(tree)))
+        .unwrap_or_else(|| format!("read-error:{:016x}", hash.finish()));
     Item::native(CemAstView {
         owner: Arc::new(Imported {
             tree,
             source: source.into(),
-            identity: format!("{:016x}", hash.finish()),
+            identity,
+            selection_key: Some(format!("{:016x}", hash.finish())),
             error,
         }),
         node: None,
@@ -255,7 +266,13 @@ impl QueryItemView for CemAstView {
         };
         let node = self.owner.tree.as_ref()?.ast().get(id)?;
         if name == "id" {
-            return Some(string(self.identity()));
+            return Some(string(
+                self.owner
+                    .selection_key
+                    .as_ref()
+                    .map(|key| format!("{key}:{:?}", self.node))
+                    .unwrap_or_else(|| self.identity()),
+            ));
         }
         if name == "line" {
             if self.owner.source.is_empty() {
@@ -301,6 +318,12 @@ impl QueryItemView for CemAstView {
             return Some(out);
         }
         Some(match (node, name) {
+            (CemAstNode::Reference { .. }, "kind") => string("reference"),
+            (CemAstNode::Reference { expression, .. }, "expression") => string(expression),
+            (CemAstNode::Reference { context, .. }, "context") => vec![self.item(*context)],
+            (CemAstNode::Reference { targets, .. }, "targets") => {
+                targets.as_ref()?.iter().map(|id| self.item(*id)).collect()
+            }
             (CemAstNode::Document { .. }, "kind") => string("document"),
             (CemAstNode::Element { .. }, "kind") => string("element"),
             (CemAstNode::Attribute { .. }, "kind") => string("attribute"),
