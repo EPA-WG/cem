@@ -4,6 +4,16 @@
 
 **Scope:** authoring API, native lowering, relationship resolution, semantics, focus, geometry, lifecycle, diagnostics, and verification. Implementation and migration sequencing are subsequent tasks. Architecture derives from fresh research and accepted discussion, not existing CEM separation.
 
+**Reference revision adopted 2026-10-04:** the
+[CEM AST reference contract](cem-ql-cem-ml-node-references-design.md) governs
+scope defaults, explicit scope crossings, runtime evaluation, and unresolved
+links. The `cem-element` reference mode and concrete interaction attribute API
+are deferred until that reference design is complete, with action items and
+verification scenarios in
+[todo.md](todo.md#deferred-cem-element-reference-consumption). This revision
+supersedes the former CEM-specific bare `#id` browser-tree lookup contract;
+native HTML ID attributes and invoker syntax remain at the HTML boundary.
+
 ## 1. Invariants and component roles
 
 An action requests an operation; the surface owns actual visibility. Business checked values are separate. Invoker, target, anchor, fitting boundary, and return-focus destination are distinct relationships. Semantics and presentation are independent, with validated combinations.
@@ -33,15 +43,15 @@ Examples are HTML API illustrations, not executable fixtures or CEM-ML conversio
 | Attribute | Applies to | Meaning |
 | --- | --- | --- |
 | `trigger` | Popup/dialog/menu | Literal plain-text generated button label |
-| `trigger-for` | Popup/dialog/menu | One unprefixed element ID naming an external invoker/control provider |
-| `interaction-scope` | Participating container | Presence establishes local registry |
-| `interaction-name` | Surface/descriptor | Unique name in nearest explicit registry |
+| `trigger-for` | Popup/dialog/menu | External invoker/control relationship; reference input API deferred |
+| `interaction-scope` | Participating container | Explicit interaction boundary; relationship to implied scope defaults deferred |
+| `interaction-name` | Surface/descriptor | Local convenience name; compatibility and resolution API deferred |
 | `surface-id` | Surface provider | Explicit ID on the produced native owner, for native external invokers |
-| `command-target` | CEM action/descriptor | CEM reference: `@local-name` or `#element-id` |
+| `command-target` | CEM action/descriptor | Element/provider reference; concrete typed input and local-name convenience API deferred |
 | `command` | CEM action/descriptor | Native built-in or namespaced custom command |
-| `interaction` | CEM action | `@name` or `#id` naming shared descriptor |
+| `interaction` | CEM action | Shared descriptor reference; concrete input API deferred |
 | `context-key` | CEM action/descriptor | Opaque item key captured at invocation; declaratively bindable |
-| `parent-item` | Independent submenu | `#id` naming parent control/provider |
+| `parent-item` | Independent submenu | Explicit parent control/provider relationship; reference syntax deferred |
 
 Do not use `action` as a trigger alias. Do not overload native link `target`, form `name`, or stylesheet `scope`. Values are references/plain data, not selectors or a new expression language. Rich invocation context uses native CEM data bindings.
 
@@ -59,14 +69,14 @@ Native `commandfor`, `popovertarget`, `popovertargetaction`, `interestfor`, and 
 | `label` | Plain text | Accessible name; native naming/heading precedence below |
 | `default-open` | Presence boolean | Initial-open request once, not ongoing writable state |
 | `presentation` | `inline`, `local`, `top-layer` | Derived from semantic/native owner |
-| `anchor` | `invoker`, `pointer`, `selection`, `#id` | Relationship-derived; centered task has no required anchor |
+| `anchor` | `invoker`, `pointer`, `selection`, explicit node reference (syntax deferred) | Relationship-derived; centered task has no required anchor |
 | `placement` | Logical side + alignment, or `center` | Grammar in section 9 |
-| `boundary` | `viewport`, `#id` | Viewport; child menus inherit explicit parent boundary |
+| `boundary` | `viewport`, explicit node reference (syntax deferred) | Viewport; child menus inherit explicit parent boundary |
 | `fallback` | Comma-separated placements | Ordered opposite-side profile default |
 | `overflow` | Tokens `flip shift resize`, or `hide` | Default flip shift resize; hide cannot mix with others |
 | `anchor-lost` | `close`, `freeze` | Attached transient: close; persistent task: freeze |
-| `focus-target` | `auto`, `none`, `#id` | Semantic default; explicit target inside surface |
-| `return-focus` | `auto`, `none`, `#id` | Reason-aware auto restoration |
+| `focus-target` | `auto`, `none`, explicit node reference (syntax deferred) | Semantic default; explicit target inside surface |
+| `return-focus` | `auto`, `none`, explicit node reference (syntax deferred) | Reason-aware auto restoration |
 | `materialize` | `eager`, `retain`, `dispose` | Eager children: eager; designated template: retain |
 | `context-change` | `reject`, `replace`, `request` | Reject different item in open task by default |
 | `close-label` | Plain text | Optional generated named close control |
@@ -90,9 +100,28 @@ Projected roots keep their slot hooks; no wrappers solely to manufacture parts. 
 
 ## 3. Resolution and precedence
 
-`@name` resolves only within the nearest explicit `interaction-scope`, without ancestor/document fallback. `#id` uses element-ID resolution within the same DOM tree; no iframe crossing. Names are case-sensitive nonempty tokens of letters/digits/underscore/hyphen/dot, unique across surfaces and descriptors in each registry. Native IDs retain normal ID rules.
+Scope syntax and the applicable schema imply the root and matching property;
+defaults avoid repeated reference declarations or required authored root IDs.
+Enclosed child overrides are bounded by their child scope. Equal ID strings in
+different vendor scopes do not select one shared target. Crossing a scope
+boundary requires an explicitly defined relationship.
 
-Scopes are explicitly participating containers, not every menu/dialog. Forward references may resolve during a connection batch; unresolved targets are diagnosed after the batch settles and cannot execute surface commands. Dynamic removal invalidates bindings and cleans up sessions. Repeated scopes allocate stable unique native IDs through rerender/resume.
+The runtime supplies context and evaluation timing at its lifecycle stage.
+Unresolved links follow the applicable scope schema's mandatory, warning, or
+ignore rule. A missing target cannot execute a surface command; tolerating an
+unresolved link does not invent an operable target. Dynamic removal invalidates
+active relationships and cleans up sessions under the runtime lifecycle.
+
+The `#id` convention belongs to URL fragment access to externally exposed
+document parts at the resource/consumer boundary. It is not a CEM-specific
+browser-tree lookup or a CEM-QL string lookup. Native HTML ID relationships
+continue to follow their native contract.
+
+The consumer follow-up specifies template reference detection, the element-to-ID
+resolution mode, concrete cross-scope inputs, and compatibility with local-name
+conveniences. It must decide how the existing `@name`, `interaction-name`, and
+`interaction-scope` forms fit implicit scope defaults. This revision does not
+choose replacement spellings or a new registry/root-marking requirement.
 
 | Combination | Resolution |
 | --- | --- |
@@ -135,6 +164,10 @@ Trigger and native dialog are siblings; body materializes on first open and rema
 
 ### Independent local target
 
+The local-name spelling below records the earlier convenience API. Its
+compatibility and scope-marker requirements are deferred consumer decisions;
+the example does not establish a required root marker for CEM references.
+
 ```html
 <section interaction-scope>
   <cem-action command-target="@editor" command="--cem-show"
@@ -150,6 +183,9 @@ Trigger and native dialog are siblings; body materializes on first open and rema
 Multiple launchers observe actual state; accepted invocation determines source/context. Different context cannot replace an open task under default reject policy.
 
 ### Shared descriptor
+
+The descriptor composition remains accepted; its local-name reference spelling
+is subject to the same deferred consumer API decision.
 
 ```html
 <section interaction-scope>
@@ -176,7 +212,18 @@ A CEM surface provider exposes exactly one stable native owner; an action provid
 | `--cem-request-close` | Policy-aware cancellation request |
 | `--cem-close` | Explicit forced closure bypassing task guard |
 
-With `command-target`, built-ins resolve/lower to the actual native owner ID; custom CEM commands target the stable provider endpoint. Generated triggers choose a native route when it preserves full policy, otherwise a shared adapter. Generated close controls use native request-close for ordinary native dialog cancellation, with adapters for other policies.
+CEM interaction references designate the appropriate element/provider;
+built-ins ultimately address the actual native owner, while custom CEM
+commands target the stable provider endpoint. `cem-element` owns detecting
+references in templates and the mode resolving element references to produced
+IDs, preserving explicit IDs or generating them when needed. Specification
+and implementation of that mode remain deferred in
+[todo.md](todo.md#deferred-cem-element-reference-consumption). CEM-ML does not
+choose the native owner or perform ID extraction.
+
+Generated triggers choose a native route when it preserves full policy,
+otherwise a shared adapter. Generated close controls use native request-close
+for ordinary native dialog cancellation, with adapters for other policies.
 
 Native `commandfor` is forwarded unchanged and is never rewritten to descendant IDs. `surface-id` exposes a predictable authored ID on the exact native owner without moving the provider host ID. It must be unique within the tree; an adopted native owner with a conflicting ID is diagnosed rather than renamed. Built-in commands targeting unsuitable hosts produce a diagnostic for participating CEM relationships. Unknown application custom commands remain available and are not interpreted as popup requests without a registered provider.
 
@@ -341,11 +388,18 @@ Use stable names with source location and related declarations:
 - interaction-focus-target-invalid, interaction-anchor-unavailable.
 - interaction-context-rejected, interaction-open-failed.
 
+For unresolved reference links, apply the scope schema's mandatory, warning,
+or ignore disposition before emitting a missing-reference diagnostic. An
+ignored unresolved relationship still cannot execute a surface command.
+
 Do not silently change semantic kind, overwrite authored roles, or bind the first eligible descendant. Disable only an invalid surface-command relationship, preserving unrelated valid native form/link behavior. Generated invalid controls must not imply an operable popup. Unknown custom application commands are not automatically errors.
 
 ## 13. Acceptance matrix and delivery scope
 
-All seven adopted conveniences are specified: semantic inference; inherited submenu context; invocation/focus-return capture; close affordance; template-retained body; leaf dismissal; local names.
+All seven conveniences remain accepted: semantic inference; inherited submenu
+context; invocation/focus-return capture; close affordance; template-retained
+body; leaf dismissal; local names. The concrete reference input API and
+local-name compatibility are deferred as described above.
 
 | Area | Required evidence |
 | --- | --- |
@@ -368,6 +422,12 @@ Deferred: async service completion, loading/error visual slots, global shortcut/
 
 ## 14. Accepted decisions
 
-Public names and contracts in this document are accepted. The accepted defaults are: persistent nonmodal dialog; strict nearest-scope names with explicit @/# references; body-template retention with disposal only when requested; recursive command menus without popup hosts.
+Public names and contracts are accepted subject to the 2026-10-04 reference
+revision and its deferred consumer API. Accepted defaults include persistent
+nonmodal dialog, inherited scope relationships with explicit scope crossings,
+body-template retention with disposal only when requested, and recursive
+command menus without popup hosts. Bare CEM `#id` browser-tree lookup is
+superseded; local-name input compatibility and the reference-to-ID mode remain
+actionable follow-ups.
 
 Future implementation must follow these names and contracts. Changes to the accepted design must be explicit document revisions rather than implementation-local deviations. Design acceptance remains distinct from implementing these APIs or changing currently shipped behavior. Standards sources define native behavior; CEM defaults and extra relationships are design decisions. Browser support must be checked against the supported version matrix before implementation, especially invoker commands, interest invokers, dialog closedby, and CSS anchors.

@@ -589,6 +589,19 @@ the scope behavior maps to the same parser/schema model as AC-F-2 and
 `cem-ml-stack-design.md` §13.1. Schema declarations and switches open schema
 scopes. They do not mutate an ancestor scope.
 
+Scope properties are implicit references: syntax and the applicable schema
+identify the scope root and matching property. Establishing a default does not
+require an authored root ID, an extra root marker, or a repeated explicit
+reference on every governed node. Child scopes inherit the effective property;
+an enclosed child override is bounded by that scope, and leaving it restores
+the enclosing effective relationship. Existing source-position and shadowing
+rules remain in force.
+
+The exact enclosed scope-reference syntax for child overrides is deferred in
+[roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The current
+schema and namespace forms remain in use; the reference design does not select
+a new delimiter or replacement syntax.
+
 ### Form Matrix
 
 | Role                         | CEM-ML canonical form                                     | XML convention                                                                                   |
@@ -939,3 +952,46 @@ Remaining grammar details:
 - Whether canonical CEM-ML quotes all text and attribute values.
 - Whether comments are AST-preserved by default in every content type.
 - The complete grammar for inline schema declarations.
+
+## AST reference expressions
+
+`{#nodes}` retains a reference AST node with the CEM-QL expression `#nodes`,
+source provenance, and applicable lexical/scope semantics. XML
+`<cem:expr>#nodes</cem:expr>` provides the same typed surface when `cem` is
+bound to `https://cem.dev/ns/cem-ml/1`; any prefix for that namespace works.
+Loading does not execute the expression or resolve IDs.
+
+Explicit CEM-QL evaluation constructs a reference from an AST node or ordered
+node sequence. Empty sequences and every node kind are supported; scalar
+strings, numbers, and booleans are rejected. `#` binds as a right-associative
+prefix unary operator at precedence 9, below type forms (10), dot/pipeline
+(11), and postfix operations (12), and above infix operations. A selected
+reference node remains a target: `##nodes` does not implicitly dereference it.
+Reference targets are non-owning graph edges, never structural children.
+
+The runtime supplies the evaluation context and its available root at the
+applicable document lifecycle stage. No authored root ID or mandatory stored
+context ID is required. A transformation CLI or `cem-element` supplies
+`datadom` during transformation execution. Results need not be written back
+onto the shared authored reference.
+
+When a consumer requests reference-chain resolution, the suggested default
+follows the chain within effective scope policy, with a reference traversal
+limit and cycle detection. Lexical scope depth alone does not bound a chain
+inside one scope. The applicable scope schema controls mandatory, warning,
+or ignored unresolved-link outcomes. Resolved empty selections remain subject
+to the separate schema cardinality rule. Loading and structural inspection do
+not automatically resolve chains or rewrite their graph.
+
+IDs in a CEM assembly are scoped; crossing scope boundaries requires an
+explicit relationship. URL fragment access to publicly exposed parts of an
+external document belongs to a resource/consumer boundary. That public
+contract can treat the external document as flattened for part access without
+flattening the scopes of the CEM assembly. CEM-QL `#` performs no URL handling.
+
+Consumers own attribute projection, text interpolation, and ID extraction or
+generation. The `cem-element` template reference-to-ID mode and interaction
+attribute API are deferred in
+[todo.md](todo.md#deferred-cem-element-reference-consumption). The complete
+adopted contract is in the
+[node references design](cem-ql-cem-ml-node-references-design.md).

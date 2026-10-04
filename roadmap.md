@@ -957,3 +957,51 @@ then extend the same cache contract to other supported languages and formats.
   cache hits, with no source parsing in either path. Cover changed content,
   incompatible versions and corrupt artifacts, including cache invalidation and
   the behavior when source is available for rebuilding.
+
+## Deferred CEM reference syntax decision
+
+Deferred on 2026-10-04 under the adopted
+[implicit scope reference contract](docs/cem-ql-cem-ml-node-references-design.md#implicit-scope-references-and-defaults).
+
+- [ ] Define the exact enclosed scope-reference syntax for a child override,
+      aligned with the current schema and namespace forms. Preserve implicit
+      scope roots and matching properties, inherited defaults, and overrides
+      bounded by their child scope. This syntax decision is deferred and does
+      not block the other reference design decisions.
+
+### Scenarios for later design verification
+
+- An enclosed child override applies only within that child, and the enclosing
+  default is effective afterward.
+- Verify the selected syntax alongside existing schema and namespace forms,
+  including inherited defaults without extra root markers or authored root IDs.
+
+## Deferred CEM reference query and transport contracts
+
+Follow-ups to the
+[adopted reference design](docs/cem-ql-cem-ml-node-references-design.md#deferred-details-and-implementation-work).
+These details remain separate from the adopted scope and lifecycle principles.
+
+- [ ] Specify the public query reference type and target-access surface, and
+      decide whether target-sequence comparison needs an additional public
+      operation. Preserve reference occurrence identity separately from target
+      identity, node-valued operands, and ordered duplicate-preserving targets.
+- [ ] Specify compatibility between cyclic CEM AST graphs and native output
+      value artifacts, including which transports preserve reference edges,
+      which consumer exports expand them, and how unsupported graphs are
+      reported. Define any pending runtime-outcome transport explicitly;
+      exporting source expressions for later evaluation does not require
+      serializing a live context. Keep the current CEMB/native artifact
+      distinction visible until this contract is settled.
+- [ ] Promote these query/transport decisions into schema/API documentation
+      and actionable fixture work in `docs/todo.md` before implementing them.
+
+### Scenarios for later design verification
+
+- Query target access distinguishes the reference node from its targets and
+  preserves empty, repeated, ordered, and reference-node targets.
+- Graph export and reload preserve occurrence identity and edges for supported
+  self-reference and cycles without implicit expansion; unsupported native
+  output cases produce a documented outcome.
+- Source-reference export permits evaluation with a newly supplied runtime
+  context, without requiring an authored context ID or persisted live bindings.

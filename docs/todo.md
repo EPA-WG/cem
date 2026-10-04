@@ -8,7 +8,93 @@ history is preserved under [`archive/`](archive/). The
 items and the context referenced by older progress notes. Later completions are
 recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 
+## AST node reference implementation
+
+The accepted [node references design](cem-ql-cem-ml-node-references-design.md) governs this work. Begin with schema contracts; parsing retains expressions and never executes reference selection on load.
+
+The 2026-10-04 adoption defines implicit scope defaults, runtime-supplied
+evaluation context, consumer reference-chain resolution, and scope-schema
+diagnostic policy. Design adoption does not mark implementation complete.
+
+- [ ] Add schema-owned reference node/operator contracts and public syntax documentation.
+- [ ] Specify schema-owned mandatory, warning, and ignore dispositions for
+      unresolved links, reference traversal depth/work limits and numeric
+      defaults, and cycle outcomes under existing scope error policy. Keep
+      lexical scope depth distinct from reference-chain depth.
+- [ ] Align retained expression/lexical representation and specialized scope
+      records with the accepted contract. Runtime context roots need no authored
+      IDs or mandatory saved context ID; separate execution results from shared
+      source references and define pending/resolved/unresolved/invalid outcomes.
+- [ ] Fixture: verify schema contracts, CEM/XML parsing parity, retained reference AST/source context, binary graph round trips, query precedence and strict node-valued evaluation, including empty/multiple/attribute/reference-node targets.
+- [ ] Implement reference syntax, parser AST retention, query operator lowering/evaluation and native graph integration without consumer behavior or implicit ID lookup.
+- [ ] Implement and verify shared consumer evaluation support for bounded deep
+      reference-chain resolution and scope-schema unresolved-link disposition.
+      Preserve authored edges, target order and multiplicity, and distinct empty
+      versus unresolved outcomes. Record specific fixture items before adding
+      fixtures; `cem-element`-specific projection remains deferred below.
+- [ ] Verify affected Rust packages and CLI/schema fixtures through Nx; record evidence and remaining open decisions.
+
+### Scenarios for later design verification
+
+These scenarios are preserved from the adopted proposal for future design and
+implementation verification. They do not claim executable test coverage.
+
+- A scope default supplies the same effective property to many nodes without
+  repeated references or an authored root ID.
+- Two vendor scopes contain equal ID strings without accidental cross-scope
+  selection; an explicit boundary contract permits an intended relationship.
+- A URL selects a publicly exposed part of an external document without
+  introducing URL resolution into CEM-QL.
+- One retained template reference is evaluated during two transformations with
+  different supplied `datadom` contexts and without mutating a shared target
+  list on the authored occurrence.
+- A consumer deeply resolves a chain of reference nodes within its effective
+  scope policy while preserving the authored graph. A cycle or traversal limit
+  stops resolution even when every link remains in the same lexical scope.
+- Unresolved links follow mandatory, warning, or ignore requirements declared
+  by the applicable scope schema; a resolved empty selection is handled
+  separately by the schema's cardinality rule.
+- Schema constructs are declared once and referenced by composition and
+  validation consumers without copying them into the source tree.
+
+## Deferred cem-element reference consumption
+
+Deferred on 2026-10-04 until the CEM-ML reference design is complete. The adopted
+[consumer responsibilities](cem-ql-cem-ml-node-references-design.md#consumer-responsibilities-and-examples)
+establish ownership; adoption does not choose or implement the consumer mode.
+
+- [ ] Specify `cem-element` treatment of references: detect reference nodes in
+      templates and provide a transformation mode that resolves element
+      references to the produced elements' IDs, preserving explicit IDs and
+      generating IDs when needed. Decide the interaction attribute API,
+      explicit cross-scope relationships, and compatibility with local-name
+      conveniences in this consumer work. The runtime supplies evaluation
+      context and timing; ID generation and extraction remain consumer-owned.
+- [ ] After that consumer contract is specified, implement and verify the
+      reference-to-ID mode in the shared `cem-elements` transformation path.
+      Add actionable fixture items before creating fixtures.
+
+### Scenarios for later design verification
+
+- A consumer uses the referenced node's declared meaning to generate a native
+  relationship, preserving a target element's explicit ID or generating one.
+- Repeated template instances resolve references against their own supplied
+  contexts and produced elements. Verify intended scope crossings and the
+  specified local-name compatibility without a document-wide CEM ID lookup.
+
 ## CEM-QL / CEM-ML node references design
+
+The 2026-10-03 items below record adoption history. The 2026-10-04 revision
+supersedes their references to an open preservation alternative and their
+consumer-reference API assumptions; deferred implementation items remain open.
+
+- [x] Adopt the reference scope and consumer responsibilities proposal on
+      2026-10-04 into the reference, syntax, and interaction designs: implicit
+      defaults and enclosed override semantics, scoped IDs and URL part access,
+      runtime context without mandatory IDs or source target lists, bounded
+      consumer chain resolution, and schema-controlled unresolved links. Record
+      deferred syntax, query/transport, and `cem-element` work with verification
+      scenarios beside roadmap/todo action items; remove the temporary proposal.
 
 - [x] Write a standalone proposal for a reference AST node targeting other node(s) through CEM-QL, including `#` and `{#datadom.attributes.commandfor}`. Define initial parsing/finalization semantics without a template/datadom-only scope. Keep all consumer behavior, CEMT/import IDs, cem-element/browser projection, and AST re-evaluation outside scope. See [the proposal](cem-ql-cem-ml-node-references-design.md); promoted to an accepted design; remaining open decisions are identified explicitly.
 - [x] Adopt # prefix-unary precedence at level 9, with tighter postfix/type/dot operations, looser infix operations, and right-to-left prefix nesting (2026-10-03). Type and existing-reference semantics remain proposed; no implementation is authorized by this documentation change.
@@ -20,6 +106,7 @@ recorded in the [follow-up log](archive/todo-completed-2026-09-27.md).
 - [x] Adopt reuse of existing AST node/owning-graph identity and graph serialization for reference occurrences and target edges (2026-10-03). Do not introduce a separate global reference ID scheme or require persistent identity across reparses; query comparison syntax remains separate.
 - [x] Adopt strict node-valued reference construction and distinguish attribute nodes from their scalar values (2026-10-03). `#` performs no implicit ID/name/selector lookup or expression execution on strings; additional scalar interpretation requires a separate explicit contract. Existing-reference preservation remains proposed.
 - [x] Promote the node-reference proposal to [accepted design](cem-ql-cem-ml-node-references-design.md) on 2026-10-03. Preserve the adopted semantics, remove superseded automatic-query-evaluation wording, and retain unresolved type/storage/reference-preservation choices as explicit open decisions. Keep the former proposal path as a redirect.
+
 ## Interaction design implementation: cem-action
 
 The [accepted interaction design](cem-interaction-design.md) takes precedence over conflicting implementation. Deliver one component at a time; this first step owns the action invoker, not popup/menu/dialog lifecycle.

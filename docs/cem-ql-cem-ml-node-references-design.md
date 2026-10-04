@@ -1,7 +1,7 @@
 # CEM-QL / CEM-ML AST node references design
 
-Status: accepted design, promoted on 2026-10-03. Adopted rules are normative; explicitly identified open decisions remain unresolved. Implementation is separate and is not claimed by this document.
-Date: 2026-10-03.
+Status: accepted design, promoted on 2026-10-03 and revised by user adoption on 2026-10-04. Adopted rules are normative; deferred details are recorded in roadmap and todo action items. Implementation is separate and is not claimed by this document.
+Date: 2026-10-04.
 
 
 ## Adoption summary
@@ -15,16 +15,32 @@ The following rules govern implementation of the accepted portion:
 - Any AST node kind may be a target. Self-reference and cycles are permitted as graph edges, without implicit recursive evaluation.
 - Existing AST identity and graph serialization distinguish reference occurrences and preserve ordered target edges. No global ID service or persistent identity across reparses is required.
 - `#` accepts node-valued results and performs no implicit string lookup or expression execution. Referencing an attribute node is distinct from interpreting its scalar value.
-- Consumer interpretation and AST-change evaluation/update mechanics remain outside scope.
+- Consumer-specific interpretation and AST-change evaluation/update mechanics remain outside scope.
+- Scope properties provide implicit references: syntax implies the scope root and matching property, with inherited defaults and enclosed child overrides. The exact child override syntax is deferred.
+- The runtime supplies the evaluation context and its available root at the applicable document lifecycle stage. No authored root ID or mandatory stored context ID is required.
+- Evaluation results need not be persisted on the authored reference. A transformation CLI or `cem-element` can supply `datadom` when execution reaches the consumer stage.
+- Reference-chain resolution occurs during consumer evaluation. The suggested default is deep resolution bounded by effective scope policy, a traversal limit, and cycle detection; unresolved links follow mandatory, warning, or ignore rules from the applicable scope schema.
+- IDs are scoped within a CEM assembly. URL fragment access to externally exposed document parts belongs to the resource/consumer boundary, not CEM-QL `#`.
 
-Promotion does not adopt the unresolved existing-reference preservation alternative or select a concrete storage layout, type spelling, target-access API, or new comparison operator. Those decisions remain explicitly open below. Where an exploratory alternative conflicts with the adoption summary, the adoption summary governs.
+This design does not prescribe a uniform storage layout, public type spelling,
+target-access API, or new comparison operator. Concrete query and transport
+details are actionable follow-ups. The former reference-preservation alternative
+is superseded by the distinction between retaining reference edges and consumer
+resolution of those edges.
+
 ## Purpose
 
 Introduce a reference as a CEM AST node type. A reference node designates another AST node or an ordered sequence of AST nodes through a CEM-QL expression. It preserves the relationship without copying the referenced nodes into the reference's location.
 
 The reference is a general document-model concept. It is not limited to templates, elements, attributes, `datadom`, or a particular query root. A reference's targets and available context follow the ordinary CEM-QL evaluation contract.
 
-This design covers reference syntax, the reference AST node, target selection through CEM-QL, identity, and context-specific binding resolution during parsing/finalization. AST loading retains selecting expressions; target selection runs only when explicitly evaluated. The use of references by any consuming system is outside this design. Re-evaluation after AST changes is also outside scope.
+This design covers reference syntax, the reference AST node, implicit scope
+references and defaults, target selection through CEM-QL, identity, lexical
+binding resolution, and shared scope-schema rules for reference-chain
+evaluation. The runtime supplies context and execution time. Consumer-specific
+interpretation, including element-to-ID extraction, remains outside CEM-ML.
+AST loading retains selecting expressions without automatically evaluating them.
+Re-evaluation and retained result lifetimes belong to the consuming runtime.
 
 ## Settled direction
 
@@ -53,9 +69,11 @@ Included:
 
 - A distinct reference AST node kind.
 - A CEM-QL expression that selects or denotes the target node(s).
-- The expression's evaluation-context identity and source provenance.
+- The expression's source provenance and lexical/scope semantics, with runtime-supplied evaluation context.
 - Context-specific binding resolution and retention of forward selection expressions during parsing/finalization; no implicit query execution.
 - Target identity, ordered multi-target results, and reference diagnostics.
+- Implicit scope defaults, enclosed child overrides, and explicit scope crossings.
+- Shared reference-chain evaluation principles and scope-schema treatment of unresolved links.
 
 Excluded:
 
@@ -73,8 +91,8 @@ Conceptually:
 
 ```text
 #(CEM-QL expression)
-    -> reference AST node
-    -> initial target node sequence
+    -> retained reference AST node
+    -> target node sequence when explicitly evaluated with runtime context
 ```
 
 `#expression` marks the expression's result as a reference relationship rather than requesting that the selected nodes be copied or emitted in place.
@@ -112,7 +130,7 @@ The XML-convention equivalent is:
 </section>
 ```
 
-Semantic parity is required, not assumed from the existing implementation. Both surfaces must preserve the same reference AST kind, typed target identities, target ordering and multiplicity, and resolution state for equivalent expressions and contexts. Each surface retains its own source provenance. XML ingestion must not stringify the reference result or copy its target subtree.
+Semantic parity is required, not assumed from the existing implementation. Both surfaces must preserve the same reference AST kind and produce equivalent typed targets, ordering, multiplicity, and outcomes when explicitly evaluated with equivalent contexts. Each surface retains its own source provenance. XML ingestion must not stringify the reference result or copy its target subtree.
 
 The structural/expression entry points are therefore:
 
@@ -122,9 +140,14 @@ The structural/expression entry points are therefore:
 
 A separate `{cem:reference @select=nodes}` vocabulary is not introduced. It adds no required semantics to the adopted surface. Its potential introduction for a future concrete metadata requirement would be a separate decision; it is not needed for this design.
 
-## Adopted precedence and open type refinements for `#`
+## Adopted precedence and node-valued operands for `#`
 
-The precedence rules below were adopted on 2026-10-03. The type rules and existing-reference behavior remain proposals for discussion. None of these additions are implemented. The precedence extends the current CEM-QL [Pratt precedence table](cem-ql-stack-design-impl.md), whose implementation has unary precedence 9, type forms 10, dot/pipeline 11, and calls/indexing 12.
+The precedence rules below were adopted on 2026-10-03. The 2026-10-04 revision
+distinguishes reference construction from consumer resolution of reference
+chains. Public type and target-access spelling remain deferred. Precedence
+extends the CEM-QL [Pratt precedence table](cem-ql-stack-design-impl.md): unary 9,
+type forms 10, dot/pipeline 11, and calls/indexing 12. Design adoption does not
+assert implementation coverage.
 
 ### Precedence (adopted)
 
@@ -141,7 +164,7 @@ Treat `#` as a prefix unary operator at the existing unary level (9). Calls, ind
 | `#(a \| b)` | Explicit grouped selection | Construct a reference to the union's node result |
 | `#a ?? b` | `(#a) ?? b` | Coalescing applies to the reference result, not its target count |
 | `#(a ?? b)` | Explicit grouped selection | Select a fallback operand before reference construction |
-| `##a` | `#(#a)` | Apply reference preservation to the inner reference |
+| `##a` | `#(#a)` | The operand can itself be a reference node; grouping does not resolve the chain |
 
 Parentheses expose the boundary between selecting nodes and constructing a reference. Syntax must not change precedence based on inferred operand types. In particular, `#` should not silently swallow a lower-precedence traversal or union merely because its result might contain nodes.
 
@@ -151,49 +174,55 @@ To operate on the reference value itself, use a grouped result, such as `(#nodes
 
 A reference is an AST node kind. CEM-QL also needs to distinguish its typed reference value from an ordinary selected target node. Conceptual notation `Ref<T>` means a reference node whose target sequence contains nodes of type `T`; this notation does not prescribe the public type syntax or Rust representation.
 
-Proposed construction rules:
+Node-valued operand rules:
 
 | Evaluated operand | Result |
 |---|---|
-| One non-reference AST node of type `T` | One reference node with target sequence `[node]` |
-| A sequence of non-reference AST nodes | One reference node with that ordered target sequence |
+| One AST node of type `T` | A reference relationship to that node |
+| A sequence of AST nodes | A reference relationship to that ordered target sequence |
 | Empty node sequence | One resolved reference node with zero targets |
-| Existing typed reference `r` | Preserve `r` and its resolved targets; do not wrap it in a new reference layer |
+| An existing reference node | Eligible as a target; consumer evaluation governs whether its chain is followed |
 | Scalar, string, record, or collection with non-node items | Type error unless an independently declared expression conversion first supplies nodes |
-| A sequence mixing node and typed-reference values | Reject implicit flattening; an explicit expression must establish the intended target sequence |
+| A sequence containing ordinary and reference nodes | Retain the selected node order and multiplicity; construction does not flatten reference targets |
 
 An operand statically known to be incompatible is rejected by type checking. Dynamically typed operands receive the same check when initially resolved. There is no conversion of strings to ID lookups, target text, or browser handles.
 
 A reference is not a subtype of its target type: `Ref<Element>` is not `Element`. It can be classified as an AST reference node for generic node-model operations, but this does not grant element attributes, child axes, or target traversal. Target access requires an explicit operation under the query contract; spelling that operation is not settled here.
 
-### Existing reference as operand (open alternative, not normative)
+### Existing reference as operand
 
-Recommend semantic idempotence: `#r` preserves an existing typed reference's identity, target order, originating evaluation context, and resolution state. It neither executes its expression again nor resolves it in the current caller's context. In this unadopted alternative, applying `#` to an unevaluated reference would preserve that state; explicit query evaluation, rather than parse finalization alone, would produce target identities.
-
-The new use-site expression still has its own source provenance. Preserving the reference does not overwrite where it was originally constructed. AST ownership and placement must represent reuse without reparenting or copying its target nodes; the exact expression-result representation remains an open question.
-
-Distinguish reference preservation from a reference whose target is a reference AST node. `#r`, where `r` is a typed reference value, means preservation. A query deliberately selecting a reference AST node as an ordinary node could request a reference to that node. Whether and how CEM-QL exposes that node/value distinction is not yet settled; until it is, reference-to-reference construction should remain unsupported rather than be guessed from the same operand spelling.
+Reference nodes may designate other reference nodes. CEM-ML retains those
+relationships without choosing an implicit flattening or preservation strategy
+for chain resolution. Constructing an edge and following it are different
+operations. Each authored occurrence retains its source provenance; targets
+retain their ownership and structural position. The consumer applies the
+[reference-chain resolution policy](#reference-chains-follow-scope-schema-policy)
+when evaluation happens, without rewriting the authored graph.
 
 ### Empty results, truth, and equality
 
 A zero-target reference is still a reference node; it is not automatically null, an empty query value, or false. `#a ?? b` therefore must not become a hidden fallback for zero targets. Query truth conversion must not follow targets implicitly.
 
-Construction does not define a new equality operator. Reference-node identity and resolved-target-sequence equality are different comparisons. Ordinary identity can compare the reference nodes; any comparison of their targets must be explicit and must preserve order and multiplicity. The exact available comparison surface remains open.
+Construction does not define a new equality operator. Reference-node identity and resolved-target-sequence equality are different comparisons. Ordinary identity can compare the reference nodes; any comparison of their targets must be explicit and must preserve order and multiplicity. The public comparison surface is deferred in [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 ## Reference AST node
 
-Conceptually, a reference node carries:
+The retained reference and its runtime evaluation have distinct responsibilities:
 
 | Field | Meaning |
 |---|---|
 | Node kind | Reference, distinct from element, text, and ordinary scalar nodes |
 | Reference expression | The parsed CEM-QL expression designating target node(s) |
-| Evaluation context | The context/bindings under which the expression is initially resolved |
-| Target identities | Ordered identities of the selected AST nodes after resolution |
-| Resolution state | Unevaluated; or pending, resolved, unresolved, or invalid for an explicitly requested evaluation |
+| Lexical/scope information | Document semantics needed to interpret syntax at its source position |
+| Evaluation context | Supplied and kept by the runtime, with its context root directly available; not a required stored ID on the reference |
+| Target identities | Ordered identities available at consumption; retaining them on the authored reference is optional |
+| Resolution state | Runtime evaluation outcome; not a required mutable field on each authored reference |
 | Provenance | Authored syntax, source range, and relevant expression diagnostics |
 
-This is a semantic outline, not a proposed implementation struct. The exact placement of expression artifacts, context identity, and resolution annotations in the existing AST model remains open.
+This is a semantic outline, not an implementation struct. A runtime may retain
+evaluation results and annotations where its lifecycle requires them, or
+evaluate and consume the nodes in one execution without publishing a target
+list back onto the source AST.
 
 A reference node has its own AST identity and source location. Its targets retain their existing identity, ownership, and structural position. They do not become children of the reference node merely because it references them.
 
@@ -207,7 +236,7 @@ This section records inspected implementation surfaces and recommendations for d
 
 | Layer | Existing representation | What it does not currently establish |
 |---|---|---|
-| Parser document | `CemDocument` owns an arena of `CemAstNode`, addressed by `AstNodeId` | The inspected parser enum has no distinct reference variant |
+| Parser document | `CemDocument` owns an arena of `CemAstNode`, addressed by `AstNodeId`; the initial reference variant retains expression source, containing node, and optional targets | The containing-node handle is not a complete runtime evaluation context; optional target storage is not a required source contract |
 | Parser reference slot | `NameSlot` contains an owner scope, target name, optional resolved node ID, and source map | A general CEM-QL expression, multiple targets, and the full reference-resolution contract |
 | CEM-QL syntax | `Expression` represents names, paths, pipelines, operators, and other expressions with byte ranges | Retention of that expression on a parser reference node |
 | CEM-QL context | `QueryContextScope` and query node views carry evaluation/access context; views expose representation and node identity | A portable capture of every evaluation binding on a reference |
@@ -217,7 +246,10 @@ This section records inspected implementation surfaces and recommendations for d
 
 Relevant source files: [parser AST](../packages/cem_ml/src/parser.rs), [parser document](../packages/cem_ml/src/parser/document.rs), [native values](../packages/cem_ml/src/value.rs), [portable value graph](../packages/cem_ml/src/value/artifact.rs), [CEM-QL expressions](../packages/cem_ql/src/parser.rs), and [query reference view](../packages/cem_ql/src/eval/values.rs).
 
-The existing native reference container is significant prior work. The design connects parse-time reference syntax to that semantic model rather than claim all reference representation is missing. However, this does not mean the adopted syntax or parse-resolution contract is implemented.
+These layers are implementation context, not a mandatory common storage
+structure or evidence that every adopted lifecycle and schema rule is
+implemented. Remaining representation work is recorded in
+[todo.md](todo.md#ast-node-reference-implementation).
 
 ### Context-specific references and common resolution (adopted)
 
@@ -235,7 +267,11 @@ Inspected examples:
 
 Relevant sources: [schema scoping](../packages/cem_ml/src/schema/scoping.rs), [namespace context](../packages/cem_ml/src/schema/namespace.rs), [query bindings](../packages/cem_ql/src/resolve.rs), and [embedded expressions](../packages/cem_ql/src/embedded.rs).
 
-These are contextual references in the semantic model. The current implementation represents them through specialized frames, bindings, and slots; it does not uniformly expose them as a `CemAstNode::Reference` variant. Some declaration identities refer to context records rather than parser element nodes. The design must specify that mapping rather than equate all existing numeric handles with `AstNodeId`.
+These are contextual references in the semantic model. Specialized frames,
+bindings, and slots can retain them. Some declaration identities refer to
+context records rather than parser element nodes; implementations must not
+equate all numeric handles with `AstNodeId`. Coherence requires common scope,
+override, and consumption boundaries, not uniform storage or identical syntax.
 
 The common pattern is:
 
@@ -250,7 +286,7 @@ For a general `#` reference, CEM-QL supplies the designation/selection. For a na
 
 Consequences for this design:
 
-- Associate a reference with existing semantic context/binding identities; do not copy a complete evaluator environment into every reference node.
+- Retain the applicable lexical and scope semantics. Runtime context is directly supplied; do not require authored root IDs, mandatory stored context IDs, or copied evaluator environments.
 - Preserve the context effective at the occurrence's source position. Deferring initial target resolution until parse finalization must not silently use bindings that were introduced or rebound later at the same source scope.
 - Reuse the existing scope chain and shadowing rules where the applicable context defines them. This does not introduce a template-only scope or singleton ID lookup.
 - Distinguish binding resolution from query evaluation: fixing which declaration a name denotes does not necessarily mean that a forward target node sequence is already available.
@@ -259,38 +295,70 @@ Consequences for this design:
 - Finalize pending relationships at their declared dependency/context completion boundary. Do not force all contextual references to wait until document end when parsing needs them earlier.
 - Preserve the established no-retroactive-rebinding principle for resolved contextual bindings. AST mutation and reference updates after finalization remain outside scope.
 
-What remains open is the common AST/context representation and how its typed references connect to the specialized implementations. The design does not mandate replacing every frame or binding table with the same storage struct.
+Concrete linkage between typed reference views and specialized records is
+implementation work tracked in [todo.md](todo.md#ast-node-reference-implementation).
+No replacement of every frame or binding table is mandated.
+
+### Implicit scope references and defaults
+
+Scope properties provide an indirect form of reference. Syntax and its
+applicable schema imply the scope root and matching property. Authors can
+establish a default once for the governed region without marking the root
+again or repeating an explicit reference at every use site.
+
+Child scopes inherit the effective property under its existing scope rules.
+A child override uses an enclosed scope reference whose effect is bounded by
+that child. Leaving the child restores the enclosing effective relationship.
+Source-position and shadowing rules remain in force. Explicit scope crossings
+require a declared relationship; a document-wide ID scan cannot replace it.
+
+The exact enclosed child override syntax is deferred to
+[roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The accepted
+default and override semantics do not depend on choosing a new delimiter,
+root marker, or context identifier. Existing schema and namespace forms remain
+in use until that syntax decision is specified.
 
 ### Four different pieces of information
 
 1. **Query expression:** what selects the targets. Preserve the parsed expression or a stable expression-artifact link and its source map; keeping only its rendered string loses type/source information. This is the expression describing construction, not a stored procedure that will be automatically rerun.
-2. **Evaluation context:** the bindings/current item/document access available for that initial evaluation. Use the ordinary query context; do not introduce a template-only context. A scope number alone is not the complete set of bindings. Pending initial evaluation must associate with the existing binding/context state effective at the reference occurrence, including source-position identity when required, rather than copy a live evaluator or use the final mutable scope state. After resolution, a complete live evaluator/environment need not be kept just to identify targets.
+2. **Evaluation context:** the bindings/current item/document access supplied by the runtime at its chosen lifecycle stage. The context root is already available; an authored ID or mandatory stored context ID is unnecessary. Document lexical bindings retain source-position meaning, while runtime inputs such as `datadom` arrive for the particular execution. A saved containing-node handle alone is not a complete evaluator environment.
 3. **Target identities:** the resulting ordered node identities, distinct from the expression and from the reference node's own identity. Use owning-document/graph context with node handles. Native portable graph indices and parser arena indices are different representation-local handles; neither may be treated as a universal singleton ID.
 4. **Resolution state:** distinguish a retained unevaluated expression from outcomes of an explicitly requested evaluation: pending, resolved, unresolved, or invalid. An empty target sequence cannot distinguish those conditions.
 
-### Minimal conceptual form
+### Conceptual source and evaluation forms
 
 ```text
 ReferenceNode
     own node identity
     expression artifact + source provenance
-    evaluation status:
-        Unevaluated(context association)
-        Pending(requested evaluation)
-        Resolved(ordered target identities)
-        Unresolved(reason + diagnostics)
-        Invalid(reason + diagnostics)
+    applicable lexical/scope semantics
+
+Runtime evaluation with supplied context
+    Pending(requested evaluation)
+    Resolved(ordered target identities)
+    Unresolved(reason + scope-schema policy)
+    Invalid(reason + diagnostics)
 ```
 
-This is a conceptual tagged state, not Rust API syntax. It avoids treating both a pending slot and an empty resolved target list as the same `None`/empty value. It also avoids contradictory independent fields such as `state=resolved` beside an unevaluated expression marker.
+This is conceptual notation, not Rust API syntax or required source-node
+fields. An unevaluated source expression is distinct from a requested pending
+evaluation and from a resolved empty target sequence.
 
-The expression and provenance may be attached by artifact/annotation identity rather than duplicated inside each resolved native reference container. The resolved target sequence should have one authoritative representation; parser annotations, query views, and portable export should derive from it rather than maintain divergent copies.
+Expression and provenance can remain on the source reference or its artifact.
+A retained evaluation result should have one authoritative target sequence for
+that execution. Different executions may have different contexts and results;
+they need not mutate one shared target list on the authored occurrence.
 
 ### Identity and persistence limits
 
 `CemReference<T>` currently uses shared container identity (`Arc`) for runtime reference identity. Cloning retains that identity without copying targets. That address-derived identity is not a portable identifier across serialization or processes. The portable graph carries its own reference record and graph-local target edges.
 
-A serialized finalized reference principally needs its own graph identity, target edges, and provenance. Serializing a pending reference would additionally need a portable expression and sufficient initial-context information, or an explicit restriction against exporting that pending state. This design has not settled that transport requirement.
+A serialized resolved graph needs node distinction, target edges, and
+provenance. A source reference can instead be exported for later evaluation
+with runtime-supplied context. Transport of pending runtime outcomes is a
+separate explicit contract, not a requirement to serialize a live context.
+Graph and native output artifact compatibility is deferred in
+[roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 These representation choices concern construction and initial resolution only. Keeping expression provenance must not imply AST-change subscriptions, automatic re-evaluation, or any consumer-specific use of the reference.
 
@@ -300,15 +368,40 @@ CEM-QL supplies selection and context. The reference node does not introduce an 
 
 A supplied context can contain nodes or references made available by the normal query contract. Whether a query may traverse the current document, a nested structure, or an explicitly supplied document is governed by that contract, not by a reference-specific template restriction.
 
-Construction rules proposed here:
+Construction and selection obey these rules:
 
 - A node result can establish a target identity.
 - A node sequence can establish an ordered target sequence.
 - Non-node results must have an explicitly defined reference interpretation or produce an invalid-target diagnostic; strings must not silently become ID searches.
-- An existing reference result must have an explicit preservation/dereferencing rule. It must not be reinterpreted from its textual spelling.
+- A selected reference node is an eligible target. Following its chain belongs to explicit consumer evaluation and does not reinterpret its textual spelling.
 - Multiple selected nodes are a legitimate result, not inherently ambiguity. No first-match selection is implicit in `#`.
 
 If the query contract reports missing bindings or an ambiguous expression, the reference preserves those diagnostics. This design does not impose single-target cardinality on all references.
+
+### Runtime context and scoped IDs
+
+The runtime supplies and keeps the evaluation context, including its available
+root. Evaluating a reference does not require assigning an ID to that root or
+looking it up by ID. An author may define an ID when their document contract
+needs one. Internal node handles distinguish graph nodes without becoming
+authored IDs or public context addresses.
+
+A CEM assembly can contain data of different kinds from different vendors.
+IDs are meaningful inside their owning scopes. Equal ID strings in different
+scopes do not establish the same target. Cross-scope access must be explicitly
+defined through the applicable relationships and supplied context.
+
+### URL fragments and external public parts
+
+The `#id` convention belongs to URL fragment access to external documents that
+publicly expose parts through IDs. The resource resolver or applicable
+consumer resolves the URL and its public parts contract, then supplies retained
+CEM nodes to evaluation. CEM-QL `#expression` does not handle URLs or ID lookup.
+
+That external contract treats the document as flattened for access to its
+exposed parts. It does not flatten the scopes of a general CEM assembly or
+expose every vendor's internal IDs. Fragment-only values are URL references
+only at a declared URL boundary that determines the addressed document.
 
 ## Identity and graph structure
 
@@ -316,11 +409,15 @@ Resolved targets are identified by their owning AST document and node identity, 
 
 Two reference nodes can designate the same target sequence while retaining different source locations and expressions. Equality of the reference nodes themselves must be distinguished from equality of their resolved target sequences.
 
-The structural AST remains a tree or arena as defined by the existing model; references add non-owning graph edges. Following an edge is not structural child traversal. No implicit recursive dereferencing, subtree insertion, or cycle expansion is introduced.
+The structural AST remains a tree or arena as defined by the existing model; references add non-owning graph edges. Following an edge is not structural child traversal. Retaining the graph does not recursively dereference its edges, insert target subtrees, or expand cycles.
 
-Self-reference, cycles, and references to reference nodes are permitted as non-owning graph relationships. They do not imply recursive evaluation or expansion. Circular evaluation dependencies are distinct from graph cycles; their handling belongs to the explicit evaluation contract. The distinction between preserving a typed reference value and deliberately selecting a reference AST node as a target remains open.
+Self-reference, cycles, and references to reference nodes are permitted as
+non-owning graph relationships. Retaining them does not trigger evaluation or
+expansion. A consumer requesting chain resolution follows the scope-schema
+policy below, including a traversal limit and cycle detection. Circular
+evaluation dependencies remain distinct from a retained cyclic graph.
 
-Any portable representation of resolved references must retain adequate document/node identity. It must not serialize a live browser pointer or duplicate the target subtree. Detailed transport encoding remains an open representation question.
+Any portable representation of resolved references must retain adequate document/node identity. It must not serialize a live browser pointer or duplicate the target subtree. Detailed transport contracts are deferred in [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 ## Parsing and initial resolution
 
@@ -340,7 +437,9 @@ A retained forward expression must not be mistaken for a failed lookup against a
 
 If required context is not available, preserve the expression and its unresolved/deferred dependency. Do not fabricate a target or substitute an ID lookup. The applicable construct defines whether that retained state is permitted at parse finalization.
 
-After initial resolution/finalization, consumer evaluation/re-evaluation and updating reference targets are outside scope. This design does not prohibit explicit later evaluation when a consumer supplies the required context.
+Runtime scheduling, re-evaluation, result retention, and invalidation remain
+consumer responsibilities. The shared chain resolution and diagnostic policy
+applies when that consumer requests evaluation.
 
 ## AST loading, context closure, and explicit evaluation (adopted)
 
@@ -350,8 +449,8 @@ Context closure remains the definite boundary for AST-specific context/binding r
 
 Distinguish:
 
-1. Parsing and context resolution: establish syntax, lexical bindings, context identity, and relationships required to interpret the document.
-2. Explicit query evaluation: execute a reference's selecting expression and obtain its target sequence when an evaluation is requested.
+1. Parsing and lexical resolution: retain syntax, source-position bindings, and scope relationships needed to interpret the document.
+2. Runtime evaluation: the consumer supplies context at the applicable lifecycle stage, evaluates the selecting expression, and uses the resulting nodes.
 
 The evaluation request can come from a CLI, transformation, or other evaluator. Its expression can already reside in the AST; expression origin and execution trigger are separate. A caller may explicitly request evaluation during loading, but loading alone does not imply it.
 
@@ -361,9 +460,48 @@ Context/binding associations must retain the established source-position and sha
 
 At parse finalization, an unevaluated expression is a valid retained expression, not automatically a failed target lookup. Parsing errors, illegal bindings, and required contextual-resolution failures remain diagnostics under the applicable construct. A successful evaluation returning zero nodes is different from not having requested evaluation.
 
-Later a consumer may supply the required context and explicitly evaluate or re-evaluate the expression. For example, cem-element could provide datadom to a CEMT transformation, which evaluates the retained reference expression. This is an example only; the consumer's scheduling, updates, output, and lifecycle mechanics remain outside scope.
+For a template, a transformation CLI or `cem-element` supplies `datadom` during
+transformation execution. Two instances can share the authored template while
+each execution receives its own context. The result need not remain attached
+to the source reference before consumption or be written back afterward.
+Caching, subscriptions, retained results, and updates are optional runtime
+lifecycle choices, not requirements of the authored reference.
 
 A reference may target any AST node kind. Self-reference and cyclic target edges are allowed as graph structure. They do not require the parser or loader to follow those edges. A cycle of evaluation dependencies that prevents a requested evaluation from completing is a different issue from a valid cyclic target graph.
+
+### Reference chains follow scope schema policy
+
+Reference nodes may designate other reference nodes. CEM-ML retains the edges;
+the consumer resolves their chain during evaluation. Constructing an edge and
+following it are separate operations. Resolution does not implicitly flatten,
+replace, or rewrite the authored graph. Parsing and structural inspection do
+not automatically follow reference chains.
+
+When a consumer requests resolution, the suggested default is deep resolution
+within effective scope policy. The runtime supplies context and execution
+time and gives the resulting nodes to the consuming operation.
+
+Lexical scope depth and reference-chain depth are separate limits. Scope rules
+define permitted crossings and applicable policies. Resolution also requires
+a reference traversal depth or work limit from effective scope policy, plus
+cycle detection: a long chain or cycle can stay inside one lexical scope.
+Reaching a limit or detecting a cycle stops that traversal. Diagnostic policy
+does not permit unlimited traversal. Numeric defaults and schema policy
+declarations are actionable work in
+[todo.md](todo.md#ast-node-reference-implementation).
+
+The applicable scope schema determines unresolved-link treatment:
+
+| Schema requirement | Evaluation treatment |
+| --- | --- |
+| Mandatory resolution | Report failure through the scope's existing diagnostic and error policy. |
+| Warning | Report the unresolved link and retain its unresolved outcome for the consumer. |
+| Ignore | Tolerate the unresolved link without a diagnostic; do not fabricate a target or remove the authored edge. |
+
+Apply policy to each link under its effective scope schema. A resolved empty
+selection is distinct from an unresolved link; schema cardinality determines
+whether an empty result is acceptable. Consumer-specific use of the resolved
+nodes, including element-to-ID extraction, remains outside CEM-ML.
 
 ## Identity and graph preservation (adopted)
 
@@ -377,7 +515,7 @@ Target-sequence equality, if needed, compares target node identities position by
 
 Portability is conditional. If only source expressions are serialized, their future targets are obtained by an explicit evaluation and no resolved target identity transport is required. If a finalized/resolved graph is exported, its reference edges must reconnect to the correct exported nodes when loaded. Graph-local indices and normal AST graph remapping can meet that requirement; globally persistent UUIDs, URLs, source hashes, and identity across independent reparses are not required by this design.
 
-The minimal need is therefore preservation of node distinction and graph edges. Separate open choices are the precise query comparison surface and the binary representation. They should not force evaluation during loading or expand scope into runtime persistence policy.
+The minimal need is therefore preservation of node distinction and graph edges. Query comparison and transport details are tracked in [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts). They should not force evaluation during loading or expand scope into runtime persistence policy.
 
 ## Multiple targets
 
@@ -398,6 +536,11 @@ Reference diagnostics should preserve the expression and original source locatio
 - Target identity that cannot be represented in the declared AST context.
 
 Expression lookup/type diagnostics should retain their CEM-QL identity rather than becoming generic browser-target errors. A valid multi-node or empty result should not be mislabeled ambiguous or missing without an explicit constraint.
+
+Unresolved-link outcomes follow the mandatory, warning, or ignore disposition
+of the applicable scope schema. Ignoring a diagnostic retains the relationship
+and does not invent a resolved target. This policy does not change the strict
+operand type rules or turn a successful empty selection into an unresolved one.
 
 ## Attribute operands and explicit result interpretation (adopted)
 
@@ -432,32 +575,103 @@ Supplying a typed reference and supplying an expression that can later construct
 
 ### Adopted minimal rule
 
-`#` constructs a reference from node-valued results, with the proposed separate existing-reference preservation rule. It does not infer another node from the textual value of an attribute. Non-node designation requires an explicit expression/context contract before reference construction.
+`#` constructs a reference relationship from node-valued results, including
+reference nodes. It does not infer another node from an attribute's text.
+Any explicitly declared scalar conversion precedes construction and belongs
+to its expression/context contract. Consumer chain resolution remains separate.
 
 Keep `{#datadom.attributes.commandfor}` as a valid surface example, conditional on its operand type. If a particular context supplies only a scalar string, the syntax remains valid but construction requires an explicit interpretation/conversion outside the operator. No native browser semantics are settled by the attribute name.
 
-## Consumer examples only
+## Consumer responsibilities and examples
 
-These examples illustrate possible uses; they do not define this design's scope or acceptance criteria:
+CEM-ML defines reference syntax, scope relationships, and shared evaluation
+policy. Consumers define how to use the selected nodes:
 
-- CEMT could materialize a reference to a template node as an ID of the corresponding projected element.
-- A validator could examine the referenced nodes while preserving reference provenance.
-- A document tool could display connections between referenced AST nodes.
+| Consumer | Interpretation owned by the consumer |
+| --- | --- |
+| Schema validation | Obtain or evaluate the relationship, inspect targets, enforce schema constraints, and report source provenance. |
+| Schema composition | Reuse a referenced construct instead of repeating its declaration; define validation and recursive composition semantics without copying source content. |
+| `cem-element` relationships | Relate AST nodes to intended produced elements, preserve explicit IDs, and generate IDs where required. |
+| `cem-element` attribute binding | Extract or project the binding's appropriate value, including an ID or ordered IDREF sequence when required. |
+| External resource access | Resolve a URL and public part contract, then provide retained CEM nodes to evaluation. |
+| Document inspection | Display retained nodes and graph connections without automatically resolving or expanding chains. |
 
-The actual interpretation, transformation, traversal, output, and lifecycle behavior of each consumer belong in separate proposals.
+For `#datadom.attributes.commandfor`, an attribute-node operand remains a
+reference to that attribute. `cem-element` defines how it supplies the command
+relationship and which produced element supplies the final ID. That consumer
+uses the element's explicit ID or generates one when needed. CEM-ML does not
+select the produced native owner or define universal text interpolation, ID
+extraction, or attribute-output rules.
 
-## Open decisions (not adopted)
+An evaluated reference remains a typed node relationship until the consuming
+operation applies its rule. Shared browser behavior belongs in `cem-elements`
+and is consumed declaratively under the
+[declarative UI principle](declarative-ui-principle.md). External formats enter
+through the [retained CEM AST import boundary](cem-data-import-principle.md),
+and instance state follows the
+[durable lifecycle](cem-element-lifecycle-principle.md).
 
-1. Review the proposed aggregate target-sequence type, idempotent existing-reference behavior, and explicit reference-node/value distinction above; settle the public type and target-access syntax. Unary precedence and grouping are adopted.
-2. How does initial evaluation represent the source reference-expression entry point and the resulting reference AST node while target resolution is pending? The `{#...}` and XML `cem:expr` surfaces and their semantic parity are adopted.
-3. The shared contextual-resolution model is adopted. Settle its concrete AST/context representation and linkage to existing specialized records and native/portable reference values.
-4. Context closure resolves AST-specific context/binding relationships; loading does not automatically evaluate reference selection. Settle the representation of unevaluated expressions versus explicit evaluation outcomes, without introducing consumer scheduling.
-5. Any AST node kind, self-reference, and cyclic graph edges are adopted. Settle the explicit distinction between preserving an existing reference value and selecting a reference AST node as a target.
-6. Reuse of existing AST identity and graph serialization is adopted. Verify any missing graph-preservation guarantees separately; query target-sequence comparison syntax remains a separate decision.
-7. Strict node-valued construction and the attribute-node/value distinction are adopted. Additional scalar interpretation or expression-valued attribute protocols are outside the operator and require a separate explicit contract; none is introduced by this design.
+Specific `cem-element` treatment is deferred until the CEM-ML reference design
+is complete. Its intended template reference detection and element-to-ID mode,
+interaction API, explicit scope crossings, and local-name compatibility are
+action items in [todo.md](todo.md#deferred-cem-element-reference-consumption).
+
+## Deferred details and implementation work
+
+- Enclosed child override syntax is deferred in
+  [roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision).
+- Public query reference type, target-access and target-sequence comparison
+  syntax, and graph/transport contracts are deferred in
+  [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
+- Concrete expression/lexical representation, linkage to existing specialized
+  records, runtime outcome handling, and schema traversal limits and policy
+  declarations are actionable work in
+  [todo.md](todo.md#ast-node-reference-implementation).
+- `cem-element` consumer modes and attribute API remain deferred in
+  [todo.md](todo.md#deferred-cem-element-reference-consumption).
+
+Scenarios for later design verification are preserved next to those action
+items. Deferring these details does not reopen the adopted scope, lifecycle,
+reference-chain, or consumer-ownership principles.
 
 ## Design authority and limits
 
-The accepted contract consists of the reference AST node, strict node-valued construction, adopted precedence and CEM-ML/XML surfaces, shared context/binding resolution at context closure, explicit query evaluation, any-node target eligibility, non-owning cyclic graph edges, ordered target sequences, reuse of AST identity/graph serialization, and source-addressable diagnostics.
+The accepted contract consists of the reference AST node, strict node-valued
+construction, adopted precedence and CEM-ML/XML surfaces, implicit scope
+defaults and enclosed override semantics, source-position lexical resolution,
+runtime-supplied lifecycle evaluation without mandatory context IDs or source
+target lists, any-node target eligibility, non-owning cyclic graph edges,
+ordered targets, graph identity, bounded consumer chain resolution, and
+scope-schema-controlled diagnostics. URL fragment access belongs to the
+external resource/consumer contract.
 
 Consumer behavior and reference updates after AST mutation remain outside scope. This design does not define changes to CEMT lookup, cem-element, browser wiring, or reactivity.
+
+## Initial implementation choices (2026-10-04)
+
+The initial parser representation retains `CemAstNode::Reference` with its
+expression source, containing AST node handle, source maps, and optional
+ordered target IDs. These are implementation choices, not requirements to
+give a context an authored ID, persist a complete evaluator environment, or
+publish every result onto the authored source node. `None` is
+unevaluated; `Some([])` is a successfully resolved empty selection. Parsing
+and XML ingestion never execute the query. Explicit callers use the ordinary
+CEM-QL compilation/evaluation entry points; no consumer scheduler or mutation
+API is introduced.
+
+The initial query operator constructs a fresh reference whose targets are its
+node-valued operands. A selected reference node is consequently a target in
+its own right, and `##nodes` nests two references. The existing
+`dom:reference` helper retains its older behavior. Neither behavior defines
+consumer traversal of the retained chain. The implementation uses the existing
+generic node type; public query type/access contracts remain roadmap work.
+
+The CEMB AST codec version 3 carries retained expression/context/target state
+and allows self-reference or cyclic target edges while retaining version 2
+read compatibility. These graph links remain separate from structural child
+edges. This does not change the older native output-value artifact's expansion
+and consumer projection contracts.
+
+Adoption does not claim that these initial representations implement every
+2026-10-04 rule. The implementation checklist owns alignment and verification;
+cyclic graph/native output transport compatibility remains explicitly deferred.
