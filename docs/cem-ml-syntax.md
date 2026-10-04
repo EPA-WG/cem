@@ -979,8 +979,11 @@ When a consumer requests reference-chain resolution, the suggested default
 follows the chain within effective scope policy, with a reference traversal
 limit and cycle detection. Lexical scope depth alone does not bound a chain
 inside one scope. The applicable scope schema controls mandatory, warning,
-or ignored unresolved-link outcomes. Resolved empty selections remain subject
-to the separate schema cardinality rule. Loading and structural inspection do
+or ignored unresolved-link outcomes. Without an effective disposition rule,
+retain a neutral unresolved outcome for the consumer without emitting a
+diagnostic or implying successful resolution. Omitted child rules inherit;
+an explicit neutral rule can restore this fallback. Resolved empty selections
+remain subject to the separate schema cardinality rule. Loading and structural inspection do
 not automatically resolve chains or rewrite their graph.
 
 IDs in a CEM assembly are scoped; crossing scope boundaries requires an

@@ -4297,8 +4297,14 @@ fn compile_document_model_from_document_with_seen(
     model
         .compile_diagnostics
         .extend(diagnostic_compile_diagnostics);
-    model.constraints =
-        collect_constraint_definitions(document, schema_id, schema_uri, &uses, &model.behaviors);
+    model.constraints = collect_constraint_definitions(
+        document,
+        schema_id,
+        schema_uri,
+        &uses,
+        &model.behaviors,
+        &mut model.compile_diagnostics,
+    );
 
     for contract in
         collect_field_contracts(document, schema_id, schema_uri, &uses, &model.behaviors)
@@ -9305,6 +9311,7 @@ fn collect_constraint_definitions(
     schema_uri: &str,
     uses: &BTreeMap<String, String>,
     local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+    compile_diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeMap<String, ConstraintDefinition> {
     let mut constraints = BTreeMap::new();
     for constraints_id in element_child_ids_by_local_name(document, schema_id, "constraints") {
@@ -9322,6 +9329,17 @@ fn collect_constraint_definitions(
             let Some(kind) = optional_non_empty_attr(&attrs, "kind") else {
                 continue;
             };
+            if super::reference_policy::is_scope_reference_policy(kind)
+                && constraints.contains_key(kind)
+            {
+                compile_diagnostics.push(schema_compile_diagnostic(
+                    super::reference_policy::DUPLICATE_POLICY_CODE,
+                    format!("Reference policy `{kind}` is declared more than once in schema `{schema_uri}`"),
+                    source_stack_for_node(child),
+                    serde_json::json!({ "schemaUri": schema_uri, "constraint": kind }),
+                ));
+                continue;
+            }
             let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
             let definition = behavior.as_deref().and_then(|behavior| {
                 resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)

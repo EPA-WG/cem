@@ -24,6 +24,7 @@ fn schema_packages_declare_reference_source_and_consumption_boundaries() {
                 ("reference-source-retention", "reference"),
                 ("reference-scope-defaults", "reference"),
                 ("reference-runtime-context", "reference"),
+                ("reference-unresolved-disposition", "reference"),
             ],
         ),
         (

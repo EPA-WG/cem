@@ -635,3 +635,32 @@ or zero values are rejected rather than silently replaced with defaults.
 These limits are separate from lexical scope depth and native output capacity.
 They prepare the effective policy for shared consumer traversal; they do not
 cause reference evaluation during loading or implement that traversal yet.
+
+The `reference-unresolved-disposition` constraint declares a neutral standard
+fallback. An omitted child declaration inherits the enclosing disposition;
+`neutral`, `mandatory`, `warning`, or `ignore` replaces it. An explicit neutral
+child declaration clears a mandatory rule without changing the parent.
+
+```cem
+{constraints |
+    {constraint @kind="reference-unresolved-disposition" @target="reference" @value="warning"}
+    {constraint @kind="reference-traversal-depth" @target="reference" @value="32"}
+}
+```
+
+Mandatory and warning rules may use `@diagnostic` to name a diagnostic in the
+declaring schema; otherwise they use `cem.reference.unresolved_required`
+(error) or `cem.reference.unresolved_warning` (warning) from the generic schema.
+Custom mandatory diagnostics require error/fatal severity; warning requires
+warning severity. Neutral/ignore rules do not declare diagnostics. Duplicate
+disposition, depth, or work constraints within one schema scope are invalid.
+
+`ReferenceScopePolicy::schema_defaults` reads standard bounds and disposition;
+`for_scope` composes inherited policy with validated overrides. Failed
+validation leaves the enclosing policy unchanged. `ReferenceUnresolvedPolicy`
+applies the effective rule to a consumer-supplied unresolved fact, preserving
+its expression, occurrence handle, reason and source map. Neutral and ignore
+both retain the fact without a diagnostic; mandatory marks failure and warning
+reports. A non-failing treatment does not imply successful resolution.
+This API does not evaluate references or define pending/invalid outcomes,
+empty-result cardinality, cycle/limit disposition, or scope-crossing permissions.

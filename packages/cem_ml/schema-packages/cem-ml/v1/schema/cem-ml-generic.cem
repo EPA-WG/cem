@@ -57,6 +57,7 @@
         {type @name="wildcard-name" @kind="lexical" @rule="wildcard-name"}
         {type @name="string" @kind="scalar" @rule="quoted-value | raw-text"}
         {type @name="boolean" @kind="scalar" @values="true false"}
+        {type @name="reference-unresolved-disposition" @kind="scalar" @values="neutral mandatory warning ignore"}
         {type @name="integer" @kind="scalar" @rule="signed decimal integer"}
         {type @name="number" @kind="scalar" @rule="decimal number"}
         {type @name="uri" @kind="scalar" @rule="absolute or relative URI reference"}
@@ -82,6 +83,7 @@
         {constraint @kind="reference-source-retention" @target="reference" @policy="loading retains the selecting expression, source provenance, and source-position lexical semantics; neither loading nor context closure executes target selection"}
         {constraint @kind="reference-scope-defaults" @target="reference" @policy="scope syntax implies the root and matching property; inherited defaults and existing child scope rules preserve source-position meaning without repeated references or authored root IDs"}
         {constraint @kind="reference-runtime-context" @target="reference" @policy="the consumer supplies context and lifecycle timing; a containing-node handle is lexical provenance, not a required runtime context ID; execution outcomes need not be written onto the authored reference"}
+        {constraint @kind="reference-unresolved-disposition" @target="reference" @value="neutral" @policy="an omitted scope rule inherits; without an effective rule retain a neutral unresolved fact for the consumer; explicit neutral, mandatory, warning or ignore declarations replace the inherited disposition; mandatory and warning may name a schema diagnostic; resolved-empty cardinality is separate"}
         {constraint @kind="reference-traversal-depth" @target="reference" @value="128" @policy="positive maximum reference links on a resolution path; a scope may override this bound independently of lexical scope depth"}
         {constraint @kind="reference-traversal-work" @target="reference" @value="100000" @policy="positive maximum traversal work units in one consumer resolution; a scope may override this bound; cycle detection remains required"}
         {constraint @kind="ast-unbalanced-close" @target="document" @diagnostic="cem.ast.unbalanced_close" @behavior="cem-ml-ast-report-fact" @fact-kind="ast-unbalanced-close" @policy="close-scope events must match an open element frame"}
@@ -123,6 +125,9 @@
     }
 
     {diagnostics |
+        {diagnostic @code="cem.reference.unresolved_required" @severity="error" @message="Required reference is unresolved"}
+        {diagnostic @code="cem.reference.unresolved_warning" @severity="warning" @message="Reference remains unresolved"}
+        {diagnostic @code="cem.schema.reference_policy_duplicate" @severity="error" @message="Reference policy must be declared once per schema scope"}
         {diagnostic @code="cem.doc.version_missing" @severity="error"}
         {diagnostic @code="cem.doc.semver_invalid" @severity="error"}
         {diagnostic @code="cem.doc.format_unknown" @severity="error"}

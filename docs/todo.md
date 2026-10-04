@@ -56,34 +56,48 @@ remain open until their adopted contract and verification evidence are met.
       reference traversal depth/work limits and numeric defaults, and cycle or
       limit outcomes. Keep lexical scope depth distinct from chain depth.
       Present unresolved policy choices for decision before implementing them.
-- [ ] Decide the fallback when no effective schema declares unresolved-link
-      disposition: neutral consumer-owned outcome, overridable mandatory
-      failure, or requiring a declaration before resolution. User decision
-      requested on 2026-10-04. Then declare and validate the chosen policy using
-      existing schema constraint and diagnostic machinery before chain traversal.
-- [ ] Fixture: verify schema declarations and policy validation, including
+- [x] Decide the fallback when no effective schema declares unresolved-link
+      disposition. User adopted the recommended neutral consumer-owned outcome
+      on 2026-10-04; explicit inherited mandatory, warning or ignore rules take
+      precedence. Neutral outcomes neither emit a diagnostic nor imply success.
+- [x] Fixture: verify neutral fallback, inherited mandatory/warning/ignore
+      dispositions and explicit neutral child overrides. Reject unknown/missing
+      values, duplicate declarations and incompatible diagnostic severity.
+      Preserve unresolved facts and source provenance under every disposition.
+      Verify depth/work limits and disposition compose into one effective
+      policy without partially applying malformed or conflicting overrides.
+- [x] Implement schema-owned unresolved-link disposition declarations and
+      validated effective-scope overrides. Reuse schema diagnostic definitions;
+      apply policy only to explicitly supplied unresolved facts, without query
+      execution, graph mutation or empty-result cardinality inference.
+- [x] Fixture: verify schema declarations and policy validation, including
       malformed or conflicting policies and inherited policy. Keep reference
       failures as neutral facts until the effective schema determines their
       diagnostic disposition; invalid expression/operand types remain invalid.
+      Verification: five unresolved-policy, two traversal-policy, two schema
+      contract and ten retained-reference fixtures pass. These validate policy
+      and explicit fact treatment; they do not implement chain traversal.
 
 Audit findings (2026-10-04): the initial implementation retains standalone
 CEM/XML references and implements strict unary `#` construction and CEMB v3
 graph edges. The legacy `dom:reference` helper keeps its separate preservation
 behavior. Saved `context` handles are lexical origins, and optional `targets`
-are representation choices. Shared chain evaluation, per-link schema
-disposition/cardinality, expression artifact linkage, typed attribute slots,
+are representation choices. Scope-schema disposition and bound composition
+are implemented for explicit unresolved facts. Shared chain evaluation,
+per-link runtime application/cardinality, expression artifact linkage, typed attribute slots,
 and schema construct reuse remain incomplete. The parser-backed target view now
 preserves absent unevaluated targets separately from resolved-empty targets,
 including field enumeration. Existing ID-backed name slots are not a `#` resolver.
 
 Completed foundations: schema contract declarations, schema-sourced depth/work
 defaults and validated inherited overrides, numeric graph-label validation,
-and XML query-payload provenance. These do not claim an implemented chain
-resolver or full scope-reference integration.
+XML query-payload provenance, and neutral/inherited unresolved-link policy.
+These do not claim an implemented chain resolver or full scope-reference integration.
 
-Verification (2026-10-04): 11 focused CEM-ML reference tests, four CEM-QL
-reference tests, all 99 native query-adapter tests, and the full CEM-QL Nx
-test target pass. The broad CEM-ML target has 2067 passing library tests,
+Verification (2026-10-04): 19 focused CEM-ML reference/policy tests pass.
+The previous construction slice passed eight CEM-QL reference tests, all 99
+native query-adapter tests, and the full CEM-QL Nx test target (829 tests).
+The broad CEM-ML target has 2067 passing library tests,
 two ignored tests, and one preexisting failure:
 `legacy_custom_element::tests::material_manifest_primary_templates_convert_under_engine_subset`
 cannot find `template#cem-dropdown`. This failure was reproduced before the
@@ -160,6 +174,11 @@ implementation. `git diff --check` passes.
 
 ### 4. Add explicit runtime evaluation and bounded chain resolution
 
+- [ ] Decide cycle/limit outcome treatment before shared traversal: incomplete
+      unresolved outcomes governed by scope disposition, or unconditional
+      evaluation failure. Both stop traversal and preserve the authored graph.
+      User decision requested on 2026-10-04; suggested option applies schema
+      disposition while keeping the execution result incomplete.
 - [ ] Specify the shared evaluation entry point and result ownership using the
       existing CEM-QL expression mechanism. The caller supplies context and
       lifecycle timing; retain source-position lexical meaning. Distinguish

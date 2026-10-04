@@ -494,6 +494,7 @@ The applicable scope schema determines unresolved-link treatment:
 
 | Schema requirement | Evaluation treatment |
 | --- | --- |
+| No effective rule, or explicit neutral disposition | Retain a neutral unresolved outcome for the consumer; emit no diagnostic and do not imply successful resolution. |
 | Mandatory resolution | Report failure through the scope's existing diagnostic and error policy. |
 | Warning | Report the unresolved link and retain its unresolved outcome for the consumer. |
 | Ignore | Tolerate the unresolved link without a diagnostic; do not fabricate a target or remove the authored edge. |
@@ -502,6 +503,22 @@ Apply policy to each link under its effective scope schema. A resolved empty
 selection is distinct from an unresolved link; schema cardinality determines
 whether an empty result is acceptable. Consumer-specific use of the resolved
 nodes, including element-to-ID extraction, remains outside CEM-ML.
+
+The neutral fallback was adopted on 2026-10-04. An omitted child rule inherits
+the enclosing disposition and its diagnostic definition. A child may explicitly
+restore neutral behavior. Invalid expressions and scalar operands remain
+invalid; pending evaluation and successful empty selection are separate states.
+Disposition does not bypass cycle detection or traversal bounds.
+
+The implementation declares `reference-unresolved-disposition` in the scope
+schema with `@value` set to `neutral`, `mandatory`, `warning`, or `ignore`.
+Mandatory and warning rules may name a diagnostic declared in that schema;
+omitting `@diagnostic` uses the generic schema's corresponding diagnostic.
+Mandatory diagnostic severity must be error or fatal, and warning severity
+must be warning. Neutral and ignore rules do not name diagnostics. Duplicate
+disposition/depth/work declarations in one schema scope are rejected; inherited
+rules can be overridden in a child scope. This uses existing schema forms and
+does not choose the deferred enclosed child scope-reference spelling.
 
 ## Identity and graph preservation (adopted)
 
@@ -695,3 +712,11 @@ reuse an import result. Existing `data:read(...).id` selection keys remain
 source-derived across fresh unchanged reads and are distinct from runtime
 owner identity. These view fields do not adopt a new public query
 target-access spelling or implement chain resolution.
+
+`ReferenceScopePolicy` composes the schema-owned traversal bounds with
+`ReferenceUnresolvedPolicy`. Overrides are validated before returning a new
+effective policy. `apply` treats a consumer-supplied unresolved fact without
+executing its expression, following targets, changing the authored graph, or
+checking empty-result cardinality. Every disposition preserves the fact;
+mandatory marks failure, warning reports, and neutral/ignore emit no diagnostic.
+Cycle/limit outcome treatment and shared chain traversal remain separate work.
