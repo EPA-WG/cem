@@ -4,6 +4,7 @@
 //! Tier A vocab + machine live in submodules.
 
 pub mod compiler;
+pub mod declaration_references;
 pub(crate) mod diagnostics;
 pub mod disposition;
 pub mod document_model;

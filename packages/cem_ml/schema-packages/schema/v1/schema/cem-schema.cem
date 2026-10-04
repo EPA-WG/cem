@@ -1103,6 +1103,7 @@
         {diagnostic @code="cem.schema_definition.unresolved_behavior_function" @severity="error"}
         {diagnostic @code="cem.schema_definition.invalid_diagnostic_behavior_contract" @severity="error"}
         {diagnostic @code="cem.schema_definition.invalid_field_contract" @severity="error"}
+        {diagnostic @code="cem.schema_definition.invalid_reference_target" @severity="error"}
         {diagnostic @code="cem.schema_behavior.query_invalid" @severity="error"}
         {diagnostic @code="cem.schema_behavior.query_failed" @severity="error"}
         {diagnostic @code="cem.schema_behavior.result_invalid" @severity="error"}

@@ -234,14 +234,47 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: two sites reuse one declaration
       without source cloning; wrong target kinds/cardinality diagnose at the
       reference; existing base/alias fixtures remain compatible.
-- [ ] Decide incomplete declaration selection treatment before integration:
+- [x] Decide incomplete declaration selection treatment before integration:
       retain available declarations with an explicit incomplete model outcome
-      (recommended), or require a complete result per reference. Mandatory
-      failures and invalid expressions still fail compilation. Decision requested
-      2026-10-04. Scenarios for later design verification: one valid declaration
-      plus an unavailable dependency under neutral/warning/ignore remains visibly
+      (user adopted recommendation, 2026-10-04). Mandatory failures and invalid
+      expressions still fail compilation. Scenarios for later design
+      verification: one valid declaration plus an unavailable dependency under neutral/warning/ignore remains visibly
       incomplete; mandatory/invalid results cannot become successful models;
       pending compilation remains distinct from an empty declaration selection.
+- [x] Fixture: compile typed references in `{elements}` with ordered zero/many
+      declaration targets, repeated selections, wrong target kinds/missing names,
+      independent source owners and original lexical `@base`/`{uses}` aliases.
+      Verify no source cloning/writeback and collection order compatibility.
+- [x] Fixture: retain available declarations and explicit incomplete outcomes
+      under all dispositions; preserve pending, empty and invalid distinctions,
+      diagnostic attribution, denied crossings, cycles and bounded work.
+- [x] Fixture: compile through a host with runtime-constructed typed references
+      outside a saved AST arena. Verify shared depth/work accounting, native
+      occurrence metadata without context IDs, and retained declaration owners.
+- [x] Implement explicit host-driven `{elements}` declaration compilation and
+      per-site retained outcomes. Compile direct references without an evaluator
+      as pending; use declaring lexical aliases for referenced declarations.
+      Verification: seven declaration-consumer fixtures plus 30 existing reference
+      tests and two CEM-QL runtime fixtures pass. Nx `cem_ml:test` reports 2067
+      unit tests passing, two ignored, and the existing dropdown-template
+      failure (`material_manifest_primary_templates_convert_under_engine_subset`).
+      Each collection site makes one bounded resolution request; whole-document
+      compilation and query-instruction budgets remain separate concerns.
+- [ ] Decide package activation for incomplete compilation: retain models for
+      inspection but keep them inactive for final validation (recommended), or
+      explicitly allow partial models to validate documents. Decision requested
+      2026-10-04. Existing loader/registry checks diagnostics alone; neutral and
+      ignore may be incomplete without diagnostics.
+      Scenarios for later design verification: incomplete neutral/ignored models
+      never appear ready accidentally; pending sources remain distinct from
+      invalid schemas; completing inputs permits activation without source edits.
+- [ ] Integrate the selected readiness rule at schema package loading, registry
+      resolution and final validation. Preserve per-site states and diagnostics;
+      supply lifecycle evaluation through the consumer, without automatic
+      parser evaluation or a new scheduler.
+- [ ] Adapt native CEM-QL declaration views to original retained declaration
+      owners for the production schema host. Do not serialize or clone source
+      ASTs to manufacture target arenas; preserve lexical aliases and boundaries.
 - [ ] Define the existing schema validation/composition sites that consume typed
       node references, their target-kind/cardinality constraints, and required
       evaluation phase. Keep their construct-use and recursive-composition

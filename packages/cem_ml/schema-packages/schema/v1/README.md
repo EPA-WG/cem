@@ -2418,3 +2418,29 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
     {summary |
         {text | Missing schema close}
 ```
+
+### Explicit declaration reference compilation
+
+`schema::declaration_references::compile_schema_with_declaration_references`
+accepts a retained schema document and a consumer host. References within
+`{elements}` select zero or more named `{element}` declarations. The compiler
+uses each declaration's original owner and lexical schema aliases, preserves
+collection order and existing `@base`/`{uses}` behavior, then applies the consumer
+schema's field contracts. Source ASTs are neither cloned nor rewritten.
+
+The host supplies typed runtime evaluation, effective scopes/policy and edge
+permission. Runtime-constructed references need no synthetic source arena.
+Each collection site is a separate bounded resolution request. Invalid target
+kinds or missing names report `cem.schema_definition.invalid_reference_target`
+at the consuming reference; unresolved-link diagnostics retain failing-link
+provenance.
+
+Available declarations survive incomplete selections. Inspect
+`model.declaration_references.state()`, `is_complete()`, `failed()`, and
+`model.compile_diagnostics` before treating compilation as successful. A neutral
+or ignored unresolved link may have no diagnostic and still be incomplete.
+The ordinary source-only compiler records collection references as pending
+without invoking an evaluator; resolved-empty selections remain distinct.
+
+Package activation/readiness and the production CEM-QL host adapter remain
+tracked in [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).

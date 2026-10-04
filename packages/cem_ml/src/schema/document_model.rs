@@ -119,6 +119,9 @@ pub struct SchemaDocumentModel {
     pub diagnostics: BTreeMap<String, DiagnosticDefinition>,
     pub diagnostic_behaviors: BTreeMap<String, DiagnosticBehavior>,
     pub compile_diagnostics: Vec<Diagnostic>,
+    /// Explicit declaration-reference outcomes; diagnostics alone cannot
+    /// distinguish neutral/ignored incompleteness from a complete model.
+    pub declaration_references: super::declaration_references::DeclarationReferenceCompilation,
 }
 
 impl SchemaDocumentModel {
@@ -4254,11 +4257,62 @@ fn compile_document_model_from_document_with_seen(
     document: &CemDocument,
     seen_schema_uris: &mut BTreeSet<String>,
 ) -> SchemaDocumentModel {
+    compile_document_model_from_document_with_declarations(
+        schema_uri,
+        document,
+        seen_schema_uris,
+        &BTreeMap::new(),
+        Default::default(),
+    )
+}
+
+pub(crate) fn compile_document_model_with_declarations(
+    schema_uri: &str,
+    document: &CemDocument,
+    declarations: &BTreeMap<AstNodeId, Vec<ElementModel>>,
+    compilation: super::declaration_references::DeclarationReferenceCompilation,
+) -> SchemaDocumentModel {
+    compile_document_model_from_document_with_declarations(
+        schema_uri,
+        document,
+        &mut BTreeSet::new(),
+        declarations,
+        compilation,
+    )
+}
+
+pub(crate) fn element_declaration_reference_ids(document: &CemDocument) -> Vec<AstNodeId> {
+    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
+        return vec![];
+    };
+    element_child_ids_by_local_name(document, schema_id, "elements")
+        .into_iter()
+        .flat_map(|id| match document.get(id) {
+            Some(CemAstNode::Element { children, .. }) => children.clone(),
+            _ => vec![],
+        })
+        .filter(|id| matches!(document.get(*id), Some(CemAstNode::Reference { .. })))
+        .collect()
+}
+
+fn compile_document_model_from_document_with_declarations(
+    schema_uri: &str,
+    document: &CemDocument,
+    seen_schema_uris: &mut BTreeSet<String>,
+    declarations: &BTreeMap<AstNodeId, Vec<ElementModel>>,
+    compilation: super::declaration_references::DeclarationReferenceCompilation,
+) -> SchemaDocumentModel {
     if !seen_schema_uris.insert(schema_uri.to_owned()) {
         return empty_document_model(schema_uri);
     }
 
     let mut model = empty_document_model(schema_uri);
+    model.declaration_references = compilation;
+    for site in &model.declaration_references.sites {
+        if let Some(resolution) = &site.resolution {
+            model.compile_diagnostics.extend(resolution.diagnostics.clone());
+        }
+    }
 
     let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         seen_schema_uris.remove(schema_uri);
@@ -4275,6 +4329,16 @@ fn compile_document_model_from_document_with_seen(
             let Some(child) = document.get(*child_id) else {
                 continue;
             };
+            if matches!(child, CemAstNode::Reference { .. }) {
+                if let Some(elements) = declarations.get(child_id) {
+                    for element in elements {
+                        model.elements.insert(element.name.clone(), element.clone());
+                    }
+                } else {
+                    model.declaration_references.retain_pending(schema_uri, child);
+                }
+                continue;
+            }
             if element_local_name(child) != Some("element") {
                 continue;
             }
@@ -4379,10 +4443,11 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         diagnostics: BTreeMap::new(),
         diagnostic_behaviors: BTreeMap::new(),
         compile_diagnostics: Vec::new(),
+        declaration_references: Default::default(),
     }
 }
 
-fn compile_element_model(
+pub(crate) fn compile_element_model(
     document: &CemDocument,
     node_id: AstNodeId,
     uses: &BTreeMap<String, String>,
@@ -17872,7 +17937,7 @@ fn attribute_datatype_param_details(
     details
 }
 
-fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
+pub(crate) fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
     let mut uses = BTreeMap::new();
     for uses_id in element_child_ids_by_local_name(document, schema_id, "uses") {
         let Some(CemAstNode::Element { children, .. }) = document.get(uses_id) else {

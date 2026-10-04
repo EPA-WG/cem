@@ -737,6 +737,36 @@ constructed references need no saved AST handle or captured environment ID.
 
 A CEM-QL consumer fixture uses the existing expression evaluator with retained
 CEM-ML source and independently supplied native data trees, proving owner
-retention and no source writeback. Production schema consumers, lexical/scope
-adapters, empty-result cardinality and authored crossing declarations remain
-open checklist work; this does not adopt deferred public query access syntax.
+retention and no source writeback. The initial schema declaration consumer is
+described below. Production lifecycle adapters, other consumer cardinality
+rules and authored crossing declarations remain open checklist work; this
+does not adopt deferred public query access syntax.
+
+### Initial schema declaration consumer (2026-10-04)
+
+The first schema consumer is declaration reuse in `{elements}` during explicit
+schema compilation. A reference selects zero or more named `{element}`
+declarations. Their original retained owners and declaring lexical `{uses}`
+aliases are used to compile them; the source tree is not cloned or rewritten.
+References occupy their authored collection position, preserving the existing
+last-name-wins behavior. Consumer schema field contracts still apply after the
+collection is assembled. Other declaration collections and validation-input
+references remain implementation work.
+
+Available valid declarations are retained when another selected branch remains
+incomplete. `SchemaDocumentModel.declaration_references` reports per-site and
+aggregate completeness, with pending, unresolved and invalid outcomes distinct
+from resolved-empty selections. Mandatory failures and invalid expressions or
+target kinds remain compilation failures. Neutral or ignore never implies that
+an incomplete model is ready. Target-kind/name diagnostics point to the
+consuming reference; traversal diagnostics preserve the original failing link.
+
+`compile_schema_with_declaration_references` invokes the shared resolver through
+a consumer host. The host adapts retained source and terminal declaration
+handles to its own typed runtime representation, so constructed references do
+not require a fake source arena. Each site makes one bounded resolution request;
+this is not a whole-compilation work budget or an automatic lifecycle service.
+Compilation without an evaluator records unevaluated sites as pending and does
+not request evaluation. Native CEM-QL production adapters and package activation
+of incomplete models remain explicit actionable work in
+[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
