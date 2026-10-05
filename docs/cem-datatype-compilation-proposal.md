@@ -1,9 +1,10 @@
 # General datatype compilation proposal
 
 Status: temporary design draft. Registered schema-owned implementations,
-native `@rule` binding and separate validation/conversion roles are adopted.
-Registry collision policy, exact signatures and remaining kind contracts need
-decisions. General datatype compilation must be designed before enabling native attribute `@type` consumption.
+native `@rule` binding, separate validation/conversion roles, duplicate-name
+rejection and intersecting scalar restrictions are adopted. Exact signatures and
+remaining kind contracts need decisions. General datatype compilation must be
+designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
 ## Problem and accepted boundary
@@ -47,8 +48,9 @@ conversion of scalar values from retained node validation.
 ## Compilation and reference evaluation
 
 1. Collect declarations and lexical environments before binding dependencies.
-   Preserve current collection precedence during migration. Decide duplicate
-   datatype-name behavior explicitly before implementing a registry.
+   Existing element/attribute collection precedence remains compatible. Reject
+   distinct datatype declarations claiming the same name in one lexical schema;
+   repeated selection of the same original declaration is valid.
 2. Bind literal local/QName names through the declaration's own schema and
    declared exports. Native selection uses the shared lifecycle resolver and
    requires exactly one named `{type}` target. Do not infer URL lookup or grants.
@@ -77,12 +79,15 @@ not receive an intrinsic implementation merely because its local name matches.
 | `reference` | A symbolic-reference value contract such as a QName | Separate lexical validation from consumer-requested dereferencing; do not imply URL or AST link evaluation |
 | Native node contracts | Retained node input consumed by native validation/behaviors | Preserve the existing explicit node contract and decide how it is represented in the datatype registry |
 
-For inherited scalar restrictions, the recommendation is intersection: the base
+For inherited scalar restrictions, the adopted composition is intersection: the base
 and every restriction must hold, including locally authored attribute facets.
 This agrees with `AttributeValueContract.restrictions`. Conversion occurs once;
 restrictions cannot change the final representation. Type-dependent checks wait
 while dependencies are pending; independent malformed rules or facet syntax can
-still be reported. This recommendation is not yet a general datatype decision.
+still be reported. A derived restriction may narrow a base contract, but cannot
+widen it or substitute a different conversion result. An empty intersection
+accepts no values; statically provable contradictions are compilation errors,
+while arbitrary rule satisfiability is not assumed to be decidable.
 
 ## Adopted executable rule approach
 
@@ -159,10 +164,10 @@ and node resolution remain explicit consumer operations. No role permits ambient
 URL handling or wider source navigation than the consumer grants.
 
 Exact input/result bindings follow the selected validation/conversion contract.
-Duplicate names, scalar restriction composition, list representation and
-kind-specific grammar/reference behavior remain separate explicit TODO items.
+List representation and kind-specific grammar/reference behavior remain
+separate explicit TODO items.
 
-## Next decision: datatype registry collisions
+## Adopted datatype registry collisions and customization boundary
 
 Bind names in the declaring lexical schema, using its local declarations and
 explicit namespace aliases/exports. An internal scope handle is given by the
@@ -170,21 +175,47 @@ compiler/runtime; it does not require an authored root ID. Original declaration
 owners remain part of dependency and implementation identity. Matching a local
 name never substitutes for an explicitly registered implementation.
 
-Recommended collision policy: two distinct declarations claiming the same
-scoped datatype name are a compilation error. Reuse of the same original
-declaration from multiple attribute sites remains valid. Equal local names in
-separate lexical scopes/namespaces are independent and require the normal
-explicit boundary contracts to be selected across scopes. Registered package
-replacement still uses its origin/grant and coordinated activation rules.
+Two distinct declarations claiming the same scoped datatype name are a
+compilation error, with both original source locations available for diagnostics.
+Reuse of the same original declaration from multiple attribute sites remains
+valid. Equal local names in separate lexical scopes/namespaces are independent
+and require the normal explicit boundary contracts for cross-scope selection.
+Registered package replacement retains its origin/grant and coordinated
+activation rules; ordinary duplicate declarations do not authorize replacement.
 
-Alternative collision policy: later distinct declarations replace earlier ones,
-following existing element/attribute collection precedence. This makes the
-binding order part of a datatype's effective validation contract; the registry
-would need to retain shadowing provenance and make that order explicit.
+Incremental customization can derive a separately named type and add intersecting
+restrictions to its base. Automatic later-declaration replacement is not adopted:
+source order must not silently discard restrictions or change a bound datatype.
+Native selection retains the original declaration identity and is not redirected
+by another declaration with the same name.
 
-No datatype registry is enabled yet. Select the collision policy before defining
-its collection/name-binding implementation. List representations, exact rule
-signatures and other kind-specific contracts remain separate action items.
+Explicit declaration overrides are deferred. Before admitting them, specify the
+replaced declaration identity, authorization, dependency rebinding and coordinated
+activation contract. This does not adopt override syntax or a replacement grant
+at the individual datatype level. Keep this work separate from the first general
+registry; existing package replacement is not an implicit declaration override.
+
+## Next decision: list value representation
+
+The shipped `name-list` and `wildcard-name-list` validators consume whitespace-
+separated lexical strings and reject an empty value. Their `base` describes each
+item, rather than scalar inheritance. Preserve those validation contracts during
+migration; do not silently treat commas as separators or erase duplicate items.
+
+Recommended compiled representation: an ordered sequence of typed items for
+explicit list conversion, retaining the authored lexical source separately.
+A registered list conversion capability specifies tokenization and canonical
+serialization; the shipped name lists use their existing whitespace semantics.
+Validation alone checks the supplied representation without requesting conversion
+implicitly. List rules can examine individual items and the complete sequence.
+
+Alternative: keep the converted list as one canonical lexical string and expose
+items only through a separate consumer operation. This minimizes change to scalar
+conversion APIs but requires consumers and rules to request item extraction.
+
+Neither option is enabled. Decide the canonical representation before specifying
+list conversion signatures. The meaning of list-level `values`, general empty-
+list admission and custom tokenizers remain explicit follow-up decisions.
 
 ## Verified inventory and current native boundary
 

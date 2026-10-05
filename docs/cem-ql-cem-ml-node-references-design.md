@@ -1335,8 +1335,14 @@ A separate `@behavior` field is not adopted. Rule consumption remains disabled
 until its typed signature and lifecycle adapter are specified. Rules validate
 and report acceptance or diagnostics; an explicitly requested separate conversion
 capability produces the canonical value. Rules cannot replace that value or
-mutate authored source nodes. The next registry decision is whether distinct
-same-name datatype declarations in one lexical schema are errors or use later
-precedence; rejection is recommended. The verified inventory also distinguishes
+mutate authored source nodes. Distinct same-name datatype declarations in one
+lexical schema are compilation errors; reuse of the same original declaration
+and equal names in separate scopes remain valid. Scalar restrictions intersect
+with their base and cannot widen it or rewrite the converted value. Explicit
+declaration overrides remain deferred, with identity, authorization and dependent
+activation contracts required before admission. Native selection is not redirected
+by a later same-name declaration. The next decision is the canonical list value
+representation: ordered typed items are recommended, retaining authored lexical
+source separately. The verified inventory also distinguishes
 available scalar conversion from the broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.

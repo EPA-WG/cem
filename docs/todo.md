@@ -1126,12 +1126,27 @@ implementation verification. They do not claim executable test coverage.
       capability, and rule results cannot replace the typed value.
       Scenarios for later design verification: conversion happens once; inherited
       restrictions cannot rewrite the final value or mutate an authored source.
-- [ ] Decide datatype registry collisions within one lexical schema: reject
-      distinct same-name declarations (recommended), or use later-declaration
-      precedence with explicit shadowing provenance. Reusing one original
-      declaration from multiple attribute sites remains valid.
+- [x] Adopt datatype registry collision errors for distinct same-name declarations
+      within one lexical schema. Reusing one original declaration from multiple
+      attribute sites remains valid; ordinary duplicates do not authorize overrides.
       Scenarios for later design verification: equal local names in separate scopes
       remain independent; source order cannot silently weaken a type restriction.
+- [x] Adopt intersecting scalar restrictions: base, derived and attribute-local
+      constraints all hold; conversion occurs once and restrictions cannot widen
+      the base contract or replace its result.
+      Scenarios for later design verification: disjoint restrictions admit no values;
+      statically provable contradictions report their original source locations.
+- [ ] Design explicit datatype declaration overrides as separate future work:
+      specify replaced declaration identity, authorization, dependency rebinding
+      and coordinated activation before admitting syntax or implementation.
+      Scenarios for later design verification: an application can intentionally
+      replace a contract without import order silently weakening restrictions;
+      existing native selections retain identity unless explicit rebinding is chosen.
+- [ ] Decide canonical list conversion representation: ordered typed items with
+      retained lexical source (recommended), or canonical lexical string with
+      separate item extraction. Preserve shipped whitespace list validation.
+      Scenarios for later design verification: item order and duplicates survive;
+      list item bases do not become scalar inheritance; validation does not convert.
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
       Scenarios for later design verification: registration grants no scope access;
@@ -1141,8 +1156,8 @@ implementation verification. They do not claim executable test coverage.
       and symbolic-reference implementations before adding those implementations.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
-- [ ] Decide and specify datatype namespace/duplicate rules, scalar restriction
-      composition, list item/value representation and grammar/reference behavior.
+- [ ] Complete datatype namespace/export binding rules, list-level `values` and
+      empty-list/tokenization policies, and grammar/reference kind contracts.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
