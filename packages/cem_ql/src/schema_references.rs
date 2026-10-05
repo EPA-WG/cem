@@ -2,7 +2,10 @@
 //! The caller supplies contexts, effective scopes and directed crossing grants.
 //! Construction/import never invokes this stage or writes targets to source.
 use crate::{
-    api::{evaluate_expression, StandaloneExpressionContext},
+    api::{
+        compile_expression, evaluate, CompiledExpression, EvaluationContext,
+        StandaloneExpressionContext,
+    },
     eval::{retained_cem_node, values::ReferenceView, Item},
 };
 use cem_ml::{
@@ -59,6 +62,8 @@ pub struct CemQlSchemaDeclarationHost {
     node_scopes: BTreeMap<(usize, AstNodeId), DeclarationScope>,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     fallback_policy: ReferenceScopePolicy,
+    // Compiled source only: runtime targets and contexts remain per invocation.
+    source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
 }
 impl Default for CemQlSchemaDeclarationHost {
     fn default() -> Self {
@@ -73,6 +78,7 @@ impl CemQlSchemaDeclarationHost {
             scopes: vec![],
             node_scopes: BTreeMap::new(),
             grants: BTreeSet::new(),
+            source_expressions: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
                 .expect("embedded reference policy"),
         }
@@ -129,9 +135,66 @@ impl CemQlSchemaDeclarationHost {
         if self.scope_record(scope).is_none() {
             return false;
         }
+        // Binding types, expected type and registered capabilities can change.
+        // Invalidate this scope even when only values appear to have changed;
+        // do not infer compilation compatibility from runtime data.
+        self.source_expressions
+            .retain(|(owner, _), _| *owner != scope);
         self.scopes[scope.index].context = context;
         true
     }
+    /// Inspect compilation for an original expression occurrence in its current
+    /// effective scope. This does not compile, evaluate or expose stored targets.
+    pub fn compiled_source_expression(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Option<Arc<CompiledExpression>> {
+        let scope = self.source_scope(source)?;
+        self.source_expressions
+            .get(&(scope, source.identity()))
+            .cloned()
+    }
+
+    fn evaluate_source_expression(
+        &mut self,
+        node: &CemQlSchemaReferenceNode,
+        expression: &str,
+    ) -> Result<crate::eval::ItemStream, Vec<cem_ml::diagnostics::Diagnostic>> {
+        // Callers distinguish missing scope/context from compilation failure.
+        let scope = node.scope.expect("registered expression scope");
+        let source = node.source.as_ref().expect("original expression source");
+        let key = (scope, source.identity());
+        let context = self
+            .scope_record(scope)
+            .and_then(|scope| scope.context.as_ref())
+            .expect("ready expression context");
+        let compiled = match self.source_expressions.get(&key) {
+            Some(compiled) => compiled.clone(),
+            None => Arc::new(
+                compile_expression(expression, context).map_err(|error| error.diagnostics)?,
+            ),
+        };
+        let result = evaluate(
+            &compiled.query,
+            &EvaluationContext {
+                scope: context.scope,
+                scope_policy: context.scope_policy,
+                diagnostics: context.diagnostics.clone(),
+                policy_bindings: context.policy_bindings(),
+                current_item: context.context_item.clone(),
+                module_resolution: context.module_resolution.clone(),
+                native_functions: context.native_functions.clone(),
+                data_readers: Default::default(),
+            },
+        );
+        self.source_expressions.entry(key).or_insert(compiled);
+        if result.error.is_some() {
+            Err(result.diagnostics)
+        } else {
+            Ok(result)
+        }
+    }
+
     pub fn allow_scope_crossing(&mut self, from: DeclarationScope, to: DeclarationScope) -> bool {
         if self.scope_record(from).is_none() || self.scope_record(to).is_none() {
             return false;
@@ -319,23 +382,20 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
         let Some(scope) = node.scope.and_then(|s| self.scope_record(s)) else {
             return ReferenceLinkEvaluation::Unresolved("unregistered-schema-scope".into());
         };
-        let Some(context) = &scope.context else {
+        if scope.context.is_none() {
             return ReferenceLinkEvaluation::Pending("schema-context-not-ready".into());
-        };
+        }
         let Some(CemAstNode::Reference { expression, .. }) = node.source.as_ref().map(|s| s.node())
         else {
             unreachable!("resolver only evaluates typed references");
         };
-        let evaluated = match evaluate_expression(expression, context) {
-            Err(error) => return ReferenceLinkEvaluation::Invalid(error.diagnostics),
-            Ok(evaluated) if evaluated.result.error.is_some() => {
-                return ReferenceLinkEvaluation::Invalid(evaluated.result.diagnostics)
-            }
+        let evaluated = match self.evaluate_source_expression(node, expression) {
+            Err(diagnostics) => return ReferenceLinkEvaluation::Invalid(diagnostics),
             Ok(evaluated) => evaluated,
         };
         // Consume only the outer source constructor. Nested reference operands
         // remain explicit nodes and are followed by the common bounded walker.
-        let items = &evaluated.result.items;
+        let items = &evaluated.items;
         if items.len() != 1 {
             return self.invalid_constructor(node);
         }
@@ -372,19 +432,16 @@ impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
         let Some(scope) = node.scope.and_then(|scope| self.scope_record(scope)) else {
             return ReferenceLinkEvaluation::Unresolved("unregistered-schema-scope".into());
         };
-        let Some(context) = &scope.context else {
+        if scope.context.is_none() {
             return ReferenceLinkEvaluation::Pending("schema-context-not-ready".into());
+        }
+        let evaluated = match self
+            .evaluate_source_expression(node, occurrence.expression.as_deref().unwrap())
+        {
+            Err(diagnostics) => return ReferenceLinkEvaluation::Invalid(diagnostics),
+            Ok(evaluated) => evaluated,
         };
-        let evaluated =
-            match evaluate_expression(occurrence.expression.as_deref().unwrap(), context) {
-                Err(error) => return ReferenceLinkEvaluation::Invalid(error.diagnostics),
-                Ok(evaluated) if evaluated.result.error.is_some() => {
-                    return ReferenceLinkEvaluation::Invalid(evaluated.result.diagnostics)
-                }
-                Ok(evaluated) => evaluated,
-            };
         let nodes: Vec<_> = evaluated
-            .result
             .items
             .into_iter()
             .map(|item| self.query_node(item, node.scope))

@@ -1423,3 +1423,35 @@ consumer remains guarded until its separately designed datatype compiler is read
 Complete reference selection cannot by itself claim an executable type or activate
 an incomplete schema package. Track the integration and its verification scenarios
 in [reference adoption actions](todo.md#reference-adoption-dependency-binding-and-readiness).
+
+
+### Retained expression artifact lifecycle (2026-10-05)
+
+The explicit CEM-QL schema lifecycle host now retains compiled source expressions
+by original occurrence and effective runtime scope. Standalone references and
+native general attribute expressions share this path. Artifact inspection through
+`compiled_source_expression` uses the original retained source handle and does not
+compile or evaluate. Pending contexts produce no compiled artifact; malformed
+source cannot register a valid one. Query-relative compilation provenance remains
+available in the artifact, while the original occurrence retains its document source.
+Precise diagnostic linkage between those positions remains an explicit follow-up.
+
+Each consumer invocation evaluates the compiled expression with the scope's current
+context and capabilities. Evaluated target lists are never stored in this cache or
+published onto authored reference nodes. A changing registered runtime capability
+runs on every invocation, even while compilation is reused. Context replacement
+invalidates all entries for that scope, including replacement with a pending context;
+this avoids assuming compatibility of binding types, expected types or capabilities.
+Equal expression text in distinct occurrences or child scopes has distinct entries.
+Compilation reuse does not alter reference budgets, per-link grants or lexical
+scope selection, and does not require an authored runtime-context ID.
+
+Five new lifecycle/parity fixtures and the 13 existing CEM-QL schema-reference
+fixtures pass, including replacement of a node-compatible binding by an incompatible
+scalar type. Full Nx CEM-QL verification passes 862 tests (nine ignored), and the
+transformation adapter target passes 132 tests. Namespace-aliased XML/CDATA references
+compile and evaluate through
+the same typed context as CEM-ML standalone references. This does not enable the
+separately deferred XML attribute expression contract. The remaining source-position
+linkage and expression-slot parity work is recorded with adjacent verification
+scenarios in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).

@@ -1113,6 +1113,36 @@ remains guarded until that compiler is ready.
       implicit built-in fallback; lookup availability does not establish execution readiness.
       Verification: 13 dependency traversal fixtures and 92 adjacent source/registry/
       inventory/native-value/declaration-reference tests pass (105 total).
+- [x] Fixture: retain compiled CEM-QL expression artifacts per original source
+      occurrence and effective scope for standalone references and general attribute
+      slots. Verify pending contexts do not compile, repeated evaluation reuses only
+      compiled artifacts, context replacement invalidates them, equal source text in
+      child scopes remains independent, malformed source cannot cache a valid artifact,
+      and namespace-aliased XML/CDATA references evaluate with the same typed context.
+      Verify a changing registered capability runs for each evaluation while the
+      compiled artifact remains shared and selected target identities change.
+      Scenarios for later design verification: cached compilation never caches targets,
+      fabricates a runtime context ID or mutates the authored reference graph.
+- [x] Integrate retained compiled source artifacts into the CEM-QL lifecycle host;
+      keep compilation tied to the original occurrence and invalidate scope entries
+      when caller-supplied context is replaced. Preserve explicit evaluation timing.
+      Scenarios for later design verification: changed binding types/capabilities cannot
+      reuse stale compilation; original handles remain available for artifact inspection.
+      Verification: all 18 CEM-QL schema-reference fixtures pass, including five new
+      artifact lifecycle/parity cases and changed static binding-type rejection. Full
+      `cem_ql:test` Nx verification passes 862 tests (nine ignored); full
+      `cem_ml_transform_cem_ql:test` passes 132 tests. No source targets are cached.
+- [ ] Fixture: verify expression compiler/evaluator diagnostics retain the original
+      standalone/attribute occurrence and document source, including leading whitespace,
+      Unicode and XML text/CDATA payload boundaries. Add precise source-position
+      linkage without treating a query-relative offset as a document-relative offset.
+      Scenarios for later design verification: equal expressions in separate occurrences
+      report their own source; decoded XML entities preserve their authored provenance.
+- [ ] Integrate original-occurrence diagnostic/source-position linkage into the retained
+      expression lifecycle adapter under those fixtures; preserve compiler diagnostics
+      and keep runtime binding selection separate from authored context handles.
+      Scenarios for later design verification: malformed expressions remain invalid
+      without losing source spans or emitting diagnostics against a different occurrence.
 - [ ] Audit and finish the remaining retained reference expression-slot integration
       and CEM/XML parity from sections 1–2 above. Identify existing coverage first;
       add focused native fixture actions for actual gaps before implementation.

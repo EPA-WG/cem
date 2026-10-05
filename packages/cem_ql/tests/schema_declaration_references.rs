@@ -786,3 +786,299 @@ fn reused_attribute_types_stay_pending_without_an_executable_datatype_consumer()
         .flat_map(|resolution| &resolution.nodes)
         .any(|target| Arc::ptr_eq(target.document(), library.ast_owner())));
 }
+
+fn reference_source(
+    tree: &Arc<RetainedCemTree>,
+) -> cem_ml::schema::declaration_references::SchemaDeclarationNode {
+    tree.ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                cem_ml::schema::declaration_references::SchemaDeclarationNode::new(
+                    tree.ast_owner().clone(),
+                    *node_id,
+                )
+            }
+            _ => None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn source_expression_artifacts_are_retained_until_context_replacement() {
+    use cem_ml::{
+        schema::declaration_references::SchemaDeclarationHost,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    let source =
+        tree("{schema | {elements | {#library}} {element @name=first} {element @name=second}}");
+    let targets: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "element" => Some(
+                cem_ql::eval::RetainedCemNode::new(source.clone(), *node_id)
+                    .unwrap()
+                    .query_item(),
+            ),
+            _ => None,
+        })
+        .collect();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(source.clone(), None, policy());
+    let original = reference_source(&source);
+    let node = host.source_reference(original.clone());
+    assert!(host.compiled_source_expression(&original).is_none());
+    assert!(matches!(
+        host.evaluate(&node),
+        ReferenceLinkEvaluation::Pending(_)
+    ));
+    assert!(host.compiled_source_expression(&original).is_none());
+    host.set_context(scope, Some(context(vec![targets[0].clone()])));
+    let ReferenceLinkEvaluation::Resolved(first) = host.evaluate(&node) else {
+        panic!()
+    };
+    let artifact = host.compiled_source_expression(&original).unwrap();
+    let ReferenceLinkEvaluation::Resolved(repeated) = host.evaluate(&node) else {
+        panic!()
+    };
+    assert!(Arc::ptr_eq(
+        &artifact,
+        &host.compiled_source_expression(&original).unwrap()
+    ));
+    assert_eq!(
+        host.declaration_node(&first[0]).unwrap().identity(),
+        host.declaration_node(&repeated[0]).unwrap().identity()
+    );
+    host.set_context(scope, Some(context(vec![targets[1].clone()])));
+    assert!(host.compiled_source_expression(&original).is_none());
+    let ReferenceLinkEvaluation::Resolved(second) = host.evaluate(&node) else {
+        panic!()
+    };
+    assert_ne!(
+        host.declaration_node(&first[0]).unwrap().identity(),
+        host.declaration_node(&second[0]).unwrap().identity()
+    );
+    assert!(!Arc::ptr_eq(
+        &artifact,
+        &host.compiled_source_expression(&original).unwrap()
+    ));
+    host.set_context(scope, None);
+    assert!(host.compiled_source_expression(&original).is_none());
+    assert!(matches!(
+        host.evaluate(&node),
+        ReferenceLinkEvaluation::Pending(_)
+    ));
+    assert!(matches!(
+        original.node(),
+        CemAstNode::Reference { targets: None, .. }
+    ));
+    // The replacement's static type forbids node construction even when its
+    // supplied sequence is empty. Reusing the old Any compilation would miss it.
+    let scalar_context = StandaloneExpressionContext::default().with_binding(
+        "library",
+        StandaloneExpressionBinding::new(
+            ItemStream::empty(),
+            cem_ql::types::Type::atom(cem_ql::types::AtomType::String),
+        ),
+    );
+    host.set_context(scope, Some(scalar_context));
+    assert!(matches!(
+        host.evaluate(&node),
+        ReferenceLinkEvaluation::Invalid(_)
+    ));
+    assert!(host.compiled_source_expression(&original).is_none());
+}
+
+#[test]
+fn general_attribute_slots_retain_artifacts_and_reject_removed_bindings() {
+    use cem_ml::{
+        schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        value::reference_resolution::ReferenceLinkEvaluation,
+    };
+    let source = tree("{item @target={library}} {target}");
+    let expression = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "$" => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let item = cem_ql::eval::RetainedCemNode::new(source.clone(), expression.node_id())
+        .unwrap()
+        .query_item();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(source, Some(context(vec![item])), policy());
+    let node = host.source_reference(expression.clone());
+    assert!(matches!(
+        host.evaluate_input_expression(&node),
+        ReferenceLinkEvaluation::Resolved(_)
+    ));
+    let artifact = host.compiled_source_expression(&expression).unwrap();
+    assert!(matches!(
+        host.evaluate_input_expression(&node),
+        ReferenceLinkEvaluation::Resolved(_)
+    ));
+    assert!(Arc::ptr_eq(
+        &artifact,
+        &host.compiled_source_expression(&expression).unwrap()
+    ));
+    host.set_context(scope, Some(StandaloneExpressionContext::default()));
+    assert!(matches!(
+        host.evaluate_input_expression(&node),
+        ReferenceLinkEvaluation::Invalid(_)
+    ));
+    assert!(host.compiled_source_expression(&expression).is_none());
+}
+
+#[test]
+fn identical_reference_sources_in_child_scopes_keep_distinct_artifacts() {
+    use cem_ml::{
+        schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        value::reference_resolution::ReferenceResolutionHost,
+    };
+    let source = tree("{left | {#library}} {right | {#library}}");
+    let refs: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(source.clone(), Some(context(vec![])), policy());
+    let child = host.register_scope(source.clone(), Some(context(vec![])), policy());
+    assert!(host.assign_subtree_scope(&source, refs[1].node_id(), child));
+    for original in &refs {
+        let node = host.source_reference(original.clone());
+        host.evaluate(&node);
+    }
+    let first = host.compiled_source_expression(&refs[0]).unwrap();
+    let second = host.compiled_source_expression(&refs[1]).unwrap();
+    assert!(!Arc::ptr_eq(&first, &second));
+    host.set_context(child, None);
+    assert!(Arc::ptr_eq(
+        &first,
+        &host.compiled_source_expression(&refs[0]).unwrap()
+    ));
+    assert!(host.compiled_source_expression(&refs[1]).is_none());
+}
+
+#[test]
+fn xml_cdata_and_curly_reference_slots_compile_with_equivalent_contexts() {
+    use cem_ml::{
+        schema::declaration_references::SchemaDeclarationHost,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    let curly = tree("{section | {#library} {after}}");
+    let xml = cem_ml::import::import_data_bytes(b"<section xmlns:r='https://cem.dev/ns/cem-ml/1'><r:expr><![CDATA[#library]]></r:expr><after/></section>", "application/xml", "cem", "source.xml").unwrap();
+    for source in [curly, xml] {
+        let original = reference_source(&source);
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(source, Some(context(vec![])), policy());
+        let node = host.source_reference(original.clone());
+        assert!(
+            matches!(host.evaluate(&node), ReferenceLinkEvaluation::Resolved(targets) if targets.is_empty())
+        );
+        assert!(host.compiled_source_expression(&original).is_some());
+        assert!(
+            matches!(original.node(), CemAstNode::Reference { expression, targets: None, source, .. } if expression == "#library" && !source.frames.is_empty())
+        );
+    }
+    let malformed = tree("{#library[}");
+    let original = reference_source(&malformed);
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(malformed, Some(context(vec![])), policy());
+    let node = host.source_reference(original.clone());
+    assert!(matches!(
+        host.evaluate(&node),
+        ReferenceLinkEvaluation::Invalid(_)
+    ));
+    assert!(host.compiled_source_expression(&original).is_none());
+}
+
+#[test]
+fn retained_compilation_never_caches_runtime_capability_results() {
+    use cem_ml::{
+        schema::declaration_references::SchemaDeclarationHost,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    use cem_ql::native::{NativeQueryFunction, NativeQueryRequest};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    #[derive(Debug)]
+    struct Pick(Arc<AtomicUsize>);
+    impl NativeQueryFunction for Pick {
+        fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
+            let index = self.0.fetch_add(1, Ordering::SeqCst);
+            ItemStream::once(request.arguments[0].items[index].clone())
+        }
+    }
+    let source = tree(r#"{#native:call("fixture.pick", library)} {first} {second}"#);
+    let targets = ["first", "second"].map(|name| {
+        let id = source
+            .ast()
+            .nodes
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == name => Some(*node_id),
+                _ => None,
+            })
+            .unwrap();
+        cem_ql::eval::RetainedCemNode::new(source.clone(), id)
+            .unwrap()
+            .query_item()
+    });
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut runtime = context(targets.into());
+    runtime
+        .native_functions
+        .register("fixture.pick", 1, Pick(calls.clone()))
+        .unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(source.clone(), Some(runtime), policy());
+    let original = reference_source(&source);
+    let node = host.source_reference(original.clone());
+    let first_result = host.evaluate(&node);
+    let ReferenceLinkEvaluation::Resolved(first) = first_result else {
+        panic!("{first_result:?}")
+    };
+    let compiled = host.compiled_source_expression(&original).unwrap();
+    let ReferenceLinkEvaluation::Resolved(second) = host.evaluate(&node) else {
+        panic!()
+    };
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(Arc::ptr_eq(
+        &compiled,
+        &host.compiled_source_expression(&original).unwrap()
+    ));
+    assert_ne!(
+        host.declaration_node(&first[0]).unwrap().identity(),
+        host.declaration_node(&second[0]).unwrap().identity()
+    );
+    assert!(matches!(
+        original.node(),
+        CemAstNode::Reference { targets: None, .. }
+    ));
+}
