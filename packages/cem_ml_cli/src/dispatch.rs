@@ -5567,6 +5567,20 @@ fn render_report_cem(report: &cem_ml::report::Report) -> String {
     cem_attr(&mut out, "generated-at", &report.generated_at);
     out.push_str(" |\n");
 
+    if let Some(validation) = &report.report_ast.validation {
+        cem_element_start(&mut out, 1, "validation");
+        cem_attr_bool(&mut out, "complete", validation.complete);
+        out.push_str(" |\n");
+        for input in &validation.inputs {
+            cem_element_start(&mut out, 2, "input");
+            cem_attr(&mut out, "uri", &input.input);
+            cem_attr_bool(&mut out, "complete", input.complete);
+            out.push_str("}\n");
+        }
+        cem_indent(&mut out, 1);
+        out.push_str("}\n");
+    }
+
     cem_element_start(&mut out, 1, "inputs");
     cem_attr_u64(&mut out, "count", report.inputs.len() as u64);
     out.push_str(" |\n");
@@ -5886,6 +5900,16 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     let mut out = String::new();
     out.push_str("# cem-ml report\n\n");
     out.push_str(&format!("Generated: {}\n\n", report.generated_at));
+    if let Some(validation) = &report.report_ast.validation {
+        out.push_str(&format!("Validation complete: {}\n\n", validation.complete));
+        for input in &validation.inputs {
+            out.push_str(&format!(
+                "- `{}`: complete={}\n",
+                input.input, input.complete
+            ));
+        }
+        out.push('\n');
+    }
     out.push_str(&format!("- inputs: {}\n", report.summary.input_count));
     out.push_str(&format!("- info: {}\n", report.summary.info_count));
     out.push_str(&format!("- warning: {}\n", report.summary.warning_count));
@@ -6054,7 +6078,21 @@ fn render_report_html(report: &cem_ml::report::Report) -> String {
     out.push_str("</style>\n");
     out.push_str("</head>\n<body>\n<main>\n");
     out.push_str("<h1>cem-ml validation report</h1>\n");
-    let status_class = if report.summary.fatal_count + report.summary.error_count > 0 {
+    if let Some(validation) = &report.report_ast.validation {
+        out.push_str(&format!(
+            "<section aria-label=\"Validation completion\"><p>Validation complete: {}</p><ul>",
+            validation.complete
+        ));
+        for input in &validation.inputs {
+            out.push_str("<li>");
+            push_xml_escaped_text(&mut out, &input.input);
+            out.push_str(&format!(": complete={}</li>", input.complete));
+        }
+        out.push_str("</ul></section>\n");
+    }
+    let status_class = if !report.validation_complete()
+        || report.summary.fatal_count + report.summary.error_count > 0
+    {
         "fail"
     } else if report.summary.warning_count > 0 {
         "warn"
@@ -6248,6 +6286,9 @@ fn render_json_value_cem(out: &mut String, indent: usize, value: &serde_json::Va
 }
 
 fn fail_for_summary(fail_level: cli::FailLevel, report: &cem_ml::report::Report) -> bool {
+    if !report.validation_complete() {
+        return true;
+    }
     let s = &report.summary;
     match fail_level {
         cli::FailLevel::Strict => {
@@ -8158,6 +8199,35 @@ mod tests {
     use std::io::Cursor;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn incomplete_validation_prevents_success_without_inflating_diagnostics() {
+        let report = cem_ml::report::Report::deterministic(
+            vec!["pending.cem".into()],
+            vec![],
+            cem_ml::report::ReportOptionsSnapshot {
+                fail_level: cem_ml::engine::FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        )
+        .with_validation_completion(vec![cem_ml::report::InputValidationCompletion {
+            input: "pending.cem".into(),
+            complete: false,
+        }]);
+        for level in [
+            cli::FailLevel::Strict,
+            cli::FailLevel::Validate,
+            cli::FailLevel::Parse,
+        ] {
+            assert!(fail_for_summary(level, &report));
+        }
+        assert_eq!(report.summary.hard_violation_count, 0);
+        assert!(render_report_cem(&report).contains("@complete=false"));
+        assert!(render_report_markdown(&report).contains("Validation complete: false"));
+        assert!(render_report_html(&report).contains("Validation complete: false"));
+    }
 
     const COLORED_P_HI_HTML: &str = concat!(
         r#"<p class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,

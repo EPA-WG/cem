@@ -1167,6 +1167,34 @@ pub fn validate_document_model(
     validate_document_model_with_behavior_evaluator(document, model, None)
 }
 
+/// Only visit structure consumed by this model; special and unknown elements
+/// keep their existing validation boundaries.
+pub(crate) fn has_consumable_references(
+    document: &CemDocument,
+    model: &SchemaDocumentModel,
+) -> bool {
+    let Some(CemAstNode::Document { root_children, .. }) = document.root() else {
+        return false;
+    };
+    let mut pending = root_children.clone();
+    while let Some(id) = pending.pop() {
+        match document.get(id) {
+            Some(CemAstNode::Reference { .. }) => return true,
+            Some(CemAstNode::Element {
+                expanded_name,
+                children,
+                ..
+            }) if !should_skip_structural_name(&expanded_name.local_name)
+                && model.element(&expanded_name.local_name).is_some() =>
+            {
+                pending.extend(children.iter().copied())
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 pub fn validate_document_model_with_behavior_evaluator(
     document: &CemDocument,
     model: &SchemaDocumentModel,
@@ -1186,11 +1214,12 @@ pub fn validate_document_model_with_behavior_evaluator(
     for child_id in root_children {
         validate_node(document, model, *child_id, false, &mut diagnostics);
     }
-    if let Some(behavior_evaluator) = behavior_evaluator {
+    let complete = !has_consumable_references(document, model);
+    if let Some(behavior_evaluator) = behavior_evaluator.filter(|_| complete) {
         diagnostics.extend(behavior_evaluator.compile_model(model));
         diagnostics.extend(behavior_evaluator.validate_document(document, model));
     }
-    if model.schema_uri == CEM_SCHEMA_URI {
+    if complete && model.schema_uri == CEM_SCHEMA_URI {
         diagnostics.extend(compile_authored_schema_behaviors(
             document,
             behavior_evaluator,
@@ -1380,12 +1409,15 @@ fn validate_node(
         return;
     };
     let sequence = child_element_sequence(document, children);
+    let children_complete = !children
+        .iter()
+        .any(|id| matches!(document.get(*id), Some(CemAstNode::Reference { .. })));
     let Some(element_model) = validate_element_shallow(
         document,
         model,
         node_id,
         parent_allows_any_child,
-        Some(&sequence),
+        children_complete.then_some(sequence.as_slice()),
         diagnostics,
     ) else {
         return;

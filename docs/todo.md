@@ -486,17 +486,39 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: references cross vendor scopes;
       a selected child matches the parent contract but differs under the two
       subtree schemas; original owners, source maps and request limits survive.
-- [ ] Integrate structural reference validation into an explicit engine lifecycle
-      hook. Decide how engine reports expose incomplete validation: recommended
-      completion metadata separate from diagnostic severity/failure; current
-      reports have diagnostic counts but no completion state. Do not allow an
-      incomplete stage to appear as successful validation or make ignore policy
-      silently resolve missing children.
+- [x] Fixture: report per-input validation completion without changing diagnostic
+      severity/counts. Cover legacy reports, source-only structural references,
+      stable multi-input ordering, deferred child contracts/whole-document
+      behavior hooks and non-success CLI outcomes for incomplete reports with
+      zero violations.
+      Scenarios for later design verification: ordinary documents finish; source
+      references stay unevaluated and pending validation never appears to pass.
+- [x] Add explicit engine validation completion metadata. Validate/check reports
+      expose aggregate and per-input completion in stable input order. Keep
+      diagnostic counts and severity independent; source-only structural
+      references remain pending, child contracts and whole-document hooks defer,
+      and CLI validation/check return non-success even with zero violations.
+      Legacy reports without metadata retain their existing interpretation.
+      Verification: 52 focused completion/reference fixtures, two command-type
+      fixtures and the CLI completion fixture pass. Broad CLI verification has
+      523 passes and the two scoped-grant override failures recorded below.
+      Full Nx ML verification has 2069 passes, two ignored and the known
+      legacy dropdown selector failure (`template#cem-dropdown` not found).
+      Scenarios for later design verification: incomplete ignored links still
+      prevent a completed verdict without becoming synthetic violations.
+- [ ] Integrate structural reference validation into an explicit runtime-selected
+      engine lifecycle hook after the retained behavior handoff is decided.
+      Propagate the explicit consumer's completion and diagnostics through the
+      report metadata; keep parser/load stages unevaluated. Do not make ignore
+      policy silently resolve missing children.
       Scenarios for later design verification: pending inputs preserve available
       diagnostics; incomplete ignored links still prevent a completed verdict;
       source-only loading and independent runtime contexts remain unchanged.
-- [ ] Define behavior-evaluator handoff over the retained validation structure
-      before invoking whole-document function hooks on selected subtrees. Avoid
+- [ ] Decide and implement behavior-evaluator handoff over the retained validation
+      structure before invoking function hooks on selected subtrees. Recommended:
+      add a separate retained-structure method to `SchemaBehaviorEvaluator`,
+      preserving the existing whole-document API; alternative: replace that API.
+      Provide original owners, declaring contexts and child relationships. Avoid
       synthetic expanded arenas or loss of original declaring context.
       Scenarios for later design verification: selected nodes from multiple
       owners retain their function context and source attribution.
@@ -520,6 +542,14 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: manifest inclusion does not grant
       authority; expected-owner or incoming-URI mismatches preserve the active
       package; native consumer grants survive the boundary without widening scope.
+
+- [ ] Migrate CLI external CEMT package override fixtures to the scoped grant
+      consumer API once available. Broad CLI verification currently reports
+      `convert_schema_package_option_loads_external_cemt_output_artifacts` and
+      `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve`
+      failing with `cem.schema_package.replacement_not_authorized`.
+      Scenarios for later design verification: explicit grants authorize the
+      expected owner/origin; listing a manifest alone remains insufficient.
 
 ### 6. Preserve references through codecs and inspection
 

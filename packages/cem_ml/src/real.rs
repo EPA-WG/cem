@@ -9939,6 +9939,12 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
     })
 }
 
+#[derive(Default)]
+struct ScheduledValidationOutcome {
+    diagnostics: Vec<Diagnostic>,
+    completion: Vec<crate::report::InputValidationCompletion>,
+}
+
 struct ScheduledValidationDocument {
     started_at: Instant,
     diagnostics: Vec<Diagnostic>,
@@ -9951,7 +9957,7 @@ fn run_scheduled_validation_documents(
     context: &EngineContext,
     inputs: &[EngineInput],
     budget_aliases: &[&str],
-) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
+) -> EngineResult<(ScheduledValidationOutcome, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
     let root_policy = scheduler_policy_from_context(context);
     let control = crate::operation_control::OperationControl::with_root_policy(
@@ -10019,7 +10025,7 @@ fn run_scheduled_validation_documents(
                     *load_staged
                         .lock()
                         .expect("poisoned validation staging mutex") = Some(loaded);
-                    Ok(Vec::new())
+                    Ok(ScheduledValidationOutcome::default())
                 },
             )
             .map_err(native_scheduler_error)?;
@@ -10066,11 +10072,13 @@ fn run_scheduled_validation_documents(
     }
     let committed = crate::scheduler::executor::commit_in_stable_order(handles)
         .map_err(native_scheduler_error)?;
-    let mut all_diags = Vec::new();
+    let mut outcome = ScheduledValidationOutcome::default();
     for result in committed {
-        all_diags.extend(result.value?);
+        let result = result.value?;
+        outcome.diagnostics.extend(result.diagnostics);
+        outcome.completion.extend(result.completion);
     }
-    Ok((all_diags, trace))
+    Ok((outcome, trace))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -10078,23 +10086,23 @@ fn run_scheduled_validation_documents(
     context: &EngineContext,
     inputs: &[EngineInput],
     budget_aliases: &[&str],
-) -> EngineResult<(Vec<Diagnostic>, crate::scheduler::SchedulerTrace)> {
+) -> EngineResult<(ScheduledValidationOutcome, crate::scheduler::SchedulerTrace)> {
     let trace = crate::scheduler::SchedulerTrace::new();
     let aliases = budget_aliases
         .iter()
         .map(|alias| (*alias).to_owned())
         .collect::<Vec<_>>();
-    let mut all_diags = Vec::new();
+    let mut outcome = ScheduledValidationOutcome::default();
     for input in inputs {
         context.ensure_active()?;
         let (_, policy_diagnostics) =
             scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
         let staged = run_scheduled_validation_load(context, input, policy_diagnostics);
-        all_diags.extend(run_scheduled_validation_document(
-            context, input, &aliases, staged,
-        )?);
+        let result = run_scheduled_validation_document(context, input, &aliases, staged)?;
+        outcome.diagnostics.extend(result.diagnostics);
+        outcome.completion.extend(result.completion);
     }
-    Ok((all_diags, trace))
+    Ok((outcome, trace))
 }
 
 fn run_scheduled_validation_load(
@@ -10122,7 +10130,7 @@ fn run_scheduled_validation_document(
     input: &EngineInput,
     budget_aliases: &[String],
     staged: ScheduledValidationDocument,
-) -> EngineResult<Vec<Diagnostic>> {
+) -> EngineResult<ScheduledValidationOutcome> {
     context.ensure_active()?;
     let ScheduledValidationDocument {
         started_at,
@@ -10131,6 +10139,7 @@ fn run_scheduled_validation_document(
         source_bytes_for_projection,
     } = staged;
     let mut input_diags = std::mem::take(&mut diagnostics);
+    let mut complete = true;
     if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
         if is_transform_config_schema(input, context) {
             input_diags.extend(validate_transform_config_document(
@@ -10145,6 +10154,36 @@ fn run_scheduled_validation_document(
                 &input.root_scope,
                 context,
                 &input_uri(input, context),
+            );
+            let identity = effective_input_identity(input, context);
+            let model = crate::schema::document_model::load_document_model_for_identity(
+                identity.schema.as_deref(),
+                identity.content_type.as_deref(),
+                Some(&context.schema_registry),
+                Some(&context.schema_document_models),
+            );
+            complete = model.as_ref().map_or_else(
+                || {
+                    context
+                        .schema_document_models
+                        .inspect_for_identity(
+                            identity.schema.as_deref(),
+                            identity.content_type.as_deref(),
+                            Some(&context.schema_registry),
+                        )
+                        .is_none()
+                        && !run
+                            .document
+                            .iter()
+                            .any(|node| matches!(node, crate::parser::CemAstNode::Reference { .. }))
+                },
+                |model| {
+                    model.is_ready_for_validation()
+                        && !crate::schema::document_model::has_consumable_references(
+                            &run.document,
+                            model,
+                        )
+                },
             );
             if is_schema_package_manifest_schema(input, context) {
                 if let Some(manifest_path) = input_local_path(input, context) {
@@ -10178,8 +10217,15 @@ fn run_scheduled_validation_document(
     ));
     project_diagnostics_for_source(&mut input_diags, &source_bytes_for_projection);
     project_diagnostic_uris(&mut input_diags, input, context);
-    Ok(input_diags)
+    Ok(ScheduledValidationOutcome {
+        diagnostics: input_diags,
+        completion: vec![crate::report::InputValidationCompletion {
+            input: input_uri(input, context),
+            complete,
+        }],
+    })
 }
+
 
 #[cfg(not(target_arch = "wasm32"))]
 fn native_scheduler_error(error: crate::scheduler::ScheduleError) -> EngineError {
@@ -10881,15 +10927,16 @@ impl CemMlEngine for RealCemMlEngine {
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
-        let (mut validation_diagnostics, scheduler_trace) = run_scheduled_validation_documents(
+        let (mut validation, scheduler_trace) = run_scheduled_validation_documents(
             &context,
             &request.inputs,
             &["validatems", "validatetimebudgetms"],
         )?;
-        all_diags.append(&mut validation_diagnostics);
+        all_diags.append(&mut validation.diagnostics);
         let report =
             Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
-                .with_scheduler_trace(&scheduler_trace);
+                .with_scheduler_trace(&scheduler_trace)
+                .with_validation_completion(validation.completion);
         request.context.ensure_active()?;
         Ok(ValidateResponse { report })
     }
@@ -10899,15 +10946,16 @@ impl CemMlEngine for RealCemMlEngine {
         let (context, mut all_diags) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         let inputs = input_uris(&request.inputs, &context);
-        let (mut validation_diagnostics, scheduler_trace) = run_scheduled_validation_documents(
+        let (mut validation, scheduler_trace) = run_scheduled_validation_documents(
             &context,
             &request.inputs,
             &["checkms", "checktimebudgetms"],
         )?;
-        all_diags.append(&mut validation_diagnostics);
+        all_diags.append(&mut validation.diagnostics);
         let report =
             Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
-                .with_scheduler_trace(&scheduler_trace);
+                .with_scheduler_trace(&scheduler_trace)
+                .with_validation_completion(validation.completion);
         let hard_violation_count = report.summary.hard_violation_count;
         request.context.ensure_active()?;
         Ok(CheckResponse {

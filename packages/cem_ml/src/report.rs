@@ -38,6 +38,8 @@ pub struct ReportOptionsSnapshot {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
 pub struct ReportAst {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation: Option<ValidationCompletion>,
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
     #[serde(rename = "parserStages", skip_serializing_if = "Option::is_none")]
@@ -48,6 +50,30 @@ pub struct ReportAst {
     pub transform: Option<TransformReport>,
     #[serde(rename = "transformGraph", skip_serializing_if = "Option::is_none")]
     pub transform_graph: Option<TransformGraphReport>,
+}
+
+/// Completion is independent of diagnostic severity: deferred checks are not passes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+pub struct InputValidationCompletion {
+    pub input: String,
+    pub complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript-projections", derive(ts_rs::TS))]
+pub struct ValidationCompletion {
+    pub complete: bool,
+    pub inputs: Vec<InputValidationCompletion>,
+}
+
+impl ValidationCompletion {
+    pub fn from_inputs(inputs: Vec<InputValidationCompletion>) -> Self {
+        Self {
+            complete: inputs.iter().all(|input| input.complete),
+            inputs,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -240,6 +266,19 @@ pub struct Report {
 }
 
 impl Report {
+    /// Legacy reports without completion metadata retain their original behavior.
+    pub fn validation_complete(&self) -> bool {
+        self.report_ast
+            .validation
+            .as_ref()
+            .map_or(true, |validation| validation.complete)
+    }
+
+    pub fn with_validation_completion(mut self, inputs: Vec<InputValidationCompletion>) -> Self {
+        self.report_ast.validation = Some(ValidationCompletion::from_inputs(inputs));
+        self
+    }
+
     pub fn new(
         inputs: Vec<String>,
         diagnostics: Vec<Diagnostic>,

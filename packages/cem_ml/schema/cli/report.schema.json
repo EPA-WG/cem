@@ -235,6 +235,9 @@
             "additionalProperties": false,
             "required": ["schedulerTrace"],
             "properties": {
+                "validation": {
+                    "$ref": "#/$defs/validationCompletion"
+                },
                 "schedulerTrace": {
                     "$ref": "#/$defs/schedulerTrace"
                 },
@@ -249,6 +252,26 @@
                 },
                 "transformGraph": {
                     "$ref": "#/$defs/transformGraphReport"
+                }
+            }
+        },
+        "validationCompletion": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["complete", "inputs"],
+            "properties": {
+                "complete": {"type": "boolean"},
+                "inputs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["input", "complete"],
+                        "properties": {
+                            "input": {"type": "string"},
+                            "complete": {"type": "boolean"}
+                        }
+                    }
                 }
             }
         },

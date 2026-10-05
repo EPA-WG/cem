@@ -900,7 +900,7 @@ input is rewritten. The existing sites are:
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; engine lifecycle/report wiring remains actionable work. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Runtime lifecycle/behavior handoff remains actionable work. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -926,6 +926,21 @@ consumer behavior while their own reference-enabled collection sites are added.
 Package lifecycle compilation and publication use the same readiness gates for
 attribute and element references. Source-only attribute links remain pending;
 the caller can complete the same retained source later with runtime inputs.
+Engine validate/check reports expose `reportAst.validation` with aggregate
+`complete` and an ordered list of `{input, complete}` entries. Completion is
+independent of diagnostic counts, severity and hard violations. Source-only
+validation leaves consumed structural references pending and defers their child
+contracts and whole-document behavior hooks; it continues independent checks.
+A completed report can contain schema violations. An incomplete report cannot
+produce a successful CLI validation/check verdict merely because it has no
+violations. Reports from older callers without completion metadata retain their
+existing interpretation. CEM-ML, explicitly requested JSON, Markdown and HTML
+report presentations expose the same completion state.
+
+This reporting stage does not evaluate references during parsing or loading.
+The explicit native consumer remains available for runtime-selected evaluation;
+engine runtime-hook integration awaits the retained behavior-evaluator handoff.
+
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside
 scenarios for later verification. This inventory does not choose deferred child
