@@ -65,6 +65,15 @@ pub enum TokenizerProfile {
     Xml,
 }
 
+/// Lexical intent retained before any attribute expression evaluation.
+/// CEM unquoted brace spans are expressions; quoted/bare text and the current
+/// XML/HTML attribute forms remain literals, even when their text is identical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttributeValueSyntax {
+    Literal,
+    Expression,
+}
+
 /// Profile-agnostic token kind. The richer per-profile token payloads
 /// (`CemToken`, `HtmlToken`, `XmlToken` in the design doc) lower into this
 /// shape before reaching Layer 3.
@@ -81,6 +90,7 @@ pub enum SchemaTokenKind {
         value: Option<String>,
         name_range: ByteRange,
         value_range: Option<ByteRange>,
+        value_syntax: AttributeValueSyntax,
     },
     Text(String),
     Trivia(String),

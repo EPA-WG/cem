@@ -480,10 +480,14 @@ impl CemTokenizer {
         let name_range = self.range_from(name_start, name_end);
         let mut value: Option<String> = None;
         let mut value_range: Option<ByteRange> = None;
+        let mut value_syntax = crate::tokenizer::AttributeValueSyntax::Literal;
         self.skip_horiz_ws();
         if self.peek() == Some('=') {
             self.cursor += 1;
             self.skip_horiz_ws();
+            if self.peek() == Some('{') {
+                value_syntax = crate::tokenizer::AttributeValueSyntax::Expression;
+            }
             let (v, r) = self.scan_attribute_value();
             value = Some(v);
             value_range = Some(r);
@@ -501,6 +505,7 @@ impl CemTokenizer {
                 value,
                 name_range,
                 value_range,
+                value_syntax,
             },
             total_range,
         );
@@ -550,25 +555,7 @@ impl CemTokenizer {
         let start = self.cursor;
         self.cursor += 1; // '{'
         let body_start = self.cursor;
-        let mut depth = 1u32;
-        while let Some(c) = self.peek() {
-            match c {
-                '{' => {
-                    depth += 1;
-                    self.cursor += 1;
-                }
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                    self.cursor += 1;
-                }
-                _ => {
-                    self.cursor += 1;
-                }
-            }
-        }
+        self.scan_query_brace_body();
         let body_end = self.cursor;
         let body: String = self.scalars[body_start..body_end]
             .iter()
@@ -806,32 +793,52 @@ impl CemTokenizer {
         }
     }
 
-    fn scan_expression_body(&mut self) {
-        // After `{$`, optionally skip `|`, then collect verbatim until matching `}`.
-        self.skip_horiz_ws();
-        if self.peek() == Some('|') {
-            self.cursor += 1;
-        }
-        let start = self.cursor;
+    /// Scan a CEM-QL brace body without interpreting or evaluating its payload.
+    /// Quoted strings and nested comments cannot close the surrounding slot.
+    fn scan_query_brace_body(&mut self) {
         let mut depth = 1u32;
         let mut quote = None;
         let mut comment_depth = 0u32;
         while let Some(c) = self.peek() {
             let next = self.scalars.get(self.cursor + 1).map(|(c, _)| *c);
             if let Some(delimiter) = quote {
-                if c == '\\' { self.cursor += 1; if self.peek().is_some() { self.cursor += 1; } }
-                else if c == delimiter && next == Some(delimiter) { self.cursor += 2; }
-                else { self.cursor += 1; if c == delimiter { quote = None; } }
+                if c == '\\' {
+                    self.cursor += 1;
+                    if self.peek().is_some() {
+                        self.cursor += 1;
+                    }
+                } else if c == delimiter && next == Some(delimiter) {
+                    self.cursor += 2;
+                } else {
+                    self.cursor += 1;
+                    if c == delimiter {
+                        quote = None;
+                    }
+                }
                 continue;
             }
             if comment_depth > 0 {
-                if c == '(' && next == Some(':') { comment_depth += 1; self.cursor += 2; }
-                else if c == ':' && next == Some(')') { comment_depth -= 1; self.cursor += 2; }
-                else { self.cursor += 1; }
+                if c == '(' && next == Some(':') {
+                    comment_depth += 1;
+                    self.cursor += 2;
+                } else if c == ':' && next == Some(')') {
+                    comment_depth -= 1;
+                    self.cursor += 2;
+                } else {
+                    self.cursor += 1;
+                }
                 continue;
             }
-            if c == '(' && next == Some(':') { comment_depth = 1; self.cursor += 2; continue; }
-            if c == '\'' || c == '"' { quote = Some(c); self.cursor += 1; continue; }
+            if c == '(' && next == Some(':') {
+                comment_depth = 1;
+                self.cursor += 2;
+                continue;
+            }
+            if c == '\'' || c == '"' {
+                quote = Some(c);
+                self.cursor += 1;
+                continue;
+            }
             match c {
                 '{' => {
                     depth += 1;
@@ -849,6 +856,16 @@ impl CemTokenizer {
                 }
             }
         }
+    }
+
+    fn scan_expression_body(&mut self) {
+        // After `{$`, optionally skip `|`, then collect verbatim until matching `}`.
+        self.skip_horiz_ws();
+        if self.peek() == Some('|') {
+            self.cursor += 1;
+        }
+        let start = self.cursor;
+        self.scan_query_brace_body();
         let body_end = self.cursor;
         let body: String = self.scalars[start..body_end]
             .iter()

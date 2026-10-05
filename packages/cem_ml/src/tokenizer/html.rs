@@ -381,6 +381,7 @@ impl HtmlTokenizer {
                 value,
                 name_range,
                 value_range,
+                value_syntax: crate::tokenizer::AttributeValueSyntax::Literal,
             },
             total_range,
         );

@@ -1036,11 +1036,25 @@ parse retain their existing specialized paths; extending their runtime handoff
 through the shared typed import boundary is an actionable follow-up.
 
 Source AST attributes currently retain optional text, while runtime value
-attributes have an authoritative native `value_stream`. The next expression-slot
-slice must choose whether direct CEM-ML attribute references get a general native
-AST value slot (recommended) or remain runtime-only values. This representation
-decision is recorded with codec/inspection scenarios in the todo list; it does
-not choose deferred child-scope syntax or cem-element binding behavior.
+attributes have an authoritative native `value_stream`. The adopted expression-slot
+contract adds a general retained native value slot to AST attributes; its owning
+edges, codecs, inspection and runtime handoff remain actionable implementation.
+
+The lexical foundation now preserves `AttributeValueSyntax::Expression` for CEM
+unquoted brace spans, and `Literal` for quoted/bare CEM values and current XML/HTML
+attribute forms. The same text (`{#nodes}`) can therefore retain different intent
+without reparsing a decoded value to guess its meaning. Attribute and standalone
+expression bodies share a boundary scanner that handles quoted strings, escaped
+and doubled quotes, nested comments and nested braces. Tokenizer metadata does
+not itself construct AST value nodes or evaluate expressions; event/AST handoff
+still requires the native slot implementation.
+
+The remaining syntax decision is XML attribute recognition. Recommended first
+slice: implement CEM-ML's unquoted brace expressions and keep XML literal values
+unchanged until its explicit attribute expression contract is designed. The
+alternative interprets XML `{#...}` values immediately. This choice is recorded
+with source-position and literal compatibility scenarios in the todo list; it
+does not choose deferred child-scope syntax or cem-element binding behavior.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

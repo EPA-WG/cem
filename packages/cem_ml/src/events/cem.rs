@@ -77,6 +77,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 value,
                 name_range,
                 value_range,
+                ..
             } => {
                 self.pending.push_back(NormalizedEvent::Name {
                     name: qname(&name, name_range),

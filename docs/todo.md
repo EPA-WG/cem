@@ -654,16 +654,42 @@ implementation. `git diff --check` passes.
       Preserve vendor URI/line coordinates and repeated placement diagnostics.
       Scenarios for later design verification: pending contexts defer behavior;
       independent input owners keep source reference target lists untouched.
-- [ ] Choose the native attribute reference representation before implementing
-      reference expression slots and scalar schema composition consumers.
-      Recommended: add a general retained native value slot to CEM AST attributes,
-      so direct attribute syntax retains references before runtime evaluation.
-      Alternative: leave source attributes textual and supply native references
-      only through the existing runtime `value_stream`. Preserve textual
-      compatibility and keep binding/evaluation decisions in consumer code.
-      Scenarios for later design verification: retained attribute references
-      survive codec/inspection without evaluation; native nodes never become
-      strings or records to enter a consumer's value binding.
+- [x] Choose a general retained native value slot for CEM AST attributes,
+      preserving text compatibility and leaving binding/evaluation to consumers.
+      Scenarios for later design verification: native attribute references survive
+      codec/inspection without becoming strings or runtime record substitutes.
+- [ ] Implement the native attribute slot across source retention, owning graph
+      edges, codec/projection validation, inspection and native value handoff.
+      Scenarios for later design verification: parsing never evaluates references;
+      old attributes/codecs remain compatible; expression nodes retain provenance.
+- [x] Prepare native attribute slot lexing: retain `AttributeValueSyntax` on
+      source tokens and share the quote/comment-aware brace scanner between
+      unquoted attribute spans and standalone expressions. XML/HTML literal
+      token behavior remains unchanged; event/AST slot handoff is still pending.
+      Verification: 145 focused ML tokenizer/event/builder/highlight/reference
+      checks and the full Nx bridge target (126 passes) pass.
+      Scenarios for later design verification: lexer metadata is propagated into
+      the native AST slot rather than reconstructing intent from value text.
+- [ ] Decide XML attribute expression recognition before syntax-dependent slot
+      integration. Recommended: first support CEM-ML unquoted brace expressions;
+      keep XML literals unchanged until an explicit XML contract is designed.
+      Alternative: interpret XML `{#...}` attribute values immediately.
+      Scenarios for later design verification: a quoted literal that resembles a
+      reference does not silently acquire evaluation behavior after import.
+- [x] Fixture: distinguish quoted/bare CEM attribute literals from unquoted
+      brace expression spans, preserving original lexical source ranges.
+      Scenarios for later design verification: identical text can have different
+      literal/expression intent; boolean attributes retain their existing form.
+- [x] Fixture: query strings, escaped/doubled quotes, nested comments and record
+      braces never prematurely close attribute spans; following attributes and
+      standalone reference expressions retain their boundaries.
+      Scenarios for later design verification: tokenizer boundary recognition
+      agrees between attribute and standalone expression slots without evaluation.
+- [x] Fixture: malformed attribute expressions retain their source body and
+      report the missing boundary; XML braced attribute text stays literal under
+      its existing contract pending the expression recognition decision.
+      Scenarios for later design verification: malformed comments/strings cannot
+      turn later source text into an apparently complete expression value.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects
