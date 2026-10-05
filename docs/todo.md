@@ -741,14 +741,64 @@ implementation. `git diff --check` passes.
       and keeps literal documents on their existing completed validation path.
       Scenarios for later design verification: both reference and generic query
       expressions require an explicit lifecycle consumer, including vendor nodes.
-- [ ] Decide node-valued attribute cardinality: exactly one target by default
-      with explicit count facets allowing other counts (recommended), or zero
-      or more when count constraints are omitted. User decision is pending.
+- [x] Adopt exactly one node-valued attribute target by default; explicit
+      `itemCount`, `minItems` or `maxItems` facets replace the default envelope.
       Scenarios for later design verification: resolved-empty differs from pending;
       repeated targets retain order and identity; count failures are complete.
-- [ ] Implement native attribute validation under the chosen schema contract,
-      using the shared bounded resolver and caller-supplied lifecycle context.
-      Carry completeness separately from schema-owned diagnostic disposition.
+- [x] Implement an explicit bounded native attribute reference consumer, retaining
+      source/target owners and using schema-owned cardinality diagnostics.
+      Scenarios for later design verification: no source mutation, string
+      extraction, ID generation or implicit behavior execution occurs.
+- [x] Update incompatible primitive count-facet diagnostic expectations to
+      include the newly allowed node types in `expectedType`.
+      Scenarios for later design verification: primitive type mismatches remain
+      schema errors; advertised allowed types agree with the count consumer.
+- [x] Fixture: native attribute reference chains preserve owner identity and
+      enforce singleton defaults and explicit count envelopes, including empty.
+      Scenarios for later design verification: repeated targets count separately;
+      malformed count facets remain schema compilation errors.
+- [x] Fixture: native attribute pending, ignored, denied, cyclic and work-limited
+      resolutions remain incomplete; available prefixes do not trigger count checks.
+      Scenarios for later design verification: host scopes/grants and destination
+      limits remain enforced by the shared resolver.
+- [x] Fixture: node count diagnostics preserve schema-owned severity/message
+      and the original attribute source; primitive/general-expression slots do
+      not invoke the reference host.
+      Scenarios for later design verification: warning count violations can be
+      complete; unsupported expression consumption remains pending.
+- [x] Adopt resolved native nodes through the existing retained behavior
+      attribute `.value`; original source handles retain authored references.
+      Scenarios for later design verification: concurrent consumers never
+      overwrite shared targets or turn node values into scalar records.
+- [ ] Define the applicable node-contract facets beyond cardinality before
+      interpreting lexical facets on nodes. The bounded reference consumer
+      retains these constraints as pending instead of ignoring or atomizing them.
+      Scenarios for later design verification: node references with `pattern`
+      or `values` cannot report full validation without a facet consumer.
+- [x] Fixture: resolving a native attribute with unconsumed lexical facets keeps
+      validation incomplete while still applying available count checks.
+      Scenarios for later design verification: complete target selection and
+      complete contract validation remain independently observable.
+- [ ] Decide query navigation authority for consumed attribute targets: restrict
+      behavior access to each selected subtree with extra grants for broader
+      navigation (recommended), or authorize the entire original document.
+      Scenarios for later design verification: parent/sibling/root navigation
+      never widens scope access silently. User decision is pending.
+- [ ] Support composite native attribute slots through one shared request rather
+      than separate per-value budgets; generic expression evaluation needs an
+      explicit expression consumer. The first reference API keeps these pending.
+      Scenarios for later design verification: zero, repeated and mixed native
+      values preserve order, ownership and bounded traversal accounting.
+- [ ] Integrate the attribute consumer with retained validation placements and
+      behavior access after that API choice. Attribute references in selected
+      structural subtrees must share the enclosing request's active identities
+      and budgets rather than restart traversal accounting.
+      Scenarios for later design verification: mixed structural/attribute cycles
+      and repeated scope crossings remain bounded; consumers see original nodes.
+- [ ] Complete engine runtime native attribute validation by invoking the
+      retained placement consumer after query-access boundaries are implemented.
+      Supply lifecycle context and keep completeness separate from schema-owned
+      diagnostic disposition.
       Scenarios for later design verification: unresolved mandatory/warning/ignored
       links remain incomplete; native target owners and lexical scopes survive;
       literal and primitive contracts keep their existing behavior.

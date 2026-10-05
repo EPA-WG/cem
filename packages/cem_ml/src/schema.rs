@@ -10,6 +10,7 @@ pub mod disposition;
 pub mod document_model;
 pub mod ir;
 pub mod input_references;
+pub mod attribute_references;
 pub mod input_validation;
 pub mod machine;
 pub mod namespace;

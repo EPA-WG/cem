@@ -1085,11 +1085,42 @@ structural checks, and leaves the source nodes and reference targets unchanged.
 These guards do not evaluate native values; a lifecycle consumer supplies the
 context and shared bounded resolution.
 
-The next consumer decision concerns cardinality: exactly one target by default
-with explicit item-count facets allowing other counts, or zero or more targets
-when count constraints are omitted. The decision and subsequent resolution
-implementation remain actionable in the todo list, alongside verification
-scenarios. CEM-ML syntax does not choose this schema consumer policy.
+The adopted schema consumer policy requires exactly one target by default.
+Any explicit `itemCount`, `minItems` or `maxItems` facet replaces that default
+with the authored envelope: `minItems=0` permits an empty sequence, for example.
+These facets accept node types alongside their existing name-list types and
+retain existing numeric/envelope definition validation. Targets count by
+occurrence; repeated selections retain order and original owner identity.
+
+`validate_native_attribute_reference` is an explicit lifecycle entry point for
+the current single-reference attribute slot. It uses the shared bounded chain
+resolver and host scope/grant policy, retaining available targets independently
+of completeness. Pending, unresolved, denied, cyclic and exhausted branches
+never trigger count checks on a partial prefix. Complete count violations use
+the schema's datatype-parameter diagnostic behavior and original attribute
+source; diagnostic severity and consumption completeness remain independent.
+Other authored facets that compile, such as `values`, remain pending: selecting
+nodes does not consume or silently discard those constraints. Count checks can
+still run on complete selections; the validation report remains incomplete
+until additional constraints have an applicable consumer/policy. Existing
+incompatible lexical facets, such as `pattern` on a node type, remain schema
+compilation errors and prevent evaluation.
+Primitive contracts and generic/composite expression slots do not invoke this
+reference consumer. Generic and composite slots remain incomplete until an
+appropriate expression/batched consumer is supplied. No source targets are
+written back, primitive values extracted or DOM IDs generated.
+
+Retained behavior attribute `.value` will expose the consumed native target
+sequence; the original source handle preserves authored references. Wiring this
+access into the placement query tree remains actionable. Query navigation
+authority is a separate pending choice: access limited to the selected subtree
+with extra grants for broader navigation, or access to the full original
+document. The existing original-node adapter exposes the whole document and
+must not silently widen access. Attributes inside selected structural subtrees
+must also share the enclosing request's budgets and active reference identities;
+the independent entry point cannot be called there to restart accounting.
+These remaining actions and verification scenarios are preserved in the todo
+list. CEM-ML syntax does not choose these schema consumer policies.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

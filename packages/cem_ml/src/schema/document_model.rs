@@ -1411,7 +1411,7 @@ pub(crate) fn validate_element_shallow<'a>(
 
 /// Read-only contract guard. Runtime consumption supplies retained targets;
 /// native values are never atomized into this lexical validation path.
-fn validate_native_attribute_contract(
+pub(crate) fn validate_native_attribute_contract(
     model: &SchemaDocumentModel,
     element_name: &str,
     attribute_name: &str,
@@ -1445,6 +1445,64 @@ fn validate_native_attribute_contract(
             "diagnosticCode": code,
         }),
     ));
+}
+
+/// Count retained targets without atomizing nodes into lexical values.
+pub(crate) fn validate_native_attribute_count(
+    model: &SchemaDocumentModel,
+    element_name: &str,
+    attribute_name: &str,
+    count: usize,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(attribute) = model.attributes.get(attribute_name) else {
+        return;
+    };
+    let explicit = attribute.item_count.is_some()
+        || attribute.min_items.is_some()
+        || attribute.max_items.is_some();
+    for (facet, value) in [
+        (
+            "itemCount",
+            attribute
+                .item_count
+                .as_deref()
+                .or((!explicit).then_some("1")),
+        ),
+        ("minItems", attribute.min_items.as_deref()),
+        ("maxItems", attribute.max_items.as_deref()),
+    ] {
+        let Some(value) = value else {
+            continue;
+        };
+        let Some(bound) = parse_non_negative_integer_to_usize(value) else {
+            continue;
+        };
+        let violation = match facet {
+            "minItems" => count < bound,
+            "maxItems" => count > bound,
+            _ => count != bound,
+        };
+        if !violation {
+            continue;
+        }
+        let behavior = engine_diagnostic_behavior(
+            &model.diagnostic_behaviors,
+            attribute.datatype_param_diagnostic.as_deref(),
+            EngineDiagnosticBehavior::DatatypeParam,
+        );
+        let code = behavior
+            .map(|b| b.code.as_str())
+            .unwrap_or(INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE);
+        diagnostics.push(diag_at_with_details_and_severity(
+            code,
+            behavior.map(|b| b.severity).unwrap_or(Severity::Error),
+            behavior_message(behavior, format!("attribute `{attribute_name}` on element `{element_name}` resolves to {count} nodes, violating {facet} `{value}`")),
+            node,
+            serde_json::json!({"schemaUri": model.schema_uri, "element": element_name, "attribute": attribute_name, "valueKind": "native", "targetCount": count, "checkKind": format!("datatype-param:{facet}"), "datatypeParam": facet, "paramValue": value, "diagnosticCode": code}),
+        ));
+    }
 }
 
 pub(crate) fn structural_child_name(node: &CemAstNode) -> Option<&str> {
@@ -5379,8 +5437,8 @@ fn validate_attribute_datatype_param_definition(
             attribute_model,
             param_name,
             param_value,
-            "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
-            is_list_item_type_reference,
+            "schema:name-list, schema:wildcard-name-list, cemml:name-list, cemml:wildcard-name-list, schema:node, or cemml:node",
+            |ty| is_list_item_type_reference(ty) || type_reference_local_name(ty) == "node",
             diagnostics,
         );
     }
@@ -36890,7 +36948,7 @@ mod tests {
                 "minItems",
                 "2",
                 "schema:string",
-                "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
+                "schema:name-list, schema:wildcard-name-list, cemml:name-list, cemml:wildcard-name-list, schema:node, or cemml:node",
             ),
             (
                 "patterned",

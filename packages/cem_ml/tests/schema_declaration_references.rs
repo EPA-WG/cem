@@ -2075,4 +2075,265 @@ fn native_attribute_source_only_behavior_waits_for_an_explicit_consumer() {
         Some(&behavior),
     );
     assert_eq!(behavior.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+}fn native_attribute(document: &Arc<CemDocument>) -> SchemaDeclarationNode {
+    let id = document.nodes.iter().position(|node| matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == "target")).unwrap();
+    SchemaDeclarationNode::new(document.clone(), id as u32).unwrap()
+}
+fn native_attribute_model(facets: &str) -> cem_ml::schema::document_model::SchemaDocumentModel {
+    compile_schema_document_model("consumer", &format!("{{schema | {{elements | {{element @name=box @required-attributes=target}} }} {{attributes | {{attribute @name=target @type=schema:node {facets}}} }} }}"))
+}
+#[test]
+fn native_attribute_reference_counts_original_targets_under_explicit_envelopes() {
+    use cem_ml::schema::attribute_references::validate_native_attribute_reference;
+    let source = parse("{box @target={#nodes}}");
+    let library = parse("{schema | {item}}");
+    for (facets, count, failed) in [
+        ("", 0, true),
+        ("", 1, false),
+        ("", 2, true),
+        ("@itemCount=0", 0, false),
+        ("@minItems=0 @maxItems=2", 2, false),
+        ("@minItems=0", 0, false),
+        ("@maxItems=1", 2, true),
+    ] {
+        let model = native_attribute_model(facets);
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{facets}: {:?}",
+            model.compile_diagnostics
+        );
+        let mut host = Host::new();
+        host.outcomes.insert(
+            "#nodes".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, "item"); count]),
+        );
+        let limits = host.policy.limits;
+        let report = validate_native_attribute_reference(
+            native_attribute(&source),
+            &model,
+            "box",
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(report.complete);
+        assert_eq!(report.failed, failed, "{facets} {count}");
+        assert_eq!(report.targets.len(), count);
+        assert!(report
+            .targets
+            .iter()
+            .all(|target| Arc::ptr_eq(target.document(), &library)));
+        assert!(source
+            .nodes
+            .iter()
+            .filter_map(|n| if let CemAstNode::Reference { targets, .. } = n {
+                Some(targets)
+            } else {
+                None
+            })
+            .all(Option::is_none));
+    }
+    for facets in [
+        "@minItems=no",
+        "@minItems=3 @maxItems=1",
+        "@itemCount=3 @maxItems=1",
+    ] {
+        assert!(native_attribute_model(facets)
+            .compile_diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation()));
+    }
+}
+#[test]
+fn native_attribute_reference_incomplete_chains_do_not_validate_prefix_counts() {
+    use cem_ml::schema::attribute_references::validate_native_attribute_reference;
+    let source = parse("{box @target={#nodes}}");
+    let library = parse("{schema | {item} {#later}}");
+    let later = SchemaDeclarationNode::new(
+        library.clone(),
+        library
+            .nodes
+            .iter()
+            .position(|n| matches!(n, CemAstNode::Reference { .. }))
+            .unwrap() as u32,
+    )
+    .unwrap();
+    for disposition in ["mandatory", "warning", "ignore"] {
+        let mut host = Host::new();
+        host.disposition(disposition);
+        host.outcomes.insert(
+            "#nodes".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, "item"), later.clone()]),
+        );
+        host.outcomes.insert(
+            "#later".into(),
+            ReferenceLinkEvaluation::Unresolved("not-ready".into()),
+        );
+        let limits = host.policy.limits;
+        let report = validate_native_attribute_reference(
+            native_attribute(&source),
+            &native_attribute_model("@itemCount=2"),
+            "box",
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!report.complete);
+        assert_eq!(report.targets.len(), 1);
+        assert!(!report.diagnostics.iter().any(
+            |d| d.code == cem_ml::schema::document_model::INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+        ));
+    }
+    for mode in ["pending", "denied", "cycle", "work", "scope-work"] {
+        let mut host = Host::new();
+        host.disposition("ignore");
+        host.outcomes.insert(
+            "#nodes".into(),
+            if mode == "pending" {
+                ReferenceLinkEvaluation::Pending("context".into())
+            } else if mode == "cycle" {
+                ReferenceLinkEvaluation::Resolved(vec![SchemaDeclarationNode::new(
+                    source.clone(),
+                    source
+                        .nodes
+                        .iter()
+                        .position(|n| matches!(n, CemAstNode::Reference { .. }))
+                        .unwrap() as u32,
+                )
+                .unwrap()])
+            } else {
+                ReferenceLinkEvaluation::Resolved(vec![node(&library, "item")])
+            },
+        );
+        host.deny = mode == "denied";
+        if mode == "scope-work" {
+            host.policy.limits.max_work = 1;
+        }
+        let limits = if mode == "work" {
+            ReferenceTraversalLimits {
+                max_depth: 128,
+                max_work: 1,
+            }
+        } else if mode == "scope-work" {
+            ReferenceTraversalLimits::schema_defaults().unwrap()
+        } else {
+            host.policy.limits
+        };
+        let report = validate_native_attribute_reference(
+            native_attribute(&source),
+            &native_attribute_model(""),
+            "box",
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!report.complete, "{mode}");
+    }
+}
+#[test]
+fn native_attribute_reference_custom_count_diagnostics_and_pending_expressions() {
+    use cem_ml::schema::attribute_references::validate_native_attribute_reference;
+    let source = parse("{box @target={#nodes}}");
+    let model = compile_schema_document_model(
+        "consumer",
+        r#"{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:node @datatype-param-diagnostic=fixture.count}} {behaviors | {behavior @name=count-check @implementation=engine @execution=ast-validation @primitive=schema:datatype-param}} {diagnostics | {diagnostic @code=fixture.count @severity=warning @behavior=count-check @message="Wrong node count"}}}"#,
+    );
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    let mut host = Host::new();
+    host.outcomes
+        .insert("#nodes".into(), ReferenceLinkEvaluation::Resolved(vec![]));
+    let limits = host.policy.limits;
+    let report = validate_native_attribute_reference(
+        native_attribute(&source),
+        &model,
+        "box",
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(report.complete);
+    assert!(!report.failed);
+    assert_eq!(report.diagnostics.len(), 1);
+    assert_eq!(report.diagnostics[0].code, "fixture.count");
+    assert_eq!(report.diagnostics[0].severity, Severity::Warning);
+    assert!(report.diagnostics[0].message.contains("Wrong node count"));
+    assert_eq!(
+        report.diagnostics[0].source_map.as_ref(),
+        if let CemAstNode::Attribute { source, .. } = native_attribute(&source).node() {
+            Some(source)
+        } else {
+            None
+        }
+    );
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let primitive=compile_schema_document_model("consumer","{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:string}}}");
+    let report = validate_native_attribute_reference(
+        native_attribute(&source),
+        &primitive,
+        "box",
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(report.failed);
+    assert_eq!(host.calls, 0);
+    let generic = parse("{box @target={1 + 2}}");
+    let report = validate_native_attribute_reference(
+        native_attribute(&generic),
+        &model,
+        "box",
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert_eq!(host.calls, 0);
+}
+
+#[test]
+fn native_attribute_reference_unconsumed_facets_do_not_report_full_validation() {
+    use cem_ml::schema::attribute_references::validate_native_attribute_reference;
+    let source = parse("{box @target={#nodes}}");
+    let library = parse("{item}");
+    let incompatible = native_attribute_model("@pattern=accepted");
+    assert!(incompatible.compile_diagnostics.iter().any(|diagnostic| diagnostic.severity.is_hard_violation()));
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let blocked = validate_native_attribute_reference(native_attribute(&source), &incompatible, "box", &mut host, limits).unwrap();
+    assert!(!blocked.complete);
+    assert!(blocked.failed);
+    assert_eq!(host.calls, 0);
+    for facets in ["@values=accepted"] {
+        let model = native_attribute_model(facets);
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:?}",
+            model.compile_diagnostics
+        );
+        for count in [1, 2] {
+            let mut host = Host::new();
+            host.outcomes.insert(
+                "#nodes".into(),
+                ReferenceLinkEvaluation::Resolved(vec![node(&library, "item"); count]),
+            );
+            let limits = host.policy.limits;
+            let report = validate_native_attribute_reference(
+                native_attribute(&source),
+                &model,
+                "box",
+                &mut host,
+                limits,
+            )
+            .unwrap();
+            assert!(!report.complete);
+            assert!(report.resolution.as_ref().unwrap().is_complete());
+            assert_eq!(report.targets.len(), count);
+            assert_eq!(report.failed, count != 1);
+        }
+    }
 }
