@@ -2,7 +2,8 @@
 
 Status: temporary design draft. Registered schema-owned implementations,
 native `@rule` binding, separate validation/conversion roles, duplicate-name
-rejection and intersecting scalar restrictions are adopted. Exact signatures and
+rejection, intersecting scalar restrictions and ordered typed list conversion
+results are adopted. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -74,7 +75,7 @@ not receive an intrinsic implementation merely because its local name matches.
 | --- | --- | --- |
 | `scalar` | One value with an explicit primitive conversion/validation contract and restrictions | Built-in registry binding, normalization and custom implementations |
 | `lexical` | A value checked by a declared lexical predicate | Executable `rule` binding and compatibility with shipped descriptions |
-| `list` | Ordered values satisfying an item datatype contract | Item representation, delimiter/normalization rules and the meaning of list `values` |
+| `list` | Ordered typed values satisfying an item datatype contract, with authored lexical source retained | Delimiter/normalization rules and the meaning of list `values` |
 | `grammar` | A value checked by a declared grammar consumer | Binding to existing content-model parsers versus a new grammar language |
 | `reference` | A symbolic-reference value contract such as a QName | Separate lexical validation from consumer-requested dereferencing; do not imply URL or AST link evaluation |
 | Native node contracts | Retained node input consumed by native validation/behaviors | Preserve the existing explicit node contract and decide how it is represented in the datatype registry |
@@ -195,27 +196,51 @@ activation contract. This does not adopt override syntax or a replacement grant
 at the individual datatype level. Keep this work separate from the first general
 registry; existing package replacement is not an implicit declaration override.
 
-## Next decision: list value representation
+## Adopted list value representation
 
 The shipped `name-list` and `wildcard-name-list` validators consume whitespace-
 separated lexical strings and reject an empty value. Their `base` describes each
 item, rather than scalar inheritance. Preserve those validation contracts during
 migration; do not silently treat commas as separators or erase duplicate items.
 
-Recommended compiled representation: an ordered sequence of typed items for
+The canonical compiled representation is an ordered sequence of typed items for
 explicit list conversion, retaining the authored lexical source separately.
 A registered list conversion capability specifies tokenization and canonical
 serialization; the shipped name lists use their existing whitespace semantics.
 Validation alone checks the supplied representation without requesting conversion
 implicitly. List rules can examine individual items and the complete sequence.
 
-Alternative: keep the converted list as one canonical lexical string and expose
-items only through a separate consumer operation. This minimizes change to scalar
-conversion APIs but requires consumers and rules to request item extraction.
+Canonical lexical output is an explicit serialization of the typed sequence;
+it does not replace that sequence or overwrite authored source. Each item carries
+its datatype representation, with item diagnostics attributed to the retained
+input where available. Preserve order and duplicates through conversion. A list
+containing native nodes must retain their original owner/handle identity rather
+than copy nodes into scalar records. This contract does not itself admit native
+node item types or introduce a new list syntax.
 
-Neither option is enabled. Decide the canonical representation before specifying
-list conversion signatures. The meaning of list-level `values`, general empty-
-list admission and custom tokenizers remain explicit follow-up decisions.
+The representation is adopted but conversion remains disabled pending registered
+signatures, item contracts and migration fixtures. Existing scalar conversion
+APIs must not silently reinterpret a string result as a typed sequence.
+
+## Next decision: list-level values
+
+The general compiler needs an explicit meaning for `{type @kind=list @values=...}`.
+Item restrictions already belong to the item datatype selected by `base`; a native
+list rule can validate the complete ordered sequence. Existing attribute-local
+`values` behavior remains a separate compatibility surface.
+
+Recommended first contract: reject `values` on a list datatype declaration.
+Declare allowed item values on its item datatype, and use a registered list rule
+for sequence restrictions. This avoids giving one lexical field two meanings and
+leaves a future sequence-enumeration syntax to explicit design.
+
+Alternative: make list datatype `values` a shorthand for an item vocabulary,
+requiring every item to match an entry in addition to its base contract. This is
+more concise, but must specify typed equality, lexical parsing and normalization.
+Whole-sequence enumeration would still need a distinct contract.
+
+General empty-list admission and custom tokenizers remain explicit follow-up
+work; shipped name-list contracts continue to reject empty values.
 
 ## Verified inventory and current native boundary
 

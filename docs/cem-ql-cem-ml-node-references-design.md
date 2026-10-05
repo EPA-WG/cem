@@ -1341,8 +1341,13 @@ and equal names in separate scopes remain valid. Scalar restrictions intersect
 with their base and cannot widen it or rewrite the converted value. Explicit
 declaration overrides remain deferred, with identity, authorization and dependent
 activation contracts required before admission. Native selection is not redirected
-by a later same-name declaration. The next decision is the canonical list value
-representation: ordered typed items are recommended, retaining authored lexical
-source separately. The verified inventory also distinguishes
+by a later same-name declaration. Explicit list conversion adopts ordered typed
+items with authored lexical source retained; canonical lexical output is separate
+serialization. Order, duplicates and original native item identities must survive.
+Conversion remains disabled pending adapters and parity fixtures. The next decision
+is whether list datatype declarations reject `values` in favor of item restrictions
+and list rules (recommended), or admit a per-item vocabulary shorthand. Existing
+attribute-local `values` compatibility remains separate. The verified inventory
+also distinguishes
 available scalar conversion from the broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.

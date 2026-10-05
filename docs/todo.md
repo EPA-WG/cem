@@ -1142,11 +1142,22 @@ implementation verification. They do not claim executable test coverage.
       Scenarios for later design verification: an application can intentionally
       replace a contract without import order silently weakening restrictions;
       existing native selections retain identity unless explicit rebinding is chosen.
-- [ ] Decide canonical list conversion representation: ordered typed items with
-      retained lexical source (recommended), or canonical lexical string with
-      separate item extraction. Preserve shipped whitespace list validation.
+- [x] Adopt canonical list conversion as ordered typed items with retained authored
+      lexical source. Lexical output is explicit serialization; preserve shipped
+      whitespace list validation and keep conversion disabled until its adapter exists.
       Scenarios for later design verification: item order and duplicates survive;
       list item bases do not become scalar inheritance; validation does not convert.
+- [ ] Decide list datatype declaration `values`: reject the field and use item
+      datatype restrictions/list rules (recommended), or define a per-item vocabulary
+      shorthand with typed equality and lexical parsing. Preserve attribute-local
+      `values` compatibility separately.
+      Scenarios for later design verification: item restrictions and whole-sequence
+      rules remain distinct; sequence enumeration is never inferred from a string.
+- [ ] Specify list conversion adapters and explicit canonical serialization, then
+      add fixture actions for ordered items, duplicates and retained item provenance
+      before implementing conversion or changing scalar API result types.
+      Scenarios for later design verification: typed results preserve item identity;
+      serialization does not overwrite authored lexical input or clone native nodes.
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
       Scenarios for later design verification: registration grants no scope access;
