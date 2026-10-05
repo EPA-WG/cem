@@ -896,3 +896,12 @@ explicitly installed. The [native bridge](../cem_ml_transform_cem_ql/README.md#s
 connects this host to the engine's package compilation stage before coordinated
 publication. Remaining schema consumers are tracked in
 [todo.md](../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+
+`CemQlSchemaDeclarationHost::validate_input` explicitly validates structural
+input references with the consuming schema model. It reuses the same retained
+owners, runtime contexts and scope grants as declaration compilation. Ordered
+selected subtrees share one bounded traversal per authored reference; nested
+containment cycles remain incomplete. Inspect both `complete` and `failed` in
+the result. Pending child selections defer field contracts while independent
+attribute errors remain visible. Engine request/report integration and
+whole-document behavior hooks are separate lifecycle work.

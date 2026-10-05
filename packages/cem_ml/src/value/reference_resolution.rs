@@ -89,6 +89,28 @@ impl<N> ReferenceResolution<N> {
     }
 }
 
+/// Temporary consumer structure over original typed handles. Indices belong
+/// only to this evaluation, never to the source arena or authored references.
+#[derive(Debug, Clone)]
+pub struct ReferenceStructureResolution<N> {
+    pub resolution: ReferenceResolution<N>,
+    pub roots: Vec<usize>,
+    pub roots_complete: bool,
+    pub parents: Vec<Option<usize>>,
+    pub children: Vec<Vec<usize>>,
+    pub children_complete: Vec<bool>,
+    pub origins: Vec<ReferenceOccurrence>,
+}
+impl<N> ReferenceStructureResolution<N> {
+    fn mark_incomplete(&mut self, parent: Option<usize>) {
+        if let Some(parent) = parent {
+            self.children_complete[parent] = false;
+        } else {
+            self.roots_complete = false;
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReferenceResolutionError {
     InvalidBounds,
@@ -118,6 +140,8 @@ struct Frame<N, S> {
     reference: Option<(N, ReferenceOccurrence)>,
     depth: usize,
     scopes: Vec<ScopeActivation<S>>,
+    structural_parent: Option<usize>,
+    owns_reference: bool,
 }
 
 /// Resolve one reference under request-wide and effective destination bounds.
@@ -139,6 +163,37 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<ReferenceResolution<H::Node>, ReferenceResolutionError> {
+    Ok(walk_reference_structure(root, host, limits, |_, _| None, false)?.resolution)
+}
+
+/// Resolve a reference and descend into consumer-selected terminal children
+/// under the same active reference stack, request budget and scope budgets.
+/// Containment consumes work but does not itself increment reference depth.
+/// Children are supplied as typed original handles, never synthetic references.
+pub fn resolve_reference_structure<H, C>(
+    root: H::Node,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    structural_children: C,
+) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
+where
+    H: ReferenceResolutionHost,
+    C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+{
+    walk_reference_structure(root, host, limits, structural_children, true)
+}
+
+fn walk_reference_structure<H, C>(
+    root: H::Node,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    mut structural_children: C,
+    record_structure: bool,
+) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
+where
+    H: ReferenceResolutionHost,
+    C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+{
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
@@ -152,6 +207,15 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
         issues: vec![],
         diagnostics: vec![],
         work_used: 0,
+    };
+    let mut structure = ReferenceStructureResolution {
+        resolution: result.clone(),
+        roots: vec![],
+        roots_complete: true,
+        parents: vec![],
+        children: vec![],
+        children_complete: vec![],
+        origins: vec![],
     };
     let root_scope = host.scope(&root);
     let root_limits = host.scope_limits(&root_scope);
@@ -168,6 +232,8 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
     let mut frames = vec![Frame {
         nodes: vec![root.clone()].into_iter(),
         reference: None,
+        structural_parent: None,
+        owns_reference: false,
         depth: 0,
         scopes: vec![ScopeActivation {
             scope: root_scope,
@@ -177,18 +243,25 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
     let mut active = HashSet::new();
     while let Some(frame) = frames.last_mut() {
         let Some(node) = frame.nodes.next() else {
-            if let Some((_, occurrence)) = &frame.reference {
-                active.remove(&occurrence.identity);
+            if frame.owns_reference {
+                if let Some((_, occurrence)) = &frame.reference {
+                    active.remove(&occurrence.identity);
+                }
             }
             frames.pop();
             continue;
         };
         let depth = frame.depth;
+        let structural_parent = frame.structural_parent;
         let parent = frame.reference.clone();
         let mut scopes = frame.scopes.clone();
         if result.work_used == limits.max_work {
+            for frame in &frames {
+                structure.mark_incomplete(frame.structural_parent);
+            }
             let (reference, occurrence) =
                 parent.unwrap_or_else(|| (root.clone(), root_occurrence.clone()));
+            structure.mark_incomplete(structural_parent);
             unresolved(
                 &mut result,
                 host,
@@ -213,6 +286,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
             let (reference, occurrence) = parent
                 .clone()
                 .unwrap_or_else(|| (root.clone(), root_occurrence.clone()));
+            structure.mark_incomplete(structural_parent);
             unresolved(
                 &mut result,
                 host,
@@ -225,14 +299,19 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
                 .last()
                 .is_some_and(|frame| frame.scopes.iter().any(|a| a.scope == scope))
             {
-                if let Some((_, occurrence)) = frames.pop().unwrap().reference {
-                    active.remove(&occurrence.identity);
+                let pruned = frames.pop().unwrap();
+                structure.mark_incomplete(pruned.structural_parent);
+                if pruned.owns_reference {
+                    if let Some((_, occurrence)) = pruned.reference {
+                        active.remove(&occurrence.identity);
+                    }
                 }
             }
             continue;
         }
         if let Some((reference, occurrence)) = &parent {
             if !host.permits_edge(reference, &node) {
+                structure.mark_incomplete(structural_parent);
                 unresolved(
                     &mut result,
                     host,
@@ -257,6 +336,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
                 let (reference, occurrence) = parent
                     .clone()
                     .unwrap_or_else(|| (root.clone(), root_occurrence.clone()));
+                structure.mark_incomplete(structural_parent);
                 unresolved(
                     &mut result,
                     host,
@@ -274,10 +354,40 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
             });
         }
         let Some(occurrence) = host.reference_occurrence(&node) else {
+            if !record_structure {
+                result.nodes.push(node);
+                continue;
+            }
+            let index = result.nodes.len();
+            structure.parents.push(structural_parent);
+            structure.children.push(vec![]);
+            structure.children_complete.push(true);
+            structure.origins.push(
+                parent
+                    .as_ref()
+                    .map(|(_, origin)| origin.clone())
+                    .unwrap_or_else(|| root_occurrence.clone()),
+            );
+            if let Some(parent_index) = structural_parent {
+                structure.children[parent_index].push(index);
+            } else {
+                structure.roots.push(index);
+            }
+            if let Some(children) = structural_children(host, &node) {
+                frames.push(Frame {
+                    nodes: children.into_iter(),
+                    reference: parent,
+                    owns_reference: false,
+                    structural_parent: Some(index),
+                    depth,
+                    scopes,
+                });
+            }
             result.nodes.push(node);
             continue;
         };
         if active.contains(&occurrence.identity) {
+            structure.mark_incomplete(structural_parent);
             unresolved(
                 &mut result,
                 host,
@@ -290,6 +400,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
         }
         let request_depth_exhausted = depth >= limits.max_depth;
         if request_depth_exhausted || scopes.iter().any(|a| depth >= a.depth_ceiling) {
+            structure.mark_incomplete(structural_parent);
             unresolved(
                 &mut result,
                 host,
@@ -311,11 +422,14 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
                 frames.push(Frame {
                     nodes: nodes.into_iter(),
                     reference: Some((node, occurrence)),
+                    owns_reference: true,
+                    structural_parent,
                     depth: depth + 1,
                     scopes,
                 });
             }
             ReferenceLinkEvaluation::Unresolved(reason) => {
+                structure.mark_incomplete(structural_parent);
                 unresolved(
                     &mut result,
                     host,
@@ -326,6 +440,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
                 );
             }
             ReferenceLinkEvaluation::Pending(reason) => {
+                structure.mark_incomplete(structural_parent);
                 if result.state == ReferenceResolutionState::Resolved {
                     result.state = ReferenceResolutionState::Pending;
                 }
@@ -337,6 +452,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
                 });
             }
             ReferenceLinkEvaluation::Invalid(diagnostics) => {
+                structure.mark_incomplete(structural_parent);
                 result.state = ReferenceResolutionState::Invalid;
                 result.failed = true;
                 result.diagnostics.extend(diagnostics);
@@ -349,7 +465,8 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
             }
         }
     }
-    Ok(result)
+    structure.resolution = result;
+    Ok(structure)
 }
 
 fn unresolved<H: ReferenceResolutionHost>(

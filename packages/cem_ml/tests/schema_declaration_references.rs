@@ -1573,3 +1573,165 @@ fn field_contract_applications_keep_independent_lexical_alias_diagnostics() {
         .iter()
         .any(|d| d.code == cem_ml::schema::document_model::UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE));
 }
+
+#[test]
+fn structural_input_references_validate_parent_sequences_and_consuming_subtrees() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @required-attributes=command}} {field-contracts | {field-contract @name=pair @target=box @exact-child-sequence=\"item item\"}}}");
+    let library = parse("{schema | {item}} ");
+    let item = node(&library, "item");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![item.clone(), item]),
+    );
+    let source = parse("{box | {#items}}");
+    let limits = host.policy.limits;
+    let report =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(report.complete);
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE)
+            .count(),
+        2
+    );
+    assert!(!report.diagnostics.iter().any(|d| d
+        .details
+        .as_ref()
+        .and_then(|d| d.get("contract"))
+        .and_then(|d| d.as_str())
+        == Some("pair")));
+    assert!(report.nodes.iter().filter(|n| matches!(n.source.node(), CemAstNode::Element {expanded_name, ..} if expanded_name.local_name == "item")).all(|n| Arc::ptr_eq(n.source.document(), &library)));
+    assert!(source
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}
+
+#[test]
+fn structural_input_pending_children_are_not_empty_and_invalid_kinds_are_errors() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item @required-attributes=own} {element @name=item}} {field-contracts | {field-contract @name=required @target=box @required-children=item}}}");
+    let source = parse("{box | {#items}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Pending("waiting".into()),
+    );
+    let limits = host.policy.limits;
+    let pending =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(!pending.complete);
+    assert!(pending
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE));
+    assert!(!pending.diagnostics.iter().any(|d| d
+        .details
+        .as_ref()
+        .and_then(|d| d.get("contract"))
+        .and_then(|d| d.as_str())
+        == Some("required")));
+    host.outcomes
+        .insert("#items".into(), ReferenceLinkEvaluation::Resolved(vec![]));
+    let empty =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(empty.complete);
+    assert!(empty.diagnostics.len() > pending.diagnostics.len());
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&parse("{box @bad=value}"), "box")]),
+    );
+    let invalid_child =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(invalid_child
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_CHILD_ELEMENT_CODE));
+    let document = parse("{box @bad=value}");
+    let attribute = document
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![
+            SchemaDeclarationNode::new(document, attribute).unwrap()
+        ]),
+    );
+    let invalid = validate_structural_input_references(source, &model, &mut host, limits).unwrap();
+    assert!(!invalid.complete && invalid.failed);
+}
+
+#[test]
+fn structural_input_element_reference_cycles_stay_bounded_under_ignore() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @children=item}}}");
+    let target = parse("{item | {#again}}");
+    let mut host = Host::new();
+    host.disposition("ignore");
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&target, "item")]),
+    );
+    host.outcomes.insert(
+        "#again".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&target, "item")]),
+    );
+    let limits = host.policy.limits;
+    let report =
+        validate_structural_input_references(parse("{box | {#items}}"), &model, &mut host, limits)
+            .unwrap();
+    assert!(!report.complete);
+    assert!(report.references[0].resolution.issues.iter().any(
+        |i| i.kind == cem_ml::value::reference_resolution::ReferenceResolutionIssueKind::Cycle
+    ));
+    assert!(host.calls <= 3);
+}
+
+#[test]
+fn pending_descendants_preserve_complete_parent_children_and_inactive_models_skip_evaluation() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @children=leaf} {element @name=leaf}} {field-contracts | {field-contract @name=outer @target=box @exact-total-children=0} {field-contract @name=inner @target=item @required-children=leaf}}}");
+    let library = parse("{item | {#children}}");
+    let source = parse("{box | {#items}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "item")]),
+    );
+    host.outcomes.insert(
+        "#children".into(),
+        ReferenceLinkEvaluation::Pending("waiting".into()),
+    );
+    let limits = host.policy.limits;
+    let report =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(!report.complete);
+    assert!(report.nodes.iter().find(|n|matches!(n.source.node(), CemAstNode::Element {expanded_name,..} if expanded_name.local_name == "box")).unwrap().children_complete);
+    assert!(report.diagnostics.iter().any(|d| d
+        .details
+        .as_ref()
+        .and_then(|d| d.get("contract"))
+        .and_then(|d| d.as_str())
+        == Some("outer")));
+    assert!(!report.diagnostics.iter().any(|d| d
+        .details
+        .as_ref()
+        .and_then(|d| d.get("contract"))
+        .and_then(|d| d.as_str())
+        == Some("inner")));
+    let inactive = compile_schema_document_model("consumer", "{schema | {elements | {#pending}}}");
+    let calls = host.calls;
+    let report =
+        validate_structural_input_references(source, &inactive, &mut host, limits).unwrap();
+    assert!(!report.complete && report.failed);
+    assert_eq!(host.calls, calls);
+}

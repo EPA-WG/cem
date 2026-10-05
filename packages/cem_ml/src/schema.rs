@@ -9,6 +9,7 @@ pub(crate) mod diagnostics;
 pub mod disposition;
 pub mod document_model;
 pub mod ir;
+pub mod input_references;
 pub mod machine;
 pub mod namespace;
 pub mod package_compilation;

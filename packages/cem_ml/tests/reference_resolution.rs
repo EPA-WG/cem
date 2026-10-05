@@ -399,3 +399,63 @@ fn exhausted_destination_prunes_wide_subtree_and_restores_parent() {
     assert_eq!(result.issues[0].reference, 2);
     assert_eq!(host.calls, 2);
 }
+
+#[test]
+fn structural_descent_keeps_cycles_budgets_order_and_child_completeness() {
+    use cem_ml::value::reference_resolution::resolve_reference_structure;
+    let mut host = Host::graph(&[Some(vec![2, 2]), None, Some(vec![2])]);
+    let limits = host.default.limits;
+    let graph = resolve_reference_structure(1, &mut host, limits, |_, node| {
+        (*node == 2).then(|| vec![3])
+    })
+    .unwrap();
+    assert_eq!(graph.resolution.nodes, vec![2, 2, 2, 2]);
+    assert_eq!(graph.roots, vec![0, 2]);
+    assert_eq!(graph.children[0], vec![1]);
+    assert!(!graph.children_complete[1] && !graph.children_complete[3]);
+    assert!(graph
+        .resolution
+        .issues
+        .iter()
+        .all(|i| i.kind == ReferenceResolutionIssueKind::Cycle));
+    let mut host = Host::graph(&[Some(vec![2]), None, Some(vec![4]), None]);
+    let graph = resolve_reference_structure(
+        1,
+        &mut host,
+        cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+            max_depth: 1,
+            max_work: 100,
+        },
+        |_, node| (*node == 2).then(|| vec![3]),
+    )
+    .unwrap();
+    assert_eq!(graph.resolution.nodes, vec![2]);
+    assert!(!graph.children_complete[0]);
+    assert_eq!(
+        graph.resolution.issues[0].kind,
+        ReferenceResolutionIssueKind::DepthLimit
+    );
+}
+
+#[test]
+fn structural_destination_work_is_cumulative_and_restores_outer_siblings() {
+    use cem_ml::value::reference_resolution::resolve_reference_structure;
+    let mut host = Host::graph(&[Some(vec![2, 2, 5]), None, Some(vec![4]), None, None]);
+    host.scopes = HashMap::from([(1, 0), (2, 1), (3, 1), (4, 1), (5, 2)]);
+    host.scope_bounds.insert(
+        1,
+        cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+            max_depth: 10,
+            max_work: 2,
+        },
+    );
+    let limits = host.default.limits;
+    let graph = resolve_reference_structure(1, &mut host, limits, |_, node| {
+        (*node == 2).then(|| vec![3])
+    })
+    .unwrap();
+    assert_eq!(graph.resolution.nodes, vec![2, 5]);
+    assert!(!graph.children_complete[0]);
+    assert!(!graph.resolution.is_complete());
+    assert_eq!(graph.roots, vec![0, 1]);
+}

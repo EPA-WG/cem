@@ -900,7 +900,7 @@ input is rewritten. The existing sites are:
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references occurring in validation input | Consumer-specific node kinds, cardinality and recursive validation rules | Retained as input until a validation consumer explicitly requests evaluation; target consumption rules remain actionable work. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; engine lifecycle/report wiring remains actionable work. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -1010,3 +1010,40 @@ complete assembly and expose the error. This replaces the previous silent skip
 for direct contracts as well. Invalid or incomplete candidate schemas remain
 inspectable, and package refresh preserves the last complete active schema,
 converters and artifacts until the candidate is ready and free of hard errors.
+
+`schema::input_references::validate_structural_input_references` is an explicit
+structural consumer. It retains original owner/node handles in a temporary
+validation structure; those structure indices are execution-local and are not
+source AST node IDs. Elements and text-like structural content are accepted;
+document, attribute, error and non-retained runtime values are invalid targets
+at the selecting reference. Element counts and sequences follow the existing
+structural rules, retaining ordering and multiplicity. Targets keep their
+original source maps while both parent relationships and selected-subtree
+attributes are checked under the consuming schema.
+
+Each authored structural reference starts one traversal request, as in the
+existing declaration consumer. `resolve_reference_structure` descends into
+selected element children under that same active reference stack, scope depth
+and cumulative scope/work budgets. Owned containment consumes work without
+incrementing reference-expansion depth. Reference → element → reference cycles
+remain bounded; a crossing never replenishes work. Ordinary `resolve_reference`
+keeps its terminal-only contract and does not allocate structural result data.
+Unknown or opaque elements retain the existing structural validator's boundary;
+references inside them are not eagerly evaluated by this consumer.
+
+Results expose completeness separately from hard validation failure. Pending,
+cyclic or limited child selection cannot appear to be a successful empty
+selection, even under ignore disposition. Field contracts on an incomplete
+child sequence are deferred; independent attribute checks and original
+expression diagnostics remain visible. Nested incomplete children do not erase
+their already-selected parent from an enclosing complete child sequence.
+Resolved-empty selection is complete and ordinary missing-child checks apply.
+
+The native QL host exposes `validate_input` against its current runtime contexts,
+policies and directed grants. Independent hosts can validate the same retained
+source with different selections, without source writeback or context IDs.
+This API performs structural checks; it does not schedule engine requests,
+create an expanded CEM document, or run whole-document behavior hooks against a
+synthetic source. Engine lifecycle wiring, incomplete-report representation and
+behavior-hook handoff over multiple original owners remain explicit follow-up
+work.

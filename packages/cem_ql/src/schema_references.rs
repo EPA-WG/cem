@@ -13,6 +13,7 @@ use cem_ml::{
             SchemaDeclarationNode,
         },
         document_model::SchemaDocumentModel,
+        input_references::{validate_structural_input_references, StructuralInputValidation},
         reference_policy::{ReferenceOccurrence, ReferenceScopePolicy, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
     },
@@ -151,6 +152,16 @@ impl CemQlSchemaDeclarationHost {
             self,
             limits,
         )
+    }
+    /// Explicit structural-input lifecycle stage using the supplied consuming
+    /// schema and this host's current contexts, policies and scope grants.
+    pub fn validate_input(
+        &mut self,
+        source: Arc<RetainedCemTree>,
+        model: &SchemaDocumentModel,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
+        validate_structural_input_references(source.ast_owner().clone(), model, self, limits)
     }
     fn source_scope(&self, source: &SchemaDeclarationNode) -> Option<DeclarationScope> {
         let owner = Arc::as_ptr(source.document()) as usize;

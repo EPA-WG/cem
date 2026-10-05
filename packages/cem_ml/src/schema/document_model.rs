@@ -1219,28 +1219,31 @@ fn compile_authored_schema_behaviors(
     diagnostics
 }
 
-fn validate_node(
+/// Validate original attributes and the supplied consumer child sequence.
+/// None means that child selection is incomplete; defer field contracts that
+/// depend on that structural context while preserving independent attributes.
+pub(crate) fn validate_element_shallow<'a>(
     document: &CemDocument,
-    model: &SchemaDocumentModel,
+    model: &'a SchemaDocumentModel,
     node_id: AstNodeId,
     parent_allows_any_child: bool,
+    child_sequence: Option<&[String]>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Option<&'a ElementModel> {
     let Some(node) = document.get(node_id) else {
-        return;
+        return None;
     };
     let CemAstNode::Element {
         expanded_name,
         attributes,
-        children,
         ..
     } = node
     else {
-        return;
+        return None;
     };
     let local = expanded_name.local_name.as_str();
     if should_skip_structural_name(local) {
-        return;
+        return None;
     }
 
     let Some(element_model) = model.element(local) else {
@@ -1254,7 +1257,7 @@ fn validate_node(
                 node,
             ));
         }
-        return;
+        return None;
     };
 
     let mut seen_attributes = BTreeSet::new();
@@ -1304,22 +1307,21 @@ fn validate_node(
         &mut attribute_values,
     );
 
-    let child_sequence = child_element_sequence(document, children);
-    let child_counts = child_element_counts(&child_sequence);
-
-    validate_field_contracts(
-        &model.schema_uri,
-        &model.diagnostic_behaviors,
-        local,
-        element_model,
-        &seen_attributes,
-        &attribute_values,
-        &child_counts,
-        &child_sequence,
-        node,
-        diagnostics,
-    );
-
+    if let Some(child_sequence) = child_sequence {
+        let child_counts = child_element_counts(child_sequence);
+        validate_field_contracts(
+            &model.schema_uri,
+            &model.diagnostic_behaviors,
+            local,
+            element_model,
+            &seen_attributes,
+            &attribute_values,
+            &child_counts,
+            child_sequence,
+            node,
+            diagnostics,
+        );
+    }
     for required in &element_model.required_attributes {
         if !seen_attributes.contains(required) {
             diagnostics.push(diag_at(
@@ -1333,26 +1335,69 @@ fn validate_node(
         }
     }
 
+    Some(element_model)
+}
+
+pub(crate) fn structural_child_name(node: &CemAstNode) -> Option<&str> {
+    element_local_name(node).filter(|name| !should_skip_structural_name(name))
+}
+
+pub(crate) fn validate_child_relationship(
+    model: &SchemaDocumentModel,
+    parent: &CemAstNode,
+    child: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(local) = structural_child_name(parent) else {
+        return;
+    };
+    let Some(element_model) = model.element(local) else {
+        return;
+    };
+    let Some(child_local) = structural_child_name(child) else {
+        return;
+    };
+    if !element_model.allows_child(child_local) {
+        diagnostics.push(diag_at(
+            INVALID_CHILD_ELEMENT_CODE,
+            format!(
+                "element `{child_local}` is not an allowed child of `{local}` by schema `{}`",
+                model.schema_uri
+            ),
+            child,
+        ));
+    }
+}
+
+fn validate_node(
+    document: &CemDocument,
+    model: &SchemaDocumentModel,
+    node_id: AstNodeId,
+    parent_allows_any_child: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(node @ CemAstNode::Element { children, .. }) = document.get(node_id) else {
+        return;
+    };
+    let sequence = child_element_sequence(document, children);
+    let Some(element_model) = validate_element_shallow(
+        document,
+        model,
+        node_id,
+        parent_allows_any_child,
+        Some(&sequence),
+        diagnostics,
+    ) else {
+        return;
+    };
     for child_id in children {
         let Some(child) = document.get(*child_id) else {
             continue;
         };
-        let Some(child_local) = element_local_name(child) else {
-            continue;
-        };
-        if should_skip_structural_name(child_local) {
+        if structural_child_name(child).is_none() {
             continue;
         }
-        if !element_model.allows_child(child_local) {
-            diagnostics.push(diag_at(
-                INVALID_CHILD_ELEMENT_CODE,
-                format!(
-                    "element `{child_local}` is not an allowed child of `{local}` by schema `{}`",
-                    model.schema_uri
-                ),
-                child,
-            ));
-        }
+        validate_child_relationship(model, node, child, diagnostics);
         validate_node(
             document,
             model,
@@ -18758,7 +18803,7 @@ fn should_skip_structural_name(local: &str) -> bool {
     local.is_empty() || local == "$" || local.starts_with('@')
 }
 
-fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
+pub(crate) fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
     match node {
         CemAstNode::Document { source, .. }
         | CemAstNode::Element { source, .. }

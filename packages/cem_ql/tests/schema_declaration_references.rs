@@ -521,3 +521,64 @@ fn field_contract_reuse_checks_scope_grants_and_local_targets_after_assembly() {
         library.ast_owner()
     ));
 }
+
+#[test]
+fn structural_input_validation_uses_explicit_context_grants_and_consuming_schema() {
+    let source = tree("{box | {#library}}");
+    let library = tree("{item}");
+    let id = library
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "item" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let item = cem_ql::eval::RetainedCemNode::new(library.clone(), id)
+        .unwrap()
+        .query_item();
+    let model = cem_ml::schema::document_model::compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @required-attributes=command}}}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let a = host.register_scope(source.clone(), None, policy());
+    let b = host.register_scope(library.clone(), None, policy());
+    assert!(
+        !host
+            .validate_input(source.clone(), &model, limits())
+            .unwrap()
+            .complete
+    );
+    host.set_context(a, Some(context(vec![item])));
+    assert!(
+        !host
+            .validate_input(source.clone(), &model, limits())
+            .unwrap()
+            .complete
+    );
+    host.allow_scope_crossing(a, b);
+    let report = host
+        .validate_input(source.clone(), &model, limits())
+        .unwrap();
+    assert!(report.complete && report.failed);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE));
+    let selected = report.nodes.iter().find(|n| matches!(n.source.node(), CemAstNode::Element {expanded_name, ..} if expanded_name.local_name == "item")).unwrap();
+    assert!(Arc::ptr_eq(selected.source.document(), library.ast_owner()));
+    let mut independent = CemQlSchemaDeclarationHost::new();
+    independent.register_scope(source.clone(), Some(context(vec![])), policy());
+    let report = independent
+        .validate_input(source.clone(), &model, limits())
+        .unwrap();
+    assert!(report.complete && !report.failed);
+    assert!(source
+        .ast()
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}

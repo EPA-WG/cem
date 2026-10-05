@@ -462,16 +462,45 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: one contract applies in two
       consuming schemas; local targets stay local while declaring aliases retain
       source meaning; invalid targets never disappear as empty selections.
-- [ ] Choose the validation-input reference consumer's schema contract before
-      implementation. Recommended next slice: references in structural child
-      positions resolve to ordered zero/many nodes and parent child checks use
-      the consuming schema; decide whether selected subtrees also use that schema
-      or the destination scope's schema. Keep evaluation policies and explicit
-      scope grants independent from this validation choice.
+- [x] Fixture: structural reference traversal retains ordered subtree edges,
+      active cycle identities, cumulative scope work and depth through terminal
+      elements. Cover partial child completeness and sibling restoration.
+      Scenarios for later design verification: reference → element → reference
+      cycles terminate; destination work does not reset inside selected subtrees.
+- [x] Fixture: explicitly validate structural child references with the consuming
+      schema without source cloning. Cover multiple/repeated targets, parent
+      sequence contracts, subtree attributes, pending vs empty, invalid node kinds,
+      source attribution, independent runtimes and native QL scope grants.
+      Scenarios for later design verification: incomplete child selections never
+      look like missing children; a reused element keeps its original owner.
+- [x] Implement explicit validation-input structural reference consumption.
+      Parent and selected-subtree checks use the consuming schema. Preserve
+      zero/many ordering, original owners and source maps; descend under one
+      active reference stack and cumulative request/destination budgets. Expose
+      completeness separately from failure, and defer field contracts while
+      their child selections are incomplete. Native QL exposes `validate_input`.
+      Verification: 68 focused ML reference tests, ten native QL declaration/input
+      fixtures and 119 bridge tests pass. Full Nx ML library verification reports
+      2069 passes, two ignored and the known legacy dropdown selector failure
+      (`template#cem-dropdown` not found).
       Scenarios for later design verification: references cross vendor scopes;
       a selected child matches the parent contract but differs under the two
       subtree schemas; original owners, source maps and request limits survive.
-- [ ] Define native node-valued scalar composition/validation-input sites before
+- [ ] Integrate structural reference validation into an explicit engine lifecycle
+      hook. Decide how engine reports expose incomplete validation: recommended
+      completion metadata separate from diagnostic severity/failure; current
+      reports have diagnostic counts but no completion state. Do not allow an
+      incomplete stage to appear as successful validation or make ignore policy
+      silently resolve missing children.
+      Scenarios for later design verification: pending inputs preserve available
+      diagnostics; incomplete ignored links still prevent a completed verdict;
+      source-only loading and independent runtime contexts remain unchanged.
+- [ ] Define behavior-evaluator handoff over the retained validation structure
+      before invoking whole-document function hooks on selected subtrees. Avoid
+      synthetic expanded arenas or loss of original declaring context.
+      Scenarios for later design verification: selected nodes from multiple
+      owners retain their function context and source attribution.
+- [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects
       multiple targets; recursive validation stays bounded; existing aliases
