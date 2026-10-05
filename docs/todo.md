@@ -1193,9 +1193,9 @@ implementation verification. They do not claim executable test coverage.
       and unchanged descendant reference nodes before implementing the node adapter.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
-- [ ] Decide candidate availability for standalone datatype value consumers:
-      allow capabilities with no required candidate input (recommended), or require
-      an original retained candidate for every general validation/conversion call.
+- [x] Adopt per-capability candidate requirements for standalone datatype consumers.
+      Capabilities without a required candidate may accept source-less values;
+      capabilities requiring a native candidate remain unavailable when it is absent.
       Scenarios for later design verification: a source-less scalar consumer never
       fabricates an AST or candidate record; required native inputs remain unavailable.
 - [ ] Specify concrete validation result bindings and an explicit compatibility
@@ -1217,6 +1217,24 @@ implementation verification. They do not claim executable test coverage.
       tokenization policies, and grammar/reference kind contracts.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
+- [x] Fixture: verify retained datatype registry collection without authored scope IDs:
+      repeated original declaration reuse, distinct same-name collision provenance,
+      independent lexical scopes, same node addresses in different owners, original
+      owner lifetime and malformed declaration rejection. No executable kind is enabled.
+      Scenarios for later design verification: native identity remains independent of
+      local-name lookup; a collision preserves both sources and never replaces a binding.
+- [x] Implement the retained datatype registry collection foundation under these
+      fixtures, with caller-supplied lexical scope handles and original declaration
+      lookup. Keep dependency compilation and native type execution guarded.
+      Scenarios for later design verification: registry membership grants no scope
+      access or built-in implementation; collected declarations do not claim readiness.
+      Verification: six registry fixtures, three datatype inventory fixtures, nine
+      native value contract tests and 65 declaration-reference tests pass (83 total).
+- [ ] Decide omitted datatype `kind`: inherit a resolved base's kind for derived
+      types (recommended), with explicit `kind=list` for item-base semantics, or
+      require explicit kind on every general datatype declaration.
+      Scenarios for later design verification: forward/pending bases never default
+      to strings; a list item base is never mistaken for scalar inheritance.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.

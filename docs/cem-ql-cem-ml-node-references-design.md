@@ -1362,10 +1362,20 @@ stay retained until an explicit consumer resolves them. Symbolic-reference kinds
 remain separate; neither they nor grammar rules imply URL lookup or scope grants.
 Node rules validate the complete ordered target sequence once, including a
 complete empty selection; incomplete resolution is not an empty successful result.
-The original candidate remains distinct from the targets. The next decision is
-standalone value consumption: allow registered capabilities without a required
-candidate (recommended), or require a retained input node for every datatype call.
-A supplied candidate must always remain an original explicitly typed native node.
+The original candidate remains distinct from the targets. Standalone value
+consumers may use registered capabilities without a required candidate; capabilities
+requiring one remain unavailable when it is absent. A supplied candidate must
+always remain an original explicitly typed native node; synthetic ASTs and copied
+candidate records cannot satisfy the input contract.
 The verified inventory also distinguishes available scalar conversion from the
 broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.
+
+The retained datatype registry collection foundation is implemented with given
+lexical scope handles, original declaration lookup and collision provenance.
+Six native fixtures verify identity, scope independence and owner lifetime; 83
+focused registry/inventory/value/declaration-reference tests pass. This registry
+does not enable datatype execution or replace namespace admission and dependency
+compilation. The next decision is omitted `kind` for derived types: inherit the
+resolved base kind (recommended), requiring explicit list kind for item semantics,
+or require every general datatype declaration to state its kind.

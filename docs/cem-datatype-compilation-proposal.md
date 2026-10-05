@@ -5,7 +5,8 @@ native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
 results, rejection of list declaration `values` and explicit rule acceptance
 with diagnostics, empty lists unless constrained and a dedicated `node` kind are
-adopted. Node rules validate complete target sequences. Exact signatures and
+adopted. Node rules validate complete target sequences, and candidate requirements
+are per registered capability. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -425,25 +426,58 @@ metadata does not turn an `object` function into a native datatype adapter.
 Typed representation names for schema/function declarations remain to be specified;
 this table does not introduce enabled metamodel literals or serialize AST handles.
 
-## Next decision: source-less value consumers
+## Adopted source-less value consumers
 
 Document validation naturally supplies an original candidate node, but the current
 standalone scalar conversion API accepts a lexical value and a source-map stack
 without an AST candidate. The adapter needs a policy for such calls.
 
-Recommended contract: candidate availability is declared per registered
-capability. Standalone value consumers may invoke capabilities that do not require
-a candidate; a rule requiring one remains unavailable when none was supplied.
-When present, the candidate must always be an original explicitly typed native
-node. Never fabricate a document, copy an input record or invent a context ID to
-satisfy a missing input.
+Candidate availability is declared per registered capability. Standalone value
+consumers may invoke capabilities that do not require a candidate; a rule requiring
+one remains unavailable when none was supplied. When present, the candidate must
+always be an original explicitly typed native node. Never fabricate a document,
+copy an input record or invent a context ID to satisfy a missing input.
 
-Alternative: require an original candidate for every general datatype call,
-including standalone conversion. Existing lexical-only callers must first import
-or retain a genuine source node before using the general adapter.
+Preserve the current standalone scalar API until its general-adapter compatibility
+is implemented. A missing required candidate is an unavailable execution input,
+not rejection of the supplied value. Original datatype/behavior provenance and
+available source-map attribution remain retained even for source-less scalar input.
 
-Neither candidate-availability policy is adopted yet. Preserve the current
-standalone scalar API until its general-adapter compatibility is specified.
+## Implemented registry collection foundation
+
+`schema::datatype_registry::DatatypeRegistry` retains caller-supplied lexical scope
+handles and named original declarations. Local name lookup and exact declaration
+lookup remain separate. Repeated insertion of one original declaration is reuse;
+a distinct same-name declaration reports both original sources and leaves the
+existing binding intact. Original owners stay alive while their identities remain
+registry keys. Scope roots require no authored IDs.
+
+The six registry fixtures cover reuse, collision provenance, independent scopes,
+equal node addresses in different owners, retained lifetime and malformed
+collection targets. Together with datatype inventory, native value contracts and
+declaration reference regressions, 83 focused tests pass. This is collection only:
+namespace admission, QName binding, descriptors, dependency compilation, registered
+implementations and native `@type` execution remain separate work. Membership does
+not grant intrinsic semantics or indicate a ready executable datatype.
+
+## Next decision: omitted kind for derived datatypes
+
+The current schema metamodel requires a type name but leaves `kind` optional.
+The general compiler needs an explicit meaning for an omitted kind.
+
+Recommended contract: a derived declaration may inherit the kind of its resolved
+base. The compiler waits for an incomplete base rather than guessing a kind or
+falling back to strings. A list declaration must explicitly state `kind=list`
+because its base selects the item contract, not an inherited scalar contract.
+A declaration with neither an explicit kind nor an inheritable base cannot become
+a ready datatype merely from its local name.
+
+Alternative: require an explicit kind on every general datatype declaration.
+This simplifies classification but changes the optional-kind authoring contract
+and repeats information already present in a derived type's base.
+
+Select this policy before kind inference and base compatibility checking. Existing
+shipped declarations all specify their kind; their contracts remain compatible.
 
 ## Verified inventory and current native boundary
 
