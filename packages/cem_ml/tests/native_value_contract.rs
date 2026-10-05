@@ -278,3 +278,33 @@ fn numeric_facets_and_unicode_string_constraints_check_the_final_value() {
     assert!(!convert("🍒AB", label.clone(), vec![]));
     assert!(!convert("🍒a", label, vec![]));
 }
+
+#[test]
+fn pending_native_type_models_never_convert_as_untyped_strings() {
+    let pending = AttributeModel {
+        native_type_pending: true,
+        ..Default::default()
+    };
+    assert!(!convert("value", pending.clone(), vec![]));
+    assert!(!convert(
+        "value",
+        AttributeModel::default(),
+        vec![pending.clone()]
+    ));
+    let mut schema = cem_ml::schema::document_model::compile_schema_document_model(
+        "consumer",
+        "{schema | {attributes | {attribute @name=target}}}",
+    );
+    schema
+        .attributes
+        .get_mut("target")
+        .unwrap()
+        .native_type_pending = true;
+    assert!(!schema.is_ready_for_validation());
+    let metadata = serde_json::to_value(&pending).unwrap();
+    assert_eq!(metadata["native_type_pending"], true);
+    let literal = serde_json::to_value(AttributeModel::default()).unwrap();
+    assert!(literal.get("native_type_pending").is_none());
+    let restored: AttributeModel = serde_json::from_value(literal).unwrap();
+    assert!(!restored.native_type_pending);
+}

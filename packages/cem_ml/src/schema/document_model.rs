@@ -143,6 +143,10 @@ impl SchemaDocumentModel {
     pub fn is_ready_for_validation(&self) -> bool {
         self.declaration_references.is_complete()
             && !self.declaration_references.failed()
+            && !self
+                .attributes
+                .values()
+                .any(|attribute| attribute.native_type_pending)
     }
 
     pub(crate) fn validation_blocker_diagnostics(&self) -> Vec<Diagnostic> {
@@ -276,6 +280,9 @@ impl ElementModel {
 pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,
+    /// An authored native datatype slot is retained but has not been consumed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub native_type_pending: bool,
     pub default_value: Option<String>,
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
@@ -1676,17 +1683,18 @@ fn validate_attribute_contracts(
 ) {
     let effective_value = validation_attribute_value(value, attribute_model);
     let value = effective_value.as_ref();
-    let type_valid = validate_attribute_type(
-        schema_uri,
-        diagnostic_behaviors,
-        element_name,
-        attribute_name,
-        value,
-        attribute_model,
-        attribute_values,
-        node,
-        diagnostics,
-    );
+    let type_valid = !attribute_model.native_type_pending
+        && validate_attribute_type(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            attribute_values,
+            node,
+            diagnostics,
+        );
     if type_valid {
         validate_attribute_datatype_params(
             schema_uri,
@@ -4686,6 +4694,11 @@ fn compile_document_model_from_document_with_declarations(
         declarations,
         &mut model.declaration_references,
     );
+    super::declaration_references::attribute_types::retain_authored_types(
+        schema_uri,
+        document,
+        &mut model.declaration_references,
+    );
     let uses = collect_schema_uses(document, schema_id);
     model.behaviors = collect_behavior_definitions_with_references(
         document,
@@ -5044,6 +5057,9 @@ pub(crate) fn compile_attribute_model(
     Some(AttributeModel {
         name: name.to_owned(),
         value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
+        native_type_pending: super::declaration_references::attribute_types::is_pending_type(
+            document, node_id,
+        ),
         default_value: attrs.get("default").cloned(),
         allowed_values: parse_value_set(attrs.get("values")),
         min_inclusive: optional_non_empty_attr(&attrs, "minInclusive").map(str::to_owned),
@@ -5265,6 +5281,9 @@ fn validate_datatype_param_value_type<F>(
 ) where
     F: Fn(&str) -> bool,
 {
+    if attribute_model.native_type_pending {
+        return;
+    }
     let value_type = attribute_model.value_type.as_deref();
     if value_type.is_some_and(matches_type) {
         return;

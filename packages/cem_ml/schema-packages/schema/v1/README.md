@@ -2493,3 +2493,17 @@ synthesize grants. The native CEM-QL declaration host is available as
 retained owners under caller-supplied contexts and scope permissions. Package
 lifecycle invocation and publication integration remain tracked in
 [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+
+### Native attribute datatype readiness
+
+The adopted attribute declaration slot `@type={#datatype}` requires an explicit
+reference to one named `{type}` declaration. Executable datatype consumption is
+not yet implemented. Source-only and explicit compilation retain native type
+constructors as pending, including in reused attribute declarations. Such models
+cannot activate, and incomplete replacements preserve the last complete package.
+General native expressions and composite type slots are schema errors. Literal
+type names keep their existing behavior; the datatype reference is not evaluated
+by the readiness guard. General datatype compilation is being designed before consumption is enabled.
+Pending metadata defers type-dependent facet/default checks while retaining
+independent schema errors. Standalone conversion rejects pending type contracts;
+literal metadata keeps its existing serialization and decoding behavior.

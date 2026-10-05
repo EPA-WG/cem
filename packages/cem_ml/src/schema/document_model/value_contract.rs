@@ -85,6 +85,12 @@ pub fn convert_attribute_value_with_check<E>(
     let mut normalization = None;
     for model in contract.models() {
         check().map_err(Interrupted)?;
+        if model.native_type_pending {
+            return Err(Invalid(contract_failure(
+                "Attribute datatype reference must be consumed before value conversion",
+                source,
+            )));
+        }
         let rank = match model.white_space.as_deref() {
             None => continue,
             Some("preserve") => 0,

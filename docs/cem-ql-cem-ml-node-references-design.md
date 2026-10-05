@@ -1300,3 +1300,27 @@ the respective inherited fields, preserving existing literal-base semantics.
 Referenced declarations do not implicitly import their schema's other collections.
 The temporary compilation forest retains dependency owners without rewriting the
 source AST or evaluating general attribute expressions.
+
+### Native attribute datatype adoption boundary
+
+Attribute declaration `@type={#datatype}` adopts an explicit native reference
+selecting exactly one named schema `{type}` declaration, retaining its original
+owner and lexical scope. Literal type names retain their existing behavior.
+This adopts the reference site; it does not yet select executable datatype forms.
+
+Until that consumer is implemented, compilation retains native type constructors
+as pending and cannot activate the model. This applies to authored attributes and
+attributes selected through declaration collection references. Local attribute
+metadata stays available for inspection. General native expressions, composite
+slots and missing native handles are invalid under the explicit-constructor
+contract. Readiness guarding does not invoke a datatype evaluator or implicitly
+turn an unconsumed native type into an untyped attribute.
+
+General datatype compilation must be designed before enabling consumption;
+the limited built-in-base/values-only consumer was not adopted. The temporary
+[datatype compiler proposal](cem-datatype-compilation-proposal.md) inventories
+existing kinds and rule descriptions, proposes retained descriptors and a shared
+literal/native dependency lifecycle, and records the remaining semantic decisions.
+Pending attribute metadata defers type-dependent facet/default checks, while
+known malformed facets and local value errors remain visible. Standalone value
+conversion rejects unconsumed type metadata instead of falling back to strings.

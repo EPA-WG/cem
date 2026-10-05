@@ -735,3 +735,54 @@ fn native_base_compilation_uses_lexical_context_and_one_granted_traversal() {
             .any(|node| Arc::ptr_eq(node.document(), leaf.ast_owner())));
     }
 }
+
+#[test]
+fn reused_attribute_types_stay_pending_without_an_executable_datatype_consumer() {
+    let source = tree("{schema | {attributes | {#library}}}");
+    let library = tree("{schema | {attributes | {attribute @name=target @type={#datatype}}}}");
+    let id = library
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "attribute" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let requesting = host.register_scope(
+        source.clone(),
+        Some(context(vec![cem_ql::eval::RetainedCemNode::new(
+            library.clone(),
+            id,
+        )
+        .unwrap()
+        .query_item()])),
+        policy(),
+    );
+    let destination = host.register_scope(library.clone(), None, policy());
+    host.allow_scope_crossing(requesting, destination);
+    let model = host.compile("consumer", source, limits()).unwrap();
+    assert!(!model.is_ready_for_validation());
+    assert!(!model.declaration_references.failed());
+    let pending = model
+        .declaration_references
+        .sites
+        .iter()
+        .find(|site| site.occurrence.expression.as_deref() == Some("#datatype"))
+        .unwrap();
+    assert!(pending.resolution.is_none());
+    assert!(model.attributes.contains_key("target"));
+    drop(host);
+    assert!(model
+        .declaration_references
+        .sites
+        .iter()
+        .flat_map(|site| site.resolution.iter())
+        .flat_map(|resolution| &resolution.nodes)
+        .any(|target| Arc::ptr_eq(target.document(), library.ast_owner())));
+}

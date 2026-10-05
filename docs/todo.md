@@ -932,6 +932,60 @@ implementation. `git diff --check` passes.
       pass (131 bridge tests). Full Nx ML reports 2072 library passes, two ignored
       and only the known legacy `template#cem-dropdown` failure. Native inheritance
       preserves pending candidates, original target owners and nested error maps.
+- [x] Adopt attribute declaration `@type={#datatype}` selecting exactly one named
+      schema `{type}` declaration, preserving its original owner and lexical scope;
+      keep literal type names compatible. Executable datatype forms remain a
+      separate decision before enabling consumption.
+      Scenarios for later design verification: named declarations are not copied
+      into source ASTs; reference evaluation belongs to compilation lifecycle.
+- [x] Fixture: native attribute type slots stay pending during source-only and
+      explicit compilation until their datatype consumer exists, without invoking
+      the type reference host; literal and absent type contracts stay compatible.
+      Scenarios for later design verification: an unconsumed native type cannot
+      activate a silently untyped model; local metadata remains inspectable.
+- [x] Fixture: generic native attribute type expressions and composite slots are
+      source-attributed schema errors under the explicit-reference contract.
+      Scenarios for later design verification: malformed slots cannot activate
+      candidates regardless of unresolved-link diagnostic disposition.
+- [x] Fixture: selected attribute declarations retain pending native type slots
+      and their original constructor metadata, without evaluating the type link.
+      Scenarios for later design verification: referenced attribute reuse does not
+      bypass candidate readiness or inherit the consuming schema's lexical scope.
+- [x] Fixture: production CEM-QL selected attribute declarations keep native types
+      pending without an executable datatype consumer, retaining original owners.
+      Scenarios for later design verification: a collection's complete selection
+      cannot imply that its selected declaration's datatype has been consumed.
+- [x] Fixture: an unconsumed native attribute type in a replacement package keeps
+      its candidate inspectable and preserves the active schema/converter/artifacts.
+      Scenarios for later design verification: missing datatype context cannot
+      downgrade a typed attribute to an untyped, publishable declaration.
+- [x] Fixture: pending native type metadata defers type-dependent facet/default
+      checks while retaining independent malformed facet and local values errors;
+      existing serialized literal attribute metadata stays compatible.
+      Scenarios for later design verification: an unknown datatype cannot prove a
+      facet inapplicable, but a malformed pattern remains a known schema error.
+- [x] Fixture: standalone attribute conversion rejects pending native type
+      models in both base and restriction contracts; caller-supplied pending
+      attribute metadata also blocks model readiness. Pending metadata survives
+      explicit serialization while old literal metadata defaults to no pending type.
+      Scenarios for later design verification: no scalar/string fallback bypasses
+      datatype readiness when a consumer extracts an individual attribute model.
+- [x] Guard source-only and selected native attribute type readiness before
+      executable datatype consumption is implemented; retain available metadata.
+      Scenarios for later design verification: incomplete replacement candidates
+      preserve the last complete package under existing activation rules.
+      Verification: 91 focused ML reference/value tests, 154 schema model unit
+      tests, 34 production QL tests and 111 bridge/package tests pass against the
+      final guard. General datatype execution remains disabled pending its design.
+- [x] Choose general datatype compilation design before enabling native `@type`
+      consumption; do not adopt a limited built-in-base/values-only consumer.
+      Scenarios for later design verification: all authored `kind`, `rule`, base
+      and restriction fields acquire an explicit supported meaning.
+- [ ] Adopt the general datatype compilation design and enable bounded singleton
+      attribute type consumption only after its executable contracts are chosen.
+      Draft: [general datatype compilation proposal](cem-datatype-compilation-proposal.md).
+      Scenarios for later design verification: unsupported declarations cannot
+      silently lose rules; source owners, lexical scope and budgets survive reuse.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Element `@base` now adopts explicit references selecting exactly one named
@@ -1036,6 +1090,41 @@ implementation verification. They do not claim executable test coverage.
   separately by the schema's cardinality rule.
 - Schema constructs are declared once and referenced by composition and
   validation consumers without copying them into the source tree.
+
+## General datatype compilation design
+
+- [x] Draft the general datatype compiler representation, dependency lifecycle,
+      kind inventory, migration boundary and implementation sequence in
+      [the temporary proposal](cem-datatype-compilation-proposal.md).
+      Scenarios for later design verification: one compiled descriptor serves
+      literal and native selection without cloning authored declarations.
+- [ ] Decide executable `rule` semantics: explicitly registered schema-owned
+      implementations with shipped descriptions preserved (recommended), or a
+      new executable grammar language with a migration for existing prose rules.
+      Scenarios for later design verification: unknown implementations cannot
+      activate; arbitrary prose is not silently treated as executable code.
+- [ ] Fixture: inventory shipped lexical/scalar/list/grammar/reference declarations
+      and establish conversion/validation parity for their native primitives.
+      Scenarios for later design verification: list item bases are not confused
+      with scalar inheritance; a same-name vendor type does not gain a primitive.
+- [ ] Decide and specify datatype namespace/duplicate rules, scalar restriction
+      composition, list item/value representation and grammar/reference behavior.
+      Scenarios for later design verification: attribute restrictions cannot widen
+      a base; native node contracts retain typed input without scalar extraction.
+- [ ] Implement retained datatype descriptors and lexical name binding, then a
+      bounded dependency compiler and kind consumers under the adopted contracts.
+      Add focused native fixture items before implementing each slice.
+      Scenarios for later design verification: cycles and incomplete dependencies
+      prevent activation while original declarations stay available for inspection.
+- [ ] Integrate the descriptor into literal and native attribute type consumers,
+      preserve compatibility through explicit parity checks, and update the
+      metamodel's native datatype admission contract before enabling consumption.
+      Scenarios for later design verification: referenced type owners and their
+      restrictions survive package replacement and independent runtime contexts.
+- [ ] Once adopted, merge the proposal into maintained designs and remove the
+      temporary proposal, preserving outstanding action items and scenarios.
+      Scenarios for later design verification: normative docs distinguish supported
+      consumers from implementation phases and genuinely deferred decisions.
 
 ## Deferred cem-element reference consumption
 

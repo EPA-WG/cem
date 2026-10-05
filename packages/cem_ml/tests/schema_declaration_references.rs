@@ -3054,3 +3054,170 @@ fn nested_base_cardinality_errors_preserve_the_failing_constructor() {
     };
     assert_eq!(diagnostic.source_map.as_ref(), Some(source));
 }
+
+#[test]
+fn unconsumed_native_attribute_types_keep_source_and_explicit_models_pending() {
+    let text = "{schema | {elements | {element @name=box @optional-attributes=target}} {attributes | {attribute @name=target @type={#datatype} @values=allowed}}}";
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    for model in [
+        compile_schema_document_model("consumer", text),
+        compile_schema_with_declaration_references("consumer", parse(text), &mut host, limits)
+            .unwrap(),
+    ] {
+        assert!(!model.is_ready_for_validation());
+        assert!(!model.declaration_references.failed());
+        assert_eq!(
+            model.declaration_references.state(),
+            ReferenceResolutionState::Pending
+        );
+        assert!(model.attributes["target"]
+            .allowed_values
+            .contains("allowed"));
+        assert_eq!(model.declaration_references.sites.len(), 1);
+        let site = &model.declaration_references.sites[0];
+        assert_eq!(site.occurrence.expression.as_deref(), Some("#datatype"));
+        assert!(site.resolution.is_none());
+    }
+    assert_eq!(host.calls, 0);
+    assert_eq!(host.expression_calls, 0);
+    for attribute in [
+        "{attribute @name=target}",
+        "{attribute @name=target @type=schema:integer}",
+    ] {
+        let text = ["{schema | {attributes | ", attribute, "}}"].concat();
+        assert!(compile_schema_document_model("consumer", &text).is_ready_for_validation());
+    }
+}
+
+#[test]
+fn malformed_native_attribute_types_keep_source_diagnostics() {
+    for text in [
+        "{schema | {attributes | {attribute @name=target @type={datatype}}}}",
+        "{schema | {attributes | {attribute @name=target @type={#datatype} @other={#second}}}}",
+    ] {
+        let mut document = parse(text);
+        if text.contains("@other") {
+            let owner = Arc::get_mut(&mut document).unwrap();
+            let mut slot = None;
+            let mut extra = vec![];
+            for node in &mut owner.nodes {
+                if let CemAstNode::Attribute {
+                    node_id,
+                    expanded_name,
+                    value_nodes,
+                    ..
+                } = node
+                {
+                    if expanded_name.local_name == "type" {
+                        slot = Some(*node_id);
+                    }
+                    if expanded_name.local_name == "other" {
+                        extra = std::mem::take(value_nodes);
+                    }
+                }
+            }
+            let CemAstNode::Attribute { value_nodes, .. } =
+                &mut owner.nodes[slot.unwrap() as usize]
+            else {
+                unreachable!()
+            };
+            value_nodes.extend(extra);
+        }
+        let mut host = Host::new();
+        host.disposition("ignore");
+        let limits = host.policy.limits;
+        let model = if text.contains("@other") {
+            compile_schema_with_declaration_references("consumer", document, &mut host, limits)
+                .unwrap()
+        } else {
+            compile_schema_document_model("consumer", text)
+        };
+        assert!(!model.is_ready_for_validation());
+        assert!(model.declaration_references.failed());
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
+            })
+            .unwrap();
+        assert_eq!(diagnostic.uri.as_deref(), Some("consumer"));
+        assert!(diagnostic.source_map.is_some() && diagnostic.byte_offset.is_some());
+        assert_eq!(host.calls + host.expression_calls, 0);
+    }
+}
+
+#[test]
+fn reused_attributes_cannot_bypass_native_datatype_readiness() {
+    let source = parse("{schema | {attributes | {#attributes}}}");
+    let library = parse("{attribute @name=target @type={#datatype}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#attributes".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "attribute")]),
+    );
+    let limits = host.policy.limits;
+    let model =
+        compile_schema_with_declaration_references("consumer", source, &mut host, limits).unwrap();
+    assert!(!model.is_ready_for_validation());
+    assert!(!model.declaration_references.failed());
+    assert!(model.attributes.contains_key("target"));
+    assert_eq!(host.calls, 1);
+    let site = model
+        .declaration_references
+        .sites
+        .iter()
+        .find(|site| site.occurrence.expression.as_deref() == Some("#datatype"))
+        .unwrap();
+    assert!(site.resolution.is_none());
+    let CemAstNode::Reference { source, .. } = library
+        .nodes
+        .iter()
+        .find(|node| matches!(node, CemAstNode::Reference { .. }))
+        .unwrap()
+    else {
+        unreachable!()
+    };
+    assert_eq!(&site.occurrence.source_map, source);
+}
+
+#[test]
+fn pending_native_types_defer_type_applicability_but_keep_known_facet_errors() {
+    for facets in [
+        "@pattern='[a-z]+' @default=abc",
+        "@minItems=2 @default=abc",
+        "@minLength=4 @default=abc",
+    ] {
+        let text = [
+            "{schema | {attributes | {attribute @name=target @type={#datatype} ",
+            facets,
+            "}}}",
+        ]
+        .concat();
+        let model = compile_schema_document_model("consumer", &text);
+        assert!(!model.is_ready_for_validation());
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{facets}: {:?}",
+            model.compile_diagnostics
+        );
+    }
+    for facets in ["@pattern='['", "@values=allowed @default=other"] {
+        let text = [
+            "{schema | {attributes | {attribute @name=target @type={#datatype} ",
+            facets,
+            "}}}",
+        ]
+        .concat();
+        let model = compile_schema_document_model("consumer", &text);
+        assert!(!model.is_ready_for_validation());
+        assert!(
+            model
+                .compile_diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()),
+            "{facets}"
+        );
+    }
+}

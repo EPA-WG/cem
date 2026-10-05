@@ -823,3 +823,26 @@ fn native_base_candidates_preserve_active_package_until_inheritance_is_ready() {
         .is_ready_for_validation());
     assert_active(&context, "derived", "runtime-converter", "old.cemt");
 }
+
+#[test]
+fn unconsumed_native_attribute_types_preserve_the_complete_active_package() {
+    let mut context = context(SOURCE);
+    context.schema_package_compiler = Some(Arc::new(compiler(Some("old"))));
+    load(&mut context, &input());
+    let source = SOURCE.replace("{elements | {#library}}", "{elements | {element @name=new @optional-attributes=target}} {attributes | {attribute @name=target @type={#datatype}}}");
+    set_source(&mut context, &source);
+    context.schema_package_compiler = Some(Arc::new(compiler(None)));
+    load(&mut context, &input());
+    let candidate = context.schema_document_models.get(SCHEMA_URI).unwrap();
+    assert!(!candidate.is_ready_for_validation());
+    assert!(candidate.attributes.contains_key("target"));
+    assert!(candidate
+        .declaration_references
+        .sites
+        .iter()
+        .any(
+            |site| site.occurrence.expression.as_deref() == Some("#datatype")
+                && site.resolution.is_none()
+        ));
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+}

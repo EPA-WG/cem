@@ -23,6 +23,7 @@ use std::{
     },
 };
 
+pub(crate) mod attribute_types;
 pub(crate) mod element_bases;
 
 pub const INVALID_REFERENCE_TARGET: &str = "cem.schema_definition.invalid_reference_target";
@@ -104,6 +105,7 @@ pub enum SchemaDeclarationKind {
     Element,
     ElementBase,
     Attribute,
+    AttributeType,
     Behavior,
     Diagnostic,
     Constraint,
@@ -114,6 +116,7 @@ impl SchemaDeclarationKind {
         match self {
             Self::Element | Self::ElementBase => "element",
             Self::Attribute => "attribute",
+            Self::AttributeType => "type",
             Self::Behavior => "behavior",
             Self::Diagnostic => "diagnostic",
             Self::Constraint => "constraint",
@@ -316,7 +319,14 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                         )
                         .map(CompiledSchemaDeclaration::Element)
                     }
+                    SchemaDeclarationKind::AttributeType => None,
                     SchemaDeclarationKind::Attribute => {
+                        attribute_types::retain_attribute_type(
+                            schema_uri,
+                            target.document(),
+                            target.node_id(),
+                            &mut compilation,
+                        );
                         document_model::compile_attribute_model(target.document(), target.node_id())
                             .map(|attribute| {
                                 CompiledSchemaDeclaration::Attribute(Box::new(attribute))
