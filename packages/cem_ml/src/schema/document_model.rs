@@ -103,6 +103,16 @@ pub trait SchemaBehaviorEvaluator: std::fmt::Debug + Send + Sync {
         Vec::new()
     }
 
+    /// Separate from the legacy whole-document API. Unsupported evaluators
+    /// leave this stage incomplete; no synthetic document fallback is used.
+    fn validate_retained_structure(
+        &self,
+        _structure: super::input_references::RetainedValidationStructure<'_>,
+        _model: &SchemaDocumentModel,
+    ) -> super::input_references::RetainedBehaviorValidation {
+        super::input_references::RetainedBehaviorValidation::default()
+    }
+
     fn validate_document(
         &self,
         document: &CemDocument,

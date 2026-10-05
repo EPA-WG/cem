@@ -12,8 +12,12 @@ use cem_ml::{
             compile_schema_with_declaration_references, SchemaDeclarationHost,
             SchemaDeclarationNode,
         },
-        document_model::SchemaDocumentModel,
-        input_references::{validate_structural_input_references, StructuralInputValidation},
+        document_model::{SchemaBehaviorEvaluator, SchemaDocumentModel},
+        input_references::{
+            validate_structural_input_references,
+            validate_structural_input_references_with_behavior_evaluator,
+            StructuralInputValidation,
+        },
         reference_policy::{ReferenceOccurrence, ReferenceScopePolicy, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
     },
@@ -162,6 +166,23 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
         validate_structural_input_references(source.ast_owner().clone(), model, self, limits)
+    }
+    /// Explicit structural selection followed by the additive retained behavior
+    /// hook; each invocation uses this host's current runtime context.
+    pub fn validate_input_with_behavior_evaluator(
+        &mut self,
+        source: Arc<RetainedCemTree>,
+        model: &SchemaDocumentModel,
+        limits: ReferenceTraversalLimits,
+        evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+    ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
+        validate_structural_input_references_with_behavior_evaluator(
+            source.ast_owner().clone(),
+            model,
+            self,
+            limits,
+            evaluator,
+        )
     }
     fn source_scope(&self, source: &SchemaDeclarationNode) -> Option<DeclarationScope> {
         let owner = Arc::as_ptr(source.document()) as usize;

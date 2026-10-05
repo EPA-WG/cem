@@ -900,7 +900,7 @@ input is rewritten. The existing sites are:
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Runtime lifecycle/behavior handoff remains actionable work. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Additive retained behavior handoff implemented; native QL behavior-check cardinality and engine runtime integration remain actionable work. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -939,7 +939,30 @@ report presentations expose the same completion state.
 
 This reporting stage does not evaluate references during parsing or loading.
 The explicit native consumer remains available for runtime-selected evaluation;
-engine runtime-hook integration awaits the retained behavior-evaluator handoff.
+engine runtime-hook integration awaits native retained behavior evaluation.
+
+`SchemaBehaviorEvaluator.validate_retained_structure` is an additive native
+handoff; the existing `validate_document` API remains available. The new hook
+receives the retained source owner, ordered roots and a read-only graph of
+placement nodes. Each placement retains its original arena/node handle,
+optional original declaring schema, child edges and child-selection completeness.
+Repeated selections can share one source node while keeping separate placement
+indices. These indices are runtime graph positions, not authored IDs or public
+scope identifiers. Consumers can distinguish original source ancestry from the
+consumed relationships without constructing an expanded CEM document.
+
+The explicit `validate_structural_input_references_with_behavior_evaluator`
+stage enriches declaring-schema metadata and invokes the new hook only after
+structural selection is complete. Structural-only validation does not request
+additional declaring-schema lookups.
+Native QL exposes `validate_input_with_behavior_evaluator` using its current contexts,
+policies and directed scope grants. Behavior returns diagnostics and completion
+separately: a completed stage may contain violations, while pending or unsupported
+behavior remains incomplete. Existing evaluators that implement only the legacy
+whole-document hook are not called on a synthetic document and do not implicitly
+complete the new stage. Structural-only validation remains available without
+installing a behavior evaluator. The policy for checking repeated placements in
+the native QL behavior evaluator remains a decision recorded in the todo list.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

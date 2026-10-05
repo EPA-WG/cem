@@ -582,3 +582,97 @@ fn structural_input_validation_uses_explicit_context_grants_and_consuming_schema
         .iter()
         .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
 }
+
+#[test]
+fn native_retained_behavior_handoff_obeys_grants_and_preserves_original_context() {
+    use cem_ml::{
+        diagnostics::Diagnostic,
+        parser::document::CemDocument,
+        schema::{
+            document_model::{
+                compile_schema_document_model, SchemaBehaviorEvaluator, SchemaDocumentModel,
+            },
+            input_references::{RetainedBehaviorValidation, RetainedValidationStructure},
+        },
+    };
+    #[derive(Debug)]
+    struct Behavior {
+        owner: Arc<RetainedCemTree>,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+    impl SchemaBehaviorEvaluator for Behavior {
+        fn validate_document(&self, _: &CemDocument, _: &SchemaDocumentModel) -> Vec<Diagnostic> {
+            panic!("retained behavior must not use a synthetic document")
+        }
+        fn validate_retained_structure(
+            &self,
+            structure: RetainedValidationStructure<'_>,
+            _: &SchemaDocumentModel,
+        ) -> RetainedBehaviorValidation {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let parent = &structure.nodes[structure.roots[0]];
+            let placements: Vec<_> = parent.children.iter().copied().filter(|id| matches!(structure.nodes[*id].source.node(), CemAstNode::Element {expanded_name,..} if expanded_name.local_name == "item")).collect();
+            let child = &structure.nodes[placements[0]];
+            assert!(Arc::ptr_eq(child.source.document(), self.owner.ast_owner()));
+            assert!(Arc::ptr_eq(
+                child.declaring_schema.as_ref().unwrap().document(),
+                self.owner.ast_owner()
+            ));
+            assert_eq!(placements.len(), 1);
+            RetainedBehaviorValidation {
+                complete: true,
+                diagnostics: vec![],
+            }
+        }
+    }
+    let source = tree("{box | {#library}}");
+    let library = tree("{schema | {item}}");
+    let item = library
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "item" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let target = cem_ql::eval::RetainedCemNode::new(library.clone(), item)
+        .unwrap()
+        .query_item();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let from = host.register_scope(source.clone(), Some(context(vec![target])), policy());
+    let to = host.register_scope(library.clone(), None, policy());
+    let evaluator = Behavior {
+        owner: library,
+        calls: Default::default(),
+    };
+    let model = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=box @children=item} {element @name=item}}}",
+    );
+    let denied = host
+        .validate_input_with_behavior_evaluator(source.clone(), &model, limits(), Some(&evaluator))
+        .unwrap();
+    assert!(!denied.complete);
+    assert_eq!(evaluator.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert!(host.allow_scope_crossing(from, to));
+    let report = host
+        .validate_input_with_behavior_evaluator(source.clone(), &model, limits(), Some(&evaluator))
+        .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(evaluator.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(Arc::ptr_eq(&report.source, source.ast_owner()));
+    assert!(source
+        .ast()
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}

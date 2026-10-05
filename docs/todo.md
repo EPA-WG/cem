@@ -507,21 +507,52 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: incomplete ignored links still
       prevent a completed verdict without becoming synthetic violations.
 - [ ] Integrate structural reference validation into an explicit runtime-selected
-      engine lifecycle hook after the retained behavior handoff is decided.
+      engine lifecycle hook after retained behavior-check cardinality is decided.
       Propagate the explicit consumer's completion and diagnostics through the
       report metadata; keep parser/load stages unevaluated. Do not make ignore
       policy silently resolve missing children.
       Scenarios for later design verification: pending inputs preserve available
       diagnostics; incomplete ignored links still prevent a completed verdict;
       source-only loading and independent runtime contexts remain unchanged.
-- [ ] Decide and implement behavior-evaluator handoff over the retained validation
-      structure before invoking function hooks on selected subtrees. Recommended:
-      add a separate retained-structure method to `SchemaBehaviorEvaluator`,
-      preserving the existing whole-document API; alternative: replace that API.
-      Provide original owners, declaring contexts and child relationships. Avoid
-      synthetic expanded arenas or loss of original declaring context.
+- [x] Fixture: retained behavior handoff preserves original owners, declaring
+      schemas and repeated placement edges without expanding source arenas.
+      Cover pending structural selections, independent structural diagnostics,
+      complete behavior violations and legacy evaluators without the new hook.
+      Scenarios for later design verification: multi-owner selections preserve
+      lexical context; unsupported or deferred behavior never appears complete.
+- [x] Fixture: native QL retained behavior handoff uses the registered source
+      scopes and directed grants, preserving selected owners and declaring
+      schemas. A denied crossing must defer behavior; a granted crossing must
+      invoke the new hook without the old whole-document method.
+      Scenarios for later design verification: the same AST supports independent
+      runtime snapshots without target-list mutation or context IDs.
+- [x] Fixture: structural-only and pending validation do not request declaring
+      schema lookup; enrich lexical metadata only at the explicit, complete
+      retained behavior handoff.
+      Scenarios for later design verification: schema lookup does not become an
+      implicit loading/evaluation stage for ordinary structural consumers.
+- [x] Implement the additive `SchemaBehaviorEvaluator.validate_retained_structure`
+      handoff. Expose retained source owners, optional original declaring schemas,
+      ordered placement edges and child-selection completeness. Run the new hook
+      only after complete structural selection; preserve diagnostic severity and
+      distinguish complete behavior violations from pending checks. Unsupported
+      legacy evaluators remain incomplete without a whole-document fallback.
+      Native QL exposes `validate_input_with_behavior_evaluator`; ordinary
+      `validate_document` and structural-only APIs remain compatible.
+      Verification: 56 focused ML fixtures, 11 native QL host fixtures and 119
+      bridge tests pass. Full Nx ML verification reports 2069 passes, two ignored
+      and the known legacy dropdown selector failure.
       Scenarios for later design verification: selected nodes from multiple
       owners retain their function context and source attribution.
+- [ ] Decide behavior-check cardinality for repeated retained source nodes, then
+      implement the retained path in `CemQlSchemaBehaviorEvaluator`. Recommended:
+      check each consumer placement with its consumed parent/child context;
+      alternative: check each original source node once. Preserve distinct
+      placement handles across arenas whose local node IDs overlap. Do not
+      replace retained nodes with JSON records or synthesize expanded arenas.
+      Scenarios for later design verification: one original node is selected by
+      two different parents; each placement has different child relationships;
+      the originating lexical schema and source attribution remain available.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects

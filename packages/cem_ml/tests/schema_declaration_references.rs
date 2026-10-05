@@ -53,6 +53,7 @@ struct Host {
     policy: ReferenceScopePolicy,
     deny: bool,
     calls: usize,
+    schema_calls: std::sync::atomic::AtomicUsize,
 }
 impl Host {
     fn new() -> Self {
@@ -61,6 +62,7 @@ impl Host {
             policy: ReferenceScopePolicy::schema_defaults().unwrap(),
             deny: false,
             calls: 0,
+            schema_calls: Default::default(),
         }
     }
     fn disposition(&mut self, value: &str) {
@@ -129,6 +131,7 @@ impl SchemaDeclarationHost for Host {
         Some(target.clone())
     }
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
+        self.schema_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         target
             .document()
             .nodes
@@ -1734,4 +1737,203 @@ fn pending_descendants_preserve_complete_parent_children_and_inactive_models_ski
         validate_structural_input_references(source, &inactive, &mut host, limits).unwrap();
     assert!(!report.complete && report.failed);
     assert_eq!(host.calls, calls);
+}
+
+#[derive(Debug)]
+struct RetainedBehavior {
+    owner: Arc<CemDocument>,
+    calls: std::sync::atomic::AtomicUsize,
+}
+impl cem_ml::schema::document_model::SchemaBehaviorEvaluator for RetainedBehavior {
+    fn validate_document(
+        &self,
+        _: &CemDocument,
+        _: &cem_ml::schema::document_model::SchemaDocumentModel,
+    ) -> Vec<Diagnostic> {
+        panic!("retained structure must not fall back to whole-document validation")
+    }
+    fn validate_retained_structure(
+        &self,
+        structure: cem_ml::schema::input_references::RetainedValidationStructure<'_>,
+        _: &cem_ml::schema::document_model::SchemaDocumentModel,
+    ) -> cem_ml::schema::input_references::RetainedBehaviorValidation {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(structure.roots, &[0]);
+        let root = &structure.nodes[0];
+        let placements: Vec<_> = root.children.iter().copied().filter(|id| matches!(structure.nodes[*id].source.node(), CemAstNode::Element {expanded_name, ..} if expanded_name.local_name == "item")).collect();
+        assert_eq!(placements.len(), 2);
+        let first = &structure.nodes[placements[0]];
+        let second = &structure.nodes[placements[1]];
+        assert!(Arc::ptr_eq(first.source.document(), &self.owner));
+        assert!(Arc::ptr_eq(second.source.document(), &self.owner));
+        assert_eq!(first.source.node_id(), second.source.node_id());
+        assert_ne!(placements[0], placements[1]);
+        assert!(Arc::ptr_eq(
+            first.declaring_schema.as_ref().unwrap().document(),
+            &self.owner
+        ));
+        assert!(
+            matches!(first.declaring_schema.as_ref().unwrap().node(), CemAstNode::Element {expanded_name,..} if expanded_name.local_name == "schema")
+        );
+        assert!(first.children_complete);
+        cem_ml::schema::input_references::RetainedBehaviorValidation {
+            complete: true,
+            diagnostics: vec![Diagnostic {
+                code: "fixture.retained_behavior".into(),
+                severity: Severity::Error,
+                message: "retained behavior violation".into(),
+                node: Some(first.source.identity()),
+                source_map: Some(match first.source.node() {
+                    CemAstNode::Element { source, .. } => source.clone(),
+                    _ => unreachable!(),
+                }),
+                ..Default::default()
+            }],
+        }
+    }
+}
+
+#[test]
+fn retained_behavior_handoff_preserves_repeated_placements_and_declaring_owners() {
+    use cem_ml::schema::input_references::validate_structural_input_references_with_behavior_evaluator;
+    let source = parse("{box | {#items}}");
+    let library = parse("{schema | {item}}");
+    let target = node(&library, "item");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![target.clone(), target]),
+    );
+    let evaluator = RetainedBehavior {
+        owner: library,
+        calls: Default::default(),
+    };
+    let model = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=box @children=item} {element @name=item}}}",
+    );
+    let limits = host.policy.limits;
+    let report = validate_structural_input_references_with_behavior_evaluator(
+        source.clone(),
+        &model,
+        &mut host,
+        limits,
+        Some(&evaluator),
+    )
+    .unwrap();
+    assert!(report.complete);
+    assert!(report.failed);
+    assert_eq!(evaluator.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "fixture.retained_behavior"));
+    assert!(Arc::ptr_eq(&report.source, &source));
+    assert!(source
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}
+
+#[test]
+fn pending_retained_structure_defers_behavior_without_losing_structural_diagnostics() {
+    use cem_ml::schema::input_references::validate_structural_input_references_with_behavior_evaluator;
+    let source = parse("{box @bad=value | {#items}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Pending("runtime-unavailable".into()),
+    );
+    let evaluator = RetainedBehavior {
+        owner: parse("{schema | {item}}"),
+        calls: Default::default(),
+    };
+    let model = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=box @children=item} {element @name=item}}}",
+    );
+    let limits = host.policy.limits;
+    let report = validate_structural_input_references_with_behavior_evaluator(
+        source,
+        &model,
+        &mut host,
+        limits,
+        Some(&evaluator),
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert!(report.failed);
+    assert_eq!(evaluator.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(
+        host.schema_calls.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_ATTRIBUTE_CODE));
+}
+
+#[test]
+fn legacy_behavior_evaluators_leave_retained_behavior_validation_incomplete() {
+    use cem_ml::schema::input_references::validate_structural_input_references_with_behavior_evaluator;
+    #[derive(Debug)]
+    struct Legacy;
+    impl cem_ml::schema::document_model::SchemaBehaviorEvaluator for Legacy {
+        fn validate_document(
+            &self,
+            _: &CemDocument,
+            _: &cem_ml::schema::document_model::SchemaDocumentModel,
+        ) -> Vec<Diagnostic> {
+            panic!("no synthetic whole-document fallback")
+        }
+    }
+    let model =
+        compile_schema_document_model("consumer", "{schema | {elements | {element @name=box}}}");
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let source = parse("{box}");
+    let report = validate_structural_input_references_with_behavior_evaluator(
+        source.clone(),
+        &model,
+        &mut host,
+        limits,
+        Some(&Legacy),
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert!(!report.failed);
+    assert!(report.diagnostics.is_empty());
+    let structural = validate_structural_input_references_with_behavior_evaluator(
+        source, &model, &mut host, limits, None,
+    )
+    .unwrap();
+    assert!(structural.complete);
+}
+
+#[test]
+fn structural_only_validation_does_not_request_declaring_schema_lookup() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let source = parse("{box | {#items}}");
+    let library = parse("{schema | {item}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "item")]),
+    );
+    let model = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=box @children=item} {element @name=item}}}",
+    );
+    let limits = host.policy.limits;
+    let report = validate_structural_input_references(source, &model, &mut host, limits).unwrap();
+    assert!(report.complete);
+    assert_eq!(
+        host.schema_calls.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+    assert!(report
+        .nodes
+        .iter()
+        .all(|node| node.declaring_schema.is_none()));
 }

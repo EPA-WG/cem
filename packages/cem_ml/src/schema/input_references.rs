@@ -2,7 +2,7 @@
 //! Runtime hosts choose context and timing; source arenas are never rewritten.
 use super::{
     declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
-    document_model::{self, SchemaDocumentModel},
+    document_model::{self, SchemaBehaviorEvaluator, SchemaDocumentModel},
     reference_traversal::ReferenceTraversalLimits,
 };
 use crate::{
@@ -21,6 +21,11 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 pub trait InputReferenceHost: ReferenceResolutionHost {
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node;
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode>;
+    /// Original lexical schema, when the host exposes one. Never substitute the
+    /// consuming model's aliases for the selected node's declaring context.
+    fn declaring_schema(&self, _node: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
+        None
+    }
 }
 impl<H: SchemaDeclarationHost> InputReferenceHost for H {
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node {
@@ -29,16 +34,23 @@ impl<H: SchemaDeclarationHost> InputReferenceHost for H {
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode> {
         self.declaration_node(node)
     }
+    fn declaring_schema(&self, node: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
+        self.declaration_schema(node)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct StructuralValidationNode {
     pub source: SchemaDeclarationNode,
+    /// Filled by the explicit behavior stage; structural-only validation does
+    /// not ask the host to establish additional lexical schema context.
+    pub declaring_schema: Option<SchemaDeclarationNode>,
     pub children: Vec<usize>,
     pub children_complete: bool,
 }
 #[derive(Debug, Clone)]
 pub struct StructuralInputValidation<N> {
+    pub source: Arc<CemDocument>,
     pub nodes: Vec<StructuralValidationNode>,
     pub roots: Vec<usize>,
     pub references: Vec<ReferenceStructureResolution<N>>,
@@ -46,6 +58,62 @@ pub struct StructuralInputValidation<N> {
     /// Completeness is independent of schema violations in available nodes.
     pub complete: bool,
     pub failed: bool,
+}
+
+/// Read-only consumer graph over original source arenas. Indices identify
+/// placements, so repeated selections remain distinct without cloning nodes.
+/// Original ancestry/lexical schema is available through retained owner handles;
+/// consumed parent/child relationships are represented by graph edges.
+#[derive(Debug, Clone, Copy)]
+pub struct RetainedValidationStructure<'a> {
+    pub source: &'a Arc<CemDocument>,
+    pub nodes: &'a [StructuralValidationNode],
+    pub roots: &'a [usize],
+}
+
+/// Deferred/unsupported behavior is incomplete, independently of violations.
+#[derive(Debug, Clone, Default)]
+pub struct RetainedBehaviorValidation {
+    pub diagnostics: Vec<Diagnostic>,
+    pub complete: bool,
+}
+
+impl<N> StructuralInputValidation<N> {
+    pub fn structure(&self) -> RetainedValidationStructure<'_> {
+        RetainedValidationStructure {
+            source: &self.source,
+            nodes: &self.nodes,
+            roots: &self.roots,
+        }
+    }
+}
+
+/// Explicit retained behavior stage after complete structural selection. This
+/// never routes selected nodes through the legacy whole-document hook.
+pub fn validate_structural_input_references_with_behavior_evaluator<H: InputReferenceHost>(
+    source: Arc<CemDocument>,
+    model: &SchemaDocumentModel,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
+    let mut report = validate_structural_input_references(source, model, host, limits)?;
+    if report.complete {
+        if let Some(evaluator) = evaluator {
+            for node in &mut report.nodes {
+                node.declaring_schema = host.declaring_schema(&node.source);
+            }
+            report.diagnostics.extend(evaluator.compile_model(model));
+            let behavior = evaluator.validate_retained_structure(report.structure(), model);
+            report.complete &= behavior.complete;
+            report.diagnostics.extend(behavior.diagnostics);
+            report.failed |= report
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation());
+        }
+    }
+    Ok(report)
 }
 
 /// Validate structural children and selected subtrees under the consuming
@@ -63,6 +131,7 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
     limits: ReferenceTraversalLimits,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
     let mut report = StructuralInputValidation {
+        source: source.clone(),
         nodes: vec![],
         roots: vec![],
         references: vec![],
@@ -128,6 +197,7 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                 if let Some(retained) = retained {
                     let position = report.nodes.len();
                     report.nodes.push(StructuralValidationNode {
+                        declaring_schema: None,
                         source: retained,
                         children: vec![],
                         children_complete: resolved.children_complete[index],
@@ -178,6 +248,7 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                 .unwrap_or(&[])
                 .to_vec();
             report.nodes.push(StructuralValidationNode {
+                declaring_schema: None,
                 source: handle,
                 children: vec![],
                 children_complete: true,
