@@ -897,7 +897,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{diagnostics}` | Zero or more `{diagnostic}` declarations with nonempty `@code` | Explicit schema compilation; binding follows complete declaration assembly; implemented. |
 | Direct references in `{constraints}` | Zero or more `{constraint}` declarations with nonempty `@kind` | Explicit schema compilation after behavior assembly; implemented. |
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
-| Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
+| Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Native per-placement QL behavior checks and typed node function candidates implemented; optional parser-backed engine runtime integration implemented; specialized lifecycle import integration remains actionable work. |
@@ -1276,3 +1276,27 @@ create an expanded CEM document, or run whole-document behavior hooks against a
 synthetic source. Engine lifecycle wiring, incomplete-report representation and
 behavior-hook handoff over multiple original owners remain explicit follow-up
 work.
+
+### Native element inheritance during schema compilation
+
+The schema-owned `element-base` datatype admits existing literal base names and
+an explicit native reference constructor in element `@base`. Compilation checks
+that a complete native selection contains exactly one named element declaration.
+General expressions and composite slots are invalid at this composition site.
+Native bases on other scalar declaration sites require separate contracts.
+
+Source-only compilation retains native bases as pending and cannot activate the
+candidate package. Explicit lifecycle compilation resolves the entire inheritance
+chain under one request budget and the destination scope limits, with normal
+scope-crossing grants and active-link cycle checks. Pending, unresolved, denied
+and limited selections remain incomplete regardless of diagnostic disposition.
+Malformed slots, wrong declaration kinds and invalid complete cardinality are
+schema errors. Existing package readiness rules preserve the last complete active
+package while an incomplete candidate remains available for inspection.
+
+Inheritance uses original declaration owners and each declaration's lexical
+aliases. Authored required attributes, optional attributes and child rules replace
+the respective inherited fields, preserving existing literal-base semantics.
+Referenced declarations do not implicitly import their schema's other collections.
+The temporary compilation forest retains dependency owners without rewriting the
+source AST or evaluating general attribute expressions.

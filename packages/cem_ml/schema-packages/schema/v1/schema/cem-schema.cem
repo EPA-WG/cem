@@ -200,7 +200,7 @@
         {attribute @name="content-type" @type="cemml:media-type"}
         {attribute @name="schema" @type="cemml:uri"}
         {attribute @name="as" @type="cemml:identifier"}
-        {attribute @name="base" @type="schema:wildcard-type-reference"}
+        {attribute @name="base" @type="schema:element-base"}
         {attribute @name="rule" @type="cemml:string"}
         {attribute @name="values" @type="cemml:string"}
         {attribute @name="directive" @type="cemml:identifier"}
@@ -306,6 +306,7 @@
         {type @name="name-value-list" @base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
+        {type @name="element-base" @base="cemml:wildcard-type-reference"}
         {type @name="wildcard-type-reference" @base="cemml:wildcard-type-reference"}
         {type @name="diagnostic-code" @base="cemml:string"}
         {type @name="diagnostic" @base="cemml:string"}

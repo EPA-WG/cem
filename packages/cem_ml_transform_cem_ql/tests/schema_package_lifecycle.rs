@@ -799,3 +799,27 @@ fn field_contract_target_errors_preserve_active_package_until_target_is_availabl
         .compile_diagnostics
         .is_empty());
 }
+
+#[test]
+fn native_base_candidates_preserve_active_package_until_inheritance_is_ready() {
+    let source = SOURCE.replace("{#library}", "{element @name=derived @base={#library}}");
+    let mut context = context(&source);
+    load(&mut context, &input());
+    assert!(context.schema_registry.schema(SCHEMA_URI).is_none());
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    context.schema_package_compiler = Some(Arc::new(compiler(Some("base"))));
+    load(&mut context, &input());
+    assert_active(&context, "derived", "runtime-converter", "old.cemt");
+    context.schema_package_compiler = Some(Arc::new(compiler(None)));
+    load(&mut context, &input());
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    assert_active(&context, "derived", "runtime-converter", "old.cemt");
+}

@@ -97,7 +97,10 @@ impl ReferenceResolutionHost for Host {
         Arc::as_ptr(node.document()) as usize
     }
     fn scope_limits(&self, scope: &usize) -> ReferenceTraversalLimits {
-        self.scope_bounds.get(scope).copied().unwrap_or(self.policy.limits)
+        self.scope_bounds
+            .get(scope)
+            .copied()
+            .unwrap_or(self.policy.limits)
     }
     fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
         match node.node() {
@@ -150,7 +153,8 @@ impl SchemaDeclarationHost for Host {
         Some(target.clone())
     }
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
-        self.schema_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.schema_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         target
             .document()
             .nodes
@@ -987,7 +991,9 @@ fn reused_diagnostics_and_behaviors_bind_before_dependent_attribute_checks() {
         assert_eq!(native_diagnostics.len(), 1);
         assert_eq!(native_diagnostics[0].code, "fixture.value");
         assert_eq!(native_diagnostics[0].severity, Severity::Warning);
-        assert!(native_diagnostics[0].message.contains("Shared type violation"));
+        assert!(native_diagnostics[0]
+            .message
+            .contains("Shared type violation"));
         for site in &model.declaration_references.sites {
             assert!(site
                 .resolution
@@ -2094,7 +2100,8 @@ fn native_attribute_source_only_behavior_waits_for_an_explicit_consumer() {
         Some(&behavior),
     );
     assert_eq!(behavior.0.load(std::sync::atomic::Ordering::SeqCst), 1);
-}fn native_attribute(document: &Arc<CemDocument>) -> SchemaDeclarationNode {
+}
+fn native_attribute(document: &Arc<CemDocument>) -> SchemaDeclarationNode {
     let id = document.nodes.iter().position(|node| matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == "target")).unwrap();
     SchemaDeclarationNode::new(document.clone(), id as u32).unwrap()
 }
@@ -2320,10 +2327,20 @@ fn native_attribute_reference_unconsumed_facets_do_not_report_full_validation() 
     let source = parse("{box @target={#nodes}}");
     let library = parse("{item}");
     let incompatible = native_attribute_model("@pattern=accepted");
-    assert!(incompatible.compile_diagnostics.iter().any(|diagnostic| diagnostic.severity.is_hard_violation()));
+    assert!(incompatible
+        .compile_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation()));
     let mut host = Host::new();
     let limits = host.policy.limits;
-    let blocked = validate_native_attribute_reference(native_attribute(&source), &incompatible, "box", &mut host, limits).unwrap();
+    let blocked = validate_native_attribute_reference(
+        native_attribute(&source),
+        &incompatible,
+        "box",
+        &mut host,
+        limits,
+    )
+    .unwrap();
     assert!(!blocked.complete);
     assert!(blocked.failed);
     assert_eq!(host.calls, 0);
@@ -2331,7 +2348,12 @@ fn native_attribute_reference_unconsumed_facets_do_not_report_full_validation() 
         // Defensive readiness for models supplied directly by a caller without
         // schema compilation; the normal compiler now rejects this facet.
         let mut model = native_attribute_model("");
-        model.attributes.get_mut("target").unwrap().allowed_values.insert(facets.to_owned());
+        model
+            .attributes
+            .get_mut("target")
+            .unwrap()
+            .allowed_values
+            .insert(facets.to_owned());
         for count in [1, 2] {
             let mut host = Host::new();
             host.outcomes.insert(
@@ -2716,4 +2738,319 @@ fn malformed_native_source_slots_never_become_complete_values() {
         assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.code
             == cem_ml::schema::input_references::INVALID_STRUCTURAL_TARGET));
     }
+}
+
+#[test]
+fn source_only_native_element_bases_keep_schema_candidates_pending() {
+    let source =
+        "{schema | {elements | {element @name=child @base={#base} @required-attributes=own}}}";
+    let model = compile_schema_document_model("consumer", source);
+    assert!(!model.is_ready_for_validation());
+    assert!(!model.declaration_references.failed());
+    assert_eq!(
+        model.declaration_references.state(),
+        ReferenceResolutionState::Pending
+    );
+    assert!(model
+        .element("child")
+        .unwrap()
+        .required_attributes
+        .contains("own"));
+    assert_eq!(model.declaration_references.sites.len(), 1);
+    assert!(model.declaration_references.sites[0].resolution.is_none());
+    assert_eq!(
+        model.declaration_references.sites[0]
+            .occurrence
+            .expression
+            .as_deref(),
+        Some("#base")
+    );
+    let literal = compile_schema_document_model("consumer", "{schema | {uses | {use @schema='https://cem.dev/ns/schema/1' @as=origin}} {elements | {element @name=child @base=origin:element}}}");
+    assert!(literal.is_ready_for_validation());
+    assert!(literal
+        .element("child")
+        .unwrap()
+        .optional_attributes
+        .contains("base"));
+}
+
+#[test]
+fn non_reference_native_element_bases_are_source_attributed_schema_errors() {
+    for text in [
+        "{schema | {elements | {element @name=child @base={items}}}}",
+        "{schema | {elements | {element @name=child @base={#base} @other={#other}}}}",
+    ] {
+        let mut document = parse(text);
+        if text.contains("@other") {
+            let owner = Arc::get_mut(&mut document).unwrap();
+            let mut base = None;
+            let mut extra = vec![];
+            for node in &mut owner.nodes {
+                if let CemAstNode::Attribute {
+                    node_id,
+                    expanded_name,
+                    value_nodes,
+                    ..
+                } = node
+                {
+                    if expanded_name.local_name == "base" {
+                        base = Some(*node_id);
+                    }
+                    if expanded_name.local_name == "other" {
+                        extra = std::mem::take(value_nodes);
+                    }
+                }
+            }
+            let CemAstNode::Attribute { value_nodes, .. } =
+                &mut owner.nodes[base.unwrap() as usize]
+            else {
+                unreachable!()
+            };
+            value_nodes.extend(extra);
+        }
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let model = if text.contains("@other") {
+            compile_schema_with_declaration_references("consumer", document, &mut host, limits)
+                .unwrap()
+        } else {
+            compile_schema_document_model("consumer", text)
+        };
+        assert!(!model.is_ready_for_validation());
+        assert!(model.declaration_references.failed());
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
+            })
+            .unwrap();
+        assert!(diagnostic.source_map.is_some());
+        assert!(diagnostic.byte_offset.is_some());
+        assert_eq!(diagnostic.uri.as_deref(), Some("consumer"));
+    }
+}
+
+#[test]
+fn native_element_bases_inherit_original_lexical_declarations_and_local_overrides() {
+    let source = parse("{schema | {uses | {use @schema=unrelated @as=origin}} {elements | {element @name=child @base={#base} @required-attributes=own} {element @name=other @base={#base}}}}");
+    let library = parse("{schema | {uses | {use @schema='https://cem.dev/ns/schema/1' @as=origin}} {elements | {element @name=shared @base=origin:element @required-attributes=inherited}}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#base".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "element")]),
+    );
+    let limits = host.policy.limits;
+    let model =
+        compile_schema_with_declaration_references("consumer", source.clone(), &mut host, limits)
+            .unwrap();
+    assert!(
+        model.is_ready_for_validation(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    assert!(model
+        .element("child")
+        .unwrap()
+        .required_attributes
+        .contains("own"));
+    assert!(!model
+        .element("child")
+        .unwrap()
+        .required_attributes
+        .contains("inherited"));
+    assert!(model
+        .element("child")
+        .unwrap()
+        .optional_attributes
+        .contains("base"));
+    assert!(model
+        .element("other")
+        .unwrap()
+        .required_attributes
+        .contains("inherited"));
+    drop(host);
+    assert!(model
+        .declaration_references
+        .sites
+        .iter()
+        .flat_map(|site| site.resolution.as_ref().unwrap().nodes.iter())
+        .any(|target| Arc::ptr_eq(target.document(), &library)));
+}
+
+#[test]
+fn native_element_base_cardinality_and_incomplete_chains_do_not_activate_models() {
+    let source = parse("{schema | {elements | {element @name=child @base={#base}}}}");
+    let library = parse("{element @name=shared}");
+    let invalid = parse("{attribute @name=wrong}{element}");
+    for mode in [
+        "empty",
+        "many",
+        "kind",
+        "unnamed",
+        "pending",
+        "unresolved",
+        "denied",
+        "cycle",
+    ] {
+        let mut host = Host::new();
+        host.disposition("ignore");
+        let outcome = match mode {
+            "empty" => ReferenceLinkEvaluation::Resolved(vec![]),
+            "many" => ReferenceLinkEvaluation::Resolved(vec![node(&library, "element"); 2]),
+            "kind" => ReferenceLinkEvaluation::Resolved(vec![node(&invalid, "attribute")]),
+            "unnamed" => ReferenceLinkEvaluation::Resolved(vec![node(&invalid, "element")]),
+            "pending" => ReferenceLinkEvaluation::Pending("later".into()),
+            "unresolved" => ReferenceLinkEvaluation::Unresolved("missing".into()),
+            "cycle" => ReferenceLinkEvaluation::Resolved(vec![node(&source, "element")]),
+            _ => ReferenceLinkEvaluation::Resolved(vec![node(&library, "element")]),
+        };
+        host.outcomes.insert("#base".into(), outcome);
+        host.deny = mode == "denied";
+        let limits = host.policy.limits;
+        let model = compile_schema_with_declaration_references(
+            "consumer",
+            source.clone(),
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!model.is_ready_for_validation(), "{mode}");
+        assert_eq!(
+            model.declaration_references.failed(),
+            matches!(mode, "empty" | "many" | "kind" | "unnamed"),
+            "{mode}: {:?}",
+            model.compile_diagnostics
+        );
+        assert!(host.calls <= 2, "{mode}");
+    }
+}
+
+#[test]
+fn native_element_base_chains_use_one_request_and_destination_budget() {
+    let source = parse("{schema | {elements | {element @name=child @base={#base}}}}");
+    let middle = parse("{element @name=middle @base={#next}}");
+    let leaf = parse("{element @name=leaf @required-attributes=deep}");
+    for mode in ["complete", "work", "destination-work", "depth"] {
+        let mut host = Host::new();
+        host.disposition("ignore");
+        host.outcomes.insert(
+            "#base".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&middle, "element")]),
+        );
+        host.outcomes.insert(
+            "#next".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&leaf, "element")]),
+        );
+        if mode == "destination-work" {
+            host.scope_bounds.insert(
+                Arc::as_ptr(&middle) as usize,
+                ReferenceTraversalLimits {
+                    max_depth: 128,
+                    max_work: 2,
+                },
+            );
+        }
+        let limits = ReferenceTraversalLimits {
+            max_depth: if mode == "depth" { 1 } else { 128 },
+            max_work: if mode == "work" { 4 } else { 100 },
+        };
+        let model = compile_schema_with_declaration_references(
+            "consumer",
+            source.clone(),
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert_eq!(
+            model.is_ready_for_validation(),
+            mode == "complete",
+            "{mode}: {:?}",
+            model.compile_diagnostics
+        );
+        if mode == "complete" {
+            assert!(model
+                .element("child")
+                .unwrap()
+                .required_attributes
+                .contains("deep"));
+        } else {
+            assert!(
+                !model.declaration_references.failed(),
+                "{mode}: {:?}",
+                model.compile_diagnostics
+            );
+        }
+    }
+}
+
+#[test]
+fn element_base_metamodel_contract_preserves_literal_and_native_boundaries() {
+    use cem_ml::schema::document_model::validate_document_model;
+    let model = compile_schema_document_model(
+        "metamodel",
+        include_str!("../schema-packages/schema/v1/schema/cem-schema.cem"),
+    );
+    assert_eq!(
+        model.attributes["base"].value_type.as_deref(),
+        Some("schema:element-base")
+    );
+    for value in ["origin:element", "origin:*", "{#library}"] {
+        let source = parse(
+            &[
+                "{schema @name=test @namespace=https://example.test/test @version=1.0.0 | {elements | {element @name=child @base=",
+                value,
+                "}}}",
+            ]
+            .concat(),
+        );
+        assert!(
+            validate_document_model(&source, &model).is_empty(),
+            "{value}: {:?}",
+            validate_document_model(&source, &model)
+        );
+    }
+    let invalid = parse("{schema | {types | {type @name=custom @base={#library}}}}");
+    assert!(validate_document_model(&invalid, &model)
+        .iter()
+        .any(|diagnostic| diagnostic.code
+            == cem_ml::schema::document_model::INVALID_ATTRIBUTE_TYPE_CODE));
+}
+
+#[test]
+fn nested_base_cardinality_errors_preserve_the_failing_constructor() {
+    let source = parse("{schema | {elements | {#library}}}");
+    let library = parse("{element @name=base @base={#empty}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "element")]),
+    );
+    host.outcomes
+        .insert("#empty".into(), ReferenceLinkEvaluation::Resolved(vec![]));
+    let limits = host.policy.limits;
+    let model =
+        compile_schema_with_declaration_references("consumer", source, &mut host, limits).unwrap();
+    let diagnostic = model
+        .compile_diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
+        })
+        .unwrap();
+    assert!(diagnostic.message.contains("#empty"), "{diagnostic:?}");
+    let reference = library
+        .nodes
+        .iter()
+        .find(|node| matches!(node, CemAstNode::Reference { .. }))
+        .unwrap();
+    let CemAstNode::Reference { source, .. } = reference else {
+        unreachable!()
+    };
+    assert_eq!(diagnostic.source_map.as_ref(), Some(source));
 }

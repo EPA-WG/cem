@@ -676,3 +676,62 @@ fn native_retained_behavior_handoff_obeys_grants_and_preserves_original_context(
         .iter()
         .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
 }
+
+#[test]
+fn native_base_compilation_uses_lexical_context_and_one_granted_traversal() {
+    let leaf = tree("{schema | {elements | {element @name=leaf @required-attributes=deep}}}");
+    let middle = tree("{schema | {elements | {element @name=middle @base={#library}}}}");
+    for collection in [false, true] {
+        let source = tree(if collection {
+            "{schema | {elements | {#library}}}"
+        } else {
+            "{schema | {elements | {element @name=child @base={#library}}}}"
+        });
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let requesting = host.register_scope(
+            source.clone(),
+            Some(context(declarations(&middle))),
+            policy(),
+        );
+        let destination =
+            host.register_scope(middle.clone(), Some(context(declarations(&leaf))), policy());
+        let final_scope = host.register_scope(leaf.clone(), None, policy());
+        assert!(!host
+            .compile("consumer", source.clone(), limits())
+            .unwrap()
+            .is_ready_for_validation());
+        host.allow_scope_crossing(requesting, destination);
+        assert!(!host
+            .compile("consumer", source.clone(), limits())
+            .unwrap()
+            .is_ready_for_validation());
+        host.allow_scope_crossing(destination, final_scope);
+        let incomplete = host
+            .compile(
+                "consumer",
+                source.clone(),
+                ReferenceTraversalLimits {
+                    max_depth: 1,
+                    max_work: 100,
+                },
+            )
+            .unwrap();
+        assert!(!incomplete.is_ready_for_validation());
+        let model = host.compile("consumer", source, limits()).unwrap();
+        assert!(
+            model.is_ready_for_validation(),
+            "{:?}",
+            model.compile_diagnostics
+        );
+        assert!(model.elements[if collection { "middle" } else { "child" }]
+            .required_attributes
+            .contains("deep"));
+        drop(host);
+        assert!(model
+            .declaration_references
+            .sites
+            .iter()
+            .flat_map(|site| site.resolution.as_ref().unwrap().nodes.iter())
+            .any(|node| Arc::ptr_eq(node.document(), leaf.ast_owner())));
+    }
+}

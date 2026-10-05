@@ -877,11 +877,66 @@ implementation. `git diff --check` passes.
       and only the known legacy dropdown-template failure
       (`template#cem-dropdown` not found). The existing QL literal-attribute
       fixture now includes empty native value edges.
+- [x] Adopt explicit native references in element `@base`, selecting exactly one
+      named element declaration while keeping literal QName bases compatible.
+      Scenarios for later design verification: inheritance retains existing local
+      override rules, lexical aliases and original declaration owners.
+- [x] Fixture: source-only native element bases remain pending instead of silently
+      compiling a complete model without inheritance; reject generic/composite
+      native base slots before evaluation and retain original source diagnostics.
+      Scenarios for later design verification: pending bases prevent package
+      activation while local declaration properties remain available for inspection.
+- [x] Retain native base readiness and source diagnostics during source-only schema
+      compilation; no query context or evaluation should be requested at this stage.
+      Scenarios for later design verification: literal QName bases stay completed,
+      and both pending and hard-invalid base candidates remain inspectable.
+- [x] Adopt a dedicated schema-owned `element-base` datatype for QName/native
+      alternatives; literal QName behavior stays compatible and native targets
+      are checked by the compiler's named element-declaration consumer.
+      Scenarios for later design verification: generic primitive contracts still
+      reject native values; bases do not require a new general union mechanism.
+- [x] Fixture: native bases inherit original declarations and their lexical QName
+      aliases, preserve local override rules and source-only pending state, and
+      retain owners after the host is dropped.
+      Scenarios for later design verification: two derived declarations can share
+      one base; dependent attribute/behavior declarations remain explicit.
+- [x] Fixture: reject empty/multiple/wrong-kind/unnamed native base targets, while
+      pending/unresolved/denied/cyclic base chains remain bounded and inspectable.
+      Scenarios for later design verification: incomplete selections never masquerade
+      as complete empty bases, and invalid candidates cannot replace active packages.
+- [x] Fixture: native base chains share request and stricter destination limits,
+      including bases inside referenced element collections.
+      Scenarios for later design verification: inheritance cannot restart accounting;
+      unrelated ready models keep existing QName semantics.
+- [x] Fixture: production CEM-QL native bases preserve lexical context, require
+      explicit scope grants and share bounds inside referenced collections.
+      Scenarios for later design verification: retained owners survive host release;
+      a destination context evaluates its own nested base.
+- [x] Fixture: the schema metamodel admits native element bases and existing
+      literal QName/wildcard bases, while other scalar sites reject native bases.
+      Scenarios for later design verification: malformed native bases are rejected
+      by compilation, not interpreted as general attribute expressions.
+- [x] Fixture: native base package candidates cannot activate before evaluation;
+      an incomplete replacement preserves the complete active package.
+      Scenarios for later design verification: schema, converter and artifact
+      activation remains coordinated with inheritance readiness.
+- [x] Fixture: nested base cardinality errors point to the failing base constructor
+      in its original document rather than the enclosing collection reference.
+      Scenarios for later design verification: original maps and expressions survive
+      nested compilation across explicitly granted scopes.
+- [x] Implement bounded native base compilation, original lexical alias handling,
+      the metamodel datatype contract and coordinated package readiness integration.
+      Scenarios for later design verification: no source AST clones, implicit schema
+      imports, generic expression evaluation or public root IDs are introduced.
+      Verification: 78 focused ML fixtures pass; full Nx QL and bridge targets
+      pass (131 bridge tests). Full Nx ML reports 2072 library passes, two ignored
+      and only the known legacy `template#cem-dropdown` failure. Native inheritance
+      preserves pending candidates, original target owners and nested error maps.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
-      Pending decision: extend `@base` with explicit references selecting exactly
-      one named element declaration (recommended), or introduce a separate native
-      base construct. Literal QName bases retain their existing contract.
+      Element `@base` now adopts explicit references selecting exactly one named
+      element declaration under the dedicated `element-base` contract above.
+      Datatype and function scalar sites require their own consumer contracts.
       Scenarios for later design verification: singleton composition rejects
       multiple targets; recursive validation stays bounded; existing aliases
       remain compatible without making scalar strings implicit constructors.

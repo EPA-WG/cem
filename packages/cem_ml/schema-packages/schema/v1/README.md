@@ -2419,6 +2419,20 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
         {text | Missing schema close}
 ```
 
+### Native element bases
+
+Element `@base` uses the schema-owned `schema:element-base` datatype. Literal
+QName/wildcard bases keep their existing lookup behavior. An explicit native
+reference, such as `@base={#library}`, must resolve to exactly one named element
+declaration during explicit schema compilation. General expressions and composite
+base values are invalid; other scalar base sites remain literal contracts.
+
+Nested native bases share the enclosing traversal's work and depth limits, scope
+grants and cycle checks. Inheritance retains original declaration owners and
+lexical aliases; authored fields replace the corresponding inherited fields.
+Source-only compilation retains pending bases. Incomplete candidates remain
+inspectable and cannot replace the last complete active schema package.
+
 ### Explicit declaration reference compilation
 
 `schema::declaration_references::compile_schema_with_declaration_references`

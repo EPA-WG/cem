@@ -23,6 +23,8 @@ use std::{
     },
 };
 
+pub(crate) mod element_bases;
+
 pub const INVALID_REFERENCE_TARGET: &str = "cem.schema_definition.invalid_reference_target";
 
 /// A validated immutable arena handle with its storage owner. Node IDs are
@@ -83,7 +85,8 @@ pub struct DeclarationReferenceIssue {
     pub kind: ReferenceResolutionIssueKind,
     pub reason: String,
 }
-/// Consumed schema outcome. Retained declaration handles preserve target owners;
+/// Consumed schema outcome. Element inheritance includes the original base
+/// dependency handles in traversal order. Retained handles preserve target owners;
 /// traversal issue metadata preserves the original failing link provenance.
 #[derive(Debug, Clone)]
 pub struct DeclarationReferenceResolution {
@@ -99,6 +102,7 @@ pub struct DeclarationReferenceResolution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemaDeclarationKind {
     Element,
+    ElementBase,
     Attribute,
     Behavior,
     Diagnostic,
@@ -108,7 +112,7 @@ pub enum SchemaDeclarationKind {
 impl SchemaDeclarationKind {
     pub(crate) fn node_name(self) -> &'static str {
         match self {
-            Self::Element => "element",
+            Self::Element | Self::ElementBase => "element",
             Self::Attribute => "attribute",
             Self::Behavior => "behavior",
             Self::Diagnostic => "diagnostic",
@@ -225,6 +229,24 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
         let occurrence = host
             .reference_occurrence(&reference)
             .ok_or(ReferenceResolutionError::NotReference)?;
+        if kind == SchemaDeclarationKind::Element {
+            let (models, resolution) = element_bases::compile(
+                schema_uri,
+                reference,
+                host,
+                limits,
+                occurrence.clone(),
+                false,
+                &mut seen,
+            )?;
+            declarations.insert(id, models);
+            compilation.sites.push(DeclarationReferenceSite {
+                kind,
+                occurrence,
+                resolution: Some(resolution),
+            });
+            continue;
+        }
         let evaluated = resolve_reference(reference, host, limits)?;
         let mut resolution = DeclarationReferenceResolution {
             nodes: vec![],
@@ -285,13 +307,15 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
             };
             let compiled = if is_element(target.node(), expected_kind) {
                 match kind {
-                    SchemaDeclarationKind::Element => document_model::compile_element_model(
-                        target.document(),
-                        target.node_id(),
-                        &aliases,
-                        &mut seen,
-                    )
-                    .map(CompiledSchemaDeclaration::Element),
+                    SchemaDeclarationKind::Element | SchemaDeclarationKind::ElementBase => {
+                        document_model::compile_element_model(
+                            target.document(),
+                            target.node_id(),
+                            &aliases,
+                            &mut seen,
+                        )
+                        .map(CompiledSchemaDeclaration::Element)
+                    }
                     SchemaDeclarationKind::Attribute => {
                         document_model::compile_attribute_model(target.document(), target.node_id())
                             .map(|attribute| {
@@ -357,6 +381,15 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
             resolution: Some(resolution),
         });
     }
+    element_bases::compile_authored(
+        schema_uri,
+        &document,
+        host,
+        limits,
+        &mut seen,
+        &mut declarations,
+        &mut compilation,
+    )?;
     Ok(document_model::compile_document_model_with_declarations(
         schema_uri,
         &document,

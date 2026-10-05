@@ -1419,7 +1419,13 @@ pub(crate) fn validate_native_attribute_contract(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let attribute = model.attributes.get(attribute_name);
-    if attribute.is_some_and(AttributeModel::is_node_valued) {
+    if attribute.is_some_and(AttributeModel::is_node_valued)
+        || (element_name == "element"
+            && attribute_name == "base"
+            && attribute
+                .and_then(|attribute| attribute.value_type.as_deref())
+                .is_some_and(|value_type| type_reference_local_name(value_type) == "element-base"))
+    {
         return;
     }
     let behavior = engine_diagnostic_behavior(
@@ -1960,7 +1966,10 @@ fn is_wildcard_name_list_type_reference(value_type: &str) -> bool {
 }
 
 fn is_wildcard_type_reference_type_reference(value_type: &str) -> bool {
-    type_reference_local_name(value_type) == "wildcard-type-reference"
+    matches!(
+        type_reference_local_name(value_type),
+        "wildcard-type-reference" | "element-base"
+    )
 }
 
 fn is_boolean_type_reference(value_type: &str) -> bool {
@@ -4671,6 +4680,12 @@ fn compile_document_model_from_document_with_declarations(
             );
         }
     }
+    super::declaration_references::element_bases::retain_pending_bases(
+        schema_uri,
+        document,
+        declarations,
+        &mut model.declaration_references,
+    );
     let uses = collect_schema_uses(document, schema_id);
     model.behaviors = collect_behavior_definitions_with_references(
         document,
@@ -4688,7 +4703,7 @@ fn compile_document_model_from_document_with_declarations(
             let Some(child) = document.get(*child_id) else {
                 continue;
             };
-            if matches!(child, CemAstNode::Reference { .. }) {
+            if matches!(child, CemAstNode::Reference { .. }) || declarations.contains_key(child_id) {
                 if let Some(elements) = declarations.get(child_id) {
                     for declaration in elements {
                         if let CompiledSchemaDeclaration::Element(element) = declaration {
@@ -4946,15 +4961,29 @@ pub(crate) fn compile_element_model(
     uses: &BTreeMap<String, String>,
     seen_schema_uris: &mut BTreeSet<String>,
 ) -> Option<ElementModel> {
+    compile_element_model_with_base(document, node_id, uses, seen_schema_uris, None)
+}
+
+pub(crate) fn compile_element_model_with_base(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    uses: &BTreeMap<String, String>,
+    seen_schema_uris: &mut BTreeSet<String>,
+    base: Option<&ElementModel>,
+) -> Option<ElementModel> {
     let attrs = collect_attrs(document, node_id);
     let name = attrs.get("name")?.trim().to_owned();
     if name.is_empty() {
         return None;
     }
 
-    let mut element_model = attrs
-        .get("base")
-        .and_then(|base| resolve_base_element_model(base, uses, seen_schema_uris))
+    let mut element_model = base
+        .cloned()
+        .or_else(|| {
+            attrs.get("base").and_then(|base| {
+                resolve_base_element_model(base, uses, seen_schema_uris)
+            })
+        })
         .unwrap_or_default();
     element_model.name = name;
 
