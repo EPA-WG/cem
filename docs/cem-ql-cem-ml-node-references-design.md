@@ -1386,6 +1386,11 @@ awaits a separate explicit form. Retained source plans now distinguish inherited
 bases, list items and native rule dependencies, preserve prose as descriptive
 metadata and attribute malformed fields to original nodes. Five plan fixtures and
 the adjacent regressions pass (92 total); planning does not evaluate references
-or establish executable readiness. The next decision is inherited base
-compatibility: require it to be declared by registered contracts (recommended),
-or admit cross-kind bases based on matching runtime value representation alone.
+or establish executable readiness. Inherited base compatibility must be declared
+by registered contracts; matching value representation alone is insufficient.
+Inherited-kind derivation reuses the resolved base contract, while additional
+native rules and explicit cross-kind relationships require compatible registration.
+The next decision is converter selection: inherit the base converter unless an
+explicit compatible derived converter is registered (recommended), or require
+every derived datatype to register its own converter. Conversion remains an explicit
+consumer request and runs once before all effective restrictions validate its result.

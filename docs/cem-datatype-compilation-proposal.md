@@ -523,28 +523,59 @@ declaration-reference regressions pass (92 total). Native datatype execution
 remains guarded. This implements source classification, not kind inference across
 a resolved dependency graph or a complete datatype compiler.
 
-## Next decision: inherited base compatibility
+## Adopted inherited base compatibility
 
 Shipped grammar `content-model` has a string base, and symbolic `type-reference`
 has a qualified-name base. A strict same-kind-only policy would reject these
 existing contracts; unrestricted scalar representation equality would also admit
 relationships not justified by the registered validation/conversion contracts.
 
-Recommended contract: an inherited base must be explicitly compatible with the
-derived datatype's registered contract. Registration declares accepted base
-representations/kinds, and compilation checks the selected original descriptor
-against that contract. Preserve shipped cross-kind relationships through their
-registered implementations, rather than a local-name exception table. Matching
-representation alone does not acquire a primitive implementation or a new grant.
+An inherited base must be explicitly compatible with the derived datatype's
+registered contract. Registration declares accepted base representations/kinds,
+and compilation checks the selected original descriptor against that contract.
+Preserve shipped cross-kind relationships through their registered implementations,
+rather than a local-name exception table. Matching representation alone does not
+acquire a primitive implementation or a new grant.
 
-Alternative: permit inheritance whenever base and derived contracts use the same
-runtime value representation. All inherited restrictions still apply, but this
-makes representation matching sufficient for cross-kind admission.
+A derived declaration with an inherited kind reuses the resolved base contract;
+it does not gain an implementation through its local name. Any additional native
+rule must have its own registered compatible signature. When a declaration
+explicitly selects another kind, the effective registered contract must authorize
+that base relationship and preserve the one canonical value checked by all
+inherited restrictions. Unknown registration or incomplete base metadata cannot
+establish compatibility; an established incompatible relationship is a schema
+compilation error with both original declarations retained for attribution.
 
-Either policy preserves conversion once and forbids restriction rules from
-rewriting the canonical result. List-item edges are not inherited-base edges, and
-whole-list inheritance remains deferred. Select compatibility before binding the
-registered descriptors in the bounded dependency compiler.
+List-item edges are not inherited-base edges, and whole-list inheritance remains
+deferred. Node contracts cannot acquire a scalar conversion merely through matching
+metadata. Registration checks do not add scope access or replace traversal limits.
+
+## Next decision: inherited converter selection
+
+A general datatype may inherit a base and add restrictions without changing its
+representation. Validation and conversion remain separate capabilities, and a
+consumer must explicitly request conversion. The compiler still needs a rule for
+selecting the one converter when several declarations contribute constraints.
+
+Recommended contract: inherit the base converter unless the derived datatype has
+an explicitly registered compatible conversion capability. Select one effective
+converter during compilation, invoke it once when conversion is requested, then
+validate that result against every base, derived and attribute-local restriction.
+A derived conversion capability may replace converter selection, but a validation
+rule or restriction cannot return a replacement value. Never run base and derived
+converters as an implicit pipeline, or fall back to another converter after a
+failure. The selected output must satisfy the registered representation and base
+compatibility contract.
+
+Alternative: require every derived datatype to register its own converter before
+it supports explicit conversion, even when it only adds restrictions. Validation-
+only use may remain available, but simple derivation does not inherit conversion.
+
+Neither converter-selection policy is adopted yet. Missing conversion capability
+must remain distinct from unavailable validation and invalid input. If an explicit
+selected converter is unavailable, the last complete package remains active under
+the existing coordinated readiness policy; the compiler does not silently choose
+a different implementation.
 
 ## Verified inventory and current native boundary
 

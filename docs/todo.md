@@ -1268,13 +1268,24 @@ implementation verification. They do not claim executable test coverage.
       unresolved base/rule dependencies; unsupported source fields remain visible.
       Verification: five plan fixtures plus the 87 adjacent source, registry,
       inventory, native value and declaration-reference tests pass (92 total).
-- [ ] Decide inherited base compatibility across explicit datatype kinds: require
-      compatibility declared by registered contracts (recommended), or permit bases
-      whenever their runtime value representation matches. Preserve conversion once
-      and keep list item edges distinct from inheritance.
+- [x] Adopt inherited base compatibility declared by registered contracts, including
+      explicit cross-kind relationships. Matching representation alone is insufficient;
+      preserve conversion once and keep list item edges distinct from inheritance.
       Scenarios for later design verification: shipped grammar/string and symbolic
       reference/qualified-name bases remain valid through explicit registered contracts;
       a matching representation alone never grants a new primitive or scope access.
+- [ ] Specify the registered base compatibility contract and its source-attributed
+      validation; add fixture actions for inherited-kind reuse, permitted shipped
+      cross-kind bases, incompatible bases and unavailable registration before wiring
+      the bounded dependency compiler.
+      Scenarios for later design verification: a derived restriction retains the
+      base implementation identity; incompatible contracts never activate by name.
+- [ ] Decide inherited converter selection: inherit the base converter unless a
+      compatible derived converter is explicitly registered (recommended), or require
+      every derived datatype to register its own converter. Select and invoke one
+      converter, then validate all effective restrictions without a hidden pipeline.
+      Scenarios for later design verification: restrictions cannot replace a value;
+      unavailable selected converters never trigger silent fallback to a base converter.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.
