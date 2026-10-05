@@ -5011,6 +5011,7 @@ impl<'a> CemtEvaluatorRecordRef<'a> {
             },
             Self::Node { node, path } => cemt_evaluator_node_field(node, path, name),
             Self::Attribute { attribute, .. } => match name {
+                "valueNodes" => Some(CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::nodes(&attribute.value_nodes, None))),
                 "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
                 "name" => Some(CemtEvaluatorValueRef::String(&attribute.name)),
                 "value" => Some(match attribute.value.as_deref() {
@@ -8613,6 +8614,7 @@ fn cemt_evaluator_formatted_attribute_field<'a>(
     name: &str,
 ) -> Option<CemtEvaluatorValueRef<'a>> {
     match name {
+        "valueNodes" => Some(CemtEvaluatorValueRef::Sequence(CemtEvaluatorSequenceRef::nodes(&attribute.value_nodes, None))),
         "kind" => Some(CemtEvaluatorValueRef::String("attribute")),
         "name" => Some(CemtEvaluatorValueRef::String(&attribute.name)),
         "value" => Some(match attribute.value.as_deref() {
@@ -10956,6 +10958,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "article".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "id".to_owned(),
                 value: Some("intro".to_owned()),
                 source: SourceMapStack::default(),
@@ -11270,6 +11273,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "card".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "tone".to_owned(),
                 value: Some("info".to_owned()),
                 source: SourceMapStack::default(),

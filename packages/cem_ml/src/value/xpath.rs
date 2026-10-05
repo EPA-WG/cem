@@ -294,6 +294,7 @@ impl<F: FnMut() -> Result<(), String>> Builder<'_, F> {
                 }
             }
             "attribute" => CemAstNode::Attribute {
+                value_nodes: Vec::new(),
                 node_id: id,
                 expanded_name: name,
                 value: Some(value),

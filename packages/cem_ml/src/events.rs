@@ -20,6 +20,8 @@ pub struct QName {
 #[derive(Debug, Clone)]
 pub enum ScalarValue {
     Text(String),
+    /// Unevaluated source expression, including its authored braces.
+    Expression(String),
     Int(i64),
     Float(f64),
     Bool(bool),

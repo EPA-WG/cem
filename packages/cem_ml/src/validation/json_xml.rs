@@ -327,6 +327,7 @@ fn attribute(
         doc,
         parent,
         CemAstNode::Attribute {
+            value_nodes: Vec::new(),
             node_id: 0,
             expanded_name: expanded("", name),
             value: Some(value),

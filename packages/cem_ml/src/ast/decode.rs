@@ -70,7 +70,7 @@ impl DebugBinaryDecoder {
             return Err(DecodeError::BadMagic);
         }
         let version = r.read_u16()?;
-        if version != VERSION && version != 2 {
+        if !(2..=VERSION).contains(&version) {
             return Err(DecodeError::BadVersion(version));
         }
         let flags = r.read_u16()?;
@@ -84,7 +84,22 @@ impl DebugBinaryDecoder {
 
         let nodes = read_nodes(&mut r, &strings, &source_map_frames, version)?;
         let (attr_map, child_map) = read_edges(&mut r)?;
+        for (&parent, values) in &child_map {
+            let Some(node) = nodes.get(parent as usize) else { return Err(DecodeError::InvalidReference(parent)); };
+            if matches!(node, CemAstNode::Attribute { .. }) && version < 4 && !values.is_empty() {
+                return Err(DecodeError::InvalidReference(parent));
+            }
+            if !matches!(node, CemAstNode::Document { .. } | CemAstNode::Element { .. } | CemAstNode::Attribute { .. }) && !values.is_empty() {
+                return Err(DecodeError::InvalidReference(parent));
+            }
+        }
+        for (&parent, attrs) in &attr_map {
+            if !attrs.is_empty() && !matches!(nodes.get(parent as usize), Some(CemAstNode::Element { .. })) {
+                return Err(DecodeError::InvalidReference(parent));
+            }
+        }
         let nodes = link_edges(nodes, attr_map, child_map);
+        validate_value_ownership(&nodes)?;
         for node in &nodes {
             if let CemAstNode::Reference { context, targets, .. } = node {
                 for &id in std::iter::once(context).chain(targets.iter().flatten()) {
@@ -114,6 +129,52 @@ impl DebugBinaryDecoder {
             format_identity: None,
         })
     }
+}
+
+/// Native attribute values are owning graph edges, unlike reference targets.
+/// Check the complete owning graph whenever it contains a native slot.
+fn validate_value_ownership(nodes: &[CemAstNode]) -> Result<(), DecodeError> {
+    if !nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty()))
+    {
+        return Ok(());
+    }
+    let mut seen = vec![false; nodes.len()];
+    let mut pending = vec![(0, false)];
+    while let Some((id, attribute)) = pending.pop() {
+        let Some(node) = nodes.get(id as usize) else {
+            return Err(DecodeError::InvalidReference(id));
+        };
+        if seen[id as usize]
+            || matches!(node, CemAstNode::Attribute { .. }) != attribute
+            || (id != 0 && matches!(node, CemAstNode::Document { .. }))
+        {
+            return Err(DecodeError::InvalidReference(id));
+        }
+        seen[id as usize] = true;
+        match node {
+            CemAstNode::Document { root_children, .. } => {
+                pending.extend(root_children.iter().map(|&id| (id, false)))
+            }
+            CemAstNode::Element {
+                children,
+                attributes,
+                ..
+            } => {
+                pending.extend(children.iter().map(|&id| (id, false)));
+                pending.extend(attributes.iter().map(|&id| (id, true)));
+            }
+            CemAstNode::Attribute { value_nodes, .. } => {
+                pending.extend(value_nodes.iter().map(|&id| (id, false)))
+            }
+            _ => {}
+        }
+    }
+    if let Some(id) = seen.iter().position(|seen| !seen) {
+        return Err(DecodeError::InvalidReference(id as u32));
+    }
+    Ok(())
 }
 
 struct Reader<'a> {
@@ -371,6 +432,7 @@ fn read_nodes(
                         schema_id,
                     },
                     value,
+                    value_nodes: Vec::new(),
                     source,
                 }
             }
@@ -459,7 +521,7 @@ fn read_edges(r: &mut Reader<'_>) -> Result<(AttrMap, ChildMap), DecodeError> {
             child_ids.push(r.read_u32()?);
         }
         attrs.insert(parent, attr_ids);
-        children.insert(parent, child_ids);
+        if children.insert(parent, child_ids).is_some() { return Err(DecodeError::InvalidReference(parent)); }
     }
     Ok((attrs, children))
 }
@@ -492,6 +554,9 @@ fn link_edges(
                 if let Some(c) = child_map.get(node_id) {
                     *children = c.clone();
                 }
+            }
+            CemAstNode::Attribute { node_id, value_nodes, .. } => {
+                if let Some(values) = child_map.get(node_id) { *value_nodes = values.clone(); }
             }
             _ => {}
         }

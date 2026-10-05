@@ -57,10 +57,10 @@ fn validate_cem_events_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'st
 
     let mut reader = ProjectionBinaryReader::new(&bytes[b"CEMPROJ\0".len()..]);
     let version = reader.read_u16("version")?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err((
             "cem.projection.events.binary_version",
-            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+            format!("unsupported CEM projection binary version `{version}`; expected `1` or `2`"),
         ));
     }
 
@@ -263,7 +263,10 @@ fn validate_cem_binary_projection_json(
     expect_json_string_field(object, "projection", "$", Some(projection))?;
     expect_json_string_field(object, "schema", "$", Some(schema_uri))?;
     expect_json_string_field(object, "contentType", "$", Some(content_type))?;
-    expect_json_string_field(object, "formatVersion", "$", Some("cem-projection-bin/1"))?;
+    let version = expect_json_string_field(object, "formatVersion", "$", None)?;
+    if !matches!(version, "cem-projection-bin/1" | "cem-projection-bin/2") {
+        return Err("$.formatVersion must name a supported CEM projection binary version".into());
+    }
     expect_json_string_field(object, "hashScheme", "$", None)?;
     expect_json_string_field(object, "hash", "$", None)?;
     expect_json_u64_field(object, "byteLength", "$")?;

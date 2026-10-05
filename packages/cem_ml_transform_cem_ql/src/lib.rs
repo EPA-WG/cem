@@ -3705,6 +3705,7 @@ fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<CemTreeAstNode>
 
 fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> CemTreeAstAttribute {
     CemTreeAstAttribute {
+        value_nodes: Vec::new(),
         name: attribute.qualified_name.clone().unwrap_or_else(|| render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref())),
         value: Some(cem_ql::render::project_attribute_value(attribute)),
         source: attribute.source_map.clone(),
@@ -4587,6 +4588,38 @@ mod reference_view_tests {
     }
 
     #[test]
+    fn attribute_view_hands_off_unevaluated_values_with_the_original_owner() {
+        use cem_ml::{
+            events::cem::CemEventNormalizer,
+            parser::builder::CemAstBuilder,
+            source::{BytesSource, SourceId},
+            tokenizer::cem::CemTokenizer,
+        };
+        let document = Arc::new(
+            CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+                BytesSource::new(SourceId(1), b"{item @native={#nodes}}".to_vec()),
+            )))
+            .build(),
+        );
+        let attr = CemDocumentQueryView::item(document.clone(), 2);
+        for field in ["value", "valueNodes"] {
+            let values = attr.view().unwrap().field(field).unwrap();
+            assert_eq!(values.len(), 1);
+            let view = values[0]
+                .view()
+                .unwrap()
+                .downcast_ref::<CemDocumentQueryView>()
+                .unwrap();
+            assert!(Arc::ptr_eq(&view.document, &document));
+            assert!(matches!(
+                view.node(),
+                Some(CemAstNode::Reference { targets: None, .. })
+            ));
+        }
+    }
+
+
+    #[test]
     fn reference_view_distinguishes_unevaluated_from_resolved_empty() {
         let unevaluated = reference(None);
         assert!(unevaluated.view().unwrap().field("targets").is_none());
@@ -4625,7 +4658,7 @@ impl CemDocumentQueryView {
             Some(CemAstNode::Element { .. }) => {
                 &["kind", "name", "namespace", "attributes", "children"]
             }
-            Some(CemAstNode::Attribute { .. }) => &["kind", "name", "namespace", "value"],
+            Some(CemAstNode::Attribute { .. }) => &["kind", "name", "namespace", "value", "valueNodes"],
             Some(CemAstNode::Text { .. })
             | Some(CemAstNode::Whitespace { .. })
             | Some(CemAstNode::Comment { .. })
@@ -4704,6 +4737,8 @@ impl QueryItemView for CemDocumentQueryView {
             (CemAstNode::Attribute { expanded_name, .. }, "namespace") => {
                 atom_items(expanded_name.namespace_uri.clone())
             }
+            (CemAstNode::Attribute { value_nodes, .. }, "valueNodes") => self.child_items(value_nodes),
+            (CemAstNode::Attribute { value_nodes, .. }, "value") if !value_nodes.is_empty() => self.child_items(value_nodes),
             (CemAstNode::Attribute { value, .. }, "value") => vec![value
                 .as_ref()
                 .map(|value| Item::Atomic(AtomValue::String(value.clone())))

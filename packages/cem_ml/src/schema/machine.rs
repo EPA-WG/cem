@@ -751,6 +751,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         };
         let text = match value {
+            ScalarValue::Expression(_) => return,
             ScalarValue::Text(t) => t,
             ScalarValue::Int(i) => i.to_string(),
             ScalarValue::Float(f) => f.to_string(),

@@ -658,24 +658,49 @@ implementation. `git diff --check` passes.
       preserving text compatibility and leaving binding/evaluation to consumers.
       Scenarios for later design verification: native attribute references survive
       codec/inspection without becoming strings or runtime record substitutes.
-- [ ] Implement the native attribute slot across source retention, owning graph
+- [x] Implement the native attribute slot across source retention, owning graph
       edges, codec/projection validation, inspection and native value handoff.
+      Verification: 90 focused ML integration checks, three native writer/validator
+      unit checks and the full Nx bridge target (127 passes) pass. Broad Nx ML
+      verification reports 2070 passes and the existing dropdown template failure.
       Scenarios for later design verification: parsing never evaluates references;
       old attributes/codecs remain compatible; expression nodes retain provenance.
 - [x] Prepare native attribute slot lexing: retain `AttributeValueSyntax` on
       source tokens and share the quote/comment-aware brace scanner between
       unquoted attribute spans and standalone expressions. XML/HTML literal
-      token behavior remains unchanged; event/AST slot handoff is still pending.
+      token behavior remains unchanged; native event/AST handoff is now implemented.
       Verification: 145 focused ML tokenizer/event/builder/highlight/reference
       checks and the full Nx bridge target (126 passes) pass.
       Scenarios for later design verification: lexer metadata is propagated into
       the native AST slot rather than reconstructing intent from value text.
-- [ ] Decide XML attribute expression recognition before syntax-dependent slot
-      integration. Recommended: first support CEM-ML unquoted brace expressions;
-      keep XML literals unchanged until an explicit XML contract is designed.
-      Alternative: interpret XML `{#...}` attribute values immediately.
-      Scenarios for later design verification: a quoted literal that resembles a
-      reference does not silently acquire evaluation behavior after import.
+- [x] Adopt CEM-ML unquoted brace expressions first; preserve XML attribute
+      literals until an explicit XML expression contract is designed.
+      Scenarios for later design verification: quoted lookalikes stay literal.
+- [ ] Design XML attribute expression recognition and compatibility before
+      enabling native value construction for XML attributes.
+      Scenarios for later design verification: quoted XML `{#nodes}` remains
+      literal unless the eventual explicit contract chooses expression intent.
+- [x] Fixture: AST/DOM projection validators accept native attribute values,
+      reject malformed reference target IDs and support binary versions 1 and 2.
+      Scenarios for later design verification: explicit exports retain node kinds;
+      old envelopes remain valid while new native edges use versioned layouts.
+- [x] Fixture: typed inspection and canonical formatting preserve native attribute
+      expressions and quoted lookalikes; markup export requires consumer resolution.
+      Scenarios for later design verification: inspect/format never evaluate values
+      or silently export unresolved native references as empty attributes.
+- [x] Fixture: native query attribute views expose the original owning arena's
+      value nodes without resolving references or serializing runtime records.
+      Scenarios for later design verification: literal `.value` stays scalar;
+      native `.value` and `.valueNodes` retain typed source identity.
+- [x] Fixture: retain native attribute references and general expressions with
+      owning value edges, original source ranges, lexical context and no targets.
+      Verify quoted lookalikes and authored-ID compatibility without evaluation.
+      Scenarios for later design verification: native values are authoritative;
+      expression-valued IDs never enter the literal ID table.
+- [x] Fixture: round-trip native attribute values through binary persistence,
+      share the original retained owner and reject invalid owning value edges.
+      Scenarios for later design verification: legacy binaries retain literal
+      attributes; native values do not become XPath attribute children.
 - [x] Fixture: distinguish quoted/bare CEM attribute literals from unquoted
       brace expression spans, preserving original lexical source ranges.
       Scenarios for later design verification: identical text can have different
@@ -687,9 +712,20 @@ implementation. `git diff --check` passes.
       agrees between attribute and standalone expression slots without evaluation.
 - [x] Fixture: malformed attribute expressions retain their source body and
       report the missing boundary; XML braced attribute text stays literal under
-      its existing contract pending the expression recognition decision.
+      its existing contract while XML expression design remains deferred.
       Scenarios for later design verification: malformed comments/strings cannot
       turn later source text into an apparently complete expression value.
+- [ ] Decide the first native attribute schema consumer contract: require an
+      explicit node-valued attribute contract (recommended), or automatically
+      extract primitive values from referenced nodes. User decision is pending.
+      Scenarios for later design verification: retention never chooses conversion;
+      string constraints cannot silently turn native references into empty text.
+- [ ] Implement native attribute validation under the chosen schema contract,
+      using the shared bounded resolver and caller-supplied lifecycle context.
+      Carry completeness separately from schema-owned diagnostic disposition.
+      Scenarios for later design verification: unresolved mandatory/warning/ignored
+      links remain incomplete; native target owners and lexical scopes survive;
+      literal and primitive contracts keep their existing behavior.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects

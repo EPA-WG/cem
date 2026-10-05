@@ -1035,26 +1035,47 @@ responsibility. Lifecycle adapters that finish source validation without a CEM
 parse retain their existing specialized paths; extending their runtime handoff
 through the shared typed import boundary is an actionable follow-up.
 
-Source AST attributes currently retain optional text, while runtime value
-attributes have an authoritative native `value_stream`. The adopted expression-slot
-contract adds a general retained native value slot to AST attributes; its owning
-edges, codecs, inspection and runtime handoff remain actionable implementation.
+Source AST attributes now retain `value_nodes`, an authoritative sequence of
+owning native arena handles. Literal attributes keep their optional text value
+and an empty native sequence. CEM-ML unquoted brace expressions leave the
+literal value empty and populate the native slot. A leading `#` becomes a
+`Reference`; other expressions keep the existing `$` element/text representation.
+The lexical containing element supplies a reference's context handle. Parsing
+never evaluates the expression, fills targets or performs literal ID lookup for
+native attribute values. Quoted and bare values remain literals.
 
-The lexical foundation now preserves `AttributeValueSyntax::Expression` for CEM
-unquoted brace spans, and `Literal` for quoted/bare CEM values and current XML/HTML
-attribute forms. The same text (`{#nodes}`) can therefore retain different intent
-without reparsing a decoded value to guess its meaning. Attribute and standalone
-expression bodies share a boundary scanner that handles quoted strings, escaped
-and doubled quotes, nested comments and nested braces. Tokenizer metadata does
-not itself construct AST value nodes or evaluate expressions; event/AST handoff
-still requires the native slot implementation.
+The lexical foundation preserves `AttributeValueSyntax::Expression` on CEM
+unquoted brace spans and `Literal` on quoted/bare CEM values and XML/HTML
+attributes. Normalized `ScalarValue::Expression` events carry that distinction
+into AST construction; expression-valued `type` does not trigger a static
+content-type switch. Attribute and standalone expressions share the scanner
+for strings, escaped/doubled quotes, nested comments and nested braces.
 
-The remaining syntax decision is XML attribute recognition. Recommended first
-slice: implement CEM-ML's unquoted brace expressions and keep XML literal values
-unchanged until its explicit attribute expression contract is designed. The
-alternative interprets XML `{#...}` values immediately. This choice is recorded
-with source-position and literal compatibility scenarios in the todo list; it
-does not choose deferred child-scope syntax or cem-element binding behavior.
+Native values share their immutable retained source owner. Their source parent
+is the attribute, while their lexical evaluation context remains the containing
+element. They are not XPath attribute children. `attribute_value_nodes` exposes
+original arena handles; native CEM document query views expose `.valueNodes` and
+return native nodes from `.value` when the sequence is populated. Literal
+`.value` remains compatible. No source arena is cloned into a runtime substitute.
+
+CEMB version 4 persists owning value edges and validates native ownership;
+versions 2 and 3 remain readable for literal attributes. Projection binary
+version 2 records the new value edges and expression event tag; validators
+continue accepting versions 1 and 2. Typed inspection records value-node edges
+and unevaluated references. Explicit JSON exports preserve native value nodes,
+and CEM-ML writers preserve expression spelling and quoted literal lookalikes.
+The typed markup writer requires consumer resolution of native values.
+
+The adopted first slice supports CEM-ML unquoted brace expressions. XML attribute
+expression recognition is deferred as an actionable compatibility design item;
+XML literals remain unchanged. This does not choose enclosed child-scope syntax
+or cem-element ID binding behavior.
+
+The next consumer decision concerns schema attribute value contracts: requiring
+an explicit native node contract versus automatically extracting primitive values
+from referenced nodes. The recommendation is the explicit node contract. Native
+value retention and inspection do not choose that evaluation/conversion policy.
+The implementation action and verification scenarios remain in the todo list.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

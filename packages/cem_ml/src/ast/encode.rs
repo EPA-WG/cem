@@ -345,6 +345,7 @@ fn write_nodes(out: &mut Vec<u8>, nodes: &[CemAstNode], d: &Dictionaries) {
                 expanded_name,
                 value,
                 source,
+                ..
             } => {
                 out.push(NodeKindTag::Attribute as u8);
                 out.extend_from_slice(&node_id.to_le_bytes());
@@ -484,6 +485,8 @@ fn write_edges(out: &mut Vec<u8>, nodes: &[CemAstNode]) {
                 children,
                 ..
             } => Some((*node_id, children.clone(), attributes.clone())),
+            CemAstNode::Attribute { node_id, value_nodes, .. } if !value_nodes.is_empty() =>
+                Some((*node_id, value_nodes.clone(), Vec::new())),
             _ => None,
         })
         .collect();

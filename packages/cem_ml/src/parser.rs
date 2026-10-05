@@ -63,7 +63,11 @@ pub enum CemAstNode {
     Attribute {
         node_id: AstNodeId,
         expanded_name: ExpandedName,
+        /// Literal compatibility value. Native expressions leave this empty.
         value: Option<String>,
+        /// Authoritative native value sequence; owning source-arena edges.
+        /// Consumers choose when and how these values are evaluated.
+        value_nodes: Vec<AstNodeId>,
         source: SourceMapStack,
     },
     Text {

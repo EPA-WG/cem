@@ -77,7 +77,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 value,
                 name_range,
                 value_range,
-                ..
+                value_syntax,
             } => {
                 self.pending.push_back(NormalizedEvent::Name {
                     name: qname(&name, name_range),
@@ -85,7 +85,9 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 });
                 if let Some(v) = value.clone() {
                     self.pending.push_back(NormalizedEvent::Value {
-                        value: ScalarValue::Text(v),
+                        value: if value_syntax == crate::tokenizer::AttributeValueSyntax::Expression {
+                            ScalarValue::Expression(v)
+                        } else { ScalarValue::Text(v) },
                         byte_range: value_range.unwrap_or(byte_range),
                     });
                 }
@@ -94,7 +96,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                 // Emit a ModeSwitch alongside the Name/Value pair so the
                 // schema machine can act on it without rescanning attribute
                 // values.
-                if name == "type" {
+                if name == "type" && value_syntax == crate::tokenizer::AttributeValueSyntax::Literal {
                     if let Some(v) = value {
                         let ct = v.trim_matches('"').to_owned();
                         self.pending.push_back(NormalizedEvent::ModeSwitch {

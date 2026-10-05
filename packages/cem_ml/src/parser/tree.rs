@@ -213,6 +213,7 @@ impl RetainedCemTree {
                     expanded_name,
                     value,
                     source,
+                    ..
                 } => (
                     *node_id,
                     CemTreeNodeKind::Attribute,
@@ -338,6 +339,9 @@ impl RetainedCemTree {
             {
                 return Err("Invalid CEM child/attribute node kind.".into());
             }
+            if let CemAstNode::Attribute { value_nodes, .. } = &ast.nodes[id as usize] {
+                pending.extend(value_nodes.iter().rev().map(|&value| (value, Some(id), false)));
+            }
             seen[id as usize] = true;
             node.parent = parent;
             node.order = order;
@@ -374,6 +378,9 @@ impl RetainedCemTree {
             };
             canonical[id as usize] = None;
             omitted.extend(node.children.iter().chain(&node.attributes).copied());
+            if let Some(CemAstNode::Attribute { value_nodes, .. }) = ast.get(id) {
+                omitted.extend(value_nodes.iter().copied());
+            }
         }
         for parent in 0..nodes.len() {
             if canonical[parent].is_none()
@@ -455,6 +462,15 @@ impl RetainedCemTree {
     /// Semantic tree views and source declarations use the same arena.
     pub fn ast_owner(&self) -> &Arc<CemDocument> {
         &self.ast
+    }
+
+    /// Authoritative source attribute value handles. They share this tree's
+    /// immutable arena and are not part of the XPath child axis.
+    pub fn attribute_value_nodes(&self, id: AstNodeId) -> Option<&[AstNodeId]> {
+        match self.ast.get(id)? {
+            CemAstNode::Attribute { value_nodes, .. } => Some(value_nodes),
+            _ => None,
+        }
     }
 
     /// Parent in the original source arena, including nodes omitted or

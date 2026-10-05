@@ -5032,6 +5032,7 @@ fn validate_attribute_default_definition(
     };
 
     let default_node = CemAstNode::Attribute {
+        value_nodes: Vec::new(),
         node_id: 0,
         expanded_name: ExpandedName {
             namespace_uri: String::new(),

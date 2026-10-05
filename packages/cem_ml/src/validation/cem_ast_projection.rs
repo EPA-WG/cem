@@ -57,10 +57,10 @@ fn validate_cem_ast_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'stati
 
     let mut reader = ProjectionBinaryReader::new(&bytes[b"CEMPROJ\0".len()..]);
     let version = reader.read_u16("version")?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err((
             "cem.projection.ast.binary_version",
-            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+            format!("unsupported CEM projection binary version `{version}`; expected `1` or `2`"),
         ));
     }
 
@@ -218,7 +218,10 @@ fn validate_cem_binary_projection_json(
     expect_json_string_field(object, "projection", "$", Some(projection))?;
     expect_json_string_field(object, "schema", "$", Some(schema_uri))?;
     expect_json_string_field(object, "contentType", "$", Some(content_type))?;
-    expect_json_string_field(object, "formatVersion", "$", Some("cem-projection-bin/1"))?;
+    let version = expect_json_string_field(object, "formatVersion", "$", None)?;
+    if !matches!(version, "cem-projection-bin/1" | "cem-projection-bin/2") {
+        return Err("$.formatVersion must name a supported CEM projection binary version".into());
+    }
     expect_json_string_field(object, "hashScheme", "$", None)?;
     expect_json_string_field(object, "hash", "$", None)?;
     expect_json_u64_field(object, "byteLength", "$")?;
@@ -279,6 +282,19 @@ fn validate_cem_tree_json_node(
     };
 
     match kind {
+        "reference" => {
+            expect_json_string_field(object, "expression", path, None)?;
+            expect_json_u64_field(object, "context", path)?;
+            if let Some(targets) = object.get("targets").filter(|value| !value.is_null()) {
+                let targets = targets
+                    .as_array()
+                    .ok_or_else(|| format!("{path}.targets must be an array or null"))?;
+                if targets.iter().any(|target| target.as_u64().is_none()) {
+                    return Err(format!("{path}.targets must contain node IDs"));
+                }
+            }
+            validate_optional_byte_range(object, path)
+        }
         "document" => validate_cem_tree_json_children(object, path, label),
         "element" => {
             expect_json_string_field(object, "name", path, None)?;
@@ -343,6 +359,18 @@ fn validate_cem_ast_json_attributes(
         if let Some(value) = attr.get("value") {
             if !value.is_null() && !value.is_string() {
                 return Err(format!("{attr_path}.value must be a string or null"));
+            }
+        }
+        if let Some(values) = attr.get("valueNodes") {
+            let values = values
+                .as_array()
+                .ok_or_else(|| format!("{attr_path}.valueNodes must be an array"))?;
+            for (index, value) in values.iter().enumerate() {
+                validate_cem_tree_json_node(
+                    value,
+                    &format!("{attr_path}.valueNodes[{index}]"),
+                    "native attribute value",
+                )?;
             }
         }
         validate_optional_byte_range(attr, &attr_path)?;
@@ -423,6 +451,27 @@ fn cem_ast_projection_diagnostic(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_attribute_projection_validates_retained_values() {
+        use crate::{
+            events::cem::CemEventNormalizer,
+            parser::builder::CemAstBuilder,
+            source::{BytesSource, SourceId},
+            tokenizer::cem::CemTokenizer,
+        };
+        let document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(SourceId(1), b"{item @native={#nodes}}".to_vec()),
+        )))
+        .build();
+        let binary = crate::projection::ast_binary_projection_artifact(&document);
+        assert!(validate_cem_ast_projection_binary_bytes(&binary.bytes).is_ok());
+        let mut projected = crate::projection::dom_json(&document);
+        assert!(validate_cem_tree_json_node(&projected, "$", "projection").is_ok());
+        projected["children"][0]["attributes"][0]["valueNodes"][0]["targets"] =
+            serde_json::json!(["invalid"]);
+        assert!(validate_cem_tree_json_node(&projected, "$", "projection").is_err());
+    }
+
     use super::*;
 
     fn validate(bytes: &[u8], content_type: &str) -> Vec<Diagnostic> {

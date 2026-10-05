@@ -33,9 +33,9 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/1";
+const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/2";
 const BINARY_MAGIC: &[u8; 8] = b"CEMPROJ\0";
-const BINARY_VERSION: u16 = 1;
+const BINARY_VERSION: u16 = 2;
 const HASH_SCHEME: &str = crate::content_cache::HASH_SCHEME;
 const ROOT_CHUNK_ID: &str = "root";
 
@@ -764,12 +764,14 @@ fn encode_ast_node(out: &mut Vec<u8>, node: &CemAstNode) {
             expanded_name,
             value,
             source,
+            value_nodes,
         } => {
             write_u8(out, 3);
             write_u32(out, *node_id);
             write_source_range(out, stack_origin(source));
             write_expanded_name(out, expanded_name);
             write_optional_str(out, value.as_deref());
+            write_id_list(out, value_nodes);
         }
         CemAstNode::Text {
             node_id,
@@ -936,6 +938,10 @@ fn write_scalar_value(out: &mut Vec<u8>, value: &ScalarValue) {
     match value {
         ScalarValue::Text(value) => {
             write_u8(out, 1);
+            write_str(out, value);
+        }
+        ScalarValue::Expression(value) => {
+            write_u8(out, 6);
             write_str(out, value);
         }
         ScalarValue::Int(value) => {
@@ -1179,6 +1185,7 @@ impl Serialize for DomJsonAttributesRef<'_> {
             let Some(CemAstNode::Attribute {
                 expanded_name,
                 value,
+                value_nodes,
                 source,
                 ..
             }) = self.document.get(*node_id)
@@ -1186,6 +1193,8 @@ impl Serialize for DomJsonAttributesRef<'_> {
                 continue;
             };
             attributes.serialize_element(&DomJsonAttributeRef {
+                document: self.document,
+                value_nodes,
                 expanded_name,
                 value,
                 source,
@@ -1197,6 +1206,8 @@ impl Serialize for DomJsonAttributesRef<'_> {
 
 #[derive(Debug, Clone, Copy)]
 struct DomJsonAttributeRef<'a> {
+    document: &'a CemDocument,
+    value_nodes: &'a [AstNodeId],
     expanded_name: &'a ExpandedName,
     value: &'a Option<String>,
     source: &'a SourceMapStack,
@@ -1207,10 +1218,13 @@ impl Serialize for DomJsonAttributeRef<'_> {
     where
         S: Serializer,
     {
-        let mut attribute = serializer.serialize_map(Some(4))?;
+        let mut attribute = serializer.serialize_map(Some(if self.value_nodes.is_empty() { 4 } else { 5 }))?;
         attribute.serialize_entry("name", &self.expanded_name.local_name)?;
         attribute.serialize_entry("namespace", &self.expanded_name.namespace_uri)?;
         attribute.serialize_entry("value", self.value)?;
+        if !self.value_nodes.is_empty() {
+            attribute.serialize_entry("valueNodes", &DomJsonChildrenRef { document: self.document, node_ids: self.value_nodes })?;
+        }
         attribute.serialize_entry("sourceMap", self.source)?;
         attribute.end()
     }
@@ -1464,6 +1478,8 @@ impl CemTreeAstStream {
 pub struct CemTreeAstAttribute {
     pub name: String,
     pub value: Option<String>,
+    #[serde(rename = "valueNodes", default)]
+    pub value_nodes: Vec<CemTreeAstNode>,
     #[serde(
         rename = "sourceMap",
         default,
@@ -1478,6 +1494,7 @@ impl CemTreeAstAttribute {
             "kind": "attribute",
             "name": self.name,
             "value": self.value,
+            "valueNodes": self.value_nodes.iter().cloned().map(CemTreeAstNode::into_cemt_subject).collect::<Vec<_>>(),
             "sourceMap": self.source,
         })
     }
@@ -1954,14 +1971,21 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
                     CemAstNode::Attribute {
                         expanded_name,
                         value,
+                        value_nodes,
                         source,
                         ..
-                    } => Some(json!({
-                        "name": expanded_name.local_name,
-                        "namespace": expanded_name.namespace_uri,
-                        "value": value,
-                        "sourceMap": source,
-                    })),
+                    } => {
+                        let mut attr = json!({
+                            "name": expanded_name.local_name,
+                            "namespace": expanded_name.namespace_uri,
+                            "value": value,
+                            "sourceMap": source,
+                        });
+                        if !value_nodes.is_empty() {
+                            attr["valueNodes"] = json!(value_nodes.iter().filter_map(|id| project_node(doc, *id)).collect::<Vec<_>>());
+                        }
+                        Some(attr)
+                    },
                     _ => None,
                 })
                 .collect();
@@ -2037,7 +2061,8 @@ fn project_cem_tree_node(
     let node = doc.get(id)?;
     let value = match node {
         CemAstNode::Reference { expression, source, .. } => CemTreeAstNode::Element {
-            name: "cem:expr".into(), attributes: vec![CemTreeAstAttribute { name: "xmlns:cem".into(), value: Some("https://cem.dev/ns/cem-ml/1".into()), source: source.clone() }],
+            name: "cem:expr".into(), attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(), name: "xmlns:cem".into(), value: Some("https://cem.dev/ns/cem-ml/1".into()), source: source.clone() }],
             children: vec![CemTreeAstNode::Text { value: expression.clone(), source: source.clone() }],
             source: source_map_with_content_type_transform(source, source_content_type),
         },
@@ -2127,6 +2152,7 @@ fn project_cem_tree_attribute(
         expanded_name,
         value,
         source,
+        value_nodes,
         ..
     } = doc.get(id)?
     else {
@@ -2135,6 +2161,10 @@ fn project_cem_tree_attribute(
     Some(CemTreeAstAttribute {
         name: projected_expanded_name(expanded_name),
         value: value.clone(),
+        value_nodes: value_nodes
+            .iter()
+            .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+            .collect(),
         source: source_map_with_content_type_transform(source, source_content_type),
     })
 }
@@ -2573,7 +2603,7 @@ fn normalized_event_presentation_fields(
 
 fn scalar_presentation_value(value: &ScalarValue) -> String {
     match value {
-        ScalarValue::Text(value) => value.clone(),
+        ScalarValue::Text(value) | ScalarValue::Expression(value) => value.clone(),
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Bool(value) => value.to_string(),
@@ -2789,6 +2819,7 @@ fn projection_attribute(
     source: &SourceMapStack,
 ) -> CemTreeAstAttribute {
     CemTreeAstAttribute {
+        value_nodes: Vec::new(),
         name: name.to_owned(),
         value: Some(value.into()),
         source: source.clone(),
@@ -2893,9 +2924,10 @@ impl Serialize for EventJsonProjectionRef<'_> {
                 event.end()
             }
             NormalizedEvent::Value { value, byte_range } => {
-                let mut event = serializer.serialize_map(Some(3))?;
+                let mut event = serializer.serialize_map(Some(if matches!(value, ScalarValue::Expression(_)) { 4 } else { 3 }))?;
                 event.serialize_entry("kind", "value")?;
                 event.serialize_entry("value", &ScalarJsonProjectionRef { value })?;
+                if matches!(value, ScalarValue::Expression(_)) { event.serialize_entry("valueSyntax", "expression")?; }
                 event.serialize_entry("byteRange", byte_range)?;
                 event.end()
             }
@@ -2965,7 +2997,7 @@ impl Serialize for ScalarJsonProjectionRef<'_> {
         S: Serializer,
     {
         match self.value {
-            ScalarValue::Text(value) => serializer.serialize_str(value),
+            ScalarValue::Text(value) | ScalarValue::Expression(value) => serializer.serialize_str(value),
             ScalarValue::Int(value) => serializer.serialize_i64(*value),
             ScalarValue::Float(value) => serializer.serialize_f64(*value),
             ScalarValue::Bool(value) => serializer.serialize_bool(*value),
@@ -3015,17 +3047,19 @@ fn event_to_json(ev: &NormalizedEvent) -> Value {
         }),
         NormalizedEvent::Value { value, byte_range } => {
             let v = match value {
-                ScalarValue::Text(t) => Value::String(t.clone()),
+                ScalarValue::Text(t) | ScalarValue::Expression(t) => Value::String(t.clone()),
                 ScalarValue::Int(i) => json!(*i),
                 ScalarValue::Float(f) => json!(*f),
                 ScalarValue::Bool(b) => Value::Bool(*b),
                 ScalarValue::Null => Value::Null,
             };
-            json!({
+            let mut projected = json!({
                 "kind": "value",
                 "value": v,
                 "byteRange": project_byte_range(Some(*byte_range)),
-            })
+            });
+            if matches!(value, ScalarValue::Expression(_)) { projected["valueSyntax"] = json!("expression"); }
+            projected
         }
         NormalizedEvent::Trivia {
             kind,

@@ -127,7 +127,12 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 });
             }
             NormalizedEvent::Value { value, byte_range } => {
+                if let ScalarValue::Expression(expression) = &value {
+                    self.flush_native_attribute(expression, byte_range);
+                    return;
+                }
                 let text = match value {
+                    ScalarValue::Expression(_) => unreachable!(),
                     ScalarValue::Text(t) => t,
                     ScalarValue::Int(i) => i.to_string(),
                     ScalarValue::Float(f) => f.to_string(),
@@ -301,6 +306,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             node_id: attr_id,
             expanded_name: expand_name(&pending.name),
             value: value.clone(),
+            value_nodes: Vec::new(),
             source,
         };
         self.doc.nodes.push(attr);
@@ -316,6 +322,53 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         // Reference tracking: `id=` populates the id_table, `for=` /
         // `aria-labelledby=` / `aria-describedby=` resolve through it.
         self.update_references(&pending.name, value.as_deref(), attr_id);
+    }
+
+    fn flush_native_attribute(&mut self, lexical: &str, range: ByteRange) {
+        let Some(pending) = self.pending_attr.take() else {
+            return;
+        };
+        let context = match self.stack.last() {
+            Some(Frame::Element { id, .. }) => *id,
+            _ => 0,
+        };
+        let attr_id = self.doc.nodes.len() as AstNodeId;
+        self.flush_attr(pending, None, range);
+        let body = lexical.strip_prefix('{').unwrap_or(lexical);
+        let body = body.strip_suffix('}').unwrap_or(body);
+        let leading = body.len() - body.trim_start().len();
+        let body = body.trim();
+        let payload_range = ByteRange::new(range.start + 1 + leading as u64, body.len() as u32);
+        let source = self.current_source_map(payload_range, TransformKind::CemAstBuilder);
+        let value_id = self.doc.nodes.len() as AstNodeId;
+        if body.starts_with('#') {
+            self.doc.nodes.push(CemAstNode::Reference {
+                node_id: value_id,
+                expression: body.into(),
+                context,
+                targets: None,
+                source,
+            });
+        } else {
+            // General expressions retain the same native `$` representation
+            // as standalone expressions. No query execution occurs here.
+            self.doc.nodes.push(CemAstNode::Element {
+                node_id: value_id,
+                expanded_name: expand_name("$"),
+                attributes: Vec::new(),
+                children: vec![value_id + 1],
+                has_explicit_boundary: true,
+                source: source.clone(),
+            });
+            self.doc.nodes.push(CemAstNode::Text {
+                node_id: value_id + 1,
+                data: body.into(),
+                source,
+            });
+        }
+        if let CemAstNode::Attribute { value_nodes, .. } = &mut self.doc.nodes[attr_id as usize] {
+            value_nodes.push(value_id);
+        }
     }
 
     fn update_references(&mut self, name: &str, value: Option<&str>, attr_id: AstNodeId) {

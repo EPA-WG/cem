@@ -79,14 +79,18 @@ fn inspection(
             Attribute {
                 expanded_name,
                 value,
+                value_nodes,
                 ..
-            } => (
-                "attribute",
-                Some(expanded_name.local_name.as_str()),
-                Some(expanded_name.namespace_uri.as_str()),
-                value.as_deref(),
-                None,
-            ),
+            } => {
+                push_children(&mut pending, id, value_nodes, 0);
+                (
+                    "attribute",
+                    Some(expanded_name.local_name.as_str()),
+                    Some(expanded_name.namespace_uri.as_str()),
+                    value.as_deref(),
+                    None,
+                )
+            }
             Text { data, .. } => ("text", None, None, Some(data.as_str()), None),
             Whitespace { data, .. } => ("whitespace", None, None, Some(data.as_str()), None),
             Cdata { data, .. } => ("cdata", None, None, Some(data.as_str()), None),
@@ -122,6 +126,11 @@ fn inspection(
         for (key, value) in [("namespace", namespace), ("target", target)] {
             if let Some(value) = value {
                 attributes.push(projection_attribute(key, value, source));
+            }
+        }
+        if let CemAstNode::Attribute { value_nodes, .. } = node {
+            if !value_nodes.is_empty() {
+                attributes.push(projection_attribute("value-node-ids", value_nodes.iter().map(u32::to_string).collect::<Vec<_>>().join(" "), source));
             }
         }
         if let CemAstNode::Reference { expression, context, targets, .. } = node {

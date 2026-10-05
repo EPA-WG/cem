@@ -190,6 +190,7 @@ fn single_pass_preserves_nested_and_colored_projections_and_errors() {
     let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
         name: "outer".into(),
         attributes: vec![CemTreeAstAttribute {
+            value_nodes: Vec::new(),
             name: "id".into(),
             value: Some("one".into()),
             source: source.clone(),

@@ -1835,6 +1835,7 @@ fn inspect_projection_attribute(
     source: &SourceMapStack,
 ) -> projection::CemTreeAstAttribute {
     projection::CemTreeAstAttribute {
+        value_nodes: Vec::new(),
         name: name.to_owned(),
         value: Some(value.into()),
         source: source.clone(),
@@ -10786,7 +10787,7 @@ fn observe_pipeline_with_scope(
             ),
             NormalizedEvent::Value { value, byte_range } => {
                 let v = match value {
-                    ScalarValue::Text(t) => t.clone(),
+                    ScalarValue::Text(t) | ScalarValue::Expression(t) => t.clone(),
                     ScalarValue::Int(i) => i.to_string(),
                     ScalarValue::Float(f) => f.to_string(),
                     ScalarValue::Bool(b) => b.to_string(),

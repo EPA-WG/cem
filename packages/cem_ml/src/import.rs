@@ -869,6 +869,7 @@ impl ImportBuilder {
         self.push(
             parent,
             CemAstNode::Attribute {
+                value_nodes: Vec::new(),
                 node_id: self.ast.nodes.len() as AstNodeId,
                 expanded_name: expanded(namespace, name),
                 value: Some(value),

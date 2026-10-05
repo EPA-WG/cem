@@ -209,6 +209,7 @@ fn convert_model(
     // must check that exact value, including leading/trailing string whitespace.
     model.white_space = Some("preserve".into());
     let node = CemAstNode::Attribute {
+        value_nodes: Vec::new(),
         node_id: 0,
         expanded_name: ExpandedName {
             namespace_uri: String::new(),

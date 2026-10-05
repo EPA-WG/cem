@@ -122,7 +122,7 @@ fn write_node(
             let attr_ids = sorted_attribute_ids(doc, attributes);
             for attr_id in &attr_ids {
                 if let Some(attr) = doc.get(*attr_id) {
-                    write_attribute(attr, out);
+                    write_attribute(doc, attr, out);
                 }
             }
             let renderable_children: Vec<AstNodeId> = children
@@ -248,10 +248,11 @@ fn write_directive(doc: &CemDocument, node: &CemAstNode, out: &mut String) {
     out.push('\n');
 }
 
-fn write_attribute(attr: &CemAstNode, out: &mut String) {
+fn write_attribute(doc: &CemDocument, attr: &CemAstNode, out: &mut String) {
     let CemAstNode::Attribute {
         expanded_name,
         value,
+        value_nodes,
         ..
     } = attr
     else {
@@ -263,9 +264,35 @@ fn write_attribute(attr: &CemAstNode, out: &mut String) {
         out.push(':');
     }
     out.push_str(&expanded_name.local_name);
-    if let Some(v) = value {
+    if !value_nodes.is_empty() {
         out.push('=');
-        if is_avt_span(v) || is_bare_value_ok(v) {
+        for &id in value_nodes {
+            match doc.get(id) {
+                Some(CemAstNode::Reference { expression, .. }) => {
+                    out.push('{');
+                    out.push_str(expression);
+                    out.push('}');
+                }
+                Some(CemAstNode::Element {
+                    expanded_name,
+                    children,
+                    ..
+                }) if expanded_name.local_name == "$" => {
+                    out.push('{');
+                    for &child in children {
+                        if let Some(CemAstNode::Text { data, .. }) = doc.get(child) {
+                            out.push_str(data);
+                        }
+                    }
+                    out.push('}');
+                }
+                Some(node) => write_node(doc, node, 0, out, false),
+                None => {}
+            }
+        }
+    } else if let Some(v) = value {
+        out.push('=');
+        if is_bare_value_ok(v) {
             out.push_str(v);
         } else {
             out.push('"');
@@ -280,6 +307,7 @@ fn write_attribute(attr: &CemAstNode, out: &mut String) {
     }
 }
 
+
 fn write_text(data: &str, out: &mut String) {
     let trimmed = data.trim();
     if needs_rich_content_enclosure(trimmed) {
@@ -293,10 +321,6 @@ fn write_text(data: &str, out: &mut String) {
 
 fn needs_rich_content_enclosure(data: &str) -> bool {
     (data.contains('{') || data.contains('}')) && !data.contains("```")
-}
-
-fn is_avt_span(v: &str) -> bool {
-    v.starts_with('{') && v.ends_with('}')
 }
 
 fn is_bare_value_ok(v: &str) -> bool {

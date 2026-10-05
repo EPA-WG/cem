@@ -11625,6 +11625,7 @@ fn conversion_decoded_dom_cem_tree_node(
                 .filter_map(|attribute_id| match document.nodes.get(attribute_id) {
                     Some(ConversionDecodedDomNode::Attribute { name, value }) => {
                         Some(CemTreeAstAttribute {
+                            value_nodes: Vec::new(),
                             name: conversion_decoded_name(name),
                             value: value.clone(),
                             source: SourceMapStack::default(),
@@ -16276,6 +16277,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "article".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "id".to_owned(),
                 value: Some("ready".to_owned()),
                 source: source_map.clone(),
@@ -16370,6 +16372,7 @@ mod tests {
             CemTreeAstNode::Element {
                 name: "svg:circle".to_owned(),
                 attributes: vec![CemTreeAstAttribute {
+                    value_nodes: Vec::new(),
                     name: "xml:lang".to_owned(),
                     value: Some("en".to_owned()),
                     source: source_map.clone(),
@@ -18075,11 +18078,13 @@ mod tests {
             name: "card".to_owned(),
             attributes: vec![
                 CemTreeAstAttribute {
+                    value_nodes: Vec::new(),
                     name: "tone".to_owned(),
                     value: Some("info".to_owned()),
                     source: SourceMapStack::default(),
                 },
                 CemTreeAstAttribute {
+                    value_nodes: Vec::new(),
                     name: "size".to_owned(),
                     value: Some("large".to_owned()),
                     source: SourceMapStack::default(),
@@ -18305,6 +18310,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "main".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "data-state".to_owned(),
                 value: Some("ready".to_owned()),
                 source: SourceMapStack::default(),
@@ -18556,6 +18562,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "card".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "tone".to_owned(),
                 value: Some("info".to_owned()),
                 source: source_map.clone(),

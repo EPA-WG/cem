@@ -10266,6 +10266,9 @@ impl TransformTemplateTypedCemTreeRenderer<'_, '_> {
         source: &SourceMapStack,
         wrapper_index: Option<usize>,
     ) -> Result<(), String> {
+        if source_attributes.iter().any(|attribute| !attribute.value_nodes.is_empty()) {
+            return Err("native attribute values require explicit consumer resolution before markup export".into());
+        }
         let mut attributes = source_attributes
             .iter()
             .map(|attribute| TransformTemplateTypedMarkupAttribute {
@@ -10461,6 +10464,29 @@ fn transform_template_typed_cem_attribute_to_text(
     attribute: &CemTreeAstAttribute,
 ) -> Result<String, String> {
     let name = transform_template_encode_cem_name(attribute.name.trim())?;
+    if !attribute.value_nodes.is_empty() {
+        let [CemTreeAstNode::Element {
+            name: expression_kind,
+            children,
+            ..
+        }] = attribute.value_nodes.as_slice()
+        else {
+            return Err("native attribute inspection requires a single retained expression".into());
+        };
+        if expression_kind != "$" && expression_kind != "cem:expr" {
+            return Err(
+                "native attribute values require an explicit consumer before text export".into(),
+            );
+        }
+        let mut expression = String::new();
+        for child in children {
+            match child {
+                CemTreeAstNode::Text { value, .. } => expression.push_str(value),
+                _ => return Err("native attribute expression contains non-text source".into()),
+            }
+        }
+        return Ok(format!("@{name}={{{expression}}}"));
+    }
     let Some(value) = attribute.value.as_deref() else {
         return Ok(format!("@{name}"));
     };
@@ -10470,6 +10496,7 @@ fn transform_template_typed_cem_attribute_to_text(
         transform_template_encode_cem_attribute_value(value, &value_context)?
     ))
 }
+
 
 #[derive(Debug, Clone)]
 struct TransformTemplateTypedMarkupAttribute {
@@ -27431,6 +27458,34 @@ fn cemt_fixture_indent(depth: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_attribute_writer_preserves_expressions_and_literal_lookalikes() {
+        use crate::{
+            events::cem::CemEventNormalizer,
+            parser::builder::CemAstBuilder,
+            source::{BytesSource, SourceId},
+            tokenizer::cem::CemTokenizer,
+        };
+        let document = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(
+                SourceId(1),
+                br#"{item @native={#nodes} @quoted="{#nodes}"}"#.to_vec(),
+            ),
+        )))
+        .build();
+        let stream = crate::projection::cem_tree_nodes(&document);
+        let attributes = stream.as_nodes()[0].attributes();
+        assert_eq!(
+            transform_template_typed_cem_attribute_to_text(&attributes[0]).unwrap(),
+            "@native={#nodes}"
+        );
+        assert_eq!(
+            transform_template_typed_cem_attribute_to_text(&attributes[1]).unwrap(),
+            "@quoted=\"{#nodes}\""
+        );
+    }
+
+
     use super::*;
     use serde_json::json;
 
@@ -29045,6 +29100,7 @@ mod tests {
         let owner = Arc::new(CemTreeAstStream::new(vec![CemTreeAstNode::Element {
             name: "article".to_owned(),
             attributes: vec![CemTreeAstAttribute {
+                value_nodes: Vec::new(),
                 name: "disabled".to_owned(),
                 value: None,
                 source: SourceMapStack::default(),
