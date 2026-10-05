@@ -1147,10 +1147,9 @@ implementation verification. They do not claim executable test coverage.
       whitespace list validation and keep conversion disabled until its adapter exists.
       Scenarios for later design verification: item order and duplicates survive;
       list item bases do not become scalar inheritance; validation does not convert.
-- [ ] Decide list datatype declaration `values`: reject the field and use item
-      datatype restrictions/list rules (recommended), or define a per-item vocabulary
-      shorthand with typed equality and lexical parsing. Preserve attribute-local
-      `values` compatibility separately.
+- [x] Adopt rejection of `values` on list datatype declarations; use item datatype
+      restrictions and registered list rules. Preserve attribute-local `values`
+      compatibility separately; no sequence-enumeration shorthand is admitted.
       Scenarios for later design verification: item restrictions and whole-sequence
       rules remain distinct; sequence enumeration is never inferred from a string.
 - [ ] Specify list conversion adapters and explicit canonical serialization, then
@@ -1158,6 +1157,17 @@ implementation verification. They do not claim executable test coverage.
       before implementing conversion or changing scalar API result types.
       Scenarios for later design verification: typed results preserve item identity;
       serialization does not overwrite authored lexical input or clone native nodes.
+- [ ] Decide datatype rule results: explicit acceptance plus attributed diagnostics
+      (recommended), or a diagnostic-only result whose absence implies acceptance.
+      Keep pending/unavailable execution separate from completed validation results.
+      Scenarios for later design verification: warning severity does not accidentally
+      accept an invalid value; malformed results never become successful validation.
+- [ ] After selecting the result protocol, specify a registered datatype validation
+      adapter that checks retained behavior/owner identity, required input bindings
+      and kind-specific representation, distinct from diagnostic-only behaviors.
+      Add fixture actions before implementing signature checking or invocation.
+      Scenarios for later design verification: original candidate/type handles remain
+      native; unavailable execution differs from invalid data; conversion stays separate.
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
       Scenarios for later design verification: registration grants no scope access;
@@ -1167,8 +1177,8 @@ implementation verification. They do not claim executable test coverage.
       and symbolic-reference implementations before adding those implementations.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
-- [ ] Complete datatype namespace/export binding rules, list-level `values` and
-      empty-list/tokenization policies, and grammar/reference kind contracts.
+- [ ] Complete datatype namespace/export binding rules, general list empty-value
+      and tokenization policies, and grammar/reference kind contracts.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a

@@ -1344,10 +1344,13 @@ activation contracts required before admission. Native selection is not redirect
 by a later same-name declaration. Explicit list conversion adopts ordered typed
 items with authored lexical source retained; canonical lexical output is separate
 serialization. Order, duplicates and original native item identities must survive.
-Conversion remains disabled pending adapters and parity fixtures. The next decision
-is whether list datatype declarations reject `values` in favor of item restrictions
-and list rules (recommended), or admit a per-item vocabulary shorthand. Existing
-attribute-local `values` compatibility remains separate. The verified inventory
-also distinguishes
+Conversion remains disabled pending adapters and parity fixtures. List datatype
+declarations reject `values`; use item datatype restrictions and registered list
+rules. Existing attribute-local `values` compatibility remains separate. Datatype
+validation requires a registered compatible capability, rather than automatically
+reusing diagnostic-only behavior execution. The next decision is its result
+protocol: explicit acceptance plus attributed diagnostics is recommended, keeping
+severity independent of validity and lifecycle readiness separate. The verified
+inventory also distinguishes
 available scalar conversion from the broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.

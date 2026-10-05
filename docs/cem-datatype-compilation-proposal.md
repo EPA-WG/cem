@@ -3,7 +3,7 @@
 Status: temporary design draft. Registered schema-owned implementations,
 native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
-results are adopted. Exact signatures and
+results and rejection of list declaration `values` are adopted. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -222,25 +222,64 @@ The representation is adopted but conversion remains disabled pending registered
 signatures, item contracts and migration fixtures. Existing scalar conversion
 APIs must not silently reinterpret a string result as a typed sequence.
 
-## Next decision: list-level values
+## Adopted list restrictions
 
-The general compiler needs an explicit meaning for `{type @kind=list @values=...}`.
-Item restrictions already belong to the item datatype selected by `base`; a native
-list rule can validate the complete ordered sequence. Existing attribute-local
-`values` behavior remains a separate compatibility surface.
+Reject `values` on a `{type @kind=list}` datatype declaration. Item restrictions
+belong to the item datatype selected by `base`; a registered list rule validates
+the complete ordered sequence. This avoids giving one lexical field two meanings.
+Existing attribute-local `values` behavior remains a separate compatibility
+surface and is not changed by this declaration contract.
 
-Recommended first contract: reject `values` on a list datatype declaration.
-Declare allowed item values on its item datatype, and use a registered list rule
-for sequence restrictions. This avoids giving one lexical field two meanings and
-leaves a future sequence-enumeration syntax to explicit design.
-
-Alternative: make list datatype `values` a shorthand for an item vocabulary,
-requiring every item to match an entry in addition to its base contract. This is
-more concise, but must specify typed equality, lexical parsing and normalization.
-Whole-sequence enumeration would still need a distinct contract.
+Whole-sequence enumeration and a list-level item-vocabulary shorthand are not
+admitted. Any later shorthand needs explicit typed equality, lexical parsing and
+normalization semantics, plus its own metamodel and migration contract. These
+forms must not be inferred from an authored string or a native reference.
 
 General empty-list admission and custom tokenizers remain explicit follow-up
-work; shipped name-list contracts continue to reject empty values.
+work; shipped name-list contracts continue to reject empty values. No new list
+cardinality defaults or source syntax are adopted here.
+
+## Proposed datatype execution adapter
+
+Existing schema behaviors expose typed input bindings, function signatures and a
+`schema:diagnostic-result` description with source-range and detail metadata.
+Their diagnostic execution contract is not automatically a datatype validation
+contract. Selecting a native behavior must also select an explicitly registered
+capability with a compatible datatype validation signature.
+
+Compilation should check the registered capability's owner, the retained behavior
+identity, required input bindings and declared representation before publishing a
+ready descriptor. Runtime invocation supplies the original candidate and datatype
+handles and the consumer's current typed value. Those handles must not be adapted
+to legacy `object` candidate records. Unknown execution or missing required runtime
+context remains unavailable, rather than invalid data or successful validation.
+
+The consumer retains the lifecycle envelope for complete, pending/unavailable and
+failed execution. An implementation cannot claim completeness for a missing
+dependency or extend scope grants. Conversion continues to use a distinct
+capability with declared typed output, followed by every effective restriction.
+Concrete function parameter names and metamodel types remain to be specified.
+
+## Next decision: validation result protocol
+
+Recommended result contract: a completed datatype rule returns explicit boolean
+acceptance together with zero or more attributed diagnostics. Acceptance is
+independent of diagnostic severity: a warning does not automatically accept an
+invalid value, and an informational diagnostic need not reject a valid value.
+A rejection without explanatory diagnostics receives a consumer-generated failure
+at the retained input. Pending/unavailable execution remains outside this result,
+so it cannot masquerade as acceptance. Wrong result types are execution contract
+errors and cannot produce a validated value.
+
+Alternative: reuse the existing diagnostic-only behavior result convention,
+where a completed invocation's lack of diagnostics implies acceptance. That is
+compatible with diagnostic behaviors but needs a separate rule for warnings and
+information messages to determine datatype validity.
+
+Neither result protocol is enabled. Select it before defining the registered
+validation adapter's concrete typed result and its compatibility boundary with
+existing diagnostic behaviors. Result metadata may describe diagnostics; it does
+not permit JSON records to substitute for retained candidate/datatype nodes.
 
 ## Verified inventory and current native boundary
 
