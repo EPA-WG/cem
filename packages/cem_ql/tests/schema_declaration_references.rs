@@ -430,3 +430,52 @@ fn diagnostic_and_behavior_reuse_requires_grants_and_binds_assembled_dependencie
         behavior.ast_owner()
     ));
 }
+
+#[test]
+fn constraint_reuse_honors_scope_grants_and_preserves_policy_budget() {
+    let source = tree("{schema | {constraints | {#library}}}");
+    let library =
+        tree("{schema | {constraints | {constraint @kind=reference-traversal-work @value=1}}}");
+    let id = library
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "constraint" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let item = cem_ql::eval::RetainedCemNode::new(library.clone(), id)
+        .unwrap()
+        .query_item();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let a = host.register_scope(source.clone(), Some(context(vec![item])), policy());
+    let b = host.register_scope(library.clone(), None, policy());
+    assert!(!host
+        .compile("consumer", source.clone(), limits())
+        .unwrap()
+        .is_ready_for_validation());
+    host.allow_scope_crossing(a, b);
+    let model = host.compile("consumer", source, limits()).unwrap();
+    assert!(model.is_ready_for_validation());
+    assert_eq!(
+        model.constraints["reference-traversal-work"]
+            .value
+            .as_deref(),
+        Some("1")
+    );
+    assert!(Arc::ptr_eq(
+        model.declaration_references.sites[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes[0]
+            .document(),
+        library.ast_owner()
+    ));
+    assert_eq!(policy().for_scope(&model).unwrap().limits.max_work, 1);
+}

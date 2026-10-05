@@ -1223,3 +1223,180 @@ fn incomplete_behavior_links_preserve_partial_bindings_and_all_original_errors()
         .iter()
         .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_DEFAULT_VALUE_CODE));
 }
+
+#[test]
+fn constraint_references_preserve_order_owners_and_nested_metadata() {
+    let library = parse(
+        r#"{schema @namespace="library" |
+      {constraints | {constraint @kind="related" @behavior="schema:reference-resolution" |
+        {candidates @select="items" @as="item"}
+      }}}
+    }"#,
+    );
+    let selected = node(&library, "constraint");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Resolved(vec![selected.clone()]),
+    );
+    let model = host.resolve(parse(
+        r#"{schema | {constraints |
+      {constraint @kind="related" @value="old"} {#rules}
+    }}"#,
+    ));
+    assert!(model.is_ready_for_validation());
+    let rule = &model.constraints["related"];
+    assert_eq!(rule.value, None);
+    assert_eq!(
+        rule.reference_resolution.as_ref().unwrap().candidates[0]
+            .select
+            .as_deref(),
+        Some("items")
+    );
+    let retained = &model.declaration_references.sites[0]
+        .resolution
+        .as_ref()
+        .unwrap()
+        .nodes[0];
+    assert!(Arc::ptr_eq(retained.document(), &library));
+}
+
+#[test]
+fn constraint_references_reject_wrong_kinds_and_missing_keys() {
+    for source in [
+        "{schema | {constraints | {constraint}}}",
+        "{schema | {elements | {element @name=box}}}",
+    ] {
+        let library = parse(source);
+        let kind = if source.contains("elements") {
+            "element"
+        } else {
+            "constraint"
+        };
+        let mut host = Host::new();
+        host.outcomes.insert(
+            "#rules".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, kind)]),
+        );
+        let model = host.resolve(parse("{schema | {constraints | {#rules}}}"));
+        assert!(!model.is_ready_for_validation());
+        assert!(model
+            .compile_diagnostics
+            .iter()
+            .any(|d| d.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET));
+    }
+}
+
+#[test]
+fn referenced_policy_duplicates_are_errors_and_do_not_change_current_budget() {
+    let library = parse(
+        r#"{schema | {constraints |
+      {constraint @kind="reference-traversal-work" @value="1"}
+    }}"#,
+    );
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    host.outcomes.insert(
+        "#policy".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "constraint")]),
+    );
+    let model = host.resolve(parse(
+        r#"{schema | {constraints |
+      {constraint @kind="reference-traversal-work" @value="10"} {#policy}
+    }}"#,
+    ));
+    assert_eq!(
+        model.constraints["reference-traversal-work"]
+            .value
+            .as_deref(),
+        Some("10")
+    );
+    assert!(model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == "cem.schema.reference_policy_duplicate"));
+    assert_eq!(host.policy.limits, limits);
+}
+
+#[test]
+fn pending_constraint_references_keep_source_only_candidates_inactive() {
+    let model = compile_schema_document_model("consumer", "{schema | {constraints | {#rules}}}");
+    assert!(!model.is_ready_for_validation());
+    assert_eq!(model.declaration_references.sites.len(), 1);
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Pending("runtime input unavailable".into()),
+    );
+    let candidate = host.resolve(parse("{schema | {constraints | {#rules}}}"));
+    assert!(!candidate.is_ready_for_validation());
+}
+
+#[test]
+fn reused_constraints_bind_local_behaviors_and_preserve_declaring_alias_errors() {
+    let mut host = Host::new();
+    let library = parse(
+        r#"{schema | {uses | {use @schema="https://cem.dev/ns/schema/1" @as=origin}}
+      {constraints | {constraint @kind=check @behavior=origin:scalar-type @diagnostic=fixture.value}} }"#,
+    );
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "constraint")]),
+    );
+    let model = host.resolve(parse(
+        "{schema | {uses | {use @schema=missing @as=origin}} {constraints | {#rules}}}",
+    ));
+    assert!(model.constraints["check"].definition.is_some());
+    let bad = parse("{schema | {uses | {use @schema=external @as=origin}} {constraints | {constraint @kind=check @behavior=origin:missing @diagnostic=fixture.value}} }");
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&bad, "constraint")]),
+    );
+    host.outcomes.insert(
+        "#pending".into(),
+        ReferenceLinkEvaluation::Pending("waiting".into()),
+    );
+    let model = host.resolve(parse("{schema | {uses | {use @schema=consumer @as=origin}} {constraints | {#rules}} {behaviors | {#pending}}}"));
+    assert!(model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE));
+    let shared = parse("{schema | {constraints | {constraint @kind=check @behavior=local @diagnostic=fixture.value}} }");
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&shared, "constraint")]),
+    );
+    for primitive in ["schema:scalar-type", "schema:value-vocabulary"] {
+        let model = host.resolve(parse(&"{schema | {constraints | {#rules}} {behaviors | {behavior @name=local @implementation=engine @execution=ast-validation @primitive=PRIMITIVE}}}".replace("PRIMITIVE", primitive)));
+        assert_eq!(
+            model.constraints["check"]
+                .definition
+                .as_ref()
+                .unwrap()
+                .primitive
+                .as_deref(),
+            Some(primitive)
+        );
+        assert!(Arc::ptr_eq(
+            model.declaration_references.sites[0]
+                .resolution
+                .as_ref()
+                .unwrap()
+                .nodes[0]
+                .document(),
+            &shared
+        ));
+    }
+    let local = parse("{schema | {constraints | {constraint @kind=check @behavior=missing @diagnostic=fixture.value}} }");
+    host.outcomes.insert(
+        "#rules".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&local, "constraint")]),
+    );
+    let model = host.resolve(parse(
+        "{schema | {constraints | {#rules}} {behaviors | {#pending}}}",
+    ));
+    assert!(!model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE));
+}

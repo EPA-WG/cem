@@ -422,9 +422,27 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: a reusable attribute names a
       reused diagnostic; a diagnostic names a reused behavior; missing or cyclic
       selections keep the model inactive rather than dropping its dependencies.
-- [ ] Extend reference consumption to constraint and field-contract declaration
-      collections after diagnostic/behavior reuse, with fixture-first coverage
-      of their kind keys, repeated contract applications and target checks.
+- [x] Fixture: reuse constraint declarations in authored order, retain source
+      owners and declaring aliases, preserve nested reference-resolution metadata,
+      reject wrong kinds/missing kind keys, retain duplicate policy errors, and
+      verify lexical behavior binding through native QL scope grants.
+      Scenarios for later design verification: candidate policies cannot reset
+      the current traversal budget; pending constraints keep the candidate inactive.
+- [x] Extend reference consumption to constraint declaration collections after
+      diagnostic/behavior reuse, retaining kind keys, lexical aliases, nested
+      declarations, policy duplicates and stable runtime traversal budgets.
+      Verification: 58 focused ML reference tests, eight native QL declaration
+      fixtures and 118 bridge tests pass. Full Nx ML library verification reports
+      2069 passes, two ignored and the known legacy dropdown selector failure
+      (`template#cem-dropdown` not found).
+      Scenarios for later design verification: shared constraints bind local
+      behavior names in each consumer and never reset current scope budgets.
+- [ ] Decide missing field-contract targets before extending reference consumption
+      to that collection. Existing direct contracts silently skip absent targets;
+      recommendation: report a compile error once element assembly is complete,
+      defer the lookup while element references are incomplete, and apply the
+      same rule to direct and referenced contracts. Then add fixture-first
+      coverage of required keys, repeated applications and target checks.
       Scenarios for later design verification: one contract applies in two
       consuming schemas; local targets stay local while declaring aliases retain
       source meaning; invalid targets never disappear as empty selections.

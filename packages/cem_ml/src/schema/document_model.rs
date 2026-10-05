@@ -4378,6 +4378,7 @@ pub(crate) enum CompiledSchemaDeclaration {
     Attribute(Box<AttributeModel>),
     Behavior(Box<BehaviorDefinition>),
     Diagnostic(Box<DiagnosticDeclaration>),
+    Constraint(Box<ConstraintDeclaration>),
 }
 
 /// Discover supported collection sites in authored order. The collection,
@@ -4402,6 +4403,7 @@ pub(crate) fn declaration_reference_sites(
             Some("attributes") => SchemaDeclarationKind::Attribute,
             Some("behaviors") => SchemaDeclarationKind::Behavior,
             Some("diagnostics") => SchemaDeclarationKind::Diagnostic,
+            Some("constraints") => SchemaDeclarationKind::Constraint,
             _ => continue,
         };
         if let Some(CemAstNode::Element { children, .. }) = document.get(*collection_id) {
@@ -4508,14 +4510,17 @@ fn compile_document_model_from_document_with_declarations(
             behavior_collection_complete,
         );
     model.diagnostic_behaviors = diagnostic_behaviors;
-    model.constraints = collect_constraint_definitions(
+    let compiled_constraints = collect_constraint_definitions(
         document,
         schema_id,
         schema_uri,
         &uses,
         &model.behaviors,
         &mut model.compile_diagnostics,
+        declarations,
     );
+    model.constraints = compiled_constraints.definitions;
+    let constraint_uses = compiled_constraints.uses;
 
     for contract in
         collect_field_contracts(document, schema_id, schema_uri, &uses, &model.behaviors)
@@ -4598,9 +4603,21 @@ fn compile_document_model_from_document_with_declarations(
                 .and_then(|d| d.get("behavior"))
                 .and_then(|d| d.as_str())
             {
-                if local_behavior_reference(reference, schema_uri, &uses)
-                    && resolve_behavior_definition(reference, schema_uri, &uses, &model.behaviors)
-                        .is_none()
+                let lexical_uses = diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("constraint"))
+                    .and_then(|kind| kind.as_str())
+                    .and_then(|kind| constraint_uses.get(kind))
+                    .unwrap_or(&uses);
+                if local_behavior_reference(reference, schema_uri, lexical_uses)
+                    && resolve_behavior_definition(
+                        reference,
+                        schema_uri,
+                        lexical_uses,
+                        &model.behaviors,
+                    )
+                    .is_none()
                 {
                     return false;
                 }
@@ -9527,6 +9544,26 @@ fn validate_child_range_field_contract(
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct ConstraintDeclaration {
+    source: super::declaration_references::SchemaDeclarationNode,
+    uses: BTreeMap<String, String>,
+}
+
+pub(crate) fn compile_constraint_declaration(
+    source: super::declaration_references::SchemaDeclarationNode,
+    uses: BTreeMap<String, String>,
+) -> Option<ConstraintDeclaration> {
+    let attrs = collect_attrs(source.document(), source.node_id());
+    optional_non_empty_attr(&attrs, "kind")?;
+    Some(ConstraintDeclaration { source, uses })
+}
+
+struct CompiledConstraintCollection {
+    definitions: BTreeMap<String, ConstraintDefinition>,
+    uses: BTreeMap<String, BTreeMap<String, String>>,
+}
+
 fn collect_constraint_definitions(
     document: &CemDocument,
     schema_id: AstNodeId,
@@ -9534,64 +9571,92 @@ fn collect_constraint_definitions(
     uses: &BTreeMap<String, String>,
     local_behaviors: &BTreeMap<String, BehaviorDefinition>,
     compile_diagnostics: &mut Vec<Diagnostic>,
-) -> BTreeMap<String, ConstraintDefinition> {
-    let mut constraints = BTreeMap::new();
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
+) -> CompiledConstraintCollection {
+    // Bind after behavior assembly, using original declaration aliases while
+    // unqualified dependency names refer to the consuming schema's collection.
+    let mut sources = Vec::new();
     for constraints_id in element_child_ids_by_local_name(document, schema_id, "constraints") {
         let Some(CemAstNode::Element { children, .. }) = document.get(constraints_id) else {
             continue;
         };
         for child_id in children {
-            let Some(child) = document.get(*child_id) else {
-                continue;
-            };
-            if element_local_name(child) != Some("constraint") {
-                continue;
+            if matches!(document.get(*child_id), Some(CemAstNode::Reference { .. })) {
+                if let Some(selected) = declarations.get(child_id) {
+                    for declaration in selected {
+                        if let CompiledSchemaDeclaration::Constraint(declaration) = declaration {
+                            sources.push((
+                                declaration.source.document().as_ref(),
+                                declaration.source.node_id(),
+                                &declaration.uses,
+                            ));
+                        }
+                    }
+                }
+            } else {
+                sources.push((document, *child_id, uses));
             }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(kind) = optional_non_empty_attr(&attrs, "kind") else {
-                continue;
-            };
-            if super::reference_policy::is_scope_reference_policy(kind)
-                && constraints.contains_key(kind)
-            {
-                compile_diagnostics.push(schema_compile_diagnostic(
-                    super::reference_policy::DUPLICATE_POLICY_CODE,
-                    format!("Reference policy `{kind}` is declared more than once in schema `{schema_uri}`"),
-                    source_stack_for_node(child),
-                    serde_json::json!({ "schemaUri": schema_uri, "constraint": kind }),
-                ));
-                continue;
-            }
-            let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
-            let definition = behavior.as_deref().and_then(|behavior| {
-                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
-            });
-            let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
-            let is_reference_resolution = engine_behavior
-                == Some(EngineDiagnosticBehavior::ReferenceResolution)
-                || behavior.as_deref() == Some(REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR);
-            let reference_resolution = is_reference_resolution
-                .then(|| collect_reference_resolution_constraint(document, *child_id, &attrs));
-            constraints.insert(
-                kind.to_owned(),
-                ConstraintDefinition {
-                    schema_uri: schema_uri.to_owned(),
-                    kind: kind.to_owned(),
-                    target: optional_non_empty_attr(&attrs, "target").map(str::to_owned),
-                    value: optional_non_empty_attr(&attrs, "value").map(str::to_owned),
-                    policy: optional_non_empty_attr(&attrs, "policy").map(str::to_owned),
-                    diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
-                    behavior,
-                    fact_kind: optional_non_empty_attr(&attrs, "fact-kind").map(str::to_owned),
-                    definition,
-                    engine_behavior,
-                    reference_resolution,
-                    source_map: source_stack_for_node(child).clone(),
-                },
-            );
         }
     }
-    constraints
+    let mut constraints = BTreeMap::new();
+    let mut constraint_uses = BTreeMap::new();
+    for (document, child_id, uses) in sources {
+        let Some(child) = document.get(child_id) else {
+            continue;
+        };
+        if element_local_name(child) != Some("constraint") {
+            continue;
+        }
+        let attrs = collect_attrs(document, child_id);
+        let Some(kind) = optional_non_empty_attr(&attrs, "kind") else {
+            continue;
+        };
+        if super::reference_policy::is_scope_reference_policy(kind)
+            && constraints.contains_key(kind)
+        {
+            compile_diagnostics.push(schema_compile_diagnostic(
+                super::reference_policy::DUPLICATE_POLICY_CODE,
+                format!(
+                    "Reference policy `{kind}` is declared more than once in schema `{schema_uri}`"
+                ),
+                source_stack_for_node(child),
+                serde_json::json!({ "schemaUri": schema_uri, "constraint": kind }),
+            ));
+            continue;
+        }
+        let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
+        let definition = behavior.as_deref().and_then(|behavior| {
+            resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
+        });
+        let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
+        let is_reference_resolution = engine_behavior
+            == Some(EngineDiagnosticBehavior::ReferenceResolution)
+            || behavior.as_deref() == Some(REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR);
+        let reference_resolution = is_reference_resolution
+            .then(|| collect_reference_resolution_constraint(document, child_id, &attrs));
+        constraint_uses.insert(kind.to_owned(), uses.clone());
+        constraints.insert(
+            kind.to_owned(),
+            ConstraintDefinition {
+                schema_uri: schema_uri.to_owned(),
+                kind: kind.to_owned(),
+                target: optional_non_empty_attr(&attrs, "target").map(str::to_owned),
+                value: optional_non_empty_attr(&attrs, "value").map(str::to_owned),
+                policy: optional_non_empty_attr(&attrs, "policy").map(str::to_owned),
+                diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
+                behavior,
+                fact_kind: optional_non_empty_attr(&attrs, "fact-kind").map(str::to_owned),
+                definition,
+                engine_behavior,
+                reference_resolution,
+                source_map: source_stack_for_node(child).clone(),
+            },
+        );
+    }
+    CompiledConstraintCollection {
+        definitions: constraints,
+        uses: constraint_uses,
+    }
 }
 
 fn collect_reference_resolution_constraint(

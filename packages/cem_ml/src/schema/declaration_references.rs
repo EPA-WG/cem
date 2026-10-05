@@ -92,6 +92,7 @@ pub enum SchemaDeclarationKind {
     Attribute,
     Behavior,
     Diagnostic,
+    Constraint,
 }
 impl SchemaDeclarationKind {
     pub(crate) fn node_name(self) -> &'static str {
@@ -100,6 +101,7 @@ impl SchemaDeclarationKind {
             Self::Attribute => "attribute",
             Self::Behavior => "behavior",
             Self::Diagnostic => "diagnostic",
+            Self::Constraint => "constraint",
         }
     }
 }
@@ -291,6 +293,15 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                         &aliases,
                     )
                     .map(|behavior| CompiledSchemaDeclaration::Behavior(Box::new(behavior))),
+                    SchemaDeclarationKind::Constraint => {
+                        document_model::compile_constraint_declaration(
+                            target.clone(),
+                            aliases.clone(),
+                        )
+                        .map(|constraint| {
+                            CompiledSchemaDeclaration::Constraint(Box::new(constraint))
+                        })
+                    }
                     SchemaDeclarationKind::Diagnostic => {
                         document_model::compile_diagnostic_declaration(
                             target.document(),
