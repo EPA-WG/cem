@@ -153,6 +153,11 @@ pub struct EngineContext {
     pub schema_document_models: SchemaDocumentModelRegistry,
     pub converter_registry: ConversionRegistry,
     pub schema_package_manifests: Vec<EngineInput>,
+    /// Source arenas only; reference results belong to each compilation snapshot.
+    pub schema_package_sources: crate::schema::package_compilation::SchemaPackageSourceRegistry,
+    /// Explicit runtime stage, independent of ordinary query adapter registration.
+    pub schema_package_compiler:
+        Option<Arc<dyn crate::schema::package_compilation::SchemaPackageCompiler>>,
     pub schema_package_replacement_grants: Vec<SchemaPackageReplacementGrant>,
     pub resolver_policy: ResolverPolicy,
     pub resolver_registry: ResolverRegistry,
@@ -180,6 +185,8 @@ impl Default for EngineContext {
             schema_document_models: SchemaDocumentModelRegistry::default(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
+            schema_package_sources: Default::default(),
+            schema_package_compiler: None,
             schema_package_replacement_grants: Vec::new(),
             resolver_policy: ResolverPolicy::default(),
             resolver_registry: ResolverRegistry::default(),

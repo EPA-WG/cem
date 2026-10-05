@@ -341,12 +341,27 @@ implementation. `git diff --check` passes.
       source constructor; resolve nested references through the shared walker.
       Verification: Nx `cem_ql:test` passes, including five native consumer
       fixtures. 32 CEM-ML declaration/reference and import/XPath fixtures pass.
-- [ ] Supply explicit lifecycle evaluation for package declaration references
+- [x] Fixture: exercise explicit package loading through the CEM-QL compiler
+      hook: source-only Pending, runtime Pending, later completion with the same
+      source allocation, independent contexts, rejected replacement preservation,
+      changed-source retention, and original query errors. Verify schema,
+      converters and artifacts switch together without implicit grants.
+- [x] Fixture: reject empty/warning-only compiler failures, foreign model
+      identities and invalid traversal bounds without publishing a candidate;
+      retain source-attributed errors and the last active package.
+- [x] Fixture: load a reference-bearing manifest through an engine validation
+      request and enforce the reused declaration on the input; preserve the
+      caller context while compiling the enriched runtime snapshot.
+- [x] Supply explicit lifecycle evaluation for package declaration references
       through the production consumer host, allowing completion and activation
       of the same source without automatic parser evaluation or a new scheduler.
-      The native CEM-QL host is implemented; wire the package lifecycle caller
-      to supply its ready context and invoke the stage before coordinated
-      publication. Source-only package loading must remain pending by default.
+      The explicit `EngineContext.schema_package_compiler` hook invokes a fresh
+      native host before coordinated publication; source arenas are retained by
+      resolved URI and byte revision. Source-only loading stays pending.
+      Verification: Nx bridge tests pass (115 tests); the additional engine
+      request fixture passes. All 41 focused CEM-ML reference/schema integration
+      tests pass. Nx CEM-ML reports 2069 passes, two ignored and the known legacy
+      dropdown selector failure (`template#cem-dropdown` not found).
       Scenarios for later design verification: one retained candidate completes
       when dependencies arrive; independent lifecycle contexts do not share
       selected targets; incomplete replacements preserve the active package.

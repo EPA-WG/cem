@@ -55,7 +55,6 @@ use crate::resolver::{
     ResolverDiagnostic,
 };
 use crate::run_config::ScopeConfig;
-use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
@@ -927,7 +926,11 @@ fn context_with_loaded_schema_package_manifests(
     Ok((enriched, diagnostics))
 }
 
-fn load_schema_package_manifest_into_context(
+/// Explicitly load or refresh a package using the current runtime compilation
+/// context. Without an installed compiler, declaration references stay pending.
+/// Incomplete/rejected candidates remain inspectable and do not replace active
+/// schema, converter or artifact registrations.
+pub fn load_schema_package_manifest_into_context(
     context: &mut EngineContext,
     input: &EngineInput,
 ) -> EngineResult<Vec<Diagnostic>> {
@@ -1023,6 +1026,11 @@ fn register_validated_schema_package_manifest(
                 })
     });
     let mut staged = context.clone();
+    // Replacement authority is checked before invoking consumer evaluation.
+    // Unauthorized sources can still be retained for source-only inspection.
+    if !authorized {
+        staged.schema_package_compiler = None;
+    }
     // Mutations remain private to the candidate until every registration passes.
     for uri in staged.schema_registry.remove_package(&package_id) {
         staged.schema_document_models.remove_active(&uri);
@@ -1058,6 +1066,7 @@ fn register_validated_schema_package_manifest(
     context
         .schema_document_models
         .inspect_candidates_from(&staged.schema_document_models);
+    context.schema_package_sources = staged.schema_package_sources.clone();
     if !authorized {
         let mut diagnostics = diagnostics;
         diagnostics.push(schema_package_load_diagnostic(Some(manifest_uri),
@@ -1208,7 +1217,78 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
             return false;
         }
     };
-    let mut model = compile_schema_document_model(&descriptor.schema_uri, &schema_source);
+    use crate::schema::package_compilation::{
+        compilation_failure, source_only_model, SchemaPackageCompilationRequest,
+    };
+    let source = match context
+        .schema_package_sources
+        .retain(&read.uri, &schema_source)
+    {
+        Ok(source) => source,
+        Err(mut errors) => {
+            for error in &mut errors {
+                if error.uri.is_none() {
+                    error.uri = Some(read.uri.clone());
+                }
+            }
+            context.schema_document_models.inspect_candidate(
+                crate::schema::document_model::SchemaDocumentModel {
+                    schema_uri: descriptor.schema_uri.clone(),
+                    compile_diagnostics: errors.clone(),
+                    ..Default::default()
+                },
+            );
+            diagnostics.extend(errors);
+            return false;
+        }
+    };
+    let mut model = if let Some(compiler) = &context.schema_package_compiler {
+        let request = SchemaPackageCompilationRequest {
+            package_id: descriptor.package_id.clone(),
+            manifest_uri: manifest_uri.into(),
+            schema_uri: descriptor.schema_uri.clone(),
+            source: source.clone(),
+        };
+        let compiled = compiler.compile(&request).and_then(|model| {
+            if model.schema_uri == descriptor.schema_uri {
+                Ok(model)
+            } else {
+                Err(vec![compilation_failure(
+                    &read.uri,
+                    format!(
+                        "Schema compiler returned identity `{}` for requested `{}`",
+                        model.schema_uri, descriptor.schema_uri
+                    ),
+                )])
+            }
+        });
+        match compiled {
+            Ok(model) => model,
+            Err(mut errors) => {
+                if !errors.iter().any(|d| d.severity.is_hard_violation()) {
+                    errors.push(compilation_failure(
+                        &read.uri,
+                        "Schema compilation did not produce a model",
+                    ));
+                }
+                let mut model = source_only_model(&descriptor.schema_uri, &source);
+                model.compile_diagnostics.extend(errors);
+                for diagnostic in &mut model.compile_diagnostics {
+                    if diagnostic.uri.is_none() {
+                        diagnostic.uri = Some(read.uri.clone());
+                    }
+                }
+                diagnostics.extend(model.compile_diagnostics.clone());
+                context.schema_document_models.inspect_candidate(model);
+                return false;
+            }
+        }
+    } else {
+        source_only_model(&descriptor.schema_uri, &source)
+    };
+    model
+        .compile_diagnostics
+        .extend(source.ast().diagnostics.clone());
     for diagnostic in &mut model.compile_diagnostics {
         if diagnostic.uri.is_none() {
             diagnostic.uri = Some(read.uri.clone());

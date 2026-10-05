@@ -4336,7 +4336,7 @@ fn compile_document_model_with_seen(
     compile_document_model_from_document_with_seen(schema_uri, &document, seen_schema_uris)
 }
 
-fn compile_document_model_from_document(
+pub(crate) fn compile_document_model_from_document(
     schema_uri: &str,
     document: &CemDocument,
 ) -> SchemaDocumentModel {

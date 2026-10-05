@@ -738,9 +738,9 @@ constructed references need no saved AST handle or captured environment ID.
 A CEM-QL consumer fixture uses the existing expression evaluator with retained
 CEM-ML source and independently supplied native data trees, proving owner
 retention and no source writeback. The initial schema declaration consumer is
-described below. Production lifecycle adapters, other consumer cardinality
-rules and authored crossing declarations remain open checklist work; this
-does not adopt deferred public query access syntax.
+described below. Native package lifecycle compilation is connected explicitly.
+Other consumer cardinality rules and authored crossing declarations remain
+open checklist work; this does not adopt deferred public query access syntax.
 
 ### Initial schema declaration consumer (2026-10-04)
 
@@ -767,9 +767,8 @@ handles to its own typed runtime representation, so constructed references do
 not require a fake source arena. Each site makes one bounded resolution request;
 this is not a whole-compilation work budget or an automatic lifecycle service.
 Compilation without an evaluator records unevaluated sites as pending and does
-not request evaluation. Package lifecycle invocation and publication remain
-explicit actionable work in
-[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
+not request evaluation. The native package lifecycle stage described below
+invokes the consumer before coordinated publication.
 
 
 ### Native CEM-QL declaration consumer (2026-10-04)
@@ -803,10 +802,9 @@ scope-reference syntax. Different scopes require a directed
 from an equal node ID or a supplied query binding. Native constructed references
 inherit the evaluating scope; retained targets use their registered scope.
 
-The host is opt-in consumer code. Source-only package loading remains pending;
-connecting the package lifecycle's supplied context to compilation and
-coordinated publication remains an actionable task in
-[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
+The host is opt-in consumer code. Source-only package loading remains pending.
+The native package bridge supplies caller-selected lifecycle context before
+coordinated publication, as described below.
 
 ### Schema readiness and coordinated package activation (2026-10-04)
 
@@ -851,6 +849,34 @@ resets that package's origin to `Untracked`, requiring explicit authority
 rather than borrowing an earlier manifest's ownership.
 
 The grant and publication APIs are runtime consumer policy, not CEM-ML syntax.
-Production lifecycle evaluation remains actionable work, with verification
-scenarios, in
+
+### Explicit package lifecycle compilation (2026-10-04)
+
+`EngineContext.schema_package_compiler` is an optional native consumer hook.
+`CemQlSchemaPackageCompiler` in the bridge crate prepares a fresh declaration
+host for each invocation using the caller's current runtime snapshot, effective
+scope policies and directed crossing grants. Ordinary query adapter registration
+does not install the hook or supply data. `load_schema_package_manifest_into_context`
+exposes the explicit load/refresh stage; requests containing package manifests
+invoke the same stage on their enriched context. No scheduler or parser-time
+reference evaluation is introduced.
+
+The compilation request carries package/schema identities, resolved manifest
+origin and the retained schema tree. `schema_package_sources` retains source
+arenas by resolved URI and byte revision, including inactive candidates.
+Unchanged source reuses the original allocation when a pending candidate is
+compiled later. Changed bytes retain a new arena; failed parsing leaves the
+last valid arena available. This is a source cache, not an evaluated-target
+cache. Independent engine snapshots can share the source without sharing
+reference selections or writing results back into the authored tree.
+
+Replacement authority is checked before invoking the runtime compiler.
+Candidate compilation must return the requested schema identity. Compiler
+preparation failures retain original diagnostics and add a hard compilation
+failure if none was supplied; invalid traversal limits also fail publication.
+Native query failures retain their original codes and source attribution.
+The existing readiness and coordinated publication gates apply to every result.
+
+Remaining validation/composition consumers and deferred syntax/element behavior
+remain actionable work, with verification scenarios, in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).

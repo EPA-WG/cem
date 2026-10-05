@@ -5,6 +5,8 @@
 //! CEM-native fragment renderer. Keeping the bridge here avoids a dependency
 //! cycle from `cem_ml` back into `cem_ql`.
 
+pub mod schema_packages;
+
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
