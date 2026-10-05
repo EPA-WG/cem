@@ -550,14 +550,14 @@ List-item edges are not inherited-base edges, and whole-list inheritance remains
 deferred. Node contracts cannot acquire a scalar conversion merely through matching
 metadata. Registration checks do not add scope access or replace traversal limits.
 
-## Next decision: inherited converter selection
+## Adopted inherited converter selection
 
 A general datatype may inherit a base and add restrictions without changing its
 representation. Validation and conversion remain separate capabilities, and a
 consumer must explicitly request conversion. The compiler still needs a rule for
 selecting the one converter when several declarations contribute constraints.
 
-Recommended contract: inherit the base converter unless the derived datatype has
+Inherit the base converter unless the derived datatype has
 an explicitly registered compatible conversion capability. Select one effective
 converter during compilation, invoke it once when conversion is requested, then
 validate that result against every base, derived and attribute-local restriction.
@@ -567,15 +567,54 @@ converters as an implicit pipeline, or fall back to another converter after a
 failure. The selected output must satisfy the registered representation and base
 compatibility contract.
 
-Alternative: require every derived datatype to register its own converter before
-it supports explicit conversion, even when it only adds restrictions. Validation-
-only use may remain available, but simple derivation does not inherit conversion.
+Missing conversion capability remains distinct from unavailable validation and
+invalid input. If an explicitly selected converter is unavailable, retain the
+candidate and preserve the last complete active package under the existing
+coordinated readiness policy; do not silently choose another implementation.
+A validation-only datatype may expose no conversion capability, and absence of
+an optional converter does not by itself make its validation contract unavailable.
+Concrete capability identities and registered output signatures still need wiring.
 
-Neither converter-selection policy is adopted yet. Missing conversion capability
-must remain distinct from unavailable validation and invalid input. If an explicit
-selected converter is unavailable, the last complete package remains active under
-the existing coordinated readiness policy; the compiler does not silently choose
-a different implementation.
+## Shared dependency traversal implementation plan
+
+The existing resolver supports an original owning container and consumer-selected
+original children under one active reference stack and request/destination budget.
+Reuse this boundary for datatype source roots and native dependency fields. Keep
+original base/rule attributes as dependency containers so singleton selection and
+target shape errors can be attributed to the correct field. Native references
+remain original nodes, and behavior selection does not descend into an entire
+imported schema.
+
+Literal QName binding is a compiler-owned symbolic dependency, not ordinary
+containment. It needs explicit lexical lookup and edge authorization under the
+same request accounting. Do not synthesize a Reference AST node, use structural
+containment to bypass crossing checks, or start a fresh resolver per field.
+Preserve incomplete dependency branches separately from complete empty selections.
+Registration, converter selection and restriction composition follow dependency
+binding; none can make an incomplete traversal appear ready.
+
+## Next decision: scalar values equality
+
+Scalar datatype declaration `values` needs a comparison contract. Existing
+attribute-local `values` behavior remains a separate migration compatibility
+surface. A restriction must not silently change the candidate representation to
+make an enumeration match.
+
+Recommended contract: compare values using equality declared by the registered
+datatype contract. For an integer contract, numeric `003` and `3` may compare equal;
+for a string contract, distinct lexical strings remain distinct unless its declared
+equality says otherwise. Preparing enumeration constants during schema compilation
+and comparing a supplied value do not authorize rewriting that value or implicitly
+invoking its converter during validation. Unknown equality/constant interpretation
+cannot establish a ready values restriction.
+
+Alternative: compare the supplied lexical value to the authored enumeration tokens
+exactly. This follows a simple lexical vocabulary model, but numeric `003` does not
+match an allowed `3` unless the consumer explicitly converted the input first.
+
+Choose the scalar declaration contract before compiling `values` restrictions and
+registered equality adapters. No typed-equality behavior or migration of existing
+attribute-local vocabularies is enabled by this proposal.
 
 ## Verified inventory and current native boundary
 

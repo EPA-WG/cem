@@ -1280,12 +1280,28 @@ implementation verification. They do not claim executable test coverage.
       the bounded dependency compiler.
       Scenarios for later design verification: a derived restriction retains the
       base implementation identity; incompatible contracts never activate by name.
-- [ ] Decide inherited converter selection: inherit the base converter unless a
-      compatible derived converter is explicitly registered (recommended), or require
-      every derived datatype to register its own converter. Select and invoke one
+- [x] Adopt inherited converter selection: inherit the base converter unless a
+      compatible derived converter is explicitly registered. Select and invoke one
       converter, then validate all effective restrictions without a hidden pipeline.
       Scenarios for later design verification: restrictions cannot replace a value;
       unavailable selected converters never trigger silent fallback to a base converter.
+- [ ] Implement effective converter selection with original implementation identity
+      and registered output compatibility; add fixture actions for inherited reuse,
+      explicit replacement, unavailable selected capability and validation-only types
+      before wiring executable conversion. Never fall back after selected failure.
+      Scenarios for later design verification: one converter produces the canonical
+      value; inherited/local restrictions all inspect it without rewriting or chaining.
+- [ ] Implement shared datatype dependency traversal over original owning containers
+      and base/rule fields, preserving per-field singleton/target diagnostics. Specify
+      charged and authorized literal QName edges before joining them to native edges;
+      add fixture actions for budgets, cycles and scope crossings before implementation.
+      Scenarios for later design verification: containment never bypasses a grant;
+      native and literal dependencies share accounting without synthetic Reference ASTs.
+- [ ] Decide scalar datatype declaration `values` equality: use registered datatype
+      equality (recommended), or exact authored lexical token comparison. Preserve
+      existing attribute-local vocabulary behavior until its migration is explicit.
+      Scenarios for later design verification: integer 003 versus 3 has a defined
+      outcome; equality never rewrites the candidate or implicitly invokes conversion.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.

@@ -1390,7 +1390,10 @@ or establish executable readiness. Inherited base compatibility must be declared
 by registered contracts; matching value representation alone is insufficient.
 Inherited-kind derivation reuses the resolved base contract, while additional
 native rules and explicit cross-kind relationships require compatible registration.
-The next decision is converter selection: inherit the base converter unless an
-explicit compatible derived converter is registered (recommended), or require
-every derived datatype to register its own converter. Conversion remains an explicit
-consumer request and runs once before all effective restrictions validate its result.
+Converter selection inherits the base converter unless an explicit compatible
+derived converter is registered. Conversion remains an explicit consumer request
+and runs once before all effective restrictions validate its result; unavailable
+selected capabilities never trigger silent fallback. The next decision is scalar
+declaration `values` equality: use registered datatype equality (recommended), or
+exact lexical token matching. Equality cannot rewrite supplied values or implicitly
+invoke conversion. Existing attribute-local vocabulary migration remains separate.
