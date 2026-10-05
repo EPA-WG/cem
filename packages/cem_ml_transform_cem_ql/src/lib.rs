@@ -14,6 +14,8 @@ use std::sync::Arc;
 #[cfg(feature = "debug-control")]
 pub use cem_ql::debug_control::CemQlDebugConditionEvaluator;
 
+mod retained_behaviors;
+
 use cem_ml::conversion::{
     execute_conversion_output_pipeline_from_typed_cemt_subject_with_environment,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment, ConversionOutputPipelineStage,
@@ -331,6 +333,14 @@ impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
         diagnostics
     }
 
+    fn validate_retained_structure(
+        &self,
+        structure: cem_ml::schema::input_references::RetainedValidationStructure<'_>,
+        model: &SchemaDocumentModel,
+    ) -> cem_ml::schema::input_references::RetainedBehaviorValidation {
+        retained_behaviors::validate(structure, model)
+    }
+
     fn validate_document(
         &self,
         document: &CemDocument,
@@ -621,11 +631,20 @@ fn candidate_match_bindings(
     candidate: &SchemaBehaviorCandidate,
     binding_names: &BTreeSet<String>,
 ) -> BTreeMap<String, ItemStream> {
+    candidate_match_bindings_with_item(
+        candidate,
+        binding_names,
+        candidate_record_item(candidate),
+    )
+}
+
+fn candidate_match_bindings_with_item(
+    candidate: &SchemaBehaviorCandidate,
+    binding_names: &BTreeSet<String>,
+    item: Item,
+) -> BTreeMap<String, ItemStream> {
     let mut bindings = BTreeMap::new();
-    bindings.insert(
-        "candidate".to_owned(),
-        ItemStream::once(candidate_record_item(candidate)),
-    );
+    bindings.insert("candidate".to_owned(), ItemStream::once(item));
     bindings.insert(
         "element".to_owned(),
         ItemStream::once(Item::Atomic(AtomValue::String(candidate.element.clone()))),
@@ -817,7 +836,25 @@ fn execute_schema_behavior_function(
             ))
         }
     };
-    let return_type = schema_behavior_value_type(&function.returns);
+    schema_behavior_result_diagnostic(
+        model,
+        diagnostic,
+        function_name,
+        candidate,
+        &function.returns,
+        result,
+    )
+}
+
+fn schema_behavior_result_diagnostic(
+    model: &SchemaDocumentModel,
+    diagnostic: &DiagnosticBehavior,
+    function_name: &str,
+    candidate: &SchemaBehaviorCandidate,
+    declared_return_type: &str,
+    result: Value,
+) -> Option<Diagnostic> {
+    let return_type = schema_behavior_value_type(declared_return_type);
     if !return_type.accepts(&result) {
         return Some(schema_behavior_function_failed_diagnostic(
             model,

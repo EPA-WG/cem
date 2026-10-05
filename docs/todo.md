@@ -507,7 +507,7 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: incomplete ignored links still
       prevent a completed verdict without becoming synthetic violations.
 - [ ] Integrate structural reference validation into an explicit runtime-selected
-      engine lifecycle hook after retained behavior-check cardinality is decided.
+      engine lifecycle hook after the runtime owner/context handoff is decided.
       Propagate the explicit consumer's completion and diagnostics through the
       report metadata; keep parser/load stages unevaluated. Do not make ignore
       policy silently resolve missing children.
@@ -544,15 +544,78 @@ implementation. `git diff --check` passes.
       and the known legacy dropdown selector failure.
       Scenarios for later design verification: selected nodes from multiple
       owners retain their function context and source attribution.
-- [ ] Decide behavior-check cardinality for repeated retained source nodes, then
-      implement the retained path in `CemQlSchemaBehaviorEvaluator`. Recommended:
-      check each consumer placement with its consumed parent/child context;
-      alternative: check each original source node once. Preserve distinct
-      placement handles across arenas whose local node IDs overlap. Do not
-      replace retained nodes with JSON records or synthesize expanded arenas.
-      Scenarios for later design verification: one original node is selected by
-      two different parents; each placement has different child relationships;
-      the originating lexical schema and source attribution remain available.
+- [x] Adopt per-placement behavior checks for repeated retained source nodes.
+      Each consumer placement keeps its consumed parent and child context;
+      original node/owner identity never deduplicates distinct placements.
+      Scenarios for later design verification: the same original node under two
+      parents may produce different behavior outcomes without source expansion.
+- [x] Fixture: native QL placement views retain original owners and lexical
+      schemas, expose consumed parent/child axes and typed original attributes,
+      distinguish repeated selections and overlapping arena node IDs, and reject
+      incomplete or malformed validation graphs without returning empty axes.
+      Scenarios for later design verification: source parents differ from
+      consumed parents; text extraction follows selected children; no AST clone,
+      record substitute, context ID or reference target-list mutation is needed.
+- [x] Fixture: standalone QL selects repeated placements by their different
+      consumed parents and extracts text through native views. Distinguish a
+      completed empty selection from pending roots even when both graphs are
+      empty, and preserve independent query snapshots of the same source nodes.
+      Scenarios for later design verification: per-placement identity survives
+      selection/set operations while original source identity remains shared.
+- [x] Fixture: construct placement views from real native QL host results,
+      enforcing context readiness and directed scope grants before query access.
+      Resolve the same root reference to a target, an empty selection, then
+      pending context without changing the source reference.
+      Scenarios for later design verification: pending empty graphs stay
+      incomplete after an earlier completed runtime snapshot.
+- [x] Implement native per-placement query views for retained validation.
+      `RetainedValidationQueryTree` retains original owner handles and consumed
+      graph edges; `ValidationPlacementNode` exposes native parent/child axes,
+      original typed attributes, source maps and optional declaring schemas.
+      Distinct placement/snapshot identities do not create authored or context
+      IDs. Constructor checks readiness, owning edges and forest reachability;
+      unavailable roots/children never become completed empty axes.
+      Scenarios for later design verification: each placement has independent
+      query focus and retains its originating schema/source attribution.
+- [x] Use placement views in `CemQlSchemaBehaviorEvaluator`. Native select/match
+      and function paths operate per consumed placement; candidates retain their
+      original owners and source maps. Explicit diagnostic scalar extraction
+      preserves the reporting boundary. Keep legacy whole-document APIs compatible.
+      Verification: full Nx QL target (857 passes, 9 ignored), full Nx
+      bridge target (125 passes), and 56 focused ML reference/completion checks
+      pass; the new suites cover six placement and six behavior fixtures.
+      Scenarios for later design verification: each occurrence's match/function
+      result uses its consumed parent/child context and original lexical schema.
+- [ ] Choose the engine runtime handoff, then integrate the explicit validation
+      hook and propagate consumer completion/diagnostics into validate/check.
+      Recommended: retain the engine's parsed owner and invoke an optional,
+      caller-provided runtime stage supplying a per-input context snapshot.
+      Alternative: a separate retained-input validation request API.
+      Scenarios for later design verification: ordinary source-only validation
+      stays pending; runtime snapshots use original arenas without reparsing,
+      copying ASTs, inventing context IDs, or sharing reference target lists.
+- [x] Adopt retained behavior function candidate typing: require
+      explicit `node` candidate parameters on the retained path while preserving
+      existing `object` signatures on the legacy whole-document path.
+      Do not copy a retained candidate into a JSON/object record.
+      Scenarios for later design verification: legacy candidate property paths
+      remain compatible in their declared mode; typed nodes carry original owner,
+      consumed placement context and source maps through function execution.
+- [x] Fixture: retained schema behaviors select each placement independently,
+      extract native candidate parent/name/attribute fields in function bodies,
+      reject object candidate parameters and node-valued diagnostic output,
+      preserve legacy object execution, and distinguish pending/empty stages.
+      Scenarios for later design verification: repeated source nodes under two
+      consumed parents produce separate attributed diagnostics without AST copies.
+- [x] Fixture: native QL host behavior validation enforces directed scope grants
+      and context readiness, preserves original source maps, and checks repeated
+      placements across owners with overlapping arena IDs.
+      Scenarios for later design verification: denied or pending inputs never run
+      behavior; a completed empty result remains distinct and leaves sources intact.
+- [x] Fixture: retained function signature checks run even for empty selections,
+      and selectors returning original attributes are rejected as non-elements.
+      Scenarios for later design verification: invalid consumer contracts cannot
+      pass merely because a runtime snapshot currently selects no candidates.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects

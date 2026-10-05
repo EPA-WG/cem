@@ -23,6 +23,7 @@ pub mod retained_template;
 pub mod resolve;
 pub mod semantic;
 pub mod schema_references;
+pub mod validation_structure;
 pub mod stdlib;
 pub mod template;
 pub mod template_artifact;

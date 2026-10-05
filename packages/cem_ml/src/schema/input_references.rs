@@ -66,6 +66,8 @@ pub struct StructuralInputValidation<N> {
 /// consumed parent/child relationships are represented by graph edges.
 #[derive(Debug, Clone, Copy)]
 pub struct RetainedValidationStructure<'a> {
+    /// Overall readiness of the explicit consumer stage, including pending roots.
+    pub complete: bool,
     pub source: &'a Arc<CemDocument>,
     pub nodes: &'a [StructuralValidationNode],
     pub roots: &'a [usize],
@@ -81,6 +83,7 @@ pub struct RetainedBehaviorValidation {
 impl<N> StructuralInputValidation<N> {
     pub fn structure(&self) -> RetainedValidationStructure<'_> {
         RetainedValidationStructure {
+            complete: self.complete,
             source: &self.source,
             nodes: &self.nodes,
             roots: &self.roots,

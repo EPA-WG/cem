@@ -900,7 +900,7 @@ input is rewritten. The existing sites are:
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Additive retained behavior handoff implemented; native QL behavior-check cardinality and engine runtime integration remain actionable work. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Native per-placement QL behavior checks and typed node function candidates implemented; engine runtime integration remains actionable work. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -961,8 +961,55 @@ separately: a completed stage may contain violations, while pending or unsupport
 behavior remains incomplete. Existing evaluators that implement only the legacy
 whole-document hook are not called on a synthetic document and do not implicitly
 complete the new stage. Structural-only validation remains available without
-installing a behavior evaluator. The policy for checking repeated placements in
-the native QL behavior evaluator remains a decision recorded in the todo list.
+installing a behavior evaluator. Behavior checks apply per consumer placement.
+Sharing one original source node never deduplicates placements: different
+consumed parents or selected child relationships can produce different results
+while original owner and lexical context stay shared.
+
+Native QL exposes this graph through `RetainedValidationQueryTree` and
+`ValidationPlacementNode`. Each snapshot shares original CEM arenas and retains
+only placement handles/edges. Native query parent/child axes follow consumed
+relationships; attributes remain typed original-source nodes whose query parent
+is their owning placement. Source maps and optional declaring schemas retain
+original provenance. Placement and snapshot identity distinguish repeated
+selections and overlapping arena node IDs without introducing authored/context
+IDs. Explicit text extraction follows consumed children, including selections
+from other owners, without expanding the source tree or converting nodes into
+records.
+
+The query-tree constructor rejects incomplete stages/children and malformed
+owning graphs before exposing access. A completed zero-target selection provides
+an empty query forest; pending roots do not. `RetainedValidationStructure`
+includes overall completion so pending roots cannot be mistaken for readiness
+merely because all available placements have complete children. Views expose
+only the already consumed forest; their creation does not evaluate references
+or grant additional scope crossings.
+
+Any retained behavior function candidate parameter requires an explicit `node`
+type (including qualified schema node types). Existing whole-document
+behavior functions keep their record-shaped `object` candidates on the legacy
+path. The retained evaluator checks candidate signatures even when the current
+selection is empty; object signatures fail the retained contract rather than
+silently adapting or copying the node.
+
+`CemQlSchemaBehaviorEvaluator.validate_retained_structure` now selects native
+element placements from the current query snapshot and evaluates each placement
+independently. Selecting the same placement twice checks it once; distinct
+placements of the same original node remain independent. Non-element or foreign
+snapshot selections are invalid. Attribute-name match conveniences remain scalar
+bindings, while `candidate` itself is native. Function paths such as
+`$candidate.parent.name`, `$candidate.name`, and `$candidate.attributes.value`
+extract consumed ancestry or original scalar data. Diagnostic output objects and
+arrays are an explicit reporting boundary: returning a native node there requires
+scalar extraction and never implies AST serialization. Original source maps and
+placement attribution accompany emitted diagnostics.
+
+The explicit QL host supplies context snapshots and directed scope grants before
+behavior access. Pending structures defer behavior; complete empty structures
+remain valid empty selections. Installing the engine hook remains deferred until
+the runtime handoff is chosen: retain the engine's parsed owner and invoke an
+optional per-input runtime stage (recommended), or add a separate retained-input
+validation request. Ordinary parser/load and source-only requests stay unevaluated.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

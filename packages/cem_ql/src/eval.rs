@@ -96,7 +96,9 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
     }
     fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> { None }
     fn value_contract(&self) -> Option<cem_ml::schema::document_model::AttributeValueContract> { None }
-    /// Return the original parent with its owner and access restrictions.
+    /// Return the parent represented by this view, preserving its owner and
+    /// access restrictions. Source views expose original ancestry; explicit
+    /// consumer placements expose consumed ancestry without changing the source.
     fn parent(&self, _scope: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
         Err(QueryNodeAccessError::Unsupported)
     }
