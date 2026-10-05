@@ -12,6 +12,12 @@ remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
+Workstream boundary: general datatype execution, conversion, equality and enumeration
+are separate from core reference adoption. Preserve the adopted contracts here, but
+complete reference binding and readiness boundaries independently. The specific
+executable native attribute `@type` consumer stays guarded until this compiler is
+ready; this is not a blocker for other reference consumers.
+
 ## Problem and accepted boundary
 
 The current schema document compiler constructs attributes and their local
@@ -627,17 +633,24 @@ The traversal retains source plans, field-grouped targets, hard target issues an
 deferred dependencies. Native cycles, request/destination limits and denied scope
 crossings keep selection incomplete. A complete empty or multiple selection is a
 cardinality error, whereas a pending selection is not an empty result. Literal
-QName dependencies and missing original lexical source context remain explicitly
+QName dependencies now use the explicit `lookup_literal_type` lifecycle hook.
+It receives the original `DatatypeSource`, field and unchanged QName; the host binds
+names in that declaring lexical scope and returns original typed targets. Symbolic
+links retain original attribute metadata without synthesizing Reference AST nodes.
+They share native budgets, depth, active-link detection, unresolved policy and grants.
+An absent lookup adapter is pending. Missing original lexical source context remains
 deferred. Wrong target kinds and malformed source fields fail independently of
 unresolved-reference disposition.
 
-Nine traversal fixtures and the adjacent source/registry/inventory/native-value/
-declaration-reference regressions pass (101 total). Completeness here describes
-dependency selection, not executable datatype readiness. Literal lookup, capability
-registration, effective facet checks and conversion/equality execution still need
-adapters; existing native attribute type consumption stays guarded.
+Thirteen traversal fixtures and the adjacent source/registry/inventory/native-value/
+declaration-reference regressions pass (105 total), including mixed edges, declaring
+scope preservation with conflicting names, crossing grants and shared limits.
+Completeness here describes dependency selection, not executable datatype readiness.
+Compiler namespace/capability adapters, effective facet checks and conversion/equality
+execution remain pending in this separate datatype workstream; existing native
+attribute type consumption stays guarded.
 
-## Next decision: enumeration constant authoring
+## Deferred datatype decision: enumeration constant authoring
 
 The existing `values` attribute is a string whose current compiler helper splits
 whitespace-separated tokens. It can express a vocabulary such as `true false` or
@@ -655,6 +668,7 @@ original owners, typed scalar literal admission, references and compatibility wi
 the existing token form. This supports whitespace-containing strings and richer
 values directly but adds metamodel and source-selection work before activation.
 
+This decision is deferred to the separate datatype workstream and remains unanswered.
 Choose this source boundary before enum constant compilation. Whichever form is
 chosen, list/node declaration `values` rejection and the separation of existing
 attribute-local vocabulary migration remain effective.

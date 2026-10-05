@@ -1091,7 +1091,47 @@ implementation verification. They do not claim executable test coverage.
 - Schema constructs are declared once and referenced by composition and
   validation consumers without copying them into the source tree.
 
+## Reference adoption: dependency binding and readiness
+
+General datatype execution, conversion, equality and enumeration authoring are a
+separate workstream below. Its adopted decisions remain effective. They do not
+block core reference adoption; executable native attribute `@type` specifically
+remains guarded until that compiler is ready.
+
+- [x] Fixture: bind literal datatype dependencies through an explicit declaring-scope
+      lookup hook, preserving the original QName and field; verify mixed native/literal
+      chains, same names in independent scopes, cycles, request/destination limits,
+      crossing grants, pending versus empty/multiple targets and original provenance.
+      Include imported declarations with conflicting local names, mixed-link depth
+      limits and unchanged authored attributes after selection.
+      Scenarios for later design verification: lookup uses the original declaring
+      scope, never the importing consumer's aliases; no synthetic Reference AST is made.
+- [x] Implement literal dependency lookup under those fixtures as a consumer-owned
+      symbolic link over the original field, sharing the native traversal's accounting,
+      active-link detection and grants. An absent lookup adapter remains pending.
+      Scenarios for later design verification: a QName is never stripped into an
+      implicit built-in fallback; lookup availability does not establish execution readiness.
+      Verification: 13 dependency traversal fixtures and 92 adjacent source/registry/
+      inventory/native-value/declaration-reference tests pass (105 total).
+- [ ] Audit and finish the remaining retained reference expression-slot integration
+      and CEM/XML parity from sections 1–2 above. Identify existing coverage first;
+      add focused native fixture actions for actual gaps before implementation.
+      Scenarios for later design verification: standalone and attribute references
+      preserve expression artifacts and source-position bindings; loading never
+      evaluates targets or requires an authored runtime-context ID.
+- [ ] Integrate dependency selection outcomes with schema consumer readiness when
+      the separate datatype compiler supplies its executable contracts. Add readiness
+      fixtures before integration; preserve available sources for inspection and the
+      last complete active package while replacement dependencies remain incomplete.
+      Scenarios for later design verification: complete selection cannot activate an
+      unavailable execution contract; pending lookup is distinct from a complete empty result.
+
 ## General datatype compilation design
+
+Separate workstream: preserve all adopted contracts here, but keep execution,
+equality and enumeration decisions outside the core reference implementation.
+The enumeration authoring recommendation remains undecided and deferred to this
+workstream; no new constant syntax is adopted by the reference work.
 
 - [x] Draft the general datatype compiler representation, dependency lifecycle,
       kind inventory, migration boundary and implementation sequence in
@@ -1291,10 +1331,11 @@ implementation verification. They do not claim executable test coverage.
       before wiring executable conversion. Never fall back after selected failure.
       Scenarios for later design verification: one converter produces the canonical
       value; inherited/local restrictions all inspect it without rewriting or chaining.
-- [ ] Implement shared datatype dependency traversal over original owning containers
-      and base/rule fields, preserving per-field singleton/target diagnostics. Specify
-      charged and authorized literal QName edges before joining them to native edges;
-      add fixture actions for budgets, cycles and scope crossings before implementation.
+- [x] Implement shared datatype dependency traversal over original owning containers
+      and base/rule fields, preserving per-field singleton/target diagnostics. Literal
+      QName lookup now uses an explicit original-scope host hook under the same charged
+      and authorized walk; see the reference binding fixtures above. Executable compiler
+      adapters and registered capability admission remain separate pending work.
       Scenarios for later design verification: containment never bypasses a grant;
       native and literal dependencies share accounting without synthetic Reference ASTs.
 - [x] Adopt registered datatype equality for scalar declaration `values`. Preserve

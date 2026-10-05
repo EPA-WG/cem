@@ -1398,11 +1398,28 @@ uses registered datatype equality, retaining each inherited restriction's origin
 contract and binding. Equality cannot rewrite supplied values or implicitly invoke
 conversion. Existing attribute-local vocabulary migration remains separate.
 
-Bounded native datatype dependency traversal now shares request/destination budgets,
-active references and explicit grants across retained base/rule field containers.
-It preserves per-field target diagnostics and stops at invalid target kinds; literal
-QName lookup and missing declaring source context remain deferred. Nine native
-traversal fixtures and adjacent regressions pass (101 total). Selection completeness
-does not establish executable datatype readiness. The next decision is enumeration
-constant authoring: retain whitespace-token `values` and defer richer retained
-constants (recommended), or design retained constant declarations now.
+Bounded datatype dependency selection shares request/destination budgets, active
+links and explicit grants across retained base/rule field containers. Native
+references and literal QName dependencies use the same walk. Literal names pass
+unchanged through an explicit lifecycle lookup hook with the original declaring
+source and field, preserving that scope's aliases after imports. Consumer-owned
+symbolic link metadata retains the original attribute; it does not create an AST
+Reference or mutate the source. Pending lookup remains distinct from complete empty
+selection, and missing declaring source context remains deferred. Thirteen traversal
+fixtures and adjacent regressions pass (105 total). Selection completeness does not
+establish executable datatype readiness.
+
+### Reference and datatype workstream boundary
+
+General datatype execution, conversion, equality and enumeration authoring are a
+separate workstream in the [datatype proposal](cem-datatype-compilation-proposal.md)
+and [datatype actions](todo.md#general-datatype-compilation-design). All adopted
+contracts remain effective. Enumeration constant authoring remains an unanswered
+future datatype decision, rather than the next decision for reference adoption.
+
+Core reference work can continue with explicit consumer binding, lifecycle outcomes
+and readiness boundaries. The particular executable native attribute `@type`
+consumer remains guarded until its separately designed datatype compiler is ready.
+Complete reference selection cannot by itself claim an executable type or activate
+an incomplete schema package. Track the integration and its verification scenarios
+in [reference adoption actions](todo.md#reference-adoption-dependency-binding-and-readiness).

@@ -1,4 +1,4 @@
-//! Bounded native dependency selection, before executable datatype compilation.
+//! Bounded native and symbolic dependency selection, before executable compilation.
 use super::{
     declaration_name, DatatypeDependency, DatatypeDependencyRole, DatatypeDependencyValue,
     DatatypeSource, DatatypeSourcePlan,
@@ -21,6 +21,20 @@ pub trait DatatypeDependencyHost: SchemaDeclarationHost {
     /// source context keeps dependency compilation deferred, never inferred from
     /// the consuming declaration's aliases or the target document's ownership.
     fn datatype_source(&self, target: &SchemaDeclarationNode) -> Option<DatatypeSource>;
+
+    /// Resolve the unchanged literal QName using the original declaring source's
+    /// lexical bindings. The host owns namespace admission and implementation
+    /// lookup; matching a local name never implicitly grants a built-in contract.
+    /// Returned targets pass the same bounds, grants and target checks as native
+    /// selection. Missing lifecycle lookup remains pending, not an empty result.
+    fn lookup_literal_type(
+        &mut self,
+        _source: &DatatypeSource,
+        _dependency: &DatatypeDependency,
+        _qname: &str,
+    ) -> ReferenceLinkEvaluation<Self::Node> {
+        ReferenceLinkEvaluation::Pending("datatype-literal-lookup-unavailable".into())
+    }
 }
 
 /// Consumer containers retain original fields; they are not synthetic AST nodes
@@ -28,12 +42,14 @@ pub trait DatatypeDependencyHost: SchemaDeclarationHost {
 #[derive(Debug, Clone)]
 pub enum DatatypeTraversalNode<N> {
     Value(N, Option<DatatypeDependencyRole>),
-    Field(DatatypeDependency),
+    Field(DatatypeDependency, DatatypeSource),
+    /// Compiler-owned symbolic link metadata over an original attribute. This
+    /// does not construct an AST Reference or change the authored attribute.
+    Literal(DatatypeDependency, DatatypeSource),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatatypeDeferredReason {
-    LiteralBinding,
     MissingSource,
 }
 #[derive(Debug, Clone)]
@@ -60,7 +76,7 @@ pub struct DatatypeDependencySite {
 }
 
 /// Complete here means dependency selection, not executable datatype readiness.
-/// Registered signatures, literal lookup, effective facets and converter/equality
+/// Registered signatures, effective facets and converter/equality
 /// selection remain compiler responsibilities. Available original sources survive
 /// even when another branch is incomplete or invalid.
 #[derive(Debug, Clone)]
@@ -90,7 +106,9 @@ impl<H: DatatypeDependencyHost> TraversalHost<'_, H> {
     fn source_value(&self, node: &DatatypeTraversalNode<H::Node>) -> H::Node {
         match node {
             DatatypeTraversalNode::Value(value, _) => value.clone(),
-            DatatypeTraversalNode::Field(edge) => self.0.source_reference(edge.attribute.clone()),
+            DatatypeTraversalNode::Field(edge, _) | DatatypeTraversalNode::Literal(edge, _) => {
+                self.0.source_reference(edge.attribute.clone())
+            }
         }
     }
 }
@@ -106,7 +124,21 @@ impl<H: DatatypeDependencyHost> ReferenceResolutionHost for TraversalHost<'_, H>
     fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
         match node {
             DatatypeTraversalNode::Value(value, _) => self.0.reference_occurrence(value),
-            DatatypeTraversalNode::Field(_) => None,
+            DatatypeTraversalNode::Field(_, _) => None,
+            DatatypeTraversalNode::Literal(edge, _) => {
+                let CemAstNode::Attribute {
+                    node_id, source, ..
+                } = edge.attribute.node()
+                else {
+                    return None;
+                };
+                Some(ReferenceOccurrence {
+                    identity: format!("datatype-literal:{}", edge.attribute.identity()),
+                    node_id: Some(*node_id),
+                    expression: None,
+                    source_map: source.clone(),
+                })
+            }
         }
     }
     fn unresolved_policy(&self, node: &Self::Node) -> &ReferenceUnresolvedPolicy {
@@ -117,26 +149,38 @@ impl<H: DatatypeDependencyHost> ReferenceResolutionHost for TraversalHost<'_, H>
             .permits_edge(&self.source_value(reference), &self.source_value(target))
     }
     fn evaluate(&mut self, node: &Self::Node) -> ReferenceLinkEvaluation<Self::Node> {
-        match node {
-            DatatypeTraversalNode::Value(value, role) => match self.0.evaluate(value) {
-                ReferenceLinkEvaluation::Resolved(nodes) => ReferenceLinkEvaluation::Resolved(
-                    nodes
-                        .into_iter()
-                        .map(|node| DatatypeTraversalNode::Value(node, *role))
-                        .collect(),
-                ),
-                ReferenceLinkEvaluation::Pending(reason) => {
-                    ReferenceLinkEvaluation::Pending(reason)
-                }
-                ReferenceLinkEvaluation::Unresolved(reason) => {
-                    ReferenceLinkEvaluation::Unresolved(reason)
-                }
-                ReferenceLinkEvaluation::Invalid(diagnostics) => {
-                    ReferenceLinkEvaluation::Invalid(diagnostics)
-                }
-            },
-            DatatypeTraversalNode::Field(_) => {
-                ReferenceLinkEvaluation::Unresolved("dependency-container-not-reference".into())
+        let (evaluation, role) = match node {
+            DatatypeTraversalNode::Value(value, role) => (self.0.evaluate(value), *role),
+            DatatypeTraversalNode::Literal(edge, source) => {
+                let DatatypeDependencyValue::Literal(qname) = &edge.value else {
+                    return ReferenceLinkEvaluation::Unresolved(
+                        "invalid-literal-dependency".into(),
+                    );
+                };
+                (
+                    self.0.lookup_literal_type(source, edge, qname),
+                    Some(edge.role),
+                )
+            }
+            DatatypeTraversalNode::Field(_, _) => {
+                return ReferenceLinkEvaluation::Unresolved(
+                    "dependency-container-not-reference".into(),
+                );
+            }
+        };
+        match evaluation {
+            ReferenceLinkEvaluation::Resolved(nodes) => ReferenceLinkEvaluation::Resolved(
+                nodes
+                    .into_iter()
+                    .map(|node| DatatypeTraversalNode::Value(node, role))
+                    .collect(),
+            ),
+            ReferenceLinkEvaluation::Pending(reason) => ReferenceLinkEvaluation::Pending(reason),
+            ReferenceLinkEvaluation::Unresolved(reason) => {
+                ReferenceLinkEvaluation::Unresolved(reason)
+            }
+            ReferenceLinkEvaluation::Invalid(diagnostics) => {
+                ReferenceLinkEvaluation::Invalid(diagnostics)
             }
         }
     }
@@ -181,15 +225,19 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
         limits,
         Some(origin),
         |adapter, node| match node {
-            DatatypeTraversalNode::Field(edge) => match &edge.value {
+            DatatypeTraversalNode::Field(edge, source) => match &edge.value {
                 DatatypeDependencyValue::Native(reference) => {
                     Some(vec![DatatypeTraversalNode::Value(
                         adapter.0.source_reference(reference.clone()),
                         Some(edge.role),
                     )])
                 }
-                DatatypeDependencyValue::Literal(_) => None,
+                DatatypeDependencyValue::Literal(_) => Some(vec![DatatypeTraversalNode::Literal(
+                    edge.clone(),
+                    source.clone(),
+                )]),
             },
+            DatatypeTraversalNode::Literal(_, _) => None,
             DatatypeTraversalNode::Value(value, role) => {
                 let target = adapter.0.declaration_node(value)?;
                 if role.is_some_and(|role| !valid_target(&target, role)) {
@@ -205,7 +253,7 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
                         .plan()
                         .dependencies
                         .into_iter()
-                        .map(DatatypeTraversalNode::Field)
+                        .map(|edge| DatatypeTraversalNode::Field(edge, source.clone()))
                         .collect(),
                 )
             }
@@ -233,14 +281,8 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
                     }
                 }
             }
-            DatatypeTraversalNode::Field(edge) => {
-                if matches!(&edge.value, DatatypeDependencyValue::Literal(_)) {
-                    deferred.push(DatatypeDeferredDependency {
-                        reason: DatatypeDeferredReason::LiteralBinding,
-                        source: edge.attribute.clone(),
-                    });
-                    continue;
-                }
+            DatatypeTraversalNode::Literal(_, _) => {}
+            DatatypeTraversalNode::Field(edge, _) => {
                 let complete = walk.children_complete[index];
                 if complete && walk.children[index].len() != 1 {
                     issues.push(DatatypeDependencyIssue {
@@ -252,7 +294,8 @@ pub fn traverse_native_datatype_dependencies<H: DatatypeDependencyHost>(
                 for child in &walk.children[index] {
                     let target = match &walk.resolution.nodes[*child] {
                         DatatypeTraversalNode::Value(value, _) => adapter.0.declaration_node(value),
-                        DatatypeTraversalNode::Field(_) => None,
+                        DatatypeTraversalNode::Field(_, _)
+                        | DatatypeTraversalNode::Literal(_, _) => None,
                     };
                     if !target
                         .as_ref()

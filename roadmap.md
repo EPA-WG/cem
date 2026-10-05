@@ -1005,3 +1005,28 @@ These details remain separate from the adopted scope and lifecycle principles.
   output cases produce a documented outcome.
 - Source-reference export permits evaluation with a newly supplied runtime
   context, without requiring an authored context ID or persisted live bindings.
+
+
+## Separate general datatype compilation workstream
+
+General datatype compilation grew from native schema `@type` consumption. Its
+execution, conversion, equality and enumeration design is now tracked independently
+of core reference adoption. Preserve the adopted contracts in the
+[temporary datatype proposal](docs/cem-datatype-compilation-proposal.md) and the
+[implementation actions](docs/todo.md#general-datatype-compilation-design).
+
+- [ ] Finish registered datatype capability signatures, effective kind/facet contracts
+      and execution adapters before enabling executable native attribute `@type`.
+- [ ] Decide enumeration constant authoring in that workstream; the token-preservation
+      recommendation remains undecided. Add fixtures before constant/equality execution.
+- [ ] Integrate the completed compiler through the reference consumer readiness boundary,
+      then adopt the remaining proposal into maintained designs and remove the draft.
+
+### Scenarios for later design verification
+
+- Other reference consumers progress while executable native attribute `@type` stays
+  explicitly pending; complete dependency selection alone grants no type execution.
+- Equality preserves original restriction bindings without converting or rewriting
+  candidates; enumeration syntax never silently changes whitespace-containing values.
+- An incomplete datatype-backed package replacement preserves the last complete active
+  package, while original candidate declarations remain available for inspection.
