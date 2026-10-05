@@ -324,3 +324,185 @@ fn signature_validation_and_attribute_selection_do_not_depend_on_candidates() {
         .iter()
         .any(|d| d.code == "cem.schema_behavior.result_invalid"));
 }
+
+#[derive(Debug)]
+struct EngineStage {
+    library: Arc<cem_ml::parser::tree::RetainedCemTree>,
+    library_text: String,
+    calls: std::sync::atomic::AtomicUsize,
+    sources: std::sync::Mutex<Vec<Arc<cem_ml::parser::tree::RetainedCemTree>>>,
+}
+impl cem_ml::schema::input_validation::InputValidationStage for EngineStage {
+    fn validate(
+        &self,
+        request: cem_ml::schema::input_validation::InputValidationRequest<'_>,
+    ) -> Result<
+        cem_ml::schema::input_validation::InputValidationOutcome,
+        Vec<cem_ml::diagnostics::Diagnostic>,
+    > {
+        use cem_ql::{
+            api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+            eval::{ItemStream, RetainedCemNode},
+            schema_references::CemQlSchemaDeclarationHost,
+        };
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.sources.lock().unwrap().push(request.source.clone());
+        let target = element(self.library.ast_owner(), "item");
+        let context = StandaloneExpressionContext::default().with_binding(
+            "items",
+            StandaloneExpressionBinding::any(ItemStream::once(
+                RetainedCemNode::new(self.library.clone(), target.node_id())
+                    .unwrap()
+                    .query_item(),
+            )),
+        );
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let from = host.register_scope(
+            request.source.clone(),
+            Some(context),
+            request.policy.clone(),
+        );
+        let to = host.register_scope(self.library.clone(), None, request.policy.clone());
+        host.allow_scope_crossing(from, to);
+        if request.source.source_uri() == "pending.cem" {
+            host.set_context(from, None);
+        }
+        let mut report = host
+            .validate_input_with_behavior_evaluator(
+                request.source.clone(),
+                request.model,
+                request.policy.limits,
+                request.behavior_evaluator,
+            )
+            .map_err(|error| {
+                vec![cem_ml::diagnostics::Diagnostic {
+                    code: "fixture.stage".into(),
+                    severity: cem_ml::diagnostics::Severity::Error,
+                    message: format!("{error:?}"),
+                    ..Default::default()
+                }]
+            })?;
+        // The runtime owns each arena's provenance. Project explicit report
+        // diagnostics at that owner before the engine aggregates the results.
+        for diagnostic in &mut report.diagnostics {
+            if let Some(index) = diagnostic
+                .details
+                .as_ref()
+                .and_then(|v| v.get("placement"))
+                .and_then(|v| v.as_u64())
+            {
+                let source = &report.nodes[index as usize].source;
+                if Arc::ptr_eq(source.document(), self.library.ast_owner()) {
+                    cem_ml::diagnostics::project_diagnostics_for_source(
+                        std::slice::from_mut(diagnostic),
+                        self.library_text.as_bytes(),
+                    );
+                    diagnostic.uri = Some(self.library.source_uri().to_owned());
+                }
+            }
+        }
+        assert!(request
+            .source
+            .ast_owner()
+            .nodes
+            .iter()
+            .filter_map(|node| if let CemAstNode::Reference { targets, .. } = node {
+                Some(targets)
+            } else {
+                None
+            })
+            .all(|targets| targets.is_none()));
+        Ok(cem_ml::schema::input_validation::InputValidationOutcome {
+            complete: report.complete,
+            diagnostics: report.diagnostics,
+        })
+    }
+}
+#[test]
+fn engine_runtime_stage_executes_native_ql_behaviors_with_original_attribution() {
+    use cem_ml::{
+        engine::{
+            CemMlEngine, EngineContext, EngineInput, FailLevel, InputFormat, ValidateProjection,
+            ValidateRequest,
+        },
+        parser::tree::{CemTreeSemantics, RetainedCemTree},
+        real::RealCemMlEngine,
+        schema::registry::CEM_ML_SCHEMA_URI,
+    };
+    let library_text = "preface\n\n{item @kind=library}";
+    let library = RetainedCemTree::new(
+        Arc::try_unwrap(parse(library_text)).unwrap(),
+        "https://vendor.test/library.cem",
+        library_text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let stage = Arc::new(EngineStage {
+        library,
+        library_text: library_text.into(),
+        calls: Default::default(),
+        sources: Default::default(),
+    });
+    let mut context = EngineContext::default();
+    context.schema = Some(CEM_ML_SCHEMA_URI.into());
+    let mut model = make_model(
+        "node",
+        "item",
+        "true",
+        "{parent: $candidate.parent.name, kind: $candidate.attributes.value}",
+    );
+    model.schema_uri = CEM_ML_SCHEMA_URI.into();
+    context.schema_document_models.register(model);
+    context.input_validation_stage = Some(stage.clone());
+    context.schema_behavior_evaluator = Some(Arc::new(CemQlSchemaBehaviorEvaluator));
+    let source = r#"@ns p = "https://example.test/placement"
+@default p
+{left | {#items}}{right | {#items}}"#;
+    let input = |uri: &str| EngineInput {
+        uri: uri.into(),
+        bytes: source.as_bytes().to_vec(),
+        from_format: Some(InputFormat::Cem),
+        identity: None,
+        root_scope: Default::default(),
+    };
+    let response = RealCemMlEngine
+        .validate(ValidateRequest {
+            inputs: vec![input("complete.cem"), input("pending.cem")],
+            projection: ValidateProjection::Cem,
+            fail_level: FailLevel::Validate,
+            context,
+        })
+        .unwrap();
+    let completion = &response
+        .report
+        .report_ast
+        .validation
+        .as_ref()
+        .unwrap()
+        .inputs;
+    assert_eq!(
+        completion.iter().map(|c| c.complete).collect::<Vec<_>>(),
+        vec![true, false]
+    );
+    let emitted: Vec<_> = response
+        .report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "example.placement")
+        .collect();
+    assert_eq!(emitted.len(), 2, "{:?}", response.report.diagnostics);
+    for (diagnostic, parent) in emitted.iter().zip(["left", "right"]) {
+        assert_eq!(
+            diagnostic.uri.as_deref(),
+            Some("https://vendor.test/library.cem")
+        );
+        assert_eq!(diagnostic.line, Some(3), "{diagnostic:#?}");
+        assert_eq!(
+            diagnostic.details.as_ref().unwrap()["observed"]["parent"],
+            parent
+        );
+    }
+    assert_eq!(stage.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(stage.sources.lock().unwrap().len(), 2);
+}

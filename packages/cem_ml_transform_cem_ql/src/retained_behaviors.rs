@@ -175,6 +175,15 @@ pub(super) fn validate(
                 }
             }
             if let Some(mut result) = execute(model, diagnostic, definition, candidate, item) {
+                // Original source stacks include enclosing document frames.
+                // Attribute this placement at its own frame rather than the
+                // document origin, while retaining the complete source map.
+                result.byte_offset = candidate.source_map.current().and_then(|frame| match &frame
+                    .span
+                {
+                    FrameSpan::Single(range) => Some(range.start),
+                    FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+                });
                 if let Some(Value::Object(details)) = result.details.as_mut() {
                     details.insert("placement".to_owned(), json!(index));
                 }

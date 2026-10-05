@@ -167,6 +167,10 @@ pub struct EngineContext {
     pub query_runtime_registry: QueryRuntimeRegistry,
     pub operation_control: OperationControl,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
+    /// Explicit runtime stage for parser-backed validation with a ready model.
+    /// Registration never evaluates parse/load or ordinary query requests.
+    pub input_validation_stage:
+        Option<Arc<dyn crate::schema::input_validation::InputValidationStage>>,
     pub convert_request_handlers: Vec<Arc<dyn ConvertRequestHandler>>,
 }
 
@@ -198,6 +202,7 @@ impl Default for EngineContext {
             query_runtime_registry: QueryRuntimeRegistry::with_builtin_adapters(),
             operation_control: OperationControl::default(),
             schema_behavior_evaluator: None,
+            input_validation_stage: None,
             convert_request_handlers: Vec::new(),
         }
     }

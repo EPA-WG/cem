@@ -2063,16 +2063,39 @@ fn run_pipeline_as_with_context(
     context: Option<&EngineContext>,
     source_uri: Option<&str>,
 ) -> PipelineRun {
+    run_pipeline_as_with_model_validation(bytes, from_format, root_scope, context, source_uri, true)
+}
+
+fn run_pipeline_as_with_model_validation(
+    bytes: &[u8],
+    from_format: InputFormat,
+    root_scope: Option<&ScopeConfig>,
+    context: Option<&EngineContext>,
+    source_uri: Option<&str>,
+    include_document_model: bool,
+) -> PipelineRun {
     match from_format {
-        InputFormat::Cem => {
-            run_pipeline_with::<CemTokenizer>(bytes, root_scope, context, source_uri)
-        }
-        InputFormat::Html => {
-            run_pipeline_with::<HtmlTokenizer>(bytes, root_scope, context, source_uri)
-        }
-        InputFormat::Xml => {
-            run_pipeline_with::<XmlTokenizer>(bytes, root_scope, context, source_uri)
-        }
+        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(
+            bytes,
+            root_scope,
+            context,
+            source_uri,
+            include_document_model,
+        ),
+        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(
+            bytes,
+            root_scope,
+            context,
+            source_uri,
+            include_document_model,
+        ),
+        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(
+            bytes,
+            root_scope,
+            context,
+            source_uri,
+            include_document_model,
+        ),
     }
 }
 
@@ -2081,6 +2104,7 @@ fn run_pipeline_with<T>(
     root_scope: Option<&ScopeConfig>,
     context: Option<&EngineContext>,
     source_uri: Option<&str>,
+    include_document_model: bool,
 ) -> PipelineRun
 where
     T: SchemaTokenizer + FromBytes,
@@ -2128,7 +2152,11 @@ where
     document.diagnostics.extend(module_map.diagnostics);
 
     // Validation rule registry.
-    let registry = RuleRegistry::with_tier_a_rules();
+    let registry = if include_document_model {
+        RuleRegistry::with_tier_a_rules()
+    } else {
+        RuleRegistry::with_tier_a_rules_for_runtime_validation()
+    };
     let schema_uri = root_scope
         .and_then(|scope| scope.schema.as_deref())
         .or_else(|| context.and_then(|context| context.schema.as_deref()));
@@ -10140,6 +10168,7 @@ fn run_scheduled_validation_document(
     } = staged;
     let mut input_diags = std::mem::take(&mut diagnostics);
     let mut complete = true;
+    let mut runtime_diagnostics = Vec::new();
     if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
         if is_transform_config_schema(input, context) {
             input_diags.extend(validate_transform_config_document(
@@ -10148,19 +10177,26 @@ fn run_scheduled_validation_document(
                 &loaded.bytes,
             ));
         } else {
-            let run = run_pipeline_as_scoped_with_context_and_source_uri(
-                &loaded.bytes,
-                loaded.from_format,
-                &input.root_scope,
-                context,
-                &input_uri(input, context),
-            );
             let identity = effective_input_identity(input, context);
             let model = crate::schema::document_model::load_document_model_for_identity(
                 identity.schema.as_deref(),
                 identity.content_type.as_deref(),
                 Some(&context.schema_registry),
                 Some(&context.schema_document_models),
+            );
+            let runtime_stage = context.input_validation_stage.as_deref().filter(|_| {
+                model
+                    .as_ref()
+                    .is_some_and(|model| model.is_ready_for_validation())
+            });
+            let source_uri = input_uri(input, context);
+            let run = run_pipeline_as_with_model_validation(
+                &loaded.bytes,
+                loaded.from_format,
+                Some(&input.root_scope),
+                Some(context),
+                Some(&source_uri),
+                runtime_stage.is_none(),
             );
             complete = model.as_ref().map_or_else(
                 || {
@@ -10203,6 +10239,20 @@ fn run_scheduled_validation_document(
                 ));
             }
             input_diags.extend(run.diagnostics);
+            if let (Some(stage), Some(model)) = (runtime_stage, model.as_ref()) {
+                context.ensure_active()?;
+                let outcome = crate::schema::input_validation::run(
+                    stage,
+                    run.document,
+                    &source_uri,
+                    &loaded.bytes,
+                    &input.root_scope,
+                    model,
+                    context.schema_behavior_evaluator.as_deref(),
+                );
+                complete = outcome.complete;
+                runtime_diagnostics.extend(outcome.diagnostics);
+            }
         }
     }
     context.ensure_active()?;
@@ -10216,6 +10266,9 @@ fn run_scheduled_validation_document(
         started_at.elapsed().as_nanos(),
     ));
     project_diagnostics_for_source(&mut input_diags, &source_bytes_for_projection);
+    // Runtime outcomes already carry original-owner provenance. Project only
+    // source pipeline diagnostics before merging the explicit consumer result.
+    input_diags.extend(runtime_diagnostics);
     project_diagnostic_uris(&mut input_diags, input, context);
     Ok(ScheduledValidationOutcome {
         diagnostics: input_diags,

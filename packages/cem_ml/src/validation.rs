@@ -168,6 +168,15 @@ impl RuleRegistry {
 
     /// Register the Tier A catalog of CEM UI + policy rules.
     pub fn with_tier_a_rules() -> Self {
+        Self::tier_a_rules(true)
+    }
+
+    /// The explicit runtime stage replaces only the source model consumer.
+    pub(crate) fn with_tier_a_rules_for_runtime_validation() -> Self {
+        Self::tier_a_rules(false)
+    }
+
+    fn tier_a_rules(include_document_model: bool) -> Self {
         let mut r = Self::new();
         r.register(Box::new(rules::ReferenceIntegrityRule));
         r.register(Box::new(rules::AccessibleNameRule));
@@ -178,7 +187,9 @@ impl RuleRegistry {
         r.register(Box::new(rules::JavaScriptUrlRule));
         r.register(Box::new(rules::EventHandlerAttributeRule));
         r.register(Box::new(rules::UnsafeInlineContentRule));
-        r.register(Box::new(rules::SchemaDocumentModelRule));
+        if include_document_model {
+            r.register(Box::new(rules::SchemaDocumentModelRule));
+        }
         r.register(Box::new(rules::SchemaPackageConverterContractRule));
         r.register(Box::new(rules::OpenContentPolicyRule));
         r.register(Box::new(rules::UnboundPrefixRule::default()));

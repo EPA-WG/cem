@@ -900,7 +900,7 @@ input is rewritten. The existing sites are:
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Native per-placement QL behavior checks and typed node function candidates implemented; engine runtime integration remains actionable work. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Native per-placement QL behavior checks and typed node function candidates implemented; optional parser-backed engine runtime integration implemented; specialized lifecycle import integration remains actionable work. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -1006,10 +1006,41 @@ placement attribution accompany emitted diagnostics.
 
 The explicit QL host supplies context snapshots and directed scope grants before
 behavior access. Pending structures defer behavior; complete empty structures
-remain valid empty selections. Installing the engine hook remains deferred until
-the runtime handoff is chosen: retain the engine's parsed owner and invoke an
-optional per-input runtime stage (recommended), or add a separate retained-input
-validation request. Ordinary parser/load and source-only requests stay unevaluated.
+remain valid empty selections.
+
+`EngineContext.input_validation_stage` is an optional, explicitly installed
+`InputValidationStage`. Parser-backed validate/check inputs with ready consuming
+models move their parsed arena into an `Arc<RetainedCemTree>` without reparsing or
+copying AST nodes. Each `InputValidationRequest` supplies that source, the consuming
+model, root scope, validated default/overridden reference policy and optional
+behavior evaluator. The runtime supplies fresh context snapshots and scope grants,
+then invokes the existing retained structural/behavior consumer. Calls may run
+concurrently for independent inputs; the engine commits outcomes in stable input
+order. Query-adapter registration and parser/load requests never invoke this stage.
+
+The selected stage replaces only the source-only schema-model consumer, avoiding
+duplicate structural/behavior checks; other source pipeline checks still run.
+Unavailable or blocked consuming models preserve the source-only readiness gate.
+Malformed scope bounds and preparation failures remain incomplete. Original
+failure diagnostics are preserved; preparation failure without a hard diagnostic
+receives `cem.schema_validation.runtime_stage_failed`. A returned incomplete
+outcome can have no violations, and a completed outcome can have violations.
+
+Runtime diagnostics for selected owners carry their original URI/coordinates.
+The engine projects source-pipeline diagnostics before merging runtime outcomes,
+so vendor diagnostics never use the input's line index. Native behavior emission
+uses the placement's own source frame for byte offset while preserving the full
+original source-map stack. Explicit runtime report projection is the consumer's
+responsibility. Lifecycle adapters that finish source validation without a CEM
+parse retain their existing specialized paths; extending their runtime handoff
+through the shared typed import boundary is an actionable follow-up.
+
+Source AST attributes currently retain optional text, while runtime value
+attributes have an authoritative native `value_stream`. The next expression-slot
+slice must choose whether direct CEM-ML attribute references get a general native
+AST value slot (recommended) or remain runtime-only values. This representation
+decision is recorded with codec/inspection scenarios in the todo list; it does
+not choose deferred child-scope syntax or cem-element binding behavior.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

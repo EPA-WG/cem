@@ -506,8 +506,8 @@ implementation. `git diff --check` passes.
       legacy dropdown selector failure (`template#cem-dropdown` not found).
       Scenarios for later design verification: incomplete ignored links still
       prevent a completed verdict without becoming synthetic violations.
-- [ ] Integrate structural reference validation into an explicit runtime-selected
-      engine lifecycle hook after the runtime owner/context handoff is decided.
+- [x] Integrate structural reference validation into an explicit runtime-selected
+      engine lifecycle hook for parser-backed source validation.
       Propagate the explicit consumer's completion and diagnostics through the
       report metadata; keep parser/load stages unevaluated. Do not make ignore
       policy silently resolve missing children.
@@ -586,14 +586,30 @@ implementation. `git diff --check` passes.
       pass; the new suites cover six placement and six behavior fixtures.
       Scenarios for later design verification: each occurrence's match/function
       result uses its consumed parent/child context and original lexical schema.
-- [ ] Choose the engine runtime handoff, then integrate the explicit validation
-      hook and propagate consumer completion/diagnostics into validate/check.
-      Recommended: retain the engine's parsed owner and invoke an optional,
-      caller-provided runtime stage supplying a per-input context snapshot.
-      Alternative: a separate retained-input validation request API.
-      Scenarios for later design verification: ordinary source-only validation
-      stays pending; runtime snapshots use original arenas without reparsing,
-      copying ASTs, inventing context IDs, or sharing reference target lists.
+- [x] Choose the engine runtime handoff: retain the parsed owner and invoke an
+      optional caller-provided per-input runtime stage.
+      Scenarios for later design verification: runtime snapshots retain source
+      ownership and avoid evaluating references during parse/load.
+- [x] Integrate the explicit runtime validation hook into validate/check for
+      parser-backed inputs with ready consuming models. `InputValidationStage`
+      receives the original parsed owner retained as a native tree, the model,
+      effective reference policy, root scope and optional behavior evaluator.
+      Its outcomes replace source-only model checks and propagate completion and
+      diagnostics independently. Preserve other pipeline checks; parse/load and
+      ordinary query registration never invoke the optional stage.
+      Verification: 61 focused ML lifecycle/reference checks, 17 native QL
+      host/placement checks, and the full Nx bridge target (126 passes) pass.
+      Full Nx ML verification has 2069 passes, two ignored and the existing
+      dropdown selector failure (`template#cem-dropdown` not found).
+      Scenarios for later design verification: pending snapshots stay incomplete;
+      warning-only preparation failures receive a hard stage diagnostic; original
+      vendor URI/coordinates never inherit the input document's line index.
+- [ ] Extend runtime-stage validation to lifecycle adapters that currently
+      finish source validation without a CEM parse. Supply their source owner
+      through the shared typed import boundary; never reparse imported data or
+      pass format-specific parser ASTs/JSON records into the runtime consumer.
+      Scenarios for later design verification: imported XML/JSON/YAML/CSV sources
+      and CEM sources share native ownership, completion and provenance contracts.
 - [x] Adopt retained behavior function candidate typing: require
       explicit `node` candidate parameters on the retained path while preserving
       existing `object` signatures on the legacy whole-document path.
@@ -616,6 +632,38 @@ implementation. `git diff --check` passes.
       and selectors returning original attributes are rejected as non-elements.
       Scenarios for later design verification: invalid consumer contracts cannot
       pass merely because a runtime snapshot currently selects no candidates.
+- [x] Fixture: engine runtime validation replaces source-only model checks,
+      invokes the stage once per input, retains independent source owners, and
+      commits completion in stable input order separately from violations.
+      Scenarios for later design verification: legacy behavior hooks never run
+      before retained checks; pending inputs with no violations stay incomplete.
+- [x] Fixture: runtime stage preparation failures preserve diagnostics and
+      remain incomplete; missing hard failures receive an explicit stage failure.
+      Preserve diagnostics attributed to other source URIs and coordinates.
+      Scenarios for later design verification: warning-only setup failure cannot
+      appear successful; vendor source coordinates never use input source bytes.
+- [x] Fixture: pending schema models do not invoke runtime input validation.
+      Scenarios for later design verification: blocked schema declarations retain
+      their existing diagnostics and completion gate without evaluating inputs.
+- [x] Fixture: installing a runtime validation stage never evaluates parse/load
+      requests, and malformed schema traversal bounds prevent stage execution.
+      Scenarios for later design verification: runtime registration does not
+      change source-only lifecycle behavior or bypass schema-owned limits.
+- [x] Fixture: engine validate/check invokes native QL retained behavior using
+      a fresh per-input host, typed node candidates and directed crossing grants.
+      Preserve vendor URI/line coordinates and repeated placement diagnostics.
+      Scenarios for later design verification: pending contexts defer behavior;
+      independent input owners keep source reference target lists untouched.
+- [ ] Choose the native attribute reference representation before implementing
+      reference expression slots and scalar schema composition consumers.
+      Recommended: add a general retained native value slot to CEM AST attributes,
+      so direct attribute syntax retains references before runtime evaluation.
+      Alternative: leave source attributes textual and supply native references
+      only through the existing runtime `value_stream`. Preserve textual
+      compatibility and keep binding/evaluation decisions in consumer code.
+      Scenarios for later design verification: retained attribute references
+      survive codec/inspection without evaluation; native nodes never become
+      strings or records to enter a consumer's value binding.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects
