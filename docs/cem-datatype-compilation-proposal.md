@@ -3,7 +3,8 @@
 Status: temporary design draft. Registered schema-owned implementations,
 native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
-results and rejection of list declaration `values` are adopted. Exact signatures and
+results, rejection of list declaration `values` and explicit rule acceptance
+with diagnostics are adopted. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -260,26 +261,59 @@ dependency or extend scope grants. Conversion continues to use a distinct
 capability with declared typed output, followed by every effective restriction.
 Concrete function parameter names and metamodel types remain to be specified.
 
-## Next decision: validation result protocol
+## Adopted validation result protocol
 
-Recommended result contract: a completed datatype rule returns explicit boolean
-acceptance together with zero or more attributed diagnostics. Acceptance is
-independent of diagnostic severity: a warning does not automatically accept an
-invalid value, and an informational diagnostic need not reject a valid value.
+A completed datatype rule returns explicit boolean acceptance together with zero
+or more attributed diagnostics. Acceptance is independent of diagnostic severity:
+a warning does not automatically accept an invalid value, and an informational
+diagnostic need not reject a valid value. Aggregate datatype acceptance requires
+acceptance from every effective base, derived and attribute-local restriction;
+a later successful rule cannot erase an earlier rejection.
+
 A rejection without explanatory diagnostics receives a consumer-generated failure
-at the retained input. Pending/unavailable execution remains outside this result,
-so it cannot masquerade as acceptance. Wrong result types are execution contract
-errors and cannot produce a validated value.
+at the retained input. Preserve implementation-provided source attribution and
+relate it to the original datatype/behavior declaration; use the original input as
+the fallback location. Diagnostics cannot substitute for a boolean acceptance
+field, and result metadata cannot substitute for retained input handles.
 
-Alternative: reuse the existing diagnostic-only behavior result convention,
-where a completed invocation's lack of diagnostics implies acceptance. That is
-compatible with diagnostic behaviors but needs a separate rule for warnings and
-information messages to determine datatype validity.
+| Execution outcome | Datatype acceptance | Consumer treatment |
+| --- | --- | --- |
+| Complete, accepted | Accepted by this rule | Retain diagnostics and continue remaining restrictions |
+| Complete, rejected | Rejected by this rule | Retain diagnostics; provide an explanation if absent |
+| Pending/unavailable | Not established | Retain lifecycle issues; do not publish successful validation |
+| Failed or malformed result | Not established | Report an execution contract failure; never infer acceptance |
 
-Neither result protocol is enabled. Select it before defining the registered
-validation adapter's concrete typed result and its compatibility boundary with
-existing diagnostic behaviors. Result metadata may describe diagnostics; it does
-not permit JSON records to substitute for retained candidate/datatype nodes.
+The consumer owns the lifecycle envelope. A completed result cannot claim that
+missing dependencies are ready. Diagnostic severity remains available to the
+consumer's reporting/publication policy, independently of the explicit datatype
+acceptance result. Validation does not implicitly convert, and neither acceptance
+nor diagnostics can replace the consumer's typed value.
+
+This protocol is adopted but not enabled. Specify the registered validation
+adapter's concrete typed result, input signatures and compatibility boundary
+before invocation. Existing diagnostic-only behaviors require an explicit adapter
+with a declared validity mapping; they do not acquire datatype compatibility just
+because their result has diagnostic metadata. No JSON record substitutes for a
+retained candidate or datatype node.
+
+## Next decision: general list emptiness
+
+Existing shipped name-list contracts reject empty lexical values. The general
+ordered-list representation can represent zero items; the compiler must decide
+whether every list also has an implicit nonempty restriction.
+
+Recommended general contract: admit an empty sequence unless the registered list
+contract or an effective cardinality/rule restriction forbids it. Preserve the
+shipped name-list and wildcard-name-list nonempty contracts explicitly. This keeps
+the representation distinct from each datatype's restrictions and allows an empty
+result collection without inventing a special nullable list type.
+
+Alternative: every list is nonempty by default, with empty lists requiring an
+explicit opt-in contract. This follows the shipped name-list behavior but adds
+an implicit lower bound for every custom list.
+
+No default is adopted yet. Source syntax for declaring custom list cardinality,
+registered tokenizers and exact adapter signatures remain separate action items.
 
 ## Verified inventory and current native boundary
 

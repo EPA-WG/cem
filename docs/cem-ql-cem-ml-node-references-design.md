@@ -1348,9 +1348,12 @@ Conversion remains disabled pending adapters and parity fixtures. List datatype
 declarations reject `values`; use item datatype restrictions and registered list
 rules. Existing attribute-local `values` compatibility remains separate. Datatype
 validation requires a registered compatible capability, rather than automatically
-reusing diagnostic-only behavior execution. The next decision is its result
-protocol: explicit acceptance plus attributed diagnostics is recommended, keeping
-severity independent of validity and lifecycle readiness separate. The verified
-inventory also distinguishes
-available scalar conversion from the broader existing schema predicate coverage;
+reusing diagnostic-only behavior execution. Completed rules return explicit
+acceptance plus attributed diagnostics; every effective restriction must accept.
+Severity remains independent of datatype acceptance, and pending/unavailable or
+failed execution cannot establish acceptance. Diagnostic-only behaviors need an
+explicit compatibility adapter; they do not acquire datatype capability implicitly.
+The next decision is general list emptiness: allow zero items unless an effective
+contract forbids it (recommended), preserving shipped nonempty name-list rules.
+The verified inventory also distinguishes available scalar conversion from the broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.

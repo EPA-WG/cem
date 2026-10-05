@@ -1157,17 +1157,28 @@ implementation verification. They do not claim executable test coverage.
       before implementing conversion or changing scalar API result types.
       Scenarios for later design verification: typed results preserve item identity;
       serialization does not overwrite authored lexical input or clone native nodes.
-- [ ] Decide datatype rule results: explicit acceptance plus attributed diagnostics
-      (recommended), or a diagnostic-only result whose absence implies acceptance.
-      Keep pending/unavailable execution separate from completed validation results.
+- [x] Adopt datatype rule results with explicit acceptance plus attributed diagnostics.
+      Require all effective restrictions to accept; keep pending/unavailable and
+      failed execution separate from completed validation results.
       Scenarios for later design verification: warning severity does not accidentally
       accept an invalid value; malformed results never become successful validation.
-- [ ] After selecting the result protocol, specify a registered datatype validation
+- [ ] Specify a registered datatype validation
       adapter that checks retained behavior/owner identity, required input bindings
       and kind-specific representation, distinct from diagnostic-only behaviors.
       Add fixture actions before implementing signature checking or invocation.
       Scenarios for later design verification: original candidate/type handles remain
       native; unavailable execution differs from invalid data; conversion stays separate.
+- [ ] Decide general list emptiness: permit zero items unless an effective registered
+      contract/cardinality/rule forbids it (recommended), or require explicit empty-
+      list opt-in. Preserve shipped name-list nonempty behavior in either case.
+      Scenarios for later design verification: an empty result collection has a clear
+      contract; representation alone does not erase the shipped nonempty restriction.
+- [ ] Specify concrete validation result bindings and an explicit compatibility
+      adapter for diagnostic-only behaviors, with a declared acceptance mapping.
+      Add fixture actions for acceptance/diagnostic independence, cumulative rejection,
+      missing-result failures and retained source attribution before implementation.
+      Scenarios for later design verification: an accepted rule cannot erase another
+      restriction's rejection; lifecycle incompleteness cannot masquerade as success.
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
       Scenarios for later design verification: registration grants no scope access;
