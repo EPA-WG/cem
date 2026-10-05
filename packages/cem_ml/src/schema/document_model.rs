@@ -260,7 +260,7 @@ pub struct ElementModel {
 }
 
 impl ElementModel {
-    fn allows_attribute(&self, prefix: &str, local_name: &str) -> bool {
+    pub(crate) fn allows_attribute(&self, prefix: &str, local_name: &str) -> bool {
         self.required_attributes.contains(local_name)
             || self.optional_attributes.contains(local_name)
             || self.optional_attributes.contains(&format!("{prefix}:*"))
@@ -5267,6 +5267,21 @@ fn validate_attribute_datatype_param_definition(
     attribute_model: &AttributeModel,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if attribute_model.is_node_valued() && !attribute_model.allowed_values.is_empty() {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+            format!("attribute `{}` declares lexical values for a node type; use native node behaviors for target validation", attribute_model.name),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": attribute_model.name,
+                "datatypeParam": "values",
+                "checkKind": "datatype-param:values",
+                "valueType": attribute_model.value_type,
+                "error": "lexical values are incompatible with native node contracts"
+            }),
+        ));
+    }
     if let Some(pattern) = attribute_model.pattern.as_deref() {
         validate_datatype_param_value_type(
             schema_uri,

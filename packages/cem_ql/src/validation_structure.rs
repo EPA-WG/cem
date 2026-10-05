@@ -21,6 +21,12 @@ pub struct RetainedValidationQueryTree {
     nodes: Vec<StructuralValidationNode>,
     roots: Vec<usize>,
     parents: Vec<Option<usize>>,
+    attribute_values: Vec<
+        std::collections::HashMap<
+            AstNodeId,
+            Arc<crate::attribute_values::NativeAttributeQueryTree>,
+        >,
+    >,
 }
 impl RetainedValidationQueryTree {
     /// Only complete forests can be queried: unavailable children are not empty.
@@ -83,11 +89,32 @@ impl RetainedValidationQueryTree {
         if visited.iter().any(|visited| !visited) {
             return Err("Unreachable validation placement".into());
         }
+        let attribute_values = structure
+            .nodes
+            .iter()
+            .map(|node| {
+                node.attribute_values
+                    .iter()
+                    .map(|value| {
+                        if !value.complete {
+                            return Err("Consumed attribute value is incomplete".to_owned());
+                        }
+                        Ok((
+                            value.attribute.node_id(),
+                            crate::attribute_values::NativeAttributeQueryTree::new(
+                                value.access.clone(),
+                            )?,
+                        ))
+                    })
+                    .collect::<Result<std::collections::HashMap<_, _>, String>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Arc::new(Self {
             source: structure.source.clone(),
             nodes: structure.nodes.to_vec(),
             roots: structure.roots.to_vec(),
             parents,
+            attribute_values,
         }))
     }
     pub fn source(&self) -> &Arc<CemDocument> {
@@ -238,6 +265,13 @@ impl QueryItemView for ValidationPlacementNode {
                 )
             }
             _ => {}
+        }
+        if matches!(name, "value" | "values") {
+            if let Some(attribute) = self.attribute {
+                if let Some(values) = self.tree.attribute_values[self.placement].get(&attribute) {
+                    return Some(values.roots());
+                }
+            }
         }
         match (self.node(), name) {
             (CemAstNode::Element { .. }, "kind") => Some(string("element")),

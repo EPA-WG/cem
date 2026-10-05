@@ -70,6 +70,7 @@ fn snapshot() -> (Arc<CemDocument>, Vec<StructuralValidationNode>) {
         children,
         declaring_schema: None,
         children_complete: true,
+        attribute_values: vec![],
     };
     (
         source.clone(),
@@ -503,6 +504,235 @@ fn engine_runtime_stage_executes_native_ql_behaviors_with_original_attribution()
             parent
         );
     }
+    assert_eq!(stage.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(stage.sources.lock().unwrap().len(), 2);
+}
+
+fn native_attribute_behavior_model() -> SchemaDocumentModel {
+    let model = compile_schema_document_model(
+        "https://example.test/native-attribute",
+        r#"{schema |
+      {elements | {element @name=item @optional-attributes=kind}}
+      {attributes | {attribute @name=kind @type=schema:node}}
+      {behaviors | {behavior @name=check @implementation=function @execution=ast-validation @function=check-result @select=item @match='kind.name == "item"' |
+        {inputs | {input-binding @name=candidate @type=schema:node @source=candidate @required=true}}
+        {result @type=schema:diagnostic-result}
+        {function @name=check-result @returns=object @deterministic=true |
+          {param @name=candidate @type=node @required=true}
+          {body | {$ {message: "native", details: {observed: $candidate.attributes.value.name}} }}
+        }
+      }}
+      {diagnostics | {diagnostic @code=example.native @severity=warning @behavior=check}}
+    }"#,
+    );
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    model
+}
+#[test]
+fn retained_behaviors_read_native_attribute_values_and_conveniences() {
+    use cem_ml::parser::tree::RetainedCemTree;
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{ItemStream, RetainedCemNode},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let source_text = "{item @kind={#items}}";
+    let source = RetainedCemTree::new(
+        Arc::try_unwrap(parse(source_text)).unwrap(),
+        "input.cem",
+        source_text,
+        cem_ml::parser::tree::CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let target_text = "{outside | {item | {#authored}}}";
+    let target = RetainedCemTree::new(
+        Arc::try_unwrap(parse(target_text)).unwrap(),
+        "target.cem",
+        target_text,
+        cem_ml::parser::tree::CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let selected = element(target.ast_owner(), "item");
+    let context = StandaloneExpressionContext::default().with_binding(
+        "items",
+        StandaloneExpressionBinding::any(ItemStream::once(
+            RetainedCemNode::new(target.clone(), selected.node_id())
+                .unwrap()
+                .query_item(),
+        )),
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let policy = cem_ml::schema::reference_policy::ReferenceScopePolicy::schema_defaults().unwrap();
+    let from = host.register_scope(source.clone(), Some(context), policy.clone());
+    let to = host.register_scope(target.clone(), None, policy.clone());
+    host.allow_scope_crossing(from, to);
+    let model = native_attribute_behavior_model();
+    let report = host
+        .validate_input_with_behavior_evaluator(
+            source.clone(),
+            &model,
+            policy.limits,
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(report.complete, "{:?}", report.diagnostics);
+    assert!(!report.failed, "{:?}", report.diagnostics);
+    let diagnostics: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "example.native")
+        .collect();
+    assert_eq!(diagnostics.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(diagnostics[0].details.as_ref().unwrap()["observed"], "item");
+    assert!(Arc::ptr_eq(
+        report.nodes[0].attribute_values[0]
+            .access
+            .node(report.nodes[0].attribute_values[0].access.roots()[0])
+            .unwrap()
+            .document(),
+        target.ast_owner()
+    ));
+    // Re-referencing a consumed native view preserves its original owner and
+    // registered scope; it never becomes a copied record or a synthetic arena.
+    let query_tree =
+        cem_ql::validation_structure::RetainedValidationQueryTree::new(report.structure()).unwrap();
+    let value = query_tree.roots()[0]
+        .view()
+        .unwrap()
+        .field("attributes")
+        .unwrap()[0]
+        .view()
+        .unwrap()
+        .field("value")
+        .unwrap()
+        .remove(0);
+    host.set_context(
+        from,
+        Some(StandaloneExpressionContext::default().with_binding(
+            "items",
+            StandaloneExpressionBinding::any(ItemStream::once(value)),
+        )),
+    );
+    let reused = host
+        .validate_input_with_behavior_evaluator(
+            source.clone(),
+            &model,
+            policy.limits,
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(
+        reused.complete && !reused.failed,
+        "{:?}",
+        reused.diagnostics
+    );
+    host.set_context(from, None);
+    let pending = host
+        .validate_input_with_behavior_evaluator(
+            source.clone(),
+            &model,
+            policy.limits,
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(!pending.complete);
+    assert!(!pending
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "example.native"));
+    assert!(source
+        .ast_owner()
+        .nodes
+        .iter()
+        .filter_map(|node| if let CemAstNode::Reference { targets, .. } = node {
+            Some(targets)
+        } else {
+            None
+        })
+        .all(Option::is_none));
+}
+
+#[test]
+fn engine_runtime_stage_consumes_native_attribute_nodes_without_expanding_descendants() {
+    use cem_ml::{
+        engine::{
+            CemMlEngine, EngineContext, EngineInput, FailLevel, InputFormat, ValidateProjection,
+            ValidateRequest,
+        },
+        parser::tree::{CemTreeSemantics, RetainedCemTree},
+        real::RealCemMlEngine,
+        schema::registry::CEM_ML_SCHEMA_URI,
+    };
+    let library_text = "{item | {#authored}}";
+    let library = RetainedCemTree::new(
+        Arc::try_unwrap(parse(library_text)).unwrap(),
+        "https://vendor.test/library.cem",
+        library_text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let stage = Arc::new(EngineStage {
+        library,
+        library_text: library_text.into(),
+        calls: Default::default(),
+        sources: Default::default(),
+    });
+    let mut context = EngineContext::default();
+    context.schema = Some(CEM_ML_SCHEMA_URI.into());
+    let mut model = native_attribute_behavior_model();
+    model.schema_uri = CEM_ML_SCHEMA_URI.into();
+    context.schema_document_models.register(model);
+    context.input_validation_stage = Some(stage.clone());
+    context.schema_behavior_evaluator = Some(Arc::new(CemQlSchemaBehaviorEvaluator));
+    let source =
+        "@ns p = \"https://example.test/native-attribute\"\n@default p\n{item @kind={#items}}";
+    let input = |uri: &str| EngineInput {
+        uri: uri.into(),
+        bytes: source.as_bytes().to_vec(),
+        from_format: Some(InputFormat::Cem),
+        identity: None,
+        root_scope: Default::default(),
+    };
+    let response = RealCemMlEngine
+        .validate(ValidateRequest {
+            inputs: vec![input("complete.cem"), input("pending.cem")],
+            projection: ValidateProjection::Cem,
+            fail_level: FailLevel::Validate,
+            context,
+        })
+        .unwrap();
+    let inputs = &response
+        .report
+        .report_ast
+        .validation
+        .as_ref()
+        .unwrap()
+        .inputs;
+    assert_eq!(
+        inputs
+            .iter()
+            .map(|input| input.complete)
+            .collect::<Vec<_>>(),
+        vec![true, false],
+        "{:?}",
+        response.report.diagnostics
+    );
+    let emitted: Vec<_> = response
+        .report
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "example.native")
+        .collect();
+    assert_eq!(emitted.len(), 1, "{:?}", response.report.diagnostics);
+    assert_eq!(emitted[0].uri.as_deref(), Some("complete.cem"));
+    assert_eq!(emitted[0].details.as_ref().unwrap()["observed"], "item");
     assert_eq!(stage.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert_eq!(stage.sources.lock().unwrap().len(), 2);
 }

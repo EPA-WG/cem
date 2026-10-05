@@ -149,7 +149,7 @@ pub fn validate_native_attribute_reference<H: InputReferenceHost>(
     Ok(report)
 }
 
-fn has_unconsumed_constraints(attribute: &document_model::AttributeModel) -> bool {
+pub(crate) fn has_unconsumed_constraints(attribute: &document_model::AttributeModel) -> bool {
     let mut remaining = attribute.clone();
     remaining.name.clear();
     remaining.value_type = None;
@@ -162,4 +162,38 @@ fn has_unconsumed_constraints(attribute: &document_model::AttributeModel) -> boo
     remaining.datatype_param_diagnostic = None;
     remaining.source_map = Default::default();
     remaining != document_model::AttributeModel::default()
+}
+
+/// Read-only authorized source subtree, captured under the consuming request.
+/// Private edges prevent query adapters from manufacturing wider authority.
+#[derive(Debug, Clone)]
+pub struct NativeAttributeTargetAccess {
+    pub(crate) nodes: Vec<SchemaDeclarationNode>,
+    pub(crate) roots: Vec<usize>,
+    pub(crate) parents: Vec<Option<usize>>,
+    pub(crate) children: Vec<Vec<usize>>,
+    pub(crate) complete: bool,
+}
+impl NativeAttributeTargetAccess {
+    pub fn is_complete(&self) -> bool {
+        self.complete
+    }
+    pub fn roots(&self) -> &[usize] {
+        &self.roots
+    }
+    pub fn node(&self, index: usize) -> Option<&SchemaDeclarationNode> {
+        self.nodes.get(index)
+    }
+    pub fn parent(&self, index: usize) -> Option<usize> {
+        self.parents.get(index).copied().flatten()
+    }
+    pub fn children(&self, index: usize) -> Option<&[usize]> {
+        self.children.get(index).map(Vec::as_slice)
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ConsumedAttributeValue {
+    pub attribute: SchemaDeclarationNode,
+    pub access: std::sync::Arc<NativeAttributeTargetAccess>,
+    pub complete: bool,
 }

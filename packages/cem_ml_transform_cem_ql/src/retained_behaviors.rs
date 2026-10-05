@@ -52,11 +52,15 @@ pub(super) fn validate(
                     let CemAstNode::Attribute {
                         expanded_name,
                         value,
+                        value_nodes,
                         ..
                     } = node.source.document().get(*id)?
                     else {
                         return None;
                     };
+                    if !value_nodes.is_empty() {
+                        return None;
+                    }
                     Some((
                         expanded_name.local_name.clone(),
                         value.clone().unwrap_or_default(),
@@ -159,11 +163,41 @@ pub(super) fn validate(
             .filter(|(index, _)| selected.contains(index))
         {
             let item = tree.node(*index).unwrap();
-            let matched = evaluate_cem_ql_behavior_query(
-                match_query,
-                &match_names,
-                candidate_match_bindings_with_item(candidate, &match_names, item.clone()),
-            );
+            let mut candidate_bindings =
+                candidate_match_bindings_with_item(candidate, &match_names, item.clone());
+            for attribute in structure.nodes[*index].attribute_values.iter() {
+                let CemAstNode::Attribute { expanded_name, .. } = attribute.attribute.node() else {
+                    continue;
+                };
+                let name = &expanded_name.local_name;
+                if matches!(name.as_str(), "candidate" | "element") || !match_names.contains(name) {
+                    continue;
+                }
+                let values = tree
+                    .node(*index)
+                    .unwrap()
+                    .view()
+                    .unwrap()
+                    .field("attributes")
+                    .unwrap()
+                    .into_iter()
+                    .find(|value| {
+                        value
+                            .view()
+                            .and_then(|view| view.downcast_ref::<ValidationPlacementNode>())
+                            .is_some_and(|view| {
+                                view.source_node().node_id() == attribute.attribute.node_id()
+                            })
+                    })
+                    .unwrap()
+                    .view()
+                    .unwrap()
+                    .field("value")
+                    .unwrap();
+                candidate_bindings.insert(name.clone(), ItemStream::from_items(values));
+            }
+            let matched =
+                evaluate_cem_ql_behavior_query(match_query, &match_names, candidate_bindings);
             match matched {
                 Ok(stream) if !stream_truthy(&stream) => continue,
                 Ok(_) => {}

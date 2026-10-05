@@ -229,6 +229,19 @@ impl CemQlSchemaDeclarationHost {
                     .unwrap();
             return self.source_reference(source);
         }
+        let source = item.view().and_then(|view| {
+            if let Some(node) =
+                view.downcast_ref::<crate::attribute_values::NativeAttributeQueryNode>()
+            {
+                Some(node.source_node().clone())
+            } else {
+                view.downcast_ref::<crate::validation_structure::ValidationPlacementNode>()
+                    .map(|node| node.source_node())
+            }
+        });
+        if let Some(source) = source {
+            return self.source_reference(source);
+        }
         CemQlSchemaReferenceNode {
             source: None,
             query: Some(item),

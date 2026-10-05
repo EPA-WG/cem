@@ -15,6 +15,8 @@ use crate::{
 };
 use std::{collections::HashSet, sync::Arc};
 
+mod consumed_walk;
+
 pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_reference_target";
 
 /// Retained-node adaptation is independent of schema-declaration lookup.
@@ -47,6 +49,7 @@ pub struct StructuralValidationNode {
     pub declaring_schema: Option<SchemaDeclarationNode>,
     pub children: Vec<usize>,
     pub children_complete: bool,
+    pub attribute_values: Vec<super::attribute_references::ConsumedAttributeValue>,
 }
 #[derive(Debug, Clone)]
 pub struct StructuralInputValidation<N> {
@@ -142,7 +145,12 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
         complete: true,
         failed: false,
     };
-    if !model.is_ready_for_validation() {
+    if !model.is_ready_for_validation()
+        || model
+            .compile_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
         report.complete = false;
         report.failed = true;
         report.diagnostics = model.validation_blocker_diagnostics();
@@ -174,24 +182,9 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
             continue;
         }
         if matches!(handle.node(), CemAstNode::Reference { .. }) {
-            let mut resolved = resolve_reference_structure(
-                host.source_node(handle),
-                host,
-                limits,
-                |host, target| {
-                    let retained = host.retained_node(target)?;
-                    let children = consumable_children(retained.node(), model)?;
-                    Some(
-                        children
-                            .iter()
-                            .filter_map(|id| {
-                                SchemaDeclarationNode::new(retained.document().clone(), *id)
-                            })
-                            .map(|child| host.source_node(child))
-                            .collect(),
-                    )
-                },
-            )?;
+            let consumed =
+                consumed_walk::walk(host.source_node(handle), model, host, limits, None)?;
+            let mut resolved = consumed.structure;
             let mut indices = vec![];
             for (index, target) in resolved.resolution.nodes.iter().enumerate() {
                 let retained = host
@@ -204,6 +197,7 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                         source: retained,
                         children: vec![],
                         children_complete: resolved.children_complete[index],
+                        attribute_values: vec![],
                     });
                     indices.push(Some(position));
                 } else {
@@ -231,6 +225,12 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                     report.nodes[*position].children_complete = resolved.children_complete[index];
                 }
             }
+            for (owner, value) in consumed.attributes {
+                report.complete &= value.complete;
+                if let Some(position) = owner.and_then(|owner| indices[owner]) {
+                    report.nodes[position].attribute_values.push(value);
+                }
+            }
             for index in &resolved.roots {
                 if let Some(position) = indices[*index] {
                     attach(&mut report, parent, position);
@@ -250,11 +250,71 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
             let children = consumable_children(handle.node(), model)
                 .unwrap_or(&[])
                 .to_vec();
+            let mut attribute_values = vec![];
+            if let CemAstNode::Element {
+                expanded_name,
+                attributes,
+                ..
+            } = handle.node()
+            {
+                if let Some(element) = model.element(&expanded_name.local_name) {
+                    for id in attributes {
+                        let Some(attribute) =
+                            SchemaDeclarationNode::new(handle.document().clone(), *id)
+                        else {
+                            continue;
+                        };
+                        let CemAstNode::Attribute {
+                            expanded_name: name,
+                            value_nodes,
+                            ..
+                        } = attribute.node()
+                        else {
+                            continue;
+                        };
+                        if value_nodes.is_empty() {
+                            continue;
+                        }
+                        let eligible = element
+                            .allows_attribute(&name.namespace_uri, &name.local_name)
+                            && model
+                                .attributes
+                                .get(&name.local_name)
+                                .is_some_and(|contract| contract.is_node_valued());
+                        let root = if eligible && value_nodes.len() == 1 {
+                            SchemaDeclarationNode::new(attribute.document().clone(), value_nodes[0])
+                                .filter(|node| matches!(node.node(), CemAstNode::Reference { .. }))
+                        } else {
+                            None
+                        };
+                        if let Some(root) = root {
+                            let consumed = consumed_walk::walk(
+                                host.source_node(root),
+                                model,
+                                host,
+                                limits,
+                                Some((attribute, expanded_name.local_name.clone())),
+                            )?;
+                            report.failed |= consumed.structure.resolution.failed;
+                            report
+                                .diagnostics
+                                .extend(consumed.structure.resolution.diagnostics);
+                            for (_, value) in consumed.attributes {
+                                report.complete &= value.complete;
+                                attribute_values.push(value);
+                            }
+                        } else {
+                            report.complete = false;
+                        }
+                    }
+                }
+            }
             report.nodes.push(StructuralValidationNode {
                 declaring_schema: None,
                 source: handle,
                 children: vec![],
                 children_complete: true,
+                attribute_values,
             });
             attach(&mut report, parent, position);
             pending.extend(children.into_iter().rev().map(|id| (id, Some(position))));
@@ -271,15 +331,6 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                     .map(str::to_owned)
             })
             .collect();
-        if let CemAstNode::Element { attributes, .. } = current.source.node() {
-            if attributes.iter().any(|id| {
-                matches!(current.source.document().get(*id), Some(CemAstNode::Attribute { value_nodes, .. }) if !value_nodes.is_empty())
-            }) {
-                // Source slots have not been consumed. Available structural and
-                // presence checks still run, but behavior cannot see fake scalars.
-                report.complete = false;
-            }
-        }
         let Some(element) = document_model::validate_element_shallow(
             current.source.document(),
             model,

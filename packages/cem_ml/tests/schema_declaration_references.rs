@@ -54,6 +54,8 @@ struct Host {
     deny: bool,
     calls: usize,
     schema_calls: std::sync::atomic::AtomicUsize,
+    denied_nodes: std::collections::HashSet<String>,
+    scope_bounds: HashMap<usize, ReferenceTraversalLimits>,
 }
 impl Host {
     fn new() -> Self {
@@ -63,6 +65,8 @@ impl Host {
             deny: false,
             calls: 0,
             schema_calls: Default::default(),
+            denied_nodes: Default::default(),
+            scope_bounds: Default::default(),
         }
     }
     fn disposition(&mut self, value: &str) {
@@ -90,8 +94,8 @@ impl ReferenceResolutionHost for Host {
     fn scope(&self, node: &Self::Node) -> usize {
         Arc::as_ptr(node.document()) as usize
     }
-    fn scope_limits(&self, _: &usize) -> ReferenceTraversalLimits {
-        self.policy.limits
+    fn scope_limits(&self, scope: &usize) -> ReferenceTraversalLimits {
+        self.scope_bounds.get(scope).copied().unwrap_or(self.policy.limits)
     }
     fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
         match node.node() {
@@ -109,8 +113,8 @@ impl ReferenceResolutionHost for Host {
     fn unresolved_policy(&self, _: &Self::Node) -> &ReferenceUnresolvedPolicy {
         &self.policy.unresolved
     }
-    fn permits_edge(&self, _: &Self::Node, _: &Self::Node) -> bool {
-        !self.deny
+    fn permits_edge(&self, _: &Self::Node, target: &Self::Node) -> bool {
+        !self.deny && !self.denied_nodes.contains(&target.identity())
     }
     fn evaluate(&mut self, reference: &Self::Node) -> ReferenceLinkEvaluation<Self::Node> {
         self.calls += 1;
@@ -2023,7 +2027,7 @@ fn native_attribute_pending_values_preserve_structural_and_presence_checks() {
                 .unwrap();
         assert!(!report.complete);
         assert!(report.failed);
-        assert_eq!(host.calls, 0);
+        assert_eq!(host.calls, usize::from(expression.starts_with("{#")));
         assert!(report.diagnostics.iter().any(|d| d
             .details
             .as_ref()
@@ -2309,12 +2313,10 @@ fn native_attribute_reference_unconsumed_facets_do_not_report_full_validation() 
     assert!(blocked.failed);
     assert_eq!(host.calls, 0);
     for facets in ["@values=accepted"] {
-        let model = native_attribute_model(facets);
-        assert!(
-            model.compile_diagnostics.is_empty(),
-            "{:?}",
-            model.compile_diagnostics
-        );
+        // Defensive readiness for models supplied directly by a caller without
+        // schema compilation; the normal compiler now rejects this facet.
+        let mut model = native_attribute_model("");
+        model.attributes.get_mut("target").unwrap().allowed_values.insert(facets.to_owned());
         for count in [1, 2] {
             let mut host = Host::new();
             host.outcomes.insert(
@@ -2335,5 +2337,208 @@ fn native_attribute_reference_unconsumed_facets_do_not_report_full_validation() 
             assert_eq!(report.targets.len(), count);
             assert_eq!(report.failed, count != 1);
         }
+    }
+}
+
+#[test]
+fn native_node_enum_definitions_block_evaluation_before_consumption() {
+    use cem_ml::schema::attribute_references::validate_native_attribute_reference;
+    let model = native_attribute_model("@values=accepted");
+    assert!(model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_DATATYPE_PARAM_CODE));
+    let source = parse("{box @target={#nodes}}");
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let report = validate_native_attribute_reference(
+        native_attribute(&source),
+        &model,
+        "box",
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert!(report.failed);
+    assert_eq!(host.calls, 0);
+}
+#[test]
+fn retained_native_attributes_consume_in_authored_and_selected_placements() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @required-attributes=target}} {attributes | {attribute @name=target @type=schema:node}}}");
+    let library = parse("{item @target={#target}}");
+    let targets = parse("{target @label=value | {child} {#authored}}");
+    for source in [
+        parse("{box | {item @target={#target}}}"),
+        parse("{box | {#items}}"),
+    ] {
+        let mut host = Host::new();
+        host.outcomes.insert(
+            "#items".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, "item")]),
+        );
+        host.outcomes.insert(
+            "#target".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&targets, "target")]),
+        );
+        let limits = host.policy.limits;
+        let report =
+            validate_structural_input_references(source.clone(), &model, &mut host, limits)
+                .unwrap();
+        assert!(report.complete, "{:?}", report.diagnostics);
+        assert!(!report.failed, "{:?}", report.diagnostics);
+        assert!(Arc::ptr_eq(&report.source, &source));
+        assert_eq!(
+            host.calls,
+            if source.nodes.iter().any(
+                |n| matches!(n, CemAstNode::Reference {expression,..} if expression == "#items")
+            ) {
+                2
+            } else {
+                1
+            }
+        );
+    }
+}
+
+#[test]
+fn retained_native_attribute_failures_share_budgets_without_erasing_structure() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model=compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @children=item} {element @name=item @required-attributes=target @children=leaf} {element @name=leaf}} {attributes | {attribute @name=target @type=schema:node}} {field-contracts | {field-contract @name=required @target=item @required-children=leaf}}}");
+    let source = parse("{box | {#items}}");
+    let library = parse("{item @target={#target}}");
+    let targets = parse("{target | {child}}");
+    let reference_of = |owner: &Arc<CemDocument>, expr: &str| {
+        SchemaDeclarationNode::new(
+            owner.clone(),
+            owner
+                .nodes
+                .iter()
+                .find_map(|node| match node {
+                    CemAstNode::Reference {
+                        node_id,
+                        expression,
+                        ..
+                    } if expression == expr => Some(*node_id),
+                    _ => None,
+                })
+                .unwrap(),
+        )
+        .unwrap()
+    };
+    for mode in [
+        "unresolved",
+        "initial-denied",
+        "cycle",
+        "work",
+        "destination-work",
+    ] {
+        let mut host = Host::new();
+        host.disposition("ignore");
+        host.outcomes.insert(
+            "#items".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, "item")]),
+        );
+        if mode != "unresolved" {
+            host.outcomes.insert(
+                "#target".into(),
+                ReferenceLinkEvaluation::Resolved(vec![if mode == "cycle" {
+                    reference_of(&source, "#items")
+                } else {
+                    node(&targets, "target")
+                }]),
+            );
+        }
+        if mode == "initial-denied" {
+            host.denied_nodes
+                .insert(reference_of(&library, "#target").identity());
+        }
+        if mode == "destination-work" {
+            host.scope_bounds.insert(
+                Arc::as_ptr(&targets) as usize,
+                ReferenceTraversalLimits {
+                    max_depth: 128,
+                    max_work: 1,
+                },
+            );
+        }
+        let limits = if mode == "work" {
+            ReferenceTraversalLimits {
+                max_depth: 128,
+                max_work: 3,
+            }
+        } else {
+            host.policy.limits
+        };
+        let report =
+            validate_structural_input_references(source.clone(), &model, &mut host, limits)
+                .unwrap();
+        assert!(!report.complete, "{mode}");
+        let placement=report.nodes.iter().find(|n| matches!(n.source.node(),CemAstNode::Element{expanded_name,..} if expanded_name.local_name=="item")).unwrap();
+        assert_eq!(placement.attribute_values.len(), 1, "{mode}");
+        assert!(!placement.attribute_values[0].complete, "{mode}");
+        assert!(
+            !report
+                .diagnostics
+                .iter()
+                .any(|d| d.code
+                    == cem_ml::schema::document_model::INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+            "{mode}"
+        );
+        if ["unresolved", "initial-denied", "cycle"].contains(&mode) {
+            assert!(placement.children_complete, "{mode}");
+            assert!(
+                report.diagnostics.iter().any(|d| d
+                    .details
+                    .as_ref()
+                    .is_some_and(|details| details["contract"] == "required")),
+                "{mode}: {:?}",
+                report.diagnostics
+            );
+        }
+        if mode == "work" {
+            assert_eq!(host.calls, 2);
+            assert_eq!(report.references[0].resolution.work_used, 3);
+        }
+    }
+}
+
+#[test]
+fn native_target_access_rejects_invalid_original_owning_edges() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = native_attribute_model("");
+    let source = parse("{box @target={#nodes}}");
+    for invalid in ["missing", "duplicate", "attribute-kind"] {
+        let mut targets = parse("{target | {child}}");
+        let target = node(&targets, "target").node_id();
+        let child = node(&targets, "child").node_id();
+        if let CemAstNode::Element {
+            children,
+            attributes,
+            ..
+        } = &mut Arc::get_mut(&mut targets).unwrap().nodes[target as usize]
+        {
+            match invalid {
+                "missing" => children.push(u32::MAX),
+                "duplicate" => children.push(child),
+                _ => attributes.push(child),
+            }
+        }
+        let mut host = Host::new();
+        host.outcomes.insert(
+            "#nodes".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&targets, "target")]),
+        );
+        let limits = host.policy.limits;
+        let report =
+            validate_structural_input_references(source.clone(), &model, &mut host, limits)
+                .unwrap();
+        assert!(!report.complete, "{invalid}");
+        assert!(report.failed, "{invalid}");
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == cem_ml::schema::input_references::INVALID_STRUCTURAL_TARGET));
     }
 }

@@ -770,38 +770,98 @@ implementation. `git diff --check` passes.
       attribute `.value`; original source handles retain authored references.
       Scenarios for later design verification: concurrent consumers never
       overwrite shared targets or turn node values into scalar records.
-- [ ] Define the applicable node-contract facets beyond cardinality before
-      interpreting lexical facets on nodes. The bounded reference consumer
-      retains these constraints as pending instead of ignoring or atomizing them.
-      Scenarios for later design verification: node references with `pattern`
-      or `values` cannot report full validation without a facet consumer.
-- [x] Fixture: resolving a native attribute with unconsumed lexical facets keeps
-      validation incomplete while still applying available count checks.
+- [x] Adopt compiler rejection of lexical `values` constraints for node types;
+      native target validation belongs to node behaviors and cardinality facets.
+      Scenarios for later design verification: incompatible lexical contracts
+      cannot trigger reference evaluation or automatic primitive extraction.
+- [x] Fixture: a caller-supplied model with unconsumed lexical facets keeps
+      attribute validation incomplete while still applying available count checks.
+      Normal schema compilation rejects those incompatible node facets.
       Scenarios for later design verification: complete target selection and
       complete contract validation remain independently observable.
-- [ ] Decide query navigation authority for consumed attribute targets: restrict
-      behavior access to each selected subtree with extra grants for broader
-      navigation (recommended), or authorize the entire original document.
-      Scenarios for later design verification: parent/sibling/root navigation
-      never widens scope access silently. User decision is pending.
+- [x] Adopt selected-subtree query access for consumed attribute targets, with
+      explicit grants required for broader original parent/sibling/root access.
+      Scenarios for later design verification: navigation never silently widens
+      scope access; original source handles remain available to trusted consumers.
+- [x] Retain references authored inside selected target subtrees as native nodes
+      until an explicit consumer resolves them; resolve the attribute chain only.
+      Scenarios for later design verification: query navigation does not execute
+      nested expressions or rewrite the target's authored child structure.
+- [x] Implement a bounded, grant-checked snapshot of original target subtree
+      handles, and a native query view whose axes stay within that snapshot.
+      Scenarios for later design verification: parent/context/target access cannot
+      bypass the selected boundary, including saved non-owning reference links.
+- [x] Fixture: lexical `values` on a node contract is a schema error before
+      host evaluation, while literal primitive enums and node counts remain valid.
+      Scenarios for later design verification: diagnostics retain the schema's
+      original attribute source and explain the incompatible native contract.
+- [x] Fixture: native attributes in authored and referenced validation placements
+      consume once, preserve target owners, and share the enclosing request's
+      active identities and work/scope budgets in selected structural subtrees.
+      Scenarios for later design verification: attribute incompleteness cannot
+      erase available structural/presence checks or fake a resolved-empty value.
+- [x] Fixture: query targets keep source ownership and authored descendant refs,
+      expose consumed attribute `.value`, and block external parent/sibling/root,
+      context and saved target links; capture stays bounded and grant checked.
+      Scenarios for later design verification: repeated target occurrences retain
+      identity/order and independent consumers never overwrite source targets.
+- [x] Fixture: corrupt target owning edges are rejected before query access;
+      missing handles, duplicate ownership and non-attribute attribute edges
+      cannot masquerade as complete authorized subtrees.
+      Scenarios for later design verification: bounded capture also limits
+      malformed cycles; valid repeated reference selections remain distinct.
+- [x] Fixture: retained behavior and runtime validation read consumed node values
+      through `.value` and native attribute conveniences without scalar coercion.
+      Scenarios for later design verification: pending inputs defer behavior;
+      legacy primitive attributes retain existing binding and source attribution.
+- [x] Fixture: explicitly re-reference consumed native query views through the
+      production host; retain original owners and registered scopes rather than
+      manufacturing synthetic arenas or inheriting the requesting scope.
+      Scenarios for later design verification: renewed consumption still checks
+      directed grants and never writes targets into the shared source reference.
+- [x] Adopt an explicit lifecycle expression hook for general native attribute
+      expressions; consume returned nodes/references under the node contract and
+      shared bounds, without implicit parser evaluation or scalar extraction.
+      Scenarios for later design verification: absent context stays pending;
+      general expressions and reference constructors remain distinct source nodes.
+- [ ] Fixture: general native attribute expressions evaluate only through the
+      explicit lifecycle hook; verify missing context, original parse/type errors,
+      zero/many/repeated node results, returned reference chains and invalid scalars.
+      Scenarios for later design verification: hook results retain source owners;
+      reference-to-reference resolution follows existing effective scope policy.
+- [ ] Fixture: composite slots share cumulative work and destination limits with
+      enclosing structural selections; verify authored order, pending branches,
+      mixed expression/reference values and original-source query access.
+      Scenarios for later design verification: no per-value accounting resets;
+      complete selection is distinct from available partial target sequences.
+- [ ] Add the lifecycle expression hook and native result validation before
+      completing generic attribute slots; preserve original expression diagnostics,
+      lexical context and retained target ownership.
+      Scenarios for later design verification: empty/multiple results obey the
+      authored count envelope; scalar and foreign-host results cannot become nodes.
 - [ ] Support composite native attribute slots through one shared request rather
       than separate per-value budgets; generic expression evaluation needs an
       explicit expression consumer. The first reference API keeps these pending.
       Scenarios for later design verification: zero, repeated and mixed native
       values preserve order, ownership and bounded traversal accounting.
-- [ ] Integrate the attribute consumer with retained validation placements and
-      behavior access after that API choice. Attribute references in selected
-      structural subtrees must share the enclosing request's active identities
+- [x] Integrate the attribute consumer with retained validation placements and
+      behavior access using the selected-subtree query boundary. References in
+      selected structural subtrees share the enclosing request's active identities
       and budgets rather than restart traversal accounting.
       Scenarios for later design verification: mixed structural/attribute cycles
       and repeated scope crossings remain bounded; consumers see original nodes.
-- [ ] Complete engine runtime native attribute validation by invoking the
+- [x] Complete engine runtime native attribute validation by invoking the
       retained placement consumer after query-access boundaries are implemented.
       Supply lifecycle context and keep completeness separate from schema-owned
       diagnostic disposition.
       Scenarios for later design verification: unresolved mandatory/warning/ignored
       links remain incomplete; native target owners and lexical scopes survive;
       literal and primitive contracts keep their existing behavior.
+      Verification: all 74 focused ML fixtures, the full Nx CEM-QL target and
+      all 129 bridge tests pass. Nx ML reports 2072 library passes, two ignored
+      and only the known legacy dropdown-template failure
+      (`template#cem-dropdown` not found). The existing QL literal-attribute
+      fixture now includes empty native value edges.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects

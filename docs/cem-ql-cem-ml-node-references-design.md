@@ -1079,11 +1079,11 @@ original attribute source map and schema-owned type diagnostic behavior.
 
 The implemented guards keep native slots out of lexical/facet validation while
 retaining attribute presence for required-attribute and field-presence checks.
-Source-only behavior validation waits for consumption. Retained input validation
-remains incomplete for native references and general expressions, runs available
-structural checks, and leaves the source nodes and reference targets unchanged.
-These guards do not evaluate native values; a lifecycle consumer supplies the
-context and shared bounded resolution.
+Source-only behavior validation waits for consumption. Without lifecycle context,
+retained input validation remains incomplete for native references and general
+expressions while running available structural checks. The source nodes and
+reference targets stay unchanged. These guards do not evaluate native values;
+the explicit lifecycle consumer supplies context and shared bounded resolution.
 
 The adopted schema consumer policy requires exactly one target by default.
 Any explicit `itemCount`, `minItems` or `maxItems` facet replaces that default
@@ -1099,28 +1099,48 @@ of completeness. Pending, unresolved, denied, cyclic and exhausted branches
 never trigger count checks on a partial prefix. Complete count violations use
 the schema's datatype-parameter diagnostic behavior and original attribute
 source; diagnostic severity and consumption completeness remain independent.
-Other authored facets that compile, such as `values`, remain pending: selecting
-nodes does not consume or silently discard those constraints. Count checks can
-still run on complete selections; the validation report remains incomplete
-until additional constraints have an applicable consumer/policy. Existing
-incompatible lexical facets, such as `pattern` on a node type, remain schema
-compilation errors and prevent evaluation.
+Lexical `values` and `pattern` constraints on node types are schema compilation
+errors and prevent evaluation. Native target validation belongs to node behaviors;
+selecting nodes does not silently satisfy other unsupported constraints. Defensive
+validation of caller-supplied models still leaves unconsumed constraints pending.
 Primitive contracts and generic/composite expression slots do not invoke this
 reference consumer. Generic and composite slots remain incomplete until an
-appropriate expression/batched consumer is supplied. No source targets are
+appropriate expression/batched consumer is supplied. The next adopted consumer
+extension evaluates general expressions through an explicit lifecycle expression
+hook, then consumes its node/reference results under the same node contract and
+shared bounds. This does not make parsing an evaluation stage or require general
+expressions to be authored as reference constructors. No source targets are
 written back, primitive values extracted or DOM IDs generated.
 
-Retained behavior attribute `.value` will expose the consumed native target
-sequence; the original source handle preserves authored references. Wiring this
-access into the placement query tree remains actionable. Query navigation
-authority is a separate pending choice: access limited to the selected subtree
-with extra grants for broader navigation, or access to the full original
-document. The existing original-node adapter exposes the whole document and
-must not silently widen access. Attributes inside selected structural subtrees
-must also share the enclosing request's budgets and active reference identities;
-the independent entry point cannot be called there to restart accounting.
-These remaining actions and verification scenarios are preserved in the todo
-list. CEM-ML syntax does not choose these schema consumer policies.
+Retained placement validation now consumes eligible attribute references with
+lifecycle context. Attributes inside selected structural subtrees share the
+structural request's active reference identities, cumulative work and effective
+scope limits. Independent authored attribute references start independent requests.
+Attribute incompleteness preserves available structural and presence checks;
+complete selections undergo cardinality checks independently of query readiness.
+
+The consumer captures original owning subtree handles under the same bounded,
+grant-checked traversal. It follows no saved reference context or target edges.
+References authored inside selected target subtrees remain native reference nodes
+until an explicit consumer resolves them. Capturing query access does not evaluate
+those expressions or replace the target's authored child structure. Missing owning
+handles, duplicate ownership and malformed attribute edges invalidate access.
+
+Retained behavior attribute `.value` exposes the consumed native target sequence,
+and existing local-name attribute conveniences expose that same typed sequence.
+Literal conveniences retain their existing scalar behavior. The original source
+handle preserves the authored attribute and reference. Query axes stay inside the
+captured selected subtree: selected roots have no original parent, and outside
+parents, siblings, document roots, reference contexts and saved targets are not
+exposed. Broader access requires explicitly granted consumer evaluation. Native
+query values retain original node identity, owner and scope when explicitly
+referenced again; they do not manufacture a source arena or copied record.
+
+The optional engine runtime validation stage invokes this retained consumer before
+native behavior checks. Complete inputs supply typed attribute targets; pending
+inputs remain incomplete and defer dependent behavior. Diagnostic disposition and
+consumption completeness remain separate. These are schema consumer policies;
+CEM-ML syntax does not prescribe attribute projection or DOM ID generation.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

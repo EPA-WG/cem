@@ -230,6 +230,7 @@ fn importable_ast_node_kinds_are_targets_without_following_retained_references()
             node_id: 2,
             expanded_name: name,
             value: Some("a".into()),
+            value_nodes: vec![],
             source: source.clone(),
         },
         N::Text {
