@@ -62,6 +62,43 @@ pub fn imported_cem_tree(tree: Arc<RetainedCemTree>) -> Item {
     })
 }
 
+/// A typed original-source node and its retained storage owner.
+#[derive(Debug, Clone)]
+pub struct RetainedCemNode {
+    owner: Arc<RetainedCemTree>,
+    node_id: AstNodeId,
+}
+impl RetainedCemNode {
+    pub fn new(owner: Arc<RetainedCemTree>, node_id: AstNodeId) -> Option<Self> {
+        owner.ast().get(node_id)?;
+        Some(Self { owner, node_id })
+    }
+    pub fn owner(&self) -> &Arc<RetainedCemTree> {
+        &self.owner
+    }
+    pub fn node_id(&self) -> AstNodeId {
+        self.node_id
+    }
+    pub fn node(&self) -> &CemAstNode {
+        self.owner.ast().get(self.node_id).unwrap()
+    }
+    pub fn query_item(&self) -> Item {
+        let root = imported_cem_tree(self.owner.clone());
+        root.view()
+            .unwrap()
+            .downcast_ref::<CemAstView>()
+            .unwrap()
+            .item(self.node_id)
+    }
+}
+
+/// Extract an imported original-source handle. This does not coerce XPath or
+/// arbitrary host projections into source arenas or grant target access.
+pub fn retained_cem_node(item: &Item) -> Option<RetainedCemNode> {
+    let view = item.view()?.downcast_ref::<CemAstView>()?;
+    RetainedCemNode::new(view.owner.tree.clone()?, view.node?)
+}
+
 #[derive(Debug)]
 struct Imported {
     tree: Option<Arc<RetainedCemTree>>,

@@ -872,3 +872,24 @@ See the [CEM-QL acceptance criteria](../../docs/cem-ql-ac.md),
 [stack design](../../docs/cem-ql-stack-design.md), and
 [implementation design](../../docs/cem-ql-stack-design-impl.md) for the complete
 language and runtime contract.
+
+## Retained schema declaration references
+
+`schema_references::CemQlSchemaDeclarationHost` is an explicit native consumer
+for references in schema `{elements}` collections. Register retained source and
+library trees with their effective policies, supply a
+`StandaloneExpressionContext` for each evaluating scope, and grant directed
+scope crossings before calling `compile`. Missing contexts report Pending;
+empty selections resolve successfully. `set_context` allows a later lifecycle
+snapshot to complete the same retained source without rewriting references.
+
+`eval::RetainedCemNode` and `eval::retained_cem_node` expose checked original
+source handles from imported CEM views. The compiler shares
+`RetainedCemTree::ast_owner`, preserves declaring schema aliases, and uses the
+shared bounded resolver for nested references. Effective child scopes can be
+supplied through `assign_subtree_scope`; runtime scope handles belong to their
+host and add no authored IDs.
+
+Package loading does not install or invoke this host automatically. The package
+lifecycle invocation and coordinated publication integration remain tracked in
+[todo.md](../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).

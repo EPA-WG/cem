@@ -767,10 +767,46 @@ handles to its own typed runtime representation, so constructed references do
 not require a fake source arena. Each site makes one bounded resolution request;
 this is not a whole-compilation work budget or an automatic lifecycle service.
 Compilation without an evaluator records unevaluated sites as pending and does
-not request evaluation. Native CEM-QL production adapters remain
+not request evaluation. Package lifecycle invocation and publication remain
 explicit actionable work in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
 
+
+### Native CEM-QL declaration consumer (2026-10-04)
+
+`cem_ql::schema_references::CemQlSchemaDeclarationHost` provides an explicit
+compilation stage over retained CEM trees. `register_scope` accepts the retained
+owner, effective reference policy and an optional `StandaloneExpressionContext`.
+A missing context yields Pending when that scope's reference is evaluated;
+terminal declarations do not require a context. `set_context` supplies a later
+lifecycle snapshot. `compile` uses the retained source's original arena and
+never updates authored reference targets or shares a selection cache.
+
+The host evaluates the original source expression through CEM-QL and consumes
+its outer `#` constructor. The common resolver follows nested source or native
+reference nodes under request and destination limits. Original query errors
+remain Invalid, and resolved-empty selections remain distinct from Pending.
+The schema consumer enforces declaration target kind and original lexical
+`{uses}` bindings after resolution.
+
+`RetainedCemTree::ast_owner` shares the original immutable AST allocation.
+`cem_ql::eval::RetainedCemNode` and `retained_cem_node` provide checked typed
+source handles for imported CEM views; arbitrary host/XPath projections are not
+coerced into source declarations. Consumed declarations retain their original
+allocation after the query context and semantic tree views are dropped.
+
+Runtime scope handles are specific to their host and do not add authored IDs.
+`assign_subtree_scope` supplies explicit effective child scope metadata; the
+nearest source ancestor selects it. This does not choose the deferred child
+scope-reference syntax. Different scopes require a directed
+`allow_scope_crossing` grant, and unregistered owners cannot borrow permission
+from an equal node ID or a supplied query binding. Native constructed references
+inherit the evaluating scope; retained targets use their registered scope.
+
+The host is opt-in consumer code. Source-only package loading remains pending;
+connecting the package lifecycle's supplied context to compilation and
+coordinated publication remains an actionable task in
+[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
 
 ### Schema readiness and coordinated package activation (2026-10-04)
 

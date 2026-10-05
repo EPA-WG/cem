@@ -329,10 +329,28 @@ implementation. `git diff --check` passes.
       inspecting an incomplete replacement. Verify final validation uses the
       active model, later completion switches the model, and initial inactive
       candidates still block built-in fallback.
+- [x] Fixture: compile retained schema references through production CEM-QL
+      contexts; verify original source allocation, lexical aliases, pending/empty/
+      invalid outcomes (including malformed native constructor results),
+      independent contexts, nested references and denied/granted
+      scope crossings and foreign-host scope handles. Retained declarations
+      survive dropping query owners.
+- [x] Implement the native `CemQlSchemaDeclarationHost` compilation stage with
+      caller-provided lifecycle contexts, original lexical owners, effective
+      subtree scopes and explicit directed crossing grants. Consume the outer
+      source constructor; resolve nested references through the shared walker.
+      Verification: Nx `cem_ql:test` passes, including five native consumer
+      fixtures. 32 CEM-ML declaration/reference and import/XPath fixtures pass.
 - [ ] Supply explicit lifecycle evaluation for package declaration references
       through the production consumer host, allowing completion and activation
       of the same source without automatic parser evaluation or a new scheduler.
-- [ ] Adapt native CEM-QL declaration views to original retained declaration
+      The native CEM-QL host is implemented; wire the package lifecycle caller
+      to supply its ready context and invoke the stage before coordinated
+      publication. Source-only package loading must remain pending by default.
+      Scenarios for later design verification: one retained candidate completes
+      when dependencies arrive; independent lifecycle contexts do not share
+      selected targets; incomplete replacements preserve the active package.
+- [x] Adapt native CEM-QL declaration views to original retained declaration
       owners for the production schema host. Do not serialize or clone source
       ASTs to manufacture target arenas; preserve lexical aliases and boundaries.
 - [ ] Define the existing schema validation/composition sites that consume typed

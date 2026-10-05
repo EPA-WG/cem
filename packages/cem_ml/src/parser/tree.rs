@@ -64,7 +64,7 @@ pub struct CemTreeNode {
 
 pub struct RetainedCemTree {
     provenance: BTreeMap<AstNodeId, crate::value::artifact::CemValueProvenance>,
-    ast: CemDocument,
+    ast: Arc<CemDocument>,
     source_uri: String,
     metadata: CemDocumentMetadata,
     native_owner: Option<Arc<dyn Any + Send + Sync>>,
@@ -435,7 +435,7 @@ impl RetainedCemTree {
             });
         Ok(Arc::new(Self {
             provenance: semantics.provenance,
-            ast,
+            ast: Arc::new(ast),
             source_uri,
             metadata,
             native_owner,
@@ -451,6 +451,12 @@ impl RetainedCemTree {
     pub fn ast(&self) -> &CemDocument {
         &self.ast
     }
+    /// Share the original immutable source allocation with typed consumers.
+    /// Semantic tree views and source declarations use the same arena.
+    pub fn ast_owner(&self) -> &Arc<CemDocument> {
+        &self.ast
+    }
+
     /// Parent in the original source arena, including nodes omitted or
     /// coalesced by the semantic view. Does not canonicalize the source ID.
     pub fn source_parent(&self, id: AstNodeId) -> Option<AstNodeId> {

@@ -2474,5 +2474,8 @@ context.schema_package_replacement_grants.push(SchemaPackageReplacementGrant {
 
 These are native runtime APIs. Command/WASM integrations must pass explicit
 consumer authority if they add override support; package URI lists do not
-synthesize grants. The production CEM-QL lifecycle host remains tracked in
+synthesize grants. The native CEM-QL declaration host is available as
+`cem_ql::schema_references::CemQlSchemaDeclarationHost`. It compiles original
+retained owners under caller-supplied contexts and scope permissions. Package
+lifecycle invocation and publication integration remain tracked in
 [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
