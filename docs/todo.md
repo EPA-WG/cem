@@ -1230,11 +1230,29 @@ implementation verification. They do not claim executable test coverage.
       access or built-in implementation; collected declarations do not claim readiness.
       Verification: six registry fixtures, three datatype inventory fixtures, nine
       native value contract tests and 65 declaration-reference tests pass (83 total).
-- [ ] Decide omitted datatype `kind`: inherit a resolved base's kind for derived
-      types (recommended), with explicit `kind=list` for item-base semantics, or
-      require explicit kind on every general datatype declaration.
+- [x] Adopt omitted datatype `kind` inheritance from a resolved base for derived
+      types, with explicit `kind=list` for item-base semantics. Pending bases
+      remain pending; whole-list inheritance needs its separate dependency contract.
       Scenarios for later design verification: forward/pending bases never default
       to strings; a list item base is never mistaken for scalar inheritance.
+- [x] Fixture: retain datatype source descriptors with original lexical scope and
+      declaration handles, native base/rule attribute nodes, unknown authored fields,
+      omitted versus empty kind and last-authored attribute precedence. Verify owners
+      survive registry/source-owner release without cloning declarations.
+      Scenarios for later design verification: kind inference sees authored fields
+      accurately; unsupported fields remain visible to later compilation diagnostics.
+- [x] Implement retained datatype source descriptors under these fixtures; do not
+      interpret kind/base/rule or claim executable readiness during collection.
+      Scenarios for later design verification: native dependency attributes remain
+      original nodes until the bounded lifecycle compiler consumes them.
+      Verification: four source descriptor fixtures plus the 83 adjacent registry,
+      inventory, value and declaration-reference tests pass (87 total).
+- [ ] Decide whole-list inheritance: retain existing list `base` item semantics and
+      defer separate inheritance syntax (recommended), or introduce an explicit item
+      field now so `base` can uniformly denote inheritance. Do not infer an edge's
+      meaning from a missing kind while this contract is unresolved.
+      Scenarios for later design verification: a list of lists is distinct from a
+      derived list; source compatibility never silently changes a dependency's role.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.

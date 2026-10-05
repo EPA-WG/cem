@@ -1376,6 +1376,11 @@ lexical scope handles, original declaration lookup and collision provenance.
 Six native fixtures verify identity, scope independence and owner lifetime; 83
 focused registry/inventory/value/declaration-reference tests pass. This registry
 does not enable datatype execution or replace namespace admission and dependency
-compilation. The next decision is omitted `kind` for derived types: inherit the
-resolved base kind (recommended), requiring explicit list kind for item semantics,
-or require every general datatype declaration to state its kind.
+compilation. Derived declarations inherit an omitted `kind` from a resolved base,
+requiring explicit list kind for item semantics. Retained source descriptors now
+preserve original lexical scope and every authored field, including native base/rule
+nodes and unknown or repeated fields. Four source fixtures and the adjacent tests
+pass (87 total). Dependency inference and executable datatype consumption remain
+guarded. The next decision is whole-list inheritance: preserve existing list-base
+item semantics and defer a separate inheritance form (recommended), or introduce
+a dedicated item field now so `base` consistently denotes inheritance.

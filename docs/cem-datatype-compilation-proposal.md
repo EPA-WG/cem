@@ -6,7 +6,8 @@ rejection, intersecting scalar restrictions and ordered typed list conversion
 results, rejection of list declaration `values` and explicit rule acceptance
 with diagnostics, empty lists unless constrained and a dedicated `node` kind are
 adopted. Node rules validate complete target sequences, and candidate requirements
-are per registered capability. Exact signatures and
+are per registered capability. Derived declarations inherit an omitted kind from
+a resolved base, with explicit list kind for item-base semantics. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -460,24 +461,52 @@ namespace admission, QName binding, descriptors, dependency compilation, registe
 implementations and native `@type` execution remain separate work. Membership does
 not grant intrinsic semantics or indicate a ready executable datatype.
 
-## Next decision: omitted kind for derived datatypes
+## Adopted omitted kind for derived datatypes
 
-The current schema metamodel requires a type name but leaves `kind` optional.
-The general compiler needs an explicit meaning for an omitted kind.
+A derived declaration may inherit the kind of its resolved base. The compiler
+waits for an incomplete base rather than guessing a kind or falling back to
+strings. A list declaration explicitly states `kind=list` when its base selects
+the item contract. A declaration with neither an explicit kind nor an inheritable
+base cannot become a ready datatype merely from its local name.
 
-Recommended contract: a derived declaration may inherit the kind of its resolved
-base. The compiler waits for an incomplete base rather than guessing a kind or
-falling back to strings. A list declaration must explicitly state `kind=list`
-because its base selects the item contract, not an inherited scalar contract.
-A declaration with neither an explicit kind nor an inheritable base cannot become
-a ready datatype merely from its local name.
+An omitted field is distinct from an explicitly empty or unsupported kind. Source
+descriptors preserve this distinction; inference must not hide malformed authored
+fields. Existing shipped declarations all specify their kind and remain compatible.
+Whole-list inheritance still needs a distinct dependency contract before it can
+be consumed; inferred kind alone does not resolve a base edge's meaning.
 
-Alternative: require an explicit kind on every general datatype declaration.
-This simplifies classification but changes the optional-kind authoring contract
-and repeats information already present in a derived type's base.
+## Implemented retained source descriptors
 
-Select this policy before kind inference and base compatibility checking. Existing
-shipped declarations all specify their kind; their contracts remain compatible.
+`DatatypeSource` retains the caller-supplied original lexical scope, declaration
+and every authored attribute node. Unknown fields and repeated occurrences remain
+available in source order; the last-authored field view preserves scalar or native
+value nodes without evaluating them. A descriptor outlives the registry and source
+owner variables through its original retained owners. No AST is copied or rewritten.
+
+Four source fixtures verify native dependency fields, unknown-field visibility,
+omitted versus empty kind, source lifetime and last-authored precedence. Together
+with the adjacent registry/inventory/value/declaration-reference tests, 87 focused
+tests pass. These are source descriptors, not compiled executable descriptors;
+kind inference, dependency resolution and registered adapters remain guarded.
+
+## Next decision: whole-list inheritance
+
+Shipped list declarations use `base` for their item datatype. For other derived
+datatypes, `base` denotes inheritance. A general compiler must not silently switch
+these meanings when a dependency is itself a list.
+
+Recommended first contract: retain the shipped list `base` item semantics and
+defer whole-list inheritance until a separate explicit syntax is designed. A list
+item contract and a list rule still express reusable item and sequence constraints.
+This does not claim that a nested list and a derived list are interchangeable.
+
+Alternative: introduce a dedicated item-type field now and make `base` uniformly
+mean inheritance, with an explicit compatibility treatment for shipped list forms.
+This provides coherent whole-list derivation but adds authoring syntax, metamodel
+admission and a migration contract before the first compiler can be enabled.
+
+Choose this boundary before dependency classification. Until then, collected
+source descriptors do not resolve an ambiguous list edge or claim readiness.
 
 ## Verified inventory and current native boundary
 

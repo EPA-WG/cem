@@ -34,6 +34,40 @@ struct ScopeDeclarations {
     names: BTreeMap<String, SchemaDeclarationNode>,
 }
 
+/// Original authored declaration fields and their caller-supplied lexical scope.
+/// This is a source descriptor, not an executable/ready datatype contract.
+#[derive(Debug, Clone)]
+pub struct DatatypeSource {
+    scope: SchemaDeclarationNode,
+    declaration: SchemaDeclarationNode,
+    attributes: Vec<SchemaDeclarationNode>,
+}
+
+impl DatatypeSource {
+    pub fn scope(&self) -> &SchemaDeclarationNode {
+        &self.scope
+    }
+
+    pub fn declaration(&self) -> &SchemaDeclarationNode {
+        &self.declaration
+    }
+
+    /// All authored fields, including unknown fields and repeated occurrences.
+    /// The compiler owns namespace/facet admission and unsupported-field errors.
+    pub fn attributes(&self) -> &[SchemaDeclarationNode] {
+        &self.attributes
+    }
+
+    /// Last-authored field view, preserving the original attribute and native
+    /// value nodes. No kind inference, dependency resolution or lexical extraction.
+    pub fn attribute(&self, name: &str) -> Option<&SchemaDeclarationNode> {
+        self.attributes.iter().rev().find(|attribute| {
+            matches!(attribute.node(), CemAstNode::Attribute { expanded_name, .. }
+                if expanded_name.local_name == name)
+        })
+    }
+}
+
 /// Collection foundation only: entries are original declarations, not compiled
 /// datatype descriptors. Unknown names do not acquire a built-in/string fallback.
 #[derive(Debug, Default)]
@@ -82,6 +116,25 @@ impl DatatypeRegistry {
     /// compiler's responsibility; this method does not resolve strings as URLs.
     pub fn get(&self, scope: &SchemaDeclarationNode, name: &str) -> Option<&SchemaDeclarationNode> {
         self.scopes.get(&scope.identity())?.names.get(name)
+    }
+
+    /// Retain source fields for a collected declaration without claiming that its
+    /// dependencies or executable capabilities have been compiled. Use the given
+    /// lexical scope; never infer it from the consuming attribute's aliases.
+    pub fn source(&self, scope: &SchemaDeclarationNode, name: &str) -> Option<DatatypeSource> {
+        let declaration = self.get(scope, name)?.clone();
+        let CemAstNode::Element { attributes, .. } = declaration.node() else {
+            return None;
+        };
+        let attributes = attributes
+            .iter()
+            .map(|id| SchemaDeclarationNode::new(declaration.document().clone(), *id))
+            .collect::<Option<Vec<_>>>()?;
+        Some(DatatypeSource {
+            scope: scope.clone(),
+            declaration,
+            attributes,
+        })
     }
 
     /// Exact original-source lookup after authorized native selection. A matching
