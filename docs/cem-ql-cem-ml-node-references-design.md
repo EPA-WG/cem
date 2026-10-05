@@ -1324,3 +1324,19 @@ literal/native dependency lifecycle, and records the remaining semantic decision
 Pending attribute metadata defers type-dependent facet/default checks, while
 known malformed facets and local value errors remain visible. Standalone value
 conversion rejects unconsumed type metadata instead of falling back to strings.
+
+General datatype rule execution adopts explicitly registered schema-owned
+implementations and preserves shipped prose as descriptions. It does not introduce
+an executable grammar language. Registration grants no additional scope access,
+and matching a rule description or local type name cannot acquire a primitive.
+Custom binding adopts explicit native `@rule={#behavior}` selecting one named
+registered datatype-compatible behavior, with literal descriptions retained.
+A separate `@behavior` field is not adopted. Rule consumption remains disabled
+until its typed signature and lifecycle adapter are specified. Rules validate
+and report acceptance or diagnostics; an explicitly requested separate conversion
+capability produces the canonical value. Rules cannot replace that value or
+mutate authored source nodes. The next registry decision is whether distinct
+same-name datatype declarations in one lexical schema are errors or use later
+precedence; rejection is recommended. The verified inventory also distinguishes
+available scalar conversion from the broader existing schema predicate coverage;
+full datatype family parity remains an implementation requirement.

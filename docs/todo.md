@@ -1098,15 +1098,49 @@ implementation verification. They do not claim executable test coverage.
       [the temporary proposal](cem-datatype-compilation-proposal.md).
       Scenarios for later design verification: one compiled descriptor serves
       literal and native selection without cloning authored declarations.
-- [ ] Decide executable `rule` semantics: explicitly registered schema-owned
-      implementations with shipped descriptions preserved (recommended), or a
-      new executable grammar language with a migration for existing prose rules.
+- [x] Adopt explicitly registered schema-owned executable rule implementations;
+      preserve shipped rule prose as descriptions of known built-in contracts.
+      Do not introduce an executable grammar language for `@rule`.
       Scenarios for later design verification: unknown implementations cannot
-      activate; arbitrary prose is not silently treated as executable code.
-- [ ] Fixture: inventory shipped lexical/scalar/list/grammar/reference declarations
-      and establish conversion/validation parity for their native primitives.
-      Scenarios for later design verification: list item bases are not confused
-      with scalar inheritance; a same-name vendor type does not gain a primitive.
+      activate; matching a prose description or local type name grants no primitive.
+- [x] Fixture: retain and inventory the 18 generic CEM-ML datatype declarations,
+      including lexical/scalar/list/grammar/reference kinds, list item bases and
+      prose versus named rules, through original AST owners.
+      Scenarios for later design verification: the compiler must not treat a list
+      item base as scalar inheritance or a symbolic reference as an AST constructor.
+- [x] Fixture: verify that current scalar conversion produces values accepted by
+      the same schema validator, and record which shipped datatype families still
+      require native conversion implementations rather than a string fallback.
+      Scenarios for later design verification: canonical primitive outputs preserve
+      whitespace/normalization semantics; unsupported native families stay explicit.
+      Verification: all three inventory/parity fixtures, nine native value contract
+      tests and 65 declaration-reference tests pass (77 total). No datatype rule
+      binding or general compilation is enabled by this design inventory.
+- [x] Adopt explicit native `@rule={#behavior}` selecting one named registered
+      datatype-compatible behavior; preserve literal rule descriptions and do
+      not introduce a separate `@behavior` binding field.
+      Scenarios for later design verification: named datatype-compatible behaviors
+      retain their original owner/scope; prose never becomes an implicit reference.
+- [x] Adopt separate validation/conversion roles: `@rule` reports acceptance or
+      diagnostics; explicitly requested conversion uses a separate registered
+      capability, and rule results cannot replace the typed value.
+      Scenarios for later design verification: conversion happens once; inherited
+      restrictions cannot rewrite the final value or mutate an authored source.
+- [ ] Decide datatype registry collisions within one lexical schema: reject
+      distinct same-name declarations (recommended), or use later-declaration
+      precedence with explicit shadowing provenance. Reusing one original
+      declaration from multiple attribute sites remains valid.
+      Scenarios for later design verification: equal local names in separate scopes
+      remain independent; source order cannot silently weaken a type restriction.
+- [ ] Specify the registered implementation identity, typed input/result signature,
+      package ownership checks and compilation/validation/conversion adapters.
+      Scenarios for later design verification: registration grants no scope access;
+      an unrelated vendor type cannot borrow a built-in implementation by name.
+- [ ] Establish full validation/conversion parity for shipped datatype families;
+      add fixture actions for lexical, URI/semver/media-type/path, list, grammar
+      and symbolic-reference implementations before adding those implementations.
+      Scenarios for later design verification: unsupported conversion stays explicit;
+      a primitive predicate alone does not prove a complete conversion contract.
 - [ ] Decide and specify datatype namespace/duplicate rules, scalar restriction
       composition, list item/value representation and grammar/reference behavior.
       Scenarios for later design verification: attribute restrictions cannot widen
