@@ -271,6 +271,15 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                     .map(str::to_owned)
             })
             .collect();
+        if let CemAstNode::Element { attributes, .. } = current.source.node() {
+            if attributes.iter().any(|id| {
+                matches!(current.source.document().get(*id), Some(CemAstNode::Attribute { value_nodes, .. }) if !value_nodes.is_empty())
+            }) {
+                // Source slots have not been consumed. Available structural and
+                // presence checks still run, but behavior cannot see fake scalars.
+                report.complete = false;
+            }
+        }
         let Some(element) = document_model::validate_element_shallow(
             current.source.document(),
             model,

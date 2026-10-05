@@ -715,11 +715,37 @@ implementation. `git diff --check` passes.
       its existing contract while XML expression design remains deferred.
       Scenarios for later design verification: malformed comments/strings cannot
       turn later source text into an apparently complete expression value.
-- [ ] Decide the first native attribute schema consumer contract: require an
-      explicit node-valued attribute contract (recommended), or automatically
-      extract primitive values from referenced nodes. User decision is pending.
+- [x] Adopt explicit node-valued attribute contracts; primitive contracts retain
+      literal inputs and never automatically extract values from reference targets.
       Scenarios for later design verification: retention never chooses conversion;
       string constraints cannot silently turn native references into empty text.
+- [x] Implement the independent native attribute contract guards: recognize node
+      types, reject literal node inputs and native primitive inputs, and retain
+      pending readiness without inventing empty scalar values.
+      Scenarios for later design verification: required-attribute and presence
+      checks still run; value-dependent checks and behavior wait for consumption.
+- [x] Fixture: primitive or untyped attribute contracts reject native expressions
+      without evaluation or scalar empty-value/facet diagnostics.
+      Scenarios for later design verification: quoted lookalikes remain literal;
+      original attribute source maps and schema-owned type diagnostics survive.
+- [x] Fixture: node-valued contracts reject literal/boolean inputs, scalar
+      conversion and textual schema defaults; native values remain retained.
+      Scenarios for later design verification: an authored string never becomes
+      a native constructor merely because its contract expects a node.
+- [x] Fixture: retained input validation stays incomplete for native attribute
+      references and general expressions without evaluating them; preserve
+      available structural checks and attribute presence conditions.
+      Scenarios for later design verification: native attributes cannot satisfy
+      readiness through absent text, trigger defaults or look absent to guards.
+- [x] Fixture: source-only validation defers behavior for native attribute values
+      and keeps literal documents on their existing completed validation path.
+      Scenarios for later design verification: both reference and generic query
+      expressions require an explicit lifecycle consumer, including vendor nodes.
+- [ ] Decide node-valued attribute cardinality: exactly one target by default
+      with explicit count facets allowing other counts (recommended), or zero
+      or more when count constraints are omitted. User decision is pending.
+      Scenarios for later design verification: resolved-empty differs from pending;
+      repeated targets retain order and identity; count failures are complete.
 - [ ] Implement native attribute validation under the chosen schema contract,
       using the shared bounded resolver and caller-supplied lifecycle context.
       Carry completeness separately from schema-owned diagnostic disposition.

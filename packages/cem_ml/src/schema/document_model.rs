@@ -347,6 +347,16 @@ pub struct AttributeModel {
     pub source_map: SourceMapStack,
 }
 
+impl AttributeModel {
+    /// Explicit native node input. Qualifier handling follows other built-in
+    /// attribute types; callers retain their schema's lexical bindings.
+    pub fn is_node_valued(&self) -> bool {
+        self.value_type
+            .as_deref()
+            .is_some_and(|ty| type_reference_local_name(ty) == "node")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiagnosticBehavior {
     pub code: String,
@@ -1024,19 +1034,20 @@ impl FieldContract {
     fn applies_to(
         &self,
         attributes: &BTreeMap<String, String>,
+        seen_attributes: &BTreeSet<String>,
         child_counts: &BTreeMap<String, usize>,
     ) -> bool {
         if !self
             .when_present_attributes
             .iter()
-            .all(|name| attributes.contains_key(name))
+            .all(|name| seen_attributes.contains(name))
         {
             return false;
         }
         if !self
             .when_absent_attributes
             .iter()
-            .all(|name| !attributes.contains_key(name))
+            .all(|name| !seen_attributes.contains(name))
         {
             return false;
         }
@@ -1044,7 +1055,7 @@ impl FieldContract {
             && !self
                 .when_any_present_attributes
                 .iter()
-                .any(|name| attributes.contains_key(name))
+                .any(|name| seen_attributes.contains(name))
         {
             return false;
         }
@@ -1052,7 +1063,7 @@ impl FieldContract {
             && !self
                 .when_any_absent_attributes
                 .iter()
-                .any(|name| !attributes.contains_key(name))
+                .any(|name| !seen_attributes.contains(name))
         {
             return false;
         }
@@ -1193,10 +1204,16 @@ pub(crate) fn has_consumable_references(
             Some(CemAstNode::Element {
                 expanded_name,
                 children,
+                attributes,
                 ..
             }) if !should_skip_structural_name(&expanded_name.local_name)
                 && model.element(&expanded_name.local_name).is_some() =>
             {
+                if attributes.iter().any(|id| {
+                    matches!(document.get(*id), Some(CemAstNode::Attribute { value_nodes, .. }) if !value_nodes.is_empty())
+                }) {
+                    return true;
+                }
                 pending.extend(children.iter().copied())
             }
             _ => {}
@@ -1308,8 +1325,23 @@ pub(crate) fn validate_element_shallow<'a>(
         let Some((attr_prefix, attr_local, attr_value)) = attribute_parts(attr) else {
             continue;
         };
-        let raw_value = attr_value.unwrap_or_default();
         seen_attributes.insert(attr_local.to_owned());
+        if matches!(attr, CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty()) {
+            if !element_model.allows_attribute(attr_prefix, attr_local) {
+                diagnostics.push(diag_at(
+                    UNKNOWN_ATTRIBUTE_CODE,
+                    format!(
+                        "attribute `{attr_local}` is not declared on element `{local}` by schema `{}`",
+                        model.schema_uri
+                    ),
+                    attr,
+                ));
+            } else {
+                validate_native_attribute_contract(model, local, attr_local, attr, diagnostics);
+            }
+            continue;
+        }
+        let raw_value = attr_value.unwrap_or_default();
         if !element_model.allows_attribute(attr_prefix, attr_local) {
             attribute_values.insert(attr_local.to_owned(), raw_value.to_owned());
             diagnostics.push(diag_at(
@@ -1375,6 +1407,44 @@ pub(crate) fn validate_element_shallow<'a>(
     }
 
     Some(element_model)
+}
+
+/// Read-only contract guard. Runtime consumption supplies retained targets;
+/// native values are never atomized into this lexical validation path.
+fn validate_native_attribute_contract(
+    model: &SchemaDocumentModel,
+    element_name: &str,
+    attribute_name: &str,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let attribute = model.attributes.get(attribute_name);
+    if attribute.is_some_and(AttributeModel::is_node_valued) {
+        return;
+    }
+    let behavior = engine_diagnostic_behavior(
+        &model.diagnostic_behaviors,
+        attribute.and_then(|model| model.type_diagnostic.as_deref()),
+        EngineDiagnosticBehavior::ScalarType,
+    );
+    let code = behavior
+        .map(|behavior| behavior.code.as_str())
+        .unwrap_or(INVALID_ATTRIBUTE_TYPE_CODE);
+    diagnostics.push(diag_at_with_details_and_severity(
+        code,
+        behavior.map(|behavior| behavior.severity).unwrap_or(Severity::Error),
+        behavior_message(behavior, format!("attribute `{attribute_name}` on element `{element_name}` has a native value but requires an explicit node-valued contract")),
+        node,
+        serde_json::json!({
+            "schemaUri": model.schema_uri,
+            "element": element_name,
+            "attribute": attribute_name,
+            "valueType": attribute.and_then(|model| model.value_type.as_deref()),
+            "valueKind": "native",
+            "checkKind": "type:native-node",
+            "diagnosticCode": code,
+        }),
+    ));
 }
 
 pub(crate) fn structural_child_name(node: &CemAstNode) -> Option<&str> {
@@ -1594,7 +1664,16 @@ fn validate_attribute_type(
         return true;
     };
     let value = value.trim();
-    let violation = if is_identifier_type_reference(value_type) {
+    let violation = if attribute_model.is_node_valued() {
+        Some(AttributeTypeViolation {
+            name: "node",
+            check_kind: "type:node",
+            expected_values: &[],
+            expected_pattern: "retained native node value",
+            allows_empty: false,
+            message: "not a retained native node value",
+        })
+    } else if is_identifier_type_reference(value_type) {
         (!is_cem_local_name(value)).then_some(AttributeTypeViolation {
             name: "identifier",
             check_kind: "type:identifier",
@@ -15623,7 +15702,7 @@ fn validate_field_contracts(
             .behavior
             .as_deref()
             .filter(|_| contract.engine_behavior == Some(EngineDiagnosticBehavior::FieldContract));
-        if !contract.applies_to(attribute_values, child_counts) {
+        if !contract.applies_to(attribute_values, seen_attributes, child_counts) {
             continue;
         }
         let missing = contract

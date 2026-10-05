@@ -11,6 +11,10 @@ pub struct AttributeValueContract {
 }
 
 impl AttributeValueContract {
+    pub fn is_node_valued(&self) -> bool {
+        self.model.is_node_valued()
+    }
+
     pub fn models(&self) -> impl Iterator<Item = &AttributeModel> {
         std::iter::once(&self.model).chain(&self.restrictions)
     }
@@ -139,6 +143,12 @@ fn convert_model(
     model: &AttributeModel,
     source: &SourceMapStack,
 ) -> Result<TypedAttributeValue, Vec<Diagnostic>> {
+    if model.is_node_valued() {
+        return Err(contract_failure(
+            "Node-valued contracts require retained native inputs; scalar conversion cannot construct nodes",
+            source,
+        ));
+    }
     let mut model = model.clone();
     let datatype = model
         .value_type

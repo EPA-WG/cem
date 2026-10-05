@@ -1071,11 +1071,25 @@ expression recognition is deferred as an actionable compatibility design item;
 XML literals remain unchanged. This does not choose enclosed child-scope syntax
 or cem-element ID binding behavior.
 
-The next consumer decision concerns schema attribute value contracts: requiring
-an explicit native node contract versus automatically extracting primitive values
-from referenced nodes. The recommendation is the explicit node contract. Native
-value retention and inspection do not choose that evaluation/conversion policy.
-The implementation action and verification scenarios remain in the todo list.
+Schema attribute consumers require an explicit `node` type for native values.
+Primitive and untyped contracts do not automatically extract scalar values from
+referenced nodes. Literal inputs, scalar conversion and textual schema defaults
+cannot construct values for a node contract. Contract violations retain the
+original attribute source map and schema-owned type diagnostic behavior.
+
+The implemented guards keep native slots out of lexical/facet validation while
+retaining attribute presence for required-attribute and field-presence checks.
+Source-only behavior validation waits for consumption. Retained input validation
+remains incomplete for native references and general expressions, runs available
+structural checks, and leaves the source nodes and reference targets unchanged.
+These guards do not evaluate native values; a lifecycle consumer supplies the
+context and shared bounded resolution.
+
+The next consumer decision concerns cardinality: exactly one target by default
+with explicit item-count facets allowing other counts, or zero or more targets
+when count constraints are omitted. The decision and subsequent resolution
+implementation remain actionable in the todo list, alongside verification
+scenarios. CEM-ML syntax does not choose this schema consumer policy.
 
 The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside

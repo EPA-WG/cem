@@ -964,6 +964,11 @@ fn reused_diagnostics_and_behaviors_bind_before_dependent_attribute_checks() {
                 && d.message.contains("Shared type violation")),
             "{diagnostics:?}"
         );
+        let native_diagnostics = validate_document_model(&parse("{input @size={#nodes}}"), &model);
+        assert_eq!(native_diagnostics.len(), 1);
+        assert_eq!(native_diagnostics[0].code, "fixture.value");
+        assert_eq!(native_diagnostics[0].severity, Severity::Warning);
+        assert!(native_diagnostics[0].message.contains("Shared type violation"));
         for site in &model.declaration_references.sites {
             assert!(site
                 .resolution
@@ -1936,4 +1941,138 @@ fn structural_only_validation_does_not_request_declaring_schema_lookup() {
         .nodes
         .iter()
         .all(|node| node.declaring_schema.is_none()));
+}
+
+#[test]
+fn native_attribute_contract_rejects_primitive_and_untyped_inputs_without_empty_coercion() {
+    use cem_ml::schema::document_model::{validate_document_model, INVALID_ATTRIBUTE_TYPE_CODE};
+    for ty in [
+        "schema:string",
+        "schema:integer",
+        "schema:boolean",
+        "schema:number",
+        "",
+    ] {
+        let type_attr = if ty.is_empty() {
+            String::new()
+        } else {
+            format!("@type={ty}")
+        };
+        let model = compile_schema_document_model("consumer", &format!("{{schema | {{elements | {{element @name=box @required-attributes=target}} }} {{attributes | {{attribute @name=target {type_attr} @values=accepted}} }} }}"));
+        let source = parse("{box @target={#nodes}}");
+        let diagnostics = validate_document_model(&source, &model);
+        assert_eq!(diagnostics.len(), 1, "{ty}: {diagnostics:?}");
+        assert_eq!(diagnostics[0].code, INVALID_ATTRIBUTE_TYPE_CODE);
+        assert!(diagnostics[0].message.contains("native"));
+        assert_eq!(
+            diagnostics[0].source_map.as_ref(),
+            if let CemAstNode::Attribute { source, .. } = source.get(2).unwrap() {
+                Some(source)
+            } else {
+                None
+            }
+        );
+    }
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:string}}}");
+    assert!(validate_document_model(&parse(r#"{box @target="{#nodes}"}"#), &model).is_empty());
+}
+#[test]
+fn native_attribute_node_contract_rejects_literal_values_conversion_and_defaults() {
+    use cem_ml::schema::document_model::{
+        convert_attribute_value, validate_document_model, AttributeValueContract,
+        INVALID_ATTRIBUTE_TYPE_CODE,
+    };
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:node}}}");
+    let contract = AttributeValueContract {
+        model: model.attributes["target"].clone(),
+        ..Default::default()
+    };
+    assert!(contract.is_node_valued());
+    for source in [
+        "{box @target=literal}",
+        "{box @target}",
+        r#"{box @target="{#nodes}"}"#,
+    ] {
+        let diagnostics = validate_document_model(&parse(source), &model);
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].code, INVALID_ATTRIBUTE_TYPE_CODE);
+    }
+    assert!(convert_attribute_value("{#nodes}", &contract, &Default::default()).is_err());
+    assert!(validate_document_model(&parse("{box @target={#nodes}}"), &model).is_empty());
+    let invalid = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:node @default=literal}}}");
+    assert!(invalid
+        .compile_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code
+            == cem_ml::schema::document_model::INVALID_SCHEMA_DEFAULT_VALUE_CODE
+            && diagnostic.severity.is_hard_violation()));
+}
+#[test]
+fn native_attribute_pending_values_preserve_structural_and_presence_checks() {
+    use cem_ml::schema::input_references::validate_structural_input_references;
+    let model = compile_schema_document_model(
+        "consumer",
+        r#"{schema | {elements | {element @name=box @required-attributes=target @children=item} {element @name=item}} {attributes | {attribute @name=target @type=schema:node}} {field-contracts | {field-contract @name=present @target=box @when-present-attributes=target @required-children=item} {field-contract @name=absent @target=box @when-absent-attributes=target @required-attributes=unexpected}}}"#,
+    );
+    for expression in ["{#nodes}", "{1 + 2}"] {
+        let source = parse(&format!("{{box @target={expression}}}"));
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let report =
+            validate_structural_input_references(source.clone(), &model, &mut host, limits)
+                .unwrap();
+        assert!(!report.complete);
+        assert!(report.failed);
+        assert_eq!(host.calls, 0);
+        assert!(report.diagnostics.iter().any(|d| d
+            .details
+            .as_ref()
+            .is_some_and(|details| details["contract"] == "present")));
+        assert!(!report.diagnostics.iter().any(|d| d
+            .details
+            .as_ref()
+            .is_some_and(|details| details["contract"] == "absent")));
+        assert!(Arc::ptr_eq(report.nodes[0].source.document(), &source));
+        assert!(source
+            .nodes
+            .iter()
+            .filter_map(|node| if let CemAstNode::Reference { targets, .. } = node {
+                Some(targets)
+            } else {
+                None
+            })
+            .all(Option::is_none));
+    }
+}
+#[test]
+fn native_attribute_source_only_behavior_waits_for_an_explicit_consumer() {
+    use cem_ml::schema::document_model::{
+        validate_document_model_with_behavior_evaluator, SchemaBehaviorEvaluator,
+        SchemaDocumentModel,
+    };
+    #[derive(Debug, Default)]
+    struct Behavior(std::sync::atomic::AtomicUsize);
+    impl SchemaBehaviorEvaluator for Behavior {
+        fn validate_document(&self, _: &CemDocument, _: &SchemaDocumentModel) -> Vec<Diagnostic> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            vec![]
+        }
+    }
+    let model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:node}}}");
+    let behavior = Behavior::default();
+    for expression in ["{#nodes}", "{1 + 2}"] {
+        validate_document_model_with_behavior_evaluator(
+            &parse(&format!("{{box @target={expression}}}")),
+            &model,
+            Some(&behavior),
+        );
+    }
+    assert_eq!(behavior.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+    let literal_model = compile_schema_document_model("consumer", "{schema | {elements | {element @name=box @required-attributes=target}} {attributes | {attribute @name=target @type=schema:string}}}");
+    validate_document_model_with_behavior_evaluator(
+        &parse("{box @target=literal}"),
+        &literal_model,
+        Some(&behavior),
+    );
+    assert_eq!(behavior.0.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
