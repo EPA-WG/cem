@@ -4,8 +4,8 @@ Status: temporary design draft. Registered schema-owned implementations,
 native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
 results, rejection of list declaration `values` and explicit rule acceptance
-with diagnostics are adopted. Exact signatures and
-remaining kind contracts need decisions. General datatype compilation must be
+with diagnostics and empty lists unless constrained are adopted. Exact signatures
+and remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
@@ -236,9 +236,9 @@ admitted. Any later shorthand needs explicit typed equality, lexical parsing and
 normalization semantics, plus its own metamodel and migration contract. These
 forms must not be inferred from an authored string or a native reference.
 
-General empty-list admission and custom tokenizers remain explicit follow-up
-work; shipped name-list contracts continue to reject empty values. No new list
-cardinality defaults or source syntax are adopted here.
+General lists permit empty sequences unless an effective contract forbids them;
+shipped name-list contracts continue to reject empty values. Custom tokenizers
+and source syntax for declaring list cardinality remain separate work.
 
 ## Proposed datatype execution adapter
 
@@ -296,24 +296,67 @@ with a declared validity mapping; they do not acquire datatype compatibility jus
 because their result has diagnostic metadata. No JSON record substitutes for a
 retained candidate or datatype node.
 
-## Next decision: general list emptiness
+## Adopted general list emptiness
 
-Existing shipped name-list contracts reject empty lexical values. The general
-ordered-list representation can represent zero items; the compiler must decide
-whether every list also has an implicit nonempty restriction.
+Admit an empty sequence unless the registered list contract or an effective
+cardinality/rule restriction forbids it. There is no implicit nonempty restriction
+for every list. Preserve the shipped name-list and wildcard-name-list nonempty
+contracts explicitly. An item base constrains each present item; it does not by
+itself require an item to exist.
 
-Recommended general contract: admit an empty sequence unless the registered list
-contract or an effective cardinality/rule restriction forbids it. Preserve the
-shipped name-list and wildcard-name-list nonempty contracts explicitly. This keeps
-the representation distinct from each datatype's restrictions and allows an empty
-result collection without inventing a special nullable list type.
+An empty sequence and an absent attribute are distinct. Required-attribute checks
+still apply to absence, and an authored empty value must pass its effective list
+contract. A derived contract cannot remove an inherited nonempty restriction.
+Converting a supplied empty sequence does not manufacture an item, a default or
+a null value. Lexical empty-input handling belongs to the registered tokenizer;
+representation-level emptiness does not authorize dropping invalid lexical tokens.
 
-Alternative: every list is nonempty by default, with empty lists requiring an
-explicit opt-in contract. This follows the shipped name-list behavior but adds
-an implicit lower bound for every custom list.
+Source syntax for declaring custom list cardinality, registered tokenizers and
+exact adapter signatures remain separate action items. No conversion adapter or
+new cardinality field is enabled by this decision.
 
-No default is adopted yet. Source syntax for declaring custom list cardinality,
-registered tokenizers and exact adapter signatures remain separate action items.
+## Registry implementation boundary
+
+Keep lexical name binding and original declaration identity separate. Name lookup
+uses the declaring schema's local bindings and explicit namespace aliases/exports;
+native selection retains the exact declaration returned by the shared resolver.
+Both routes converge on its compiled descriptor. Internal scope handles and owner
+identity are runtime values, not authored IDs or document-wide fragment lookup.
+
+Collection must precede dependency binding so a forward literal name is not
+mistaken for an unknown datatype merely because of source order. Repeated use of
+one original declaration reuses its descriptor; distinct declarations claiming
+one scoped name report a collision with both source locations. A descriptor's
+base, item and behavior dependencies retain their own lexical bindings and
+original owners rather than inheriting the consuming attribute's aliases.
+
+Registry membership grants no new scope crossing or executable implementation.
+Keep unknown names, unavailable native selection, invalid target shape and invalid
+registered signatures distinct. Incomplete descriptors remain inspectable and
+block activation according to existing coordinated package readiness rules.
+These requirements guide the retained registry implementation; the exact public
+API and metamodel admission still need specification and fixture actions.
+
+## Next decision: native node datatype declarations
+
+Existing native `node` attribute contracts consume retained node sequences and
+reject lexical facets such as `values` and `pattern`. The shipped `reference`
+datatype kind instead describes symbolic values such as QNames; it must not be
+repurposed to mean an AST reference or a retained target node.
+
+Recommended registry representation: add a dedicated `node` datatype kind for
+custom retained-node contracts, with registered native validation rules and
+original node handles. Preserve existing built-in `schema:node`/`cemml:node`
+contracts and their cardinality semantics. Node conversion does not stringify or
+copy targets; resolving an authored reference remains an explicit consumer step.
+
+Alternative: retain node contracts as built-in registry entries only, with custom
+node validation attached at the attribute/behavior level. This avoids adding a
+new datatype kind but prevents a reusable named custom node datatype from owning
+its target constraints.
+
+Neither form is enabled. Decide node-kind admission before completing the generic
+registry representation, metamodel changes and kind-specific signature checks.
 
 ## Verified inventory and current native boundary
 

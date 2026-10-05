@@ -1353,7 +1353,12 @@ acceptance plus attributed diagnostics; every effective restriction must accept.
 Severity remains independent of datatype acceptance, and pending/unavailable or
 failed execution cannot establish acceptance. Diagnostic-only behaviors need an
 explicit compatibility adapter; they do not acquire datatype capability implicitly.
-The next decision is general list emptiness: allow zero items unless an effective
-contract forbids it (recommended), preserving shipped nonempty name-list rules.
-The verified inventory also distinguishes available scalar conversion from the broader existing schema predicate coverage;
+General lists allow zero items unless an effective contract forbids it, preserving
+shipped nonempty name-list rules. Attribute absence remains distinct from an empty
+supplied list, and inherited nonempty restrictions cannot be removed. The next
+decision is whether custom retained-node datatypes use a dedicated `node` kind
+(recommended) or remain limited to built-in node entries with attribute/behavior
+checks. Symbolic-reference kinds remain separate from retained-node contracts.
+The verified inventory also distinguishes available scalar conversion from the
+broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.

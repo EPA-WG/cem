@@ -1168,11 +1168,22 @@ implementation verification. They do not claim executable test coverage.
       Add fixture actions before implementing signature checking or invocation.
       Scenarios for later design verification: original candidate/type handles remain
       native; unavailable execution differs from invalid data; conversion stays separate.
-- [ ] Decide general list emptiness: permit zero items unless an effective registered
-      contract/cardinality/rule forbids it (recommended), or require explicit empty-
-      list opt-in. Preserve shipped name-list nonempty behavior in either case.
+- [x] Adopt general list emptiness: permit zero items unless an effective registered
+      contract/cardinality/rule forbids it. Preserve shipped name-list nonempty
+      behavior; an absent attribute remains distinct from an empty supplied list.
       Scenarios for later design verification: an empty result collection has a clear
       contract; representation alone does not erase the shipped nonempty restriction.
+- [ ] Specify custom list cardinality admission and registered tokenizer contracts,
+      then add fixture actions for absent versus empty input, inherited nonempty
+      restrictions and invalid lexical tokens before implementing adapters.
+      Scenarios for later design verification: an item base does not require an item;
+      empty conversion manufactures neither a default item nor a null value.
+- [ ] Decide native node datatype representation: a dedicated `node` kind for reusable
+      custom retained-node contracts (recommended), or built-in node entries only
+      with custom checks at the attribute/behavior level. Preserve symbolic-reference
+      kinds and existing built-in node contracts separately.
+      Scenarios for later design verification: target handles retain original owners;
+      lexical facets never apply to nodes; reference resolution remains consumer-owned.
 - [ ] Specify concrete validation result bindings and an explicit compatibility
       adapter for diagnostic-only behaviors, with a declared acceptance mapping.
       Add fixture actions for acceptance/diagnostic independence, cumulative rejection,
@@ -1188,8 +1199,8 @@ implementation verification. They do not claim executable test coverage.
       and symbolic-reference implementations before adding those implementations.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
-- [ ] Complete datatype namespace/export binding rules, general list empty-value
-      and tokenization policies, and grammar/reference kind contracts.
+- [ ] Complete datatype namespace/export API and metamodel admission, registered
+      tokenization policies, and grammar/reference kind contracts.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
