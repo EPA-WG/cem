@@ -893,7 +893,9 @@ input is rewritten. The existing sites are:
 | --- | --- | --- |
 | Direct references in `{elements}` | Zero or more named `{element}` declarations | Explicit schema compilation; implemented. |
 | Direct references in `{attributes}` | Zero or more named `{attribute}` declarations | Explicit schema compilation; implemented. |
-| `{behaviors}`, `{diagnostics}`, `{constraints}`, `{field-contracts}` collections | Zero or more declarations of the collection's own kind; named behaviors, diagnostic codes, constraint kinds and contract applications retain their existing keys | Collection assembly before dependent schema checks; native reference integration remains actionable work. |
+| Direct references in `{behaviors}` | Zero or more `{behavior}` declarations with nonempty `@name`, `@implementation` and `@execution` | Explicit schema compilation before diagnostic binding; implemented. |
+| Direct references in `{diagnostics}` | Zero or more `{diagnostic}` declarations with nonempty `@code` | Explicit schema compilation; binding follows complete declaration assembly; implemented. |
+| `{constraints}` and `{field-contracts}` collections | Zero or more declarations of the collection's own kind; constraint kinds and contract applications retain their existing keys | Collection assembly before dependent schema checks; native reference integration remains actionable work. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
@@ -927,3 +929,48 @@ The remaining collection, scalar-link and validation-input work is in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside
 scenarios for later verification. This inventory does not choose deferred child
 scope syntax or cem-element ID projection behavior.
+
+
+### Behavior and diagnostic declaration reuse (2026-10-04)
+
+`{behaviors}` and `{diagnostics}` use the same explicit collection-reference
+consumer as elements and attributes. `DeclarationReferenceSite.kind` records
+the collection's target contract independently of expression spelling and
+runtime owner identity. References accept zero or more declarations of that
+kind, preserve selected order and repeated targets, and occupy their authored
+position alongside direct declarations. Named behaviors and code-keyed
+diagnostic definitions retain existing last-key-wins insertion behavior.
+Existing diagnostic binding rules, including declarations without a behavior,
+remain compatible.
+
+All selected behaviors are assembled before diagnostic behavior/function
+binding. Selected diagnostics are parsed with their arguments and original
+lexical `{uses}` aliases; unqualified behavior names retain the assembled
+consumer lookup contract. Qualified names keep declaring aliases rather than
+capturing aliases from the consuming schema. Behavior definitions retain their
+declaring schema namespace, aliases, inputs, parameters, results, inline
+functions and source maps. A declaration without an explicit declaring schema
+namespace uses the consumer's supplied schema identity; no authored root or
+context ID is introduced. This does not extend scalar string lookup to an
+implicit retained-document registry or grant additional scope crossings.
+
+Reusing a declaration still does not import its whole declaring schema.
+Dependencies can be supplied explicitly through direct or referenced collection
+declarations. Inline behavior functions retain existing function binding rules;
+other scalar function/alias composition follows its existing registry and
+visibility contracts. Those scalar-site extensions remain separate action items.
+
+An incomplete behavior or diagnostic collection cannot prove that a local
+dependency is absent. Compilation defers the affected missing local lookups and
+keeps the model inactive. When selection becomes complete, including a resolved
+empty selection, the ordinary missing-dependency checks run. Known binding and
+contract errors, malformed reference targets, original evaluator diagnostics
+and external alias binding errors remain visible; neutral, warning and ignore
+policies do not make incomplete models ready. Valid partial behaviors and
+bindings remain available for inspection.
+
+The native CEM-QL host and package lifecycle bridge use this assembly stage
+before coordinated publication. Every selected owner still requires the
+appropriate directed scope grant. Original arenas remain retained by result
+handles; compilation does not inline declarations into the source tree or
+write selected targets back into authored references.

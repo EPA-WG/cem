@@ -640,3 +640,74 @@ fn engine_package_stage_reuses_attribute_constraints_for_input_validation() {
             .any(|d| d.code == "cem.schema_model.not_ready"));
     }
 }
+
+#[test]
+fn package_compilation_reuses_behavior_and_diagnostic_dependencies_together() {
+    let source=SOURCE.replace("{elements | {#library}}", "{elements | {element @name=input @optional-attributes=size}} {attributes | {attribute @name=size @type=schema:integer @type-diagnostic=fixture.value}} {diagnostics | {#diagnostic}} {behaviors | {#behavior}}");
+    let mut context = context(&source);
+    load(&mut context, &input());
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    assert!(context.schema_registry.schema(SCHEMA_URI).is_none());
+    let library=tree("{schema @namespace=library | {behaviors | {behavior @name=value-check @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} {diagnostics | {diagnostic @code=fixture.value @behavior=value-check @severity=warning}} }");
+    context.schema_package_compiler =
+        Some(Arc::new(CemQlSchemaPackageCompiler::new(move |request| {
+            let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+            let mut host = CemQlSchemaDeclarationHost::new();
+            let mut evaluation = StandaloneExpressionContext::default();
+            for kind in ["diagnostic", "behavior"] {
+                let id = library
+                    .ast()
+                    .nodes
+                    .iter()
+                    .find_map(|n| match n {
+                        CemAstNode::Element {
+                            node_id,
+                            expanded_name,
+                            ..
+                        } if expanded_name.local_name == kind => Some(*node_id),
+                        _ => None,
+                    })
+                    .unwrap();
+                evaluation = evaluation.with_binding(
+                    kind,
+                    StandaloneExpressionBinding::any(ItemStream::once(
+                        RetainedCemNode::new(library.clone(), id)
+                            .unwrap()
+                            .query_item(),
+                    )),
+                );
+            }
+            let a = host.register_scope(request.source.clone(), Some(evaluation), policy.clone());
+            let b = host.register_scope(library.clone(), None, policy.clone());
+            host.allow_scope_crossing(a, b);
+            Ok((host, policy.limits))
+        })));
+    load(&mut context, &input());
+    let model = context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap();
+    assert!(model.is_ready_for_validation() && model.compile_diagnostics.is_empty());
+    let diagnostics = cem_ml::schema::document_model::validate_document_model(
+        tree("{input @size=no}").ast(),
+        model,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.code == "fixture.value"
+                && d.severity == cem_ml::diagnostics::Severity::Warning)
+    );
+    assert!(context
+        .converter_registry
+        .converter("runtime-converter")
+        .is_some());
+    assert!(context
+        .converter_registry
+        .package_artifacts()
+        .any(|a| a.package_id == "runtime"));
+}

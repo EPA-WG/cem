@@ -359,3 +359,74 @@ fn native_attribute_chains_keep_target_owners_and_obey_destination_limits() {
         .iter()
         .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
 }
+
+#[test]
+fn diagnostic_and_behavior_reuse_requires_grants_and_binds_assembled_dependencies() {
+    use cem_ql::eval::RetainedCemNode;
+    let source=tree("{schema | {diagnostics | {#diagnostics}} {attributes | {attribute @name=size @type=schema:integer @type-diagnostic=fixture.value}} {behaviors | {#behaviors}} }");
+    let behavior=tree("{schema @namespace=library | {behaviors | {behavior @name=value-check @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} }");
+    let diagnostic=tree("{schema | {diagnostics | {diagnostic @code=fixture.value @behavior=value-check @severity=warning}} }");
+    let item = |owner: &Arc<RetainedCemTree>, kind: &str| {
+        let id = owner
+            .ast()
+            .nodes
+            .iter()
+            .find_map(|n| match n {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == kind => Some(*node_id),
+                _ => None,
+            })
+            .unwrap();
+        RetainedCemNode::new(owner.clone(), id)
+            .unwrap()
+            .query_item()
+    };
+    let context = StandaloneExpressionContext::default()
+        .with_binding(
+            "diagnostics",
+            StandaloneExpressionBinding::any(ItemStream::once(item(&diagnostic, "diagnostic"))),
+        )
+        .with_binding(
+            "behaviors",
+            StandaloneExpressionBinding::any(ItemStream::once(item(&behavior, "behavior"))),
+        );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let a = host.register_scope(source.clone(), Some(context), policy());
+    let b = host.register_scope(behavior.clone(), None, policy());
+    let c = host.register_scope(diagnostic.clone(), None, policy());
+    host.allow_scope_crossing(a, c);
+    let incomplete = host.compile("consumer", source.clone(), limits()).unwrap();
+    assert!(!incomplete.is_ready_for_validation());
+    assert!(!incomplete
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE));
+    host.allow_scope_crossing(a, b);
+    let model = host.compile("consumer", source.clone(), limits()).unwrap();
+    assert!(model.is_ready_for_validation() && model.compile_diagnostics.is_empty());
+    assert_eq!(
+        model.diagnostic_behaviors["fixture.value"].severity,
+        cem_ml::diagnostics::Severity::Warning
+    );
+    assert!(Arc::ptr_eq(
+        model.declaration_references.sites[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes[0]
+            .document(),
+        diagnostic.ast_owner()
+    ));
+    assert!(Arc::ptr_eq(
+        model.declaration_references.sites[1]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes[0]
+            .document(),
+        behavior.ast_owner()
+    ));
+}

@@ -924,3 +924,302 @@ fn referenced_attribute_dependencies_are_checked_in_the_assembled_consumer() {
         .any(|d| d.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE));
     assert!(provided.diagnostics.contains_key("fixture.value"));
 }
+
+#[test]
+fn reused_diagnostics_and_behaviors_bind_before_dependent_attribute_checks() {
+    use cem_ml::schema::document_model::{validate_document_model, EngineDiagnosticBehavior};
+    let library = parse(
+        r#"{schema @namespace=library | {behaviors | {behavior @name=value-check @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} {diagnostics | {diagnostic @code=fixture.value @severity=warning @behavior=value-check @message="Shared type violation"}} }"#,
+    );
+    let source = parse("{schema | {diagnostics | {#diagnostic}} {attributes | {attribute @name=size @type=schema:integer @type-diagnostic=fixture.value}} {behaviors | {#behavior}} {elements | {element @name=input @optional-attributes=size}} }");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#behavior".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "behavior")]),
+    );
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "diagnostic")]),
+    );
+    for _ in 0..2 {
+        let model = host.resolve(source.clone());
+        assert!(model.is_ready_for_validation());
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:?}",
+            model.compile_diagnostics
+        );
+        assert_eq!(
+            model.diagnostic_behaviors["fixture.value"].engine_behavior,
+            Some(EngineDiagnosticBehavior::ScalarType)
+        );
+        assert_eq!(model.behaviors["value-check"].schema_uri, "library");
+        let diagnostics = validate_document_model(&parse("{input @size=no}"), &model);
+        assert!(
+            diagnostics.iter().any(|d| d.code == "fixture.value"
+                && d.severity == Severity::Warning
+                && d.message.contains("Shared type violation")),
+            "{diagnostics:?}"
+        );
+        for site in &model.declaration_references.sites {
+            assert!(site
+                .resolution
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .all(|n| Arc::ptr_eq(n.document(), &library)));
+        }
+    }
+    assert!(source
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}
+#[test]
+fn pending_behavior_and_diagnostic_collections_do_not_invent_missing_dependencies() {
+    let source = "{schema | {behaviors | {#behavior}} {diagnostics | {#diagnostic} {diagnostic @code=local @behavior=later}} {attributes | {attribute @name=size @type=schema:integer @type-diagnostic=fixture.value}} }";
+    let model = compile_schema_document_model("consumer", source);
+    assert_eq!(model.declaration_references.sites.len(), 2);
+    assert!(!model.is_ready_for_validation());
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#behavior".into(),
+        ReferenceLinkEvaluation::Resolved(vec![]),
+    );
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![]),
+    );
+    let complete = host.resolve(parse(source));
+    assert!(complete.declaration_references.is_complete());
+    assert!(complete
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE));
+    assert!(complete
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE));
+}
+#[test]
+fn diagnostic_and_behavior_reference_order_preserves_local_overrides_and_empty_selections() {
+    let library=parse("{schema | {behaviors | {behavior @name=value @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} {diagnostics | {diagnostic @code=fixture.value @behavior=value @severity=warning}} }");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#behavior".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "behavior")]),
+    );
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![
+            node(&library, "diagnostic"),
+            node(&library, "diagnostic"),
+        ]),
+    );
+    host.outcomes
+        .insert("#empty".into(), ReferenceLinkEvaluation::Resolved(vec![]));
+    let model=host.resolve(parse("{schema | {behaviors | {behavior @name=value @implementation=engine @execution=ast-validation @primitive=schema:field-contract} {#behavior} {#empty}} {diagnostics | {#diagnostic} {diagnostic @code=fixture.value @behavior=value @severity=error}} }"));
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    assert_eq!(
+        model.behaviors["value"].primitive.as_deref(),
+        Some("schema:scalar-type")
+    );
+    assert_eq!(model.diagnostics["fixture.value"].severity, Severity::Error);
+    assert_eq!(
+        model.diagnostic_behaviors["fixture.value"].severity,
+        Severity::Error
+    );
+    assert_eq!(
+        model.declaration_references.sites[2]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes
+            .len(),
+        2
+    );
+}
+#[test]
+fn diagnostic_and_behavior_targets_require_correct_kinds_keys_and_required_fields() {
+    for (collection, kind, bad) in [
+        ("behaviors", "behavior", "{behavior @name=value}"),
+        (
+            "behaviors",
+            "behavior",
+            "{behavior @implementation=engine @execution=ast-validation}",
+        ),
+        ("diagnostics", "diagnostic", "{diagnostic}"),
+        ("diagnostics", "diagnostic", "{diagnostic @code=\" \"}"),
+    ] {
+        for disposition in ["neutral", "mandatory", "warning", "ignore"] {
+            let mut host = Host::new();
+            host.disposition(disposition);
+            let target = parse(bad);
+            host.outcomes.insert(
+                "#target".into(),
+                ReferenceLinkEvaluation::Resolved(vec![node(&target, kind)]),
+            );
+            let model = host.resolve(parse(&format!(
+                "{{schema | {{{collection} | {{#target}}}} }}"
+            )));
+            assert_eq!(
+                model.declaration_references.state(),
+                ReferenceResolutionState::Invalid
+            );
+            assert!(model.compile_diagnostics.iter().any(
+                |d| d.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
+            ));
+        }
+    }
+    let mut host = Host::new();
+    let target = parse("{element @name=wrong}");
+    host.outcomes.insert(
+        "#target".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&target, "element")]),
+    );
+    assert_eq!(
+        host.resolve(parse("{schema | {diagnostics | {#target}} }"))
+            .declaration_references
+            .state(),
+        ReferenceResolutionState::Invalid
+    );
+}
+
+#[test]
+fn referenced_diagnostics_keep_declaring_aliases_and_original_binding_errors() {
+    let library = parse(
+        r#"{schema | {uses | {use @schema="https://cem.dev/ns/schema/1" @as=origin}} {diagnostics | {diagnostic @code=fixture.value @behavior=origin:scalar-type}} }"#,
+    );
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "diagnostic")]),
+    );
+    let model = host.resolve(parse(
+        "{schema | {uses | {use @schema=missing @as=origin}} {diagnostics | {#diagnostic}} }",
+    ));
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    assert_eq!(
+        model.diagnostic_behaviors["fixture.value"].engine_behavior,
+        Some(cem_ml::schema::document_model::EngineDiagnosticBehavior::ScalarType)
+    );
+    let bad=parse("{schema | {uses | {use @schema=external @as=origin}} {diagnostics | {diagnostic @code=bad @behavior=origin:missing}} }");
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&bad, "diagnostic")]),
+    );
+    let errors=host.resolve(parse("{schema | {uses | {use @schema=consumer @as=origin}} {diagnostics | {#diagnostic}} {behaviors | {#pending}} }"));
+    assert!(!errors.is_ready_for_validation());
+    assert!(errors.compile_diagnostics.iter().any(|d| d.code
+        == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE
+        && d.message.contains("origin:missing")));
+}
+#[test]
+fn reused_function_behavior_keeps_its_inline_function_and_source_metadata() {
+    let text = r#"{schema @namespace=library | {uses | {use @schema="https://cem.dev/ns/schema/1" @as=origin}} {behaviors | {behavior @name=check @implementation=function @execution=ast-validation @function=result @select=input @match=true | {inputs | {input-binding @name=candidate @type=schema:node @source=candidate @required=true}} {result @type=schema:diagnostic-result @severity=diagnostic @message=function @source-range=candidate} {function @name=result @returns=object | {param @name=candidate @type=object @required=true} {body | {$ {message: "Shared failure", details: {checkKind: "shared"}}}}}}} {diagnostics | {diagnostic @code=fixture.function @behavior=check @severity=warning}} }"#;
+    let library = parse(text);
+    let expected = compile_schema_document_model("library", text);
+    assert!(
+        expected.compile_diagnostics.is_empty(),
+        "{:?}",
+        expected.compile_diagnostics
+    );
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#behavior".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "behavior")]),
+    );
+    host.outcomes.insert(
+        "#diagnostic".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "diagnostic")]),
+    );
+    let model = host.resolve(parse(
+        "{schema | {behaviors | {#behavior}} {diagnostics | {#diagnostic}} }",
+    ));
+    assert!(
+        model.compile_diagnostics.is_empty(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    assert_eq!(model.behaviors["check"], expected.behaviors["check"]);
+    assert_eq!(
+        model.diagnostic_behaviors["fixture.function"],
+        expected.diagnostic_behaviors["fixture.function"]
+    );
+}
+
+#[test]
+fn incomplete_behavior_links_preserve_partial_bindings_and_all_original_errors() {
+    let library=parse("{schema | {behaviors | {behavior @name=known @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} }");
+    let missing = reference("missing");
+    let link = missing
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(missing.clone(), *node_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    for disposition in ["neutral", "mandatory", "warning", "ignore"] {
+        let mut host = Host::new();
+        host.disposition(disposition);
+        host.outcomes.insert(
+            "#behavior".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, "behavior"), link.clone()]),
+        );
+        let model=host.resolve(parse("{schema | {behaviors | {#behavior}} {diagnostics | {diagnostic @code=known @behavior=known} {diagnostic @code=later @behavior=later}} }"));
+        assert!(!model.is_ready_for_validation());
+        assert!(model.diagnostic_behaviors.contains_key("known"));
+        assert!(!model.diagnostic_behaviors.contains_key("later"));
+        assert_eq!(
+            model.declaration_references.failed(),
+            disposition == "mandatory"
+        );
+        assert_eq!(
+            model.compile_diagnostics.len(),
+            usize::from(matches!(disposition, "mandatory" | "warning"))
+        );
+    }
+    let mut host = Host::new();
+    host.disposition("ignore");
+    let original = Diagnostic {
+        code: cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE.into(),
+        severity: Severity::Error,
+        message: "original evaluator failure".into(),
+        details: Some(serde_json::json!({"behavior":"missing"})),
+        ..Default::default()
+    };
+    host.outcomes.insert(
+        "#invalid".into(),
+        ReferenceLinkEvaluation::Invalid(vec![original.clone()]),
+    );
+    let model = host.resolve(parse(
+        "{schema | {diagnostics | {#invalid}} {behaviors | {#pending}} }",
+    ));
+    assert!(model.compile_diagnostics.iter().any(|d| d == &original));
+    assert!(!model.is_ready_for_validation());
+    let known=compile_schema_document_model("consumer", "{schema | {behaviors | {#pending} {behavior @name=known @implementation=engine @execution=ast-validation @primitive=schema:scalar-type}} {diagnostics | {diagnostic @code=invalid @behavior=known | {arguments | {argument @name=bad @value=bad}}}} {attributes | {attribute @name=size @type=schema:integer @default=no}} }");
+    assert!(known.compile_diagnostics.iter().any(
+        |d| d.code == cem_ml::schema::document_model::INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+    ));
+    assert!(known
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_DEFAULT_VALUE_CODE));
+}

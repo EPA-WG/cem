@@ -1,4 +1,4 @@
-//! Explicit schema consumer of typed targets in `{elements}` and `{attributes}`.
+//! Explicit schema consumer of retained declaration collection references.
 //! The host supplies runtime evaluation and original lexical schema bindings.
 //! No source arena is cloned or rewritten to inline referenced declarations.
 use super::{
@@ -85,8 +85,27 @@ pub struct DeclarationReferenceResolution {
     pub work_used: usize,
 }
 
+/// The consuming collection owns target-kind and key requirements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaDeclarationKind {
+    Element,
+    Attribute,
+    Behavior,
+    Diagnostic,
+}
+impl SchemaDeclarationKind {
+    pub(crate) fn node_name(self) -> &'static str {
+        match self {
+            Self::Element => "element",
+            Self::Attribute => "attribute",
+            Self::Behavior => "behavior",
+            Self::Diagnostic => "diagnostic",
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct DeclarationReferenceSite {
+    pub kind: SchemaDeclarationKind,
     pub occurrence: ReferenceOccurrence,
     /// None means compilation retained source without requesting evaluation.
     /// Some(Pending) means the host was called but its inputs were not ready.
@@ -124,12 +143,26 @@ impl DeclarationReferenceCompilation {
     pub fn is_complete(&self) -> bool {
         self.state() == ReferenceResolutionState::Resolved
     }
+    pub(crate) fn collection_is_complete(&self, kind: SchemaDeclarationKind) -> bool {
+        self.sites
+            .iter()
+            .filter(|site| site.kind == kind)
+            .all(|site| {
+                site.state() == ReferenceResolutionState::Resolved
+                    && !site.resolution.as_ref().is_some_and(|r| r.failed)
+            })
+    }
     pub fn failed(&self) -> bool {
         self.sites
             .iter()
             .any(|site| site.resolution.as_ref().is_some_and(|result| result.failed))
     }
-    pub(crate) fn retain_pending(&mut self, schema_uri: &str, node: &CemAstNode) {
+    pub(crate) fn retain_pending(
+        &mut self,
+        schema_uri: &str,
+        node: &CemAstNode,
+        kind: SchemaDeclarationKind,
+    ) {
         static NEXT_OCCURRENCE: AtomicU64 = AtomicU64::new(1);
         if let CemAstNode::Reference {
             node_id,
@@ -139,6 +172,7 @@ impl DeclarationReferenceCompilation {
         } = node
         {
             self.sites.push(DeclarationReferenceSite {
+                kind,
                 occurrence: ReferenceOccurrence {
                     identity: format!(
                         "pending-schema:{}:{schema_uri}:{node_id}",
@@ -155,7 +189,7 @@ impl DeclarationReferenceCompilation {
 }
 
 /// Explicit compilation stage. Collection references accept zero or more
-/// named declarations of the collection's kind, preserving insertion order and
+/// keyed declarations of the collection's kind, preserving insertion order and
 /// last-name-wins collection behavior. Available valid targets are compiled
 /// even when another branch is incomplete; outcomes remain visibly incomplete.
 /// Invalid target kinds/names are compile errors irrespective of disposition.
@@ -170,7 +204,8 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
     let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
     let mut compilation = DeclarationReferenceCompilation::default();
     let mut seen = BTreeSet::from([schema_uri.to_owned()]);
-    for (id, expected_kind) in document_model::declaration_reference_sites(&document) {
+    for (id, kind) in document_model::declaration_reference_sites(&document) {
+        let expected_kind = kind.node_name();
         let reference =
             host.source_reference(SchemaDeclarationNode::new(document.clone(), id).unwrap());
         let occurrence = host
@@ -208,6 +243,12 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
             };
             resolution.nodes.push(target.clone());
             let lexical_schema = host.declaration_schema(&target);
+            let declaring_uri = lexical_schema
+                .as_ref()
+                .and_then(|schema| {
+                    document_model::declaration_schema_uri(schema.document(), schema.node_id())
+                })
+                .unwrap_or_else(|| schema_uri.into());
             let aliases = match lexical_schema {
                 Some(schema)
                     if Arc::ptr_eq(schema.document(), target.document())
@@ -229,21 +270,37 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                 None => BTreeMap::new(),
             };
             let compiled = if is_element(target.node(), expected_kind) {
-                match expected_kind {
-                    "element" => document_model::compile_element_model(
+                match kind {
+                    SchemaDeclarationKind::Element => document_model::compile_element_model(
                         target.document(),
                         target.node_id(),
                         &aliases,
                         &mut seen,
                     )
                     .map(CompiledSchemaDeclaration::Element),
-                    "attribute" => {
+                    SchemaDeclarationKind::Attribute => {
                         document_model::compile_attribute_model(target.document(), target.node_id())
                             .map(|attribute| {
                                 CompiledSchemaDeclaration::Attribute(Box::new(attribute))
                             })
                     }
-                    _ => unreachable!("supported collection discovery selects the target kind"),
+                    SchemaDeclarationKind::Behavior => document_model::compile_behavior_definition(
+                        target.document(),
+                        target.node_id(),
+                        &declaring_uri,
+                        &aliases,
+                    )
+                    .map(|behavior| CompiledSchemaDeclaration::Behavior(Box::new(behavior))),
+                    SchemaDeclarationKind::Diagnostic => {
+                        document_model::compile_diagnostic_declaration(
+                            target.document(),
+                            target.node_id(),
+                            &aliases,
+                        )
+                        .map(|diagnostic| {
+                            CompiledSchemaDeclaration::Diagnostic(Box::new(diagnostic))
+                        })
+                    }
                 }
             } else {
                 None
@@ -257,12 +314,13 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                     schema_uri,
                     &occurrence,
                     Some(&target),
-                    &format!("Expected a named {expected_kind} declaration"),
+                    &format!("Expected a complete {expected_kind} declaration with its required key and fields"),
                 ));
             }
         }
         declarations.insert(id, compiled_targets);
         compilation.sites.push(DeclarationReferenceSite {
+            kind,
             occurrence,
             resolution: Some(resolution),
         });

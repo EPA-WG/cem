@@ -4376,24 +4376,32 @@ pub(crate) fn compile_document_model_with_declarations(
 pub(crate) enum CompiledSchemaDeclaration {
     Element(ElementModel),
     Attribute(Box<AttributeModel>),
+    Behavior(Box<BehaviorDefinition>),
+    Diagnostic(Box<DiagnosticDeclaration>),
 }
 
 /// Discover supported collection sites in authored order. The collection,
 /// rather than the expression or returned value, selects the target contract.
 pub(crate) fn declaration_reference_sites(
     document: &CemDocument,
-) -> Vec<(AstNodeId, &'static str)> {
+) -> Vec<(
+    AstNodeId,
+    super::declaration_references::SchemaDeclarationKind,
+)> {
     let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         return vec![];
     };
     let Some(CemAstNode::Element { children, .. }) = document.get(schema_id) else {
         return vec![];
     };
+    use super::declaration_references::SchemaDeclarationKind;
     let mut sites = vec![];
     for collection_id in children {
         let declaration = match document.get(*collection_id).and_then(element_local_name) {
-            Some("elements") => "element",
-            Some("attributes") => "attribute",
+            Some("elements") => SchemaDeclarationKind::Element,
+            Some("attributes") => SchemaDeclarationKind::Attribute,
+            Some("behaviors") => SchemaDeclarationKind::Behavior,
+            Some("diagnostics") => SchemaDeclarationKind::Diagnostic,
             _ => continue,
         };
         if let Some(CemAstNode::Element { children, .. }) = document.get(*collection_id) {
@@ -4421,27 +4429,28 @@ fn compile_document_model_from_document_with_declarations(
 
     let mut model = empty_document_model(schema_uri);
     model.declaration_references = compilation;
-    for site in &model.declaration_references.sites {
-        if let Some(resolution) = &site.resolution {
-            model
-                .compile_diagnostics
-                .extend(resolution.diagnostics.clone());
-        }
-    }
 
     let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         seen_schema_uris.remove(schema_uri);
         return model;
     };
-    for (id, _) in declaration_reference_sites(document) {
+    for (id, kind) in declaration_reference_sites(document) {
         if !declarations.contains_key(&id) {
-            model
-                .declaration_references
-                .retain_pending(schema_uri, document.get(id).unwrap());
+            model.declaration_references.retain_pending(
+                schema_uri,
+                document.get(id).unwrap(),
+                kind,
+            );
         }
     }
     let uses = collect_schema_uses(document, schema_id);
-    model.behaviors = collect_behavior_definitions(document, schema_id, schema_uri, &uses);
+    model.behaviors = collect_behavior_definitions_with_references(
+        document,
+        schema_id,
+        schema_uri,
+        &uses,
+        declarations,
+    );
 
     for elements_id in element_child_ids_by_local_name(document, schema_id, "elements") {
         let Some(CemAstNode::Element { children, .. }) = document.get(elements_id) else {
@@ -4476,13 +4485,29 @@ fn compile_document_model_from_document_with_declarations(
     }
 
     model.attributes = collect_attribute_models(document, schema_id, declarations);
-    model.diagnostics = collect_diagnostic_definitions(document, schema_id);
-    let (diagnostic_behaviors, diagnostic_compile_diagnostics) =
-        collect_diagnostic_behaviors(document, schema_id, schema_uri, &uses, &model.behaviors);
+    use super::declaration_references::SchemaDeclarationKind;
+    let behavior_collection_complete = model
+        .declaration_references
+        .collection_is_complete(SchemaDeclarationKind::Behavior);
+    let diagnostic_collection_complete = model
+        .declaration_references
+        .collection_is_complete(SchemaDeclarationKind::Diagnostic);
+    let diagnostic_declarations =
+        collect_diagnostic_declarations(document, schema_id, &uses, declarations);
+    for declaration in &diagnostic_declarations {
+        model.diagnostics.insert(
+            declaration.definition.code.clone(),
+            declaration.definition.clone(),
+        );
+    }
+    let (diagnostic_behaviors, diagnostic_compile_diagnostics, deferred_codes) =
+        compile_diagnostic_behaviors(
+            &diagnostic_declarations,
+            schema_uri,
+            &model.behaviors,
+            behavior_collection_complete,
+        );
     model.diagnostic_behaviors = diagnostic_behaviors;
-    model
-        .compile_diagnostics
-        .extend(diagnostic_compile_diagnostics);
     model.constraints = collect_constraint_definitions(
         document,
         schema_id,
@@ -4551,6 +4576,50 @@ fn compile_document_model_from_document_with_declarations(
         &mut model.compile_diagnostics,
     );
 
+    model.compile_diagnostics.retain(|diagnostic| {
+        if diagnostic.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE {
+            if let Some(code) = diagnostic
+                .details
+                .as_ref()
+                .and_then(|d| d.get("diagnostic"))
+                .and_then(|d| d.as_str())
+            {
+                if !model.diagnostic_behaviors.contains_key(code)
+                    && (!diagnostic_collection_complete || deferred_codes.contains(code))
+                {
+                    return false;
+                }
+            }
+        }
+        if diagnostic.code == UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE && !behavior_collection_complete {
+            if let Some(reference) = diagnostic
+                .details
+                .as_ref()
+                .and_then(|d| d.get("behavior"))
+                .and_then(|d| d.as_str())
+            {
+                if local_behavior_reference(reference, schema_uri, &uses)
+                    && resolve_behavior_definition(reference, schema_uri, &uses, &model.behaviors)
+                        .is_none()
+                {
+                    return false;
+                }
+            }
+        }
+        true
+    });
+    // Link and binding diagnostics are original facts, outside deferred local
+    // lookup checks. Keep their ordering and do not reinterpret their aliases.
+    let mut original_diagnostics: Vec<_> = model
+        .declaration_references
+        .sites
+        .iter()
+        .filter_map(|site| site.resolution.as_ref())
+        .flat_map(|resolution| resolution.diagnostics.iter().cloned())
+        .collect();
+    original_diagnostics.extend(diagnostic_compile_diagnostics);
+    original_diagnostics.append(&mut model.compile_diagnostics);
+    model.compile_diagnostics = original_diagnostics;
     seen_schema_uris.remove(schema_uri);
     model
 }
@@ -13913,108 +13982,129 @@ fn reference_attribute_source_values(
         .collect()
 }
 
-fn collect_diagnostic_definitions(
-    document: &CemDocument,
-    schema_id: AstNodeId,
-) -> BTreeMap<String, DiagnosticDefinition> {
-    let mut definitions = BTreeMap::new();
-    for diagnostics_id in element_child_ids_by_local_name(document, schema_id, "diagnostics") {
-        let Some(CemAstNode::Element { children, .. }) = document.get(diagnostics_id) else {
-            continue;
-        };
-        for child_id in children {
-            let Some(child) = document.get(*child_id) else {
-                continue;
-            };
-            if element_local_name(child) != Some("diagnostic") {
-                continue;
-            }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(code) = optional_non_empty_attr(&attrs, "code") else {
-                continue;
-            };
-            let severity = optional_non_empty_attr(&attrs, "severity")
-                .and_then(parse_diagnostic_severity)
-                .unwrap_or(Severity::Error);
-            definitions.insert(
-                code.to_owned(),
-                DiagnosticDefinition {
-                    code: code.to_owned(),
-                    severity,
-                    behavior: optional_non_empty_attr(&attrs, "behavior").map(str::to_owned),
-                    message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
-                    source_map: source_stack_for_node(child).clone(),
-                },
-            );
-        }
-    }
-    definitions
+#[derive(Debug, Clone)]
+pub(crate) struct DiagnosticDeclaration {
+    definition: DiagnosticDefinition,
+    arguments: Vec<BehaviorArgument>,
+    uses: BTreeMap<String, String>,
 }
 
-fn collect_diagnostic_behaviors(
+pub(crate) fn compile_diagnostic_declaration(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    uses: &BTreeMap<String, String>,
+) -> Option<DiagnosticDeclaration> {
+    let child = document.get(node_id)?;
+    if element_local_name(child) != Some("diagnostic") {
+        return None;
+    }
+    let attrs = collect_attrs(document, node_id);
+    let code = optional_non_empty_attr(&attrs, "code")?;
+    Some(DiagnosticDeclaration {
+        definition: DiagnosticDefinition {
+            code: code.into(),
+            severity: optional_non_empty_attr(&attrs, "severity")
+                .and_then(parse_diagnostic_severity)
+                .unwrap_or(Severity::Error),
+            behavior: optional_non_empty_attr(&attrs, "behavior").map(str::to_owned),
+            message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
+            source_map: source_stack_for_node(child).clone(),
+        },
+        arguments: collect_diagnostic_arguments(document, node_id),
+        uses: uses.clone(),
+    })
+}
+fn collect_diagnostic_declarations(
     document: &CemDocument,
     schema_id: AstNodeId,
-    schema_uri: &str,
     uses: &BTreeMap<String, String>,
-    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
-) -> (BTreeMap<String, DiagnosticBehavior>, Vec<Diagnostic>) {
-    let mut behaviors = BTreeMap::new();
-    let mut diagnostics = Vec::new();
-    for diagnostics_id in element_child_ids_by_local_name(document, schema_id, "diagnostics") {
-        let Some(CemAstNode::Element { children, .. }) = document.get(diagnostics_id) else {
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
+) -> Vec<DiagnosticDeclaration> {
+    let mut result = vec![];
+    for collection_id in element_child_ids_by_local_name(document, schema_id, "diagnostics") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(collection_id) else {
             continue;
         };
-        for child_id in children {
-            let Some(child) = document.get(*child_id) else {
-                continue;
-            };
-            if element_local_name(child) != Some("diagnostic") {
-                continue;
+        for id in children {
+            if let Some(resolved) = declarations.get(id) {
+                result.extend(resolved.iter().filter_map(|declaration| match declaration {
+                    CompiledSchemaDeclaration::Diagnostic(d) => Some(d.as_ref().clone()),
+                    _ => None,
+                }));
+            } else if let Some(diagnostic) = compile_diagnostic_declaration(document, *id, uses) {
+                result.push(diagnostic);
             }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(code) = optional_non_empty_attr(&attrs, "code") else {
-                continue;
-            };
-            let Some(behavior) = optional_non_empty_attr(&attrs, "behavior") else {
-                continue;
-            };
-            let severity = optional_non_empty_attr(&attrs, "severity")
-                .and_then(parse_diagnostic_severity)
-                .unwrap_or(Severity::Error);
-            let source_map = source_stack_for_node(child).clone();
-            let arguments = collect_diagnostic_arguments(document, *child_id);
-            let behavior_definition =
-                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors);
-            let (engine_behavior, function, function_definition) =
-                compile_diagnostic_behavior_binding(
-                    schema_uri,
-                    code,
-                    behavior,
-                    behavior_definition.as_ref(),
-                    &arguments,
-                    uses,
-                    local_behaviors,
-                    &source_map,
-                    &mut diagnostics,
-                );
-            behaviors.insert(
-                code.to_owned(),
-                DiagnosticBehavior {
-                    code: code.to_owned(),
-                    severity,
-                    behavior: behavior.to_owned(),
-                    definition: behavior_definition,
-                    engine_behavior,
-                    function,
-                    function_definition,
-                    arguments,
-                    message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
-                    source_map,
-                },
-            );
         }
     }
-    (behaviors, diagnostics)
+    result
+}
+fn local_behavior_reference(
+    reference: &str,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+) -> bool {
+    match reference.trim().split_once(':') {
+        None => true,
+        Some((alias, _)) => uses
+            .get(alias.trim())
+            .is_some_and(|uri| uri.trim() == schema_uri),
+    }
+}
+fn compile_diagnostic_behaviors(
+    declarations: &[DiagnosticDeclaration],
+    schema_uri: &str,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+    complete: bool,
+) -> (
+    BTreeMap<String, DiagnosticBehavior>,
+    Vec<Diagnostic>,
+    BTreeSet<String>,
+) {
+    let mut behaviors = BTreeMap::new();
+    let mut diagnostics = vec![];
+    let mut deferred = BTreeSet::new();
+    for declaration in declarations {
+        let definition = &declaration.definition;
+        let Some(behavior) = definition.behavior.as_deref() else {
+            continue;
+        };
+        let behavior_definition =
+            resolve_behavior_definition(behavior, schema_uri, &declaration.uses, local_behaviors);
+        if behavior_definition.is_none()
+            && !complete
+            && local_behavior_reference(behavior, schema_uri, &declaration.uses)
+        {
+            deferred.insert(definition.code.clone());
+            continue;
+        }
+        let (engine_behavior, function, function_definition) = compile_diagnostic_behavior_binding(
+            schema_uri,
+            &definition.code,
+            behavior,
+            behavior_definition.as_ref(),
+            &declaration.arguments,
+            &declaration.uses,
+            local_behaviors,
+            &definition.source_map,
+            &mut diagnostics,
+        );
+        behaviors.insert(
+            definition.code.clone(),
+            DiagnosticBehavior {
+                code: definition.code.clone(),
+                severity: definition.severity,
+                behavior: behavior.into(),
+                definition: behavior_definition,
+                engine_behavior,
+                function,
+                function_definition,
+                arguments: declaration.arguments.clone(),
+                message: definition.message.clone(),
+                source_map: definition.source_map.clone(),
+            },
+        );
+    }
+    (behaviors, diagnostics, deferred)
 }
 
 fn collect_diagnostic_arguments(
@@ -14046,53 +14136,78 @@ fn collect_diagnostic_arguments(
     arguments
 }
 
+pub(crate) fn declaration_schema_uri(document: &CemDocument, node_id: AstNodeId) -> Option<String> {
+    optional_non_empty_attr(&collect_attrs(document, node_id), "namespace").map(str::to_owned)
+}
+pub(crate) fn compile_behavior_definition(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+) -> Option<BehaviorDefinition> {
+    let child = document.get(node_id)?;
+    if element_local_name(child) != Some("behavior") {
+        return None;
+    }
+    let attrs = collect_attrs(document, node_id);
+    let name = optional_non_empty_attr(&attrs, "name")?;
+    let implementation = optional_non_empty_attr(&attrs, "implementation")?;
+    let execution = optional_non_empty_attr(&attrs, "execution")?;
+    Some(BehaviorDefinition {
+        schema_uri: schema_uri.to_owned(),
+        uses: uses.clone(),
+        name: name.to_owned(),
+        implementation: implementation.to_owned(),
+        execution: execution.to_owned(),
+        primitive: optional_non_empty_attr(&attrs, "primitive").map(str::to_owned),
+        function: optional_non_empty_attr(&attrs, "function").map(str::to_owned),
+        select: optional_non_empty_attr(&attrs, "select").map(str::to_owned),
+        match_query: optional_non_empty_attr(&attrs, "match").map(str::to_owned),
+        inputs: collect_behavior_inputs(document, node_id),
+        parameters: collect_behavior_parameters(document, node_id),
+        result: collect_behavior_result(document, node_id),
+        inline_functions: collect_behavior_inline_functions(document, node_id),
+        source_map: source_stack_for_node(child).clone(),
+    })
+}
 fn collect_behavior_definitions(
     document: &CemDocument,
     schema_id: AstNodeId,
     schema_uri: &str,
     uses: &BTreeMap<String, String>,
 ) -> BTreeMap<String, BehaviorDefinition> {
+    collect_behavior_definitions_with_references(
+        document,
+        schema_id,
+        schema_uri,
+        uses,
+        &BTreeMap::new(),
+    )
+}
+fn collect_behavior_definitions_with_references(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
+) -> BTreeMap<String, BehaviorDefinition> {
     let mut behaviors = BTreeMap::new();
-    for behaviors_id in element_child_ids_by_local_name(document, schema_id, "behaviors") {
-        let Some(CemAstNode::Element { children, .. }) = document.get(behaviors_id) else {
+    for collection_id in element_child_ids_by_local_name(document, schema_id, "behaviors") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(collection_id) else {
             continue;
         };
-        for child_id in children {
-            let Some(child) = document.get(*child_id) else {
-                continue;
-            };
-            if element_local_name(child) != Some("behavior") {
-                continue;
+        for id in children {
+            if let Some(resolved) = declarations.get(id) {
+                for declaration in resolved {
+                    if let CompiledSchemaDeclaration::Behavior(behavior) = declaration {
+                        behaviors.insert(behavior.name.clone(), behavior.as_ref().clone());
+                    }
+                }
+            } else if let Some(behavior) =
+                compile_behavior_definition(document, *id, schema_uri, uses)
+            {
+                behaviors.insert(behavior.name.clone(), behavior);
             }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(name) = optional_non_empty_attr(&attrs, "name") else {
-                continue;
-            };
-            let Some(implementation) = optional_non_empty_attr(&attrs, "implementation") else {
-                continue;
-            };
-            let Some(execution) = optional_non_empty_attr(&attrs, "execution") else {
-                continue;
-            };
-            behaviors.insert(
-                name.to_owned(),
-                BehaviorDefinition {
-                    schema_uri: schema_uri.to_owned(),
-                    uses: uses.clone(),
-                    name: name.to_owned(),
-                    implementation: implementation.to_owned(),
-                    execution: execution.to_owned(),
-                    primitive: optional_non_empty_attr(&attrs, "primitive").map(str::to_owned),
-                    function: optional_non_empty_attr(&attrs, "function").map(str::to_owned),
-                    select: optional_non_empty_attr(&attrs, "select").map(str::to_owned),
-                    match_query: optional_non_empty_attr(&attrs, "match").map(str::to_owned),
-                    inputs: collect_behavior_inputs(document, *child_id),
-                    parameters: collect_behavior_parameters(document, *child_id),
-                    result: collect_behavior_result(document, *child_id),
-                    inline_functions: collect_behavior_inline_functions(document, *child_id),
-                    source_map: source_stack_for_node(child).clone(),
-                },
-            );
         }
     }
     behaviors

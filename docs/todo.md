@@ -396,12 +396,29 @@ implementation. `git diff --check` passes.
       rules consumer-owned while applying the shared scope resolution policy.
       The accepted reference design inventories implemented collection consumers,
       existing scalar contracts and the remaining explicit integration phases.
-- [ ] Fixture: reuse diagnostic and behavior declarations from retained owners;
+- [x] Fixture: reuse diagnostic and behavior declarations from retained owners;
       cover zero/many selections, kind/key failures, local overrides, original
       lexical aliases, unresolved links and dependent attribute checks.
-- [ ] Extend reference consumption to `{behaviors}` and `{diagnostics}` before
+- [x] Fixture: pending behavior/diagnostic collections defer missing dependent
+      lookups until complete; resolved-empty collections then report missing
+      dependencies. Preserve invalid declaration and known binding errors.
+- [x] Fixture: preserve declaring diagnostic aliases, original external binding
+      errors during incomplete local selection, and reused inline function
+      behavior metadata and source maps without synthesizing source nodes.
+- [x] Fixture: bind native diagnostic/behavior selections from different retained
+      owners only after directed grants; complete a pending package with reused
+      dependencies and publish schema, converter and artifacts together.
+- [x] Fixture: retain partial behavior bindings under every unresolved policy;
+      defer only missing dependencies, preserve original evaluator errors even
+      when they share compiler diagnostic codes, and keep known binding/default
+      errors visible during incomplete selection.
+- [x] Extend reference consumption to `{behaviors}` and `{diagnostics}` before
       dependent schema checks. Keep named/code-keyed collection order, original
       owners, explicit dependencies and shared scope readiness rules.
+      Verification: all 53 focused CEM-ML reference/schema tests and seven native
+      declaration-consumer fixtures pass. Nx bridge tests pass (118 tests).
+      Nx CEM-ML reports 2069 passes, two ignored and the known legacy dropdown
+      selector failure (`template#cem-dropdown` not found).
       Scenarios for later design verification: a reusable attribute names a
       reused diagnostic; a diagnostic names a reused behavior; missing or cyclic
       selections keep the model inactive rather than dropping its dependencies.
