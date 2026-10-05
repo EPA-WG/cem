@@ -5,7 +5,8 @@ native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
 results, rejection of list declaration `values` and explicit rule acceptance
 with diagnostics, empty lists unless constrained and a dedicated `node` kind are
-adopted. Exact signatures and remaining kind contracts need decisions. General datatype compilation must be
+adopted. Node rules validate complete target sequences. Exact signatures and
+remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
@@ -379,23 +380,70 @@ implicitly loads URLs, uses document-wide IDs or grants a scope crossing. Missin
 lookup context remains a consumer lifecycle issue rather than a lexical parse
 failure. These boundaries do not yet specify every parser/output adapter.
 
-## Next decision: node rule invocation unit
+## Adopted node rule invocation unit
 
-Recommended invocation: a node datatype rule validates the complete ordered target
-sequence supplied by the consumer once, using a typed native sequence parameter.
-It can check each target as well as cardinality and relationships between targets.
-The original candidate parameter remains one explicitly typed source node, distinct
-from the target sequence. Acceptance and diagnostics follow the adopted result
-protocol; existing effective traversal accounting applies to all target access.
+A node datatype rule validates the complete ordered target sequence supplied by
+the consumer once, using a typed native sequence parameter. It can check each
+target as well as cardinality and relationships between targets. The original
+candidate parameter remains one explicitly typed source node, distinct from the
+target sequence. Acceptance and diagnostics follow the adopted result protocol;
+existing effective traversal accounting applies to all target access.
 
-Alternative: invoke a node datatype rule once per target with a single typed node
-value; keep sequence cardinality and relationship checks in separate consumer or
-attribute rules. This simplifies single-node signatures but cannot express every
-sequence relationship in one reusable datatype rule.
+Invoke the sequence rule for a complete empty selection as well, subject to its
+effective cardinality and required-input contracts. Do not treat zero targets as
+a reason to skip validation. Incomplete resolution is a lifecycle outcome, not an
+empty successful result. The adapter does not automatically invoke the same rule
+once for every target; a rule may explicitly inspect its permitted target view.
 
-Neither invocation form is enabled. Choose the rule unit before defining the
-kind-specific native value signature, including empty-sequence behavior. Existing
-attribute cardinality constraints remain compatible with either choice.
+This unit is adopted but not enabled. Existing attribute cardinality constraints
+remain effective alongside datatype rules; neither can erase the other's
+rejection. Concrete native sequence parameter types and metamodel admission
+remain required before execution.
+
+## Typed adapter signature requirements
+
+The current standalone scalar converter returns `TypedAttributeValue` containing
+a datatype name and canonical lexical value. Native attribute consumption instead
+retains `SchemaDeclarationNode` targets. A general adapter must preserve these
+separate representations rather than flatten sequences to strings or route node
+values through legacy object parameters.
+
+| Binding | Required representation | Compiler/runtime check |
+| --- | --- | --- |
+| Datatype | Original retained named `{type}` declaration | Declaring identity, lexical scope and registered capability ownership |
+| Candidate, when supplied | Original retained input node | Explicit native node parameter; no synthesized candidate record |
+| Scalar/lexical/grammar/symbolic value | Declared scalar representation | Registered input type; no inferred primitive from a local name |
+| List value | Ordered typed item sequence | Registered item contract and sequence type |
+| Node value | Ordered retained target sequence | Original owners and permitted native view |
+| Validation result | Explicit acceptance and attributed diagnostics | Completed typed result distinct from unavailable/failed execution |
+| Conversion result | Declared canonical scalar/items/native representation | Separate explicit capability; all effective restrictions validate the result |
+
+A registry entry must declare which of these capabilities and required inputs it
+supports. The compiler checks source signatures against that registration; the
+runtime checks that the actual consumer inputs are available. Reusing diagnostic
+metadata does not turn an `object` function into a native datatype adapter.
+Typed representation names for schema/function declarations remain to be specified;
+this table does not introduce enabled metamodel literals or serialize AST handles.
+
+## Next decision: source-less value consumers
+
+Document validation naturally supplies an original candidate node, but the current
+standalone scalar conversion API accepts a lexical value and a source-map stack
+without an AST candidate. The adapter needs a policy for such calls.
+
+Recommended contract: candidate availability is declared per registered
+capability. Standalone value consumers may invoke capabilities that do not require
+a candidate; a rule requiring one remains unavailable when none was supplied.
+When present, the candidate must always be an original explicitly typed native
+node. Never fabricate a document, copy an input record or invent a context ID to
+satisfy a missing input.
+
+Alternative: require an original candidate for every general datatype call,
+including standalone conversion. Existing lexical-only callers must first import
+or retain a genuine source node before using the general adapter.
+
+Neither candidate-availability policy is adopted yet. Preserve the current
+standalone scalar API until its general-adapter compatibility is specified.
 
 ## Verified inventory and current native boundary
 

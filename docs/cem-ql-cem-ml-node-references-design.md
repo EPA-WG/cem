@@ -1360,8 +1360,12 @@ supplied list, and inherited nonempty restrictions cannot be removed. A dedicate
 existing built-in node semantics and rejecting lexical facets. Descendant references
 stay retained until an explicit consumer resolves them. Symbolic-reference kinds
 remain separate; neither they nor grammar rules imply URL lookup or scope grants.
-The next decision is whether a node rule validates the complete target sequence
-once (recommended) or runs once per target with separate sequence checks.
+Node rules validate the complete ordered target sequence once, including a
+complete empty selection; incomplete resolution is not an empty successful result.
+The original candidate remains distinct from the targets. The next decision is
+standalone value consumption: allow registered capabilities without a required
+candidate (recommended), or require a retained input node for every datatype call.
+A supplied candidate must always remain an original explicitly typed native node.
 The verified inventory also distinguishes available scalar conversion from the
 broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.
