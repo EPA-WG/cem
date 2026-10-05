@@ -1178,12 +1178,21 @@ implementation verification. They do not claim executable test coverage.
       restrictions and invalid lexical tokens before implementing adapters.
       Scenarios for later design verification: an item base does not require an item;
       empty conversion manufactures neither a default item nor a null value.
-- [ ] Decide native node datatype representation: a dedicated `node` kind for reusable
-      custom retained-node contracts (recommended), or built-in node entries only
-      with custom checks at the attribute/behavior level. Preserve symbolic-reference
-      kinds and existing built-in node contracts separately.
+- [x] Adopt a dedicated `node` datatype kind for reusable custom retained-node
+      contracts. Preserve symbolic-reference kinds and existing built-in node
+      contracts separately; reject lexical facets and retain original target handles.
       Scenarios for later design verification: target handles retain original owners;
       lexical facets never apply to nodes; reference resolution remains consumer-owned.
+- [ ] Decide node datatype rule invocation: once for the complete ordered target
+      sequence (recommended), or once per target with sequence checks delegated
+      to consumer/attribute rules. Keep the original candidate distinct from targets.
+      Scenarios for later design verification: reusable contracts can check target
+      relationships; empty selections and cardinality retain explicit outcomes.
+- [ ] Specify node-kind metamodel admission, base compatibility and native sequence
+      signatures; add fixture actions for retained targets, lexical-facet rejection
+      and unchanged descendant reference nodes before implementing the node adapter.
+      Scenarios for later design verification: native validation never stringifies
+      targets or expands descendant references implicitly; scope bounds still apply.
 - [ ] Specify concrete validation result bindings and an explicit compatibility
       adapter for diagnostic-only behaviors, with a declared acceptance mapping.
       Add fixture actions for acceptance/diagnostic independence, cumulative rejection,

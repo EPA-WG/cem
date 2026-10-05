@@ -4,8 +4,8 @@ Status: temporary design draft. Registered schema-owned implementations,
 native `@rule` binding, separate validation/conversion roles, duplicate-name
 rejection, intersecting scalar restrictions and ordered typed list conversion
 results, rejection of list declaration `values` and explicit rule acceptance
-with diagnostics and empty lists unless constrained are adopted. Exact signatures
-and remaining kind contracts need decisions. General datatype compilation must be
+with diagnostics, empty lists unless constrained and a dedicated `node` kind are
+adopted. Exact signatures and remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
@@ -70,16 +70,16 @@ compiled datatype descriptor. The legacy literal path remains explicit until
 parity fixtures prove migration safe. A user declaration named `integer` must
 not receive an intrinsic implementation merely because its local name matches.
 
-## Proposed kind contracts
+## Datatype kind contracts and remaining work
 
-| Kind | Proposed meaning | Remaining design work |
+| Kind | Meaning | Remaining design work |
 | --- | --- | --- |
 | `scalar` | One value with an explicit primitive conversion/validation contract and restrictions | Built-in registry binding, normalization and custom implementations |
 | `lexical` | A value checked by a declared lexical predicate | Executable `rule` binding and compatibility with shipped descriptions |
-| `list` | Ordered typed values satisfying an item datatype contract, with authored lexical source retained | Delimiter/normalization rules and the meaning of list `values` |
-| `grammar` | A value checked by a declared grammar consumer | Binding to existing content-model parsers versus a new grammar language |
+| `list` | Ordered typed values satisfying an item datatype contract, with authored lexical source retained; declaration `values` rejected | Registered tokenization, cardinality admission and concrete adapters |
+| `grammar` | A value checked by a registered grammar consumer; source prose is descriptive | Concrete registered parser/validation adapters and parity |
 | `reference` | A symbolic-reference value contract such as a QName | Separate lexical validation from consumer-requested dereferencing; do not imply URL or AST link evaluation |
-| Native node contracts | Retained node input consumed by native validation/behaviors | Preserve the existing explicit node contract and decide how it is represented in the datatype registry |
+| `node` | Original retained nodes checked by registered native validation rules; lexical facets rejected | Rule invocation unit, typed sequence signature and metamodel admission |
 
 For inherited scalar restrictions, the adopted composition is intersection: the base
 and every restriction must hold, including locally authored attribute facets.
@@ -337,26 +337,65 @@ block activation according to existing coordinated package readiness rules.
 These requirements guide the retained registry implementation; the exact public
 API and metamodel admission still need specification and fixture actions.
 
-## Next decision: native node datatype declarations
+## Adopted native node datatype declarations
 
-Existing native `node` attribute contracts consume retained node sequences and
-reject lexical facets such as `values` and `pattern`. The shipped `reference`
-datatype kind instead describes symbolic values such as QNames; it must not be
-repurposed to mean an AST reference or a retained target node.
+Add a dedicated `node` datatype kind for reusable custom retained-node contracts,
+with registered native validation rules and original node handles. Preserve
+existing built-in `schema:node`/`cemml:node` contracts and their cardinality
+semantics. The shipped `reference` kind describes symbolic values such as QNames;
+it does not become an AST reference constructor or a retained target datatype.
 
-Recommended registry representation: add a dedicated `node` datatype kind for
-custom retained-node contracts, with registered native validation rules and
-original node handles. Preserve existing built-in `schema:node`/`cemml:node`
-contracts and their cardinality semantics. Node conversion does not stringify or
-copy targets; resolving an authored reference remains an explicit consumer step.
+A node contract receives the targets supplied by its consumer. The consumer owns
+reference resolution, context and evaluation time; declaring a node datatype
+does not automatically expand references or change the target subtree. Authored
+descendant references remain native reference nodes until explicitly consumed.
+Navigation remains bounded by the granted source view and effective traversal
+limits. Original owners, target identity and source attribution must survive.
 
-Alternative: retain node contracts as built-in registry entries only, with custom
-node validation attached at the attribute/behavior level. This avoids adding a
-new datatype kind but prevents a reusable named custom node datatype from owning
-its target constraints.
+Reject lexical facets such as `values` and `pattern` on node datatypes. Registered
+node rules express target constraints without extracting a string or replacing
+nodes with copied records. Validation cannot mutate targets or return replacement
+nodes. Scalar conversion rejects node input; any separately registered capability
+for native nodes must preserve original handles and declare its own contract.
+Adding this kind does not silently admit a node datatype as every list's item base.
 
-Neither form is enabled. Decide node-kind admission before completing the generic
-registry representation, metamodel changes and kind-specific signature checks.
+The kind is adopted but custom node datatype execution is not enabled. Metamodel
+admission, base compatibility and typed adapter signatures remain required work.
+Reference-to-ID conversion remains deferred to the `cem-element` consumer track.
+
+## Grammar and symbolic-reference consumer boundaries
+
+Grammar datatypes bind explicitly registered implementations, including adapters
+for existing content-model parsers. Literal rule text is descriptive metadata;
+there is no new executable grammar language. Validation checks the supplied value
+without implicit conversion, and explicit conversion needs its own declared
+representation and normalization contract.
+
+Symbolic-reference datatypes validate their declared lexical representation, such
+as a QName resolved against the original declaring aliases where applicable.
+Checking lexical well-formedness is distinct from consumer-requested lookup of
+a declaration or node. Neither a symbolic-reference type nor a registered rule
+implicitly loads URLs, uses document-wide IDs or grants a scope crossing. Missing
+lookup context remains a consumer lifecycle issue rather than a lexical parse
+failure. These boundaries do not yet specify every parser/output adapter.
+
+## Next decision: node rule invocation unit
+
+Recommended invocation: a node datatype rule validates the complete ordered target
+sequence supplied by the consumer once, using a typed native sequence parameter.
+It can check each target as well as cardinality and relationships between targets.
+The original candidate parameter remains one explicitly typed source node, distinct
+from the target sequence. Acceptance and diagnostics follow the adopted result
+protocol; existing effective traversal accounting applies to all target access.
+
+Alternative: invoke a node datatype rule once per target with a single typed node
+value; keep sequence cardinality and relationship checks in separate consumer or
+attribute rules. This simplifies single-node signatures but cannot express every
+sequence relationship in one reusable datatype rule.
+
+Neither invocation form is enabled. Choose the rule unit before defining the
+kind-specific native value signature, including empty-sequence behavior. Existing
+attribute cardinality constraints remain compatible with either choice.
 
 ## Verified inventory and current native boundary
 

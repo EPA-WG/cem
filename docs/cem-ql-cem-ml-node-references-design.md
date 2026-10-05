@@ -1355,10 +1355,13 @@ failed execution cannot establish acceptance. Diagnostic-only behaviors need an
 explicit compatibility adapter; they do not acquire datatype capability implicitly.
 General lists allow zero items unless an effective contract forbids it, preserving
 shipped nonempty name-list rules. Attribute absence remains distinct from an empty
-supplied list, and inherited nonempty restrictions cannot be removed. The next
-decision is whether custom retained-node datatypes use a dedicated `node` kind
-(recommended) or remain limited to built-in node entries with attribute/behavior
-checks. Symbolic-reference kinds remain separate from retained-node contracts.
+supplied list, and inherited nonempty restrictions cannot be removed. A dedicated
+`node` datatype kind supports reusable retained-target contracts, preserving
+existing built-in node semantics and rejecting lexical facets. Descendant references
+stay retained until an explicit consumer resolves them. Symbolic-reference kinds
+remain separate; neither they nor grammar rules imply URL lookup or scope grants.
+The next decision is whether a node rule validates the complete target sequence
+once (recommended) or runs once per target with separate sequence checks.
 The verified inventory also distinguishes available scalar conversion from the
 broader existing schema predicate coverage;
 full datatype family parity remains an implementation requirement.
