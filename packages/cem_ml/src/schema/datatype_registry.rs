@@ -7,6 +7,12 @@ use super::declaration_references::SchemaDeclarationNode;
 use crate::parser::CemAstNode;
 use std::collections::BTreeMap;
 
+mod source_plan;
+pub use source_plan::{
+    DatatypeDependency, DatatypeDependencyRole, DatatypeDependencyValue, DatatypeKind,
+    DatatypeKindSource, DatatypePlanIssue, DatatypePlanIssueKind, DatatypeSourcePlan,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatatypeRegistration {
     Inserted,

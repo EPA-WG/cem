@@ -489,24 +489,62 @@ with the adjacent registry/inventory/value/declaration-reference tests, 87 focus
 tests pass. These are source descriptors, not compiled executable descriptors;
 kind inference, dependency resolution and registered adapters remain guarded.
 
-## Next decision: whole-list inheritance
+## Adopted list dependency boundary
 
 Shipped list declarations use `base` for their item datatype. For other derived
 datatypes, `base` denotes inheritance. A general compiler must not silently switch
 these meanings when a dependency is itself a list.
 
-Recommended first contract: retain the shipped list `base` item semantics and
-defer whole-list inheritance until a separate explicit syntax is designed. A list
-item contract and a list rule still express reusable item and sequence constraints.
-This does not claim that a nested list and a derived list are interchangeable.
+Retain shipped list `base` item semantics and defer whole-list inheritance until
+a separate explicit syntax is designed. A list item contract and a list rule
+express reusable item and sequence constraints. A nested list and a derived list
+are not interchangeable, and an omitted kind must not silently reinterpret an
+existing item's base as whole-list inheritance. No dedicated item-type field or
+whole-list inheritance syntax is admitted in the first compiler.
 
-Alternative: introduce a dedicated item-type field now and make `base` uniformly
-mean inheritance, with an explicit compatibility treatment for shipped list forms.
-This provides coherent whole-list derivation but adds authoring syntax, metamodel
-admission and a migration contract before the first compiler can be enabled.
+## Implemented retained source classification plans
 
-Choose this boundary before dependency classification. Until then, collected
-source descriptors do not resolve an ambiguous list edge or claim readiness.
+`DatatypeSource::plan` classifies explicit kind metadata or retains the need for
+inherited classification. It distinguishes list-item, inherited-base and native
+validation-rule dependencies, keeping original dependency attributes and native
+reference handles. Literal rules remain descriptive source fields. Empty, unknown
+or native kind metadata is reported at its original field; malformed native base
+or rule shapes and forbidden list/node `values` retain original issue attribution.
+
+A plan neither evaluates dependencies nor owns a traversal budget. The later
+lifecycle compiler must consume its dependency fields in the shared bounded
+request. An explicit kind or absence of planning issues does not establish
+executable readiness: namespace admission, inherited facet applicability,
+registration, target compatibility and effective restrictions still need checks.
+Unknown authored fields remain visible through the source descriptor.
+
+Five plan fixtures and the adjacent source/registry/inventory/native-value/
+declaration-reference regressions pass (92 total). Native datatype execution
+remains guarded. This implements source classification, not kind inference across
+a resolved dependency graph or a complete datatype compiler.
+
+## Next decision: inherited base compatibility
+
+Shipped grammar `content-model` has a string base, and symbolic `type-reference`
+has a qualified-name base. A strict same-kind-only policy would reject these
+existing contracts; unrestricted scalar representation equality would also admit
+relationships not justified by the registered validation/conversion contracts.
+
+Recommended contract: an inherited base must be explicitly compatible with the
+derived datatype's registered contract. Registration declares accepted base
+representations/kinds, and compilation checks the selected original descriptor
+against that contract. Preserve shipped cross-kind relationships through their
+registered implementations, rather than a local-name exception table. Matching
+representation alone does not acquire a primitive implementation or a new grant.
+
+Alternative: permit inheritance whenever base and derived contracts use the same
+runtime value representation. All inherited restrictions still apply, but this
+makes representation matching sufficient for cross-kind admission.
+
+Either policy preserves conversion once and forbids restriction rules from
+rewriting the canonical result. List-item edges are not inherited-base edges, and
+whole-list inheritance remains deferred. Select compatibility before binding the
+registered descriptors in the bounded dependency compiler.
 
 ## Verified inventory and current native boundary
 

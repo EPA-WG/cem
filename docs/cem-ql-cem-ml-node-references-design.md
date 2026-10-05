@@ -1381,6 +1381,11 @@ requiring explicit list kind for item semantics. Retained source descriptors now
 preserve original lexical scope and every authored field, including native base/rule
 nodes and unknown or repeated fields. Four source fixtures and the adjacent tests
 pass (87 total). Dependency inference and executable datatype consumption remain
-guarded. The next decision is whole-list inheritance: preserve existing list-base
-item semantics and defer a separate inheritance form (recommended), or introduce
-a dedicated item field now so `base` consistently denotes inheritance.
+guarded. Existing list-base item semantics are preserved; whole-list inheritance
+awaits a separate explicit form. Retained source plans now distinguish inherited
+bases, list items and native rule dependencies, preserve prose as descriptive
+metadata and attribute malformed fields to original nodes. Five plan fixtures and
+the adjacent regressions pass (92 total); planning does not evaluate references
+or establish executable readiness. The next decision is inherited base
+compatibility: require it to be declared by registered contracts (recommended),
+or admit cross-kind bases based on matching runtime value representation alone.

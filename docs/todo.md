@@ -1247,12 +1247,34 @@ implementation verification. They do not claim executable test coverage.
       original nodes until the bounded lifecycle compiler consumes them.
       Verification: four source descriptor fixtures plus the 83 adjacent registry,
       inventory, value and declaration-reference tests pass (87 total).
-- [ ] Decide whole-list inheritance: retain existing list `base` item semantics and
-      defer separate inheritance syntax (recommended), or introduce an explicit item
-      field now so `base` can uniformly denote inheritance. Do not infer an edge's
-      meaning from a missing kind while this contract is unresolved.
+- [x] Preserve existing list `base` item semantics and defer whole-list inheritance
+      until separate explicit syntax is designed. Do not infer a list inheritance
+      edge or reinterpret an item base from a missing kind.
       Scenarios for later design verification: a list of lists is distinct from a
       derived list; source compatibility never silently changes a dependency's role.
+- [ ] Design whole-list inheritance syntax, dependency roles and compatibility as
+      separate future work before admitting derived whole-list declarations.
+      Scenarios for later design verification: list-of-list items are not inheritance;
+      existing shipped item-base declarations preserve their effective item contracts.
+- [x] Fixture: classify retained datatype source plans for explicit and omitted kinds,
+      list item versus inherited base roles, descriptive versus native rules, malformed
+      native fields and rejected list/node lexical values with original attribution.
+      Scenarios for later design verification: classification never executes prose,
+      resolves a native reference or labels an incomplete datatype ready.
+- [x] Implement source classification plans under these fixtures, retaining dependency
+      attributes and references for later shared bounded traversal. Keep native datatype
+      consumption guarded and do not create a new per-field traversal budget.
+      Scenarios for later design verification: explicit kind alone does not erase
+      unresolved base/rule dependencies; unsupported source fields remain visible.
+      Verification: five plan fixtures plus the 87 adjacent source, registry,
+      inventory, native value and declaration-reference tests pass (92 total).
+- [ ] Decide inherited base compatibility across explicit datatype kinds: require
+      compatibility declared by registered contracts (recommended), or permit bases
+      whenever their runtime value representation matches. Preserve conversion once
+      and keep list item edges distinct from inheritance.
+      Scenarios for later design verification: shipped grammar/string and symbolic
+      reference/qualified-name bases remain valid through explicit registered contracts;
+      a matching representation alone never grants a new primitive or scope access.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.
