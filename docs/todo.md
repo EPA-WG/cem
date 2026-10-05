@@ -824,26 +824,41 @@ implementation. `git diff --check` passes.
       shared bounds, without implicit parser evaluation or scalar extraction.
       Scenarios for later design verification: absent context stays pending;
       general expressions and reference constructors remain distinct source nodes.
-- [ ] Fixture: general native attribute expressions evaluate only through the
+- [x] Fixture: general native attribute expressions evaluate only through the
       explicit lifecycle hook; verify missing context, original parse/type errors,
       zero/many/repeated node results, returned reference chains and invalid scalars.
       Scenarios for later design verification: hook results retain source owners;
       reference-to-reference resolution follows existing effective scope policy.
-- [ ] Fixture: composite slots share cumulative work and destination limits with
+- [x] Fixture: composite slots share cumulative work and destination limits with
       enclosing structural selections; verify authored order, pending branches,
       mixed expression/reference values and original-source query access.
       Scenarios for later design verification: no per-value accounting resets;
       complete selection is distinct from available partial target sequences.
-- [ ] Add the lifecycle expression hook and native result validation before
+- [x] Fixture: malformed native source-slot ownership is rejected before query
+      access; missing and repeated owning handles cannot produce a complete value.
+      Scenarios for later design verification: malformed slots remain bounded;
+      repeated selected target occurrences remain valid and distinct.
+- [x] Fixture: the engine runtime stage consumes general native attribute
+      expressions alongside references, preserves input attribution, and defers
+      behavior for pending inputs without expanding authored descendant links.
+      Scenarios for later design verification: the caller controls evaluation
+      time/context, and every source arena remains immutable across consumers.
+- [x] Add the lifecycle expression hook and native result validation before
       completing generic attribute slots; preserve original expression diagnostics,
       lexical context and retained target ownership.
       Scenarios for later design verification: empty/multiple results obey the
       authored count envelope; scalar and foreign-host results cannot become nodes.
-- [ ] Support composite native attribute slots through one shared request rather
+- [x] Support composite native attribute slots through one shared request rather
       than separate per-value budgets; generic expression evaluation needs an
-      explicit expression consumer. The first reference API keeps these pending.
+      explicit expression consumer. The standalone reference-slot API stays
+      chain-only; retained placement validation supplies the broader consumer.
       Scenarios for later design verification: zero, repeated and mixed native
       values preserve order, ownership and bounded traversal accounting.
+      Verification: all 71 focused ML tests and all 130 bridge tests pass; the
+      full Nx CEM-QL target passes. The final native behavior fixture also
+      preserves returned expression-shaped targets without reevaluation. Nx ML
+      reports 2072 library passes, two ignored and only the known legacy dropdown
+      template failure (`template#cem-dropdown` not found).
 - [x] Integrate the attribute consumer with retained validation placements and
       behavior access using the selected-subtree query boundary. References in
       selected structural subtrees share the enclosing request's active identities
@@ -864,6 +879,9 @@ implementation. `git diff --check` passes.
       fixture now includes empty native value edges.
 - [ ] Define native node-valued scalar composition sites before
       extending existing string-valued `@base`, datatype and function contracts.
+      Pending decision: extend `@base` with explicit references selecting exactly
+      one named element declaration (recommended), or introduce a separate native
+      base construct. Literal QName bases retain their existing contract.
       Scenarios for later design verification: singleton composition rejects
       multiple targets; recursive validation stays bounded; existing aliases
       remain compatible without making scalar strings implicit constructors.

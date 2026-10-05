@@ -357,6 +357,52 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn evaluate_input_expression(
+        &mut self,
+        node: &Self::Node,
+    ) -> ReferenceLinkEvaluation<Self::Node> {
+        let Some(source) = node.source.as_ref() else {
+            return ReferenceLinkEvaluation::Pending("input-expression-source-not-ready".into());
+        };
+        let Some(occurrence) =
+            cem_ml::schema::input_references::native_attribute_expression(source)
+        else {
+            return ReferenceLinkEvaluation::Pending("unsupported-input-expression".into());
+        };
+        let Some(scope) = node.scope.and_then(|scope| self.scope_record(scope)) else {
+            return ReferenceLinkEvaluation::Unresolved("unregistered-schema-scope".into());
+        };
+        let Some(context) = &scope.context else {
+            return ReferenceLinkEvaluation::Pending("schema-context-not-ready".into());
+        };
+        let evaluated =
+            match evaluate_expression(occurrence.expression.as_deref().unwrap(), context) {
+                Err(error) => return ReferenceLinkEvaluation::Invalid(error.diagnostics),
+                Ok(evaluated) if evaluated.result.error.is_some() => {
+                    return ReferenceLinkEvaluation::Invalid(evaluated.result.diagnostics)
+                }
+                Ok(evaluated) => evaluated,
+            };
+        let nodes: Vec<_> = evaluated
+            .result
+            .items
+            .into_iter()
+            .map(|item| self.query_node(item, node.scope))
+            .collect();
+        if nodes.iter().any(|target| {
+            self.declaration_node(target).is_none() && self.reference_occurrence(target).is_none()
+        }) {
+            return ReferenceLinkEvaluation::Invalid(vec![cem_ml::diagnostics::Diagnostic {
+                code: cem_ml::schema::attribute_references::INVALID_NATIVE_TARGET.into(),
+                severity: cem_ml::diagnostics::Severity::Error,
+                message: "A node-valued attribute expression must produce retained nodes or native references".into(),
+                node: Some(occurrence.identity),
+                source_map: Some(occurrence.source_map),
+                ..Default::default()
+            }]);
+        }
+        ReferenceLinkEvaluation::Resolved(nodes)
+    }
     fn source_reference(&self, source: SchemaDeclarationNode) -> Self::Node {
         let scope = self.source_scope(&source);
         CemQlSchemaReferenceNode {

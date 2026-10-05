@@ -695,14 +695,22 @@ fn engine_runtime_stage_consumes_native_attribute_nodes_without_expanding_descen
         "@ns p = \"https://example.test/native-attribute\"\n@default p\n{item @kind={#items}}";
     let input = |uri: &str| EngineInput {
         uri: uri.into(),
-        bytes: source.as_bytes().to_vec(),
+        bytes: if uri == "general.cem" {
+            source.replace("#items", "items").into_bytes()
+        } else {
+            source.as_bytes().to_vec()
+        },
         from_format: Some(InputFormat::Cem),
         identity: None,
         root_scope: Default::default(),
     };
     let response = RealCemMlEngine
         .validate(ValidateRequest {
-            inputs: vec![input("complete.cem"), input("pending.cem")],
+            inputs: vec![
+                input("complete.cem"),
+                input("general.cem"),
+                input("pending.cem"),
+            ],
             projection: ValidateProjection::Cem,
             fail_level: FailLevel::Validate,
             context,
@@ -720,7 +728,7 @@ fn engine_runtime_stage_consumes_native_attribute_nodes_without_expanding_descen
             .iter()
             .map(|input| input.complete)
             .collect::<Vec<_>>(),
-        vec![true, false],
+        vec![true, true, false],
         "{:?}",
         response.report.diagnostics
     );
@@ -730,9 +738,156 @@ fn engine_runtime_stage_consumes_native_attribute_nodes_without_expanding_descen
         .iter()
         .filter(|diagnostic| diagnostic.code == "example.native")
         .collect();
-    assert_eq!(emitted.len(), 1, "{:?}", response.report.diagnostics);
-    assert_eq!(emitted[0].uri.as_deref(), Some("complete.cem"));
-    assert_eq!(emitted[0].details.as_ref().unwrap()["observed"], "item");
-    assert_eq!(stage.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
-    assert_eq!(stage.sources.lock().unwrap().len(), 2);
+    assert_eq!(emitted.len(), 2, "{:?}", response.report.diagnostics);
+    for (diagnostic, uri) in emitted.iter().zip(["complete.cem", "general.cem"]) {
+        assert_eq!(diagnostic.uri.as_deref(), Some(uri));
+        assert_eq!(diagnostic.details.as_ref().unwrap()["observed"], "item");
+    }
+    assert_eq!(stage.calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+    assert_eq!(stage.sources.lock().unwrap().len(), 3);
+}
+
+#[test]
+fn general_attribute_expressions_consume_native_results_and_preserve_failures() {
+    use cem_ml::parser::tree::{CemTreeSemantics, RetainedCemTree};
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{AtomValue, Item, ItemStream, RetainedCemNode},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let target_text = "{outside | {item | {#authored}}}";
+    let target = RetainedCemTree::new(
+        Arc::try_unwrap(parse(target_text)).unwrap(),
+        "target.cem",
+        target_text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let selected = element(target.ast_owner(), "item");
+    let native = RetainedCemNode::new(target.clone(), selected.node_id())
+        .unwrap()
+        .query_item();
+    let authored_text = "{item @kind={unknown}}";
+    let authored = RetainedCemTree::new(
+        Arc::try_unwrap(parse(authored_text)).unwrap(),
+        "authored.cem",
+        authored_text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let authored_node = element(authored.ast_owner(), "$");
+    let native_expression = RetainedCemNode::new(authored.clone(), authored_node.node_id())
+        .unwrap()
+        .query_item();
+    for (expression, values, ready, granted, expected_complete, expected_failed) in [
+        ("items", vec![native.clone()], true, true, true, false),
+        ("items", vec![native_expression], true, true, true, false),
+        ("(#items)", vec![native.clone()], true, true, true, false),
+        ("items", vec![], true, true, true, true),
+        (
+            "items",
+            vec![native.clone(), native.clone()],
+            true,
+            true,
+            true,
+            true,
+        ),
+        (
+            "items",
+            vec![Item::Atomic(AtomValue::String("scalar".into()))],
+            true,
+            true,
+            false,
+            true,
+        ),
+        ("items", vec![native.clone()], false, true, false, false),
+        ("1 +", vec![], true, true, false, true),
+        ("items", vec![native.clone()], true, false, false, false),
+        (
+            "items",
+            vec![
+                native.clone(),
+                Item::Atomic(AtomValue::String("scalar".into())),
+            ],
+            true,
+            true,
+            false,
+            true,
+        ),
+    ] {
+        let source_text = format!("{{item @kind={{{expression}}}}}");
+        let source = RetainedCemTree::new(
+            Arc::try_unwrap(parse(&source_text)).unwrap(),
+            "input.cem",
+            &source_text,
+            CemTreeSemantics::default(),
+            None,
+        )
+        .unwrap();
+        let context = StandaloneExpressionContext::default().with_binding(
+            "items",
+            StandaloneExpressionBinding::any(ItemStream::from_items(values)),
+        );
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let policy =
+            cem_ml::schema::reference_policy::ReferenceScopePolicy::schema_defaults().unwrap();
+        let from = host.register_scope(source.clone(), ready.then_some(context), policy.clone());
+        let to = host.register_scope(target.clone(), None, policy.clone());
+        let authored_scope = host.register_scope(authored.clone(), None, policy.clone());
+        if granted {
+            host.allow_scope_crossing(from, to);
+            host.allow_scope_crossing(from, authored_scope);
+        }
+        let report = host
+            .validate_input_with_behavior_evaluator(
+                source.clone(),
+                &native_attribute_behavior_model(),
+                policy.limits,
+                Some(&CemQlSchemaBehaviorEvaluator),
+            )
+            .unwrap();
+        assert_eq!(
+            report.complete, expected_complete,
+            "{expression}: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(
+            report.failed, expected_failed,
+            "{expression}: {:?}",
+            report.diagnostics
+        );
+        if expected_complete && !expected_failed {
+            let values = &report.nodes[0].attribute_values[0];
+            let target_node = values.access.node(values.access.roots()[0]).unwrap();
+            let CemAstNode::Element { expanded_name, .. } = target_node.node() else {
+                panic!()
+            };
+            if expanded_name.local_name == "item" {
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == "example.native"),
+                    "{:?}",
+                    report.diagnostics
+                );
+                assert!(Arc::ptr_eq(target_node.document(), target.ast_owner()));
+            } else {
+                assert_eq!(expanded_name.local_name, "$");
+                assert!(Arc::ptr_eq(target_node.document(), authored.ast_owner()));
+                assert!(!report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "example.native"));
+            }
+        }
+        if !expected_complete {
+            assert!(!report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "example.native"));
+        }
+    }
 }

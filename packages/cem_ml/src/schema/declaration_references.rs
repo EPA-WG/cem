@@ -65,6 +65,16 @@ pub trait SchemaDeclarationHost: ReferenceResolutionHost {
     /// document. None denotes a declaration without schema alias bindings.
     /// Scope selection must not be inferred from the consuming schema's aliases.
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode>;
+    /// Explicit input lifecycle hook; declaration compilation never invokes it.
+    /// Hosts without an expression consumer preserve the pending source slot.
+    fn evaluate_input_expression(
+        &mut self,
+        _expression: &Self::Node,
+    ) -> crate::value::reference_resolution::ReferenceLinkEvaluation<Self::Node> {
+        crate::value::reference_resolution::ReferenceLinkEvaluation::Pending(
+            "input-expression-consumer-not-ready".into(),
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -163,7 +163,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<ReferenceResolution<H::Node>, ReferenceResolutionError> {
-    Ok(walk_reference_structure(root, host, limits, |_, _| None, false)?.resolution)
+    Ok(walk_reference_structure(root, host, limits, |_, _| None, false, None)?.resolution)
 }
 
 /// Resolve a reference and descend into consumer-selected terminal children
@@ -180,7 +180,24 @@ where
     H: ReferenceResolutionHost,
     C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
 {
-    walk_reference_structure(root, host, limits, structural_children, true)
+    walk_reference_structure(root, host, limits, structural_children, true, None)
+}
+
+/// Internal consumer entry over an original owning container, such as a native
+/// attribute with several authored value nodes. The origin is diagnostic metadata,
+/// not a synthetic reference node. Containment costs work, never reference depth.
+pub(crate) fn resolve_consumer_structure<H, C>(
+    root: H::Node,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    origin: Option<ReferenceOccurrence>,
+    children: C,
+) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
+where
+    H: ReferenceResolutionHost,
+    C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+{
+    walk_reference_structure(root, host, limits, children, true, origin)
 }
 
 fn walk_reference_structure<H, C>(
@@ -189,6 +206,7 @@ fn walk_reference_structure<H, C>(
     limits: ReferenceTraversalLimits,
     mut structural_children: C,
     record_structure: bool,
+    consumer_origin: Option<ReferenceOccurrence>,
 ) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
 where
     H: ReferenceResolutionHost,
@@ -197,8 +215,9 @@ where
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
-    let root_occurrence = host
-        .reference_occurrence(&root)
+    let owning_container = consumer_origin.is_some();
+    let root_occurrence = consumer_origin
+        .or_else(|| host.reference_occurrence(&root))
         .ok_or(ReferenceResolutionError::NotReference)?;
     let mut result = ReferenceResolution {
         nodes: vec![],
@@ -231,7 +250,7 @@ where
     )]);
     let mut frames = vec![Frame {
         nodes: vec![root.clone()].into_iter(),
-        reference: None,
+        reference: owning_container.then(|| (root.clone(), root_occurrence.clone())),
         structural_parent: None,
         owns_reference: false,
         depth: 0,

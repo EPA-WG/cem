@@ -6,14 +6,16 @@ use crate::schema::attribute_references::{
 };
 use crate::schema::reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy};
 use crate::value::reference_resolution::{
-    ReferenceLinkEvaluation, ReferenceResolution, ReferenceResolutionIssue,
-    ReferenceResolutionIssueKind,
+    resolve_consumer_structure, ReferenceLinkEvaluation, ReferenceResolution,
+    ReferenceResolutionIssue, ReferenceResolutionIssueKind,
 };
 
 #[derive(Clone, Copy)]
 enum Role {
     Structural(Option<usize>),
     Value(usize),
+    Expression(usize),
+    Container(usize),
     Authored(usize),
 }
 #[derive(Clone)]
@@ -23,7 +25,7 @@ struct Tagged<N> {
 }
 struct Host<'a, H> {
     inner: &'a mut H,
-    started: HashSet<usize>,
+    started: std::cell::RefCell<HashSet<usize>>,
     denied_roles: std::cell::RefCell<Vec<Role>>,
 }
 impl<H: InputReferenceHost> ReferenceResolutionHost for Host<'_, H> {
@@ -36,8 +38,13 @@ impl<H: InputReferenceHost> ReferenceResolutionHost for Host<'_, H> {
         self.inner.scope_limits(scope)
     }
     fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
-        if matches!(node.role, Role::Authored(_)) {
+        if matches!(node.role, Role::Authored(_) | Role::Container(_)) {
             None
+        } else if matches!(node.role, Role::Expression(_)) {
+            self.inner
+                .retained_node(&node.node)
+                .as_ref()
+                .and_then(native_attribute_expression)
         } else {
             self.inner.reference_occurrence(&node.node)
         }
@@ -53,17 +60,22 @@ impl<H: InputReferenceHost> ReferenceResolutionHost for Host<'_, H> {
         allowed
     }
     fn evaluate(&mut self, reference: &Self::Node) -> ReferenceLinkEvaluation<Self::Node> {
-        if let Role::Value(site) = reference.role {
-            self.started.insert(site);
+        if let Role::Value(site) | Role::Expression(site) = reference.role {
+            self.started.borrow_mut().insert(site);
         }
-        match self.inner.evaluate(&reference.node) {
+        let (evaluated, role) = if let Role::Expression(site) = reference.role {
+            (
+                self.inner.evaluate_input_expression(&reference.node),
+                Role::Value(site),
+            )
+        } else {
+            (self.inner.evaluate(&reference.node), reference.role)
+        };
+        match evaluated {
             ReferenceLinkEvaluation::Resolved(nodes) => ReferenceLinkEvaluation::Resolved(
                 nodes
                     .into_iter()
-                    .map(|node| Tagged {
-                        node,
-                        role: reference.role,
-                    })
+                    .map(|node| Tagged { node, role })
                     .collect(),
             ),
             ReferenceLinkEvaluation::Pending(reason) => ReferenceLinkEvaluation::Pending(reason),
@@ -103,21 +115,40 @@ pub(super) fn walk<H: InputReferenceHost>(
             element,
             supported: true,
         });
-        Role::Value(0)
+        if matches!(
+            host.retained_node(&root).as_ref().map(|node| node.node()),
+            Some(CemAstNode::Attribute { .. })
+        ) {
+            Role::Container(0)
+        } else {
+            value_role(host, &root, 0)
+        }
     } else {
         Role::Structural(None)
     };
     let mut tagged_host = Host {
         inner: host,
-        started: HashSet::new(),
+        started: Default::default(),
         denied_roles: Default::default(),
     };
     let mut next_index = 0;
     let mut invalid_sites = HashSet::new();
-    let mut resolved = resolve_reference_structure(
+    let origin = if matches!(role, Role::Container(_)) {
+        let source = tagged_host.inner.retained_node(&root).unwrap();
+        Some(ReferenceOccurrence {
+            identity: source.identity(),
+            node_id: Some(source.node_id()),
+            expression: None,
+            source_map: document_model::source_stack_for_node(source.node()).clone(),
+        })
+    } else {
+        None
+    };
+    let mut resolved = resolve_consumer_structure(
         Tagged { node: root, role },
         &mut tagged_host,
         limits,
+        origin,
         |host, entry| {
             let position = next_index;
             next_index += 1;
@@ -166,7 +197,7 @@ pub(super) fn walk<H: InputReferenceHost>(
                                     .get(&name.local_name)
                                     .is_some_and(|contract| contract.is_node_valued());
                             let reference = if supported {
-                                single_reference(&attribute)
+                                value_request_root(&attribute)
                             } else {
                                 None
                             };
@@ -178,16 +209,58 @@ pub(super) fn walk<H: InputReferenceHost>(
                                 supported: reference.is_some(),
                             });
                             if let Some(reference) = reference {
+                                let role =
+                                    if matches!(reference.node(), CemAstNode::Attribute { .. }) {
+                                        Role::Container(site)
+                                    } else if native_attribute_expression(&reference).is_some() {
+                                        Role::Expression(site)
+                                    } else {
+                                        Role::Value(site)
+                                    };
                                 nodes.push(Tagged {
                                     node: host.inner.source_node(reference),
-                                    role: Role::Value(site),
+                                    role,
                                 });
                             }
                         }
                     }
                     Some(nodes)
                 }
-                Role::Value(site) | Role::Authored(site) => {
+                Role::Container(site) => {
+                    host.started.borrow_mut().insert(site);
+                    let CemAstNode::Attribute { value_nodes, .. } = retained.node() else {
+                        unreachable!()
+                    };
+                    let nodes: Vec<_> = value_nodes
+                        .iter()
+                        .filter_map(|id| {
+                            SchemaDeclarationNode::new(retained.document().clone(), *id)
+                        })
+                        .collect();
+                    if nodes.len() != value_nodes.len()
+                        || value_nodes.iter().copied().collect::<HashSet<_>>().len()
+                            != value_nodes.len()
+                    {
+                        invalid_sites.insert(site);
+                    }
+                    Some(
+                        nodes
+                            .into_iter()
+                            .map(|source| {
+                                let role = if native_attribute_expression(&source).is_some() {
+                                    Role::Expression(site)
+                                } else {
+                                    Role::Value(site)
+                                };
+                                Tagged {
+                                    node: host.inner.source_node(source),
+                                    role,
+                                }
+                            })
+                            .collect(),
+                    )
+                }
+                Role::Value(site) | Role::Expression(site) | Role::Authored(site) => {
                     let edges = owning_edges(retained.node());
                     if edges
                         .iter()
@@ -247,9 +320,15 @@ pub(super) fn walk<H: InputReferenceHost>(
     };
     // Partition once; per-attribute scans of the full traversal would be
     // quadratic even when every reference is within its work budget.
+    let mut incomplete_containers = HashSet::new();
     let mut site_indices = vec![Vec::new(); sites.len()];
     let mut map = vec![None; resolved.resolution.nodes.len()];
     for (index, entry) in resolved.resolution.nodes.iter().enumerate() {
+        if let Role::Container(site) = entry.role {
+            if !resolved.children_complete[index] {
+                incomplete_containers.insert(site);
+            }
+        }
         if let Role::Value(site) | Role::Authored(site) = entry.role {
             map[index] = Some(site_indices[site].len());
             site_indices[site].push(index);
@@ -261,7 +340,7 @@ pub(super) fn walk<H: InputReferenceHost>(
     let mut roots_failed = false;
     for issue in &resolved.resolution.issues {
         match issue.reference.role {
-            Role::Value(site) => {
+            Role::Value(site) | Role::Expression(site) | Role::Container(site) => {
                 site_issues[site] = true;
                 value_issues[site] = true;
             }
@@ -280,7 +359,7 @@ pub(super) fn walk<H: InputReferenceHost>(
             roots: vec![],
             parents: vec![],
             children: vec![],
-            complete: site.supported && tagged_host.started.contains(&site_id),
+            complete: site.supported && tagged_host.started.borrow().contains(&site_id),
         };
         for global in &indices {
             let entry = &resolved.resolution.nodes[*global];
@@ -333,15 +412,16 @@ pub(super) fn walk<H: InputReferenceHost>(
                 document_model::source_stack_for_node(site.attribute.node()).clone(),
             ));
         }
-        access.complete &= !site_issues[site_id];
+        access.complete &= !site_issues[site_id] && !incomplete_containers.contains(&site_id);
         // A source slot which was never evaluated is not a resolved-empty value.
         let name = match site.attribute.node() {
             CemAstNode::Attribute { expanded_name, .. } => &expanded_name.local_name,
             _ => unreachable!(),
         };
         let selection_complete = site.supported
-            && tagged_host.started.contains(&site_id)
+            && tagged_host.started.borrow().contains(&site_id)
             && !value_issues[site_id]
+            && !incomplete_containers.contains(&site_id)
             && !invalid_sites.contains(&site_id);
         if selection_complete {
             document_model::validate_native_attribute_count(
@@ -443,15 +523,34 @@ pub(super) fn walk<H: InputReferenceHost>(
         attributes,
     })
 }
-fn single_reference(attribute: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
+pub(super) fn value_request_root(
+    attribute: &SchemaDeclarationNode,
+) -> Option<SchemaDeclarationNode> {
     let CemAstNode::Attribute { value_nodes, .. } = attribute.node() else {
         return None;
     };
-    let [root] = value_nodes.as_slice() else {
-        return None;
-    };
-    let root = SchemaDeclarationNode::new(attribute.document().clone(), *root)?;
-    matches!(root.node(), CemAstNode::Reference { .. }).then_some(root)
+    if let [root] = value_nodes.as_slice() {
+        if let Some(root) = SchemaDeclarationNode::new(attribute.document().clone(), *root) {
+            if matches!(root.node(), CemAstNode::Reference { .. })
+                || native_attribute_expression(&root).is_some()
+            {
+                return Some(root);
+            }
+        }
+    }
+    (!value_nodes.is_empty()).then(|| attribute.clone())
+}
+fn value_role<H: InputReferenceHost>(host: &H, node: &H::Node, site: usize) -> Role {
+    if host
+        .retained_node(node)
+        .as_ref()
+        .and_then(native_attribute_expression)
+        .is_some()
+    {
+        Role::Expression(site)
+    } else {
+        Role::Value(site)
+    }
 }
 fn owning_edges(node: &CemAstNode) -> Vec<crate::parser::AstNodeId> {
     match node {

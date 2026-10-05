@@ -9,8 +9,8 @@ use crate::{
     diagnostics::{Diagnostic, Severity},
     parser::{document::CemDocument, CemAstNode},
     value::reference_resolution::{
-        resolve_reference_structure, ReferenceResolutionError, ReferenceResolutionHost,
-        ReferenceResolutionState, ReferenceStructureResolution,
+        ReferenceResolutionError, ReferenceResolutionHost, ReferenceResolutionState,
+        ReferenceStructureResolution,
     },
 };
 use std::{collections::HashSet, sync::Arc};
@@ -23,6 +23,16 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 pub trait InputReferenceHost: ReferenceResolutionHost {
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node;
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode>;
+    /// Explicit lifecycle evaluation of an authored native expression slot.
+    /// Return retained nodes/references, or preserve pending context readiness.
+    fn evaluate_input_expression(
+        &mut self,
+        _expression: &Self::Node,
+    ) -> crate::value::reference_resolution::ReferenceLinkEvaluation<Self::Node> {
+        crate::value::reference_resolution::ReferenceLinkEvaluation::Pending(
+            "input-expression-consumer-not-ready".into(),
+        )
+    }
     /// Original lexical schema, when the host exposes one. Never substitute the
     /// consuming model's aliases for the selected node's declaring context.
     fn declaring_schema(&self, _node: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
@@ -39,6 +49,46 @@ impl<H: SchemaDeclarationHost> InputReferenceHost for H {
     fn declaring_schema(&self, node: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
         self.declaration_schema(node)
     }
+    fn evaluate_input_expression(
+        &mut self,
+        expression: &Self::Node,
+    ) -> crate::value::reference_resolution::ReferenceLinkEvaluation<Self::Node> {
+        SchemaDeclarationHost::evaluate_input_expression(self, expression)
+    }
+}
+
+/// Native authored expression metadata, without parsing or executing its text.
+/// Returned expression-looking targets remain ordinary nodes; only source slots
+/// are passed to the lifecycle hook.
+pub fn native_attribute_expression(
+    source: &SchemaDeclarationNode,
+) -> Option<super::reference_policy::ReferenceOccurrence> {
+    let CemAstNode::Element {
+        expanded_name,
+        attributes,
+        children,
+        source: provenance,
+        ..
+    } = source.node()
+    else {
+        return None;
+    };
+    if expanded_name.local_name != "$" || !attributes.is_empty() {
+        return None;
+    }
+    let mut expression = String::new();
+    for child in children {
+        let CemAstNode::Text { data, .. } = source.document().get(*child)? else {
+            return None;
+        };
+        expression.push_str(data);
+    }
+    Some(super::reference_policy::ReferenceOccurrence {
+        identity: source.identity(),
+        node_id: Some(source.node_id()),
+        expression: Some(expression),
+        source_map: provenance.clone(),
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -281,9 +331,8 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
                                 .attributes
                                 .get(&name.local_name)
                                 .is_some_and(|contract| contract.is_node_valued());
-                        let root = if eligible && value_nodes.len() == 1 {
-                            SchemaDeclarationNode::new(attribute.document().clone(), value_nodes[0])
-                                .filter(|node| matches!(node.node(), CemAstNode::Reference { .. }))
+                        let root = if eligible {
+                            consumed_walk::value_request_root(&attribute)
                         } else {
                             None
                         };

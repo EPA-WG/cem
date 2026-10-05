@@ -1103,16 +1103,29 @@ Lexical `values` and `pattern` constraints on node types are schema compilation
 errors and prevent evaluation. Native target validation belongs to node behaviors;
 selecting nodes does not silently satisfy other unsupported constraints. Defensive
 validation of caller-supplied models still leaves unconsumed constraints pending.
-Primitive contracts and generic/composite expression slots do not invoke this
-reference consumer. Generic and composite slots remain incomplete until an
-appropriate expression/batched consumer is supplied. The next adopted consumer
-extension evaluates general expressions through an explicit lifecycle expression
-hook, then consumes its node/reference results under the same node contract and
-shared bounds. This does not make parsing an evaluation stage or require general
-expressions to be authored as reference constructors. No source targets are
-written back, primitive values extracted or DOM IDs generated.
+The standalone `validate_native_attribute_reference` entry point remains restricted
+to one authored reference slot. Retained placement validation additionally consumes
+general expression and composite native slots. `evaluate_input_expression` is an
+explicit lifecycle host hook: custom hosts without it leave general expressions
+pending. The production CEM-QL host evaluates the original expression text using
+its registered lexical scope/context, preserves query errors, and requires retained
+node or native reference results. Scalars and mixed scalar/node results are invalid;
+there is no implicit scalar extraction or string-to-node lookup. Returned references
+follow the shared chain resolver; returned expression-looking nodes stay authored
+nodes rather than triggering another expression evaluation.
 
-Retained placement validation now consumes eligible attribute references with
+Composite slots traverse the original attribute's owning value handles in order
+within one request. The attribute is an owning container, not a synthetic reference
+or a new source arena. Container visits consume work without adding reference
+expansion depth. General expression expansion and reference chains use the same
+active identities, cumulative work and scope limits. Missing/repeated source owning
+handles invalidate consumption; repeated selected target occurrences remain valid.
+Pending or exhausted branches never turn an available prefix into a complete count
+selection. Empty and multiple complete results follow the authored count envelope.
+Primitive contracts never invoke this native expression consumer. Parsing does not
+schedule evaluation, and no source targets are written back or DOM IDs generated.
+
+Retained placement validation consumes eligible native attribute slots with
 lifecycle context. Attributes inside selected structural subtrees share the
 structural request's active reference identities, cumulative work and effective
 scope limits. Independent authored attribute references start independent requests.

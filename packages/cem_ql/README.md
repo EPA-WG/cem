@@ -903,5 +903,20 @@ owners, runtime contexts and scope grants as declaration compilation. Ordered
 selected subtrees share one bounded traversal per authored reference; nested
 containment cycles remain incomplete. Inspect both `complete` and `failed` in
 the result. Pending child selections defer field contracts while independent
-attribute errors remain visible. Engine request/report integration and
-whole-document behavior hooks are separate lifecycle work.
+attribute errors remain visible. Optional engine runtime integration supplies the
+same lifecycle stage before retained native behavior checks.
+
+Node-valued attributes require an explicit schema `node` contract. Native reference
+slots and general expressions such as `@target={items}` consume retained targets
+under the same scope/grant and cardinality rules. General expressions use the
+explicit `SchemaDeclarationHost::evaluate_input_expression` hook, delegated by
+`InputReferenceHost`; custom hosts without it report pending consumption. The native
+host preserves query errors and rejects scalar results. Composite `value_nodes`
+share one traversal in authored order, including cumulative destination budgets.
+
+Consumed attribute `.value` and local-name behavior conveniences expose native
+nodes within captured selected subtrees. Original source handles retain authored
+expressions and descendant references. Query access does not expand those links,
+follow outside parents/contexts/targets, copy source arenas or generate DOM IDs.
+The standalone ML reference-slot API remains restricted to one authored reference;
+placement validation supplies the general-expression/composite consumer.
