@@ -711,3 +711,91 @@ fn package_compilation_reuses_behavior_and_diagnostic_dependencies_together() {
         .package_artifacts()
         .any(|a| a.package_id == "runtime"));
 }
+
+#[test]
+fn field_contract_target_errors_preserve_active_package_until_target_is_available() {
+    let complete = SOURCE.replace("{elements | {#library}}", "{elements | {element @name=input @optional-attributes=command}} {field-contracts | {#library}}");
+    let library = tree("{schema | {field-contracts | {field-contract @name=shared @target=input @required-attributes=command}}}");
+    let mut context = context(&complete);
+    context.schema_package_compiler =
+        Some(Arc::new(CemQlSchemaPackageCompiler::new(move |request| {
+            let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+            let id = library
+                .ast()
+                .nodes
+                .iter()
+                .find_map(|n| match n {
+                    CemAstNode::Element {
+                        node_id,
+                        expanded_name,
+                        ..
+                    } if expanded_name.local_name == "field-contract" => Some(*node_id),
+                    _ => None,
+                })
+                .unwrap();
+            let evaluation = StandaloneExpressionContext::default().with_binding(
+                "library",
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(library.clone(), id)
+                        .unwrap()
+                        .query_item(),
+                )),
+            );
+            let mut host = CemQlSchemaDeclarationHost::new();
+            let a = host.register_scope(request.source.clone(), Some(evaluation), policy.clone());
+            let b = host.register_scope(library.clone(), None, policy.clone());
+            host.allow_scope_crossing(a, b);
+            Ok((host, policy.limits))
+        })));
+    load(&mut context, &input());
+    assert_eq!(
+        context
+            .schema_document_models
+            .resolve_for_identity(Some(SCHEMA_URI), None, None)
+            .unwrap()
+            .elements["input"]
+            .field_contracts
+            .len(),
+        1
+    );
+    set_source(
+        &mut context,
+        &complete.replace(
+            "{elements | {element @name=input @optional-attributes=command}}",
+            "{elements}",
+        ),
+    );
+    let diagnostics = load_schema_package_manifest_into_context(&mut context, &input()).unwrap();
+    assert!(diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_FIELD_CONTRACT_CODE));
+    assert!(context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_FIELD_CONTRACT_CODE));
+    assert!(context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap()
+        .elements
+        .contains_key("input"));
+    assert!(context
+        .converter_registry
+        .converter("runtime-converter")
+        .is_some());
+    assert!(context
+        .converter_registry
+        .package_artifacts()
+        .any(|a| a.package_id == "runtime"));
+    set_source(&mut context, &complete);
+    load(&mut context, &input());
+    assert!(context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .compile_diagnostics
+        .is_empty());
+}

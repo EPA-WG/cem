@@ -93,6 +93,7 @@ pub enum SchemaDeclarationKind {
     Behavior,
     Diagnostic,
     Constraint,
+    FieldContract,
 }
 impl SchemaDeclarationKind {
     pub(crate) fn node_name(self) -> &'static str {
@@ -102,6 +103,7 @@ impl SchemaDeclarationKind {
             Self::Behavior => "behavior",
             Self::Diagnostic => "diagnostic",
             Self::Constraint => "constraint",
+            Self::FieldContract => "field-contract",
         }
     }
 }
@@ -293,6 +295,15 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                         &aliases,
                     )
                     .map(|behavior| CompiledSchemaDeclaration::Behavior(Box::new(behavior))),
+                    SchemaDeclarationKind::FieldContract => {
+                        document_model::compile_field_contract_declaration(
+                            target.clone(),
+                            aliases.clone(),
+                        )
+                        .map(|contract| {
+                            CompiledSchemaDeclaration::FieldContract(Box::new(contract))
+                        })
+                    }
                     SchemaDeclarationKind::Constraint => {
                         document_model::compile_constraint_declaration(
                             target.clone(),

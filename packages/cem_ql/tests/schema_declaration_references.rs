@@ -479,3 +479,45 @@ fn constraint_reuse_honors_scope_grants_and_preserves_policy_budget() {
     ));
     assert_eq!(policy().for_scope(&model).unwrap().limits.max_work, 1);
 }
+
+#[test]
+fn field_contract_reuse_checks_scope_grants_and_local_targets_after_assembly() {
+    let source = tree("{schema | {elements | {element @name=box}} {field-contracts | {#library}}}");
+    let library = tree("{schema | {field-contracts | {field-contract @name=shared @target=box @required-attributes=command}}}");
+    let id = library
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "field-contract" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let item = cem_ql::eval::RetainedCemNode::new(library.clone(), id)
+        .unwrap()
+        .query_item();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let a = host.register_scope(source.clone(), Some(context(vec![item])), policy());
+    let b = host.register_scope(library.clone(), None, policy());
+    assert!(!host
+        .compile("consumer", source.clone(), limits())
+        .unwrap()
+        .is_ready_for_validation());
+    host.allow_scope_crossing(a, b);
+    let model = host.compile("consumer", source, limits()).unwrap();
+    assert!(model.is_ready_for_validation() && model.compile_diagnostics.is_empty());
+    assert_eq!(model.elements["box"].field_contracts.len(), 1);
+    assert!(Arc::ptr_eq(
+        model.declaration_references.sites[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes[0]
+            .document(),
+        library.ast_owner()
+    ));
+}

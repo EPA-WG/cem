@@ -4379,6 +4379,7 @@ pub(crate) enum CompiledSchemaDeclaration {
     Behavior(Box<BehaviorDefinition>),
     Diagnostic(Box<DiagnosticDeclaration>),
     Constraint(Box<ConstraintDeclaration>),
+    FieldContract(Box<FieldContractDeclaration>),
 }
 
 /// Discover supported collection sites in authored order. The collection,
@@ -4404,6 +4405,7 @@ pub(crate) fn declaration_reference_sites(
             Some("behaviors") => SchemaDeclarationKind::Behavior,
             Some("diagnostics") => SchemaDeclarationKind::Diagnostic,
             Some("constraints") => SchemaDeclarationKind::Constraint,
+            Some("field-contracts") => SchemaDeclarationKind::FieldContract,
             _ => continue,
         };
         if let Some(CemAstNode::Element { children, .. }) = document.get(*collection_id) {
@@ -4522,17 +4524,75 @@ fn compile_document_model_from_document_with_declarations(
     model.constraints = compiled_constraints.definitions;
     let constraint_uses = compiled_constraints.uses;
 
-    for contract in
-        collect_field_contracts(document, schema_id, schema_uri, &uses, &model.behaviors)
-    {
+    let elements_complete = model
+        .declaration_references
+        .collection_is_complete(SchemaDeclarationKind::Element);
+    let mut field_contract_diagnostics = Vec::new();
+    for (contract, lexical_uses) in collect_field_contracts(
+        document,
+        schema_id,
+        schema_uri,
+        &uses,
+        &model.behaviors,
+        declarations,
+    ) {
+        let mut diagnostics = Vec::new();
         validate_field_contract_definition(
             schema_uri,
             &contract,
             &model.diagnostic_behaviors,
-            &mut model.compile_diagnostics,
+            &mut diagnostics,
         );
+        // Each application keeps its own declaring aliases, even if another
+        // contract with the same name comes from a different source scope.
+        diagnostics.retain(|diagnostic| {
+            if diagnostic.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE {
+                if let Some(code) = diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|d| d.get("diagnostic"))
+                    .and_then(|d| d.as_str())
+                {
+                    if !model.diagnostic_behaviors.contains_key(code)
+                        && (!diagnostic_collection_complete || deferred_codes.contains(code))
+                    {
+                        return false;
+                    }
+                }
+            }
+            if diagnostic.code == UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE && !behavior_collection_complete
+            {
+                if let Some(reference) = diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|d| d.get("behavior"))
+                    .and_then(|d| d.as_str())
+                {
+                    if local_behavior_reference(reference, schema_uri, &lexical_uses)
+                        && resolve_behavior_definition(
+                            reference,
+                            schema_uri,
+                            &lexical_uses,
+                            &model.behaviors,
+                        )
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+            }
+            true
+        });
+        field_contract_diagnostics.extend(diagnostics);
         if let Some(element_model) = model.elements.get_mut(&contract.target) {
             element_model.field_contracts.push(contract);
+        } else if elements_complete {
+            field_contract_diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                format!("Field contract `{}` targets element `{}` that is not declared by schema `{schema_uri}`", contract.name, contract.target),
+                &contract.source_map,
+                serde_json::json!({"schemaUri": schema_uri, "contract": contract.name, "target": contract.target, "checkKind": "field-contract-target"}),
+            ));
         }
     }
     for attribute_model in model.attributes.values() {
@@ -4635,6 +4695,7 @@ fn compile_document_model_from_document_with_declarations(
         .flat_map(|resolution| resolution.diagnostics.iter().cloned())
         .collect();
     original_diagnostics.extend(diagnostic_compile_diagnostics);
+    original_diagnostics.extend(field_contract_diagnostics);
     original_diagnostics.append(&mut model.compile_diagnostics);
     model.compile_diagnostics = original_diagnostics;
     seen_schema_uris.remove(schema_uri);
@@ -7838,7 +7899,9 @@ fn validate_field_contract_definition(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let diagnostic_behavior = if let Some(code) = contract.diagnostic.as_deref() {
-        let Some(behavior) = diagnostic_behaviors.get(code) else {
+        if let Some(behavior) = diagnostic_behaviors.get(code) {
+            Some(behavior)
+        } else {
             diagnostics.push(schema_compile_diagnostic(
                 UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
                 format!(
@@ -7853,9 +7916,10 @@ fn validate_field_contract_definition(
                     "checkKind": "diagnostic-reference-resolution",
                 }),
             ));
-            return;
-        };
-        Some(behavior)
+            // A missing diagnostic binding does not erase independent
+            // declaration, target or behavior errors in this application.
+            None
+        }
     } else {
         None
     };
@@ -15199,38 +15263,75 @@ fn parse_diagnostic_severity(value: &str) -> Option<Severity> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct FieldContractDeclaration {
+    source: super::declaration_references::SchemaDeclarationNode,
+    uses: BTreeMap<String, String>,
+}
+
+pub(crate) fn compile_field_contract_declaration(
+    source: super::declaration_references::SchemaDeclarationNode,
+    uses: BTreeMap<String, String>,
+) -> Option<FieldContractDeclaration> {
+    let attrs = collect_attrs(source.document(), source.node_id());
+    optional_non_empty_attr(&attrs, "name")?;
+    optional_non_empty_attr(&attrs, "target")?;
+    Some(FieldContractDeclaration { source, uses })
+}
+
 fn collect_field_contracts(
     document: &CemDocument,
     schema_id: AstNodeId,
     schema_uri: &str,
     uses: &BTreeMap<String, String>,
     local_behaviors: &BTreeMap<String, BehaviorDefinition>,
-) -> Vec<FieldContract> {
-    let mut contracts = Vec::new();
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
+) -> Vec<(FieldContract, BTreeMap<String, String>)> {
+    let mut sources = Vec::new();
     for contracts_id in element_child_ids_by_local_name(document, schema_id, "field-contracts") {
         let Some(CemAstNode::Element { children, .. }) = document.get(contracts_id) else {
             continue;
         };
         for child_id in children {
-            if document.get(*child_id).and_then(element_local_name) != Some("field-contract") {
-                continue;
+            if matches!(document.get(*child_id), Some(CemAstNode::Reference { .. })) {
+                if let Some(selected) = declarations.get(child_id) {
+                    for declaration in selected {
+                        if let CompiledSchemaDeclaration::FieldContract(declaration) = declaration {
+                            sources.push((
+                                declaration.source.document().as_ref(),
+                                declaration.source.node_id(),
+                                &declaration.uses,
+                            ));
+                        }
+                    }
+                }
+            } else {
+                sources.push((document, *child_id, uses));
             }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(name) = attrs.get("name").map(String::as_str).map(str::trim) else {
-                continue;
-            };
-            let Some(target) = attrs.get("target").map(String::as_str).map(str::trim) else {
-                continue;
-            };
-            if name.is_empty() || target.is_empty() {
-                continue;
-            }
-            let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
-            let definition = behavior.as_deref().and_then(|behavior| {
-                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
-            });
-            let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
-            contracts.push(FieldContract {
+        }
+    }
+    let mut contracts = Vec::new();
+    for (document, child_id, uses) in sources {
+        if document.get(child_id).and_then(element_local_name) != Some("field-contract") {
+            continue;
+        }
+        let attrs = collect_attrs(document, child_id);
+        let Some(name) = attrs.get("name").map(String::as_str).map(str::trim) else {
+            continue;
+        };
+        let Some(target) = attrs.get("target").map(String::as_str).map(str::trim) else {
+            continue;
+        };
+        if name.is_empty() || target.is_empty() {
+            continue;
+        }
+        let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
+        let definition = behavior.as_deref().and_then(|behavior| {
+            resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
+        });
+        let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
+        contracts.push((
+            FieldContract {
                 name: name.to_owned(),
                 target: target.to_owned(),
                 diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
@@ -15312,7 +15413,7 @@ fn collect_field_contracts(
                     "max-selected-distinct-children",
                 )
                 .map(str::to_owned),
-                choice_groups: collect_choice_groups(document, *child_id),
+                choice_groups: collect_choice_groups(document, child_id),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
                 path_layout_prefix: optional_non_empty_attr(&attrs, "path-layout-prefix")
                     .map(str::to_owned),
@@ -15342,12 +15443,13 @@ fn collect_field_contracts(
                 when_any_present_children: parse_name_set(attrs.get("when-any-present-children")),
                 when_any_absent_children: parse_name_set(attrs.get("when-any-absent-children")),
                 source_map: document
-                    .get(*child_id)
+                    .get(child_id)
                     .map(source_stack_for_node)
                     .cloned()
                     .unwrap_or_default(),
-            });
-        }
+            },
+            uses.clone(),
+        ));
     }
     contracts
 }

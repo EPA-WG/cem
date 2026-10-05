@@ -1400,3 +1400,176 @@ fn reused_constraints_bind_local_behaviors_and_preserve_declaring_alias_errors()
         .iter()
         .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE));
 }
+
+#[test]
+fn field_contract_references_reuse_ordered_applications_without_source_cloning() {
+    let library = parse(
+        r#"{schema | {field-contracts |
+      {field-contract @name=shared @target=box @required-attributes=command |
+        {choice @name=mode @mode=exactly-one | {case @attributes=command}}}
+    }}"#,
+    );
+    let selected = node(&library, "field-contract");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#contracts".into(),
+        ReferenceLinkEvaluation::Resolved(vec![selected.clone(), selected]),
+    );
+    for attributes in ["command", "command extra"] {
+        let model = host.resolve(parse(&"{schema | {elements | {element @name=box @optional-attributes=ATTRS}} {field-contracts | {field-contract @name=first @target=box} {#contracts} {field-contract @name=last @target=box}}}".replace("ATTRS", &format!("\"{attributes}\""))));
+        assert!(model.is_ready_for_validation());
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:?}",
+            model.compile_diagnostics
+        );
+        let contracts = &model.elements["box"].field_contracts;
+        assert_eq!(
+            contracts
+                .iter()
+                .map(|c| c.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "shared", "shared", "last"]
+        );
+        assert_eq!(contracts[1].choice_groups.len(), 1);
+        assert!(Arc::ptr_eq(
+            model.declaration_references.sites[0]
+                .resolution
+                .as_ref()
+                .unwrap()
+                .nodes[0]
+                .document(),
+            &library
+        ));
+        let invalid =
+            cem_ml::schema::document_model::validate_document_model(&parse("{box}"), &model);
+        assert!(invalid.iter().any(|d| d.severity.is_hard_violation()));
+    }
+}
+
+#[test]
+fn field_contract_references_require_kind_name_and_target_keys() {
+    for (source, kind) in [
+        (
+            "{schema | {field-contracts | {field-contract @name=missing}}}",
+            "field-contract",
+        ),
+        (
+            "{schema | {field-contracts | {field-contract @target=box}}}",
+            "field-contract",
+        ),
+        (
+            "{schema | {constraints | {constraint @kind=check}}}",
+            "constraint",
+        ),
+    ] {
+        let library = parse(source);
+        let mut host = Host::new();
+        host.outcomes.insert(
+            "#contracts".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&library, kind)]),
+        );
+        let model = host.resolve(parse("{schema | {field-contracts | {#contracts}}}"));
+        assert!(!model.is_ready_for_validation());
+        assert!(model
+            .compile_diagnostics
+            .iter()
+            .any(|d| d.code == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET));
+    }
+}
+
+#[test]
+fn field_contract_missing_targets_error_after_element_assembly_and_defer_while_pending() {
+    let library = parse("{schema | {field-contracts | {field-contract @name=shared @target=box}}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#contracts".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "field-contract")]),
+    );
+    for collection in ["{field-contract @name=direct @target=box}", "{#contracts}"] {
+        let source =
+            format!("{{schema | {{elements | {{#elements}}}} {{field-contracts | {collection}}}}}");
+        host.outcomes.insert(
+            "#elements".into(),
+            ReferenceLinkEvaluation::Pending("waiting".into()),
+        );
+        let pending = host.resolve(parse(&source));
+        assert!(!pending.is_ready_for_validation());
+        assert!(!pending.compile_diagnostics.iter().any(|d| d
+            .details
+            .as_ref()
+            .and_then(|d| d.get("checkKind"))
+            .and_then(|d| d.as_str())
+            == Some("field-contract-target")));
+        host.outcomes.insert(
+            "#elements".into(),
+            ReferenceLinkEvaluation::Resolved(vec![]),
+        );
+        let empty = host.resolve(parse(&source));
+        assert!(empty.compile_diagnostics.iter().any(|d| d.code
+            == cem_ml::schema::document_model::INVALID_SCHEMA_FIELD_CONTRACT_CODE
+            && d.details
+                .as_ref()
+                .and_then(|d| d.get("target"))
+                .and_then(|d| d.as_str())
+                == Some("box")));
+    }
+    let direct = compile_schema_document_model(
+        "consumer",
+        "{schema | {field-contracts | {field-contract @name=direct @target=box}}}",
+    );
+    assert!(direct
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_FIELD_CONTRACT_CODE));
+    let retained =
+        compile_schema_document_model("consumer", "{schema | {field-contracts | {#contracts}}}");
+    assert!(!retained.is_ready_for_validation());
+}
+
+#[test]
+fn field_contract_applications_keep_independent_lexical_alias_diagnostics() {
+    let good = parse(
+        r#"{schema | {uses | {use @schema="https://cem.dev/ns/schema/1" @as=origin}}
+      {field-contracts | {field-contract @name=shared @target=box @behavior=origin:field-contract @diagnostic=fixture.contract}} }"#,
+    );
+    let bad = parse("{schema | {uses | {use @schema=external @as=origin}} {field-contracts | {field-contract @name=shared @target=box @behavior=origin:missing @diagnostic=fixture.contract | {choice @name=invalid @mode=invalid}}} }");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#contracts".into(),
+        ReferenceLinkEvaluation::Resolved(vec![
+            node(&good, "field-contract"),
+            node(&bad, "field-contract"),
+        ]),
+    );
+    host.outcomes.insert(
+        "#behaviors".into(),
+        ReferenceLinkEvaluation::Pending("waiting".into()),
+    );
+    host.outcomes.insert(
+        "#diagnostics".into(),
+        ReferenceLinkEvaluation::Pending("waiting".into()),
+    );
+    let model = host.resolve(parse("{schema | {uses | {use @schema=consumer @as=origin}} {elements | {element @name=box}} {behaviors | {#behaviors}} {diagnostics | {#diagnostics}} {field-contracts | {#contracts}}}"));
+    assert!(!model.is_ready_for_validation());
+    let contracts = &model.elements["box"].field_contracts;
+    assert_eq!(contracts.len(), 2);
+    assert!(contracts[0].definition.is_some());
+    assert!(contracts[1].definition.is_none());
+    assert_eq!(
+        model
+            .compile_diagnostics
+            .iter()
+            .filter(|d| d.code == cem_ml::schema::document_model::UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE)
+            .count(),
+        1
+    );
+    assert!(model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_SCHEMA_FIELD_CONTRACT_CODE));
+    assert!(!model
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE));
+}

@@ -45,8 +45,8 @@ output serialization retain their separate contracts.
 
 Install `schema_packages::CemQlSchemaPackageCompiler` explicitly with
 `register_cem_ql_schema_package_compiler` when a native host has the runtime
-inputs needed for element, attribute, behavior, diagnostic or constraint
-declaration references. Its preparation callback receives the package/schema identities,
+inputs needed for element, attribute, behavior, diagnostic, constraint or
+field-contract declaration references. Its preparation callback receives the package/schema identities,
 manifest origin and retained schema source, and
 returns a fresh `CemQlSchemaDeclarationHost` plus request traversal limits.
 Register that source in the host, supply its current expression context and

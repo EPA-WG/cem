@@ -896,7 +896,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{behaviors}` | Zero or more `{behavior}` declarations with nonempty `@name`, `@implementation` and `@execution` | Explicit schema compilation before diagnostic binding; implemented. |
 | Direct references in `{diagnostics}` | Zero or more `{diagnostic}` declarations with nonempty `@code` | Explicit schema compilation; binding follows complete declaration assembly; implemented. |
 | Direct references in `{constraints}` | Zero or more `{constraint}` declarations with nonempty `@kind` | Explicit schema compilation after behavior assembly; implemented. |
-| `{field-contracts}` collection | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Missing-target handling must be decided before native reference integration. |
+| Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
 | Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
@@ -992,3 +992,21 @@ a candidate policy cannot change an ongoing traversal budget. The runtime may
 apply the completed schema policy at a subsequent evaluation stage. Pending or
 invalid constraint selections keep the candidate inactive, and package
 publication continues to reject hard compilation errors.
+
+Field-contract collection references preserve every ordered application,
+including repeated selections and duplicate contract names. Each application
+keeps its original owner, nested choices, source maps and declaring aliases.
+Its `@target` names an element in the consuming schema, so the same declaration
+can apply independently in multiple consuming schemas. Behavior and diagnostic
+binding occurs after their declaration collections are assembled; pending local
+dependencies defer only missing-lookups, while independent declaration and
+external alias errors remain visible.
+
+Direct and referenced contracts with an absent local target report
+`cem.schema_definition.invalid_field_contract` with `checkKind` set to
+`field-contract-target` once element assembly is complete. Incomplete element
+reference collections defer this missing-target check; resolved-empty selections
+complete assembly and expose the error. This replaces the previous silent skip
+for direct contracts as well. Invalid or incomplete candidate schemas remain
+inspectable, and package refresh preserves the last complete active schema,
+converters and artifacts until the candidate is ready and free of hard errors.

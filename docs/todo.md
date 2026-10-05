@@ -437,15 +437,40 @@ implementation. `git diff --check` passes.
       (`template#cem-dropdown` not found).
       Scenarios for later design verification: shared constraints bind local
       behavior names in each consumer and never reset current scope budgets.
-- [ ] Decide missing field-contract targets before extending reference consumption
-      to that collection. Existing direct contracts silently skip absent targets;
-      recommendation: report a compile error once element assembly is complete,
-      defer the lookup while element references are incomplete, and apply the
-      same rule to direct and referenced contracts. Then add fixture-first
-      coverage of required keys, repeated applications and target checks.
+- [x] Fixture: compile field-contract references during package refresh; retain
+      the active schema, converter and artifact registrations on missing targets,
+      and activate the complete candidate once its local element is available.
+      Scenarios for later design verification: target errors remain inspectable
+      and a rejected candidate never replaces the last complete package.
+- [x] Fixture: reuse field contracts in multiple consuming schemas, preserve
+      repeated ordered applications and nested choices, retain lexical aliases
+      and source owners, reject wrong kinds/missing keys, and check missing local
+      targets only after element assembly completes. Cover native scope grants.
+      Scenarios for later design verification: empty element selections expose
+      missing targets; pending collections preserve original errors and readiness.
+- [x] Implement field-contract declaration reference reuse and the approved
+      missing-target rule: report a compile error once element assembly is
+      complete, defer the lookup while element references are incomplete, and
+      apply the same rule to direct and referenced contracts. Preserve required
+      keys, repeated ordered applications, source owners, nested choices and
+      per-application lexical aliases. Pending diagnostic bindings do not hide
+      independent contract errors.
+      Verification: 62 focused ML reference tests, nine native QL declaration
+      fixtures and 119 bridge tests pass. Full Nx ML library verification reports
+      2069 passes, two ignored and the known legacy dropdown selector failure
+      (`template#cem-dropdown` not found).
       Scenarios for later design verification: one contract applies in two
       consuming schemas; local targets stay local while declaring aliases retain
       source meaning; invalid targets never disappear as empty selections.
+- [ ] Choose the validation-input reference consumer's schema contract before
+      implementation. Recommended next slice: references in structural child
+      positions resolve to ordered zero/many nodes and parent child checks use
+      the consuming schema; decide whether selected subtrees also use that schema
+      or the destination scope's schema. Keep evaluation policies and explicit
+      scope grants independent from this validation choice.
+      Scenarios for later design verification: references cross vendor scopes;
+      a selected child matches the parent contract but differs under the two
+      subtree schemas; original owners, source maps and request limits survive.
 - [ ] Define native node-valued scalar composition/validation-input sites before
       extending existing string-valued `@base`, datatype and function contracts.
       Scenarios for later design verification: singleton composition rejects

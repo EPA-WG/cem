@@ -877,7 +877,7 @@ language and runtime contract.
 
 `schema_references::CemQlSchemaDeclarationHost` is an explicit native consumer
 for references in schema `{elements}`, `{attributes}`, `{behaviors}`,
-`{diagnostics}` and `{constraints}` collections. Register retained source and library trees with
+`{diagnostics}`, `{constraints}` and `{field-contracts}` collections. Register retained source and library trees with
 their effective policies, supply a
 `StandaloneExpressionContext` for each evaluating scope, and grant directed
 scope crossings before calling `compile`. Missing contexts report Pending;
