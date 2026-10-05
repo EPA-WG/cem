@@ -76,6 +76,7 @@ pub struct RetainedCemTree {
     // Import-decoded source values before semantic text coalescing. Source-node
     // interpolation must neither decode syntax nor read a neighbour's text.
     source_values: BTreeMap<AstNodeId, String>,
+    source_line_index: Option<crate::source::line_index::LineIndex>,
 }
 
 /// Incremental string-value traversal. Every visited node yields one fragment
@@ -452,6 +453,7 @@ impl RetainedCemTree {
             source_lines_known,
             source_ranges,
             source_values: semantics.values,
+            source_line_index: (!source_text.is_empty()).then_some(line_index),
         }))
     }
 
@@ -498,6 +500,11 @@ impl RetainedCemTree {
             pending: Vec::new(),
             source: false,
         })
+    }
+    /// Project authored document bytes only when the original source was given.
+    /// Source-only retained ASTs do not fabricate line/column coordinates.
+    pub fn source_byte_coordinate(&self, offset: u64) -> Option<crate::source::line_index::LineCol> {
+        self.source_line_index.as_ref().map(|index| index.project(offset))
     }
     pub fn source_uri(&self) -> &str {
         &self.source_uri

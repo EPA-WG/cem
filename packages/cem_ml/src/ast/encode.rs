@@ -285,6 +285,9 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
             (11, Some(format!("{},{}", host.start, host.len)))
         }
         TransformKind::TemplateTransform { function } => (12, Some(function.clone())),
+        TransformKind::ExpressionEmbedding { expression } => {
+            (14, Some(format!("{},{}", expression.start, expression.len)))
+        }
         TransformKind::ScssOrigin {
             origin_kind,
             module_uri,

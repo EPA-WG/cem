@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 pub mod documents;
 mod css;
+mod expression_sources;
 pub(crate) use css::annotate_retained_css_roles;
 mod strings;
 mod string_options;
@@ -121,6 +122,7 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
         },
     );
     let mut stack = vec![0];
+    let mut expression_payloads = expression_sources::ExpressionPayloads::new();
     let mut event_nodes = vec![None; document.events.len()];
     let mut attribute_nodes = vec![vec![]; document.events.len()];
     for (index, event) in document.events.iter().enumerate() {
@@ -128,6 +130,7 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
         let source = event.source_range.source_map();
         let data = event.value.clone().unwrap_or_else(|| event.lexeme.clone());
         let range = xml_range(event.source_range);
+        expression_sources::record(&mut expression_payloads, parent, event, &b.ast);
         let id = match event.kind {
             StartElement | EmptyElement => {
                 let id = b.element(
@@ -195,6 +198,13 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
                                     crate::parser::tree::merge_source(&mut source, payload);
                                 }
                             }
+                            if let Some((_, frames)) = expression_payloads.remove(&closed) {
+                                let leading = expression.len() - expression.trim_start().len();
+                                source.frames.extend(crate::source_map::trim_expression_frames(
+                                    frames, leading as u64, expression.trim().len() as u32,
+                                ));
+                            }
+                            semantics.sources.insert(closed, source.clone());
                             let cut = closed + 1;
                             b.ast.nodes.truncate(cut as usize);
                             b.ast.nodes[closed as usize] = CemAstNode::Reference { node_id: closed, expression: expression.trim().into(), context: *stack.last().expect("XML context"), targets: None, source };

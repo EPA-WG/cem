@@ -2274,6 +2274,7 @@ fn transform_kind_label(transform: &TransformKind) -> &'static str {
         TransformKind::Query => "query",
         TransformKind::QueryStep => "query-step",
         TransformKind::TemplateEmbedding { .. } => "template-embedding",
+        TransformKind::ExpressionEmbedding { .. } => "expression-embedding",
         TransformKind::TemplateTransform { .. } => "template-transform",
         TransformKind::ScssOrigin { .. } => "scss-origin",
     }

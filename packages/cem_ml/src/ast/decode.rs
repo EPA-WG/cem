@@ -341,6 +341,9 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
                 name,
             }
         }
+        14 => TransformKind::ExpressionEmbedding {
+            expression: decode_byte_range(payload.as_deref()),
+        },
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
 }

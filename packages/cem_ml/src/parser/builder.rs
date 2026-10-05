@@ -266,6 +266,23 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         if children.iter().copied().ne((id + 1)..self.doc.nodes.len() as u32) { return; }
         let mut source = source.clone();
         for child in children { if let CemAstNode::Text { source: payload, .. } = &self.doc.nodes[*child as usize] { source.frames.extend(payload.frames.clone()); } }
+        // Normalized expression payloads carry their exact trimmed byte span.
+        // Keep the mapping even when the temporary text node is folded away.
+        let mut offset = 0u64;
+        for child in children {
+            if let CemAstNode::Text { data, source: payload, .. } = &self.doc.nodes[*child as usize] {
+                if let Some(frame) = payload.current() {
+                    source.push(SourceMapFrame {
+                        source_id: frame.source_id,
+                        span: frame.span.clone(),
+                        transform: TransformKind::ExpressionEmbedding {
+                            expression: ByteRange::new(offset, data.len() as u32),
+                        },
+                    });
+                }
+                offset += data.len() as u64;
+            }
+        }
         let context = match self.stack.get(self.stack.len() - 2) { Some(Frame::Element { id, .. }) => *id, _ => 0 };
         self.doc.nodes.truncate(id as usize + 1);
         self.doc.nodes[id as usize] = CemAstNode::Reference {
@@ -339,7 +356,14 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         let leading = body.len() - body.trim_start().len();
         let body = body.trim();
         let payload_range = ByteRange::new(range.start + 1 + leading as u64, body.len() as u32);
-        let source = self.current_source_map(payload_range, TransformKind::CemAstBuilder);
+        let mut source = self.current_source_map(payload_range, TransformKind::CemAstBuilder);
+        source.push(SourceMapFrame {
+            source_id: source.current().map(|frame| frame.source_id).unwrap_or(crate::source::SourceId(0)),
+            span: FrameSpan::Single(payload_range),
+            transform: TransformKind::ExpressionEmbedding {
+                expression: ByteRange::new(0, body.len() as u32),
+            },
+        });
         let value_id = self.doc.nodes.len() as AstNodeId;
         if body.starts_with('#') {
             self.doc.nodes.push(CemAstNode::Reference {

@@ -1434,7 +1434,8 @@ native general attribute expressions share this path. Artifact inspection throug
 compile or evaluate. Pending contexts produce no compiled artifact; malformed
 source cannot register a valid one. Query-relative compilation provenance remains
 available in the artifact, while the original occurrence retains its document source.
-Precise diagnostic linkage between those positions remains an explicit follow-up.
+Precise diagnostic linkage now uses the retained format-neutral expression
+embedding segments described below.
 
 Each consumer invocation evaluates the compiled expression with the scope's current
 context and capabilities. Evaluated target lists are never stored in this cache or
@@ -1455,3 +1456,40 @@ the same typed context as CEM-ML standalone references. This does not enable the
 separately deferred XML attribute expression contract. The remaining source-position
 linkage and expression-slot parity work is recorded with adjacent verification
 scenarios in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
+
+
+### Reference expression diagnostic provenance (2026-10-05)
+
+Parser and import source maps now retain `ExpressionEmbedding` segments. Each
+segment maps a UTF-8 byte range in the trimmed expression to its authored source
+span and source identity. Equal-length segments map linearly. Decoded XML entities
+and normalized CRLF segments retain their whole authored span; a selection crossing
+text/CDATA boundaries retains separate source spans. XML interpretation occurs at
+import, and the CEM-QL lifecycle adapter uses only this common metadata. The CEMB
+codec preserves the additive source-map transform tag 14, and typed inspection
+labels it `expression-embedding`. No authored reference or target edge is changed.
+
+Compile and runtime failures from a local query retain their code, severity, message,
+details and query-relative source frames, while gaining the original occurrence and
+document URI. Their reporting byte offset uses the mapped authored position, and
+line/column projection uses the retained document line index when source text was
+given. EOF points refer to the end of the expression payload, rather than a following
+CEM or XML delimiter. Already-attributed native diagnostics keep their original node,
+document and coordinates. Compiled expression artifacts retain query-local provenance
+for reuse; diagnostic linkage is applied for the current original occurrence.
+
+Legacy/source-only ASTs without embedding metadata retain occurrence and document
+attribution but leave precise document coordinates absent. Given maps can preserve
+byte offsets without source text, but cannot fabricate line/column coordinates.
+Missing metadata never turns a query-relative offset into a document-relative one.
+Source-bearing imported expressions retain mapping through binary round trips.
+
+Verification: 23 schema-reference lifecycle tests pass, including five new diagnostic
+fixtures. Ninety focused CEM-ML tokenizer/parser/codec/native-slot/source-mapping
+tests pass, including three new segment and binary fixtures. The complete CEM-QL
+and transformation adapter Nx test targets pass.
+
+Remaining expression-slot, lexical default/shadowing and tree-sitter parity work is
+still tracked in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
+XML attribute expression recognition, child override syntax and cem-element ID
+consumption remain on their existing deferred tracks.

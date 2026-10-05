@@ -46,6 +46,13 @@ pub enum TransformKind {
     TemplateEmbedding {
         host: ByteRange,
     },
+    /// A decoded expression segment mapped to the authored span in this frame.
+    /// Equal byte lengths map linearly; unequal lengths (entities or normalized
+    /// newlines) map to the whole authored segment. Expression coordinates are
+    /// UTF-8 bytes relative to the retained, trimmed expression, never AST IDs.
+    ExpressionEmbedding {
+        expression: ByteRange,
+    },
     ScssOrigin {
         origin_kind: ScssOriginKind,
         module_uri: String,
@@ -93,3 +100,6 @@ impl SourceMapStack {
         self.frames.last()
     }
 }
+
+mod expression;
+pub use expression::{map_expression_range, trim_expression_frames};

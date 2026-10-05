@@ -872,9 +872,12 @@ impl CemTokenizer {
             .map(|(c, _)| *c)
             .collect();
         let body_range = self.range_from(start, body_end);
+        let trimmed = body.trim();
+        let leading = body.len() - body.trim_start().len();
+        let payload_range = ByteRange::new(body_range.start + leading as u64, trimmed.len() as u32);
         self.emit(
-            SchemaTokenKind::ExpressionNode(body.trim().to_owned()),
-            body_range,
+            SchemaTokenKind::ExpressionNode(trimmed.to_owned()),
+            payload_range,
         );
         if self.peek() == Some('}') {
             let close_start = self.cursor;

@@ -36,6 +36,8 @@ use std::{
     },
 };
 
+mod source_diagnostics;
+
 /// Runtime handle for a caller-provided scope; never an authored/context ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeclarationScope {
@@ -171,7 +173,8 @@ impl CemQlSchemaDeclarationHost {
         let compiled = match self.source_expressions.get(&key) {
             Some(compiled) => compiled.clone(),
             None => Arc::new(
-                compile_expression(expression, context).map_err(|error| error.diagnostics)?,
+                compile_expression(expression, context)
+                    .map_err(|error| self.source_diagnostics(source, error.diagnostics))?,
             ),
         };
         let result = evaluate(
@@ -189,7 +192,7 @@ impl CemQlSchemaDeclarationHost {
         );
         self.source_expressions.entry(key).or_insert(compiled);
         if result.error.is_some() {
-            Err(result.diagnostics)
+            Err(self.source_diagnostics(source, result.diagnostics))
         } else {
             Ok(result)
         }

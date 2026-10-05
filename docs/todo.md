@@ -1132,17 +1132,30 @@ remains guarded until that compiler is ready.
       artifact lifecycle/parity cases and changed static binding-type rejection. Full
       `cem_ql:test` Nx verification passes 862 tests (nine ignored); full
       `cem_ml_transform_cem_ql:test` passes 132 tests. No source targets are cached.
-- [ ] Fixture: verify expression compiler/evaluator diagnostics retain the original
+- [x] Fixture: verify expression compiler/evaluator diagnostics retain the original
       standalone/attribute occurrence and document source, including leading whitespace,
       Unicode and XML text/CDATA payload boundaries. Add precise source-position
       linkage without treating a query-relative offset as a document-relative offset.
       Scenarios for later design verification: equal expressions in separate occurrences
       report their own source; decoded XML entities preserve their authored provenance.
-- [ ] Integrate original-occurrence diagnostic/source-position linkage into the retained
+      Include legacy/source-only ASTs without mapping or source text, runtime-native
+      failures, and already-attributed foreign diagnostics without rewriting them.
+- [x] Fixture: retain expression-to-authored source segments in CEM parser and XML
+      import source maps, including trim offsets, split text/CDATA, decoded entities,
+      CRLF normalization and CEMB round trips. Verify mapped spans crossing payload
+      boundaries stay discontiguous and missing mapping never fabricates precision.
+      Scenarios for later design verification: source interpretation stays in the
+      import layer; consumers use format-neutral retained mapping metadata.
+- [x] Integrate original-occurrence diagnostic/source-position linkage into the retained
       expression lifecycle adapter under those fixtures; preserve compiler diagnostics
       and keep runtime binding selection separate from authored context handles.
       Scenarios for later design verification: malformed expressions remain invalid
       without losing source spans or emitting diagnostics against a different occurrence.
+      Verification: all 23 CEM-QL schema-reference fixtures pass, including five new
+      diagnostic attribution cases and the static type-error assertion. Ninety focused
+      CEM-ML tokenizer/parser/codec/native-slot/source-mapping tests pass, including
+      three new retained mapping and binary fixtures. Full `cem_ql:test` and
+      `cem_ml_transform_cem_ql:test` Nx targets pass; no deferred syntax is enabled.
 - [ ] Audit and finish the remaining retained reference expression-slot integration
       and CEM/XML parity from sections 1–2 above. Identify existing coverage first;
       add focused native fixture actions for actual gaps before implementation.

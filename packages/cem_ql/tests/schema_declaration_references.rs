@@ -889,10 +889,15 @@ fn source_expression_artifacts_are_retained_until_context_replacement() {
         ),
     );
     host.set_context(scope, Some(scalar_context));
-    assert!(matches!(
-        host.evaluate(&node),
-        ReferenceLinkEvaluation::Invalid(_)
-    ));
+    let ReferenceLinkEvaluation::Invalid(diagnostics) = host.evaluate(&node) else {
+        panic!()
+    };
+    assert!(diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.node.as_deref() == Some(original.identity().as_str())));
+    assert!(diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.uri.as_deref() == Some("schema.cem")));
     assert!(host.compiled_source_expression(&original).is_none());
 }
 
@@ -1081,4 +1086,263 @@ fn retained_compilation_never_caches_runtime_capability_results() {
         original.node(),
         CemAstNode::Reference { targets: None, .. }
     ));
+}
+
+#[test]
+fn expression_diagnostics_link_to_original_cem_occurrences_and_byte_positions() {
+    use cem_ml::{
+        schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    for text in [
+        "{section |\n {#library[}}",
+        "{section @target={  library[  }}",
+        "{section |\n {#native:call(\"é\", library)[}}",
+    ] {
+        let source = tree(text);
+        let original = source
+            .ast()
+            .nodes
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Reference { node_id, .. } => {
+                    SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+                }
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "$" => {
+                    SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(source, Some(context(vec![])), policy());
+        let node = host.source_reference(original.clone());
+        let result = if matches!(original.node(), CemAstNode::Reference { .. }) {
+            host.evaluate(&node)
+        } else {
+            host.evaluate_input_expression(&node)
+        };
+        let ReferenceLinkEvaluation::Invalid(diagnostics) = result else {
+            panic!("{result:?}")
+        };
+        assert!(!diagnostics.is_empty());
+        for diagnostic in diagnostics {
+            assert_eq!(
+                diagnostic.node.as_deref(),
+                Some(original.identity().as_str())
+            );
+            assert_eq!(diagnostic.uri.as_deref(), Some("schema.cem"));
+            assert!(diagnostic.byte_offset.unwrap() >= text.find("library").unwrap() as u64);
+            assert!(
+                diagnostic.byte_offset.unwrap()
+                    <= text.rfind(']').unwrap_or_else(|| text.rfind('[').unwrap()) as u64 + 1
+            );
+            let expected_line = 1 + text[..diagnostic.byte_offset.unwrap() as usize]
+                .bytes()
+                .filter(|b| *b == b'\n')
+                .count() as u32;
+            assert_eq!(diagnostic.line, Some(expected_line));
+        }
+    }
+}
+
+#[test]
+fn xml_expression_diagnostics_map_decoded_entities_and_split_cdata() {
+    use cem_ml::{
+        schema::declaration_references::SchemaDeclarationHost,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    for (payload, token) in [
+        ("  #library[&#64;]  ", "&#64;"),
+        ("\r\n#library<![CDATA[[@]]]>", "@"),
+        ("#library[<![CDATA[\r\n@]]]>", "@"),
+    ] {
+        let text = format!("<section xmlns:r='https://cem.dev/ns/cem-ml/1'><r:expr>{payload}</r:expr><after/></section>");
+        let source = cem_ml::import::import_data_bytes(
+            text.as_bytes(),
+            "application/xml",
+            "cem",
+            "source.xml",
+        )
+        .unwrap();
+        let original = reference_source(&source);
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(source, Some(context(vec![])), policy());
+        let node = host.source_reference(original.clone());
+        let result = host.evaluate(&node);
+        let ReferenceLinkEvaluation::Invalid(diagnostics) = result else {
+            panic!("{result:?}")
+        };
+        let diagnostic = diagnostics
+            .iter()
+            .find(|d| d.byte_offset == Some(text.find(token).unwrap() as u64))
+            .unwrap_or_else(|| panic!("{text}: {diagnostics:?}"));
+        assert_eq!(diagnostic.uri.as_deref(), Some("source.xml"));
+        assert_eq!(
+            diagnostic.node.as_deref(),
+            Some(original.identity().as_str())
+        );
+        assert!(diagnostic
+            .source_map
+            .as_ref()
+            .unwrap()
+            .frames
+            .iter()
+            .any(|frame| match &frame.span {
+                cem_ml::source_map::FrameSpan::Single(range) =>
+                    range.start == text.find(token).unwrap() as u64
+                        && range.len == token.len() as u32,
+                _ => false,
+            }));
+    }
+}
+
+#[test]
+fn equal_expression_errors_remain_attributed_to_each_original_occurrence() {
+    use cem_ml::{
+        schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    let text = "{left | {#library[@]}}\n{right | {#library[@]}}";
+    let source = tree(text);
+    let originals: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(source, Some(context(vec![])), policy());
+    for (original, offset) in originals
+        .iter()
+        .zip(text.match_indices('@').map(|(offset, _)| offset as u64))
+    {
+        let node = host.source_reference(original.clone());
+        let ReferenceLinkEvaluation::Invalid(diagnostics) = host.evaluate(&node) else {
+            panic!()
+        };
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.byte_offset == Some(offset))
+            .unwrap();
+        assert_eq!(
+            diagnostic.node.as_deref(),
+            Some(original.identity().as_str())
+        );
+    }
+}
+
+#[test]
+fn legacy_missing_mapping_and_source_text_do_not_fabricate_coordinates() {
+    use cem_ml::{
+        schema::declaration_references::SchemaDeclarationHost,
+        source_map::TransformKind,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    for keep_mapping in [false, true] {
+        let text = "{section | {#library[@]}}";
+        let mut ast = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(SourceId(1), text.as_bytes().to_vec()),
+        )))
+        .build();
+        if !keep_mapping {
+            for node in &mut ast.nodes {
+                if let CemAstNode::Reference { source, .. } = node {
+                    source.frames.retain(|frame| {
+                        !matches!(frame.transform, TransformKind::ExpressionEmbedding { .. })
+                    });
+                }
+            }
+        }
+        let source =
+            RetainedCemTree::new(ast, "legacy.cem", "", CemTreeSemantics::default(), None).unwrap();
+        let original = reference_source(&source);
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(source, Some(context(vec![])), policy());
+        let node = host.source_reference(original.clone());
+        let ReferenceLinkEvaluation::Invalid(diagnostics) = host.evaluate(&node) else {
+            panic!()
+        };
+        for diagnostic in diagnostics {
+            assert_eq!(diagnostic.uri.as_deref(), Some("legacy.cem"));
+            assert_eq!(
+                diagnostic.node.as_deref(),
+                Some(original.identity().as_str())
+            );
+            assert_eq!(diagnostic.line, None);
+            assert_eq!(diagnostic.column, None);
+            if !keep_mapping {
+                assert_eq!(diagnostic.byte_offset, None);
+            }
+        }
+    }
+}
+
+#[test]
+fn runtime_expression_failures_map_local_calls_and_preserve_foreign_diagnostics() {
+    use cem_ml::{
+        diagnostics::Diagnostic,
+        schema::declaration_references::SchemaDeclarationHost,
+        value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost},
+    };
+    use cem_ql::native::{NativeQueryFunction, NativeQueryRequest};
+    #[derive(Debug)]
+    struct Fail(bool);
+    impl NativeQueryFunction for Fail {
+        fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
+            let mut result = request.raise("fixture.runtime_failure", "original runtime message");
+            if self.0 {
+                result.diagnostics[0].uri = Some("foreign.cem".into());
+                result.diagnostics[0].node = Some("original-foreign-node".into());
+                result.diagnostics[0].byte_offset = Some(700);
+            }
+            result
+        }
+    }
+    for foreign in [false, true] {
+        let text = r#"{section | {#native:call("fixture.fail", library)}}"#;
+        let source = tree(text);
+        let original = reference_source(&source);
+        let mut runtime = context(vec![]);
+        runtime
+            .native_functions
+            .register("fixture.fail", 1, Fail(foreign))
+            .unwrap();
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(source, Some(runtime), policy());
+        let node = host.source_reference(original.clone());
+        let ReferenceLinkEvaluation::Invalid(diagnostics) = host.evaluate(&node) else {
+            panic!()
+        };
+        let diagnostic: &Diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "fixture.runtime_failure")
+            .unwrap();
+        assert_eq!(diagnostic.message, "original runtime message");
+        if foreign {
+            assert_eq!(diagnostic.uri.as_deref(), Some("foreign.cem"));
+            assert_eq!(diagnostic.node.as_deref(), Some("original-foreign-node"));
+            assert_eq!(diagnostic.byte_offset, Some(700));
+        } else {
+            assert_eq!(diagnostic.uri.as_deref(), Some("schema.cem"));
+            assert_eq!(
+                diagnostic.node.as_deref(),
+                Some(original.identity().as_str())
+            );
+            assert_eq!(
+                diagnostic.byte_offset,
+                Some(text.find("native:call").unwrap() as u64)
+            );
+        }
+        assert!(host.compiled_source_expression(&original).is_some());
+    }
 }
