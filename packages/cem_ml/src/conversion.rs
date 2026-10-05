@@ -38,7 +38,7 @@ use crate::schema::package_sources::{
     builtin_schema_package_artifact_source, builtin_schema_package_source,
 };
 use crate::schema::registry::{
-    content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
+    content_type_essence, SchemaContentTypeRole, SchemaPackageOrigin, SchemaDescriptor, SchemaRegistry,
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
@@ -1256,6 +1256,7 @@ impl From<ConversionLookupError> for ConversionExecutionError {
 #[derive(Debug, Clone, Default)]
 pub struct ConversionRegistry {
     descriptors_by_id: BTreeMap<String, ConversionDescriptor>,
+    package_origins: BTreeMap<String, SchemaPackageOrigin>,
     package_artifacts: Vec<ConversionPackageArtifactDescriptor>,
 }
 
@@ -1315,6 +1316,14 @@ impl ConversionRegistry {
                 registry.register_package_artifact(artifact);
             }
         }
+        let package_ids: Vec<_> = registry
+            .converters()
+            .map(|d| d.package_id.clone())
+            .chain(registry.package_artifacts().map(|a| a.package_id.clone()))
+            .collect();
+        for id in package_ids {
+            registry.set_package_origin(&id, SchemaPackageOrigin::Builtin);
+        }
         registry
     }
 
@@ -1325,9 +1334,26 @@ impl ConversionRegistry {
         if self.descriptors_by_id.contains_key(&descriptor.id) {
             return Err(ConversionRegistryError::DuplicateConverterId { id: descriptor.id });
         }
+        self.set_package_origin(&descriptor.package_id, SchemaPackageOrigin::Untracked);
         self.descriptors_by_id
             .insert(descriptor.id.clone(), descriptor);
         Ok(())
+    }
+
+    pub fn package_origin(&self, package_id: &str) -> Option<&SchemaPackageOrigin> {
+        self.package_origins.get(package_id)
+    }
+
+    pub(crate) fn set_package_origin(&mut self, package_id: &str, origin: SchemaPackageOrigin) {
+        self.package_origins.insert(package_id.to_owned(), origin);
+    }
+
+    pub(crate) fn remove_package(&mut self, package_id: &str) {
+        self.descriptors_by_id
+            .retain(|_, d| d.package_id != package_id);
+        self.package_artifacts
+            .retain(|a| a.package_id != package_id);
+        self.package_origins.remove(package_id);
     }
 
     pub fn converter(&self, id: &str) -> Option<&ConversionDescriptor> {
@@ -1339,6 +1365,7 @@ impl ConversionRegistry {
     }
 
     pub fn register_package_artifact(&mut self, artifact: ConversionPackageArtifactDescriptor) {
+        self.set_package_origin(&artifact.package_id, SchemaPackageOrigin::Untracked);
         self.package_artifacts.push(artifact);
     }
 

@@ -60,7 +60,7 @@ use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
-    schema_source_path_from_manifest_source, SchemaDescriptor, SchemaRegistry,
+    schema_source_path_from_manifest_source, SchemaRegistry,
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
@@ -991,6 +991,99 @@ fn register_validated_schema_package_manifest(
     manifest_source: &str,
     manifest_uri: &str,
 ) -> Vec<Diagnostic> {
+    let package_id = match crate::schema::registry::schema_package_id_from_manifest_source(
+        manifest_source,
+        "external-schema-package",
+    ) {
+        Ok(id) => id,
+        Err(error) => {
+            return vec![schema_package_manifest_error_diagnostic(
+                manifest_uri,
+                "package metadata",
+                error,
+            )]
+        }
+    };
+    let incoming = crate::schema::registry::SchemaPackageOrigin::Manifest(manifest_uri.to_owned());
+    let authorized = [
+        context.schema_registry.package_origin(&package_id),
+        context.converter_registry.package_origin(&package_id),
+    ]
+    .into_iter()
+    .flatten()
+    .all(|existing| {
+        existing == &incoming
+            || context
+                .schema_package_replacement_grants
+                .iter()
+                .any(|grant| {
+                    grant.package_id == package_id
+                        && &grant.expected_origin == existing
+                        && grant.replacement_manifest_uri == manifest_uri
+                })
+    });
+    let mut staged = context.clone();
+    // Mutations remain private to the candidate until every registration passes.
+    for uri in staged.schema_registry.remove_package(&package_id) {
+        staged.schema_document_models.remove_active(&uri);
+    }
+    staged.converter_registry.remove_package(&package_id);
+    let (ready, diagnostics) =
+        register_schema_package_candidate(&mut staged, manifest_source, manifest_uri);
+    // Built-in models are normally loaded lazily. Preserve that incumbent
+    // before a rejected candidate can suppress the built-in fallback.
+    let incumbents: Vec<_> = context
+        .schema_registry
+        .schemas()
+        .filter(|d| {
+            staged.schema_document_models.get(&d.schema_uri).is_some()
+                && context
+                    .schema_document_models
+                    .resolve_for_identity(Some(&d.schema_uri), None, None)
+                    .is_none()
+        })
+        .filter_map(|d| {
+            // Only retain a fallback while this identity has no previous candidate.
+            if context.schema_document_models.get(&d.schema_uri).is_some() {
+                return None;
+            }
+            crate::schema::document_model::load_builtin_document_model_for_replacement(
+                &d.schema_uri,
+            )
+        })
+        .collect();
+    for model in incumbents {
+        context.schema_document_models.register(model);
+    }
+    context
+        .schema_document_models
+        .inspect_candidates_from(&staged.schema_document_models);
+    if !authorized {
+        let mut diagnostics = diagnostics;
+        diagnostics.push(schema_package_load_diagnostic(Some(manifest_uri),
+            "cem.schema_package.replacement_not_authorized",
+            format!("schema package `{package_id}` requires a scoped grant for its expected owner and replacement manifest `{manifest_uri}`")));
+        return diagnostics;
+    }
+    if ready {
+        staged
+            .schema_registry
+            .set_package_origin(&package_id, incoming.clone());
+        staged
+            .converter_registry
+            .set_package_origin(&package_id, incoming);
+        context.schema_registry = staged.schema_registry;
+        context.schema_document_models = staged.schema_document_models;
+        context.converter_registry = staged.converter_registry;
+    }
+    diagnostics
+}
+
+fn register_schema_package_candidate(
+    context: &mut EngineContext,
+    manifest_source: &str,
+    manifest_uri: &str,
+) -> (bool, Vec<Diagnostic>) {
     let base_path = schema_package_manifest_base_path(manifest_uri);
     let package_id_hint = "external-schema-package";
     let mut diagnostics = Vec::new();
@@ -1002,7 +1095,7 @@ fn register_validated_schema_package_manifest(
         package_id_hint,
         &mut diagnostics,
     ) {
-        return diagnostics;
+        return (false, diagnostics);
     }
 
     match conversion_descriptors_from_validated_schema_package_manifest(
@@ -1047,7 +1140,10 @@ fn register_validated_schema_package_manifest(
         )),
     }
 
-    diagnostics
+    (
+        !diagnostics.iter().any(|d| d.severity.is_hard_violation()),
+        diagnostics,
+    )
 }
 
 fn register_schema_document_model_from_validated_schema_package_manifest(
@@ -1114,27 +1210,23 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
     };
     let mut model = compile_schema_document_model(&descriptor.schema_uri, &schema_source);
     for diagnostic in &mut model.compile_diagnostics {
-        if diagnostic.uri.is_none() { diagnostic.uri = Some(read.uri.clone()); }
+        if diagnostic.uri.is_none() {
+            diagnostic.uri = Some(read.uri.clone());
+        }
     }
     diagnostics.extend(model.compile_diagnostics.clone());
     if !model.is_ready_for_validation()
-        || model.compile_diagnostics.iter().any(|d| d.severity.is_hard_violation())
+        || model
+            .compile_diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
     {
         context.schema_document_models.inspect_candidate(model);
         return false;
     }
-    if context
-        .schema_registry
-        .schema(&descriptor.schema_uri)
-        .is_some_and(|existing| {
-            schema_descriptor_matches_registered_identity(existing, &descriptor)
-        })
-    {
-        if !model.is_empty() || !model.declaration_references.sites.is_empty() {
-            context.schema_document_models.register(model);
-        }
-        return true;
-    }
+    context
+        .schema_document_models
+        .inspect_candidate(model.clone());
     if let Err(error) = context.schema_registry.register(descriptor) {
         diagnostics.push(schema_package_load_diagnostic(
             Some(manifest_uri),
@@ -1143,22 +1235,10 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
         ));
         return false;
     }
-    if !model.is_empty() || !model.declaration_references.sites.is_empty() {
-        context.schema_document_models.register(model);
-    }
+    // A complete empty projection is active too: it requires no structural
+    // checks and must not be confused with an inactive replacement candidate.
+    context.schema_document_models.register(model);
     true
-}
-
-fn schema_descriptor_matches_registered_identity(
-    existing: &SchemaDescriptor,
-    candidate: &SchemaDescriptor,
-) -> bool {
-    existing.package_id == candidate.package_id
-        && existing.schema_uri == candidate.schema_uri
-        && existing.version == candidate.version
-        && existing.content_types == candidate.content_types
-        && existing.namespaces == candidate.namespaces
-        && existing.uses == candidate.uses
 }
 
 fn read_schema_package_schema_source(
@@ -22884,6 +22964,396 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_refresh_is_atomic_and_requires_scoped_ownership() {
+        use crate::engine::SchemaPackageReplacementGrant;
+        use crate::schema::registry::SchemaPackageOrigin;
+        const ORIGIN: &str = "cem+test://refresh/package.cem";
+        const OTHER: &str = "cem+test://other/package.cem";
+        const URI: &str = "https://example.test/ns/refresh/1";
+        const READY: &[u8] = br#"{schema @name="refresh" @namespace="https://example.test/ns/refresh/1" @version="1.0.0" | {elements | {element @name="shared"}} }"#;
+        fn manifest(id: &str, converter: &str, content_type: &str, artifact: &str) -> String {
+            format!(
+                r#"{{package @id="{id}" @version="1.0.0" |
+                {{schema @uri="https://example.test/ns/refresh/1" @source="schema.cem"}}
+                {{content-type @value="{content_type}" @primary=true}}
+                {{converter @id="{converter}" @implementation="rust" @rust-symbol="CemMlDomProjectionConverter" @streamable=true @lossiness="lossless" @implicit=false @readiness="ready" @cost=100 |
+                    {{from @content-type="{content_type}" @schema="https://example.test/ns/refresh/1"}}
+                    {{to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}}
+                }}
+                {{artifact @kind="formatter" @path="{artifact}" @content-type="application/vnd.cem.transform+cem" @schema="https://cem.dev/ns/transform/cem/1" @target-content-type="{content_type}" @target-schema="https://example.test/ns/refresh/1" @target-category="cem-tree" @function-name="fixture.format" @formatter-profile="compact"}}
+            }}"#
+            )
+        }
+        let mut context = context_with_resolver(
+            "cem+test",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        "cem+test://refresh/schema.cem",
+                        READY,
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
+                    (
+                        "cem+test://other/schema.cem",
+                        READY,
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
+                ],
+            },
+        );
+        let original = manifest(
+            "refresh",
+            "refresh-old",
+            "application/x-refresh-old",
+            "old.cemt",
+        );
+        assert!(register_validated_schema_package_manifest(&mut context, &original, ORIGIN).is_empty());
+        let refreshed = manifest(
+            "refresh",
+            "refresh-new",
+            "application/x-refresh-new",
+            "new.cemt",
+        );
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &refreshed, ORIGIN).is_empty()
+        );
+        assert!(context
+            .converter_registry
+            .converter("refresh-old")
+            .is_none());
+        assert!(context
+            .converter_registry
+            .converter("refresh-new")
+            .is_some());
+        assert!(context
+            .schema_registry
+            .lookup_content_type("application/x-refresh-old")
+            .is_empty());
+        assert_eq!(
+            context
+                .schema_registry
+                .resolve_content_type("application/x-refresh-new")
+                .unwrap()
+                .schema_uri,
+            URI
+        );
+        assert_eq!(
+            context
+                .converter_registry
+                .package_artifacts()
+                .filter(|a| a.package_id == "refresh")
+                .count(),
+            1
+        );
+        assert_eq!(
+            context.schema_registry.package_origin("refresh"),
+            Some(&SchemaPackageOrigin::Manifest(ORIGIN.into()))
+        );
+
+        // A failed converter registration must not publish the staged schema/model.
+        let conflict_id = context
+            .converter_registry
+            .converters()
+            .find(|d| d.package_id != "refresh")
+            .unwrap()
+            .id
+            .clone();
+        let conflicting = manifest(
+            "refresh",
+            &conflict_id,
+            "application/x-rejected",
+            "rejected.cemt",
+        );
+        let before_source = context
+            .schema_document_models
+            .resolve_for_identity(Some(URI), None, None)
+            .unwrap()
+            .clone();
+        const REJECTED: &[u8] = br#"{schema @name="refresh" @namespace="https://example.test/ns/refresh/1" @version="1.0.0" | {elements | {element @name="rejected"}} }"#;
+        context.resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        "cem+test://refresh/schema.cem",
+                        REJECTED,
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
+                    (
+                        "cem+test://other/schema.cem",
+                        READY,
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
+                ],
+            },
+        );
+        let errors = register_validated_schema_package_manifest(&mut context, &conflicting, ORIGIN);
+        assert!(errors.iter().any(|d| d.severity.is_hard_violation()));
+        assert!(context
+            .schema_registry
+            .lookup_content_type("application/x-rejected")
+            .is_empty());
+        assert!(context
+            .converter_registry
+            .converter("refresh-new")
+            .is_some());
+        assert_eq!(
+            context
+                .schema_document_models
+                .resolve_for_identity(Some(URI), None, None)
+                .unwrap()
+                .elements,
+            before_source.elements
+        );
+        assert_eq!(
+            context
+                .converter_registry
+                .package_artifacts()
+                .filter(|a| a.package_id == "refresh")
+                .count(),
+            1
+        );
+
+        let errors = register_validated_schema_package_manifest(&mut context, &original, OTHER);
+        assert!(errors
+            .iter()
+            .any(|d| d.code == "cem.schema_package.replacement_not_authorized"));
+        assert!(context
+            .converter_registry
+            .converter("refresh-new")
+            .is_some());
+        let grant = SchemaPackageReplacementGrant {
+            package_id: "refresh".into(),
+            expected_origin: SchemaPackageOrigin::Manifest(ORIGIN.into()),
+            replacement_manifest_uri: OTHER.into(),
+        };
+        for wrong in [
+            SchemaPackageReplacementGrant {
+                package_id: "other".into(),
+                ..grant.clone()
+            },
+            SchemaPackageReplacementGrant {
+                expected_origin: SchemaPackageOrigin::Builtin,
+                ..grant.clone()
+            },
+            SchemaPackageReplacementGrant {
+                replacement_manifest_uri: ORIGIN.into(),
+                ..grant.clone()
+            },
+        ] {
+            context.schema_package_replacement_grants = vec![wrong];
+            assert!(
+                register_validated_schema_package_manifest(&mut context, &original, OTHER)
+                    .iter()
+                    .any(|d| d.code == "cem.schema_package.replacement_not_authorized")
+            );
+            assert!(context
+                .converter_registry
+                .converter("refresh-new")
+                .is_some());
+        }
+        context.schema_package_replacement_grants = vec![grant];
+        assert!(register_validated_schema_package_manifest(&mut context, &original, OTHER).is_empty());
+        assert!(context
+            .converter_registry
+            .converter("refresh-new")
+            .is_none());
+        assert!(context
+            .converter_registry
+            .converter("refresh-old")
+            .is_some());
+        assert_eq!(
+            context.converter_registry.package_origin("refresh"),
+            Some(&SchemaPackageOrigin::Manifest(OTHER.into()))
+        );
+
+        // A grant scoped to an earlier owner cannot authorize the next replacement.
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &refreshed, ORIGIN)
+                .iter()
+                .any(|d| d.code == "cem.schema_package.replacement_not_authorized")
+        );
+        // Cross-package converter collisions remain errors even with a valid grant.
+        context.schema_package_replacement_grants = vec![SchemaPackageReplacementGrant {
+            package_id: "refresh".into(),
+            expected_origin: SchemaPackageOrigin::Manifest(OTHER.into()),
+            replacement_manifest_uri: ORIGIN.into(),
+        }];
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &conflicting, ORIGIN)
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+        );
+        assert_eq!(
+            context.schema_registry.package_origin("refresh"),
+            Some(&SchemaPackageOrigin::Manifest(OTHER.into()))
+        );
+
+        // Initial publication is transactional too, even before an owner exists.
+        let initial = conflicting
+            .replace(r#"@id="refresh""#, r#"@id="initial""#)
+            .replace(URI, "https://example.test/ns/initial/1");
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &initial, ORIGIN)
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+        );
+        assert!(context
+            .schema_registry
+            .schema("https://example.test/ns/initial/1")
+            .is_none());
+        assert!(context
+            .schema_document_models
+            .get("https://example.test/ns/initial/1")
+            .is_some());
+        assert!(context
+            .schema_document_models
+            .resolve_for_identity(Some("https://example.test/ns/initial/1"), None, None)
+            .is_none());
+        assert!(context.schema_registry.package_origin("initial").is_none());
+
+        // Built-in replacement is explicit, and removes every old owned route.
+        let builtin = manifest(
+            "cem-ml",
+            "builtin-replacement",
+            "application/x-builtin-replacement",
+            "builtin.cemt",
+        );
+        let builtin_identity = builtin.replace(URI, CEM_ML_SCHEMA_URI);
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &builtin_identity, ORIGIN)
+                .iter()
+                .any(|d| d.code == "cem.schema_package.replacement_not_authorized")
+        );
+        let incumbent = context
+            .schema_document_models
+            .resolve_for_identity(Some(CEM_ML_SCHEMA_URI), None, None)
+            .expect("rejected candidate preserves lazy built-in validation");
+        assert!(
+            incumbent.elements.is_empty(),
+            "generic builtin had no structural element checks"
+        );
+        let original_builtin_routes: Vec<_> = context
+            .converter_registry
+            .converters()
+            .filter(|d| d.package_id == "cem-ml")
+            .map(|d| d.id.clone())
+            .collect();
+        assert!(!original_builtin_routes.is_empty());
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &builtin, ORIGIN)
+                .iter()
+                .any(|d| d.code == "cem.schema_package.replacement_not_authorized")
+        );
+        assert!(context.schema_registry.schema(CEM_ML_SCHEMA_URI).is_some());
+        context.schema_package_replacement_grants = vec![SchemaPackageReplacementGrant {
+            package_id: "cem-ml".into(),
+            expected_origin: SchemaPackageOrigin::Builtin,
+            replacement_manifest_uri: ORIGIN.into(),
+        }];
+        // Avoid taking another package's schema URI even when the builtin grant is valid.
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &builtin, ORIGIN)
+                .iter()
+                .any(|d| d.severity.is_hard_violation())
+        );
+        let builtin = builtin.replace(URI, "https://example.test/ns/builtin-replacement/1");
+        assert!(register_validated_schema_package_manifest(&mut context, &builtin, ORIGIN).is_empty());
+        assert!(context.schema_registry.schema(CEM_ML_SCHEMA_URI).is_none());
+        assert!(context
+            .schema_registry
+            .lookup_content_type(CEM_ML_CONTENT_TYPE)
+            .iter()
+            .all(|d| d.package_id != "cem-ml"));
+        for route in original_builtin_routes {
+            assert!(context.converter_registry.converter(&route).is_none());
+        }
+        assert!(context
+            .converter_registry
+            .converter("builtin-replacement")
+            .is_some());
+        assert_eq!(
+            context
+                .converter_registry
+                .package_artifacts()
+                .filter(|a| a.package_id == "cem-ml")
+                .count(),
+            1
+        );
+
+        // A whole-package refresh can change its schema identity without leaving an active old model.
+        let moved = original.replace(URI, "https://example.test/ns/refresh/2");
+        assert!(register_validated_schema_package_manifest(&mut context, &moved, OTHER).is_empty());
+        assert!(context.schema_registry.schema(URI).is_none());
+        assert!(context
+            .schema_document_models
+            .resolve_for_identity(Some(URI), None, None)
+            .is_none());
+        assert!(context
+            .schema_registry
+            .schema("https://example.test/ns/refresh/2")
+            .is_some());
+        assert!(
+            context.schema_document_models.get(URI).is_some(),
+            "old source remains inspectable"
+        );
+        let artifact = context
+            .converter_registry
+            .package_artifacts()
+            .find(|a| a.package_id == "refresh")
+            .unwrap()
+            .clone();
+        context
+            .converter_registry
+            .register_package_artifact(artifact);
+        assert_eq!(
+            context.converter_registry.package_origin("refresh"),
+            Some(&SchemaPackageOrigin::Untracked)
+        );
+        assert!(
+            register_validated_schema_package_manifest(&mut context, &moved, OTHER)
+                .iter()
+                .any(|d| d.code == "cem.schema_package.replacement_not_authorized")
+        );
+        context.schema_package_replacement_grants = vec![SchemaPackageReplacementGrant {
+            package_id: "refresh".into(),
+            expected_origin: SchemaPackageOrigin::Untracked,
+            replacement_manifest_uri: OTHER.into(),
+        }];
+        assert!(register_validated_schema_package_manifest(&mut context, &moved, OTHER).is_empty());
+        assert_eq!(
+            context
+                .converter_registry
+                .package_artifacts()
+                .filter(|a| a.package_id == "refresh")
+                .count(),
+            1
+        );
+        const EMPTY: &[u8] = br#"{schema @name="refresh" @namespace="https://example.test/ns/refresh/2" @version="1.0.0"}"#;
+        context.resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![(
+                    "cem+test://other/schema.cem",
+                    EMPTY,
+                    Some(CEM_SCHEMA_CONTENT_TYPE),
+                )],
+            },
+        );
+        assert!(register_validated_schema_package_manifest(&mut context, &moved, OTHER).is_empty());
+        let empty = context
+            .schema_document_models
+            .resolve_for_identity(Some("https://example.test/ns/refresh/2"), None, None)
+            .expect("complete empty model is active");
+        assert!(empty.is_empty() && empty.is_ready_for_validation());
+    }
+
+    #[test]
     fn schema_package_readiness_gates_schema_converter_and_artifact_publication() {
         const URI: &str = "https://example.test/ns/readiness/1";
         const SOURCE_URI: &str = "cem+test://readiness/schema.cem";
@@ -23080,6 +23550,11 @@ mod tests {
             to_format: LayerFormat::Html,
             preserve_source_offsets: false,
             context: EngineContext {
+                schema_package_replacement_grants: vec![crate::engine::SchemaPackageReplacementGrant {
+                    package_id: "cem-ml".to_owned(),
+                    expected_origin: crate::schema::registry::SchemaPackageOrigin::Builtin,
+                    replacement_manifest_uri: PACKAGE_URI.to_owned(),
+                }],
                 schema_package_manifests: vec![EngineInput {
                     uri: PACKAGE_URI.to_owned(),
                     bytes: PACKAGE_MANIFEST.to_vec(),
@@ -23307,6 +23782,11 @@ mod tests {
             to_format: LayerFormat::Html,
             preserve_source_offsets: false,
             context: EngineContext {
+                schema_package_replacement_grants: vec![crate::engine::SchemaPackageReplacementGrant {
+                    package_id: "cem-ml".to_owned(),
+                    expected_origin: crate::schema::registry::SchemaPackageOrigin::Builtin,
+                    replacement_manifest_uri: PACKAGE_URI.to_owned(),
+                }],
                 schema_package_manifests: vec![EngineInput {
                     uri: PACKAGE_URI.to_owned(),
                     bytes: PACKAGE_MANIFEST.to_vec(),

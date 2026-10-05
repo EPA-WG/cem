@@ -288,7 +288,7 @@ implementation. `git diff --check` passes.
 - [x] Decide coordinated refresh of an already-active schema package: retain
       the last complete package while inspecting an incomplete replacement,
       then switch schema, converter routes and artifacts together (user adopted
-      recommendation, 2026-10-04). Coordinated switch implementation remains open.
+      recommendation, 2026-10-04). Staged publication is implemented below.
       Scenarios for later design verification: incomplete replacements cannot
       mix old converter routes with a new schema; rejected candidates preserve
       coherent registrations; a complete replacement switches every owned part;
@@ -307,11 +307,24 @@ implementation. `git diff --check` passes.
       identity lookup. Incomplete replacements preserve active model/schema/
       converter/artifact registrations. Initial inactive candidates still block
       built-in fallback. Registry-level ready model replacement is explicit;
-      coordinated whole-package ready switching remains open.
-- [ ] Implement origin tracking, scoped replacement grants and coordinated ready
+      coordinated whole-package ready switching is implemented below.
+- [x] Fixture: verify same-origin package refresh removes stale schemas, lookup
+      indexes, converter routes and artifacts; conflicting ownership, wrong grants
+      and converter collisions preserve all active registrations. Verify scoped
+      cross-origin and built-in overrides, ready empty projections and
+      incomplete-candidate inspection.
+- [x] Implement origin tracking, scoped replacement grants and coordinated ready
       refresh on staged registries. Reject conflicting ownership without changing
       active registrations; switch schema, model, converter routes and artifacts
-      together. Migrate existing implicit override callers to scoped grants.
+      together. Migrate existing native override fixtures to scoped grants.
+      Runtime ownership uses exact resolved manifest URIs; direct registry writes
+      become Untracked. Grants name package, expected owner and incoming URI.
+      Verification: coordinated-refresh/readiness fixtures and 11 declaration
+      integration tests pass. Nx `cem_ml:test` reports 2069 passing, two ignored
+      and only the existing dropdown-template failure.
+      Scenarios for later design verification: URI aliases do not imply authority;
+      incomplete and rejected candidates stay inspectable; stale schema identity
+      indexes and routes are removed only on complete publication.
 - [x] Fixture: retain a last complete model for active identity lookup while
       inspecting an incomplete replacement. Verify final validation uses the
       active model, later completion switches the model, and initial inactive
@@ -334,6 +347,13 @@ implementation. `git diff --check` passes.
       and specialized scope records. Preserve existing schema/namespace
       behavior and typed import boundaries; do not replace specialized storage
       with a mandatory common struct or impose public root IDs.
+
+- [ ] Integrate scoped replacement grants into command/WASM consumer APIs when
+      override support is added. Do not infer grants from package URI lists or
+      manifest contents. Add native boundary fixtures before extending those APIs.
+      Scenarios for later design verification: manifest inclusion does not grant
+      authority; expected-owner or incoming-URI mismatches preserve the active
+      package; native consumer grants survive the boundary without widening scope.
 
 ### 6. Preserve references through codecs and inspection
 

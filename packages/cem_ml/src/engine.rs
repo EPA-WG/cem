@@ -134,6 +134,15 @@ pub enum BenchProfile {
     Memory,
 }
 
+/// Explicit authority to replace one expected package owner with one manifest.
+/// Merely including a manifest in the context does not grant this authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaPackageReplacementGrant {
+    pub package_id: String,
+    pub expected_origin: crate::schema::registry::SchemaPackageOrigin,
+    pub replacement_manifest_uri: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct EngineContext {
     pub schema: Option<String>,
@@ -144,6 +153,7 @@ pub struct EngineContext {
     pub schema_document_models: SchemaDocumentModelRegistry,
     pub converter_registry: ConversionRegistry,
     pub schema_package_manifests: Vec<EngineInput>,
+    pub schema_package_replacement_grants: Vec<SchemaPackageReplacementGrant>,
     pub resolver_policy: ResolverPolicy,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
@@ -170,6 +180,7 @@ impl Default for EngineContext {
             schema_document_models: SchemaDocumentModelRegistry::default(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
+            schema_package_replacement_grants: Vec::new(),
             resolver_policy: ResolverPolicy::default(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry,

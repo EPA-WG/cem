@@ -2455,5 +2455,24 @@ unresolved-link disposition or mutate the retained model's diagnostics.
 
 Initial package loading retains incomplete models while withholding schema,
 converter and artifact publication. Converter-only packages remain compatible.
-Coordinated refresh of active packages and the production CEM-QL lifecycle host
-remain tracked in [todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).
+Ready publication stages schema, model, converter and artifact registries and
+switches them together. Incomplete or rejected replacements preserve the last
+complete active package. Same-origin refresh uses the exact resolved manifest
+URI. Different-origin and built-in overrides require a separate
+`EngineContext.schema_package_replacement_grants` entry, naming the package,
+expected `SchemaPackageOrigin` and incoming manifest URI. Manifest inclusion
+alone is insufficient; unrelated package collisions remain errors. Direct
+registry registrations have `Untracked` ownership and require a grant too.
+
+```rust,ignore
+context.schema_package_replacement_grants.push(SchemaPackageReplacementGrant {
+    package_id: "cem-ml".into(),
+    expected_origin: SchemaPackageOrigin::Builtin,
+    replacement_manifest_uri: "cem+vendor://schemas/cem-ml/package.cem".into(),
+});
+```
+
+These are native runtime APIs. Command/WASM integrations must pass explicit
+consumer authority if they add override support; package URI lists do not
+synthesize grants. The production CEM-QL lifecycle host remains tracked in
+[todo.md](../../../../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).

@@ -767,12 +767,12 @@ handles to its own typed runtime representation, so constructed references do
 not require a fake source arena. Each site makes one bounded resolution request;
 this is not a whole-compilation work budget or an automatic lifecycle service.
 Compilation without an evaluator records unevaluated sites as pending and does
-not request evaluation. Native CEM-QL production adapters and coordinated package refresh remain
+not request evaluation. Native CEM-QL production adapters remain
 explicit actionable work in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
 
 
-### Schema readiness and initial package activation (2026-10-04)
+### Schema readiness and coordinated package activation (2026-10-04)
 
 Incomplete models remain available for inspection and do not participate in
 final validation. `SchemaDocumentModel::is_ready_for_validation` requires
@@ -795,12 +795,26 @@ or insert a diagnostic into the retained model's link facts.
 Initial package loading retains incomplete models for inspection and withholds
 schema registration, converter routes and package artifacts. Source-only loading
 records unevaluated declaration references as pending, without executing them.
-Ready packages and converter-only packages keep their existing publication path.
-An incomplete replacement does not replace existing schema/model/converter/
-artifact registrations. Coordinated ready replacement requires the same manifest
-origin or an explicit scoped runtime grant naming the expected package and
-origin for a different-origin or built-in override. Manifest inclusion alone
-does not grant replacement authority. Origin tracking, grant APIs and the
-atomic switch remain open implementation work. Production
-lifecycle evaluation and coordinated replacement remain actionable work, with verification scenarios, in
+Ready packages, including converter-only packages, publish on staged registries.
+An incomplete or rejected replacement preserves every active schema/model,
+converter route and artifact. A complete replacement removes the previous
+package's registrations and lookup indexes, then publishes all new parts
+together. Candidate models remain inspectable even when publication fails.
+
+Schema and converter registries retain `SchemaPackageOrigin`: `Builtin`,
+`Manifest(resolved_manifest_uri)`, or `Untracked` for directly registered entries.
+The exact resolved manifest URI is the ownership key; URI aliases do not
+implicitly establish equal ownership. Same-origin refresh is permitted.
+Different-origin, built-in or untracked replacement requires a separate
+`EngineContext.schema_package_replacement_grants` entry. Each
+`SchemaPackageReplacementGrant` names the package ID, expected current origin
+and incoming resolved manifest URI. All existing registry owners must be
+covered; an unrelated package's schema/converter collision still fails.
+Manifest inclusion alone never grants authority. Direct registry mutation
+resets that package's origin to `Untracked`, requiring explicit authority
+rather than borrowing an earlier manifest's ownership.
+
+The grant and publication APIs are runtime consumer policy, not CEM-ML syntax.
+Production lifecycle evaluation remains actionable work, with verification
+scenarios, in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).

@@ -193,6 +193,15 @@ impl SchemaDocumentModelRegistry {
         self.models_by_schema_uri.insert(model.schema_uri.clone(), model);
     }
 
+    pub(crate) fn remove_active(&mut self, schema_uri: &str) {
+        self.active_models_by_schema_uri.remove(schema_uri);
+    }
+
+    pub(crate) fn inspect_candidates_from(&mut self, candidate: &Self) {
+        self.models_by_schema_uri
+            .extend(candidate.models_by_schema_uri.clone());
+    }
+
     pub fn get(&self, schema_uri: &str) -> Option<&SchemaDocumentModel> {
         self.models_by_schema_uri.get(schema_uri)
     }
@@ -1098,6 +1107,22 @@ pub fn load_builtin_document_model_for_identity(
     schema_uri: Option<&str>,
     content_type: Option<&str>,
 ) -> Option<SchemaDocumentModel> {
+    load_builtin_document_model_for_identity_inner(schema_uri, content_type, false)
+}
+
+/// Preserve the original lazy model during package replacement, including a
+/// valid empty projection that previously required no structural checks.
+pub(crate) fn load_builtin_document_model_for_replacement(
+    schema_uri: &str,
+) -> Option<SchemaDocumentModel> {
+    load_builtin_document_model_for_identity_inner(Some(schema_uri), None, true)
+}
+
+fn load_builtin_document_model_for_identity_inner(
+    schema_uri: Option<&str>,
+    content_type: Option<&str>,
+    include_empty: bool,
+) -> Option<SchemaDocumentModel> {
     let package = match schema_uri {
         Some(schema_uri) => load_builtin_schema_package(schema_uri).ok(),
         None => content_type.and_then(|content_type| {
@@ -1112,7 +1137,7 @@ pub fn load_builtin_document_model_for_identity(
         &package.descriptor.schema_uri,
         package.schema_source,
     ))
-    .filter(|model| !model.is_empty() && model.is_ready_for_validation())
+    .filter(|model| (include_empty || !model.is_empty()) && model.is_ready_for_validation())
 }
 
 pub fn load_document_model_for_identity(

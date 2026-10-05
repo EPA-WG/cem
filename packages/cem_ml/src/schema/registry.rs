@@ -271,9 +271,20 @@ impl std::fmt::Display for SchemaPackageDescriptorError {
 
 impl std::error::Error for SchemaPackageDescriptorError {}
 
+/// Runtime ownership of a published package. Manifest origins use the exact
+/// resolved manifest URI; a local package ID never establishes authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SchemaPackageOrigin {
+    Builtin,
+    Manifest(String),
+    /// Entries registered directly without a manifest ownership record.
+    Untracked,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SchemaRegistry {
     schemas_by_uri: BTreeMap<String, SchemaDescriptor>,
+    package_origins: BTreeMap<String, SchemaPackageOrigin>,
     content_types: BTreeMap<String, BTreeSet<String>>,
     namespaces: BTreeMap<String, BTreeSet<String>>,
 }
@@ -286,9 +297,11 @@ impl SchemaRegistry {
     pub fn with_builtin_schemas() -> Self {
         let mut registry = Self::new();
         for descriptor in builtin_schema_descriptors() {
+            let package_id = descriptor.package_id.clone();
             registry
                 .register(descriptor)
                 .expect("built-in schema descriptors must not conflict");
+            registry.set_package_origin(&package_id, SchemaPackageOrigin::Builtin);
         }
         registry
     }
@@ -314,6 +327,7 @@ impl SchemaRegistry {
             }
         }
 
+        self.set_package_origin(&descriptor.package_id, SchemaPackageOrigin::Untracked);
         let schema_uri = descriptor.schema_uri.clone();
         for content_type in &descriptor.content_types {
             self.content_types
@@ -329,6 +343,37 @@ impl SchemaRegistry {
         }
         self.schemas_by_uri.insert(schema_uri, descriptor);
         Ok(())
+    }
+
+    pub fn package_origin(&self, package_id: &str) -> Option<&SchemaPackageOrigin> {
+        self.package_origins.get(package_id)
+    }
+
+    pub(crate) fn set_package_origin(&mut self, package_id: &str, origin: SchemaPackageOrigin) {
+        self.package_origins.insert(package_id.to_owned(), origin);
+    }
+
+    /// Only used on staged registries; live publication still requires authority.
+    pub(crate) fn remove_package(&mut self, package_id: &str) -> Vec<String> {
+        let removed: Vec<_> = self
+            .schemas_by_uri
+            .values()
+            .filter(|d| d.package_id == package_id)
+            .map(|d| d.schema_uri.clone())
+            .collect();
+        for uri in &removed {
+            self.schemas_by_uri.remove(uri);
+        }
+        for index in [&mut self.content_types, &mut self.namespaces] {
+            for uris in index.values_mut() {
+                for uri in &removed {
+                    uris.remove(uri);
+                }
+            }
+            index.retain(|_, uris| !uris.is_empty());
+        }
+        self.package_origins.remove(package_id);
+        removed
     }
 
     pub fn schema(&self, schema_uri: &str) -> Option<&SchemaDescriptor> {
@@ -443,6 +488,19 @@ pub fn schema_descriptor_from_manifest_and_schema_sources(
         schema_source,
         None,
     )
+}
+
+pub fn schema_package_id_from_manifest_source(
+    manifest_source: &str,
+    package_id_hint: &str,
+) -> Result<String, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(manifest_source);
+    let node = first_element_id_by_local_name(&manifest, "package")
+        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
+    let attrs = collect_attrs(&manifest, node);
+    Ok(optional_attr(&attrs, "id")
+        .unwrap_or(package_id_hint)
+        .to_owned())
 }
 
 pub fn schema_source_path_from_manifest_source(
