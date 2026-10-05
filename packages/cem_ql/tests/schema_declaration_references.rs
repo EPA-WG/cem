@@ -292,3 +292,70 @@ fn malformed_native_reference_source_cannot_be_treated_as_a_resolved_selection()
         == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
         && d.severity.is_hard_violation()));
 }
+
+#[test]
+fn native_attribute_chains_keep_target_owners_and_obey_destination_limits() {
+    let source = tree("{schema | {attributes | {#library}} }");
+    let middle = tree("{schema | {attributes | {#library}} }");
+    let terminal = tree(
+        "{schema | {attributes | {attribute @name=size @type=schema:integer @minInclusive=1}} }",
+    );
+    let items = |owner: &Arc<RetainedCemTree>| {
+        owner
+            .ast()
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                CemAstNode::Reference { node_id, .. } => Some(*node_id),
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "attribute" => Some(*node_id),
+                _ => None,
+            })
+            .map(|id| {
+                cem_ql::eval::RetainedCemNode::new(owner.clone(), id)
+                    .unwrap()
+                    .query_item()
+            })
+            .collect()
+    };
+    for bounded in [false, true] {
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let a = host.register_scope(source.clone(), Some(context(items(&middle))), policy());
+        let mut destination = policy();
+        if bounded {
+            destination.limits.max_work = 1;
+        }
+        let b = host.register_scope(middle.clone(), Some(context(items(&terminal))), destination);
+        let c = host.register_scope(terminal.clone(), None, policy());
+        assert!(!host
+            .compile("consumer", source.clone(), limits())
+            .unwrap()
+            .is_ready_for_validation());
+        assert!(host.allow_scope_crossing(a, b) && host.allow_scope_crossing(b, c));
+        let model = host.compile("consumer", source.clone(), limits()).unwrap();
+        if bounded {
+            assert!(!model.is_ready_for_validation());
+            assert!(model.declaration_references.sites[0].resolution.as_ref().unwrap().issues.iter()
+                .any(|i| i.kind == cem_ml::value::reference_resolution::ReferenceResolutionIssueKind::WorkLimit));
+        } else {
+            assert!(model.is_ready_for_validation());
+            assert_eq!(model.attributes["size"].min_inclusive.as_deref(), Some("1"));
+            let retained = &model.declaration_references.sites[0]
+                .resolution
+                .as_ref()
+                .unwrap()
+                .nodes[0];
+            assert!(Arc::ptr_eq(retained.document(), terminal.ast_owner()));
+            drop(host);
+            assert!(matches!(retained.node(), CemAstNode::Element { .. }));
+        }
+    }
+    assert!(source
+        .ast()
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}

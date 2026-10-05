@@ -368,10 +368,54 @@ implementation. `git diff --check` passes.
 - [x] Adapt native CEM-QL declaration views to original retained declaration
       owners for the production schema host. Do not serialize or clone source
       ASTs to manufacture target arenas; preserve lexical aliases and boundaries.
-- [ ] Define the existing schema validation/composition sites that consume typed
+- [x] Fixture: reuse retained attribute declarations in multiple schemas; verify
+      scalar validation, source ownership, authored collection order, zero/many
+      selections, source-only pending state, kind/name failures, and partial
+      unresolved results under every disposition.
+- [x] Fixture: follow native CEM-QL attribute-reference chains with directed
+      crossing grants and stricter destination limits; retain the final owner
+      after the query host is dropped. Validate reused attribute constraints
+      through manifest-driven engine package compilation.
+- [x] Fixture: verify referenced attribute diagnostic dependencies are checked
+      in the assembled consumer, retain the target declaration's source map,
+      and accept explicitly supplied dependencies without implicit schema import.
+- [x] Extend explicit schema compilation to `{attributes}` declaration references
+      with shared scope resolution, original owners, existing attribute contracts
+      and coordinated package readiness. Keep dependency declarations explicit.
+      Verification: all 46 focused CEM-ML reference/schema tests and six native
+      declaration-consumer fixtures pass. Nx bridge tests pass (117 tests); the
+      final compact representation also passes focused engine package validation.
+      Nx CEM-ML reports 2069 passes, two ignored and the known legacy dropdown
+      selector failure (`template#cem-dropdown` not found).
+      Scenarios for later design verification: a common attribute validates two
+      schemas; an incomplete attribute link prevents package activation; lexical
+      diagnostic strings require declarations in the consuming schema.
+- [x] Define the existing schema validation/composition sites that consume typed
       node references, their target-kind/cardinality constraints, and required
       evaluation phase. Keep their construct-use and recursive-composition
       rules consumer-owned while applying the shared scope resolution policy.
+      The accepted reference design inventories implemented collection consumers,
+      existing scalar contracts and the remaining explicit integration phases.
+- [ ] Fixture: reuse diagnostic and behavior declarations from retained owners;
+      cover zero/many selections, kind/key failures, local overrides, original
+      lexical aliases, unresolved links and dependent attribute checks.
+- [ ] Extend reference consumption to `{behaviors}` and `{diagnostics}` before
+      dependent schema checks. Keep named/code-keyed collection order, original
+      owners, explicit dependencies and shared scope readiness rules.
+      Scenarios for later design verification: a reusable attribute names a
+      reused diagnostic; a diagnostic names a reused behavior; missing or cyclic
+      selections keep the model inactive rather than dropping its dependencies.
+- [ ] Extend reference consumption to constraint and field-contract declaration
+      collections after diagnostic/behavior reuse, with fixture-first coverage
+      of their kind keys, repeated contract applications and target checks.
+      Scenarios for later design verification: one contract applies in two
+      consuming schemas; local targets stay local while declaring aliases retain
+      source meaning; invalid targets never disappear as empty selections.
+- [ ] Define native node-valued scalar composition/validation-input sites before
+      extending existing string-valued `@base`, datatype and function contracts.
+      Scenarios for later design verification: singleton composition rejects
+      multiple targets; recursive validation stays bounded; existing aliases
+      remain compatible without making scalar strings implicit constructors.
 - [ ] Fixture: validate referenced constructs and reuse one declaration from
       multiple schema sites without cloning it into the source tree. Cover
       invalid target kinds, unresolved links under each disposition, source

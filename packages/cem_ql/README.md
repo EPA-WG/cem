@@ -876,8 +876,8 @@ language and runtime contract.
 ## Retained schema declaration references
 
 `schema_references::CemQlSchemaDeclarationHost` is an explicit native consumer
-for references in schema `{elements}` collections. Register retained source and
-library trees with their effective policies, supply a
+for references in schema `{elements}` and `{attributes}` collections. Register
+retained source and library trees with their effective policies, supply a
 `StandaloneExpressionContext` for each evaluating scope, and grant directed
 scope crossings before calling `compile`. Missing contexts report Pending;
 empty selections resolve successfully. `set_context` allows a later lifecycle
@@ -890,6 +890,8 @@ shared bounded resolver for nested references. Effective child scopes can be
 supplied through `assign_subtree_scope`; runtime scope handles belong to their
 host and add no authored IDs.
 
-Package loading does not install or invoke this host automatically. The package
-lifecycle invocation and coordinated publication integration remain tracked in
+Package loading keeps source references pending unless a runtime compiler is
+explicitly installed. The [native bridge](../cem_ml_transform_cem_ql/README.md#schema-package-lifecycle-compilation)
+connects this host to the engine's package compilation stage before coordinated
+publication. Remaining schema consumers are tracked in
 [todo.md](../../docs/todo.md#5-integrate-schema-validation-and-construct-reuse).

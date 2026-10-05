@@ -534,3 +534,109 @@ fn engine_manifest_stage_uses_compiled_declarations_for_final_validation() {
     assert!(context.schema_document_models.get(SCHEMA_URI).is_none());
     assert!(context.schema_package_sources.get(SOURCE_URI).is_none());
 }
+
+#[test]
+fn engine_package_stage_reuses_attribute_constraints_for_input_validation() {
+    use cem_ml::{
+        engine::{CemMlEngine, FailLevel, ValidateProjection, ValidateRequest},
+        real::RealCemMlEngine,
+    };
+    let source = SOURCE.replace(
+        "{elements | {#library}}",
+        "{elements | {element @name=input @optional-attributes=size}} {attributes | {#library}}",
+    );
+    let mut context = context(&source);
+    context.schema_package_manifests = vec![input()];
+    context.schema = Some(SCHEMA_URI.into());
+    load(&mut context, &input());
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    assert!(context.schema_registry.schema(SCHEMA_URI).is_none());
+    assert!(context
+        .converter_registry
+        .converter("runtime-converter")
+        .is_none());
+    let retained_source = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let library = tree(
+        "{schema | {attributes | {attribute @name=size @type=schema:integer @maxInclusive=10}} }",
+    );
+    context.schema_package_compiler =
+        Some(Arc::new(CemQlSchemaPackageCompiler::new(move |request| {
+            assert!(Arc::ptr_eq(&retained_source, &request.source));
+            let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+            let mut host = CemQlSchemaDeclarationHost::new();
+            let id = library
+                .ast()
+                .nodes
+                .iter()
+                .find_map(|n| match n {
+                    CemAstNode::Element {
+                        node_id,
+                        expanded_name,
+                        ..
+                    } if expanded_name.local_name == "attribute" => Some(*node_id),
+                    _ => None,
+                })
+                .unwrap();
+            let context = StandaloneExpressionContext::default().with_binding(
+                "library",
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(library.clone(), id)
+                        .unwrap()
+                        .query_item(),
+                )),
+            );
+            let source = host.register_scope(request.source.clone(), Some(context), policy.clone());
+            let target = host.register_scope(library.clone(), None, policy.clone());
+            host.allow_scope_crossing(source, target);
+            Ok((host, policy.limits))
+        })));
+    for (size, expected_invalid) in [(5, false), (11, true)] {
+        let document = EngineInput {
+            uri: "cem+test://runtime/input.cem".into(),
+            bytes: format!("{{input @size={size}}}").into_bytes(),
+            from_format: Some(InputFormat::Cem),
+            identity: None,
+            root_scope: Default::default(),
+        };
+        let result = RealCemMlEngine::new()
+            .validate(ValidateRequest {
+                inputs: vec![document],
+                projection: ValidateProjection::Json,
+                fail_level: FailLevel::Validate,
+                context: context.clone(),
+            })
+            .unwrap();
+        assert_eq!(
+            result
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation()),
+            expected_invalid,
+            "{:?}",
+            result.report.diagnostics
+        );
+        assert_eq!(
+            result
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.code
+                    == cem_ml::schema::document_model::INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+            expected_invalid
+        );
+        assert!(!result
+            .report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_model.not_ready"));
+    }
+}

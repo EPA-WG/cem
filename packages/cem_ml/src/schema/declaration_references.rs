@@ -1,8 +1,8 @@
-//! Explicit schema consumer of typed reference targets in `{elements}`.
+//! Explicit schema consumer of typed targets in `{elements}` and `{attributes}`.
 //! The host supplies runtime evaluation and original lexical schema bindings.
 //! No source arena is cloned or rewritten to inline referenced declarations.
 use super::{
-    document_model::{self, ElementModel, SchemaDocumentModel},
+    document_model::{self, CompiledSchemaDeclaration, SchemaDocumentModel},
     reference_policy::ReferenceOccurrence,
     reference_traversal::ReferenceTraversalLimits,
 };
@@ -155,7 +155,7 @@ impl DeclarationReferenceCompilation {
 }
 
 /// Explicit compilation stage. Collection references accept zero or more
-/// named `{element}` declarations, preserving the existing insertion order and
+/// named declarations of the collection's kind, preserving insertion order and
 /// last-name-wins collection behavior. Available valid targets are compiled
 /// even when another branch is incomplete; outcomes remain visibly incomplete.
 /// Invalid target kinds/names are compile errors irrespective of disposition.
@@ -167,10 +167,10 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
-    let mut declarations: BTreeMap<AstNodeId, Vec<ElementModel>> = BTreeMap::new();
+    let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
     let mut compilation = DeclarationReferenceCompilation::default();
     let mut seen = BTreeSet::from([schema_uri.to_owned()]);
-    for id in document_model::element_declaration_reference_ids(&document) {
+    for (id, expected_kind) in document_model::declaration_reference_sites(&document) {
         let reference =
             host.source_reference(SchemaDeclarationNode::new(document.clone(), id).unwrap());
         let occurrence = host
@@ -193,7 +193,7 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
             diagnostics: evaluated.diagnostics,
             work_used: evaluated.work_used,
         };
-        let mut elements = vec![];
+        let mut compiled_targets = vec![];
         for value in &evaluated.nodes {
             let Some(target) = host.declaration_node(value) else {
                 resolution.failed = true;
@@ -202,7 +202,7 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                     schema_uri,
                     &occurrence,
                     None,
-                    "Expected a retained element declaration target",
+                    &format!("Expected a retained {expected_kind} declaration target"),
                 ));
                 continue;
             };
@@ -228,18 +228,28 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                 }
                 None => BTreeMap::new(),
             };
-            let compiled = if is_element(target.node(), "element") {
-                document_model::compile_element_model(
-                    target.document(),
-                    target.node_id(),
-                    &aliases,
-                    &mut seen,
-                )
+            let compiled = if is_element(target.node(), expected_kind) {
+                match expected_kind {
+                    "element" => document_model::compile_element_model(
+                        target.document(),
+                        target.node_id(),
+                        &aliases,
+                        &mut seen,
+                    )
+                    .map(CompiledSchemaDeclaration::Element),
+                    "attribute" => {
+                        document_model::compile_attribute_model(target.document(), target.node_id())
+                            .map(|attribute| {
+                                CompiledSchemaDeclaration::Attribute(Box::new(attribute))
+                            })
+                    }
+                    _ => unreachable!("supported collection discovery selects the target kind"),
+                }
             } else {
                 None
             };
-            if let Some(element) = compiled {
-                elements.push(element);
+            if let Some(declaration) = compiled {
+                compiled_targets.push(declaration);
             } else {
                 resolution.failed = true;
                 resolution.state = ReferenceResolutionState::Invalid;
@@ -247,11 +257,11 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
                     schema_uri,
                     &occurrence,
                     Some(&target),
-                    "Expected a named element declaration",
+                    &format!("Expected a named {expected_kind} declaration"),
                 ));
             }
         }
-        declarations.insert(id, elements);
+        declarations.insert(id, compiled_targets);
         compilation.sites.push(DeclarationReferenceSite {
             occurrence,
             resolution: Some(resolution),

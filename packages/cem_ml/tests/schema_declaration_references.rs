@@ -751,3 +751,176 @@ fn an_incomplete_replacement_preserves_the_last_complete_active_model() {
         .required_attributes
         .contains("own"));
 }
+
+#[test]
+fn attribute_declarations_retain_owners_and_drive_validation_in_multiple_schemas() {
+    use cem_ml::schema::document_model::validate_document_model;
+    let library_text = r#"{schema | {attributes | {attribute @name="size" @type="schema:integer" @minInclusive=1 @maxInclusive=10 @default=3}} }"#;
+    let library = parse(library_text);
+    let target = node(&library, "attribute");
+    let expected =
+        compile_schema_document_model("library", library_text).attributes["size"].clone();
+    let source = parse("{schema | {elements | {element @name=box @optional-attributes=size}} {attributes | {#library}} }");
+    let nodes = source.nodes.len();
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![target.clone(), target]),
+    );
+    for _ in 0..2 {
+        let model = host.resolve(source.clone());
+        assert!(model.is_ready_for_validation());
+        assert_eq!(model.attributes["size"], expected);
+        assert!(validate_document_model(&parse("{box @size=5}"), &model).is_empty());
+        assert!(validate_document_model(&parse("{box @size=11}"), &model)
+            .iter()
+            .any(|d| d.severity.is_hard_violation()));
+        let retained = &model.declaration_references.sites[0]
+            .resolution
+            .as_ref()
+            .unwrap()
+            .nodes;
+        assert_eq!(retained.len(), 2);
+        assert!(retained.iter().all(|n| Arc::ptr_eq(n.document(), &library)));
+    }
+    assert_eq!(source.nodes.len(), nodes);
+    assert!(source
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+}
+#[test]
+fn attribute_reference_collections_preserve_order_empty_selections_and_pending_source() {
+    let source = parse("{schema | {attributes | {attribute @name=size @maxInclusive=1} {#library} {attribute @name=size @maxInclusive=9} {#empty}} {elements | {#element}} }");
+    let library = parse(
+        "{schema | {attributes | {attribute @name=size @maxInclusive=5} {attribute @name=extra}} }",
+    );
+    let targets = library
+        .nodes
+        .iter()
+        .filter_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "attribute" => {
+                SchemaDeclarationNode::new(library.clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let element = parse("{element @name=box}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(targets),
+    );
+    host.outcomes
+        .insert("#empty".into(), ReferenceLinkEvaluation::Resolved(vec![]));
+    host.outcomes.insert(
+        "#element".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&element, "element")]),
+    );
+    let model = host.resolve(source);
+    assert_eq!(model.attributes["size"].max_inclusive.as_deref(), Some("9"));
+    assert!(model.attributes.contains_key("extra") && model.elements.contains_key("box"));
+    assert_eq!(
+        model
+            .declaration_references
+            .sites
+            .iter()
+            .map(|s| s.occurrence.expression.as_deref().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["#library", "#empty", "#element"]
+    );
+    let pending = compile_schema_document_model("pending", "{schema | {attributes | {#library}} }");
+    assert!(!pending.is_ready_for_validation());
+    assert_eq!(
+        pending.declaration_references.state(),
+        ReferenceResolutionState::Pending
+    );
+    assert_eq!(pending.declaration_references.sites.len(), 1);
+    assert!(pending.declaration_references.sites[0].resolution.is_none());
+}
+#[test]
+fn attribute_reference_kind_and_name_errors_are_consumer_errors_under_every_disposition() {
+    for disposition in ["mandatory", "warning", "ignore", "neutral"] {
+        for target in [
+            parse("{element @name=wrong}"),
+            parse("{attribute}"),
+            parse("{attribute @name=\" \"}"),
+        ] {
+            let mut host = Host::new();
+            host.disposition(disposition);
+            let name = if target.nodes.iter().any(|n| matches!(n, CemAstNode::Element { expanded_name, ..} if expanded_name.local_name == "attribute")) {"attribute"} else {"element"};
+            host.outcomes.insert(
+                "#library".into(),
+                ReferenceLinkEvaluation::Resolved(vec![node(&target, name)]),
+            );
+            let model = host.resolve(parse("{schema | {attributes | {#library}} }"));
+            assert_eq!(
+                model.declaration_references.state(),
+                ReferenceResolutionState::Invalid
+            );
+            assert!(!model.is_ready_for_validation());
+            assert!(model.compile_diagnostics.iter().any(|d| d.code
+                == cem_ml::schema::declaration_references::INVALID_REFERENCE_TARGET
+                && d.source_map.is_some()));
+        }
+    }
+}
+#[test]
+fn attribute_references_keep_partial_results_and_unresolved_readiness_under_each_policy() {
+    for disposition in ["mandatory", "warning", "ignore", "neutral"] {
+        let target = parse("{attribute @name=available}");
+        let mut host = Host::new();
+        host.disposition(disposition);
+        host.outcomes.insert(
+            "#library".into(),
+            ReferenceLinkEvaluation::Resolved(vec![node(&target, "attribute")]),
+        );
+        host.outcomes.insert(
+            "#later".into(),
+            ReferenceLinkEvaluation::Unresolved("not ready".into()),
+        );
+        let model = host.resolve(parse("{schema | {attributes | {#library} {#later}} }"));
+        assert!(model.attributes.contains_key("available"));
+        assert!(!model.is_ready_for_validation());
+        assert_eq!(
+            model.declaration_references.state(),
+            ReferenceResolutionState::Unresolved
+        );
+    }
+}
+
+#[test]
+fn referenced_attribute_dependencies_are_checked_in_the_assembled_consumer() {
+    use cem_ml::schema::document_model::UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE;
+    let library = parse(
+        r#"{schema | {attributes | {attribute @name=size @type=schema:integer @type-diagnostic=fixture.value}} {diagnostics | {diagnostic @code=fixture.value @severity=error @behavior=schema:scalar-type}} }"#,
+    );
+    let declaration = node(&library, "attribute");
+    let source_map = match declaration.node() {
+        CemAstNode::Element { source, .. } => source.clone(),
+        _ => unreachable!(),
+    };
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#library".into(),
+        ReferenceLinkEvaluation::Resolved(vec![declaration]),
+    );
+    let missing = host.resolve(parse("{schema | {attributes | {#library}} }"));
+    assert!(missing.diagnostics.is_empty());
+    let error = missing
+        .compile_diagnostics
+        .iter()
+        .find(|d| d.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE)
+        .unwrap();
+    assert_eq!(error.source_map.as_ref(), Some(&source_map));
+    let provided = host.resolve(parse("{schema | {attributes | {#library}} {diagnostics | {diagnostic @code=fixture.value @severity=error @behavior=schema:scalar-type}} }"));
+    assert!(!provided
+        .compile_diagnostics
+        .iter()
+        .any(|d| d.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE));
+    assert!(provided.diagnostics.contains_key("fixture.value"));
+}

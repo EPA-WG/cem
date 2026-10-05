@@ -4360,7 +4360,7 @@ fn compile_document_model_from_document_with_seen(
 pub(crate) fn compile_document_model_with_declarations(
     schema_uri: &str,
     document: &CemDocument,
-    declarations: &BTreeMap<AstNodeId, Vec<ElementModel>>,
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
 ) -> SchemaDocumentModel {
     compile_document_model_from_document_with_declarations(
@@ -4372,25 +4372,47 @@ pub(crate) fn compile_document_model_with_declarations(
     )
 }
 
-pub(crate) fn element_declaration_reference_ids(document: &CemDocument) -> Vec<AstNodeId> {
+#[derive(Debug, Clone)]
+pub(crate) enum CompiledSchemaDeclaration {
+    Element(ElementModel),
+    Attribute(Box<AttributeModel>),
+}
+
+/// Discover supported collection sites in authored order. The collection,
+/// rather than the expression or returned value, selects the target contract.
+pub(crate) fn declaration_reference_sites(
+    document: &CemDocument,
+) -> Vec<(AstNodeId, &'static str)> {
     let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         return vec![];
     };
-    element_child_ids_by_local_name(document, schema_id, "elements")
-        .into_iter()
-        .flat_map(|id| match document.get(id) {
-            Some(CemAstNode::Element { children, .. }) => children.clone(),
-            _ => vec![],
-        })
-        .filter(|id| matches!(document.get(*id), Some(CemAstNode::Reference { .. })))
-        .collect()
+    let Some(CemAstNode::Element { children, .. }) = document.get(schema_id) else {
+        return vec![];
+    };
+    let mut sites = vec![];
+    for collection_id in children {
+        let declaration = match document.get(*collection_id).and_then(element_local_name) {
+            Some("elements") => "element",
+            Some("attributes") => "attribute",
+            _ => continue,
+        };
+        if let Some(CemAstNode::Element { children, .. }) = document.get(*collection_id) {
+            sites.extend(
+                children
+                    .iter()
+                    .filter(|id| matches!(document.get(**id), Some(CemAstNode::Reference { .. })))
+                    .map(|id| (*id, declaration)),
+            );
+        }
+    }
+    sites
 }
 
 fn compile_document_model_from_document_with_declarations(
     schema_uri: &str,
     document: &CemDocument,
     seen_schema_uris: &mut BTreeSet<String>,
-    declarations: &BTreeMap<AstNodeId, Vec<ElementModel>>,
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
 ) -> SchemaDocumentModel {
     if !seen_schema_uris.insert(schema_uri.to_owned()) {
@@ -4401,7 +4423,9 @@ fn compile_document_model_from_document_with_declarations(
     model.declaration_references = compilation;
     for site in &model.declaration_references.sites {
         if let Some(resolution) = &site.resolution {
-            model.compile_diagnostics.extend(resolution.diagnostics.clone());
+            model
+                .compile_diagnostics
+                .extend(resolution.diagnostics.clone());
         }
     }
 
@@ -4409,6 +4433,13 @@ fn compile_document_model_from_document_with_declarations(
         seen_schema_uris.remove(schema_uri);
         return model;
     };
+    for (id, _) in declaration_reference_sites(document) {
+        if !declarations.contains_key(&id) {
+            model
+                .declaration_references
+                .retain_pending(schema_uri, document.get(id).unwrap());
+        }
+    }
     let uses = collect_schema_uses(document, schema_id);
     model.behaviors = collect_behavior_definitions(document, schema_id, schema_uri, &uses);
 
@@ -4422,11 +4453,11 @@ fn compile_document_model_from_document_with_declarations(
             };
             if matches!(child, CemAstNode::Reference { .. }) {
                 if let Some(elements) = declarations.get(child_id) {
-                    for element in elements {
-                        model.elements.insert(element.name.clone(), element.clone());
+                    for declaration in elements {
+                        if let CompiledSchemaDeclaration::Element(element) = declaration {
+                            model.elements.insert(element.name.clone(), element.clone());
+                        }
                     }
-                } else {
-                    model.declaration_references.retain_pending(schema_uri, child);
                 }
                 continue;
             }
@@ -4444,7 +4475,7 @@ fn compile_document_model_from_document_with_declarations(
         }
     }
 
-    model.attributes = collect_attribute_models(document, schema_id);
+    model.attributes = collect_attribute_models(document, schema_id, declarations);
     model.diagnostics = collect_diagnostic_definitions(document, schema_id);
     let (diagnostic_behaviors, diagnostic_compile_diagnostics) =
         collect_diagnostic_behaviors(document, schema_id, schema_uri, &uses, &model.behaviors);
@@ -4574,6 +4605,7 @@ pub(crate) fn compile_element_model(
 fn collect_attribute_models(
     document: &CemDocument,
     schema_id: AstNodeId,
+    declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
 ) -> BTreeMap<String, AttributeModel> {
     let mut attributes = BTreeMap::new();
     for attributes_id in element_child_ids_by_local_name(document, schema_id, "attributes") {
@@ -4581,161 +4613,126 @@ fn collect_attribute_models(
             continue;
         };
         for child_id in children {
-            if document.get(*child_id).and_then(element_local_name) != Some("attribute") {
-                continue;
+            if matches!(document.get(*child_id), Some(CemAstNode::Reference { .. })) {
+                if let Some(resolved) = declarations.get(child_id) {
+                    for declaration in resolved {
+                        if let CompiledSchemaDeclaration::Attribute(attribute) = declaration {
+                            attributes.insert(attribute.name.clone(), attribute.as_ref().clone());
+                        }
+                    }
+                }
+            } else if let Some(attribute) = compile_attribute_model(document, *child_id) {
+                attributes.insert(attribute.name.clone(), attribute);
             }
-            let attrs = collect_attrs(document, *child_id);
-            let Some(name) = attrs.get("name").map(String::as_str).map(str::trim) else {
-                continue;
-            };
-            if name.is_empty() {
-                continue;
-            }
-            attributes.insert(
-                name.to_owned(),
-                AttributeModel {
-                    name: name.to_owned(),
-                    value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
-                    default_value: attrs.get("default").cloned(),
-                    allowed_values: parse_value_set(attrs.get("values")),
-                    min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
-                        .map(str::to_owned),
-                    max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive")
-                        .map(str::to_owned),
-                    min_exclusive: optional_non_empty_attr(&attrs, "minExclusive")
-                        .map(str::to_owned),
-                    max_exclusive: optional_non_empty_attr(&attrs, "maxExclusive")
-                        .map(str::to_owned),
-                    min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
-                    max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
-                    length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
-                    string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
-                    string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
-                    string_forbidden_prefixes: parse_value_set(
-                        attrs.get("stringForbiddenPrefixes"),
-                    ),
-                    string_forbidden_suffixes: parse_value_set(
-                        attrs.get("stringForbiddenSuffixes"),
-                    ),
-                    string_includes: parse_value_set(attrs.get("stringIncludes")),
-                    string_excludes: parse_value_set(attrs.get("stringExcludes")),
-                    item_count: optional_non_empty_attr(&attrs, "itemCount").map(str::to_owned),
-                    min_items: optional_non_empty_attr(&attrs, "minItems").map(str::to_owned),
-                    max_items: optional_non_empty_attr(&attrs, "maxItems").map(str::to_owned),
-                    total_digits: optional_non_empty_attr(&attrs, "totalDigits").map(str::to_owned),
-                    fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
-                        .map(str::to_owned),
-                    pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
-                    white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
-                    path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
-                    path_forbidden_prefixes: parse_value_set(attrs.get("pathForbiddenPrefixes")),
-                    path_directory_names: parse_value_set(attrs.get("pathDirectoryNames")),
-                    path_forbidden_directory_names: parse_value_set(
-                        attrs.get("pathForbiddenDirectoryNames"),
-                    ),
-                    path_extensions: parse_value_set(attrs.get("pathExtensions")),
-                    path_forbidden_extensions: parse_value_set(
-                        attrs.get("pathForbiddenExtensions"),
-                    ),
-                    path_basenames: parse_value_set(attrs.get("pathBasenames")),
-                    path_forbidden_basenames: parse_value_set(attrs.get("pathForbiddenBasenames")),
-                    uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
-                    uri_forbidden_schemes: parse_ascii_lower_value_set(
-                        attrs.get("uriForbiddenSchemes"),
-                    ),
-                    uri_hosts: parse_ascii_lower_value_set(attrs.get("uriHosts")),
-                    uri_forbidden_hosts: parse_ascii_lower_value_set(
-                        attrs.get("uriForbiddenHosts"),
-                    ),
-                    uri_ports: parse_value_set(attrs.get("uriPorts")),
-                    uri_forbidden_ports: parse_value_set(attrs.get("uriForbiddenPorts")),
-                    uri_requires_authority: optional_boolean_datatype_param(
-                        &attrs,
-                        "uriRequiresAuthority",
-                    ),
-                    uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
-                    uri_path_forbidden_prefixes: parse_value_set(
-                        attrs.get("uriForbiddenPathPrefixes"),
-                    ),
-                    uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
-                    uri_path_forbidden_extensions: parse_value_set(
-                        attrs.get("uriForbiddenPathExtensions"),
-                    ),
-                    uri_path_basenames: parse_value_set(attrs.get("uriPathBasenames")),
-                    uri_path_forbidden_basenames: parse_value_set(
-                        attrs.get("uriForbiddenPathBasenames"),
-                    ),
-                    uri_queries: parse_value_set(attrs.get("uriQueries")),
-                    uri_forbidden_queries: parse_value_set(attrs.get("uriForbiddenQueries")),
-                    uri_query_parameters: parse_value_set(attrs.get("uriQueryParameters")),
-                    uri_query_parameter_value_tokens: parse_value_set(
-                        attrs.get("uriQueryParameterValues"),
-                    ),
-                    uri_query_parameter_values: parse_name_value_set(
-                        attrs.get("uriQueryParameterValues"),
-                    ),
-                    uri_query_forbidden_parameters: parse_value_set(
-                        attrs.get("uriQueryForbiddenParameters"),
-                    ),
-                    uri_query_required_parameters: parse_value_set(
-                        attrs.get("uriQueryRequiredParameters"),
-                    ),
-                    uri_fragments: parse_value_set(attrs.get("uriFragments")),
-                    uri_forbidden_fragments: parse_value_set(attrs.get("uriForbiddenFragments")),
-                    media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
-                    media_type_forbidden_essences: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeForbiddenEssences"),
-                    ),
-                    media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
-                    media_type_subtypes: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeSubtypes"),
-                    ),
-                    media_type_suffixes: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeSuffixes"),
-                    ),
-                    media_type_forbidden_types: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeForbiddenTypes"),
-                    ),
-                    media_type_forbidden_subtypes: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeForbiddenSubtypes"),
-                    ),
-                    media_type_forbidden_suffixes: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeForbiddenSuffixes"),
-                    ),
-                    media_type_parameters: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeParameters"),
-                    ),
-                    media_type_parameter_value_tokens: parse_value_set(
-                        attrs.get("mediaTypeParameterValues"),
-                    ),
-                    media_type_parameter_values: parse_media_type_parameter_value_set(
-                        attrs.get("mediaTypeParameterValues"),
-                    ),
-                    media_type_forbidden_parameters: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeForbiddenParameters"),
-                    ),
-                    media_type_required_parameters: parse_ascii_lower_value_set(
-                        attrs.get("mediaTypeRequiredParameters"),
-                    ),
-                    values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
-                        .map(str::to_owned),
-                    type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic")
-                        .map(str::to_owned),
-                    datatype_param_diagnostic: optional_non_empty_attr(
-                        &attrs,
-                        "datatype-param-diagnostic",
-                    )
-                    .map(str::to_owned),
-                    source_map: document
-                        .get(*child_id)
-                        .map(source_stack_for_node)
-                        .cloned()
-                        .unwrap_or_default(),
-                },
-            );
         }
     }
     attributes
+}
+
+pub(crate) fn compile_attribute_model(
+    document: &CemDocument,
+    node_id: AstNodeId,
+) -> Option<AttributeModel> {
+    if document.get(node_id).and_then(element_local_name) != Some("attribute") {
+        return None;
+    }
+    let attrs = collect_attrs(document, node_id);
+    let name = attrs.get("name")?.trim();
+    if name.is_empty() {
+        return None;
+    }
+    Some(AttributeModel {
+        name: name.to_owned(),
+        value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
+        default_value: attrs.get("default").cloned(),
+        allowed_values: parse_value_set(attrs.get("values")),
+        min_inclusive: optional_non_empty_attr(&attrs, "minInclusive").map(str::to_owned),
+        max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive").map(str::to_owned),
+        min_exclusive: optional_non_empty_attr(&attrs, "minExclusive").map(str::to_owned),
+        max_exclusive: optional_non_empty_attr(&attrs, "maxExclusive").map(str::to_owned),
+        min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
+        max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
+        length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
+        string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
+        string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
+        string_forbidden_prefixes: parse_value_set(attrs.get("stringForbiddenPrefixes")),
+        string_forbidden_suffixes: parse_value_set(attrs.get("stringForbiddenSuffixes")),
+        string_includes: parse_value_set(attrs.get("stringIncludes")),
+        string_excludes: parse_value_set(attrs.get("stringExcludes")),
+        item_count: optional_non_empty_attr(&attrs, "itemCount").map(str::to_owned),
+        min_items: optional_non_empty_attr(&attrs, "minItems").map(str::to_owned),
+        max_items: optional_non_empty_attr(&attrs, "maxItems").map(str::to_owned),
+        total_digits: optional_non_empty_attr(&attrs, "totalDigits").map(str::to_owned),
+        fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits").map(str::to_owned),
+        pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
+        white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
+        path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
+        path_forbidden_prefixes: parse_value_set(attrs.get("pathForbiddenPrefixes")),
+        path_directory_names: parse_value_set(attrs.get("pathDirectoryNames")),
+        path_forbidden_directory_names: parse_value_set(attrs.get("pathForbiddenDirectoryNames")),
+        path_extensions: parse_value_set(attrs.get("pathExtensions")),
+        path_forbidden_extensions: parse_value_set(attrs.get("pathForbiddenExtensions")),
+        path_basenames: parse_value_set(attrs.get("pathBasenames")),
+        path_forbidden_basenames: parse_value_set(attrs.get("pathForbiddenBasenames")),
+        uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
+        uri_forbidden_schemes: parse_ascii_lower_value_set(attrs.get("uriForbiddenSchemes")),
+        uri_hosts: parse_ascii_lower_value_set(attrs.get("uriHosts")),
+        uri_forbidden_hosts: parse_ascii_lower_value_set(attrs.get("uriForbiddenHosts")),
+        uri_ports: parse_value_set(attrs.get("uriPorts")),
+        uri_forbidden_ports: parse_value_set(attrs.get("uriForbiddenPorts")),
+        uri_requires_authority: optional_boolean_datatype_param(&attrs, "uriRequiresAuthority"),
+        uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
+        uri_path_forbidden_prefixes: parse_value_set(attrs.get("uriForbiddenPathPrefixes")),
+        uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
+        uri_path_forbidden_extensions: parse_value_set(attrs.get("uriForbiddenPathExtensions")),
+        uri_path_basenames: parse_value_set(attrs.get("uriPathBasenames")),
+        uri_path_forbidden_basenames: parse_value_set(attrs.get("uriForbiddenPathBasenames")),
+        uri_queries: parse_value_set(attrs.get("uriQueries")),
+        uri_forbidden_queries: parse_value_set(attrs.get("uriForbiddenQueries")),
+        uri_query_parameters: parse_value_set(attrs.get("uriQueryParameters")),
+        uri_query_parameter_value_tokens: parse_value_set(attrs.get("uriQueryParameterValues")),
+        uri_query_parameter_values: parse_name_value_set(attrs.get("uriQueryParameterValues")),
+        uri_query_forbidden_parameters: parse_value_set(attrs.get("uriQueryForbiddenParameters")),
+        uri_query_required_parameters: parse_value_set(attrs.get("uriQueryRequiredParameters")),
+        uri_fragments: parse_value_set(attrs.get("uriFragments")),
+        uri_forbidden_fragments: parse_value_set(attrs.get("uriForbiddenFragments")),
+        media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
+        media_type_forbidden_essences: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeForbiddenEssences"),
+        ),
+        media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
+        media_type_subtypes: parse_ascii_lower_value_set(attrs.get("mediaTypeSubtypes")),
+        media_type_suffixes: parse_ascii_lower_value_set(attrs.get("mediaTypeSuffixes")),
+        media_type_forbidden_types: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeForbiddenTypes"),
+        ),
+        media_type_forbidden_subtypes: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeForbiddenSubtypes"),
+        ),
+        media_type_forbidden_suffixes: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeForbiddenSuffixes"),
+        ),
+        media_type_parameters: parse_ascii_lower_value_set(attrs.get("mediaTypeParameters")),
+        media_type_parameter_value_tokens: parse_value_set(attrs.get("mediaTypeParameterValues")),
+        media_type_parameter_values: parse_media_type_parameter_value_set(
+            attrs.get("mediaTypeParameterValues"),
+        ),
+        media_type_forbidden_parameters: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeForbiddenParameters"),
+        ),
+        media_type_required_parameters: parse_ascii_lower_value_set(
+            attrs.get("mediaTypeRequiredParameters"),
+        ),
+        values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic").map(str::to_owned),
+        type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic").map(str::to_owned),
+        datatype_param_diagnostic: optional_non_empty_attr(&attrs, "datatype-param-diagnostic")
+            .map(str::to_owned),
+        source_map: document
+            .get(node_id)
+            .map(source_stack_for_node)
+            .cloned()
+            .unwrap_or_default(),
+    })
 }
 
 fn validate_attribute_diagnostic_reference(

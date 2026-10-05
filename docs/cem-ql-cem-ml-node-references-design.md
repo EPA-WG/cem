@@ -750,8 +750,8 @@ declarations. Their original retained owners and declaring lexical `{uses}`
 aliases are used to compile them; the source tree is not cloned or rewritten.
 References occupy their authored collection position, preserving the existing
 last-name-wins behavior. Consumer schema field contracts still apply after the
-collection is assembled. Other declaration collections and validation-input
-references remain implementation work.
+collection is assembled. The attribute declaration collection uses the same consumer contract, as
+described below. Other collections and validation-input references remain work.
 
 Available valid declarations are retained when another selected branch remains
 incomplete. `SchemaDocumentModel.declaration_references` reports per-site and
@@ -880,3 +880,50 @@ The existing readiness and coordinated publication gates apply to every result.
 Remaining validation/composition consumers and deferred syntax/element behavior
 remain actionable work, with verification scenarios, in
 [todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse).
+
+
+### Schema consumer inventory and attribute declaration reuse (2026-10-04)
+
+The consumer site determines target kind and cardinality. A generic reference
+node does not imply that a scalar schema field can consume a collection, that
+one declaration imports its entire declaring schema, or that a validation
+input is rewritten. The existing sites are:
+
+| Site | Target contract | Evaluation phase and current status |
+| --- | --- | --- |
+| Direct references in `{elements}` | Zero or more named `{element}` declarations | Explicit schema compilation; implemented. |
+| Direct references in `{attributes}` | Zero or more named `{attribute}` declarations | Explicit schema compilation; implemented. |
+| `{behaviors}`, `{diagnostics}`, `{constraints}`, `{field-contracts}` collections | Zero or more declarations of the collection's own kind; named behaviors, diagnostic codes, constraint kinds and contract applications retain their existing keys | Collection assembly before dependent schema checks; native reference integration remains actionable work. |
+| Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | Existing schema compilation behavior remains compatible; a native node-valued base slot requires a separate contract. |
+| Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
+| Native references occurring in validation input | Consumer-specific node kinds, cardinality and recursive validation rules | Retained as input until a validation consumer explicitly requests evaluation; target consumption rules remain actionable work. |
+
+Attribute collection references select zero or more named attribute declarations
+at their authored position. Selection order and repeated targets are retained;
+model insertion preserves last-name-wins behavior alongside ordinary declarations.
+The source tree is not expanded, and result handles retain original owners.
+Reference sites across the supported collections are reported in authored order.
+
+The shared resolver follows nested reference selections under request and
+destination limits, explicit directed scope grants and the effective unresolved
+policy. Missing runtime context is pending, a resolved empty selection is complete,
+and unresolved/cyclic/limited branches prevent readiness even under ignore.
+Valid partial declarations remain inspectable. Wrong target kinds and empty names
+are consumer errors at the selecting reference, independent of disposition.
+
+Compiled attributes use the existing datatype, default-value and diagnostic
+contracts. Their source maps come from the original declaration. Reusing an
+attribute does not automatically import its declaring schema's diagnostics,
+behaviors or other declarations; dependency strings continue to be checked
+against the assembled consuming schema. Such dependency declarations can be
+supplied explicitly through their existing forms. This preserves existing
+consumer behavior while their own reference-enabled collection sites are added.
+
+Package lifecycle compilation and publication use the same readiness gates for
+attribute and element references. Source-only attribute links remain pending;
+the caller can complete the same retained source later with runtime inputs.
+The remaining collection, scalar-link and validation-input work is in
+[todo.md](todo.md#5-integrate-schema-validation-and-construct-reuse), alongside
+scenarios for later verification. This inventory does not choose deferred child
+scope syntax or cem-element ID projection behavior.
