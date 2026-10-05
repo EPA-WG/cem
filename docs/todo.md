@@ -1297,11 +1297,35 @@ implementation verification. They do not claim executable test coverage.
       add fixture actions for budgets, cycles and scope crossings before implementation.
       Scenarios for later design verification: containment never bypasses a grant;
       native and literal dependencies share accounting without synthetic Reference ASTs.
-- [ ] Decide scalar datatype declaration `values` equality: use registered datatype
-      equality (recommended), or exact authored lexical token comparison. Preserve
-      existing attribute-local vocabulary behavior until its migration is explicit.
+- [x] Adopt registered datatype equality for scalar declaration `values`. Preserve
+      existing attribute-local vocabulary behavior until its migration is explicit;
+      equality neither rewrites the input nor implicitly invokes conversion.
       Scenarios for later design verification: integer 003 versus 3 has a defined
       outcome; equality never rewrites the candidate or implicitly invokes conversion.
+- [x] Fixture: traverse native datatype base/rule dependencies in one retained forest:
+      preserve field grouping/target handles, detect cycles, share request/destination
+      limits, enforce grants, distinguish pending from empty/multiple/wrong targets,
+      and retain deferred literal lookup or missing lexical source context.
+      Scenarios for later design verification: hard target errors survive unresolved
+      disposition; no dependency starts a new budget or becomes executable by collection.
+- [x] Implement bounded native datatype dependency traversal using the existing
+      consumer-container resolver. Keep literal QName lookup and registered signature/
+      equality/conversion execution deferred until their adapters are implemented.
+      Scenarios for later design verification: original fields supply error provenance;
+      a partial native forest never appears to be a ready general datatype descriptor.
+      Verification: nine native dependency fixtures and the 92 adjacent datatype/
+      native value/declaration-reference tests pass (101 total).
+- [ ] Implement registered scalar equality and enumeration constant interpretation,
+      preserving each inherited restriction's original contract and binding. Add
+      fixture actions before adapters for numeric/string equality, unavailable equality
+      and inherited restriction provenance; do not rewrite input during comparison.
+      Scenarios for later design verification: a derived equality cannot widen a base
+      vocabulary; unknown constant interpretation prevents readiness rather than fallback.
+- [ ] Decide enumeration constant authoring: preserve whitespace-token `values` and
+      defer richer retained constants (recommended), or design retained constant
+      declarations now with source/reference/metamodel compatibility.
+      Scenarios for later design verification: one string containing spaces is never
+      silently split into a different claimed enum constant; no implicit JSON parsing.
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
       Add focused native fixture items before implementing each slice.

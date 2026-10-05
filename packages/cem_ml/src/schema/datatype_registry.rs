@@ -7,6 +7,13 @@ use super::declaration_references::SchemaDeclarationNode;
 use crate::parser::CemAstNode;
 use std::collections::BTreeMap;
 
+mod dependency_traversal;
+pub use dependency_traversal::{
+    traverse_native_datatype_dependencies, DatatypeDeferredDependency, DatatypeDeferredReason,
+    DatatypeDependencyHost, DatatypeDependencyIssue, DatatypeDependencyIssueKind,
+    DatatypeDependencySite, DatatypeTraversalNode, NativeDatatypeDependencyTraversal,
+};
+
 mod source_plan;
 pub use source_plan::{
     DatatypeDependency, DatatypeDependencyRole, DatatypeDependencyValue, DatatypeKind,

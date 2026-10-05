@@ -1393,7 +1393,16 @@ native rules and explicit cross-kind relationships require compatible registrati
 Converter selection inherits the base converter unless an explicit compatible
 derived converter is registered. Conversion remains an explicit consumer request
 and runs once before all effective restrictions validate its result; unavailable
-selected capabilities never trigger silent fallback. The next decision is scalar
-declaration `values` equality: use registered datatype equality (recommended), or
-exact lexical token matching. Equality cannot rewrite supplied values or implicitly
-invoke conversion. Existing attribute-local vocabulary migration remains separate.
+selected capabilities never trigger silent fallback. Scalar declaration `values`
+uses registered datatype equality, retaining each inherited restriction's original
+contract and binding. Equality cannot rewrite supplied values or implicitly invoke
+conversion. Existing attribute-local vocabulary migration remains separate.
+
+Bounded native datatype dependency traversal now shares request/destination budgets,
+active references and explicit grants across retained base/rule field containers.
+It preserves per-field target diagnostics and stops at invalid target kinds; literal
+QName lookup and missing declaring source context remain deferred. Nine native
+traversal fixtures and adjacent regressions pass (101 total). Selection completeness
+does not establish executable datatype readiness. The next decision is enumeration
+constant authoring: retain whitespace-token `values` and defer richer retained
+constants (recommended), or design retained constant declarations now.

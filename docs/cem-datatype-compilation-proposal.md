@@ -593,14 +593,14 @@ Preserve incomplete dependency branches separately from complete empty selection
 Registration, converter selection and restriction composition follow dependency
 binding; none can make an incomplete traversal appear ready.
 
-## Next decision: scalar values equality
+## Adopted scalar values equality
 
 Scalar datatype declaration `values` needs a comparison contract. Existing
 attribute-local `values` behavior remains a separate migration compatibility
 surface. A restriction must not silently change the candidate representation to
 make an enumeration match.
 
-Recommended contract: compare values using equality declared by the registered
+Compare scalar declaration values using equality declared by the registered
 datatype contract. For an integer contract, numeric `003` and `3` may compare equal;
 for a string contract, distinct lexical strings remain distinct unless its declared
 equality says otherwise. Preparing enumeration constants during schema compilation
@@ -608,13 +608,56 @@ and comparing a supplied value do not authorize rewriting that value or implicit
 invoking its converter during validation. Unknown equality/constant interpretation
 cannot establish a ready values restriction.
 
-Alternative: compare the supplied lexical value to the authored enumeration tokens
-exactly. This follows a simple lexical vocabulary model, but numeric `003` does not
-match an allowed `3` unless the consumer explicitly converted the input first.
+Each inherited values restriction retains its original declaring contract,
+constant interpretation and equality binding. A derived equality does not replace
+a base restriction's equality or widen the inherited allowed values. Existing
+attribute-local vocabulary behavior remains unchanged until migration is explicit.
+Registered equality invocation and constant preparation are not enabled yet.
 
-Choose the scalar declaration contract before compiling `values` restrictions and
-registered equality adapters. No typed-equality behavior or migration of existing
-attribute-local vocabularies is enabled by this proposal.
+## Implemented bounded native dependency traversal
+
+`traverse_native_datatype_dependencies` consumes original datatype roots and
+base/rule fields as one forest through the shared consumer-container resolver.
+Consumer field wrappers retain original handles and edge roles; they are not
+synthetic AST nodes or references. Intermediate native references preserve the
+requested dependency role, and an invalid rule target does not trigger traversal
+of unrelated datatype dependencies. Selected behavior declarations remain leaves.
+
+The traversal retains source plans, field-grouped targets, hard target issues and
+deferred dependencies. Native cycles, request/destination limits and denied scope
+crossings keep selection incomplete. A complete empty or multiple selection is a
+cardinality error, whereas a pending selection is not an empty result. Literal
+QName dependencies and missing original lexical source context remain explicitly
+deferred. Wrong target kinds and malformed source fields fail independently of
+unresolved-reference disposition.
+
+Nine traversal fixtures and the adjacent source/registry/inventory/native-value/
+declaration-reference regressions pass (101 total). Completeness here describes
+dependency selection, not executable datatype readiness. Literal lookup, capability
+registration, effective facet checks and conversion/equality execution still need
+adapters; existing native attribute type consumption stays guarded.
+
+## Next decision: enumeration constant authoring
+
+The existing `values` attribute is a string whose current compiler helper splits
+whitespace-separated tokens. It can express a vocabulary such as `true false` or
+numeric tokens, but cannot represent one string constant containing whitespace.
+Registered datatype equality does not itself supply a new literal syntax.
+
+Recommended first contract: preserve the existing token form and defer richer
+retained enumeration constant authoring to a separate design item. Token constants
+must still be checked through their registered datatype contract; constraints
+beyond this source form can use registered validation rules. Do not invent nested
+quoting, parse JSON, or treat the whole attribute as a single enum constant.
+
+Alternative: design retained enumeration constant declarations now, including
+original owners, typed scalar literal admission, references and compatibility with
+the existing token form. This supports whitespace-containing strings and richer
+values directly but adds metamodel and source-selection work before activation.
+
+Choose this source boundary before enum constant compilation. Whichever form is
+chosen, list/node declaration `values` rejection and the separation of existing
+attribute-local vocabulary migration remain effective.
 
 ## Verified inventory and current native boundary
 
