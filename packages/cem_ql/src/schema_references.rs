@@ -37,6 +37,8 @@ use std::{
 };
 
 mod source_diagnostics;
+mod lexical_handoff;
+pub use lexical_handoff::LexicalScopeHandoffError;
 
 /// Runtime handle for a caller-provided scope; never an authored/context ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

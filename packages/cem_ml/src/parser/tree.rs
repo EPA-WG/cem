@@ -153,16 +153,28 @@ impl RetainedCemTree {
         semantics: CemTreeSemantics,
         native_owner: Option<Arc<dyn Any + Send + Sync>>,
     ) -> Result<Arc<Self>, String> {
+        Self::from_shared(Arc::new(ast), source_uri, source_text, semantics, native_owner)
+    }
+
+    /// Project the original immutable parser allocation without copying its AST.
+    /// All structural validation and semantic projection match `new`.
+    pub fn from_shared(
+        ast: Arc<CemDocument>,
+        source_uri: impl Into<String>,
+        source_text: &str,
+        semantics: CemTreeSemantics,
+        native_owner: Option<Arc<dyn Any + Send + Sync>>,
+    ) -> Result<Arc<Self>, String> {
         Self::new_with_roots(ast, source_uri.into(), source_text, semantics, native_owner, None)
     }
 
     /// Native value projection may contain detached element/attribute roots and
     /// multiple document owners. The ordinary document import remains strict.
     pub(crate) fn native_forest(ast: CemDocument, roots: Vec<AstNodeId>, semantics: CemTreeSemantics, owner: Arc<dyn Any + Send + Sync>) -> Result<Arc<Self>, String> {
-        Self::new_with_roots(ast, "cem:native-values".into(), "", semantics, Some(owner), Some(roots))
+        Self::new_with_roots(Arc::new(ast), "cem:native-values".into(), "", semantics, Some(owner), Some(roots))
     }
 
-    fn new_with_roots(ast: CemDocument, source_uri: String, source_text: &str, semantics: CemTreeSemantics,
+    fn new_with_roots(ast: Arc<CemDocument>, source_uri: String, source_text: &str, semantics: CemTreeSemantics,
         native_owner: Option<Arc<dyn Any + Send + Sync>>, roots: Option<Vec<AstNodeId>>) -> Result<Arc<Self>, String> {
         if !matches!(ast.root(), Some(CemAstNode::Document { node_id: 0, .. })) {
             return Err("A retained CEM tree requires a document root at node 0.".into());
@@ -443,7 +455,7 @@ impl RetainedCemTree {
             });
         Ok(Arc::new(Self {
             provenance: semantics.provenance,
-            ast: Arc::new(ast),
+            ast,
             source_uri,
             metadata,
             native_owner,

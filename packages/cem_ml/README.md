@@ -54,11 +54,15 @@ The wrapper forwards the original events without reparsing or keeping history.
 surviving standalone/native attribute reference and general expression nodes.
 Associations use builder node identities, without matching source offsets.
 Schema-machine diagnostics remain available separately from builder diagnostics.
+`parser::tree::RetainedCemTree::from_shared` can project that same allocation for
+query consumers, applying the same structural checks as the owning constructor.
 
 Capture does not evaluate references or schema selectors. Completion does not
 establish schema readiness. Preparing runtime contexts, effective policies and
-crossing grants remains consumer lifecycle work; automatic handoff to the QL
-host and specialized imported-source association are still pending.
+crossing grants remains consumer lifecycle work. The QL host's explicit
+`attach_captured_lexical_scopes` callback accepts this metadata at that stage;
+automatic engine/package preparation and specialized imported-source association
+are still pending.
 
 ## Verification
 

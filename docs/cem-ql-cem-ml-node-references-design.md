@@ -845,8 +845,21 @@ supplied by the builder, retaining only surviving occurrences after folding.
 No source-coordinate matching or arena copy is used. Snapshot lookup requires
 the original AST allocation; an equal node ID in a different owner is rejected.
 Final machine diagnostics remain inspectable separately from builder diagnostics.
-Specialized imported-source associations and QL lifecycle preparation of contexts,
-effective policies, dependency readiness and grants remain pending implementation.
+
+`RetainedCemTree::from_shared` projects the same AST allocation with the existing
+tree constructor's structural checks. The explicit QL lifecycle method
+`attach_captured_lexical_scopes(captured, prepare)` checks that owner is registered
+and no occurrence already has a direct assignment, before invoking preparation.
+The callback receives the original typed occurrence, its saved bindings and the
+nearest existing scope. It supplies a runtime context (or `None` for pending inputs
+or schema selection) and effective reference policy. All preparation completes
+before attaching distinct lexical scopes, preserving each existing subtree/sibling
+relationship boundary. Returned occurrence/scope handles support readiness updates
+through `set_context`; attachment neither evaluates selectors nor creates grants,
+compiles expressions or writes source targets. Separate host executions can share
+the saved source without sharing results. Specialized imported-source association
+and automatic engine/package preparation remain pending. Effective destination and
+request limits still constrain evaluation under the existing common resolver.
 
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before

@@ -207,6 +207,37 @@ implementation. `git diff --check` passes.
       owner/slot and schema/namespace restoration cases. The 20 builder, 41 machine,
       and 18 existing reference/source/parity tests pass. Imported-source association
       and lifecycle preparation of QL contexts, policies and grants remain open.
+- [x] Fixture: hand captured original expression occurrences to QL through a shared
+      AST tree view. Verify lifecycle-selected contexts, independent pending snapshots,
+      native general attribute expression hooks, original owners/artifacts,
+      existing explicit boundaries/grants, and stricter
+      effective policy limits. Reject foreign owners and repeat attachment before
+      invoking preparation or changing host state.
+      Scenarios for later design verification: parser closure never runs a selector;
+      attachment preserves the nearest caller-defined relationship boundary.
+- [x] Add an explicit captured-scope lifecycle handoff and a shared-owner tree
+      constructor under those fixtures. Let the caller prepare each runtime context
+      and effective policy from its saved lexical snapshot; expose resulting handles
+      for later readiness updates. Never inherit runtime inputs or grant crossings.
+      Scenarios for later design verification: preparation completes before attaching
+      scopes, and source targets remain untouched across separate executions.
+      Verification: four new handoff fixtures and all 28 existing QL schema-reference
+      fixtures pass, including general attribute lifecycle hooks, late-conflict
+      preflight, owner/context isolation, directed grants and both limit budgets.
+      All 23 focused CEM-ML capture/reference/source/parity tests pass. Full
+      `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
+      Imported-source capture and automatic engine/package preparation remain open.
+- [ ] Fixture: extend captured associations to imported XML namespace aliases and
+      standalone `cem:expr` occurrences, host/wrapping/sibling schema switches,
+      source-mapped entity/CDATA payloads and nested restoration. Feed the original
+      imported owner into the QL handoff; verify pending inputs and directed grants.
+      Scenarios for later design verification: specialized import frames retain
+      decoded source provenance without reparsing, target execution or new XML
+      attribute-expression syntax (that recognition decision remains deferred).
+- [ ] Integrate lexical capture with the specialized XML import path under those
+      fixtures, sharing the original immutable owner and explicit QL preparation.
+      Scenarios for later design verification: namespace aliases are resolved by
+      the import owner while later lifecycle evaluation keeps source-position bindings.
 - [ ] Fixture: retain completed namespace/schema associations through their original
       source occurrences, including directive/host/wrapping/sibling forms, inherited
       defaults, subsequent rebinding, nested restoration and pending schema selection.

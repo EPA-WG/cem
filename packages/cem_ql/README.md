@@ -901,6 +901,22 @@ so lexical snapshots share their boundary's directed grants without granting
 the reverse direction. Context replacement invalidates only that snapshot's
 artifacts; request and effective lexical-scope limits remain independently active.
 
+For parser-captured occurrences, construct a tree with
+`RetainedCemTree::from_shared(captured.document().clone(), ...)`, register its
+relationship scopes, and call `attach_captured_lexical_scopes(&captured, prepare)`
+at the consumer lifecycle stage. `prepare` receives the original typed source,
+saved namespace/schema snapshot and nearest existing scope. It supplies an
+optional runtime context and effective reference policy. Missing inputs or
+unready schema selection must return `None` context; source capture cannot supply
+runtime readiness. Returned node/scope pairs support later `set_context` updates.
+
+Attachment checks the original owner and rejects already assigned occurrences
+before calling preparation. It prepares every occurrence before changing the
+host, preserves existing subtree/sibling relationship boundaries, and creates
+no crossing grants or compiled selections. Use `set_context` to refresh attached
+inputs. Imported-source capture and automatic engine/package preparation remain
+separate work.
+
 `assign_following_scope(tree, boundary, scope)` records a caller-completed
 sibling-position switch using the original retained boundary node. Earlier
 siblings and the boundary keep their scope; following siblings and their
