@@ -485,4 +485,112 @@ fn following_control_metadata_and_conflicts_are_checked_before_selection() {
     );
     assert!(missing.control().is_none());
     assert!(missing.diagnostics().is_empty());
+}#[test]
+fn prelude_controls_retain_original_literal_payloads_and_require_captured_form() {
+    use cem_ml::schema::{
+        machine::SchemaElementForm,
+        scope_controls::{
+            validate_schema_body_controls, validate_schema_scope_controls, SchemaScopeControlExtent,
+        },
+    };
+    for (body, expected, issue) in [
+        (
+            "select=library",
+            Some(SchemaHostSource::LiteralSelector("library".into())),
+            None,
+        ),
+        (
+            "select='#library'",
+            Some(SchemaHostSource::LiteralSelector("#library".into())),
+            None,
+        ),
+        (
+            "src='./schema.cem'",
+            Some(SchemaHostSource::Uri("./schema.cem".into())),
+            None,
+        ),
+        (
+            "./schema.cem",
+            Some(SchemaHostSource::Uri("./schema.cem".into())),
+            None,
+        ),
+        (
+            "select=library src=other",
+            None,
+            Some(SchemaHostControlIssue::ConflictingSources),
+        ),
+        (
+            "select=first select=last",
+            None,
+            Some(SchemaHostControlIssue::ConflictingSources),
+        ),
+        (
+            "select=''",
+            None,
+            Some(SchemaHostControlIssue::InvalidValue),
+        ),
+        ("", None, Some(SchemaHostControlIssue::InvalidValue)),
+    ] {
+        let captured = capture(&format!(
+            "@default urn:application\n@schema {body}\n{{host}}"
+        ));
+        let directive = captured
+            .document()
+            .nodes
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "@schema" => {
+                    SchemaDeclarationNode::new(captured.document().clone(), *node_id)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let form = captured.schema_element_form(directive.document(), directive.node_id());
+        assert_eq!(form, Some(SchemaElementForm::Prelude), "{body}");
+        let names = |source: &SchemaDeclarationNode| {
+            captured
+                .expanded_name(source.document(), source.node_id())
+                .cloned()
+        };
+        let contract = validate_schema_scope_controls(directive.clone(), names, form);
+        assert_eq!(contract.extent(), SchemaScopeControlExtent::Following);
+        assert_eq!(contract.issue().map(|error| error.issue), issue, "{body}");
+        if let Some(expected) = expected {
+            let control = contract.control().unwrap();
+            match (&control.source, expected) {
+                (
+                    SchemaHostSource::LiteralSelector(actual),
+                    SchemaHostSource::LiteralSelector(expected),
+                )
+                | (SchemaHostSource::Uri(actual), SchemaHostSource::Uri(expected)) => {
+                    assert_eq!(actual, &expected)
+                }
+                _ => panic!("wrong literal source kind"),
+            }
+            assert!(Arc::ptr_eq(
+                control.attribute.document(),
+                captured.document()
+            ));
+            assert!(matches!(control.attribute.node(), CemAstNode::Text { .. }));
+            assert!(contract.attributes().is_empty());
+        } else {
+            assert!(!contract.diagnostics().is_empty());
+        }
+        assert!(!validate_schema_body_controls(directive.clone(), names, form).has_override());
+        assert_eq!(
+            validate_schema_scope_controls(directive.clone(), names, None)
+                .issue()
+                .unwrap()
+                .issue,
+            SchemaHostControlIssue::BodyFormNotReady
+        );
+        let other = capture(&format!("@schema {body}\n"));
+        assert!(captured
+            .schema_element_form(other.document(), directive.node_id())
+            .is_none());
+    }
 }

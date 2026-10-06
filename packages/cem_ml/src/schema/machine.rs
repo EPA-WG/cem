@@ -2515,12 +2515,12 @@ fn has_uri_scheme(value: &str) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SchemaDirectiveError {
+pub(super) enum SchemaDirectiveError {
     ExclusiveSrcSelect,
     MissingSource,
 }
 
-fn parse_schema_source_body(body: &str) -> Result<SchemaSource, SchemaDirectiveError> {
+pub(super) fn parse_schema_source_body(body: &str) -> Result<SchemaSource, SchemaDirectiveError> {
     let mut src: Option<String> = None;
     let mut select: Option<String> = None;
     for (key, value) in parse_directive_attrs(body) {
@@ -2545,7 +2545,7 @@ fn parse_schema_source_body(body: &str) -> Result<SchemaSource, SchemaDirectiveE
     }
 }
 
-fn parse_directive_attrs(body: &str) -> Vec<(String, String)> {
+pub(super) fn parse_directive_attrs(body: &str) -> Vec<(String, String)> {
     let chars: Vec<char> = body.chars().collect();
     let mut out = Vec::new();
     let mut i = 0;

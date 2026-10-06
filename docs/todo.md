@@ -1664,17 +1664,57 @@ only and adds no runtime behavior or public syntax.
       switches; an incomplete following region cannot borrow prior contexts/models;
       retries restore original assignments and use fresh caller inputs; declaring
       owners and repeated placements retain their provenance.
-- [ ] Fixture: connect existing document-prelude schema controls to the
+- [x] Fixture: capture original document `@schema` directive form and decode
+      existing literal URI/selector payloads through the shared following contract.
+      Cover default namespace independence, original source handles, missing form,
+      empty/conflicting/repeated sources and compatibility with body-only APIs.
+      Scenarios for later design verification: opaque directive text is not a typed
+      reference slot; decoding does not install scopes or synthesize AST attributes.
+- [x] Fixture: preserve the consuming model for reference-selected targets whose
+      original enclosing region differs from their consumed placement. Apply entered
+      following controls along actual owning child edges within selected subtrees;
+      retain original destination contexts and traversal limits independently.
+      Scenarios for later design verification: an outer source default cannot replace
+      a child consumer contract; authored controls inside a selected subtree still
+      govern its following siblings without moving or cloning source nodes.
+- [x] Fixture: activate entered literal schema preludes through existing retained
+      runtime stages. Cover document scopes and nested body restoration, enclosing
+      selector contexts,
+      pending inputs and URI readiness, fresh invocation retries and native
+      consuming-model behavior domains. Existing following-region regressions retain
+      coverage for repeated selected subtrees, authorization and traversal limits.
+      Scenarios for later design verification: a prelude starts after its original
+      source control and ends with its block; unresolved sources never borrow an
+      inherited model/context or mutate captured lexical records.
+- [x] Fixture: connect existing document-prelude schema controls to the
       entered-boundary runtime scheduler. Reuse captured original boundaries and
       the shared admission/readiness/frame/behavior stages, preserve earlier source
       names and local policy provenance, and restore enclosing/following regions.
-      Cover ready and pending literal/native selectors, nested restoration, repeated
-      consumption, original owners and explicit caller contexts. Keep the enclosed
-      child-reference syntax decision deferred.
+      Cover ready and pending literal selectors/native query results, nested
+      restoration, original owners and explicit caller contexts. Keep the enclosed
+      child-reference syntax decision deferred. Completed literal document controls
+      on 2026-10-06 using original text payload occurrences and shared following
+      stages. Verified with 246 focused native reference, schema, lexical-capture
+      and retained behavior tests, including four new fixtures. Source capture remains passive; block parsing needs the decision below.
       Scenarios for later design verification: control forms share the same reference
       consumer contracts without introducing a second AST projection; pending
       overrides cannot borrow inherited or previously active models/contexts; lexical
       names and active traversal budgets survive boundary changes.
+- [ ] Decide block-directive recognition before changing source parsing. The syntax
+      guide describes `@schema` block-prelude shorthand, but the tokenizer currently
+      retains it inside block content as ordinary text. Recommendation pending user
+      decision: finish document preludes and retain block text until line-position
+      recognition, literal-text escaping and compatibility are specified.
+      Scenarios for later design verification: block content is not silently
+      reclassified; nested directives end with the containing scope; existing host
+      and schema-element controls remain available without a new delimiter.
+- [ ] Specify typed prelude reference slots only if that source capability is
+      requested. Current directive payloads are literal text; native reference and
+      expression slots already belong to schema-element/host attribute forms. Keep
+      this separate from the deferred enclosed child-reference syntax decision.
+      Scenarios for later design verification: a literal query constructor is not an
+      authored AST reference slot; consumers retain original source occurrences and
+      do not manufacture attributes or reparse a second CEM tree.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
@@ -1687,8 +1727,9 @@ only and adds no runtime behavior or public syntax.
       restoration and per-consuming-model retained behavior dispatch are implemented.
       Wrapping body controls now use original CEM/XML source forms and the same
       runtime handoff. No-body sibling controls now activate after the original
-      control, using explicit runtime inputs and original owning positions. Next:
-      add document-prelude controls and external loading readiness. Reuse the
+      control, using explicit runtime inputs and original owning positions. Existing
+      literal document-prelude controls now use the same following stage. Next:
+      resolve block parsing and integrate external loading readiness. Reuse the
       implemented preparation and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

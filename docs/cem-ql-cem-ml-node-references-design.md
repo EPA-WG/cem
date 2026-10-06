@@ -500,7 +500,7 @@ preparation. It does not reset the structural traversal's work, destination caps
 or active reference identities, and discovery does not evaluate structural
 references a second time. These APIs validate consuming models; they do not
 install effective runtime contexts or policies during an active request.
-Document-prelude controls and external loading readiness remain actionable
+Block-directive recognition and external loading readiness remain actionable
 lifecycle work in `todo.md`. Wrapping and following installation and per-consuming-model
 behavior dispatch are available through the explicit invocation API described below.
 Generic and explicit controlled-region APIs keep their existing contracts. No
@@ -655,9 +655,39 @@ ordinary descendant attributes do not borrow the inherited model, structural
 reference evaluation is deferred, and the complete-forest behavior gate remains.
 Native CEM/XML retries restore original assignments and use fresh caller contexts
 and targets. No targets are written into authored references. Unentered prior
-controls are not scanned to infer omitted source dependencies. Document-prelude
-scheduling and external URI readiness remain actionable in `todo.md`; enclosed
-child override syntax remains deferred.
+controls are not scanned to infer omitted source dependencies. External URI
+readiness remains actionable in `todo.md`; enclosed child override syntax remains
+deferred.
+
+Literal document-prelude activation (2026-10-06) retains original
+`SchemaElementForm::Prelude` metadata and the directive's text payload. The shared
+scope decoder accepts existing literal `src`, bare URI shorthand and `select`
+forms, rejecting empty or conflicting/repeated sources before selection. Directive
+identity is independent of the default namespace. Missing original form metadata
+stays pending; body-only preparation APIs do not admit preludes as body overrides.
+The selector occurrence retains the original text handle and source map; no
+attribute or reference AST node is synthesized. Literal queries can produce native
+references through the existing bounded QL evaluation stage.
+
+Entered document directives use the existing following transitions, explicit
+caller inputs, policy handoff and invocation restoration. Pending contexts or URI
+loading cannot borrow inherited governance. Fresh retries preserve source owners
+and lexical assignments. Nested host/body switches restore the document model on
+exit. Directive nodes retain enclosing governance and the existing behavior
+candidate filter excludes directive names from application behavior execution.
+
+Reference-selected targets retain their consuming placement's model. Original
+outer source defaults do not replace that contract. Entered following controls
+inside a selected subtree govern its actual owning child edges; destination
+contexts, local policy provenance and limits remain independent of this model
+routing. Original sources and repeated placements remain retained.
+
+The source tokenizer currently recognizes document-level directives and retains
+`@schema` inside block content as text, despite the syntax guide describing block
+shorthand. A task and user decision cover block recognition, line-position and
+literal-text compatibility before changing parsing. Typed prelude reference slots
+are likewise a separate source design task; existing native attribute forms remain
+available. This stage selects no enclosed child-reference syntax.
 
 ### Implicit scope references and defaults
 

@@ -1380,7 +1380,7 @@ attribute target subtrees do not trigger discovery. Structural reference budgets
 and active identities continue across independently bounded selector preparation;
 no discovery rewalk repeats structural reference evaluation.
 
-Document-prelude controls and external loading readiness remain lifecycle
+Block-directive recognition and external loading readiness remain lifecycle
 integration work. Preparation-only discovery
 does not create contexts, install policies or authorize crossings; effective body
 installation is an explicitly invoked consumer stage described below.
@@ -1430,7 +1430,7 @@ behavior execution; unsupported region evaluators remain incomplete without lega
 or all-candidate fallback. Dispatch preserves source attribution and never consumes
 references again or expands authored attribute-target links. Existing single-model
 behavior APIs keep their contracts. Remaining lifecycle work concerns existing
-document-prelude controls and external loading readiness.
+block-directive recognition and external loading readiness.
 
 Wrapping controls now enter the same invocation-local body scheduler as host
 attributes. Shared `validate_schema_body_controls` recognizes captured core schema
@@ -1469,7 +1469,27 @@ retain original owners and repeated placements, directed authorization, explicit
 local policy precedence and active traversal accounting. Per-model behavior
 execution uses the same complete-forest gate. Invocation assignments restore on
 exit, and CEM/XML retries prepare fresh inputs without storing reference targets.
-Document-prelude scheduling and URI loading remain separate actionable work.
+Literal document-prelude scheduling now reuses these following transitions.
+Original `SchemaElementForm::Prelude` capture distinguishes directive payloads
+from element/attribute forms, independently of the default namespace. Shared
+control decoding retains the existing literal URI/selector header and original
+text occurrence, rejects empty/conflicting/repeated sources, and creates no
+synthetic AST nodes. Missing form metadata stays pending. QL selection, admission,
+compilation and explicit runtime inputs use the established bounded stages;
+nested body exit restores the document region and invocation retries restore
+source assignments. Application behavior candidate filters continue to exclude
+directive names.
+
+Reference-selected targets use their consuming model; an original outer default
+cannot replace it. Following controls inside the selected subtree still govern
+actual original child edges. Original destination contexts and limits remain
+independent of placement model routing.
+
+Block-prelude parsing needs an explicit decision: the syntax guide describes block
+shorthand, while the tokenizer currently retains `@schema` within block content as
+text. Recognition and literal-text compatibility must be specified before changing
+that behavior. Typed prelude slots and external URI readiness also remain
+separate actionable work; native host/schema-element attribute forms are available.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

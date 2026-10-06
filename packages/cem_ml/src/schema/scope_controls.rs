@@ -2,6 +2,8 @@
 use super::{
     declaration_references::SchemaDeclarationNode, input_references::native_attribute_expression,
 };
+mod prelude;
+
 use crate::parser::{CemAstNode, ExpandedName};
 
 const CORE_NAMESPACE: &str = "https://cem.dev/ns/core/1";
@@ -26,6 +28,7 @@ pub enum SchemaScopeControlExtent {
 #[derive(Debug, Clone)]
 pub struct SchemaHostControl {
     pub host: SchemaDeclarationNode,
+    /// Original value occurrence: an attribute, or the prelude text payload.
     pub attribute: SchemaDeclarationNode,
     pub source: SchemaHostSource,
 }
@@ -205,7 +208,7 @@ where
     validate_body_controls(host, &mut resolved_name, true, false, form)
 }
 
-/// Decode established body and no-body sibling controls with original names and
+/// Decode established body, no-body sibling and literal prelude controls with
 /// source form. No evaluation, scope installation or readiness is implied.
 pub fn validate_schema_scope_controls<F>(
     host: SchemaDeclarationNode,
@@ -228,6 +231,11 @@ fn validate_body_controls<F>(
 where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
+    if include_following
+        && matches!(host.node(), CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "@schema")
+    {
+        return prelude::validate(host, form);
+    }
     let mut names = std::collections::HashMap::new();
     let mut attributes = vec![];
     let mut pending_attributes = vec![];

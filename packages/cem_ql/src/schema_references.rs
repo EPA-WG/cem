@@ -513,9 +513,11 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
         if let Some(source) = &node.source {
             if let Some(expression) = &node.selector_expression {
                 let provenance = match source.node() {
-                    CemAstNode::Attribute { source, .. } | CemAstNode::Element { source, .. } => source,
+                    CemAstNode::Attribute { source, .. }
+                    | CemAstNode::Element { source, .. }
+                    | CemAstNode::Text { source, .. } => source,
                     _ => unreachable!(
-                        "implicit selectors keep their original attribute or expression"
+                        "implicit selectors keep their original attribute, expression or directive payload"
                     ),
                 };
                 return Some(ReferenceOccurrence {

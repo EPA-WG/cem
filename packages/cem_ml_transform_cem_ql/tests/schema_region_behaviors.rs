@@ -684,3 +684,88 @@ fn following_regions_dispatch_behaviors_with_enclosing_switch_nodes_and_native_r
         }
     )));
 }
+#[test]
+fn document_prelude_behaviors_keep_control_enclosing_and_referenced_targets_consuming() {
+    let inner = behavior(
+        "fixture.inner",
+        "nodes",
+        "{name: $candidate.name, parent: $candidate.parent.name}",
+    );
+    let (captured, tree) = capture(&format!("@ns s = https://cem.dev/ns/schema/1\n@schema select='#library'\n{{host | {{#items}}}} {{after}} {{item}} {{s:schema | {{elements | {{element @name=host @children=item}} {{element @name=after}} {{element @name=item}}}} {inner}}}"));
+    let chosen = elements(&tree, "schema")[0];
+    let item = elements(&tree, "item")[0];
+    let outer = compile_schema_document_model(
+        "base",
+        &format!(
+            "{{schema | {{elements | {{element @name=host}}}} {}}}",
+            behavior("fixture.outer", "nodes", "{name: $candidate.name}")
+        ),
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let ctx = context(&tree, chosen, &tree, &[item]);
+    host.register_scope(tree.clone(), Some(ctx.clone()), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let report = host
+        .validate_input_runtime_host_regions_with_behavior_evaluator(
+            "child",
+            tree.clone(),
+            &[
+                elements(&tree, "@schema")[0],
+                elements(&tree, "host")[0],
+                elements(&tree, "after")[0],
+            ],
+            &outer,
+            policy().limits,
+            |_| Some(ctx.clone()),
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(
+        report.validation.complete && !report.validation.failed,
+        "{:?}",
+        report.validation.diagnostics
+    );
+    assert_eq!(report.inputs.len(), 1);
+    assert_eq!(
+        report
+            .validation
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "fixture.outer")
+            .count(),
+        0
+    );
+    assert_eq!(
+        report
+            .validation
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "fixture.inner")
+            .count(),
+        3
+    );
+    let selected = report
+        .validation
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code == "fixture.inner" && d.details.as_ref().unwrap()["observed"]["name"] == "item"
+        })
+        .unwrap();
+    assert_eq!(
+        selected.details.as_ref().unwrap()["observed"]["parent"],
+        "host"
+    );
+    assert!(report
+        .validation
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}

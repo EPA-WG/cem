@@ -625,6 +625,13 @@ sibling-position schema switch at the same point in the event stream. Use
 `{cem:schema ...}` when the schema switch itself needs source identity, a query
 form, wrapping content, or parity with XML examples.
 
+Implementation note (2026-10-06): native runtime activation supports retained
+**document-level** directive payloads with the existing literal `src`/`select`
+header. The tokenizer currently retains `@schema` inside block content as text;
+block recognition and literal-text compatibility remain a decision/task in
+[the implementation list](todo.md). Native reference slots use the existing
+schema-element or host attribute forms until prelude slot syntax is specified.
+
 ### Inline Declaration
 
 ```cem

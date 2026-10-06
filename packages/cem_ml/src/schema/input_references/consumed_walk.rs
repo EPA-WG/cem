@@ -173,6 +173,7 @@ where
     let mut blocked_positions = HashSet::new();
     let mut region_diagnostics = vec![];
     let mut effective_models = HashMap::new();
+    let mut structural_sources = HashMap::new();
     let origin = if matches!(role, Role::Container(_)) {
         let source = tagged_host.inner.retained_node(&root).unwrap();
         Some(ReferenceOccurrence {
@@ -202,8 +203,13 @@ where
                 return Ok(None);
             };
             match entry.role {
-                Role::Structural(_, current_model) => {
-                    let effective = models.effective_model(current_model, &retained);
+                Role::Structural(parent, current_model) => {
+                    let effective = models.selected_child_model(
+                        current_model,
+                        &retained,
+                        parent.and_then(|parent| structural_sources.get(&parent)),
+                    );
+                    structural_sources.insert(position, retained.clone());
                     effective_models.insert(position, effective);
                     let Some(current_model) = effective else {
                         blocked_positions.insert(position);

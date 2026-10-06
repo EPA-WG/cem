@@ -20,6 +20,8 @@ use std::{
 pub enum SchemaElementForm {
     Wrapping,
     Following,
+    /// Original document/block directive, retained as an opaque text payload.
+    Prelude,
 }
 
 /// Original builder allocation with source-position expression and name metadata.
@@ -229,6 +231,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let schema_element_forms = names
             .iter()
             .filter_map(|(id, name)| {
+                if name.local_name == "@schema" {
+                    return Some((*id, SchemaElementForm::Prelude));
+                }
                 if name.local_name != "schema"
                     || !matches!(
                         name.namespace_uri.as_str(),

@@ -44,7 +44,7 @@ impl std::error::Error for SchemaHostPreparationError {}
 
 impl CemQlSchemaDeclarationHost {
     /// Decode an original host using attached namespace metadata. Literal
-    /// selectors are implicit consumer reference occurrences on the attribute;
+    /// selectors are implicit consumer reference occurrences on the original value;
     /// native references and expression slots retain their own original handle.
     /// Selection, chains, admission and compilation share the established bounds,
     /// contexts and directed grants. This neither loads URIs nor installs scopes,

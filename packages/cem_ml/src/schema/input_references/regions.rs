@@ -230,6 +230,35 @@ impl<'a> RegionModels<'a> {
         }
         Some(model)
     }
+    // A reference placement starts under its consuming model. Only original
+    // owning child edges inside that placement admit local following controls;
+    // the target's external source ancestry cannot replace the consumer model.
+    pub fn selected_child_model(
+        &self,
+        model: usize,
+        source: &SchemaDeclarationNode,
+        parent: Option<&SchemaDeclarationNode>,
+    ) -> Option<usize> {
+        let owner = key(source).0;
+        let Some((parent_id, position)) = self
+            .positions
+            .get(&owner)
+            .and_then(|positions| positions.get(&source.node_id()))
+        else {
+            return Some(model);
+        };
+        if !parent.is_some_and(|parent| key(parent) == (owner, *parent_id)) {
+            return Some(model);
+        }
+        match self
+            .following
+            .get(&(owner, *parent_id))
+            .and_then(|transitions| transitions.range(..=*position).next_back())
+        {
+            Some((_, selected)) => selected.filter(|index| self.available[*index]),
+            None => Some(model),
+        }
+    }
     pub fn with_controls(
         mut self,
         contracts: &[crate::schema::scope_controls::SchemaHostControlContract],
