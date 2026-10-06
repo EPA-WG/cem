@@ -47,11 +47,11 @@ remain open until their adopted contract and verification evidence are met.
       Define retained expression/provenance and lexical semantics separately
       from runtime evaluation context and outcomes. Update package contract
       documentation without inventing deferred public query type/access syntax.
-- [ ] Complete reference expression-slot integration with retained expression
+- [x] Complete reference expression-slot integration with retained expression
       artifacts, source-position bindings, caller-supplied runtime context, and
       typed attribute slots. Declaration metadata alone does not implement
       runtime evaluation or specialized scope linkage.
-- [ ] Specify effective scope-schema policy for mandatory, warning, and ignore
+- [x] Specify effective scope-schema policy for mandatory, warning, and ignore
       dispositions, empty-result cardinality, permitted scope crossings,
       reference traversal depth/work limits and numeric defaults, and cycle or
       limit outcomes. Keep lexical scope depth distinct from chain depth.
@@ -78,7 +78,8 @@ remain open until their adopted contract and verification evidence are met.
       contract and ten retained-reference fixtures pass. These validate policy
       and explicit fact treatment; they do not implement chain traversal.
 
-Audit findings (2026-10-04): the initial implementation retains standalone
+Historical audit baseline (2026-10-04, superseded by the closure below):
+the initial implementation retains standalone
 CEM/XML references and implements strict unary `#` construction and CEMB v3
 graph edges. The legacy `dom:reference` helper keeps its separate preservation
 behavior. Saved `context` handles are lexical origins, and optional `targets`
@@ -89,10 +90,25 @@ and schema construct reuse remain incomplete. The parser-backed target view now
 preserves absent unevaluated targets separately from resolved-empty targets,
 including field enumeration. Existing ID-backed name slots are not a `#` resolver.
 
-Completed foundations: schema contract declarations, schema-sourced depth/work
+Foundations at that baseline: schema contract declarations, schema-sourced depth/work
 defaults and validated inherited overrides, numeric graph-label validation,
 XML query-payload provenance, and neutral/inherited unresolved-link policy.
 These do not claim an implemented chain resolver or full scope-reference integration.
+
+Audit closure (2026-10-05): sections 1 and 4 now have implemented contracts
+and verified coverage. `reference_resolution.rs` covers bounded traversal,
+cycles, repeated/mixed targets, source preservation and per-link dispositions;
+`reference_unresolved_policy.rs` and `reference_traversal_policy.rs` cover
+schema policy composition. `reference_runtime_resolution.rs` proves independent
+`datadom` executions, retained result ownership after host disposal, delayed
+readiness, resolved-empty versus unresolved, and unchanged authored targets.
+`lexical_scope_handoff.rs` and the QL `schema_declaration_references.rs` cover
+source-position bindings, explicit crossings, retained compilation artifacts
+and standalone/typed attribute lifecycle consumption. The ML schema declaration
+fixtures enforce complete-result cardinality separately from unresolved policy;
+partial selections never become an accepted empty or successful count.
+The detailed checked actions in sections 2 and 5 record implementation evidence.
+Deferred syntax and consumer decisions remain in their own actionable items.
 
 Verification (2026-10-04): 19 focused CEM-ML reference/policy tests pass.
 The previous construction slice passed eight CEM-QL reference tests, all 99
@@ -501,26 +517,34 @@ implementation. `git diff --check` passes.
       effective per-link disposition and explicit edge permission. Keep request
       and cumulative scope budgets, execution-local results, and immutable sources;
       do not infer scopes from document owners or authored IDs.
-- [ ] Specify the shared evaluation entry point and result ownership using the
+- [x] Specify the shared evaluation entry point and result ownership using the
       existing CEM-QL expression mechanism. The caller supplies context and
       lifecycle timing; retain source-position lexical meaning. Distinguish
       unevaluated source from pending, resolved, unresolved, and invalid runtime
       outcomes without requiring writeback onto the authored reference.
-- [ ] Fixture: evaluate one retained template against two independent supplied
+- [x] Fixture: evaluate one retained template against two independent supplied
       `datadom` trees, including evaluation after inputs become available.
       Verify independent outcomes, distinct resolved-empty and unresolved
       results, and unchanged authored expressions/edges without context IDs.
-- [ ] Fixture: cover deep reference chains, mixed node/reference targets,
+- [x] Fixture: cover deep reference chains, mixed node/reference targets,
       repeated targets, self-reference, cycles, scope crossings, and traversal
       limits within one lexical scope. Verify mandatory failure, warning, and
       ignored unresolved links with source provenance, plus separate empty
       cardinality checks. Ignoring a link must not fabricate a target or remove
       an authored edge.
-- [ ] Implement shared explicit evaluation and consumer-requested chain
+- [x] Implement shared explicit evaluation and consumer-requested chain
       resolution under effective scope-schema policy, with cycle detection and
       bounded work. Preserve target order/multiplicity and the authored graph.
       Do not add a scheduler, subscriptions, automatic parse-time evaluation,
       URL/ID lookup, or element-to-ID projection.
+
+Verification (2026-10-05): the focused audit reruns all tests in five ML
+suites (`reference_resolution`, `reference_unresolved_policy`,
+`reference_traversal_policy`, `reference_schema_contracts`,
+`schema_declaration_references`) and three QL suites
+(`reference_runtime_resolution`, `lexical_scope_handoff`,
+`schema_declaration_references`). All 124 tests pass (87 ML, 37 QL); this closure changes documentation
+only and adds no runtime behavior or public syntax.
 
 ### 5. Integrate schema validation and construct reuse
 
@@ -1472,7 +1496,7 @@ remains guarded until that compiler is ready.
       Verification: five native/editor parity tests pass, including all canonical
       fixtures; 25 native tokenizer tests and 14 TextMate expression/attribute cases
       pass. Parser regeneration succeeds through `cem_ml:tree-sitter:generate`.
-- [ ] Audit and finish the remaining retained reference expression-slot integration
+- [x] Audit and finish the remaining retained reference expression-slot integration
       and CEM/XML parity from sections 1–2 above. Identify existing coverage first;
       add focused native fixture actions for actual gaps before implementation.
       Scenarios for later design verification: standalone and attribute references

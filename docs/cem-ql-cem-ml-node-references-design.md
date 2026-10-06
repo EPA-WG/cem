@@ -765,8 +765,31 @@ A CEM-QL consumer fixture uses the existing expression evaluator with retained
 CEM-ML source and independently supplied native data trees, proving owner
 retention and no source writeback. The initial schema declaration consumer is
 described below. Native package lifecycle compilation is connected explicitly.
-Other consumer cardinality rules and authored crossing declarations remain
-open checklist work; this does not adopt deferred public query access syntax.
+Implemented schema consumers apply their cardinality contracts separately from
+resolution completeness, as detailed below. Authored crossing declarations and
+public query access syntax remain deferred checklist work.
+
+### Evaluation and policy adoption checkpoint (2026-10-05)
+
+The shared evaluation and policy work is complete for the implemented native
+consumers. `resolve_reference` returns an execution-local `ReferenceResolution`
+whose typed nodes retain their original owners. Results survive disposal of the
+host and context. The authored source remains unevaluated until a caller requests
+consumption; pending, resolved, unresolved and invalid are runtime result states,
+not mutations of that source. Compiled expression artifacts retain source-position
+bindings and are distinct from evaluated target lists.
+
+Effective schema policy supplies unresolved disposition and validated depth/work
+bounds. The request cap and destination caps both constrain traversal; crossing
+or reentry never replenishes work. Permission comes from explicit host grants,
+independently of lexical scope inheritance. Cycles and exhausted budgets remain
+incomplete under every disposition. Consumers check empty-result cardinality only
+on complete selections, using their own schema contracts. These contracts do not
+choose the deferred child scope-reference spelling, public query access API or
+cem-element ID projection.
+
+The verified suite mapping and remaining adoption actions are recorded in
+[the reference implementation checklist](todo.md).
 
 ### Initial schema declaration consumer (2026-10-04)
 
