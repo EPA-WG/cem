@@ -891,6 +891,16 @@ shared bounded resolver for nested references. Effective child scopes can be
 supplied through `assign_subtree_scope`; runtime scope handles belong to their
 host and add no authored IDs.
 
+`register_scope` creates an explicit relationship boundary. For a lexical-only
+change, `register_lexical_scope(parent, context, policy)` retains a distinct
+context/artifact snapshot inside the parent's boundary and original tree.
+Supply its complete runtime context and effective policy explicitly; missing
+inputs stay pending. Source assignment remains explicit through the subtree
+or sibling handoff methods. Crossing grants use relationship boundary identity,
+so lexical snapshots share their boundary's directed grants without granting
+the reverse direction. Context replacement invalidates only that snapshot's
+artifacts; request and effective lexical-scope limits remain independently active.
+
 `assign_following_scope(tree, boundary, scope)` records a caller-completed
 sibling-position switch using the original retained boundary node. Earlier
 siblings and the boundary keep their scope; following siblings and their

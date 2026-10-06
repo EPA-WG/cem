@@ -597,6 +597,12 @@ an enclosed child override is bounded by that scope, and leaving it restores
 the enclosing effective relationship. Existing source-position and shadowing
 rules remain in force.
 
+A lexical namespace/schema binding change does not itself establish a reference
+relationship boundary. Consumers retain the applicable lexical snapshot and
+effective schema policy while callers define relationship boundaries and their
+permitted crossings. Distinct lexical snapshots may share one relationship
+boundary; their runtime evaluation inputs and compiled artifacts remain separate.
+
 The exact enclosed scope-reference syntax for child overrides is deferred in
 [roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The current
 schema and namespace forms remain in use; the reference design does not select

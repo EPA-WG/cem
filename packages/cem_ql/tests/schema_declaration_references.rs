@@ -1547,3 +1547,177 @@ fn imported_sibling_scope_handoff_preserves_artifacts_and_explicit_overrides() {
         .iter()
         .all(|original| matches!(original.node(), CemAstNode::Reference { targets: None, .. })));
 }
+
+#[test]
+fn lexical_snapshots_share_relationships_but_keep_contexts_and_artifacts_distinct() {
+    use cem_ml::schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode};
+    use cem_ml::value::reference_resolution::{resolve_reference, ReferenceResolutionHost};
+    let source = tree("{outer | {#library} {target}} {inner | {#library} {target}}");
+    let refs: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let targets: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "target" => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    let inner = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "inner" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let items: Vec<_> = targets
+        .iter()
+        .map(|id| {
+            cem_ql::eval::RetainedCemNode::new(source.clone(), *id)
+                .unwrap()
+                .query_item()
+        })
+        .collect();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let outer = host.register_scope(
+        source.clone(),
+        Some(context(vec![items[1].clone()])),
+        policy(),
+    );
+    let lexical = host
+        .register_lexical_scope(outer, Some(context(vec![items[0].clone()])), policy())
+        .unwrap();
+    assert_ne!(outer, lexical);
+    assert!(host.assign_subtree_scope(&source, inner, lexical));
+    for (index, expected) in [targets[1], targets[0]].into_iter().enumerate() {
+        let node = host.source_reference(refs[index].clone());
+        let resolved = resolve_reference(node, &mut host, limits()).unwrap();
+        assert!(resolved.is_complete(), "{:?}", resolved.issues);
+        let selected = host.declaration_node(&resolved.nodes[0]).unwrap();
+        assert_eq!(selected.node_id(), expected);
+        assert!(Arc::ptr_eq(selected.document(), source.ast_owner()));
+    }
+    let first = host.compiled_source_expression(&refs[0]).unwrap();
+    let second = host.compiled_source_expression(&refs[1]).unwrap();
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert!(host.set_context(lexical, None));
+    assert!(Arc::ptr_eq(
+        &first,
+        &host.compiled_source_expression(&refs[0]).unwrap()
+    ));
+    assert!(host.compiled_source_expression(&refs[1]).is_none());
+    let node = host.source_reference(refs[1].clone());
+    assert!(!resolve_reference(node, &mut host, limits())
+        .unwrap()
+        .is_complete());
+    // An explicitly registered boundary is distinct even in the same AST owner.
+    let explicit = host.register_scope(source.clone(), Some(context(vec![])), policy());
+    assert!(host.assign_subtree_scope(&source, targets[1], explicit));
+    let node = host.source_reference(refs[0].clone());
+    let denied = resolve_reference(node.clone(), &mut host, limits()).unwrap();
+    assert!(!denied.is_complete());
+    let destination_lexical = host
+        .register_lexical_scope(explicit, Some(context(vec![])), policy())
+        .unwrap();
+    let nested_lexical = host
+        .register_lexical_scope(lexical, None, policy())
+        .unwrap();
+    assert!(host.assign_subtree_scope(&source, targets[1], destination_lexical));
+    assert!(host.allow_scope_crossing(nested_lexical, destination_lexical));
+    assert!(resolve_reference(node, &mut host, limits())
+        .unwrap()
+        .is_complete());
+    let target = host.source_reference(
+        SchemaDeclarationNode::new(source.ast_owner().clone(), targets[1]).unwrap(),
+    );
+    assert!(!host.permits_edge(&target, &host.source_reference(refs[0].clone())));
+}
+
+#[test]
+fn lexical_snapshots_retain_effective_policy_and_reject_foreign_parent() {
+    use cem_ml::schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode};
+    use cem_ml::value::reference_resolution::{resolve_reference, ReferenceResolutionIssueKind};
+    let source = tree("{outer | {#library}} {inner | {#library}} {target}");
+    let refs: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let target = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "target" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let item = |id| {
+        cem_ql::eval::RetainedCemNode::new(source.clone(), id)
+            .unwrap()
+            .query_item()
+    };
+    for (child_work, request_work) in [(1, limits().max_work), (limits().max_work, 2)] {
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let outer = host.register_scope(
+            source.clone(),
+            Some(context(vec![item(refs[1].node_id())])),
+            policy(),
+        );
+        let mut bounded = policy();
+        bounded.limits.max_work = child_work;
+        let lexical = host
+            .register_lexical_scope(outer, Some(context(vec![item(target)])), bounded)
+            .unwrap();
+        assert!(host.assign_subtree_scope(&source, refs[1].node_id(), lexical));
+        let node = host.source_reference(refs[0].clone());
+        let mut request = limits();
+        request.max_work = request_work;
+        let result = resolve_reference(node, &mut host, request).unwrap();
+        assert!(result.work_used <= request_work);
+        assert!(!result.is_complete());
+        assert!(result
+            .issues
+            .iter()
+            .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+        assert!(!result
+            .issues
+            .iter()
+            .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+        let mut other = CemQlSchemaDeclarationHost::new();
+        let foreign = other.register_scope(source.clone(), None, policy());
+        assert!(host
+            .register_lexical_scope(foreign, None, policy())
+            .is_none());
+    }
+}

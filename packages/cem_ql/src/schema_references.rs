@@ -49,6 +49,8 @@ struct Scope {
     tree: Arc<RetainedCemTree>,
     context: Option<StandaloneExpressionContext>,
     policy: ReferenceScopePolicy,
+    // Lexical contexts may differ while crossing permission identity stays shared.
+    relationship: DeclarationScope,
 }
 #[derive(Debug, Clone)]
 pub struct CemQlSchemaReferenceNode {
@@ -88,7 +90,9 @@ impl CemQlSchemaDeclarationHost {
                 .expect("embedded reference policy"),
         }
     }
-    /// Register a retained owner and an explicitly supplied lifecycle snapshot.
+    /// Establish an explicit relationship boundary for a retained owner and
+    /// an explicitly supplied lifecycle snapshot. Lexical-only changes use
+    /// `register_lexical_scope` instead.
     /// None means its evaluation inputs are pending, including a target scope
     /// containing declarations that do not themselves need evaluation.
     pub fn register_scope(
@@ -108,8 +112,35 @@ impl CemQlSchemaDeclarationHost {
             tree,
             context,
             policy,
+            relationship: scope,
         });
         scope
+    }
+
+    /// Register a distinct lexical lifecycle snapshot within the parent's
+    /// relationship boundary. Compilation, context readiness and effective policy
+    /// remain local to this handle; directed crossing grants remain shared.
+    /// No source assignment, evaluation or inheritance of runtime inputs occurs.
+    pub fn register_lexical_scope(
+        &mut self,
+        parent: DeclarationScope,
+        context: Option<StandaloneExpressionContext>,
+        policy: ReferenceScopePolicy,
+    ) -> Option<DeclarationScope> {
+        let parent = self.scope_record(parent)?;
+        let tree = parent.tree.clone();
+        let relationship = parent.relationship;
+        let scope = DeclarationScope {
+            host: self.identity,
+            index: self.scopes.len(),
+        };
+        self.scopes.push(Scope {
+            tree,
+            context,
+            policy,
+            relationship,
+        });
+        Some(scope)
     }
     /// Map an explicit child subtree to an effective scope. Syntax/scoping
     /// construction belongs to the caller; the nearest source ancestor wins.
@@ -252,10 +283,15 @@ impl CemQlSchemaDeclarationHost {
         }
     }
 
+    /// Grant a directed crossing between explicit relationship boundaries.
+    /// Lexical snapshots normalize to their inherited boundary identity.
     pub fn allow_scope_crossing(&mut self, from: DeclarationScope, to: DeclarationScope) -> bool {
-        if self.scope_record(from).is_none() || self.scope_record(to).is_none() {
+        let Some(from) = self.scope_record(from).map(|scope| scope.relationship) else {
             return false;
-        }
+        };
+        let Some(to) = self.scope_record(to).map(|scope| scope.relationship) else {
+            return false;
+        };
         self.grants.insert((from, to));
         true
     }
@@ -426,7 +462,12 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
             .unresolved
     }
     fn permits_edge(&self, from: &Self::Node, to: &Self::Node) -> bool {
-        match (from.scope, to.scope) {
+        let relationship = |scope: Option<DeclarationScope>| {
+            scope
+                .and_then(|scope| self.scope_record(scope))
+                .map(|scope| scope.relationship)
+        };
+        match (relationship(from.scope), relationship(to.scope)) {
             (Some(a), Some(b)) => a == b || self.grants.contains(&(a, b)),
             _ => false,
         }

@@ -151,17 +151,32 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: frame completion does not imply query
       evaluation, and the effective occurrence binding must survive frame closure.
       Verification: all 41 native schema-machine fixtures pass.
-- [ ] Decide whether lexical namespace/schema binding changes automatically create
-      reference relationship boundaries. The current QL `DeclarationScope` supplies
-      both expression contexts/artifact keys and directed crossing-grant identity.
-      Recommendation, awaiting user decision: retain source-position lexical snapshots
-      separately; preserve the caller's relationship scope unless an explicit boundary
-      is declared. Effective schema policies and traversal limits still apply.
-      Alternative: every binding change establishes a distinct relationship boundary
-      and crossing requires a grant even within one retained vendor owner.
+- [x] Decide whether lexical namespace/schema binding changes automatically create
+      reference relationship boundaries. Adopted the recommended separation on
+      2026-10-05: retain source-position lexical snapshots separately; preserve the
+      caller's relationship scope unless an explicit boundary is declared. Effective
+      schema policies and traversal limits still apply. Existing `register_scope`
+      continues to establish an explicit relationship boundary.
       Scenarios for later design verification: changing a namespace default cannot
       accidentally grant a crossing or silently impose a new relationship boundary;
       lexical rebinding and schema policy changes remain observable independently.
+- [x] Fixture: verify distinct lexical lifecycle contexts/artifacts within one explicit
+      relationship boundary, shared directed grants without granting reverse crossings,
+      independent pending/context replacement and effective child traversal policy.
+      Verify explicit same-owner boundaries still need grants, foreign handles reject,
+      and retained occurrence/target owners never change.
+      Scenarios for later design verification: lexical rebinding neither changes the
+      permission boundary nor resets traversal accounting or replaces earlier artifacts.
+- [x] Add explicit lexical-snapshot registration to the QL retained consumer host,
+      separate from `register_scope` relationship-boundary registration. Apply grants
+      to relationship identity; keep compilation/context and policy on lexical identity.
+      Scenarios for later design verification: frame handoffs can preserve source-position
+      environments while callers continue to define permitted relationship crossings.
+      Verification: all 28 native schema-reference fixtures pass, including two
+      new lexical-context/artifact/grant and effective-policy fixtures. Both stricter
+      child work limits and request-wide work limits apply within a shared boundary.
+      Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
+      Completed parser-frame association capture and automatic handoff remain open below.
 - [ ] Fixture: retain completed namespace/schema associations through their original
       source occurrences, including directive/host/wrapping/sibling forms, inherited
       defaults, subsequent rebinding, nested restoration and pending schema selection.

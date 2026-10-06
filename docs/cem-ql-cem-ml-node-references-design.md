@@ -312,6 +312,13 @@ that child. Leaving the child restores the enclosing effective relationship.
 Source-position and shadowing rules remain in force. Explicit scope crossings
 require a declared relationship; a document-wide ID scan cannot replace it.
 
+Lexical binding snapshots and reference relationship boundaries are distinct.
+A namespace/schema binding change preserves the caller-defined relationship
+boundary unless an explicit boundary is declared. It may establish a different
+compilation environment and effective schema policy without introducing a new
+crossing grant requirement. Policies and traversal budgets still constrain the
+consumed reference path; lexical changes cannot reset request accounting.
+
 The exact enclosed child override syntax is deferred to
 [roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The accepted
 default and override semantics do not depend on choosing a new delimiter,
@@ -795,6 +802,16 @@ coerced into source declarations. Consumed declarations retain their original
 allocation after the query context and semantic tree views are dropped.
 
 Runtime scope handles are specific to their host and do not add authored IDs.
+`register_scope` establishes an explicit relationship boundary and retains its
+runtime lifecycle context. `register_lexical_scope(parent, context, policy)`
+retains a distinct lexical lifecycle snapshot within that parent's relationship
+boundary and retained owner. It neither assigns source occurrences nor copies
+runtime inputs from the parent. Compilation artifacts, context readiness,
+context replacement and effective policy remain keyed by lexical handle;
+directed crossing grants use relationship boundary identity. Nested lexical
+snapshots inherit that identity, and grants remain directed. Explicit same-owner
+boundaries still require grants. Existing callers of `register_scope` retain
+that boundary behavior; parser-frame capture/handoff remains separate work.
 `assign_subtree_scope` supplies explicit effective child scope metadata; the
 nearest source ancestor selects it. `assign_following_scope` records a
 caller-completed existing sibling switch through its retained boundary handle.
@@ -805,8 +822,8 @@ child subtree mappings take precedence. Retained structural sibling order is
 used for CEM and imported sources, without global ID lookup. Identical repeat
 handoffs are idempotent and conflicting repeats are rejected. Parser/schema
 frame-to-runtime wiring remains separate implementation work. These handoffs
-do not choose the deferred child scope-reference syntax. Different scopes require a directed
-`allow_scope_crossing` grant, and unregistered owners cannot borrow permission
+do not choose the deferred child scope-reference syntax. Different relationship
+boundaries require a directed `allow_scope_crossing` grant, and unregistered owners cannot borrow permission
 from an equal node ID or a supplied query binding. Native constructed references
 inherit the evaluating scope; retained targets use their registered scope.
 
