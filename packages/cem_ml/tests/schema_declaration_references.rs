@@ -3357,3 +3357,164 @@ fn selected_scope_compilation_keeps_pending_and_invalid_dependencies_incomplete(
         && d.source_map.as_ref().and_then(|s| s.origin()).is_some()));
     assert!(invalid.element("inherited").is_none());
 }
+
+#[test]
+fn selected_structural_roots_validate_only_the_requested_original_forest() {
+    use cem_ml::schema::input_references::validate_structural_input_roots_references;
+    let model = compile_schema_document_model(
+        "region",
+        "{schema | {elements | {element @name=inside @children=leaf} {element @name=leaf}}}",
+    );
+    let source = parse("{outside | {#unrelated}} {container | {inside | {#items}}} {outside}");
+    let root = node(&source, "inside");
+    let library = parse("{leaf}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "leaf")]),
+    );
+    let limits = host.policy.limits;
+    let report = validate_structural_input_roots_references(
+        source.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(host.calls, 1);
+    assert!(report.diagnostics.is_empty());
+    assert!(Arc::ptr_eq(&report.source, &source));
+    assert_eq!(report.roots, vec![0]);
+    assert_eq!(
+        report
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        2
+    );
+    assert_eq!(report.nodes[0].source.node_id(), root.node_id());
+    assert!(Arc::ptr_eq(report.nodes[0].source.document(), &source));
+    let selected = report
+        .nodes
+        .iter()
+        .position(|node| Arc::ptr_eq(node.source.document(), &library))
+        .unwrap();
+    assert!(report.nodes[0].children.contains(&selected));
+    assert!(report.nodes.iter().any(|node| matches!(
+        node.source.node(),
+        CemAstNode::Whitespace { .. }
+    ) && Arc::ptr_eq(node.source.document(), &source)));
+    assert!(source.nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+    let empty =
+        validate_structural_input_roots_references(source, &[], &model, &mut host, limits).unwrap();
+    assert!(empty.complete && !empty.failed);
+    assert!(empty.nodes.is_empty());
+    assert_eq!(host.calls, 1);
+}
+
+#[test]
+fn selected_structural_roots_reject_invalid_requests_before_evaluation() {
+    use cem_ml::schema::input_references::validate_structural_input_roots_references;
+    let model =
+        compile_schema_document_model("region", "{schema | {elements | {element @name=inside}}}");
+    let source = parse("{inside @label=value | {#items}}");
+    let root = node(&source, "inside");
+    let attribute = source
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    for roots in [
+        vec![u32::MAX],
+        vec![0],
+        vec![attribute],
+        vec![root.node_id(), root.node_id()],
+    ] {
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let report = validate_structural_input_roots_references(
+            source.clone(),
+            &roots,
+            &model,
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!report.complete && report.failed);
+        assert!(report.nodes.is_empty());
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.source_map.is_some()));
+        assert_eq!(host.calls, 0);
+    }
+}
+
+#[test]
+fn selected_structural_roots_preserve_incompleteness_and_model_readiness() {
+    use cem_ml::schema::input_references::validate_structural_input_roots_references;
+    let model = compile_schema_document_model(
+        "region",
+        "{schema | {elements | {element @name=inside @children=leaf} {element @name=leaf}}}",
+    );
+    let source = parse("{outside} {inside | {#items}}");
+    let root = node(&source, "inside");
+    let mut host = Host::new();
+    host.disposition("ignore");
+    let limits = host.policy.limits;
+    let pending = validate_structural_input_roots_references(
+        source.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!pending.complete);
+    assert!(!pending.nodes[0].children_complete);
+    let library = parse("{leaf}");
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&library, "leaf")]),
+    );
+    let mut limited = limits;
+    limited.max_work = 1;
+    let report = validate_structural_input_roots_references(
+        source.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        limited,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    let calls = host.calls;
+    let inactive = compile_schema_document_model("region", "{schema | {elements | {#missing}}}");
+    let report = validate_structural_input_roots_references(
+        source,
+        &[root.node_id()],
+        &inactive,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert!(report.nodes.is_empty());
+    assert_eq!(host.calls, calls);
+}

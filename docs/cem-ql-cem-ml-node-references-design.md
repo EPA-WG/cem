@@ -385,6 +385,24 @@ source references. Recognizing scope-property syntax, assigning governed regions
 installing effective policies and preventing inherited validation in an incomplete
 region remain separate lifecycle wiring tasks in `todo.md`.
 
+`validate_structural_input_roots_references` and the CEM-QL host's
+`validate_input_roots` now validate an explicit forest of original structural
+roots under a supplied consuming model. The whole-document entry point delegates
+to the same walk. Selected roots retain original node owners, authored trivia,
+reference outcomes, bounds and source provenance; unrelated source siblings are
+neither validated nor evaluated. Invalid kinds, missing handles and duplicate root
+requests reject before input evaluation. An empty valid forest is complete only
+when the supplied model is ready; unavailable regions cannot be represented by
+substituting empty roots.
+
+This primitive does not assign schema ownership across a child override. The
+remaining boundary decision is whether the enclosing schema retains the host's
+attribute and direct child-sequence checks while the child schema validates
+descendants, or stops its child-sequence checks at that boundary. The recommendation
+and verification scenarios are recorded in `todo.md`; governed-region integration
+waits for that choice. An incomplete child must keep overall validation incomplete
+under either policy.
+
 ### Implicit scope references and defaults
 
 Scope properties provide an indirect form of reference. Syntax and its

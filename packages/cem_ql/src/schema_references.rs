@@ -18,6 +18,7 @@ use cem_ml::{
         document_model::{SchemaBehaviorEvaluator, SchemaDocumentModel},
         input_references::{
             validate_structural_input_references,
+            validate_structural_input_roots_references,
             validate_structural_input_references_with_behavior_evaluator,
             StructuralInputValidation,
         },
@@ -329,6 +330,20 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
         validate_structural_input_references(source.ast_owner().clone(), model, self, limits)
+    }
+    /// Validate explicit original roots with a supplied ready consuming model.
+    /// Region/boundary ownership is chosen by the caller; the original arena and
+    /// existing reference contexts, grants and placement reporting remain shared.
+    pub fn validate_input_roots(
+        &mut self,
+        source: Arc<RetainedCemTree>,
+        roots: &[AstNodeId],
+        model: &SchemaDocumentModel,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<StructuralInputValidation<CemQlSchemaReferenceNode>, ReferenceResolutionError> {
+        validate_structural_input_roots_references(
+            source.ast_owner().clone(), roots, model, self, limits,
+        )
     }
     /// Explicit structural selection followed by the additive retained behavior
     /// hook; each invocation uses this host's current runtime context.

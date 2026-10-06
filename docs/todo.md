@@ -1431,6 +1431,23 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: preparation retains original owners
       and diagnostics, cannot activate or use an inherited fallback, and retries
       consume current inputs with unchanged authored names.
+- [x] Fixture: validate explicitly selected original structural roots under a
+      supplied model without copying an arena or validating unrelated source.
+      Cover retained target owners/provenance, pending/limited references, inactive
+      models and invalid/duplicate root requests before evaluation. Exercise the
+      same original-root boundary through the CEM-QL consumer host. Verified with
+      82 native CEM-ML and 43 CEM-QL reference/consumer regressions.
+      Scenarios for later design verification: empty valid regions stay distinct
+      from unavailable regions; source siblings outside the selected roots cannot
+      supply violations or consume runtime evaluation work.
+- [ ] Decide host child-sequence ownership at a child schema override. Requested
+      2026-10-06: recommended enclosing-schema host attributes/direct child-sequence
+      checks plus child-schema descendant validation; alternative stops enclosing
+      child-sequence checks at the override boundary. Do not implement that boundary
+      until selected; an incomplete child keeps overall validation incomplete.
+      Scenarios for later design verification: parent child-count/relationship
+      checks are attributed to the chosen schema; child readiness cannot produce
+      false complete parent validation or silently use inherited descendants.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before

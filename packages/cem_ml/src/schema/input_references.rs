@@ -186,6 +186,25 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
+    let roots = match source.root() {
+        Some(CemAstNode::Document { root_children, .. }) => root_children.clone(),
+        _ => vec![],
+    };
+    validate_structural_input_roots_references(source, &roots, model, host, limits)
+}
+
+/// Validate an explicit forest of original structural roots. Root IDs are arena
+/// addresses in `source`, not authored IDs. This shares the full-document walk,
+/// readiness gates, reference bounds and retained placement reporting; no source
+/// subtree is copied or installed as a synthetic document. It neither recognizes
+/// scope syntax nor assigns parent/child schema ownership at a region boundary.
+pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
     let mut report = StructuralInputValidation {
         source: source.clone(),
         nodes: vec![],
@@ -209,13 +228,31 @@ pub fn validate_structural_input_references<H: InputReferenceHost>(
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
-    if model.is_empty() {
+    let mut seen_roots = HashSet::new();
+    for id in roots {
+        let node = source.get(*id);
+        if !seen_roots.insert(*id)
+            || !node.is_some_and(|node| {
+                structural_target(node) || matches!(node, CemAstNode::Reference { .. })
+            })
+        {
+            report.complete = false;
+            report.failed = true;
+            let provenance = node
+                .or_else(|| source.root())
+                .map(document_model::source_stack_for_node)
+                .cloned()
+                .unwrap_or_default();
+            report.diagnostics.push(invalid_target(
+                "Expected distinct original structural root handles",
+                provenance,
+            ));
+        }
+    }
+    if !report.complete || model.is_empty() {
         return Ok(report);
     }
-    let Some(CemAstNode::Document { root_children, .. }) = source.root() else {
-        return Ok(report);
-    };
-    let mut pending: Vec<_> = root_children.iter().rev().map(|id| (*id, None)).collect();
+    let mut pending: Vec<_> = roots.iter().rev().map(|id| (*id, None)).collect();
     let mut owned = HashSet::new();
     while let Some((id, parent)) = pending.pop() {
         let Some(handle) = SchemaDeclarationNode::new(source.clone(), id) else {

@@ -80,7 +80,7 @@ fn context(tree: &Arc<RetainedCemTree>, targets: &[u32]) -> StandaloneExpression
 
 #[test]
 fn preparation_admits_original_wrapper_and_compiles_its_exact_declaration() {
-    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n@ns cem = https://cem.dev/ns/core/1\n{s:schema | {elements | {element @name=earlier}}} {cem:schema @cem:name=chosen | {s:schema | {elements | {element @name=selected}}}} {#library}");
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n@ns cem = https://cem.dev/ns/core/1\n{s:schema | {elements | {element @name=earlier}}} {cem:schema @cem:name=chosen | {s:schema | {elements | {element @name=selected}}}} {region | {selected}} {#library}");
     let wrapper = elements(&tree, "schema")[1];
     let reference = captured.occurrences().last().unwrap();
     let mut host = CemQlSchemaDeclarationHost::new();
@@ -112,6 +112,24 @@ fn preparation_admits_original_wrapper_and_compiles_its_exact_declaration() {
         .unwrap()
         .element("earlier")
         .is_none());
+    let roots = elements(&tree, "selected");
+    assert_eq!(roots.len(), 1);
+    let report = host
+        .validate_input_roots(
+            tree.clone(),
+            &roots,
+            prepared.model.as_ref().unwrap(),
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(report.nodes.len(), 1);
+    assert_eq!(report.nodes[0].source.node_id(), roots[0]);
+    assert!(Arc::ptr_eq(&report.source, captured.document()));
     assert!(matches!(
         tree.ast().get(reference),
         Some(CemAstNode::Reference { targets: None, .. })
