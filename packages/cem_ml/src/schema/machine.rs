@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
 
 #[path = "lexical_capture.rs"]
 mod lexical_capture;
-pub use lexical_capture::{LexicalScopeEvents, LexicalScopeSnapshot};
+pub use lexical_capture::{LexicalScopeEvents, LexicalScopeSnapshot, LexicallyScopedDocument};
 
 pub struct CemSchemaMachine<E: EventNormalizer> {
     schema: CompiledSchema,

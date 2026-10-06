@@ -48,10 +48,17 @@ each incoming event and receives `None` once after final EOF validation.
 can retain after frames close; `diagnostics()` exposes validation findings.
 The wrapper forwards the original events without reparsing or keeping history.
 
+`build_with_lexical_scopes()` builds one fragment and returns a
+`LexicallyScopedDocument` sharing the original AST allocation. Its
+`snapshot(owner, node)` lookup checks owner identity and retains snapshots for
+surviving standalone/native attribute reference and general expression nodes.
+Associations use builder node identities, without matching source offsets.
+Schema-machine diagnostics remain available separately from builder diagnostics.
+
 Capture does not evaluate references or schema selectors. Completion does not
-establish schema readiness. Associating snapshots with retained source handles
-and preparing runtime contexts, effective policies and crossing grants remain
-consumer lifecycle work; automatic handoff to the QL host is still pending.
+establish schema readiness. Preparing runtime contexts, effective policies and
+crossing grants remains consumer lifecycle work; automatic handoff to the QL
+host and specialized imported-source association are still pending.
 
 ## Verification
 

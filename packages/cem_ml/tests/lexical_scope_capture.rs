@@ -152,3 +152,93 @@ fn tracking_completion_reports_final_diagnostics_once_and_does_not_consume_extra
         .iter()
         .any(|diagnostic| diagnostic.code == "cem.schema.unclosed_scope"));
 }
+
+fn scoped_document(source: &str) -> cem_ml::schema::machine::LexicallyScopedDocument {
+    let normalizer = CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
+        SourceId(19),
+        source.as_bytes().to_vec(),
+    )));
+    CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).build_with_lexical_scopes()
+}
+
+#[test]
+fn completed_associations_use_original_owner_and_builder_ids_for_all_expression_slots() {
+    let source = "@ns v = urn:first\n{before @target={#missing} @general={items} | {#missing}}\n@ns v = urn:second\n{after | {#missing}}";
+    let scoped = scoped_document(source);
+    let owner = scoped.document().clone();
+    let foreign = scoped_document(source);
+    let occurrences = scoped.occurrences().collect::<Vec<_>>();
+    assert_eq!(occurrences.len(), 4);
+    for (index, node) in occurrences.iter().copied().enumerate() {
+        let snapshot = scoped.snapshot(&owner, node).unwrap();
+        assert_eq!(
+            snapshot.namespaces.binding("v").unwrap().namespace_uri,
+            if index < 3 { "urn:first" } else { "urn:second" }
+        );
+        assert!(scoped.snapshot(foreign.document(), node).is_none());
+        assert!(matches!(
+            owner.get(node),
+            Some(CemAstNode::Reference { targets: None, .. }) | Some(CemAstNode::Element { .. })
+        ));
+    }
+    // General expressions keep their native payload node, never the attribute or
+    // temporary text children removed while folding standalone references.
+    let general = occurrences[1];
+    assert!(
+        matches!(owner.get(general), Some(CemAstNode::Element { expanded_name, .. })
+        if expanded_name.local_name == "$")
+    );
+    assert!(scoped.snapshot(&owner, 0).is_none());
+    assert!(scoped.snapshot(&owner, u32::MAX).is_none());
+    for (id, node) in owner.nodes.iter().enumerate() {
+        if matches!(node, CemAstNode::Text { .. } | CemAstNode::Attribute { .. }) {
+            assert!(scoped.snapshot(&owner, id as u32).is_none());
+        }
+    }
+}
+
+#[test]
+fn completed_associations_restore_schema_and_namespace_defaults_and_keep_pending_diagnostics() {
+    let source = "@ns v = urn:outer\n@schema src=outer\n{section @cem:schema-src=host | {#a} {cem:schema @select='missing()' @xmlns:v=urn:inner | {#b}} {#c} {cem:schema @src=sibling} {#d}} {#e}";
+    let scoped = scoped_document(source);
+    let associations = scoped
+        .occurrences()
+        .map(|node| {
+            let snapshot = scoped.snapshot(scoped.document(), node).unwrap();
+            (
+                snapshot.schema.active.clone(),
+                snapshot
+                    .namespaces
+                    .binding("v")
+                    .unwrap()
+                    .namespace_uri
+                    .clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        associations,
+        vec![
+            (SchemaSource::Uri("host".into()), "urn:outer".into()),
+            (SchemaSource::Select("missing()".into()), "urn:inner".into()),
+            (SchemaSource::Uri("host".into()), "urn:outer".into()),
+            (SchemaSource::Uri("sibling".into()), "urn:outer".into()),
+            (SchemaSource::Uri("outer".into()), "urn:outer".into()),
+        ]
+    );
+    assert_eq!(
+        scoped
+            .document()
+            .nodes
+            .iter()
+            .filter(|node| matches!(node, CemAstNode::Reference { targets: None, .. }))
+            .count(),
+        5
+    );
+    let incomplete = scoped_document("{section");
+    assert!(incomplete
+        .diagnostics()
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.schema.unclosed_scope"));
+    assert_eq!(incomplete.occurrences().count(), 0);
+}

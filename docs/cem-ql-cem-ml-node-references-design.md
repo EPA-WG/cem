@@ -836,9 +836,17 @@ The original events reach the builder; no second AST, reparse or event history i
 required. One EOF notification exposes final machine diagnostics. Snapshots contain
 neither evaluator environments nor relationship boundaries, and capture does not
 execute reference or schema selector expressions. Completion alone establishes
-neither validity nor dependency readiness. Matching these occurrence snapshots to
-original retained handles and preparing their QL lifecycle contexts, policies and
-grants remains pending implementation work.
+neither validity nor dependency readiness.
+
+`build_with_lexical_scopes()` now builds one fragment with a
+`LexicallyScopedDocument` sidecar. It associates snapshots with the original
+standalone/native attribute reference and general expression node identities
+supplied by the builder, retaining only surviving occurrences after folding.
+No source-coordinate matching or arena copy is used. Snapshot lookup requires
+the original AST allocation; an equal node ID in a different owner is rejected.
+Final machine diagnostics remain inspectable separately from builder diagnostics.
+Specialized imported-source associations and QL lifecycle preparation of contexts,
+effective policies, dependency readiness and grants remain pending implementation.
 
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before

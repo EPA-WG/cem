@@ -192,6 +192,21 @@ implementation. `git diff --check` passes.
       Verification: three new native capture fixtures, all 41 schema-machine tests,
       and 18 existing node-reference, expression-source and tree-sitter parity tests
       pass. Automatic retained-handle association and QL lifecycle handoff remain open below.
+- [x] Fixture: build owner-checked lexical associations directly from builder node
+      identities, including standalone and native attribute expressions, rebinding,
+      nested restoration, sibling schema switches and pending selectors. Reject an
+      equal node ID from another source owner; retain diagnostics after closure.
+      Scenarios for later design verification: equal source coordinates cannot alias
+      occurrences; capture neither reparses nor evaluates or copies the original AST.
+- [x] Add an opt-in scoped-document build using the normalized stream and checked
+      original node identities; retain only surviving expression occurrences and
+      machine diagnostics. Keep lifecycle context/policy/grant preparation separate.
+      Scenarios for later design verification: temporary folded payload nodes never
+      escape as associations, and owner lifetime exceeds parser frame lifetime.
+      Verification: all five lexical capture fixtures pass, including two new
+      owner/slot and schema/namespace restoration cases. The 20 builder, 41 machine,
+      and 18 existing reference/source/parity tests pass. Imported-source association
+      and lifecycle preparation of QL contexts, policies and grants remain open.
 - [ ] Fixture: retain completed namespace/schema associations through their original
       source occurrences, including directive/host/wrapping/sibling forms, inherited
       defaults, subsequent rebinding, nested restoration and pending schema selection.

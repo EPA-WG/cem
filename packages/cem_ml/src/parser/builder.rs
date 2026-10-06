@@ -104,6 +104,38 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
         self.doc
     }
 
+    /// Internal integration hook: identify the node opened by this event, or the
+    /// native attribute expression payload just built. IDs belong to this builder's
+    /// arena; folded standalone expressions keep their original opening ID.
+    pub(crate) fn build_with_node_observer<F>(mut self, mut observe: F) -> CemDocument
+    where
+        F: FnMut(Option<AstNodeId>),
+    {
+        while let Some(event) = self.events.next_event() {
+            let before = self.doc.nodes.len();
+            let opening = matches!(event, NormalizedEvent::OpenScope { .. });
+            let attribute_expression = matches!(event,
+                NormalizedEvent::Value { value: ScalarValue::Expression(_), .. });
+            self.consume(event);
+            let node = if opening {
+                match self.stack.last() {
+                    Some(Frame::Element { id, .. }) => Some(*id),
+                    _ => None,
+                }
+            } else if attribute_expression && self.doc.nodes.len() > before {
+                self.doc.get(before as AstNodeId).and_then(|node| match node {
+                    CemAstNode::Attribute { value_nodes, .. } => value_nodes.first().copied(),
+                    _ => None,
+                })
+            } else {
+                None
+            };
+            observe(node);
+        }
+        self.finalize();
+        self.doc
+    }
+
     fn consume(&mut self, event: NormalizedEvent) {
         match event {
             NormalizedEvent::OpenScope {
