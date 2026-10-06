@@ -332,15 +332,35 @@ implementation. `git diff --check` passes.
       request work/depth limits remain effective across lexical changes; vendor
       grants remain explicit. Existing lifecycle wiring needs no further production
       change. The full `cem_ml_transform_cem_ql:test` Nx target passes.
-- [ ] Fixture: verify inherited scope-property defaults, source-position
+- [x] Fixture: verify inherited scope-property defaults, source-position
       bindings and shadowing, restoration after existing schema/namespace child
       scopes, and equal IDs in separate vendor scopes. Cover explicit permitted
       crossings without a document-wide ID scan or repeated root markers.
+      Verification: a third engine scope fixture passes through CEM and XML. It
+      checks default/prefixed namespace inheritance, schema defaults, named inline
+      declaration visibility only after closure, child shadowing and parent
+      restoration. Two vendor owners expose equal authored IDs and equal arena
+      indices; each still needs its own directed grant. Source roots have no IDs
+      and reference target fields remain unevaluated. The full
+      `cem_ml_transform_cem_ql:test` Nx target passes.
+- [ ] Fixture: named inline-schema bindings expose their original declaring AST
+      node through owner-checked retained metadata. Verify declaration closure,
+      inherited/child-shadowed/restored bindings, foreign-owner rejection and
+      original declaration identity in both CEM and XML imports.
+      Scenarios for later design verification: source-position bindings cannot be
+      recovered by matching names or byte offsets against a different arena;
+      a later same-name declaration must not rebind an earlier occurrence.
 - [ ] Align retained lexical/scope information and existing specialized frames
-      with the shared reference contract. Resolve required lexical relationships
-      at their existing context boundaries without treating a containing-node
-      handle as the runtime evaluator environment. Use current scope forms;
-      do not implement the deferred enclosed child override spelling.
+      with the shared reference contract by attaching owner-checked source handles
+      for named inline-schema declarations through builder/import node identities.
+      Current snapshots preserve declaration metadata but expose no typed source
+      handle; consumers must not recover it through byte-offset scans. Resolve
+      required lexical relationships at their existing context boundaries without
+      treating a containing-node handle as the runtime evaluator environment.
+      Use current scope forms; do not implement the deferred enclosed child override
+      spelling.
+      Scenarios for later design verification: preparing a named scope default
+      retains its source owner without copying an AST or supplying runtime inputs.
 
 ### 3. Complete node-valued query construction
 

@@ -96,7 +96,11 @@ currently supply `None`.
 Native engine fixtures cover schema directives, host and wrapping switches,
 sibling defaults, namespace rebinding and restoration through CEM and XML.
 They verify explicit completion of pending contexts, independent executions over
-one saved owner, vendor grants and request/destination traversal limits.
+one saved owner, vendor grants and request/destination traversal limits. Default
+namespace/schema bindings and named inline declaration inheritance, child shadowing
+and restoration are covered too. Equal authored IDs in different vendors still
+require distinct directed grants. Named inline declaration source handles remain
+tracked in `docs/todo.md`; retained metadata does not supply runtime inputs.
 
 ## Verification
 

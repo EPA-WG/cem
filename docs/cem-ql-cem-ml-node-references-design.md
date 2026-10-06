@@ -883,6 +883,15 @@ hosts can evaluate one original owner against different current inputs. Captured
 lexical scope changes neither create vendor grants nor reset request depth/work;
 stricter effective destination limits constrain their consumed subtree.
 
+Existing default namespace/schema properties and named inline declarations are
+also verified through both engine paths: declarations become visible after
+closure, inherited declarations can be shadowed in a child, and leaving the child
+restores the parent binding. Equal authored IDs and arena indices in separate
+vendor owners cannot share a crossing grant. This verifies the existing scope
+forms; it does not choose the deferred enclosed child override syntax. Named
+inline declarations currently retain metadata rather than an owner-checked typed
+AST source handle; that consumer linkage remains actionable in `todo.md`.
+
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before
 coordinated publication, as described below.

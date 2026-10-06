@@ -433,3 +433,173 @@ fn engine_scope_chains_keep_request_and_destination_limits_and_explicit_vendor_g
     run(stage.clone(), InputFormat::Xml, "<root xmlns:r='https://cem.dev/ns/cem-ml/1' r:schema-src='schema://outer'><r:expr>#library</r:expr><section r:schema-src='schema://inner'><r:expr>#library</r:expr></section></root>");
     assert_eq!(stage.calls.load(Ordering::SeqCst), 2);
 }
+
+#[derive(Debug)]
+struct DefaultsStage {
+    first_vendor: Arc<RetainedCemTree>,
+    second_vendor: Arc<RetainedCemTree>,
+    calls: AtomicUsize,
+}
+impl InputValidationStage for DefaultsStage {
+    fn validate(
+        &self,
+        request: InputValidationRequest<'_>,
+    ) -> Result<InputValidationOutcome, Vec<Diagnostic>> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let captured = request.lexical_scopes.as_ref().unwrap();
+        assert!(Arc::ptr_eq(captured.document(), request.source.ast_owner()));
+        let refs: Vec<_> = captured.occurrences().collect();
+        assert_eq!(refs.len(), 5);
+        let snapshots: Vec<_> = refs
+            .iter()
+            .map(|node| {
+                captured
+                    .snapshot(request.source.ast_owner(), *node)
+                    .unwrap()
+            })
+            .collect();
+        let expected_namespace = [
+            "urn:outer",
+            "urn:outer",
+            "urn:inner",
+            "urn:inner",
+            "urn:outer",
+        ];
+        for (i, snapshot) in snapshots.iter().enumerate() {
+            assert_eq!(
+                snapshot.namespaces.binding("").unwrap().namespace_uri,
+                expected_namespace[i]
+            );
+            assert_eq!(
+                snapshot.namespaces.binding("v").unwrap().namespace_uri,
+                expected_namespace[i]
+            );
+            assert_eq!(
+                snapshot.schema.active,
+                SchemaSource::Uri(
+                    if i == 2 || i == 3 {
+                        "schema://inner"
+                    } else {
+                        "schema://outer"
+                    }
+                    .into()
+                )
+            );
+        }
+        // A declaration becomes visible only after closure. A child inherits
+        // the outer declaration until its own declaration closes, then shadows
+        // it locally; the next parent occurrence still sees the outer one.
+        assert!(snapshots[0].schema.resolve_name("shared").is_none());
+        let outer = snapshots[1].schema.resolve_name("shared").unwrap();
+        let inner = snapshots[3].schema.resolve_name("shared").unwrap();
+        assert_ne!(outer.body_byte_range, inner.body_byte_range);
+        for i in [2, 4] {
+            assert_eq!(
+                snapshots[i]
+                    .schema
+                    .resolve_name("shared")
+                    .unwrap()
+                    .body_byte_range,
+                outer.body_byte_range
+            );
+        }
+        assert!(snapshots[0].schema.resolve_name("shared").is_none());
+        assert!(!outer.source_map.frames.is_empty());
+        assert!(!inner.source_map.frames.is_empty());
+        // Both published vendor parts intentionally have the same authored ID
+        // and arena index. Owner identity and explicit grants distinguish them.
+        let first = element(&self.first_vendor, "target");
+        let second = element(&self.second_vendor, "target");
+        assert_eq!(first, second);
+        assert!(!Arc::ptr_eq(
+            self.first_vendor.ast_owner(),
+            self.second_vendor.ast_owner()
+        ));
+        for vendor in [&self.first_vendor, &self.second_vendor] {
+            assert!(vendor.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Attribute { expanded_name, value, .. } if expanded_name.local_name == "id" && value.as_deref() == Some("shared"))));
+        }
+        assert!(!request.source.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == "id")));
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let root = host.register_scope(request.source.clone(), None, request.policy.clone());
+        let first_scope =
+            host.register_scope(self.first_vendor.clone(), None, request.policy.clone());
+        let second_scope =
+            host.register_scope(self.second_vendor.clone(), None, request.policy.clone());
+        host.attach_captured_lexical_scopes(captured, |_, snapshot, inherited| {
+            assert_eq!(inherited, root);
+            let inner_selected = snapshot
+                .schema
+                .resolve_name("shared")
+                .is_some_and(|declaration| declaration.body_byte_range == inner.body_byte_range);
+            let vendor = if inner_selected {
+                &self.second_vendor
+            } else {
+                &self.first_vendor
+            };
+            (
+                Some(context(vendor, element(vendor, "target"))),
+                request.policy.clone(),
+            )
+        })
+        .unwrap();
+        assert!(host.allow_scope_crossing(root, first_scope));
+        for i in [0, 1, 2, 4] {
+            let result = resolve_reference(
+                host.source_reference(source(&request, refs[i])),
+                &mut host,
+                request.policy.limits,
+            )
+            .unwrap();
+            assert!(result.is_complete(), "{:?}", result.issues);
+            assert!(Arc::ptr_eq(
+                host.declaration_node(&result.nodes[0]).unwrap().document(),
+                self.first_vendor.ast_owner()
+            ));
+        }
+        let inner_reference = host.source_reference(source(&request, refs[3]));
+        let denied =
+            resolve_reference(inner_reference.clone(), &mut host, request.policy.limits).unwrap();
+        assert!(!denied.is_complete());
+        assert!(denied
+            .issues
+            .iter()
+            .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+        assert!(host.allow_scope_crossing(root, second_scope));
+        let result = resolve_reference(inner_reference, &mut host, request.policy.limits).unwrap();
+        assert!(result.is_complete());
+        assert!(Arc::ptr_eq(
+            host.declaration_node(&result.nodes[0]).unwrap().document(),
+            self.second_vendor.ast_owner()
+        ));
+        // Completing a child vendor crossing neither rebinds the restored parent
+        // nor fills target lists on any source occurrence.
+        let restored = resolve_reference(
+            host.source_reference(source(&request, refs[4])),
+            &mut host,
+            request.policy.limits,
+        )
+        .unwrap();
+        assert!(Arc::ptr_eq(
+            host.declaration_node(&restored.nodes[0])
+                .unwrap()
+                .document(),
+            self.first_vendor.ast_owner()
+        ));
+        assert_authored(&request);
+        Ok(InputValidationOutcome {
+            complete: true,
+            diagnostics: vec![],
+        })
+    }
+}
+#[test]
+fn engine_scope_defaults_shadow_and_restore_without_confusing_equal_vendor_ids() {
+    let stage = Arc::new(DefaultsStage {
+        first_vendor: tree("{target @id=shared}", "vendor-first.cem"),
+        second_vendor: tree("{target @id=shared}", "vendor-second.cem"),
+        calls: AtomicUsize::new(0),
+    });
+    run(stage.clone(), InputFormat::Cem, "@ns v = urn:outer\n@default v\n@schema src=schema://outer\n{section | {#library} {cem:schema @cem:name=shared | {outer}} {#library} {section @xmlns=urn:inner @xmlns:v=urn:inner @cem:schema-src=schema://inner | {#library} {cem:schema @cem:name=shared | {inner}} {#library}} {#library}}");
+    run(stage.clone(), InputFormat::Xml, "<root xmlns='urn:outer' xmlns:v='urn:outer' xmlns:r='https://cem.dev/ns/cem-ml/1' r:schema-src='schema://outer'><r:expr>#library</r:expr><r:schema r:name='shared'><outer/></r:schema><r:expr>#library</r:expr><section xmlns='urn:inner' xmlns:v='urn:inner' r:schema-src='schema://inner'><r:expr>#library</r:expr><r:schema r:name='shared'><inner/></r:schema><r:expr>#library</r:expr></section><r:expr>#library</r:expr></root>");
+    assert_eq!(stage.calls.load(Ordering::SeqCst), 2);
+}
