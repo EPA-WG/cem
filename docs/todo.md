@@ -1372,18 +1372,27 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: distinguish lexical shadowing
       from a selector's ordered target sequence; retained QNames and earlier
       bindings remain unchanged by later consumer completion.
-- [ ] Decide schema scope-selector multi-target behavior before implementing
-      consumption. Recommended: preserve innermost lexical declaration lookup,
-      then require exactly one completed target after bounded reference-chain
-      resolution. Alternative: select the innermost schema from multiple returned
-      targets under the older stack-design contract. Decision requested 2026-10-06;
-      neither alternative is adopted by this audit.
+- [x] Decide schema scope-selector multi-target behavior before implementing
+      consumption. Adopted (2026-10-06) through the instruction to continue with
+      the recommendation: preserve innermost lexical declaration lookup, then
+      require exactly one completed target after bounded reference-chain
+      resolution. An arbitrary query sequence is not ranked by lexical depth.
+      This reconciles the older stack-design innermost-match wording; native
+      selector evaluation remains unimplemented until target contracts are chosen.
       Scenarios for later design verification: nested same-name declarations
-      retain lexical shadowing; a query deliberately returning multiple schemas
-      follows the chosen cardinality rule; target order is not an implicit depth
-      ranking; pending resolution cannot establish an effective schema scope.
+      retain lexical shadowing; deliberate zero/multiple target selections cannot
+      establish an active schema; pending resolution cannot establish a scope.
+- [ ] Decide the native schema scope target shape. Recommended: admit a
+      schema-language `schema:schema` declaration, or a named `cem:schema` wrapper
+      containing exactly one such declaration. Alternative: interpret the wrapper
+      body itself as a schema fragment, requiring additional metadata/context
+      rules. Decision requested 2026-10-06; neither option is adopted yet.
+      Scenarios for later design verification: wrapper selection retains its
+      original owner and declaration identity; zero/multiple declaration children
+      cannot silently pick the first schema; unrelated subtrees and similarly
+      named elements from other namespaces cannot become schema targets.
 - [ ] Specify schema and namespace target-kind/readiness contracts after the
-      schema-selector cardinality decision. Distinguish inline schema wrappers,
+      schema target-shape decision. Distinguish inline schema wrappers,
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
       from an arbitrary selected node. Preserve existing literal forms.

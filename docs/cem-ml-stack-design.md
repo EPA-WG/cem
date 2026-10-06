@@ -1345,7 +1345,14 @@ attributes:
 | Attribute              | Value form                  | Resolution path                                                                                          |
 |------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------|
 | `src` (on `<cem:schema>`) / `cem:schema-src` (on any element) | URI literal (http / file / relative) | AC-T-4 transform-source loader, gated by the AC-A-6 external-resource I/O queue when not local.        |
-| `select` (on `<cem:schema>`) / `cem:schema-select` (on any element) | cem-ql expression           | Evaluated against the document with scope-chain-aware semantics. Resolution returns the innermost match. |
+| `select` (on `<cem:schema>`) / `cem:schema-select` (on any element) | cem-ql expression           | Evaluated with captured scope-chain bindings. Lexical name lookup uses innermost shadowing; completed reference resolution must return exactly one schema target. |
+
+Schema-selector cardinality was clarified on 2026-10-06 under the adopted
+[scope-property reference contract](cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06).
+Innermost lookup selects a lexical declaration; it does not choose one result
+from an arbitrary multi-target query. Zero/multiple completed targets and pending
+resolution cannot establish the selected scope. Native target-shape and readiness
+contracts remain tracked in `todo.md`; parser retention does not evaluate selectors.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A host declaring neither is a schema-compilation error.
@@ -1358,7 +1365,7 @@ exclusive on a single host. A host declaring neither is a schema-compilation err
 | Visibility         | Scope-chain — the binding is visible to the host scope and all descendants per AC-F-1 inheritance.                                                |
 | Override           | A nested `<cem:schema cem:name="X">` shadows an outer `<cem:schema cem:name="X">` within the nested scope. Outer remains active outside.          |
 | Uniqueness         | Names need **not** be globally unique. Intentionally differs from HTML `id` (which is required-unique) so nested-redefinition is a legal override. |
-| Reference syntax   | `cem:schema-select` (or `select` on `<cem:schema>`) value resolves a cem-ql query against the scope-chain-aware document; innermost match wins.   |
+| Reference syntax   | `cem:schema-select` (or `select` on `<cem:schema>`) value resolves a cem-ql query using captured scope-chain bindings; lexical lookup uses innermost shadowing, and native consumption requires exactly one completed schema target.   |
 | Identity for cache | An inline schema's content-addressed identity for AC-CC-1 hashing is `inline:<sha256-of-body>`; the `cem:name` is an alias, not the identity.     |
 
 Scope opening for all four forms routes through the existing parser scope machinery
