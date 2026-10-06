@@ -13,6 +13,15 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Original source form, distinct even when both elements have no child nodes.
+/// Importers retain this event metadata; it cannot be inferred from a generic
+/// producer's default `has_explicit_boundary` flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaElementForm {
+    Wrapping,
+    Following,
+}
+
 /// Original builder allocation with source-position expression and name metadata.
 /// Lookup checks allocation identity, not IDs or source-coordinate equality.
 #[derive(Debug)]
@@ -20,6 +29,7 @@ pub struct LexicallyScopedDocument {
     document: Arc<CemDocument>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
     names: BTreeMap<AstNodeId, ExpandedName>,
+    schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -28,6 +38,7 @@ impl LexicallyScopedDocument {
         document: Arc<CemDocument>,
         mut occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
         diagnostics: Vec<Diagnostic>,
+        schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     ) -> Self {
         occurrences
             .retain(|node, _| matches!(document.get(*node), Some(CemAstNode::Reference { .. })));
@@ -35,10 +46,16 @@ impl LexicallyScopedDocument {
             .nodes
             .iter()
             .filter_map(|node| match node {
-                CemAstNode::Element { node_id, expanded_name, .. }
-                | CemAstNode::Attribute { node_id, expanded_name, .. } => {
-                    Some((*node_id, expanded_name.clone()))
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
                 }
+                | CemAstNode::Attribute {
+                    node_id,
+                    expanded_name,
+                    ..
+                } => Some((*node_id, expanded_name.clone())),
                 _ => None,
             })
             .collect();
@@ -46,6 +63,7 @@ impl LexicallyScopedDocument {
             document,
             occurrences,
             names,
+            schema_element_forms,
             diagnostics,
         }
     }
@@ -81,6 +99,16 @@ impl LexicallyScopedDocument {
             return None;
         }
         self.names.get(&node)
+    }
+
+    pub fn schema_element_form(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<SchemaElementForm> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.schema_element_forms.get(&node).copied())
+            .flatten()
     }
 
     /// Original named declaration visible at this occurrence. Lookup requires
@@ -193,13 +221,56 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // Standalone expressions fold to native references and can discard
         // transient nodes. Keep only surviving named nodes in this original arena.
         names.retain(|node, _| {
-            matches!(document.get(*node),
-                Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. }))
+            matches!(
+                document.get(*node),
+                Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. })
+            )
         });
+        let schema_element_forms = names
+            .iter()
+            .filter_map(|(id, name)| {
+                if name.local_name != "schema"
+                    || !matches!(
+                        name.namespace_uri.as_str(),
+                        "" | "https://cem.dev/ns/core/1"
+                    )
+                {
+                    return None;
+                }
+                let Some(CemAstNode::Element {
+                    children,
+                    has_explicit_boundary,
+                    ..
+                }) = document.get(*id)
+                else {
+                    return None;
+                };
+                let body = *has_explicit_boundary
+                    || children.iter().any(|child| {
+                        !matches!(
+                            document.get(*child),
+                            Some(
+                                CemAstNode::Whitespace { .. }
+                                    | CemAstNode::Comment { .. }
+                                    | CemAstNode::ProcessingInstruction { .. }
+                            )
+                        )
+                    });
+                Some((
+                    *id,
+                    if body {
+                        SchemaElementForm::Wrapping
+                    } else {
+                        SchemaElementForm::Following
+                    },
+                ))
+            })
+            .collect();
         LexicallyScopedDocument {
             document: Arc::new(document),
             occurrences,
             names,
+            schema_element_forms,
             diagnostics: diagnostics.into_inner().unwrap(),
         }
     }

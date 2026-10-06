@@ -7,7 +7,7 @@ use crate::{
     diagnostics::Diagnostic,
     events::SeparatorKind,
     parser::AstNodeId,
-    schema::machine::LexicalScopeSnapshot,
+    schema::machine::{LexicalScopeSnapshot, SchemaElementForm},
     source::ByteRange,
     validation::xml::{XmlEventAst, XmlEventKind},
 };
@@ -23,15 +23,29 @@ impl EventNormalizer for NoEvents {
 pub(crate) struct XmlLexicalCapture {
     machine: CemSchemaMachine<NoEvents>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+    schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
 }
 impl XmlLexicalCapture {
     pub(crate) fn new(schema: CompiledSchema) -> Self {
         Self {
             machine: CemSchemaMachine::new(schema, NoEvents),
             occurrences: BTreeMap::new(),
+            schema_element_forms: BTreeMap::new(),
         }
     }
     pub(crate) fn open(&mut self, event: &XmlEventAst, node: AstNodeId) {
+        if event.namespace_uri.as_deref() == Some("https://cem.dev/ns/core/1")
+            && event.local_name.as_deref() == Some("schema")
+        {
+            self.schema_element_forms.insert(
+                node,
+                if event.kind == XmlEventKind::StartElement {
+                    SchemaElementForm::Wrapping
+                } else {
+                    SchemaElementForm::Following
+                },
+            );
+        }
         let range = ByteRange::new(
             event.source_range.start.byte_offset,
             event
@@ -121,8 +135,18 @@ impl XmlLexicalCapture {
         self.machine
             .on_close(event.qualified_name.as_deref().unwrap_or(""));
     }
-    pub(crate) fn finish(mut self) -> (BTreeMap<AstNodeId, LexicalScopeSnapshot>, Vec<Diagnostic>) {
+    pub(crate) fn finish(
+        mut self,
+    ) -> (
+        BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+        Vec<Diagnostic>,
+        BTreeMap<AstNodeId, SchemaElementForm>,
+    ) {
         self.machine.finalize();
-        (self.occurrences, self.machine.diagnostics)
+        (
+            self.occurrences,
+            self.machine.diagnostics,
+            self.schema_element_forms,
+        )
     }
 }

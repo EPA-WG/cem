@@ -565,3 +565,54 @@ fn behavior_consumer_unwind_restores_the_original_runtime_bindings() {
         retry.validation.diagnostics
     );
 }
+
+#[test]
+fn wrapping_controls_route_native_behaviors_and_preserve_enclosing_host_validation() {
+    let inner = behavior("fixture.inner", "nodes", "$candidate.parent.name");
+    let (captured,tree)=capture(&format!("@ns s = https://cem.dev/ns/schema/1\n@ns c = https://cem.dev/ns/core/1\n{{s:schema | {{elements | {{element @name=inner}}}} {inner}}} {{c:schema @own=yes @select={{#library}} | {{inner}}}} {{sibling}}"));
+    let schemas = elements(&tree, "schema");
+    let outer=compile_schema_document_model("base",&format!("{{schema | {{elements | {{element @name=schema @required-attributes=own @children=inner}} {{element @name=sibling}}}} {} }}",behavior("fixture.outer","nodes","$candidate.name")));
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree.clone(),
+        Some(context(&tree, schemas[0], &tree, &[])),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let report = host
+        .validate_input_runtime_host_regions_with_behavior_evaluator(
+            "child",
+            tree.clone(),
+            &[schemas[1], elements(&tree, "sibling")[0]],
+            &outer,
+            policy().limits,
+            |_| Some(StandaloneExpressionContext::default()),
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(
+        report.validation.complete && !report.validation.failed,
+        "{:?}",
+        report.validation.diagnostics
+    );
+    let outer_count = report
+        .validation
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "fixture.outer")
+        .count();
+    assert_eq!(outer_count, 2);
+    let inner = report
+        .validation
+        .diagnostics
+        .iter()
+        .find(|d| d.code == "fixture.inner")
+        .unwrap();
+    assert_eq!(inner.details.as_ref().unwrap()["observed"], "schema");
+    assert!(report
+        .validation
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+    assert_eq!(report.validation.diagnostics.len(), 3);
+}

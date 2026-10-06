@@ -1380,7 +1380,7 @@ attribute target subtrees do not trigger discovery. Structural reference budgets
 and active identities continue across independently bounded selector preparation;
 no discovery rewalk repeats structural reference evaluation.
 
-Wrapping/sibling/prelude controls and external loading readiness remain lifecycle
+No-body sibling/prelude controls and external loading readiness remain lifecycle
 integration work. Preparation-only discovery
 does not create contexts, install policies or authorize crossings; effective body
 installation is an explicitly invoked consumer stage described below.
@@ -1430,7 +1430,25 @@ behavior execution; unsupported region evaluators remain incomplete without lega
 or all-candidate fallback. Dispatch preserves source attribution and never consumes
 references again or expands authored attribute-target links. Existing single-model
 behavior APIs keep their contracts. Remaining lifecycle work concerns existing
-wrapping/sibling/prelude controls and external loading readiness.
+no-body sibling/prelude controls and external loading readiness.
+
+Wrapping controls now enter the same invocation-local body scheduler as host
+attributes. Shared `validate_schema_body_controls` recognizes captured core schema
+elements and the canonical unqualified schema form, using original `src`/`select`
+attributes. Literal/native selection, admission, readiness, explicit body inputs,
+policy derivation and behavior dispatch reuse the established stages. Ordinary
+wrapper contracts remain enclosing; ready descendants use the selected model.
+Named declarations without a source do not switch, foreign lookalikes stay ordinary
+data, and unavailable controls or URI loads keep their bodies incomplete.
+
+Original `SchemaElementForm` metadata accompanies captured names, distinguishing
+empty wrapping bodies from no-body following switches. CEM retains the actual
+body boundary/content, and XML retains start/empty-element event form; generic AST
+boundary defaults cannot establish a scope. Missing metadata stays pending. Nested
+exit restores enclosing contexts and models, and repeated reference-selected
+wrappers preserve placement identity and active traversal accounting. Following
+forms are captured for their next scheduling stage; this does not choose enclosed
+child override syntax.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

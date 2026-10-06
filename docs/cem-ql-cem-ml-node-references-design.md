@@ -500,9 +500,9 @@ preparation. It does not reset the structural traversal's work, destination caps
 or active reference identities, and discovery does not evaluate structural
 references a second time. These APIs validate consuming models; they do not
 install effective runtime contexts or policies during an active request.
-Wrapping/sibling/prelude controls, external loading readiness and per-region
-behavior dispatch remain actionable lifecycle work in `todo.md`. Runtime body
-installation is available through the explicit invocation API described below.
+No-body sibling/prelude controls and external loading readiness remain actionable
+lifecycle work in `todo.md`. Wrapping body installation and per-consuming-model
+behavior dispatch are available through the explicit invocation API described below.
 Generic and explicit controlled-region APIs keep their existing contracts. No
 deferred enclosed override syntax is selected by this integration stage.
 
@@ -606,6 +606,33 @@ execution and cannot fall back to the legacy document hook or an all-candidate
 compatibility hook. Existing single-model retained behavior APIs remain compatible.
 Evaluator unwind restores invocation bindings through the same lifecycle guard.
 Remaining control-form and external readiness fixtures are in `todo.md`.
+
+Wrapping activation (2026-10-06) uses `validate_schema_body_controls` in the
+invocation scheduler. It recognizes the unqualified canonical schema body form
+with `src` or `select`, and captured core-namespace schema elements, alongside
+existing host attributes. The recognized original control attributes share the same exclusivity,
+selector, singleton target admission, compilation and runtime-input stages.
+Literal `select` and native reference/general-expression slots retain their original
+owners; `src` remains a URI awaiting its separate loading stage. Named declarations
+without a source do not switch, and foreign namespace lookalikes remain ordinary data.
+The wrapper and its ordinary attributes retain enclosing validation contracts;
+its descendants require the ready selected model and explicit caller body context.
+Nested exit restores enclosing models and inputs. Repeated reference-selected
+wrappers retain separate placements while sharing one invocation preparation;
+structural work, destination caps and active reference identities remain intact.
+
+`LexicallyScopedDocument::schema_element_form` retains owner-checked scalar
+`SchemaElementForm` metadata alongside original names. The native CEM builder
+records the explicit boundary or actual body content; the XML importer records
+start versus empty-element events. This distinguishes an empty wrapping body from
+a no-body sibling switch even when both AST child lists are empty. Generic AST
+boundary defaults are not permission to infer source form. `attach_captured_names`
+now hands off these forms with the captured names. Missing form metadata on a
+source-bearing schema element stays pending (`BodyFormNotReady`), without selecting
+an inherited model. No-body following forms are captured but require their separate
+following-region scheduler; this body stage does not implement sibling/prelude
+activation or choose the deferred enclosed child-reference syntax. Existing
+preparation-only host APIs retain their contracts.
 
 ### Implicit scope references and defaults
 

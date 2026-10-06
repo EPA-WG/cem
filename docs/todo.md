@@ -1615,7 +1615,21 @@ only and adds no runtime behavior or public syntax.
       model without losing original source ownership; pending regions cannot pass
       or borrow an enclosing behavior contract; behavior dispatch does not resolve
       structural/attribute references a second time or reset active traversal limits.
-- [ ] Fixture: connect existing wrapping/sibling/prelude schema controls to the
+- [x] Fixture: activate established wrapping schema `src`/`select` controls
+      through shared body-control decoding and the entered-boundary runtime
+      scheduler. Cover original captured namespace names, literal/native selectors,
+      nested restoration, empty explicit bodies, pending contexts and URI loading,
+      recognized control ownership, original CEM/XML body-form capture (including
+      empty wrapping versus self-closing forms), repeated reference-selected
+      wrappers and native per-model behavior dispatch. Preserve original handles, local policy overrides
+      and active traversal budgets; leave no-body sibling/prelude scheduling separate.
+      Completed on 2026-10-06: 232 native reference, lexical capture, schema
+      consumer and retained behavior tests pass, including eight new fixtures.
+      Scenarios for later design verification: a named declaration is not a switch;
+      foreign schema/select lookalikes remain ordinary data; unavailable explicit
+      overrides never borrow inherited models or contexts; consumed wrappers retain
+      enclosing contracts and descendants use only the selected model.
+- [ ] Fixture: connect existing no-body sibling and prelude schema controls to the
       entered-boundary runtime scheduler. Reuse captured original boundaries and
       the shared admission/readiness/frame/behavior stages, preserve earlier source
       names and local policy provenance, and restore enclosing/following regions.
@@ -1636,8 +1650,9 @@ only and adds no runtime behavior or public syntax.
       Runtime-input preparation, policy provenance, fresh frame registration and
       automatic entered-body/occurrence binding with combined readiness and invocation
       restoration and per-consuming-model retained behavior dispatch are implemented.
-      Next: add existing wrapping/sibling/prelude controls and external loading
-      readiness. Reuse the implemented preparation
+      Wrapping body controls now use original CEM/XML source forms and the same
+      runtime handoff. Next: add existing no-body sibling/prelude controls and
+      external loading readiness. Reuse the implemented preparation
       and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

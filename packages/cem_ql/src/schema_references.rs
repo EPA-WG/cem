@@ -95,6 +95,8 @@ pub struct CemQlSchemaDeclarationHost {
     fallback_policy: ReferenceScopePolicy,
     // Immutable scalar name metadata, keyed by a registered original owner.
     captured_names: BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::parser::ExpandedName>>,
+    captured_schema_forms:
+        BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::schema::machine::SchemaElementForm>>,
     // Compiled source only: runtime targets and contexts remain per invocation.
     source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
 }
@@ -114,6 +116,7 @@ impl CemQlSchemaDeclarationHost {
             grants: BTreeSet::new(),
             source_expressions: BTreeMap::new(),
             captured_names: BTreeMap::new(),
+            captured_schema_forms: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
                 .expect("embedded reference policy"),
         }

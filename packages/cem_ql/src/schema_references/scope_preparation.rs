@@ -54,7 +54,8 @@ impl SchemaScopePreparation {
 }
 
 impl CemQlSchemaDeclarationHost {
-    /// Attach immutable namespace metadata to a registered original arena.
+    /// Attach immutable namespace and schema-element form metadata to a registered
+    /// original arena.
     /// Repeat handoff is idempotent. No AST, tree view, context or scope changes.
     pub fn attach_captured_names(
         &mut self,
@@ -80,6 +81,16 @@ impl CemQlSchemaDeclarationHost {
                 })
                 .collect()
         });
+        self.captured_schema_forms.entry(key).or_insert_with(|| {
+            (0..owner.nodes.len())
+                .filter_map(|id| {
+                    let id = id as cem_ml::parser::AstNodeId;
+                    captured
+                        .schema_element_form(owner, id)
+                        .map(|form| (id, form))
+                })
+                .collect()
+        });
         Ok(())
     }
 
@@ -88,6 +99,19 @@ impl CemQlSchemaDeclarationHost {
         self.captured_names
             .get(&(Arc::as_ptr(source.document()) as usize))?
             .get(&source.node_id())
+    }
+
+    /// Original parser/importer distinction between wrapping and following
+    /// schema elements, including empty bodies. Generic AST defaults do not
+    /// establish this lifecycle boundary.
+    pub fn captured_schema_element_form(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Option<cem_ml::schema::machine::SchemaElementForm> {
+        self.captured_schema_forms
+            .get(&(Arc::as_ptr(source.document()) as usize))?
+            .get(&source.node_id())
+            .copied()
     }
 
     /// Explicit lifecycle consumer of one native reference occurrence. Selection

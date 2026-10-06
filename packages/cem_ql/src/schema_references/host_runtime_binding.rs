@@ -18,7 +18,7 @@ use cem_ml::{
         },
         reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
-        scope_controls::validate_schema_host_controls,
+        scope_controls::validate_schema_body_controls,
     },
     value::reference_resolution::{
         ReferenceLinkEvaluation, ReferenceResolutionError, ReferenceResolutionHost,
@@ -108,9 +108,11 @@ where
         source: SchemaDeclarationNode,
         limits: ReferenceTraversalLimits,
     ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError> {
-        let contract = validate_schema_host_controls(source.clone(), |source| {
-            self.host.captured_expanded_name(source).cloned()
-        });
+        let contract = validate_schema_body_controls(
+            source.clone(),
+            |source| self.host.captured_expanded_name(source).cloned(),
+            self.host.captured_schema_element_form(&source),
+        );
         if !contract.has_override() {
             return Ok(None);
         }
@@ -287,7 +289,7 @@ where
 }
 
 impl CemQlSchemaDeclarationHost {
-    /// Discover controls and bind ready child bodies at an explicit lifecycle
+    /// Discover host/wrapping controls and bind ready child bodies at an explicit lifecycle
     /// invocation. Original local frames request their own caller inputs as they
     /// are consumed; inactive, blocked and denied descendants are not prepared.
     /// Selected traversal keeps its active references and request/destination

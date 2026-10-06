@@ -25,6 +25,7 @@ pub struct SchemaHostControl {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemaHostControlIssue {
     NamesNotReady,
+    BodyFormNotReady,
     InvalidHost,
     ConflictingSources,
     InvalidValue,
@@ -46,6 +47,17 @@ pub fn decode_schema_host_control<F>(
 where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
+    decode_body_control(host, &mut resolved_name, false)
+}
+
+fn decode_body_control<F>(
+    host: SchemaDeclarationNode,
+    resolved_name: &mut F,
+    wrapping: bool,
+) -> Result<Option<SchemaHostControl>, SchemaHostControlError>
+where
+    F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
+{
     let error = |source, issue| SchemaHostControlError { source, issue };
     let CemAstNode::Element { attributes, .. } = host.node() else {
         return Err(error(host, SchemaHostControlIssue::InvalidHost));
@@ -57,7 +69,7 @@ where
         };
         let name = resolved_name(&attribute)
             .ok_or_else(|| error(attribute.clone(), SchemaHostControlIssue::NamesNotReady))?;
-        if !is_host_control_name(&name) {
+        if !is_body_control_name(&name, wrapping) {
             continue;
         }
         if control.is_some() {
@@ -70,13 +82,13 @@ where
             return Err(error(attribute, SchemaHostControlIssue::InvalidValue));
         };
         let source = match (name.local_name.as_str(), value, value_nodes.as_slice()) {
-            ("schema-src", Some(value), []) if !value.trim().is_empty() => {
+            ("schema-src" | "src", Some(value), []) if !value.trim().is_empty() => {
                 SchemaHostSource::Uri(value.clone())
             }
-            ("schema-select", Some(value), []) if !value.trim().is_empty() => {
+            ("schema-select" | "select", Some(value), []) if !value.trim().is_empty() => {
                 SchemaHostSource::LiteralSelector(value.clone())
             }
-            ("schema-select", None, [id]) => {
+            ("schema-select" | "select", None, [id]) => {
                 let payload =
                     SchemaDeclarationNode::new(host.document().clone(), *id).ok_or_else(|| {
                         error(attribute.clone(), SchemaHostControlIssue::InvalidValue)
@@ -134,10 +146,10 @@ impl SchemaHostControlContract {
             return vec![];
         };
         let message = match issue.issue {
-            SchemaHostControlIssue::NamesNotReady => return vec![],
+            SchemaHostControlIssue::NamesNotReady | SchemaHostControlIssue::BodyFormNotReady => return vec![],
             SchemaHostControlIssue::InvalidHost => "Schema controls require an original element host",
-            SchemaHostControlIssue::ConflictingSources => "Host schema-src and schema-select controls are mutually exclusive and cannot repeat",
-            SchemaHostControlIssue::InvalidValue => "Host schema-src requires a nonempty URI literal; schema-select requires a nonempty selector or one native expression slot",
+            SchemaHostControlIssue::ConflictingSources => "Schema body source controls are mutually exclusive and cannot repeat",
+            SchemaHostControlIssue::InvalidValue => "Schema body src requires a nonempty URI literal; select requires a nonempty selector or one native expression slot",
         };
         vec![Diagnostic {
             code: "cem.schema_scope.invalid_control".into(),
@@ -162,10 +174,45 @@ pub fn validate_schema_host_controls<F>(
 where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
+    validate_body_controls(host, &mut resolved_name, false, None)
+}
+
+/// Established host attributes and wrapping schema elements use one body
+/// contract. Named declarations without a source do not switch. No-body schema
+/// elements require following-region scheduling and are not body overrides.
+/// Source-form metadata must come from the original parser/importer, including
+/// empty explicit bodies; missing metadata is pending, never a guessed form.
+pub fn validate_schema_body_controls<F>(
+    host: SchemaDeclarationNode,
+    mut resolved_name: F,
+    form: Option<super::machine::SchemaElementForm>,
+) -> SchemaHostControlContract
+where
+    F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
+{
+    validate_body_controls(host, &mut resolved_name, true, form)
+}
+
+fn validate_body_controls<F>(
+    host: SchemaDeclarationNode,
+    resolved_name: &mut F,
+    include_wrappers: bool,
+    form: Option<super::machine::SchemaElementForm>,
+) -> SchemaHostControlContract
+where
+    F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
+{
     let mut names = std::collections::HashMap::new();
     let mut attributes = vec![];
     let mut pending_attributes = vec![];
     let mut missing = None;
+    let element_name = include_wrappers.then(|| resolved_name(&host)).flatten();
+    let wrapper = include_wrappers
+        && element_name.as_ref().is_some_and(|name| {
+            name.local_name == "schema"
+                && (name.namespace_uri.is_empty() || name.namespace_uri == CORE_NAMESPACE)
+        });
+    let wrapping = wrapper && form == Some(super::machine::SchemaElementForm::Wrapping);
     if let CemAstNode::Element {
         attributes: source_attributes,
         ..
@@ -176,7 +223,7 @@ where
                 continue;
             };
             if let Some(name) = resolved_name(&source) {
-                if is_host_control_name(&name) {
+                if is_body_control_name(&name, wrapping) {
                     attributes.push(*id);
                 }
                 names.insert(*id, name);
@@ -191,11 +238,27 @@ where
             }
         }
     }
+    if include_wrappers && element_name.is_none() && names.values().any(is_wrapper_source_name) {
+        // A missing element name cannot distinguish a wrapper from ordinary
+        // data. Its source-like attributes remain unclassified until capture.
+        missing = Some(SchemaHostControlError {
+            source: host.clone(),
+            issue: SchemaHostControlIssue::NamesNotReady,
+        });
+    }
+    if wrapper && form.is_none() && names.values().any(is_wrapper_source_name) {
+        missing = Some(SchemaHostControlError {
+            source: host.clone(),
+            issue: SchemaHostControlIssue::BodyFormNotReady,
+        });
+    }
     let decoded = match missing {
         Some(issue) => Err(issue),
-        None => {
-            decode_schema_host_control(host.clone(), |source| names.get(&source.node_id()).cloned())
-        }
+        None => decode_body_control(
+            host.clone(),
+            &mut |source: &SchemaDeclarationNode| names.get(&source.node_id()).cloned(),
+            wrapping,
+        ),
     };
     let (control, issue) = match decoded {
         Ok(control) => (control, None),
@@ -208,6 +271,12 @@ where
         control,
         issue,
     }
+}
+fn is_body_control_name(name: &ExpandedName, wrapping: bool) -> bool {
+    is_host_control_name(name) || (wrapping && is_wrapper_source_name(name))
+}
+fn is_wrapper_source_name(name: &ExpandedName) -> bool {
+    name.namespace_uri.is_empty() && matches!(name.local_name.as_str(), "src" | "select")
 }
 fn is_host_control_name(name: &ExpandedName) -> bool {
     (name.namespace_uri.is_empty() || name.namespace_uri == CORE_NAMESPACE)
