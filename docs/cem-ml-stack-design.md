@@ -1357,6 +1357,14 @@ governed region incomplete until a usable schema is available; validation does
 not fall back to the inherited schema. Source-position expanded-name metadata
 identifies target namespaces; parser retention does not evaluate selectors.
 
+At a child override, the enclosing schema retains the host's attribute and direct
+child relationship/sequence contracts; the child schema validates descendants.
+An unavailable child body leaves its sequence/count checks deferred and overall
+validation incomplete. Nested overrides restore the preceding consuming schema
+on exit. The retained validator implements this for explicit caller-declared
+regions; authored selector recognition and runtime scope installation remain
+lifecycle integration work.
+
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A host declaring neither is a schema-compilation error.
 

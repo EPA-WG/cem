@@ -382,8 +382,9 @@ and no hard compilation diagnostics. Pending native datatype dependencies and
 invalid regex facets therefore cannot establish readiness. Repeating preparation
 uses current inputs with unchanged captured names; it does not save targets on
 source references. Recognizing scope-property syntax, assigning governed regions,
-installing effective policies and preventing inherited validation in an incomplete
-region remain separate lifecycle wiring tasks in `todo.md`.
+installing effective policies remain separate lifecycle wiring tasks in `todo.md`.
+The explicit region validator below blocks inherited validation for caller-declared
+incomplete regions.
 
 `validate_structural_input_roots_references` and the CEM-QL host's
 `validate_input_roots` now validate an explicit forest of original structural
@@ -395,13 +396,33 @@ requests reject before input evaluation. An empty valid forest is complete only
 when the supplied model is ready; unavailable regions cannot be represented by
 substituting empty roots.
 
-This primitive does not assign schema ownership across a child override. The
-remaining boundary decision is whether the enclosing schema retains the host's
-attribute and direct child-sequence checks while the child schema validates
-descendants, or stops its child-sequence checks at that boundary. The recommendation
-and verification scenarios are recorded in `todo.md`; governed-region integration
-waits for that choice. An incomplete child must keep overall validation incomplete
-under either policy.
+The child boundary ownership rule was adopted on 2026-10-06: the enclosing
+schema retains the host's attributes and direct child relationship/sequence
+contracts; the child schema validates descendants. Nested overrides restore the
+preceding consuming model on exit, including for following siblings. The enclosing
+schema's wildcard permission does not bypass the child model's declaration checks.
+
+`validate_structural_input_regions_references` accepts explicit original element
+hosts and optional child models. An unavailable or invalid model blocks its body,
+keeps host attribute checks active and leaves overall validation incomplete.
+Deferred child-sequence/count checks cannot treat the blocked body as an empty
+sequence. Empty enclosing models still visit explicit boundaries. Invalid or
+duplicate host descriptors reject before evaluation.
+
+Each retained placement carries its consuming model, including placements reached
+through references. A selected subtree's child boundaries and native attribute
+chains share that selection's existing traversal and active reference identities;
+a boundary does not reset work or destination limits. Source arenas, authored
+references and lexical associations remain unchanged.
+
+The CEM-QL host's `validate_input_regions` accepts `SchemaInputRegion` descriptors
+with preparation snapshots. Only `is_ready()` preparations supply child models.
+Entered blocked regions retain selection/compilation diagnostics, and invalid
+singleton/admission outcomes have host-attributed override diagnostics. Unrelated
+regions outside the requested forest do not supply diagnostics. Callers repeat
+preparation when lifecycle inputs change. This API does not recognize authored
+scope-property syntax, install runtime contexts/policies or run child-specific
+behavior hooks; those lifecycle integration tasks remain in `todo.md`.
 
 ### Implicit scope references and defaults
 

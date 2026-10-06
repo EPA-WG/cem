@@ -12,7 +12,7 @@ use crate::value::reference_resolution::{
 
 #[derive(Clone, Copy)]
 enum Role {
-    Structural(Option<usize>),
+    Structural(Option<usize>, usize),
     Value(usize),
     Expression(usize),
     Container(usize),
@@ -93,16 +93,30 @@ struct Site {
     attribute: SchemaDeclarationNode,
     element: String,
     supported: bool,
+    model: usize,
 }
 pub(super) struct ConsumedWalk<N> {
     pub structure: ReferenceStructureResolution<N>,
     pub attributes: Vec<(Option<usize>, ConsumedAttributeValue)>,
+    pub models: Vec<usize>,
 }
 /// Directly authored attribute requests and structurally selected attributes use
 /// exactly this walk. The latter keep the enclosing active identities/budgets.
 pub(super) fn walk<H: InputReferenceHost>(
     root: H::Node,
     model: &SchemaDocumentModel,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    attribute: Option<(SchemaDeclarationNode, String)>,
+) -> Result<ConsumedWalk<H::Node>, ReferenceResolutionError> {
+    let models = RegionModels::new(model, &[]).expect("no region descriptors");
+    walk_regions(root, &models, 0, host, limits, attribute)
+}
+
+pub(super) fn walk_regions<H: InputReferenceHost>(
+    root: H::Node,
+    models: &RegionModels<'_>,
+    model_index: usize,
     host: &mut H,
     limits: ReferenceTraversalLimits,
     attribute: Option<(SchemaDeclarationNode, String)>,
@@ -114,6 +128,7 @@ pub(super) fn walk<H: InputReferenceHost>(
             attribute,
             element,
             supported: true,
+            model: model_index,
         });
         if matches!(
             host.retained_node(&root).as_ref().map(|node| node.node()),
@@ -124,7 +139,7 @@ pub(super) fn walk<H: InputReferenceHost>(
             value_role(host, &root, 0)
         }
     } else {
-        Role::Structural(None)
+        Role::Structural(None, model_index)
     };
     let mut tagged_host = Host {
         inner: host,
@@ -133,6 +148,8 @@ pub(super) fn walk<H: InputReferenceHost>(
     };
     let mut next_index = 0;
     let mut invalid_sites = HashSet::new();
+    let mut blocked_positions = HashSet::new();
+    let mut region_diagnostics = vec![];
     let origin = if matches!(role, Role::Container(_)) {
         let source = tagged_host.inner.retained_node(&root).unwrap();
         Some(ReferenceOccurrence {
@@ -154,8 +171,14 @@ pub(super) fn walk<H: InputReferenceHost>(
             next_index += 1;
             let retained = host.inner.retained_node(&entry.node)?;
             match entry.role {
-                Role::Structural(_) => {
-                    let children = consumable_children(retained.node(), model)?;
+                Role::Structural(_, current_model) => {
+                    let model = models.models[current_model];
+                    let (children, child_model, complete) =
+                        models.children(current_model, &retained);
+                    if !complete {
+                        blocked_positions.insert(position);
+                        region_diagnostics.extend(models.blockers(&retained));
+                    }
                     let mut nodes: Vec<_> = children
                         .iter()
                         .filter_map(|id| {
@@ -163,7 +186,7 @@ pub(super) fn walk<H: InputReferenceHost>(
                         })
                         .map(|node| Tagged {
                             node: host.inner.source_node(node),
-                            role: Role::Structural(Some(position)),
+                            role: Role::Structural(Some(position), child_model),
                         })
                         .collect();
                     if let CemAstNode::Element {
@@ -172,7 +195,9 @@ pub(super) fn walk<H: InputReferenceHost>(
                         ..
                     } = retained.node()
                     {
-                        let element = &model.elements[&expanded_name.local_name];
+                        let Some(element) = model.elements.get(&expanded_name.local_name) else {
+                            return Some(nodes);
+                        };
                         for id in attributes {
                             let Some(attribute) =
                                 SchemaDeclarationNode::new(retained.document().clone(), *id)
@@ -207,6 +232,7 @@ pub(super) fn walk<H: InputReferenceHost>(
                                 attribute: attribute.clone(),
                                 element: expanded_name.local_name.clone(),
                                 supported: reference.is_some(),
+                                model: current_model,
                             });
                             if let Some(reference) = reference {
                                 let role =
@@ -308,7 +334,7 @@ pub(super) fn walk<H: InputReferenceHost>(
             .nodes
             .iter()
             .map(|entry| {
-                if matches!(entry.role, Role::Structural(_)) {
+                if matches!(entry.role, Role::Structural(_, _)) {
                     let result = Some(index);
                     index += 1;
                     result
@@ -345,15 +371,17 @@ pub(super) fn walk<H: InputReferenceHost>(
                 value_issues[site] = true;
             }
             Role::Authored(site) => site_issues[site] = true,
-            Role::Structural(Some(parent)) => {
+            Role::Structural(Some(parent), _) => {
                 structural_failures.insert(parent);
             }
-            Role::Structural(None) => roots_failed = true,
+            Role::Structural(None, _) => roots_failed = true,
         }
     }
     let mut diagnostics = resolved.resolution.diagnostics.clone();
+    diagnostics.extend(region_diagnostics);
     let mut attributes = vec![];
     for (site_id, (site, indices)) in sites.into_iter().zip(site_indices).enumerate() {
+        let model = models.models[site.model];
         let mut access = NativeAttributeTargetAccess {
             nodes: vec![],
             roots: vec![],
@@ -456,9 +484,9 @@ pub(super) fn walk<H: InputReferenceHost>(
         .iter()
         .map(|global| {
             if budget_exhausted {
-                resolved.children_complete[*global]
+                resolved.children_complete[*global] && !blocked_positions.contains(global)
             } else {
-                !structural_failures.contains(global)
+                !structural_failures.contains(global) && !blocked_positions.contains(global)
             }
         })
         .collect();
@@ -472,7 +500,13 @@ pub(super) fn walk<H: InputReferenceHost>(
             .iter()
             .map(|index| resolved.resolution.nodes[*index].node.clone())
             .collect(),
-        state: resolved.resolution.state,
+        state: if !blocked_positions.is_empty()
+            && resolved.resolution.state == ReferenceResolutionState::Resolved
+        {
+            ReferenceResolutionState::Pending
+        } else {
+            resolved.resolution.state
+        },
         failed: resolved.resolution.failed,
         issues: resolved
             .resolution
@@ -493,6 +527,13 @@ pub(super) fn walk<H: InputReferenceHost>(
         .iter()
         .any(|d| d.severity.is_hard_violation());
     Ok(ConsumedWalk {
+        models: structural_indices
+            .iter()
+            .map(|index| match resolved.resolution.nodes[*index].role {
+                Role::Structural(_, model) => model,
+                _ => unreachable!(),
+            })
+            .collect(),
         structure: ReferenceStructureResolution {
             roots: resolved
                 .roots

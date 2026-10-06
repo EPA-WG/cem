@@ -3518,3 +3518,388 @@ fn selected_structural_roots_preserve_incompleteness_and_model_readiness() {
     assert!(report.nodes.is_empty());
     assert_eq!(host.calls, calls);
 }
+
+
+#[test]
+fn child_regions_keep_host_contracts_and_restore_enclosing_models() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @required-attributes=own @children=child} {element @name=child @required-attributes=outer} {element @name=sibling @required-attributes=own}}}");
+    let inner = compile_schema_document_model(
+        "inner",
+        "{schema | {elements | {element @name=child @required-attributes=inner}}}",
+    );
+    let source = parse("{host @own=yes | {child @inner=yes}} {sibling @own=yes}");
+    let boundary = node(&source, "host");
+    let roots = match source.root().unwrap() {
+        CemAstNode::Document { root_children, .. } => root_children.clone(),
+        _ => unreachable!(),
+    };
+    let regions = [InputSchemaRegion {
+        host: boundary.clone(),
+        model: Some(&inner),
+    }];
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let report = validate_structural_input_regions_references(
+        source.clone(),
+        &roots,
+        &outer,
+        &regions,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert!(report
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), &source)));
+    let bad = parse("{host | {child @inner=yes}} {sibling}");
+    let boundary = node(&bad, "host");
+    let roots = match bad.root().unwrap() {
+        CemAstNode::Document { root_children, .. } => root_children.clone(),
+        _ => unreachable!(),
+    };
+    let regions = [InputSchemaRegion {
+        host: boundary,
+        model: Some(&inner),
+    }];
+    let report = validate_structural_input_regions_references(
+        bad, &roots, &outer, &regions, &mut host, limits,
+    )
+    .unwrap();
+    assert!(report.complete && report.failed);
+    assert_eq!(
+        report
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "cem.schema_model.missing_required_attribute")
+            .count(),
+        2
+    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .all(|d| !d.message.contains("required attribute `outer`")));
+}
+
+#[test]
+fn unavailable_child_regions_block_bodies_without_inherited_fallback() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @required-attributes=own @children=child} {element @name=child}}}");
+    let source = parse("{host | {#body}}");
+    let boundary = node(&source, "host");
+    let invalid = compile_schema_document_model("invalid", "{schema | {attributes | {attribute @name=value @type=string @pattern='['}} {elements | {element @name=child}}}");
+    for model in [None, Some(&invalid)] {
+        let regions = [InputSchemaRegion {
+            host: boundary.clone(),
+            model,
+        }];
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let report = validate_structural_input_regions_references(
+            source.clone(),
+            &[boundary.node_id()],
+            &outer,
+            &regions,
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!report.complete);
+        assert!(!report.nodes[0].children_complete);
+        assert!(report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
+        assert_eq!(host.calls, 0);
+    }
+}
+
+#[test]
+fn selected_child_regions_preserve_one_walk_and_native_attribute_contracts() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=box @children=host} {element @name=host @children=child}}}");
+    let inner = compile_schema_document_model("inner", "{schema | {elements | {element @name=child @optional-attributes=target}} {attributes | {attribute @name=target @type=schema:node @minItems=1}}}");
+    let source = parse("{box | {#host}}");
+    let library = parse("{host | {child @target={#value}}}");
+    let value = parse("{value}");
+    let boundary = node(&library, "host");
+    let regions = [InputSchemaRegion {
+        host: boundary.clone(),
+        model: Some(&inner),
+    }];
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#host".into(),
+        ReferenceLinkEvaluation::Resolved(vec![boundary]),
+    );
+    host.outcomes.insert(
+        "#value".into(),
+        ReferenceLinkEvaluation::Resolved(vec![node(&value, "value")]),
+    );
+    let limits = host.policy.limits;
+    let root = node(&source, "box").node_id();
+    let report = validate_structural_input_regions_references(
+        source.clone(),
+        &[root],
+        &outer,
+        &regions,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(host.calls, 2);
+    let child = report.nodes.iter().find(|node| matches!(node.source.node(), CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "child")).unwrap();
+    assert_eq!(child.attribute_values.len(), 1);
+    assert!(Arc::ptr_eq(child.source.document(), &library));
+    assert!(Arc::ptr_eq(
+        child.attribute_values[0]
+            .access
+            .node(child.attribute_values[0].access.roots()[0])
+            .unwrap()
+            .document(),
+        &value
+    ));
+    let mut limited = limits;
+    limited.max_work = 3;
+    let report = validate_structural_input_regions_references(
+        source,
+        &[root],
+        &outer,
+        &regions,
+        &mut host,
+        limited,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    let regions = [InputSchemaRegion {
+        host: node(&library, "host"),
+        model: None,
+    }];
+    let calls = host.calls;
+    let pending_source = parse("{box | {#host}}");
+    let pending_root = node(&pending_source, "box").node_id();
+    let report = validate_structural_input_regions_references(
+        pending_source,
+        &[pending_root],
+        &outer,
+        &regions,
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!report.complete);
+    assert_eq!(host.calls, calls + 1);
+    assert!(report.nodes.iter().any(|node| !node.children_complete));
+}
+
+#[test]
+fn child_regions_keep_parent_sequence_checks_and_defer_pending_counts() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @children=expected}} {field-contracts | {field-contract @name=pair @target=host @exact-total-children=2}}}");
+    let inner =
+        compile_schema_document_model("inner", "{schema | {elements | {element @name=actual}}}");
+    let source = parse("{host | {actual}}");
+    let boundary = node(&source, "host");
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    for ready in [true, false] {
+        let regions = [InputSchemaRegion {
+            host: boundary.clone(),
+            model: ready.then_some(&inner),
+        }];
+        let report = validate_structural_input_regions_references(
+            source.clone(),
+            &[boundary.node_id()],
+            &outer,
+            &regions,
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert_eq!(report.complete, ready);
+        assert_eq!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == cem_ml::schema::document_model::INVALID_CHILD_ELEMENT_CODE),
+            ready
+        );
+        assert_eq!(
+            report.diagnostics.iter().any(|d| d
+                .details
+                .as_ref()
+                .and_then(|d| d.get("contract"))
+                .and_then(|d| d.as_str())
+                == Some("pair")),
+            ready
+        );
+        assert!(!report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_ELEMENT_CODE));
+    }
+}
+
+#[test]
+fn child_regions_under_empty_models_still_gate_and_validate_descendants() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema}");
+    assert!(outer.is_empty());
+    let inner = compile_schema_document_model(
+        "inner",
+        "{schema | {elements | {element @name=child @required-attributes=own}}}",
+    );
+    let source = parse("{container | {host | {child}}}");
+    let boundary = node(&source, "host");
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    for ready in [true, false] {
+        let regions = [InputSchemaRegion {
+            host: boundary.clone(),
+            model: ready.then_some(&inner),
+        }];
+        let report = validate_structural_input_regions_references(
+            source.clone(),
+            &[node(&source, "container").node_id()],
+            &outer,
+            &regions,
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert_eq!(report.complete, ready);
+        assert_eq!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE),
+            ready
+        );
+        assert!(!report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == cem_ml::schema::document_model::UNKNOWN_ELEMENT_CODE));
+    }
+}
+
+#[test]
+fn nested_child_regions_restore_models_and_end_inherited_wildcards() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @children='*'} {element @name=leaf @required-attributes=outer}}}");
+    let inner = compile_schema_document_model("inner", "{schema | {elements | {element @name=nested @children=leaf} {element @name=leaf @required-attributes=inner}}}");
+    let deep = compile_schema_document_model(
+        "deep",
+        "{schema | {elements | {element @name=leaf @required-attributes=deep}}}",
+    );
+    let source =
+        parse("{host | {unknown} {nested | {leaf @deep=yes}} {leaf @inner=yes}} {leaf @outer=yes}");
+    let roots = match source.root().unwrap() {
+        CemAstNode::Document { root_children, .. } => root_children.clone(),
+        _ => unreachable!(),
+    };
+    let regions = [
+        InputSchemaRegion {
+            host: node(&source, "host"),
+            model: Some(&inner),
+        },
+        InputSchemaRegion {
+            host: node(&source, "nested"),
+            model: Some(&deep),
+        },
+    ];
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let report = validate_structural_input_regions_references(
+        source, &roots, &outer, &regions, &mut host, limits,
+    )
+    .unwrap();
+    assert!(report.complete && report.failed);
+    assert_eq!(report.diagnostics.len(), 1, "{:?}", report.diagnostics);
+    assert_eq!(
+        report.diagnostics[0].code,
+        cem_ml::schema::document_model::UNKNOWN_ELEMENT_CODE
+    );
+    assert!(report.diagnostics[0].message.contains("unknown"));
+    assert!(report.diagnostics[0].message.contains("inner"));
+}
+
+#[test]
+fn child_region_descriptors_reject_duplicates_and_non_element_hosts_before_evaluation() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_regions_references, InputSchemaRegion,
+    };
+    let outer = compile_schema_document_model(
+        "outer",
+        "{schema | {elements | {element @name=host @children=child}}}",
+    );
+    let source = parse("{host | {#body}}");
+    let boundary = node(&source, "host");
+    let reference_id = source
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let reference = SchemaDeclarationNode::new(source.clone(), reference_id).unwrap();
+    for regions in [
+        vec![
+            InputSchemaRegion {
+                host: boundary.clone(),
+                model: None,
+            },
+            InputSchemaRegion {
+                host: boundary.clone(),
+                model: None,
+            },
+        ],
+        vec![InputSchemaRegion {
+            host: reference,
+            model: None,
+        }],
+    ] {
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let report = validate_structural_input_regions_references(
+            source.clone(),
+            &[boundary.node_id()],
+            &outer,
+            &regions,
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(!report.complete && report.failed);
+        assert!(report.nodes.is_empty());
+        assert_eq!(host.calls, 0);
+        assert!(report.diagnostics.iter().all(|d| d
+            .source_map
+            .as_ref()
+            .and_then(|s| s.origin())
+            .is_some()));
+    }
+}

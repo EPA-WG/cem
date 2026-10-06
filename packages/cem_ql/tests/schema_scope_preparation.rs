@@ -282,3 +282,121 @@ fn preparation_keeps_incomplete_dependencies_and_hard_compile_errors_inspectable
         }
     }
 }
+
+#[test]
+fn prepared_child_regions_preserve_host_contracts_and_block_unready_bodies() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    use cem_ql::schema_references::SchemaInputRegion;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=inner}}} {host @own=yes | {child @inner=yes}} {sibling @own=yes} {#library}");
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @required-attributes=own @children=child} {element @name=child @required-attributes=outer} {element @name=sibling @required-attributes=own}}}");
+    let target = elements(&tree, "schema")[0];
+    let root = elements(&tree, "host")[0];
+    let roots = [root, elements(&tree, "sibling")[0]];
+    let reference = captured.occurrences().last().unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(tree.clone(), Some(context(&tree, &[target])), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let ready = host
+        .prepare_schema_scope("child", source(&tree, reference), policy().limits)
+        .unwrap();
+    assert!(ready.is_ready());
+    let regions = [SchemaInputRegion {
+        host: source(&tree, root),
+        preparation: &ready,
+    }];
+    let report = host
+        .validate_input_regions(tree.clone(), &roots, &outer, &regions, policy().limits)
+        .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert!(report
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+    host.set_context(scope, None);
+    let pending = host
+        .prepare_schema_scope("child", source(&tree, reference), policy().limits)
+        .unwrap();
+    let regions = [SchemaInputRegion {
+        host: source(&tree, root),
+        preparation: &pending,
+    }];
+    let report = host
+        .validate_input_regions(tree.clone(), &roots, &outer, &regions, policy().limits)
+        .unwrap();
+    assert!(!report.complete);
+    assert!(report.diagnostics.is_empty());
+    assert!(!report.nodes[0].children_complete);
+    assert!(!report
+        .nodes
+        .iter()
+        .any(|node| node.source.node_id() == elements(&tree, "child")[0]));
+    host.set_context(scope, Some(context(&tree, &[])));
+    let invalid = host
+        .prepare_schema_scope("child", source(&tree, reference), policy().limits)
+        .unwrap();
+    let regions = [SchemaInputRegion {
+        host: source(&tree, root),
+        preparation: &invalid,
+    }];
+    let report = host
+        .validate_input_regions(tree.clone(), &roots, &outer, &regions, policy().limits)
+        .unwrap();
+    assert!(!report.complete && report.failed);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.schema_scope.invalid_override"
+            && d.source_map.as_ref().and_then(|s| s.origin()).is_some()));
+    let unrelated = host
+        .validate_input_regions(tree.clone(), &[roots[1]], &outer, &regions, policy().limits)
+        .unwrap();
+    assert!(unrelated.complete && !unrelated.failed);
+    assert!(unrelated.diagnostics.is_empty());
+}
+
+#[test]
+fn invalid_prepared_child_models_keep_compilation_diagnostics_without_fallback() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    use cem_ql::schema_references::SchemaInputRegion;
+    for body in [
+        "{elements | {#missing}}",
+        "{attributes | {attribute @name=value @type=string @pattern='['}}",
+    ] {
+        let text = format!("@ns s = https://cem.dev/ns/schema/1\n{{s:schema | {body}}} {{host | {{#body}}}} {{#library}}");
+        let (captured, tree) = capture(&text);
+        let outer = compile_schema_document_model(
+            "outer",
+            "{schema | {elements | {element @name=host @children=child} {element @name=child}}}",
+        );
+        let target = elements(&tree, "schema")[0];
+        let root = elements(&tree, "host")[0];
+        let reference = captured.occurrences().last().unwrap();
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(tree.clone(), Some(context(&tree, &[target])), policy());
+        host.attach_captured_names(&captured).unwrap();
+        let prepared = host
+            .prepare_schema_scope("child", source(&tree, reference), policy().limits)
+            .unwrap();
+        assert!(!prepared.is_ready());
+        let regions = [SchemaInputRegion {
+            host: source(&tree, root),
+            preparation: &prepared,
+        }];
+        let report = host
+            .validate_input_regions(tree.clone(), &[root], &outer, &regions, policy().limits)
+            .unwrap();
+        assert!(!report.complete);
+        assert!(report.references.is_empty());
+        assert!(!report.nodes[0].children_complete);
+        for diagnostic in &prepared.model.as_ref().unwrap().compile_diagnostics {
+            assert!(report.diagnostics.contains(diagnostic));
+        }
+        if body.contains("pattern") {
+            assert!(report.failed);
+        }
+    }
+}

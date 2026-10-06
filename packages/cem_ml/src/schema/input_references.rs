@@ -16,6 +16,9 @@ use crate::{
 use std::{collections::HashSet, sync::Arc};
 
 mod consumed_walk;
+mod regions;
+pub use regions::InputSchemaRegion;
+use regions::RegionModels;
 
 pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_reference_target";
 
@@ -205,6 +208,22 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
+    validate_structural_input_regions_references(source, roots, model, &[], host, limits)
+}
+
+/// Validate caller-declared child schema regions in one retained placement walk.
+/// Hosts keep their enclosing attribute and direct child-sequence contracts;
+/// descendants use the child model, and unavailable overrides block their body.
+/// Region lookup uses original owners/addresses, including selected subtrees.
+/// Syntax recognition and effective runtime reference policies remain host stages.
+pub fn validate_structural_input_regions_references<H: InputReferenceHost>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    regions: &[InputSchemaRegion<'_>],
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
     let mut report = StructuralInputValidation {
         source: source.clone(),
         nodes: vec![],
@@ -228,6 +247,16 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
+    let models = match RegionModels::new(model, regions) {
+        Ok(models) => models,
+        Err(diagnostics) => {
+            report.complete = false;
+            report.failed = true;
+            report.diagnostics = diagnostics;
+            return Ok(report);
+        }
+    };
+    let mut node_models = vec![];
     let mut seen_roots = HashSet::new();
     for id in roots {
         let node = source.get(*id);
@@ -249,12 +278,13 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
             ));
         }
     }
-    if !report.complete || model.is_empty() {
+    if !report.complete || (model.is_empty() && regions.is_empty()) {
         return Ok(report);
     }
-    let mut pending: Vec<_> = roots.iter().rev().map(|id| (*id, None)).collect();
+    let mut pending: Vec<_> = roots.iter().rev().map(|id| (*id, None, 0)).collect();
     let mut owned = HashSet::new();
-    while let Some((id, parent)) = pending.pop() {
+    while let Some((id, parent, model_index)) = pending.pop() {
+        let model = models.models[model_index];
         let Some(handle) = SchemaDeclarationNode::new(source.clone(), id) else {
             continue;
         };
@@ -269,8 +299,14 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
             continue;
         }
         if matches!(handle.node(), CemAstNode::Reference { .. }) {
-            let consumed =
-                consumed_walk::walk(host.source_node(handle), model, host, limits, None)?;
+            let consumed = consumed_walk::walk_regions(
+                host.source_node(handle),
+                &models,
+                model_index,
+                host,
+                limits,
+                None,
+            )?;
             let mut resolved = consumed.structure;
             let mut indices = vec![];
             for (index, target) in resolved.resolution.nodes.iter().enumerate() {
@@ -286,6 +322,7 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
                         children_complete: resolved.children_complete[index],
                         attribute_values: vec![],
                     });
+                    node_models.push(consumed.models[index]);
                     indices.push(Some(position));
                 } else {
                     resolved.resolution.state = ReferenceResolutionState::Invalid;
@@ -334,9 +371,10 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
             report.references.push(resolved);
         } else {
             let position = report.nodes.len();
-            let children = consumable_children(handle.node(), model)
-                .unwrap_or(&[])
-                .to_vec();
+            let (children, child_model, children_complete) = models.children(model_index, &handle);
+            let children = children.to_vec();
+            report.complete &= children_complete;
+            report.diagnostics.extend(models.blockers(&handle));
             let mut attribute_values = vec![];
             if let CemAstNode::Element {
                 expanded_name,
@@ -399,16 +437,24 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
                 declaring_schema: None,
                 source: handle,
                 children: vec![],
-                children_complete: true,
+                children_complete,
                 attribute_values,
             });
+            node_models.push(model_index);
             attach(&mut report, parent, position);
-            pending.extend(children.into_iter().rev().map(|id| (id, Some(position))));
+            pending.extend(
+                children
+                    .into_iter()
+                    .rev()
+                    .map(|id| (id, Some(position), child_model)),
+            );
         }
     }
     let mut pending: Vec<_> = report.roots.iter().rev().map(|id| (*id, false)).collect();
     while let Some((index, allows_any)) = pending.pop() {
         let current = &report.nodes[index];
+        let model = models.models[node_models[index]];
+        let boundary = models.is_boundary(&current.source);
         let sequence: Vec<_> = current
             .children
             .iter()
@@ -417,15 +463,17 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
                     .map(str::to_owned)
             })
             .collect();
-        let Some(element) = document_model::validate_element_shallow(
-            current.source.document(),
-            model,
-            current.source.node_id(),
-            allows_any,
-            current.children_complete.then_some(sequence.as_slice()),
-            &mut report.diagnostics,
-        ) else {
-            continue;
+        let element = if model.is_empty() {
+            None
+        } else {
+            document_model::validate_element_shallow(
+                current.source.document(),
+                model,
+                current.source.node_id(),
+                allows_any,
+                current.children_complete.then_some(sequence.as_slice()),
+                &mut report.diagnostics,
+            )
         };
         for child in &current.children {
             document_model::validate_child_relationship(
@@ -435,13 +483,12 @@ pub fn validate_structural_input_roots_references<H: InputReferenceHost>(
                 &mut report.diagnostics,
             );
         }
-        pending.extend(
-            current
-                .children
-                .iter()
-                .rev()
-                .map(|child| (*child, element.allow_any_child)),
-        );
+        pending.extend(current.children.iter().rev().map(|child| {
+            (
+                *child,
+                !boundary && element.is_some_and(|element| element.allow_any_child),
+            )
+        }));
     }
     report.failed |= report
         .diagnostics

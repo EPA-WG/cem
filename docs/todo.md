@@ -1440,19 +1440,36 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: empty valid regions stay distinct
       from unavailable regions; source siblings outside the selected roots cannot
       supply violations or consume runtime evaluation work.
-- [ ] Decide host child-sequence ownership at a child schema override. Requested
-      2026-10-06: recommended enclosing-schema host attributes/direct child-sequence
-      checks plus child-schema descendant validation; alternative stops enclosing
-      child-sequence checks at the override boundary. Do not implement that boundary
-      until selected; an incomplete child keeps overall validation incomplete.
+- [x] Decide host child-sequence ownership at a child schema override. Adopted
+      2026-10-06 by continuing with the recommendation: enclosing-schema host
+      attributes/direct child-sequence checks plus child-schema descendant
+      validation. An incomplete child keeps overall validation incomplete.
       Scenarios for later design verification: parent child-count/relationship
       checks are attributed to the chosen schema; child readiness cannot produce
       false complete parent validation or silently use inherited descendants.
+- [x] Fixture: validate caller-declared child schema regions over original source
+      handles in one retained traversal. Keep host attributes/child-sequence rules
+      on the enclosing model; use the child model for descendants and restore the
+      enclosing model for siblings. Cover authored and referenced boundaries,
+      pending/invalid overrides without inherited evaluation, native attributes,
+      parent diagnostics and shared traversal budgets under selected subtrees.
+      Verified with native retained-region and preparation fixtures, including
+      nested restoration, wildcard boundaries, empty enclosing models and descriptor
+      preflight. CEM-QL accepts explicit preparation snapshots; automatic property
+      recognition and runtime scope/policy installation remain below.
+      Scenarios for later design verification: per-placement models do not copy
+      source arenas; pending child bodies cannot appear empty to parent counts;
+      the CEM-QL adapter accepts prepared models only when their readiness gate passes.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
       activation; pending/invalid explicit overrides keep their region incomplete.
       Supply original source-position name metadata and keep literal forms compatible.
+      Next: decode established authored schema controls into preparation requests and
+      original region hosts, install effective runtime contexts/policies explicitly,
+      and connect retained behavior validation to each consuming model. Reuse the
+      implemented preparation and region APIs; do not add an AST projection or choose
+      the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid
       override; retries keep earlier lexical bindings; leaving a completed child
       override restores the enclosing schema; zero/multiple targets never activate.

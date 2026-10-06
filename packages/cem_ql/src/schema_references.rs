@@ -40,6 +40,8 @@ use std::{
 mod source_diagnostics;
 mod lexical_handoff;
 mod scope_preparation;
+mod region_validation;
+pub use region_validation::SchemaInputRegion;
 pub use scope_preparation::{SchemaScopePreparation, SchemaScopePreparationIssue};
 pub use lexical_handoff::LexicalScopeHandoffError;
 
