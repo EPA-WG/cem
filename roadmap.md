@@ -993,6 +993,11 @@ These details remain separate from the adopted scope and lifecycle principles.
       exporting source expressions for later evaluation does not require
       serializing a live context. Keep the current CEMB/native artifact
       distinction visible until this contract is settled.
+- [ ] Specify the binary reload handoff for source URI/text and captured lexical
+      snapshots. CEMB persists AST expression/provenance and arena-local edges;
+      the caller supplies runtime contexts and grants after reload. Define which
+      lexical metadata is externally required before claiming source-position
+      bindings survive transport, without persisting live environments.
 - [ ] Promote these query/transport decisions into schema/API documentation
       and actionable fixture work in `docs/todo.md` before implementing them.
 
@@ -1005,6 +1010,9 @@ These details remain separate from the adopted scope and lifecycle principles.
   output cases produce a documented outcome.
 - Source-reference export permits evaluation with a newly supplied runtime
   context, without requiring an authored context ID or persisted live bindings.
+- Binary reload under namespace/schema child overrides retains original lexical
+  meaning through an explicit metadata handoff; missing metadata cannot silently
+  substitute destination defaults or report a completed equivalent evaluation.
 
 
 ## Separate general datatype compilation workstream

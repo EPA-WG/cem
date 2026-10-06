@@ -1366,20 +1366,44 @@ only and adds no runtime behavior or public syntax.
       Verification: all ten `node_references` fixtures and nine existing
       `ast::tests` pass, including the version-tag regression that failed
       before the decoder fix.
-- [ ] Fixture: extend current CEMB round trips and version compatibility coverage
+- [x] Fixture: inspect a parser-backed cyclic reference graph through retained
+      native nodes, AST-vocabulary rows and DOM diagnostics. Verify owning children
+      remain unchanged, target order/multiplicity and empty-versus-absent metadata
+      survive, and source CEM/XML exports retain expressions without graph expansion.
+      Scenarios for later design verification: inspection never evaluates a link;
+      source text export cannot claim to transport runtime graph edges.
+- [x] Fixture: reload a CEMB source reference and evaluate it against fresh native
+      data contexts after delayed readiness. Verify independent original owners,
+      stable source provenance and unchanged codec payload after consumption,
+      without serializing contexts, grants or live bindings.
+      Scenarios for later design verification: callers reattach runtime metadata
+      explicitly after reload; lexical snapshot transport remains a separate contract.
+- [x] Fixture: extend current CEMB round trips and version compatibility coverage
       for unevaluated source, resolved-empty and ordered/repeated graph edges,
       reference-to-reference edges, self-reference, cycles, source provenance,
       and invalid node handles. Reload source for later evaluation with a newly
       supplied runtime context without serializing a live environment.
-- [ ] Align AST codec, native graph integration, formatter, XML convention
+- [x] Align AST codec, native graph integration, formatter, XML convention
       export/import, and typed AST/DOM/event inspection with retained reference
       identity and source semantics. Inspection must not follow chains or
       silently turn references into text or structural target subtrees.
       Keep optional runtime outcomes distinct from source-only export.
-- [ ] Record the supported AST graph round-trip boundary and remaining native
+- [x] Record the supported AST graph round-trip boundary and remaining native
       output artifact gaps. Do not select cyclic native-output expansion,
       pending-outcome transport, or new transport contracts in this stage;
       those decisions remain in the roadmap.
+
+Verification (2026-10-05): parser-backed cyclic graphs preserve order, repeated
+and reference-node targets, self-reference, empty/absent targets and provenance
+through CEMB versions 3 and 4. Existing fixtures retain v2 ordinary-node support
+and reject invalid handles/reference tags. New ML coverage checks inert retained
+node/AST-row/DOM inspection and source-only CEM/XML/event exports; two QL fixtures
+check native target handles after reload and fresh-context evaluation without
+payload writeback. All 43 focused tests pass: 22 ML reference/source/inspection,
+nine AST codec unit tests and 12 QL construction/runtime tests. The supported
+boundaries are documented in the design.
+Native output-value graph and pending-outcome transport remain deferred in the
+roadmap; this closure adopts no new transport or public query access syntax.
 
 ### 7. Verify and document completion
 

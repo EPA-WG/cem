@@ -315,3 +315,206 @@ fn xml_foreign_expression_vocabulary_does_not_construct_a_reference() {
         .any(|node| matches!(node, CemAstNode::Reference { .. })));
     assert!(tree.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "expr" && expanded_name.namespace_uri == "https://example.test/vendor")));
 }
+
+#[test]
+fn cyclic_graph_roundtrip_and_inspection_preserve_edges_without_source_export_expansion() {
+    use cem_ml::{
+        parser::tree::{CemTreeSemantics, RetainedCemTree},
+        projection::{cem_tree_inspection, CemTreeAstNode},
+    };
+    use std::sync::Arc;
+    let text = "{section | {#first} {target} {#second} {#empty} {#pending}}";
+    let mut document = parse(text);
+    let references: Vec<_> = document
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    let target = document
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "target" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let edges = [
+        Some(vec![target, references[1], target, references[0]]),
+        Some(vec![references[0]]),
+        Some(vec![]),
+        None,
+    ];
+    for (&id, edges) in references.iter().zip(&edges) {
+        let CemAstNode::Reference { targets, .. } = &mut document.nodes[id as usize] else {
+            unreachable!()
+        };
+        *targets = edges.clone();
+    }
+    let original_format = cem_ml::formatter::format(&document);
+    let bytes = DebugBinaryEncoder::new().encode(&document).bytes;
+    // The reference layout is shared by versions 3 and 4; v2 rejection and
+    // ordinary-node compatibility are covered by the version fixture above.
+    for version in [3u16, 4u16] {
+        let mut payload = bytes.clone();
+        payload[4..6].copy_from_slice(&version.to_le_bytes());
+        let hash_offset = payload.len() - 8;
+        let hash = cem_ml::ast::format::fnv1a64(&payload[..hash_offset]);
+        payload[hash_offset..].copy_from_slice(&hash.to_le_bytes());
+        let restored = DebugBinaryDecoder::new().decode(&payload).unwrap();
+        assert_eq!(restored.nodes.len(), document.nodes.len());
+        for &id in &references {
+            match (document.get(id).unwrap(), restored.get(id).unwrap()) {
+                (
+                    CemAstNode::Reference {
+                        expression: a,
+                        context: b,
+                        targets: c,
+                        source: d,
+                        ..
+                    },
+                    CemAstNode::Reference {
+                        expression: e,
+                        context: f,
+                        targets: g,
+                        source: h,
+                        ..
+                    },
+                ) => assert_eq!((a, b, c, d), (e, f, g, h)),
+                _ => panic!("reference identity lost"),
+            }
+        }
+        assert_eq!(cem_ml::formatter::format(&restored), original_format);
+        let tree = RetainedCemTree::new(
+            restored,
+            "graph.cem",
+            text,
+            CemTreeSemantics::default(),
+            None,
+        )
+        .unwrap();
+        for (&id, expected) in references.iter().zip(&edges) {
+            assert!(tree.node(id).unwrap().children.is_empty());
+            let CemAstNode::Reference { targets, .. } = tree.ast().get(id).unwrap() else {
+                unreachable!()
+            };
+            assert_eq!(targets, expected);
+        }
+        let inspection = cem_tree_inspection(tree.clone());
+        assert!(Arc::ptr_eq(inspection.source_owner().unwrap(), &tree));
+        let rows = inspection
+            .as_nodes()
+            .iter()
+            .find(|node| node.name() == Some("ast"))
+            .unwrap()
+            .children();
+        assert_eq!(rows.len(), tree.ast().nodes.len());
+        for (&id, expected) in references.iter().zip(&edges) {
+            let attrs = rows
+                .iter()
+                .find_map(|row| match row {
+                    CemTreeAstNode::Element { attributes, .. }
+                        if attributes.iter().any(|a| {
+                            a.name == "id"
+                                && a.value.as_deref() == Some(format!("node-{id}").as_str())
+                        }) =>
+                    {
+                        Some(attributes)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            let value = |name: &str| {
+                attrs
+                    .iter()
+                    .find(|a| a.name == name)
+                    .and_then(|a| a.value.as_deref())
+            };
+            assert_eq!(value("kind"), Some("reference"));
+            assert_eq!(
+                value("evaluation-state"),
+                Some(if expected.is_some() {
+                    "resolved"
+                } else {
+                    "unevaluated"
+                })
+            );
+            let ids = expected
+                .as_ref()
+                .map(|ids| ids.iter().map(u32::to_string).collect::<Vec<_>>().join(" "));
+            assert_eq!(value("target-ids"), ids.as_deref());
+        }
+        let dom = cem_ml::projection::dom_json(tree.ast());
+        let refs: Vec<_> = dom["children"][0]["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|n| n["kind"] == "reference")
+            .collect();
+        assert_eq!(refs.len(), references.len());
+        assert_eq!(refs[0]["targets"], serde_json::json!(edges[0]));
+        assert_eq!(refs[2]["targets"], serde_json::json!([]));
+        assert!(refs[3]["targets"].is_null());
+        assert!(refs.iter().all(|node| node.get("children").is_none()));
+        // Normalized events inspect source syntax, not the saved AST graph.
+        let events = cem_ml::projection::NormalizedEventStream::from_source(
+            original_format.as_bytes(),
+            cem_ml::engine::InputFormat::Cem,
+        );
+        let payloads: Vec<_> = events
+            .as_events()
+            .iter()
+            .filter_map(|event| match event {
+                cem_ml::events::NormalizedEvent::Value {
+                    value: cem_ml::events::ScalarValue::Text(text),
+                    ..
+                } if text.starts_with('#') => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(payloads, ["#first", "#second", "#empty", "#pending"]);
+        assert_eq!(events.as_events().iter().filter(|event| matches!(event,
+            cem_ml::events::NormalizedEvent::OpenScope { name, .. } if name.lexical_name == "$"
+        )).count(), references.len());
+        // Text exports are source conventions: they discard optional target
+        // metadata and reconstruct fresh occurrences, without following cycles.
+        for surface in [
+            cem_ml::formatter::format(tree.ast()),
+            cem_ml::interpreter::xml::XmlInterpreter::new()
+                .render(tree.ast())
+                .rendered,
+        ] {
+            let exported = if surface.starts_with('<') {
+                import_data_bytes(surface.as_bytes(), "application/xml", "cem", "export.xml")
+                    .unwrap()
+                    .ast_owner()
+                    .clone()
+            } else {
+                Arc::new(parse(&surface))
+            };
+            let exported_refs: Vec<_> = exported
+                .nodes
+                .iter()
+                .filter_map(|n| match n {
+                    CemAstNode::Reference {
+                        expression,
+                        targets,
+                        ..
+                    } => {
+                        assert!(targets.is_none());
+                        Some(expression.as_str())
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(exported_refs, ["#first", "#second", "#empty", "#pending"]);
+            assert_eq!(exported.nodes.iter().filter(|n| matches!(n, CemAstNode::Element { expanded_name, .. } if expanded_name.local_name == "target")).count(), 1);
+        }
+    }
+}

@@ -717,11 +717,48 @@ retain source maps and URI provenance without reconstructing source text or
 coordinates. This bridge migration leaves public query reference type/access
 syntax and native output graph transport decisions deferred.
 
-The CEMB AST codec version 3 carries retained expression/context/target state
-and allows self-reference or cyclic target edges while retaining version 2
-read compatibility. These graph links remain separate from structural child
-edges. This does not change the older native output-value artifact's expansion
-and consumer projection contracts.
+The CEMB AST codec introduced reference expression/context/target state in
+version 3; the current version 4 also persists owning native attribute-value
+edges. Version 3 reference graphs and version 2 ordinary nodes remain readable.
+Self-reference, cycles and ordered duplicate target edges are supported within
+one CEM arena, independently of structural child edges. Invalid context/target
+handles are rejected. This does not change the older native output-value
+artifact's expansion and consumer projection contracts.
+
+### Verified codec and inspection boundaries (2026-10-05)
+
+CEMB preserves reference occurrence handles, containing-node handles, source-map
+frames and optional target lists. Absent targets, resolved-empty lists and cyclic
+or repeated lists remain distinct. These handles are arena labels; they do not
+require authored IDs. A decoded source can be wrapped in a retained native tree
+and consumed with a newly supplied runtime context. The reload fixture retains
+the original source map, waits for input readiness, and evaluates against two
+independent native owners without changing the binary payload.
+
+The caller supplies the source URI/text and runtime context at reload. CEMB does
+not serialize host scope registrations, crossing grants, live bindings or pending
+consumer outcomes. Captured lexical snapshots are separate from the AST payload;
+transport of those snapshots requires a separately specified handoff. The reload
+fixture uses a context-bound expression without captured namespace overrides,
+and does not claim to persist every lexical integration contract.
+
+Retained native query views expose reference nodes and ordered target handles
+without turning targets into owning children. AST-vocabulary inspection retains
+the original tree owner and emits one row per owning occurrence, with separate
+expression, context and target metadata. DOM diagnostics similarly report
+reference kind and target IDs without graph expansion. These inspection paths
+preserve absent versus empty metadata and never evaluate a link.
+
+The formatter and XML convention writer export authored expression source.
+Optional target lists are omitted; importing those surfaces constructs fresh
+unevaluated occurrences and provenance for the exported source. Normalized event
+inspection represents source syntax and its opaque expression payload, rather
+than a persisted AST target graph. `cem_tree_nodes`/`ast_stream` are writer-facing
+source projections and use the XML `cem:expr` convention; they are not the native
+reference query view or a graph codec. Inspection and source export therefore do
+not claim transport of execution-local results. Cross-owner native value graphs,
+cyclic output expansion and pending-outcome transport remain actionable decisions
+in [the roadmap](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 Adoption does not claim that these initial representations implement every
 2026-10-04 rule. The implementation checklist owns alignment and verification;
