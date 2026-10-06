@@ -75,17 +75,7 @@
   {
     "type": "cem_ql_span",
     "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "cem_ql_span",
-          "named": true
-        }
-      ]
-    }
+    "fields": {}
   },
   {
     "type": "content_boundary",
@@ -134,44 +124,33 @@
     }
   },
   {
-    "type": "expression_body",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "cem_ql_span",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "expression_node",
     "named": true,
     "fields": {
       "body": {
         "multiple": false,
-        "required": true,
+        "required": false,
         "types": [
           {
             "type": "expression_body",
             "named": true
           }
         ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "#",
+            "named": false
+          },
+          {
+            "type": "$",
+            "named": false
+          }
+        ]
       }
-    },
-    "children": {
-      "multiple": false,
-      "required": false,
-      "types": [
-        {
-          "type": "content_boundary",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -261,6 +240,10 @@
     "type": "block_comment",
     "named": true,
     "extra": true
+  },
+  {
+    "type": "expression_body",
+    "named": true
   },
   {
     "type": "line_comment",

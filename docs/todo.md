@@ -1156,6 +1156,26 @@ remains guarded until that compiler is ready.
       CEM-ML tokenizer/parser/codec/native-slot/source-mapping tests pass, including
       three new retained mapping and binary fixtures. Full `cem_ql:test` and
       `cem_ml_transform_cem_ql:test` Nx targets pass; no deferred syntax is enabled.
+- [x] Fixture: strengthen tree-sitter/native parity to compare expression bodies and
+      native attribute slots separately from literal lookalikes. Cover quoted/doubled/
+      escaped delimiters, nested comments and records, empty spans, malformed closure,
+      following siblings, exact source spans and incremental edits inside query strings.
+      Scenarios for later design verification: editor parsing never ends a query at a
+      quoted/commented brace; quoted and bare `#` text never gains native expression kind.
+- [x] Fixture: tokenize TextMate reference and attribute spans with quoted/doubled/
+      escaped braces, nested comments and records, and following siblings; keep
+      quoted reference lookalikes literal and preserve query scope through line breaks.
+      Scenarios for later design verification: editor highlighting keeps host closing
+      braces distinct from braces belonging to opaque query source.
+- [x] Align tree-sitter's opaque query-span scanner, generated parser/build integration,
+      lexical EBNF and TextMate reference highlighting under those fixtures. Preserve
+      the existing CEM/XML attribute boundary and deferred child override spelling.
+      Scenarios for later design verification: all canonical fixture projections remain
+      compatible; the generated parser binds the scanner, and native build/cache
+      inputs include it.
+      Verification: five native/editor parity tests pass, including all canonical
+      fixtures; 25 native tokenizer tests and 14 TextMate expression/attribute cases
+      pass. Parser regeneration succeeds through `cem_ml:tree-sitter:generate`.
 - [ ] Audit and finish the remaining retained reference expression-slot integration
       and CEM/XML parity from sections 1–2 above. Identify existing coverage first;
       add focused native fixture actions for actual gaps before implementation.

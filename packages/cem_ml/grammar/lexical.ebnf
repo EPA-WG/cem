@@ -20,7 +20,8 @@ item             = node
                  | text ;
 
 node             = "{" , qname , { attribute } , [ content_boundary ] , { item } , "}" ;
-expression_node  = "{" , ( "$" | "#" ) , [ content_boundary ] , expression_body , "}" ;
+expression_node  = "{" , ( "$" , [ "|" ] , expression_body
+                         | "#" , expression_body ) , "}" ;
 anonymous_scope  = "{" , attribute , { attribute } , [ content_boundary ] , { item } , "}" ;
 
 attribute        = "@" , qname , [ "=" , value ] ;
@@ -28,10 +29,10 @@ value            = bare_value
                  | quoted_string
                  | cem_ql_span ;
 
-bare_value       = name_continue , { name_continue } ;
+bare_value       = bare_char , { bare_char } ;
 quoted_string    = '"' , { quoted_char_double } , '"'
                  | "'" , { quoted_char_single } , "'" ;
-cem_ql_span      = "{" , { cem_ql_char | balanced_braces } , "}" ;
+cem_ql_span      = "{" , expression_body , "}" ;
 
 content_boundary = "|" | "▷" ;      (* `▷` Unicode equivalent *)
 
@@ -50,8 +51,14 @@ qname            = [ name , ":" ] , name ;
 name             = name_start , { name_continue } ;
 name_start       = letter | "_" ;
 name_continue    = letter | digit | "_" | "-" ;
-expression_body  = { cem_ql_char | balanced_braces } ;
-balanced_braces  = "{" , { cem_ql_char | balanced_braces } , "}" ;
+(* Opaque capture only: these delimiters do not define query validity. *)
+expression_body  = { query_part } ;
+query_part       = query_string | query_comment | balanced_braces | cem_ql_char ;
+balanced_braces  = "{" , expression_body , "}" ;
+query_string     = '"' , { query_double_char | escaped_scalar | '""' } , '"'
+                 | "'" , { query_single_char | escaped_scalar | "''" } , "'" ;
+escaped_scalar   = ? backslash followed by any scalar ? ;
+query_comment    = "(:" , { query_comment | query_comment_char } , ":)" ;
 
 (* Terminal byte/scalar classes. *)
 letter           = ? Unicode alphabetic scalar ? ;
@@ -60,7 +67,11 @@ non_newline      = ? any scalar except U+000A ? ;
 text_char        = ? any scalar except "{" | "}" | "`" | "/" ? ;
 quoted_char_double = ? any scalar except '"' ? ;
 quoted_char_single = ? any scalar except "'" ? ;
-cem_ql_char      = ? any scalar except "{" | "}" ? ;
+bare_char        = ? any scalar except whitespace, "}", or "|"; leading "{" or quotes select other value forms ? ;
+query_double_char = ? any scalar except double quote or backslash ? ;
+query_single_char = ? any scalar except single quote or backslash ? ;
+query_comment_char = ? any scalar not starting "(:" or ":)" ? ;
+cem_ql_char      = ? any scalar except braces or quotes, and not starting "(:" ? ;
 rich_char        = ? any scalar except triple-backtick ? ;
 comment_inner    = ? any scalar except "*" "/" pair ? ;
 end_of_input     = ? EOF marker ? ;

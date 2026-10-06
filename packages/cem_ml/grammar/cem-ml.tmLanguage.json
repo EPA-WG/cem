@@ -63,7 +63,7 @@
     },
     "expression-node": {
       "name": "meta.expression-node.cem-ml",
-      "begin": "(\\{)\\s*(\\$)",
+      "begin": "(\\{)\\s*([$#])",
       "beginCaptures": {
         "1": { "name": "punctuation.section.node.begin.cem-ml" },
         "2": { "name": "keyword.operator.expression.cem-ml" }
@@ -72,13 +72,7 @@
       "endCaptures": {
         "1": { "name": "punctuation.section.node.end.cem-ml" }
       },
-      "patterns": [
-        { "include": "#content-boundary" },
-        {
-          "match": ".",
-          "name": "source.cem-ql"
-        }
-      ]
+      "patterns": [{ "include": "#query-content" }]
     },
     "anonymous-scope": {
       "begin": "(\\{)\\s*(?=@)",
@@ -129,7 +123,7 @@
         },
         {
           "name": "meta.cem-ql-span.cem-ml",
-          "begin": "(\\{)",
+          "begin": "(?<==)\\s*(\\{)",
           "beginCaptures": {
             "1": { "name": "punctuation.section.cem-ql.begin.cem-ml" }
           },
@@ -137,7 +131,79 @@
           "endCaptures": {
             "1": { "name": "punctuation.section.cem-ql.end.cem-ml" }
           },
-          "patterns": [{ "match": ".", "name": "source.cem-ql" }]
+          "patterns": [{ "include": "#query-content" }]
+        }
+      ]
+    },
+    "query-content": {
+      "patterns": [
+        {
+          "include": "#query-double-string"
+        },
+        {
+          "include": "#query-single-string"
+        },
+        {
+          "include": "#query-comment"
+        },
+        {
+          "include": "#query-braces"
+        },
+        {
+          "match": ".",
+          "name": "source.cem-ql"
+        }
+      ]
+    },
+    "query-double-string": {
+      "name": "string.quoted.double.cem-ql",
+      "begin": "\"",
+      "end": "\"",
+      "applyEndPatternLast": true,
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.cem-ql"
+        },
+        {
+          "match": "\"\"",
+          "name": "constant.character.escape.cem-ql"
+        }
+      ]
+    },
+    "query-single-string": {
+      "name": "string.quoted.single.cem-ql",
+      "begin": "'",
+      "end": "'",
+      "applyEndPatternLast": true,
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.cem-ql"
+        },
+        {
+          "match": "''",
+          "name": "constant.character.escape.cem-ql"
+        }
+      ]
+    },
+    "query-comment": {
+      "name": "comment.block.cem-ql",
+      "begin": "\\(:",
+      "end": ":\\)",
+      "patterns": [
+        {
+          "include": "#query-comment"
+        }
+      ]
+    },
+    "query-braces": {
+      "name": "source.cem-ql",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#query-content"
         }
       ]
     },
@@ -146,7 +212,7 @@
       "name": "keyword.operator.content-boundary.cem-ml"
     },
     "text": {
-      "match": "[^{}`]+",
+      "match": "[^{}`@'\"]+",
       "name": "string.unquoted.text.cem-ml"
     }
   }

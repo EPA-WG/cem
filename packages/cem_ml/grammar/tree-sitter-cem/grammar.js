@@ -18,6 +18,8 @@ module.exports = grammar({
     $.block_comment,
   ],
 
+  externals: $ => [$.expression_body, $._reference_body, $._query_span_body],
+
   word: $ => $._name_token,
 
   conflicts: $ => [],
@@ -68,13 +70,14 @@ module.exports = grammar({
       '}',
     ),
 
-    // `{$ ... }` — expression node. Body is delegated to a future
-    // cem-ql parser; Tier A captures it as an opaque balanced span.
+    // Capture query source without executing it. The external scanner balances
+    // braces while retaining quoted strings and nested query comments verbatim.
     expression_node: $ => seq(
       '{',
-      choice('$', '#'),
-      optional($.content_boundary),
-      field('body', $.expression_body),
+      choice(
+        seq(field('operator', '$'), optional('|'), optional(field('body', $.expression_body))),
+        seq(field('operator', '#'), optional(field('body', alias($._reference_body, $.expression_body)))),
+      ),
       '}',
     ),
 
@@ -93,22 +96,15 @@ module.exports = grammar({
       $.cem_ql_span,
     ),
 
-    bare_value: $ => /[A-Za-z0-9_\-.\/:]+/,
+    bare_value: $ => /[A-Za-z0-9_#\-.\/:]+/,
 
     quoted_string: $ => choice(
       seq('"', repeat(token.immediate(/[^"]+/)), token.immediate('"')),
       seq("'", repeat(token.immediate(/[^']+/)), token.immediate("'")),
     ),
 
-    // cem-ql attribute span — opaque, balanced braces. The cem-ql
-    // grammar lands with the cem-ql crate.
-    cem_ql_span: $ => seq(
-      '{',
-      repeat(choice(/[^{}]+/, $.cem_ql_span)),
-      '}',
-    ),
-
-    expression_body: $ => repeat1(choice(/[^{}]+/, $.cem_ql_span)),
+    // Only an unquoted braced attribute value becomes a native query slot.
+    cem_ql_span: $ => seq('{', optional($._query_span_body), '}'),
 
     content_boundary: $ => choice('|', '▷'),
 

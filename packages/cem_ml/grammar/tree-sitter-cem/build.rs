@@ -3,9 +3,11 @@ fn main() {
     let mut build = cc::Build::new();
     build.include(src_dir);
     build.file(src_dir.join("parser.c"));
+    build.file(src_dir.join("scanner.c"));
     build.flag_if_supported("-Wno-unused-but-set-variable");
     build.flag_if_supported("-Wno-unused-parameter");
     build.flag_if_supported("-Wno-unused-value");
     build.compile("tree-sitter-cem");
     println!("cargo:rerun-if-changed=src/parser.c");
+    println!("cargo:rerun-if-changed=src/scanner.c");
 }

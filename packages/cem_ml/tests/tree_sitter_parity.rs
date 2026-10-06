@@ -25,9 +25,13 @@ enum StructuralEvent {
     Directive(String),
     OpenElement(String),
     OpenAnonymousScope,
-    OpenExpressionNode,
+    OpenExpressionNode(String),
     CloseScope,
-    Attribute { name: String, value: Option<String> },
+    Attribute {
+        name: String,
+        value: Option<String>,
+        native: Option<String>,
+    },
     Text,
 }
 
@@ -64,8 +68,8 @@ fn project_rust(doc: &CemDocument) -> Vec<StructuralEvent> {
 fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) {
     let Some(node) = doc.get(id) else { return };
     match node {
-        CemAstNode::Reference { .. } => {
-            out.push(StructuralEvent::OpenExpressionNode);
+        CemAstNode::Reference { expression, .. } => {
+            out.push(StructuralEvent::OpenExpressionNode(expression.clone()));
             out.push(StructuralEvent::CloseScope);
         }
         CemAstNode::Element {
@@ -85,7 +89,17 @@ fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) 
                 return;
             }
             if qname == "$" {
-                out.push(StructuralEvent::OpenExpressionNode);
+                out.push(StructuralEvent::OpenExpressionNode(
+                    children
+                        .iter()
+                        .filter_map(|id| match doc.get(*id) {
+                            Some(CemAstNode::Text { data, .. }) => Some(data.as_str()),
+                            _ => None,
+                        })
+                        .collect::<String>()
+                        .trim()
+                        .into(),
+                ));
                 out.push(StructuralEvent::CloseScope);
                 return;
             }
@@ -98,6 +112,7 @@ fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) 
                 if let Some(CemAstNode::Attribute {
                     expanded_name,
                     value,
+                    value_nodes,
                     ..
                 }) = doc.get(*a)
                 {
@@ -106,6 +121,7 @@ fn visit_rust(doc: &CemDocument, id: AstNodeId, out: &mut Vec<StructuralEvent>) 
                     out.push(StructuralEvent::Attribute {
                         name: aname,
                         value: value.clone(),
+                        native: value_nodes.first().map(|id| native_expression(doc, *id)),
                     });
                 }
             }
@@ -191,7 +207,25 @@ fn visit_ts(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<Structur
             out.push(StructuralEvent::CloseScope);
         }
         "expression_node" => {
-            out.push(StructuralEvent::OpenExpressionNode);
+            let body = node
+                .child_by_field_name("body")
+                .map(|body| body.utf8_text(src).unwrap())
+                .unwrap_or("")
+                .trim();
+            let is_reference = node
+                .child_by_field_name("operator")
+                .map(|operator| operator.utf8_text(src).unwrap() == "#")
+                .unwrap_or(false);
+            let expression = if is_reference {
+                let operator = node.child_by_field_name("operator").unwrap();
+                std::str::from_utf8(&src[operator.start_byte()..node.end_byte() - 1])
+                    .unwrap()
+                    .trim()
+                    .to_owned()
+            } else {
+                body.to_owned()
+            };
+            out.push(StructuralEvent::OpenExpressionNode(expression));
             out.push(StructuralEvent::CloseScope);
         }
         "attribute" => {
@@ -203,7 +237,18 @@ fn visit_ts(node: Node<'_>, src: &[u8], in_content: bool, out: &mut Vec<Structur
             let value = node
                 .child_by_field_name("value")
                 .map(|c| attribute_value_text(c, src));
-            out.push(StructuralEvent::Attribute { name: aname, value });
+            let native = node
+                .child_by_field_name("value")
+                .filter(|value| value.kind() == "cem_ql_span")
+                .map(|value| {
+                    let raw = value.utf8_text(src).unwrap();
+                    raw[1..raw.len() - 1].trim().to_owned()
+                });
+            out.push(StructuralEvent::Attribute {
+                name: aname,
+                value: if native.is_some() { None } else { value },
+                native,
+            });
         }
         "text" => {
             let raw = node.utf8_text(src).unwrap_or("");
@@ -317,7 +362,124 @@ fn every_canonical_fixture_parses_equivalently_in_rust_and_tree_sitter() {
 #[test]
 fn reference_expression_editor_parser_parity() {
     let source = "{section | {#nodes} {#nodes.children}}";
-    let tokenizer = CemTokenizer::from_source(BytesSource::new(SourceId(1), source.as_bytes().to_vec()));
+    let tokenizer =
+        CemTokenizer::from_source(BytesSource::new(SourceId(1), source.as_bytes().to_vec()));
     let doc = CemAstBuilder::new(CemEventNormalizer::new(tokenizer)).build();
     assert_eq!(project_rust(&doc), project_tree_sitter(source));
+}
+
+fn native_expression(doc: &CemDocument, id: AstNodeId) -> String {
+    match doc.get(id).unwrap() {
+        CemAstNode::Reference { expression, .. } => expression.clone(),
+        CemAstNode::Element {
+            expanded_name,
+            children,
+            ..
+        } if expanded_name.local_name == "$" => children
+            .iter()
+            .filter_map(|id| match doc.get(*id) {
+                Some(CemAstNode::Text { data, .. }) => Some(data.as_str()),
+                _ => None,
+            })
+            .collect(),
+        node => panic!("unexpected expression slot: {node:?}"),
+    }
+}
+
+#[test]
+fn query_delimiters_and_literal_lookalikes_preserve_native_editor_parity() {
+    let queries = [
+        r#"#nodes["}"]"#,
+        r#"#nodes["say""}"]"#,
+        "#nodes[\"é\\\"}\"]\n (: { :) ",
+        r#"#nodes['it''s}']"#,
+        r#"#nodes["a\"}b"]"#,
+        "#nodes (: } (: { :) still } :)",
+        r#"#choose({nested: {value: "}"}}, nodes)"#,
+    ];
+    for query in queries {
+        let source = format!("{{section @target={{ {query} }} @quoted='{{#nodes}}' @bare=#nodes | {{{query}}} {{after}} }}");
+        let rust = parse_rust(&source);
+        assert!(rust.diagnostics.is_empty(), "{:?}", rust.diagnostics);
+        assert_eq!(
+            dedupe_text(project_rust(&rust)),
+            dedupe_text(project_tree_sitter(&source)),
+            "{source}"
+        );
+    }
+    for source in [
+        "{item @empty={} @general={1 + 2}}",
+        "{$ | #nodes} {#} {$} {# nodes} {#|nodes}",
+        "{$\n | nodes}",
+    ] {
+        assert_eq!(
+            project_rust(&parse_rust(source)),
+            project_tree_sitter(source),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn malformed_query_slots_report_editor_and_native_boundary_errors() {
+    for source in [
+        r#"{item @target={#nodes["}]}"#,
+        "{#nodes (: }",
+        "{#nodes[{key: 1}",
+    ] {
+        assert!(!parse_rust(source).diagnostics.is_empty(), "{source}");
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_cem::LANGUAGE.into())
+            .unwrap();
+        assert!(
+            parser.parse(source, None).unwrap().root_node().has_error(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn incremental_query_string_edit_keeps_following_native_slots_and_siblings() {
+    let before = r#"{item @target={#nodes["a"]} | {#nodes["a"]} {after}}"#;
+    let after = before.replacen("\"a\"", "\"}\"", 1);
+    let edit = before.find("\"a\"").unwrap() + 1;
+    let mut parser = Parser::new();
+    parser
+        .set_language(&tree_sitter_cem::LANGUAGE.into())
+        .unwrap();
+    let mut old_tree = parser.parse(before, None).unwrap();
+    old_tree.edit(&tree_sitter::InputEdit {
+        start_byte: edit,
+        old_end_byte: edit + 1,
+        new_end_byte: edit + 1,
+        start_position: tree_sitter::Point::new(0, edit),
+        old_end_position: tree_sitter::Point::new(0, edit + 1),
+        new_end_position: tree_sitter::Point::new(0, edit + 1),
+    });
+    let incremental = parser.parse(&after, Some(&old_tree)).unwrap();
+    let fresh = parser.parse(&after, None).unwrap();
+    assert!(
+        !incremental.root_node().has_error(),
+        "{}",
+        incremental.root_node().to_sexp()
+    );
+    assert_eq!(
+        incremental.root_node().to_sexp(),
+        fresh.root_node().to_sexp()
+    );
+    assert_eq!(
+        project_rust(&parse_rust(&after)),
+        project_tree_sitter(&after)
+    );
+    let item = incremental.root_node().named_child(0).unwrap();
+    let attribute = item.named_child(1).unwrap();
+    assert_eq!(
+        attribute
+            .child_by_field_name("value")
+            .unwrap()
+            .utf8_text(after.as_bytes())
+            .unwrap(),
+        r#"{#nodes["}"]}"#
+    );
 }
