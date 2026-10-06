@@ -55,6 +55,7 @@ impl XmlLexicalCapture {
             && event.local_name.as_deref() == Some("schema"))
         .then_some(PendingSchemaElement {
             open_byte_range: range,
+            source_node: Some(node),
             cem_name: None,
             src: None,
             select: None,

@@ -490,22 +490,29 @@ impl InputValidationStage for DefaultsStage {
         // the outer declaration until its own declaration closes, then shadows
         // it locally; the next parent occurrence still sees the outer one.
         assert!(snapshots[0].schema.resolve_name("shared").is_none());
-        let outer = snapshots[1].schema.resolve_name("shared").unwrap();
-        let inner = snapshots[3].schema.resolve_name("shared").unwrap();
-        assert_ne!(outer.body_byte_range, inner.body_byte_range);
+        let outer = captured
+            .inline_schema(request.source.ast_owner(), refs[1], "shared")
+            .unwrap();
+        let inner = captured
+            .inline_schema(request.source.ast_owner(), refs[3], "shared")
+            .unwrap();
+        assert_ne!(outer.identity(), inner.identity());
         for i in [2, 4] {
-            assert_eq!(
-                snapshots[i]
-                    .schema
-                    .resolve_name("shared")
-                    .unwrap()
-                    .body_byte_range,
-                outer.body_byte_range
-            );
+            let inherited = captured
+                .inline_schema(request.source.ast_owner(), refs[i], "shared")
+                .unwrap();
+            assert_eq!(inherited.identity(), outer.identity());
+            assert!(Arc::ptr_eq(inherited.document(), request.source.ast_owner()));
         }
-        assert!(snapshots[0].schema.resolve_name("shared").is_none());
-        assert!(!outer.source_map.frames.is_empty());
-        assert!(!inner.source_map.frames.is_empty());
+        assert!(captured
+            .inline_schema(request.source.ast_owner(), refs[0], "shared")
+            .is_none());
+        for (handle, marker) in [(&outer, "outer"), (&inner, "inner")] {
+            let CemAstNode::Element { children, .. } = handle.node() else {
+                panic!("native schema declaration")
+            };
+            assert!(children.iter().any(|node| matches!(handle.document().get(*node), Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == marker)));
+        }
         // Both published vendor parts intentionally have the same authored ID
         // and arena index. Owner identity and explicit grants distinguish them.
         let first = element(&self.first_vendor, "target");
@@ -525,12 +532,11 @@ impl InputValidationStage for DefaultsStage {
             host.register_scope(self.first_vendor.clone(), None, request.policy.clone());
         let second_scope =
             host.register_scope(self.second_vendor.clone(), None, request.policy.clone());
-        host.attach_captured_lexical_scopes(captured, |_, snapshot, inherited| {
+        host.attach_captured_lexical_scopes(captured, |occurrence, _, inherited| {
             assert_eq!(inherited, root);
-            let inner_selected = snapshot
-                .schema
-                .resolve_name("shared")
-                .is_some_and(|declaration| declaration.body_byte_range == inner.body_byte_range);
+            let inner_selected = captured
+                .inline_schema(occurrence.document(), occurrence.node_id(), "shared")
+                .is_some_and(|declaration| declaration.identity() == inner.identity());
             let vendor = if inner_selected {
                 &self.second_vendor
             } else {

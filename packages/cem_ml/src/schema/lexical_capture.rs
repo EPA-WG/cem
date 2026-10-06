@@ -3,7 +3,10 @@ use super::{CemSchemaMachine, EventNormalizer, NormalizedEvent};
 use crate::{
     diagnostics::Diagnostic,
     parser::{builder::CemAstBuilder, document::CemDocument, AstNodeId, CemAstNode},
-    schema::{namespace::NsContext, scoping::SchemaScopeFrame},
+    schema::{
+        declaration_references::SchemaDeclarationNode, namespace::NsContext,
+        scoping::SchemaScopeFrame,
+    },
 };
 use std::{
     collections::BTreeMap,
@@ -53,6 +56,21 @@ impl LexicallyScopedDocument {
         self.occurrences.get(&node)
     }
 
+    /// Original named declaration visible at this occurrence. Lookup requires
+    /// this captured owner; no source-coordinate matching or evaluation occurs.
+    pub fn inline_schema(
+        &self,
+        owner: &Arc<CemDocument>,
+        occurrence: AstNodeId,
+        name: &str,
+    ) -> Option<SchemaDeclarationNode> {
+        let declaration = self
+            .snapshot(owner, occurrence)?
+            .schema
+            .resolve_name(name)?;
+        SchemaDeclarationNode::new(self.document.clone(), declaration.source_node?)
+    }
+
     pub fn occurrences(&self) -> impl Iterator<Item = AstNodeId> + '_ {
         self.occurrences.keys().copied()
     }
@@ -79,6 +97,8 @@ pub struct LexicalScopeEvents<E: EventNormalizer, F> {
     machine: CemSchemaMachine<E>,
     observer: F,
     complete: bool,
+    builder_node: Option<Arc<Mutex<Option<AstNodeId>>>>,
+    awaiting_open_node: bool,
 }
 
 impl<E: EventNormalizer> CemSchemaMachine<E> {
@@ -88,7 +108,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     pub fn build_with_lexical_scopes(self) -> LexicallyScopedDocument {
         let pending = Mutex::new(None);
         let diagnostics = Mutex::new(Vec::new());
-        let events = self.track_lexical_scope(|event, machine| {
+        let builder_node = Arc::new(Mutex::new(None));
+        let mut events = self.track_lexical_scope(|event, machine| {
             let expression = match event {
                 Some(NormalizedEvent::OpenScope { name, .. }) => {
                     name.lexical_name == "$" || name.lexical_name == "cem:expr"
@@ -104,8 +125,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 *diagnostics.lock().unwrap() = machine.diagnostics().to_vec();
             }
         });
+        events.builder_node = Some(builder_node.clone());
         let mut occurrences = BTreeMap::new();
         let document = CemAstBuilder::new(events).build_with_node_observer(|node| {
+            *builder_node.lock().unwrap() = node;
             if let Some(node) = node {
                 if let Some(snapshot) = pending.lock().unwrap().take() {
                     occurrences.insert(node, snapshot);
@@ -148,6 +171,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             machine: self,
             observer,
             complete: false,
+            builder_node: None,
+            awaiting_open_node: false,
         }
     }
 }
@@ -161,11 +186,25 @@ where
         if self.complete {
             return None;
         }
+        // The builder has consumed the previous opening event and supplied its
+        // original node ID. Attach it before processing attributes or closure.
+        // Ordinary stream observation has no builder and retains no source ID.
+        if self.awaiting_open_node {
+            if let Some(Some(pending)) = self.machine.pending_schema_elements.last_mut() {
+                pending.source_node = self
+                    .builder_node
+                    .as_ref()
+                    .and_then(|node| node.lock().unwrap().take());
+            }
+            self.awaiting_open_node = false;
+        }
         match self.machine.events.next_event() {
             Some(event) => {
                 (self.observer)(Some(&event), &self.machine);
                 // Only the current normalized event is copied for validation;
                 // the original reaches the builder and no AST/history is copied.
+                self.awaiting_open_node = self.builder_node.is_some()
+                    && matches!(event, NormalizedEvent::OpenScope { .. });
                 self.machine.consume(event.clone());
                 Some(event)
             }

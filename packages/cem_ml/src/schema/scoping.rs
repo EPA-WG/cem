@@ -27,6 +27,7 @@
 //! emits diagnostics for invalid combinations. Actual schema loading +
 //! cem-ql evaluation lands with the schema-resolution + cem-ql layers.
 
+use crate::parser::AstNodeId;
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 use std::collections::HashMap;
@@ -50,6 +51,9 @@ pub enum SchemaSource {
 pub struct InlineSchemaDeclaration {
     pub name: String,
     pub body_byte_range: ByteRange,
+    /// Original builder/import node, present only with retained lexical capture.
+    /// Use the captured document's owner-checked lookup to obtain a source handle.
+    pub source_node: Option<AstNodeId>,
     /// Content-addressed cache identity per AC-CC-1. Tier A uses an
     /// FNV-1a 64-bit hash placeholder; the production form is
     /// `inline:<sha256-of-body>`.
@@ -181,6 +185,7 @@ mod tests {
         InlineSchemaDeclaration {
             name: name.to_owned(),
             body_byte_range: range,
+            source_node: None,
             cache_identity: inline_cache_identity(b""),
             source_map: SourceMapStack::default(),
         }

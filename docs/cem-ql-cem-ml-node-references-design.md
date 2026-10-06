@@ -888,9 +888,21 @@ also verified through both engine paths: declarations become visible after
 closure, inherited declarations can be shadowed in a child, and leaving the child
 restores the parent binding. Equal authored IDs and arena indices in separate
 vendor owners cannot share a crossing grant. This verifies the existing scope
-forms; it does not choose the deferred enclosed child override syntax. Named
-inline declarations currently retain metadata rather than an owner-checked typed
-AST source handle; that consumer linkage remains actionable in `todo.md`.
+forms; it does not choose the deferred enclosed child override syntax.
+
+Named inline declarations also retain their original declaring AST node identity.
+The CEM builder feeds that identity back into the pending schema frame before its
+attributes or closure; the XML importer supplies its existing imported node ID.
+Declaration closure publishes it with the existing lexical binding. Metadata-only
+machine observation has no owner or builder ID and leaves `source_node` absent.
+`LexicallyScopedDocument::inline_schema(owner, occurrence, name)` returns the
+visible declaration as a `SchemaDeclarationNode` only for the captured owner and
+occurrence. It uses the saved binding, without matching names or byte offsets
+against an arena, copying the AST, or evaluating the declaration. Inherited,
+child-shadowed and restored bindings retain original owner/node identity; later
+same-name declarations cannot rebind earlier occurrences. Engine lifecycle
+preparation can use this handle to select its consumer context, while runtime
+inputs, readiness, traversal policies and crossing grants remain explicit.
 
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before

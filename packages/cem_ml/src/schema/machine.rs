@@ -13,6 +13,7 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::{EventNormalizer, HandoffRecord, NormalizedEvent, ScalarValue};
 use crate::handoff::{is_supported_content_type, HandoffStack};
+use crate::parser::AstNodeId;
 use crate::schema::diagnostics::{
     cem_ml_schema_fact_diagnostic, CemMlSchemaDiagnosticCatalog, CemMlSchemaFact,
     CemMlSchemaFactKind,
@@ -130,6 +131,7 @@ struct PendingState {
 
 #[derive(Debug, Clone)]
 struct PendingSchemaElement {
+    source_node: Option<AstNodeId>,
     open_byte_range: ByteRange,
     cem_name: Option<String>,
     src: Option<String>,
@@ -464,6 +466,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let pending_schema = if !name.starts_with('@') && name == "cem:schema" {
             Some(PendingSchemaElement {
                 open_byte_range: byte_range,
+                source_node: None,
                 cem_name: None,
                 src: None,
                 select: None,
@@ -973,6 +976,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             let decl = InlineSchemaDeclaration {
                 name: name.clone(),
                 body_byte_range: pending.open_byte_range,
+                source_node: pending.source_node,
                 cache_identity,
                 source_map: frame.source_map_stack.clone(),
             };

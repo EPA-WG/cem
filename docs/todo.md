@@ -343,20 +343,32 @@ implementation. `git diff --check` passes.
       indices; each still needs its own directed grant. Source roots have no IDs
       and reference target fields remain unevaluated. The full
       `cem_ml_transform_cem_ql:test` Nx target passes.
-- [ ] Fixture: named inline-schema bindings expose their original declaring AST
+- [x] Fixture: named inline-schema bindings expose their original declaring AST
       node through owner-checked retained metadata. Verify declaration closure,
       inherited/child-shadowed/restored bindings, foreign-owner rejection and
-      original declaration identity in both CEM and XML imports.
+      original declaration identity in both CEM and XML imports. Cover empty
+      declarations and metadata-only observation without a builder source ID.
       Scenarios for later design verification: source-position bindings cannot be
       recovered by matching names or byte offsets against a different arena;
       a later same-name declaration must not rebind an earlier occurrence.
-- [ ] Align retained lexical/scope information and existing specialized frames
+- [x] Fixture: prepare engine scope defaults from owner-checked inline-schema
+      source handles in both CEM and XML, preserving inheritance, shadowing,
+      parent restoration and explicit vendor grants.
+      Scenarios for later design verification: lexical preparation uses original
+      declaration identity without interpreting byte ranges as arena addresses.
+- [x] Align retained lexical/scope information and existing specialized frames
       with the shared reference contract by attaching owner-checked source handles
       for named inline-schema declarations through builder/import node identities.
-      Current snapshots preserve declaration metadata but expose no typed source
-      handle; consumers must not recover it through byte-offset scans. Resolve
-      required lexical relationships at their existing context boundaries without
-      treating a containing-node handle as the runtime evaluator environment.
+      Completed: CEM builder feedback and XML import identities populate the
+      original declaration node at closure. Owner-checked `inline_schema` lookup
+      returns a native `SchemaDeclarationNode` from each saved binding, preserving
+      inheritance, child shadowing, parent restoration and earlier bindings across
+      later same-name declarations. Metadata-only observation leaves the node
+      absent. Consumers use existing context boundaries without treating the
+      containing-node handle as the runtime evaluator environment. Ten capture
+      fixtures, 41 schema-machine tests, seven scoping tests and the full
+      `cem_ml_transform_cem_ql:test` Nx target pass. Engine defaults now prepare
+      through these native handles while vendor grants remain explicit.
       Use current scope forms; do not implement the deferred enclosed child override
       spelling.
       Scenarios for later design verification: preparing a named scope default
