@@ -698,6 +698,25 @@ its own right, and `##nodes` nests two references. The existing
 consumer traversal of the retained chain. The implementation uses the existing
 generic node type; public query type/access contracts remain roadmap work.
 
+The shared `cem_ml_transform_cem_ql` query bridge now projects CEM-document
+artifacts through `RetainedCemTree::from_shared` and the same native query view
+used by lifecycle imports. Both paths construct ordered, repeated, nested and
+empty references over original nodes; an authored reference remains unevaluated
+when selected as a target. XML, JSON, YAML and CSV lifecycle fixtures retain
+their native owners, and reference-looking data stays literal outside recognized
+expression slots. Projection does not serialize, copy an AST or evaluate links.
+Multiple projections of one source arena share node identity; independently
+imported arenas remain distinct. Native children/attributes are flat sequences,
+and document metadata uses `input.kind` instead of automatic record bindings.
+
+The former CEM-document record projection is available only through the explicit
+Rust `cem_document_record_query_stream` compatibility function. Its array-wrapped
+navigation and record operand rejection remain intact. Invalid native structure
+cannot silently select that projection. Artifacts without original source text
+retain source maps and URI provenance without reconstructing source text or
+coordinates. This bridge migration leaves public query reference type/access
+syntax and native output graph transport decisions deferred.
+
 The CEMB AST codec version 3 carries retained expression/context/target state
 and allows self-reference or cyclic target edges while retaining version 2
 read compatibility. These graph links remain separate from structural child

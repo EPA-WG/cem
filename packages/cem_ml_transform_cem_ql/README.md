@@ -13,6 +13,25 @@ template, render-plan, and compiled-artifact ownership. Keeping the integration
 in this crate prevents a dependency cycle and gives native hosts one explicit
 adapter registration boundary.
 
+CEM-document artifacts enter queries through the shared retained CEM tree view,
+using their original AST allocation. They support native unary `#` construction
+and flat `children`/`attributes` sequences, as lifecycle data inputs do. Query
+preparation does not resolve authored references. Node identity follows the
+original AST allocation even when a collection exposes it through multiple
+structural projections. Native document metadata can be read through
+`input.kind`; the former record view's automatic metadata bindings are not
+installed by native ingress.
+
+Rust callers needing the former record shape can explicitly call
+`cem_document_record_query_stream(document)`. Its element children and attributes
+remain array-wrapped records, and those records are not unary `#` operands.
+This compatibility function retains the original owner without serialization.
+Artifact ingress checks native tree structure and does not fall back to the
+record projection. Artifacts lacking original source text retain authored source
+maps and URI provenance; the bridge does not reconstruct text or coordinates.
+The internal generic-node/target-view interfaces do not adopt new public query
+reference type or target-access syntax.
+
 The adapter supports CEM-native templates, standalone CEM-QL expression
 templates, and the [strict typed XSLT 3.0 profile](../../docs/xslt-runtime-lowering.md). It is infrastructure for
 hosts and embedders, not an application UI or an alternate query-language

@@ -413,10 +413,35 @@ implementation. `git diff --check` passes.
       typed CEM node views, preserving target order, multiplicity, owning
       document identity, and reference occurrence identity. Keep legacy helper
       compatibility explicit without changing `#` into implicit dereferencing.
-- [ ] Verify the shared typed bridge used by `cem_ml_transform_cem_ql` exposes
+- [x] Fixture: exercise the lifecycle query adapter with XML, JSON, YAML and
+      CSV owners. Verify native reference construction, ordered/repeated targets,
+      nested and empty references, source-owner retention, authored XML reference
+      preservation and literal reference-looking data without evaluation.
+      Scenarios for later design verification: query preparation and inspection
+      must not resolve authored links or serialize a document into records.
+- [x] Fixture: migrate CEM-document artifact ingress to native retained nodes;
+      verify unary construction over original source references and attributes,
+      source owner/provenance, stable identity across repeated wrapping of one
+      AST allocation, literal compatibility projection and collection
+      child artifacts without implicit evaluation or copied AST arenas.
+      Scenarios for later design verification: flat native navigation is the
+      default; callers request the former array-wrapped record view explicitly.
+- [x] Migrate CEM-document artifact ingress to the shared native tree view and
+      expose the old record projection through an explicit Rust compatibility
+      function (user decision, 2026-10-05). Keep public reference type/access
+      spelling deferred. Verify existing native-artifact consumers and reject
+      invalid retained source without fallback to record projection.
+- [x] Verify the shared typed bridge used by `cem_ml_transform_cem_ql` exposes
       references without format-specific evaluation or DOM/JSON substitutes.
       Treat current generic-node and target-view interfaces as implementation
       choices, not adoption of the deferred public reference type/access API.
+      Completed: lifecycle ingress and CEM-document artifacts share native query
+      nodes. Two lifecycle fixtures cover XML/JSON/YAML/CSV; artifact fixtures
+      cover unary construction over original references/attributes, repeated
+      projection identity and explicit record compatibility. Source identity now
+      follows the original AST allocation. Migrated transform fixtures use
+      `input.kind`; old record-shaped metadata binding is no longer implicit.
+      The full `cem_ml_transform_cem_ql:test` and `cem_ql:test` Nx targets pass.
 
 ### 4. Add explicit runtime evaluation and bounded chain resolution
 

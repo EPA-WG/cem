@@ -4568,6 +4568,145 @@ mod reference_view_tests {
     use super::*;
     use cem_ml::source_map::SourceMapStack;
 
+    #[test]
+    fn native_artifact_ingress_supports_reference_construction_without_source_evaluation() {
+        use cem_ml::{events::cem::CemEventNormalizer, parser::builder::CemAstBuilder};
+        use cem_ql::{
+            api::evaluate_expression,
+            eval::{retained_cem_node, RetainedCemNode},
+        };
+        let text = "{item @native={#missing} | {target} {#missing}}";
+        let document = Arc::new(
+            CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+                BytesSource::new(SourceId(9), text.as_bytes().to_vec()),
+            )))
+            .build(),
+        );
+        assert!(document.diagnostics.is_empty());
+        let artifact = TransformTemplateDataArtifact::new(
+            "native",
+            Some("memory:artifact.cem".into()),
+            None,
+            TransformArtifactBody::CemDocument(document.clone()),
+        );
+        let stream = artifact_query_stream(&artifact).unwrap();
+        let original = retained_cem_node(&stream.items[0]).expect("shared native ingress");
+        let repeated = artifact_query_stream(&artifact).unwrap();
+        assert_eq!(
+            stream.items[0].view().unwrap().identity(),
+            repeated.items[0].view().unwrap().identity()
+        );
+        let repeated = retained_cem_node(&repeated.items[0]).unwrap();
+        assert!(Arc::ptr_eq(
+            original.owner().ast_owner(),
+            repeated.owner().ast_owner()
+        ));
+        assert!(Arc::ptr_eq(original.owner().ast_owner(), &document));
+        assert_eq!(original.owner().source_uri(), "memory:artifact.cem");
+        let attribute = document
+            .nodes
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+                _ => None,
+            })
+            .unwrap();
+        let reference = document
+            .nodes
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Reference { node_id, .. } => Some(*node_id),
+                _ => None,
+            })
+            .unwrap();
+        let context = StandaloneExpressionContext::default()
+            .with_binding("root", StandaloneExpressionBinding::any(stream))
+            .with_binding(
+                "attr",
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(original.owner().clone(), attribute)
+                        .unwrap()
+                        .query_item(),
+                )),
+            )
+            .with_binding(
+                "authored",
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(original.owner().clone(), reference)
+                        .unwrap()
+                        .query_item(),
+                )),
+            );
+        let result = evaluate_expression("#(root, attr, authored, attr)", &context)
+            .unwrap()
+            .result;
+        assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        let targets = result.items[0].view().unwrap().field("targets").unwrap();
+        assert_eq!(targets.len(), 4);
+        for (target, node_id) in targets.iter().zip([0, attribute, reference, attribute]) {
+            let node = retained_cem_node(target).unwrap();
+            assert!(Arc::ptr_eq(node.owner().ast_owner(), &document));
+            assert_eq!(node.node_id(), node_id);
+            let source = match node.node() {
+                CemAstNode::Document { source, .. }
+                | CemAstNode::Attribute { source, .. }
+                | CemAstNode::Reference { source, .. } => source,
+                _ => unreachable!(),
+            };
+            assert_eq!(target.source_map().as_ref(), Some(source));
+            assert_eq!(
+                target
+                    .view()
+                    .unwrap()
+                    .provenance()
+                    .unwrap()
+                    .source_uri
+                    .as_deref(),
+                Some("memory:artifact.cem")
+            );
+        }
+        assert!(targets[2].view().unwrap().field("targets").is_none());
+        assert!(document.nodes.iter().all(|node| !matches!(
+            node,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn explicit_record_projection_retains_legacy_shape_and_original_owner() {
+        use cem_ml::{events::cem::CemEventNormalizer, parser::builder::CemAstBuilder};
+        let document = Arc::new(
+            CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+                BytesSource::new(SourceId(9), b"{item | {target}}".to_vec()),
+            )))
+            .build(),
+        );
+        let stream = cem_document_record_query_stream(document.clone()).unwrap();
+        let root = stream.items[0].view().unwrap();
+        assert_eq!(root.kind(), QueryItemViewKind::Record);
+        let view = root.downcast_ref::<CemDocumentQueryView>().unwrap();
+        assert!(Arc::ptr_eq(&view.document, &document));
+        let item = root.field("children").unwrap().remove(0);
+        let children = item.view().unwrap().field("children").unwrap();
+        assert_eq!(children.len(), 1);
+        let target = children[0]
+            .members()
+            .unwrap()
+            .into_iter()
+            .find(|item| item.view().unwrap().field("name") == Some(atom_items("target")))
+            .unwrap();
+        let view = target
+            .view()
+            .unwrap()
+            .downcast_ref::<CemDocumentQueryView>()
+            .unwrap();
+        assert!(Arc::ptr_eq(&view.document, &document));
+        assert_eq!(view.field("name"), Some(atom_items("target")));
+    }
+
     fn reference(targets: Option<Vec<AstNodeId>>) -> Item {
         let mut document = CemDocument::default();
         document.nodes = vec![
@@ -5486,15 +5625,31 @@ impl QueryItemView for EncodedTextQueryView {
     }
 }
 
+/// Explicit compatibility projection for callers that require the former
+/// record-shaped CEM document view (including array-wrapped element children).
+/// It retains the source allocation, but records are not operands of unary `#`.
+/// Normal artifact ingress uses shared native CEM nodes instead.
+pub fn cem_document_record_query_stream(document: Arc<CemDocument>) -> Result<ItemStream, String> {
+    document.root()
+        .ok_or_else(|| "CEM record projection has no document root".to_owned())?;
+    Ok(ItemStream::once(CemDocumentQueryView::item(document, 0)))
+}
+
 fn artifact_query_stream(artifact: &TransformTemplateDataArtifact) -> Result<ItemStream, String> {
     match &artifact.body {
         TransformArtifactBody::CemTree(tree) if tree.native_values::<Vec<RenderPlanNode>>().is_some() => {
             Ok(cem_ql::eval::output::shared_output_nodes(tree.native_values::<Vec<RenderPlanNode>>().expect("native values checked")))
         }
-        TransformArtifactBody::CemDocument(document) => document
-            .root()
-            .map(|_| ItemStream::once(CemDocumentQueryView::item(Arc::clone(document), 0)))
-            .ok_or_else(|| "native CEM transform artifact has no document root".to_owned()),
+        TransformArtifactBody::CemDocument(document) => {
+            let tree = cem_ml::parser::tree::RetainedCemTree::from_shared(
+                document.clone(),
+                artifact.uri.as_deref().unwrap_or("memory:transform-input.cem"),
+                "",
+                cem_ml::parser::tree::CemTreeSemantics::default(),
+                None,
+            )?;
+            Ok(ItemStream::once(cem_ql::eval::imported_cem_tree(tree)))
+        }
         TransformArtifactBody::HtmlDomProjection(document) => {
             Ok(ItemStream::once(Item::native(HtmlDomDocumentQueryView {
                 document: Arc::clone(document),
@@ -7095,12 +7250,10 @@ count + 1"#,
 
         let stream = artifact_query_stream(&artifact).expect("native CEM is queryable");
         let root = stream.items.first().expect("native CEM root item");
-        let view = root
-            .view()
-            .and_then(|view| view.downcast_ref::<CemDocumentQueryView>())
-            .expect("CEM root remains a native document view");
-        assert!(Arc::ptr_eq(&view.document, &document));
-        assert_eq!(view.node_id, 0);
+        let view = cem_ql::eval::retained_cem_node(root)
+            .expect("CEM root remains a shared native document node");
+        assert!(Arc::ptr_eq(view.owner().ast_owner(), &document));
+        assert_eq!(view.node_id(), 0);
 
         let children = root
             .view()
@@ -7391,11 +7544,9 @@ count + 1"#,
         );
 
         let artifact = item_view.field("artifact").expect("typed child artifact");
-        let child_view = artifact[0]
-            .view()
-            .and_then(|view| view.downcast_ref::<CemDocumentQueryView>())
-            .expect("child remains a native CEM view");
-        assert!(Arc::ptr_eq(&child_view.document, &document));
+        let child_view = cem_ql::eval::retained_cem_node(&artifact[0])
+            .expect("child remains a shared native CEM node");
+        assert!(Arc::ptr_eq(child_view.owner().ast_owner(), &document));
         assert!(Arc::ptr_eq(&collection.items[0].artifact, &child));
         assert_eq!(item_view.field("primary"), item_view.field("artifact"));
     }
@@ -11902,7 +12053,7 @@ if greeting == "Hello" {
             },
             template: TemplateInput {
                 uri: "template.cem".to_owned(),
-                bytes: br#"{p | {$datadom.attributes.kind}}"#.to_vec(),
+                bytes: br#"{p | {$input.kind}}"#.to_vec(),
                 identity: Some(template_identity),
                 root_scope: ScopeConfig::default(),
             },
@@ -12277,7 +12428,7 @@ if greeting == "Hello" {
                     id: "html".to_owned(),
                     template: TemplateInput {
                         uri: "html.cem".to_owned(),
-                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{article | {$input.kind}}"#.to_vec(),
                         identity: Some(template_identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },
@@ -12297,7 +12448,7 @@ if greeting == "Hello" {
                     id: "chart".to_owned(),
                     template: TemplateInput {
                         uri: "chart.cem".to_owned(),
-                        bytes: br#"{svg | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{svg | {$input.kind}}"#.to_vec(),
                         identity: Some(template_identity),
                         root_scope: ScopeConfig::default(),
                     },
@@ -12410,7 +12561,7 @@ if greeting == "Hello" {
                     id: "html".to_owned(),
                     template: TemplateInput {
                         uri: "html.cem".to_owned(),
-                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{article | {$input.kind}}"#.to_vec(),
                         identity: Some(identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },
@@ -12533,7 +12684,7 @@ if greeting == "Hello" {
                     id: "html".to_owned(),
                     template: TemplateInput {
                         uri: "html.cem".to_owned(),
-                        bytes: br#"{article | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{article | {$input.kind}}"#.to_vec(),
                         identity: Some(identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },
@@ -12553,7 +12704,7 @@ if greeting == "Hello" {
                     id: "summary".to_owned(),
                     template: TemplateInput {
                         uri: "summary.cem".to_owned(),
-                        bytes: br#"{section | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{section | {$input.kind}}"#.to_vec(),
                         identity: Some(identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },
@@ -12924,7 +13075,7 @@ if greeting == "Hello" {
                     id: "stats".to_owned(),
                     template: TemplateInput {
                         uri: "stats.cem".to_owned(),
-                        bytes: br#"{span | {$datadom.attributes.kind}}"#.to_vec(),
+                        bytes: br#"{span | {$input.kind}}"#.to_vec(),
                         identity: Some(template_identity.clone()),
                         root_scope: ScopeConfig::default(),
                     },

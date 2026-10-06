@@ -52,7 +52,9 @@ pub(super) fn source_metadata(item: &Item, name: &str) -> Result<Option<AtomValu
 pub fn imported_cem_tree(tree: Arc<RetainedCemTree>) -> Item {
     Item::native(CemAstView {
         owner: Arc::new(Imported {
-            identity: format!("cem:{:p}", Arc::as_ptr(&tree)),
+            // Multiple structural projections of one original arena retain source
+            // identity; independently imported arenas remain distinct owners.
+            identity: format!("cem:{:p}", Arc::as_ptr(tree.ast_owner())),
             selection_key: None,
             tree: Some(tree),
             source: String::new(),
