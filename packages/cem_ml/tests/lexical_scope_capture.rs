@@ -242,3 +242,91 @@ fn completed_associations_restore_schema_and_namespace_defaults_and_keep_pending
         .any(|diagnostic| diagnostic.code == "cem.schema.unclosed_scope"));
     assert_eq!(incomplete.occurrences().count(), 0);
 }
+
+#[test]
+fn captured_names_keep_source_position_bindings_and_original_owner() {
+    let source = "@ns s = https://cem.dev/ns/schema/1\n@ns c = https://cem.dev/ns/core/1\n@default s\n{c:schema @c:name=inline @c:flag @c:target={#later} | {s:schema}}\n@ns s = urn:other\n@default s\n{schema @xmlns:s=urn:inner | {s:schema} }\n{s:schema} {missing:schema} {#later}";
+    let normalizer = CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
+        SourceId(1),
+        source.as_bytes().to_vec(),
+    )));
+    let captured =
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).build_with_lexical_scopes();
+    let owner = captured.document();
+    let wrapper = owner
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.namespace_uri == "c" && expanded_name.local_name == "schema" => {
+                cem_ml::schema::declaration_references::SchemaDeclarationNode::new(
+                    owner.clone(),
+                    *node_id,
+                )
+            }
+            _ => None,
+        })
+        .unwrap();
+    let admitted =
+        cem_ml::schema::scope_references::admit_schema_scope_target(wrapper.clone(), |node| {
+            captured
+                .expanded_name(node.document(), node.node_id())
+                .cloned()
+        })
+        .unwrap();
+    assert!(Arc::ptr_eq(admitted.declaration.document(), owner));
+    let CemAstNode::Element { attributes, .. } = wrapper.node() else {
+        unreachable!()
+    };
+    assert_eq!(attributes.len(), 3);
+    for id in attributes {
+        assert_eq!(
+            captured.expanded_name(owner, *id).unwrap().namespace_uri,
+            "https://cem.dev/ns/core/1"
+        );
+    }
+    let schema_names: Vec<_> = owner
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "schema" => Some(
+                captured
+                    .expanded_name(owner, *node_id)
+                    .map(|name| name.namespace_uri.as_str()),
+            ),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        schema_names,
+        vec![
+            Some("https://cem.dev/ns/core/1"),
+            Some("https://cem.dev/ns/schema/1"),
+            Some("urn:other"),
+            Some("urn:inner"),
+            Some("urn:other"),
+            None
+        ]
+    );
+    let other_owner = Arc::new(
+        CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(SourceId(1), source.as_bytes().to_vec()),
+        )))
+        .build(),
+    );
+    assert!(captured
+        .expanded_name(&other_owner, wrapper.node_id())
+        .is_none());
+    for id in captured.occurrences() {
+        if matches!(owner.get(id), Some(CemAstNode::Reference { .. })) {
+            assert!(captured.expanded_name(owner, id).is_none());
+        }
+    }
+}

@@ -107,9 +107,10 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
     /// Internal integration hook: identify the node opened by this event, or the
     /// native attribute expression payload just built. IDs belong to this builder's
     /// arena; folded standalone expressions keep their original opening ID.
+    /// The second handle identifies an attribute completed by this event.
     pub(crate) fn build_with_node_observer<F>(mut self, mut observe: F) -> CemDocument
     where
-        F: FnMut(Option<AstNodeId>),
+        F: FnMut(Option<AstNodeId>, Option<AstNodeId>),
     {
         while let Some(event) = self.events.next_event() {
             let before = self.doc.nodes.len();
@@ -130,9 +131,17 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
             } else {
                 None
             };
-            observe(node);
+            let attribute = self.doc.nodes.iter().skip(before).find_map(|node| match node {
+                CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+                _ => None,
+            });
+            observe(node, attribute);
         }
+        let before = self.doc.nodes.len();
         self.finalize();
+        if let Some(CemAstNode::Attribute { node_id, .. }) = self.doc.nodes.get(before) {
+            observe(None, Some(*node_id));
+        }
         self.doc
     }
 

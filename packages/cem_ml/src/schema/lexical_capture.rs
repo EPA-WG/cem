@@ -2,23 +2,24 @@
 use super::{CemSchemaMachine, EventNormalizer, NormalizedEvent};
 use crate::{
     diagnostics::Diagnostic,
-    parser::{builder::CemAstBuilder, document::CemDocument, AstNodeId, CemAstNode},
+    parser::{builder::CemAstBuilder, document::CemDocument, AstNodeId, CemAstNode, ExpandedName},
     schema::{
         declaration_references::SchemaDeclarationNode, namespace::NsContext,
         scoping::SchemaScopeFrame,
     },
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
-/// Original builder allocation with source-position expression metadata.
+/// Original builder allocation with source-position expression and name metadata.
 /// Lookup checks allocation identity, not IDs or source-coordinate equality.
 #[derive(Debug)]
 pub struct LexicallyScopedDocument {
     document: Arc<CemDocument>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+    names: BTreeMap<AstNodeId, ExpandedName>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -30,9 +31,21 @@ impl LexicallyScopedDocument {
     ) -> Self {
         occurrences
             .retain(|node, _| matches!(document.get(*node), Some(CemAstNode::Reference { .. })));
+        let names = document
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                CemAstNode::Element { node_id, expanded_name, .. }
+                | CemAstNode::Attribute { node_id, expanded_name, .. } => {
+                    Some((*node_id, expanded_name.clone()))
+                }
+                _ => None,
+            })
+            .collect();
         Self {
             document,
             occurrences,
+            names,
             diagnostics,
         }
     }
@@ -54,6 +67,20 @@ impl LexicallyScopedDocument {
             return None;
         }
         self.occurrences.get(&node)
+    }
+
+    /// Immutable source-position namespace metadata, available only to this
+    /// original owner. Missing/unbound prefix metadata is not a guessed URI.
+    /// CEM source keeps its lexical AST names; XML retains importer-resolved names.
+    pub fn expanded_name(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<&ExpandedName> {
+        if !Arc::ptr_eq(owner, &self.document) {
+            return None;
+        }
+        self.names.get(&node)
     }
 
     /// Original named declaration visible at this occurrence. Lookup requires
@@ -108,6 +135,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     pub fn build_with_lexical_scopes(self) -> LexicallyScopedDocument {
         let pending = Mutex::new(None);
         let diagnostics = Mutex::new(Vec::new());
+        let opening_name = Mutex::new(None);
+        let attribute_names = Mutex::new(VecDeque::new());
         let builder_node = Arc::new(Mutex::new(None));
         let mut events = self.track_lexical_scope(|event, machine| {
             let expression = match event {
@@ -121,15 +150,36 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 _ => false,
             };
             *pending.lock().unwrap() = expression.then(|| machine.lexical_snapshot());
+            *opening_name.lock().unwrap() = match event {
+                Some(NormalizedEvent::OpenScope { name, .. }) => {
+                    capture_name(machine.current_ns_context(), &name.lexical_name)
+                }
+                _ => None,
+            };
+            if let Some(NormalizedEvent::Name { name, .. }) = event {
+                attribute_names.lock().unwrap().push_back(capture_name(
+                    machine.current_ns_context(),
+                    &name.lexical_name,
+                ));
+            }
             if event.is_none() {
                 *diagnostics.lock().unwrap() = machine.diagnostics().to_vec();
             }
         });
         events.builder_node = Some(builder_node.clone());
         let mut occurrences = BTreeMap::new();
-        let document = CemAstBuilder::new(events).build_with_node_observer(|node| {
+        let mut names = BTreeMap::new();
+        let document = CemAstBuilder::new(events).build_with_node_observer(|node, attribute| {
             *builder_node.lock().unwrap() = node;
+            if let Some(attribute) = attribute {
+                if let Some(Some(name)) = attribute_names.lock().unwrap().pop_front() {
+                    names.insert(attribute, name);
+                }
+            }
             if let Some(node) = node {
+                if let Some(name) = opening_name.lock().unwrap().take() {
+                    names.insert(node, name);
+                }
                 if let Some(snapshot) = pending.lock().unwrap().take() {
                     occurrences.insert(node, snapshot);
                 }
@@ -140,9 +190,16 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 || matches!(document.get(*node),
             Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == "$")
         });
+        // Standalone expressions fold to native references and can discard
+        // transient nodes. Keep only surviving named nodes in this original arena.
+        names.retain(|node, _| {
+            matches!(document.get(*node),
+                Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. }))
+        });
         LexicallyScopedDocument {
             document: Arc::new(document),
             occurrences,
+            names,
             diagnostics: diagnostics.into_inner().unwrap(),
         }
     }
@@ -216,4 +273,18 @@ where
             }
         }
     }
+}
+
+fn capture_name(namespaces: &NsContext, lexical: &str) -> Option<ExpandedName> {
+    let resolved = namespaces.resolve(lexical);
+    let namespace_uri = match resolved.namespace_uri {
+        Some(uri) => uri,
+        None if resolved.prefix.is_none() => String::new(),
+        None => return None,
+    };
+    Some(ExpandedName {
+        namespace_uri,
+        local_name: resolved.local_name,
+        schema_id: None,
+    })
 }

@@ -123,3 +123,36 @@ fn xml_local_alias_rebinding_entity_cdata_provenance_and_foreign_cem_spelling_st
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation()));
 }
+
+#[test]
+fn imported_name_lookup_retains_xml_namespace_rules_and_checks_owner() {
+    let imported = capture("<schema xmlns='https://cem.dev/ns/schema/1' name='selected'><element xmlns='urn:other' name='child'/></schema>");
+    let owner = imported.captured.document();
+    for node in &owner.nodes {
+        match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            }
+            | CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } => {
+                let name = imported.captured.expanded_name(owner, *node_id).unwrap();
+                assert_eq!(name.namespace_uri, expanded_name.namespace_uri);
+                assert_eq!(name.local_name, expanded_name.local_name);
+                if matches!(node, CemAstNode::Attribute { .. }) && name.local_name == "name" {
+                    assert!(name.namespace_uri.is_empty());
+                }
+            }
+            _ => {}
+        }
+    }
+    let other = capture("<schema xmlns='https://cem.dev/ns/schema/1' name='selected'><element xmlns='urn:other' name='child'/></schema>");
+    assert!(imported
+        .captured
+        .expanded_name(other.captured.document(), 1)
+        .is_none());
+}

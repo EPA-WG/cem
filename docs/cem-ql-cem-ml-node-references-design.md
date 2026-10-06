@@ -336,8 +336,19 @@ Adopted on 2026-10-06: an explicit pending or invalid schema override keeps its
 governed region incomplete until a usable schema is available. Validation cannot
 fall back to the inherited schema for that region. This is distinct from keeping
 the last complete package active during package replacement. Namespace target
-contracts, source-position name handoff and lifecycle scope activation remain
-subsequent consumer work.
+contracts, consumer name handoff and lifecycle scope activation remain subsequent
+consumer work.
+
+`LexicallyScopedDocument::expanded_name(owner, node)` now supplies immutable
+namespace metadata to the admission lookup. CEM name events use the namespace
+context effective at that authored position and associate the scalar result with
+original builder IDs, including attributes completed later. Unbound prefixes have
+no resolved name; later declarations cannot fill an earlier occurrence. Folded
+reference nodes retain their expression snapshots without becoming named elements.
+XML capture retains its shared importer's resolved element and attribute names,
+including XML's distinct default-namespace rules. Allocation identity gates lookup;
+neither path rewrites the original AST or establishes schema readiness. Runtime
+consumers still attach the captured metadata during scope preparation.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
 admitted declaration without rediscovering a schema elsewhere in its arena.

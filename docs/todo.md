@@ -1429,8 +1429,18 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: no inherited fallback hides an invalid
       override; retries keep earlier lexical bindings; leaving a completed child
       override restores the enclosing schema; zero/multiple targets never activate.
-- [ ] Supply owner-checked source-position expanded-name metadata to schema
-      scope admission, and specify namespace target-kind/readiness contracts.
+- [x] Fixture: capture immutable CEM element/attribute expanded-name metadata at
+      each authored name event and associate it with original builder IDs. Expose
+      owner-checked lookup and imported XML names through the same capture handle.
+      Cover prefix/default rebinding, child restoration, boolean/native attributes,
+      unresolved prefixes, folded expressions and rejection of another arena owner.
+      Verified with CEM/XML capture fixtures and admission/declaration-resolution
+      regressions. Lookup supplies namespace metadata, not runtime schema readiness.
+      Scenarios for later design verification: schema admission consumes real source
+      namespace identities without rewriting nodes or applying a later binding;
+      XML namespace and attribute rules stay those of its shared importer.
+- [ ] Attach captured owner-checked name metadata to consumer-owned schema
+      scope preparation, and specify namespace target-kind/readiness contracts.
       Distinguish inline schema wrappers,
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
