@@ -227,27 +227,34 @@ implementation. `git diff --check` passes.
       All 23 focused CEM-ML capture/reference/source/parity tests pass. Full
       `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
       Imported-source capture and automatic engine/package preparation remain open.
-- [ ] Fixture: extend captured associations to imported XML namespace aliases and
+- [x] Fixture: extend captured associations to imported XML namespace aliases and
       standalone `cem:expr` occurrences, host/wrapping/sibling schema switches,
       source-mapped entity/CDATA payloads and nested restoration. Feed the original
       imported owner into the QL handoff; verify pending inputs and directed grants.
       Scenarios for later design verification: specialized import frames retain
       decoded source provenance without reparsing, target execution or new XML
       attribute-expression syntax (that recognition decision remains deferred).
-- [ ] Integrate lexical capture with the specialized XML import path under those
+- [x] Integrate lexical capture with the specialized XML import path under those
       fixtures, sharing the original immutable owner and explicit QL preparation.
       Scenarios for later design verification: namespace aliases are resolved by
       the import owner while later lifecycle evaluation keeps source-position bindings.
-- [ ] Fixture: retain completed namespace/schema associations through their original
-      source occurrences, including directive/host/wrapping/sibling forms, inherited
-      defaults, subsequent rebinding, nested restoration and pending schema selection.
-      Apply the selected lexical/relationship identity rule before implementing the
-      runtime bridge; verify original owners, grants, effective policies and budgets.
+      Verification: two new native XML capture fixtures and one new imported QL
+      handoff fixture pass; all five QL handoff fixtures preserve pending selection,
+      original owners, directed grants and expression payload provenance.
+      All 25 focused CEM-ML capture/reference/source/parity tests and 41 machine
+      tests pass. Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
+      Automatic engine/package loading and consumer preparation remain open below.
+- [ ] Fixture: exercise completed namespace/schema associations through the native
+      engine/package lifecycle, including directive/host/wrapping/sibling forms,
+      inherited defaults, subsequent rebinding, nested restoration and pending schema
+      selection. Verify original owners, grants, effective policies and budgets
+      using the adopted lexical/relationship identity rule and explicit CEM/XML handoffs.
       Scenarios for later design verification: identical expression source compiled
       under different lexical bindings stays distinct; explicit vendor crossings remain
       explicit; later declarations do not replace earlier occurrence bindings.
-- [ ] Connect completed specialized frame associations to the retained consumer host
-      after the identity decision and fixtures above. Keep occurrence binding retention,
+- [ ] Wire completed specialized frame associations into native engine/package
+      loading and consumer preparation using the explicit retained-host handoff.
+      Keep occurrence binding retention,
       runtime-provided evaluation inputs, schema dependency readiness and directed
       crossing permissions separate. Do not infer runtime inputs from a saved context
       node or execute schema `select` expressions during parse/closure.

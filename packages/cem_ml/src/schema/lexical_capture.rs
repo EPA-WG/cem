@@ -19,6 +19,19 @@ pub struct LexicallyScopedDocument {
 }
 
 impl LexicallyScopedDocument {
+    pub(crate) fn from_import(
+        document: Arc<CemDocument>,
+        mut occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        occurrences
+            .retain(|node, _| matches!(document.get(*node), Some(CemAstNode::Reference { .. })));
+        Self {
+            document,
+            occurrences,
+            diagnostics,
+        }
+    }
     pub fn document(&self) -> &Arc<CemDocument> {
         &self.document
     }

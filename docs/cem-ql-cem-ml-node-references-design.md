@@ -857,9 +857,22 @@ before attaching distinct lexical scopes, preserving each existing subtree/sibli
 relationship boundary. Returned occurrence/scope handles support readiness updates
 through `set_context`; attachment neither evaluates selectors nor creates grants,
 compiles expressions or writes source targets. Separate host executions can share
-the saved source without sharing results. Specialized imported-source association
-and automatic engine/package preparation remain pending. Effective destination and
+the saved source without sharing results. Automatic engine/package preparation
+remains pending. Effective destination and
 request limits still constrain evaluation under the existing common resolver.
+
+`import_xml_ast_with_lexical_scopes(document, schema)` now attaches XML occurrence
+bindings during the existing typed import pass. Original event/node correspondence
+selects the owning reference node; the importer retains entity/CDATA expression
+source maps while folding. Expanded XML namespace names select CEM schema behavior,
+including aliased host attributes and schema elements. Namespace declarations on
+the expression itself apply to its snapshot. Existing schema-frame rules retain
+host/wrapping defaults, no-body sibling switches and nested restoration; foreign
+namespaces cannot activate CEM behavior by using the `cem` prefix. XML attributes
+remain literal. The returned captured AST, semantic metadata and correspondence
+share the original owner through `RetainedCemTree::from_shared` and the same QL
+lifecycle handoff. Capture executes neither selectors nor reference expressions;
+consumer preparation still determines schema readiness, policies, inputs and grants.
 
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before

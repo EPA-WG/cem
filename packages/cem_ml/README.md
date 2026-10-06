@@ -61,8 +61,17 @@ Capture does not evaluate references or schema selectors. Completion does not
 establish schema readiness. Preparing runtime contexts, effective policies and
 crossing grants remains consumer lifecycle work. The QL host's explicit
 `attach_captured_lexical_scopes` callback accepts this metadata at that stage;
-automatic engine/package preparation and specialized imported-source association
-are still pending.
+automatic engine/package preparation remains pending.
+
+`import::import_xml_ast_with_lexical_scopes(document, schema)` captures standalone
+XML reference occurrences during the existing import pass. The returned
+`ScopedXmlCemImport` contains the scoped original AST, semantic metadata and event
+correspondence; pass its owner and semantics to `RetainedCemTree::from_shared`.
+The XML parser's expanded namespace names select CEM schema behavior, including
+authored aliases and local namespace declarations. Capture preserves entity/CDATA
+payload provenance and final schema diagnostics. XML attributes remain literals.
+The same explicit QL lifecycle handoff consumes these associations; automatic
+engine/package preparation remains pending.
 
 ## Verification
 

@@ -306,3 +306,88 @@ fn captured_general_attribute_expression_waits_for_its_explicit_input_lifecycle_
         if expanded_name.local_name == "$")
     );
 }
+
+#[test]
+fn imported_xml_capture_hands_original_aliases_and_payload_sources_to_the_same_lifecycle() {
+    use cem_ml::{
+        import::import_xml_ast_with_lexical_scopes,
+        validation::xml::{xml_document_ast_from_source_bytes, XmlSourceValidationRequest},
+    };
+    let xml = "<root xmlns:r='https://cem.dev/ns/cem-ml/1' r:schema-src='ready'><r:expr>#lib&#114;<![CDATA[ary]]></r:expr><r:schema select='missing()'><r:expr>#library</r:expr></r:schema></root>";
+    let (document, _) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+        bytes: xml.as_bytes(),
+        source_uri: "scope.xml",
+        content_type: Some("application/xml"),
+    });
+    let imported =
+        import_xml_ast_with_lexical_scopes(&document.unwrap(), CompiledSchema::cem_core()).unwrap();
+    let captured = imported.captured;
+    let tree = RetainedCemTree::from_shared(
+        captured.document().clone(),
+        "scope.xml",
+        xml,
+        imported.semantics,
+        None,
+    )
+    .unwrap();
+    let (_, library) = self::captured("{target}");
+    let target = elements(&library, "target")[0];
+    let refs = captured.occurrences().collect::<Vec<_>>();
+    assert_eq!(refs.len(), 2);
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let parent = host.register_scope(tree.clone(), None, policy());
+    let destination = host.register_scope(library.clone(), None, policy());
+    let attached = host.attach_captured_lexical_scopes(&captured, |node, snapshot, inherited| {
+        assert_eq!(inherited, parent);
+        assert_eq!(snapshot.namespaces.binding("r").unwrap().namespace_uri, "https://cem.dev/ns/cem-ml/1");
+        assert!(matches!(node.node(), CemAstNode::Reference {expression, targets: None, ..} if expression == "#library"));
+        let ready = matches!(snapshot.schema.active, SchemaSource::Uri(ref uri) if uri == "ready");
+        (ready.then(|| context(&library, target)), policy())
+    }).unwrap();
+    assert!(host
+        .compiled_source_expression(&source(&captured, refs[0]))
+        .is_none());
+    let first = host.source_reference(source(&captured, refs[0]));
+    assert!(resolve_reference(first.clone(), &mut host, policy().limits)
+        .unwrap()
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+    assert!(host.allow_scope_crossing(attached[0].1, destination));
+    let resolved = resolve_reference(first, &mut host, policy().limits).unwrap();
+    assert!(resolved.is_complete(), "{:?}", resolved.issues);
+    let selected = host.declaration_node(&resolved.nodes[0]).unwrap();
+    assert!(Arc::ptr_eq(selected.document(), library.ast_owner()));
+    let second = host.source_reference(source(&captured, refs[1]));
+    assert_eq!(
+        resolve_reference(second.clone(), &mut host, policy().limits)
+            .unwrap()
+            .state,
+        ReferenceResolutionState::Pending
+    );
+    assert!(host.set_context(attached[1].1, Some(context(&library, target))));
+    assert!(resolve_reference(second, &mut host, policy().limits)
+        .unwrap()
+        .is_complete());
+    let CemAstNode::Reference {
+        source: provenance,
+        targets,
+        ..
+    } = captured.document().get(refs[0]).unwrap()
+    else {
+        unreachable!()
+    };
+    assert!(targets.is_none());
+    assert!(
+        provenance
+            .frames
+            .iter()
+            .filter(|frame| matches!(
+                frame.transform,
+                cem_ml::source_map::TransformKind::ExpressionEmbedding { .. }
+            ))
+            .count()
+            >= 3
+    );
+    assert!(Arc::ptr_eq(tree.ast_owner(), captured.document()));
+}

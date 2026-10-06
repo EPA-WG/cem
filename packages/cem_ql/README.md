@@ -914,7 +914,9 @@ Attachment checks the original owner and rejects already assigned occurrences
 before calling preparation. It prepares every occurrence before changing the
 host, preserves existing subtree/sibling relationship boundaries, and creates
 no crossing grants or compiled selections. Use `set_context` to refresh attached
-inputs. Imported-source capture and automatic engine/package preparation remain
+inputs. XML callers can obtain the same captured owner and semantic projection
+from `import_xml_ast_with_lexical_scopes`, then use this handoff after preparing
+schema readiness and runtime inputs. Automatic engine/package preparation remains
 separate work.
 
 `assign_following_scope(tree, boundary, scope)` records a caller-completed

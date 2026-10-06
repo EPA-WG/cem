@@ -20,6 +20,8 @@ use std::sync::Arc;
 pub mod documents;
 mod css;
 mod expression_sources;
+mod lexical_scopes;
+pub use lexical_scopes::{import_xml_ast_with_lexical_scopes, ScopedXmlCemImport};
 pub(crate) use css::annotate_retained_css_roles;
 mod strings;
 mod string_options;
@@ -84,6 +86,13 @@ pub fn retain_xml(owner: Arc<LoadedInputAstStream>) -> Result<RetainedXmlImport,
 /// Import XML semantic values before merging lexical text and references.
 /// Source-oriented CEM fields remain unchanged.
 pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, String> {
+    import_xml_ast_tracked(document, &mut None)
+}
+
+fn import_xml_ast_tracked(
+    document: &xml::XmlDocumentAst,
+    capture: &mut Option<crate::schema::machine::XmlLexicalCapture>,
+) -> Result<XmlCemImport, String> {
     use xml::XmlEventKind::*;
     if !document.parse_facts.is_empty() {
         let contracts = xml::XmlSchemaContractCatalog::from_builtin();
@@ -164,12 +173,14 @@ pub fn import_xml_ast(document: &xml::XmlDocumentAst) -> Result<XmlCemImport, St
                     }
                     attribute_nodes[index].push(aid);
                 }
+                if let Some(capture) = capture.as_mut() { capture.open(event, id); }
                 if event.kind == StartElement {
                     stack.push(id);
                 }
                 id
             }
             EndElement => {
+                if let Some(capture) = capture.as_mut() { capture.close(event); }
                 if stack.len() <= 1 {
                     return Err("Unbalanced XML document.".into());
                 }
