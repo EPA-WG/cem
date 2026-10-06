@@ -1382,17 +1382,44 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: nested same-name declarations
       retain lexical shadowing; deliberate zero/multiple target selections cannot
       establish an active schema; pending resolution cannot establish a scope.
-- [ ] Decide the native schema scope target shape. Recommended: admit a
-      schema-language `schema:schema` declaration, or a named `cem:schema` wrapper
-      containing exactly one such declaration. Alternative: interpret the wrapper
-      body itself as a schema fragment, requiring additional metadata/context
-      rules. Decision requested 2026-10-06; neither option is adopted yet.
+- [x] Fixture: implement original-owner schema scope target admission for a
+      schema-language declaration or a named core wrapper with exactly one direct
+      schema-language declaration child. Cover correct expanded namespaces,
+      empty/multiple/nested-only declaration children, unnamed wrappers, unavailable
+      source-position name metadata and retained descendant reference nodes. Verified
+      with three focused native tests and 77 declaration/resolution regressions.
+      Scenarios for later design verification: admission returns source handles
+      without compiling/evaluating or choosing effective scope; runtime consumption
+      still requires cardinality, grants, budgets and dependency readiness.
+- [x] Decide the native schema scope target shape. Adopted (2026-10-06) through
+      the instruction to continue with the recommendation: admit a schema-language
+      declaration directly, or a named core `cem:schema` wrapper containing exactly
+      one direct schema-language declaration child. Match expanded namespaces,
+      not prefix spelling; the wrapper has a nonempty literal core `cem:name`.
+      Wrapper bodies are not implicitly compiled as schema fragments.
       Scenarios for later design verification: wrapper selection retains its
       original owner and declaration identity; zero/multiple declaration children
       cannot silently pick the first schema; unrelated subtrees and similarly
       named elements from other namespaces cannot become schema targets.
-- [ ] Specify schema and namespace target-kind/readiness contracts after the
-      schema target-shape decision. Distinguish inline schema wrappers,
+- [x] Decide readiness behavior for an explicit pending/invalid schema override.
+      Adopted (2026-10-06): keep its governed region incomplete until a usable
+      schema is available; do not validate it under the inherited schema. This
+      is distinct from the separately adopted last-complete package replacement
+      policy.
+      Scenarios for later design verification: delayed dependencies never yield a
+      falsely complete validation result; invalid overrides do not mutate source
+      QNames or earlier bindings; region activation follows the chosen policy.
+- [ ] Fixture: compile an admitted schema scope declaration from its exact source
+      handle before lifecycle activation. Retain the original arena and lexical
+      bindings; exclude unrelated schema roots and declaration-reference sites
+      from compilation instead of picking the first schema in the document.
+      Scenarios for later design verification: selecting a later schema compiles
+      that declaration only; unresolved declaration dependencies and compilation
+      diagnostics retain original source attribution and keep the governed region
+      incomplete until its explicit override is usable.
+- [ ] Supply owner-checked source-position expanded-name metadata to schema
+      scope admission, and specify namespace target-kind/readiness contracts.
+      Distinguish inline schema wrappers,
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
       from an arbitrary selected node. Preserve existing literal forms.

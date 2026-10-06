@@ -24,6 +24,7 @@ pub mod reference_traversal;
 pub mod reference_policy;
 pub mod registry;
 pub mod scoping;
+pub mod scope_references;
 pub mod vocab;
 pub mod xslt;
 

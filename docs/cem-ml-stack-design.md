@@ -1333,10 +1333,10 @@ attributes:
 
 | Form                                                          | Self-closing | Effect                                                                                                                                                                                            |
 |---------------------------------------------------------------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `<cem:schema cem:name="...">…body…</cem:schema>`              | No           | Declares an inline schema with an addressable name. Does **not** switch the active schema on its parent scope. The body is available for reference via `cem:schema-select` from descendant scopes. |
+| `<cem:schema cem:name="...">…body…</cem:schema>`              | No           | Declares an inline schema with an addressable name. Does **not** switch the active schema on its parent scope. Native scope selection admits this named wrapper only when it contains exactly one direct schema-language declaration child; that original declaration is the compilation target. |
 | `<cem:schema src="..."/>`                                     | Yes          | Mid-document schema switch at sibling position. Opens a new scope that adopts the loaded schema for itself and subsequent siblings until the end of the parent scope.                              |
 | `<cem:schema src="...">…children…</cem:schema>`               | No           | Wrapping switch. Opens a scope around its children; the loaded schema applies inside the wrapper only. The parent scope is unaffected after `</cem:schema>`.                                       |
-| `<cem:schema select="..."/>` or `<cem:schema select="...">…</cem:schema>` | either | Same as the `src` forms but the schema body is resolved by cem-ql query within the document — typically resolving to an inline `<cem:schema cem:name="...">` node.                                |
+| `<cem:schema select="..."/>` or `<cem:schema select="...">…</cem:schema>` | either | Same as the `src` forms but the schema body is resolved by cem-ql query within the document — resolving to one schema-language declaration or a named inline wrapper containing exactly one direct schema-language declaration.                                |
 | `cem:schema-src="..."` on any element                         | n/a          | The host element becomes a scope. The loaded schema applies **inside** the element only; the parent scope's active schema is unchanged. No upward propagation.                                     |
 | `cem:schema-select="..."` on any element                      | n/a          | Same as above, with the schema body resolved by cem-ql query.                                                                                                                                     |
 
@@ -1351,8 +1351,11 @@ Schema-selector cardinality was clarified on 2026-10-06 under the adopted
 [scope-property reference contract](cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06).
 Innermost lookup selects a lexical declaration; it does not choose one result
 from an arbitrary multi-target query. Zero/multiple completed targets and pending
-resolution cannot establish the selected scope. Native target-shape and readiness
-contracts remain tracked in `todo.md`; parser retention does not evaluate selectors.
+resolution cannot establish the selected scope. Target shape now admits a
+schema-language declaration or a named core wrapper with one direct such child. An explicit pending or invalid override keeps its
+governed region incomplete until a usable schema is available; validation does
+not fall back to the inherited schema. Source-position expanded-name metadata
+identifies target namespaces; parser retention does not evaluate selectors.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A host declaring neither is a schema-compilation error.

@@ -317,12 +317,27 @@ lexical name shadowing remains applicable; it does not rank an arbitrary query
 sequence. Zero/multiple completed targets and pending resolution cannot establish
 an effective schema scope. Native selector evaluation is not implemented yet.
 
-The next pending target-shape proposal is to accept a schema-language
-`schema:schema` declaration directly, or a named `cem:schema` wrapper containing
-exactly one such declaration, retaining their original owner/identity. Interpreting
-the wrapper body itself as a schema fragment would require additional metadata
-and context rules. Neither target-shape alternative is adopted by the cardinality
-decision. Target kind and dependency readiness remain consumer contracts.
+Target shape was adopted on 2026-10-06: accept a schema-language declaration
+with expanded name `{https://cem.dev/ns/schema/1}schema` directly, or a core
+`cem:schema` wrapper with a nonempty literal core `cem:name` and exactly one
+direct schema-language declaration child. Prefix spelling does not establish
+target kind. A nested declaration inside an unrelated subtree does not qualify.
+Wrapper bodies are not interpreted implicitly as schema fragments.
+
+`schema::scope_references::admit_schema_scope_target` implements this admission
+boundary over `SchemaDeclarationNode` handles. It returns both the selected node
+and exact declaration with their original arena owner. An explicit lookup supplies
+owner-checked expanded names from source-position metadata; lexical CEM prefixes
+are not namespace URIs. Missing metadata returns `NameNotReady`. Admission does
+not resolve reference chains, compile the declaration, establish a scope, authorize crossings
+or declare dependencies ready. Descendant reference nodes remain authored.
+
+Adopted on 2026-10-06: an explicit pending or invalid schema override keeps its
+governed region incomplete until a usable schema is available. Validation cannot
+fall back to the inherited schema for that region. This is distinct from keeping
+the last complete package active during package replacement. Namespace target
+contracts and exact selected-declaration compilation remain subsequent consumer
+work.
 The decision, implementation tasks and verification scenarios are recorded in
 [todo.md](todo.md#ast-node-reference-implementation).
 
