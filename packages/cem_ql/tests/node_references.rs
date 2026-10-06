@@ -47,6 +47,65 @@ fn existing_reference_is_a_target_without_implicit_dereferencing() {
 }
 
 #[test]
+fn inferred_reference_members_use_native_fields_in_expressions_and_modules() {
+    use cem_ql::api::compile_module;
+    let input = eval(r#"data:read("<r/>", "xml").root"#);
+    let mut compiler = CompileContext::default();
+    compiler
+        .policy_bindings
+        .insert("input".into(), input.clone());
+    let mut runtime = EvaluationContext::default();
+    runtime
+        .policy_bindings
+        .insert("input".into(), input.clone());
+    for constructor in ["#(input, input)", "dom:reference((input, input))"] {
+        for module in [false, true] {
+            let source = if module {
+                format!("module \"urn:test:reference-members\" declare let refs = {constructor} refs.targets")
+            } else {
+                format!("let refs = {constructor}; refs.targets")
+            };
+            let query = if module {
+                compile_module(&source, &compiler)
+                    .unwrap_or_else(|error| panic!("{source}: {error:?}"))
+            } else {
+                compile(&source, &compiler).unwrap_or_else(|error| panic!("{source}: {error:?}"))
+            };
+            let result = evaluate(&query, &runtime);
+            assert!(result.error.is_none(), "{source}: {:?}", result.diagnostics);
+            assert_eq!(result.items.len(), 2, "{source}");
+            for target in result.items {
+                assert_eq!(target.identity(), input.items[0].identity(), "{source}");
+            }
+        }
+    }
+    for source in ["(#input).kind", "let refs = #input; refs.kind"] {
+        let query = compile(source, &compiler).unwrap();
+        let result = evaluate(&query, &runtime);
+        assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        assert_eq!(
+            result.items[0].atom(),
+            Some(AtomValue::String("reference".into()))
+        );
+    }
+}
+
+#[test]
+fn native_member_inference_preserves_missing_fields_and_explicit_call_errors() {
+    for source in ["(#()).absent", "let refs = #(); refs.absent"] {
+        let result = eval(source);
+        assert!(result.error.is_none(), "{:?}", result.diagnostics);
+        assert!(result.items.is_empty());
+    }
+    for source in ["(#()).absent()", "(#()).missing:absent", "42.absent"] {
+        assert!(
+            compile(source, &CompileContext::default()).is_err(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn scalar_operands_are_rejected_without_id_or_expression_lookup() {
     for source in [
         r#"#"target""#,

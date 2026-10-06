@@ -301,6 +301,13 @@ resolution; use `node.name` to query the PI target. CEM-ML import resolves
 these fields and retains the original lexical PI and ranges. Source values keep
 literal line endings; XPath's semantic view applies its existing normalization.
 
+Bare unprefixed native fields use the same generic view when a local variable
+or parenthesized expression has an inferred node type. Their result type remains
+dynamic, and missing fields return an empty selection. Explicit method calls,
+prefixed names and registered pipeline functions keep their existing dispatch.
+This also applies to unary-reference values without evaluating authored reference
+expressions; public reference type/access contracts remain deferred.
+
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
 single native node; empty input returns empty, and other types/cardinalities

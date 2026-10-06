@@ -1439,16 +1439,25 @@ roadmap; this closure adopts no new transport or public query access syntax.
       Verification: the full Nx query bridge target passes 148 tests; CLI query
       integration passes 16 tests; focused CEM-ML owner/capture/reference/schema,
       CSS selector and grammar parity checks pass 33 tests.
-- [ ] Fixture and fix: investigate generic native member lowering for an inferred
+- [x] Fixture and fix: investigate generic native member lowering for an inferred
       unary-reference value in a local declaration. The module `declare let refs =
-      #(input, input)` followed by `refs.targets` currently dispatches `targets`
+      #(input, input)` followed by `refs.targets` previously dispatched `targets`
       as a function and reports `cem.ql.unknown_function`; the legacy
       `dom:reference` result uses generic native field lookup successfully.
       Reconcile implementation-level inference/dispatch without adopting the deferred
       public reference type/target-access syntax or introducing implicit evaluation.
+      Cover expression/module locals, parenthesized construction, missing fields,
+      explicit unknown calls and prefixed names in native fixtures; add a CLI
+      module regression that projects duplicate original CEM input targets.
       Scenarios for later design verification: generic metadata access remains
       consistent across source nodes, unary constructions and legacy helper results;
       invalid member access never masquerades as a user function invocation.
+      Completed: native bare-field inference now defers its result type to the
+      existing runtime view when no registered function matches. Explicit calls
+      and prefixed names retain function checks. Expression/module fixtures retain
+      duplicate original target identity, and missing fields remain empty. All
+      34 focused query tests and 17 CLI query fixtures pass. The full Nx
+      `cem_ql:test` target passes 880 tests with nine profiling fixtures ignored.
 - [x] Fixture: add focused Rust integration cases through the existing CLI/query
       and schema paths for retained references and explicit supplied-context
       evaluation. Confirm URL resolution stays at the resource/import boundary

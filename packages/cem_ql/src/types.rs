@@ -637,10 +637,20 @@ impl TypeChecker {
                         continue;
                     }
                     let any_receiver = current.is_any();
+                    // Bare native fields use the runtime's generic node view.
+                    // Their shape is consumer-owned, so keep the result dynamic
+                    // without weakening explicit calls or prefixed dispatch.
+                    let mut item = &current;
+                    while let Type::Stream(inner) = item {
+                        item = inner;
+                    }
+                    let native_field = !called
+                        && name.prefix.is_none()
+                        && matches!(item, Type::Node(_) | Type::SchemaElement(_));
                     let mut all_args = Vec::with_capacity(args.len() + 1);
                     all_args.push(current);
                     all_args.extend(args.iter().map(|arg| self.infer_expression(arg)));
-                    if any_receiver
+                    if (any_receiver || native_field)
                         && self
                             .lookup_function_signature(name, all_args.len())
                             .is_none()

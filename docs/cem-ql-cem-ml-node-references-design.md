@@ -727,8 +727,13 @@ CEM/XML/JSON/YAML/CSV, inert malformed CEM/XML source slots, and attributed
 rejection of URL/ID string operands. A resolver-counting fixture verifies that
 supplied source bytes and reference construction do not trigger resource reads.
 CLI JSON retains its opaque native result descriptor, rather than adopting graph
-transport or a public reference-access spelling. Generic member lowering for
-inferred unary-reference values remains a separate implementation action.
+transport or a public reference-access spelling. Generic member inference now
+uses the existing native field view for bare unprefixed fields on inferred node
+values, including unary-reference locals and parenthesized constructions. Field
+results remain dynamically typed; missing fields produce an empty selection.
+Explicit calls, prefixed dispatch and registered pipeline functions retain their
+existing checks. This implementation alignment does not adopt a public reference
+type or target-access contract, nor evaluate retained source expressions.
 
 The former CEM-document record projection is available only through the explicit
 Rust `cem_document_record_query_stream` compatibility function. Its array-wrapped

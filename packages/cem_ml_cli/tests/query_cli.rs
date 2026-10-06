@@ -896,3 +896,32 @@ fn query_reference_cem_source_admits_native_owner_without_evaluating_authored_sl
     assert_eq!(fs::read_to_string(data).unwrap(), source);
     fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn query_module_local_reference_projects_duplicate_native_target_metadata() {
+    let (root, _) = query_data();
+    let data = root.join("reference.cem");
+    let source = "{root | {#missing[}}";
+    fs::write(&data, source).unwrap();
+    let result = assert_success(&run_query_with_data_type(
+        &data,
+        "application/cem",
+        &[
+            "--query",
+            "module \"urn:test:reference-members\" declare let refs = #(input, input) seq:map(refs.targets, fn(node) => node.kind)",
+            "--query-content-type",
+            "application/vnd.cem.query+cem-ql",
+            "--output",
+            "json",
+        ],
+    ));
+    assert_eq!(
+        result["result"]["items"],
+        serde_json::json!([
+            {"kind": "atomic", "type": "string", "value": "document"},
+            {"kind": "atomic", "type": "string", "value": "document"},
+        ])
+    );
+    assert_eq!(fs::read_to_string(data).unwrap(), source);
+    fs::remove_dir_all(root).unwrap();
+}
