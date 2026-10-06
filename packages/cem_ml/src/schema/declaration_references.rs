@@ -222,10 +222,37 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
+    let schema_id = document_model::schema_declaration_id(&document);
+    compile_schema_at(schema_uri, document, schema_id, host, limits)
+}
+
+/// Compile an already-admitted original declaration without searching its arena.
+pub(crate) fn compile_selected_schema_with_declaration_references<H: SchemaDeclarationHost>(
+    schema_uri: &str,
+    declaration: &SchemaDeclarationNode,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
+    compile_schema_at(
+        schema_uri,
+        declaration.document().clone(),
+        Some(declaration.node_id()),
+        host,
+        limits,
+    )
+}
+
+fn compile_schema_at<H: SchemaDeclarationHost>(
+    schema_uri: &str,
+    document: Arc<CemDocument>,
+    schema_id: Option<AstNodeId>,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
     let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
     let mut compilation = DeclarationReferenceCompilation::default();
     let mut seen = BTreeSet::from([schema_uri.to_owned()]);
-    for (id, kind) in document_model::declaration_reference_sites(&document) {
+    for (id, kind) in document_model::declaration_reference_sites(&document, schema_id) {
         let expected_kind = kind.node_name();
         let reference =
             host.source_reference(SchemaDeclarationNode::new(document.clone(), id).unwrap());
@@ -394,6 +421,7 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
     element_bases::compile_authored(
         schema_uri,
         &document,
+        schema_id,
         host,
         limits,
         &mut seen,
@@ -403,6 +431,7 @@ pub fn compile_schema_with_declaration_references<H: SchemaDeclarationHost>(
     Ok(document_model::compile_document_model_with_declarations(
         schema_uri,
         &document,
+        schema_id,
         &declarations,
         compilation,
     ))

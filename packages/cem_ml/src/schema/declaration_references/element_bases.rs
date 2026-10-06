@@ -11,37 +11,35 @@ pub(crate) fn native_base_attribute(
     let id = attributes.iter().rev().find(|id| matches!(document.get(**id), Some(CemAstNode::Attribute { expanded_name, .. }) if expanded_name.local_name == "base"))?;
     matches!(document.get(*id), Some(CemAstNode::Attribute { value_nodes, .. }) if !value_nodes.is_empty()).then_some(*id)
 }
-pub(crate) fn authored_bases(document: &CemDocument) -> Vec<(AstNodeId, AstNodeId)> {
+pub(crate) fn authored_bases(
+    document: &CemDocument,
+    schema_id: Option<AstNodeId>,
+) -> Vec<(AstNodeId, AstNodeId)> {
     let mut declarations = vec![];
-    for node in &document.nodes {
-        if !is_element(node, "schema") {
+    let Some(CemAstNode::Element { children, .. }) = schema_id.and_then(|id| document.get(id))
+    else {
+        return declarations;
+    };
+    for collection in children {
+        if !document
+            .get(*collection)
+            .is_some_and(|node| is_element(node, "elements"))
+        {
             continue;
         }
-        let CemAstNode::Element { children, .. } = node else {
+        let CemAstNode::Element { children, .. } = document.get(*collection).unwrap() else {
             unreachable!()
         };
-        for collection in children {
-            if !document
-                .get(*collection)
-                .is_some_and(|node| is_element(node, "elements"))
+        for child in children {
+            if document
+                .get(*child)
+                .is_some_and(|node| is_element(node, "element"))
             {
-                continue;
-            }
-            let CemAstNode::Element { children, .. } = document.get(*collection).unwrap() else {
-                unreachable!()
-            };
-            for child in children {
-                if document
-                    .get(*child)
-                    .is_some_and(|node| is_element(node, "element"))
-                {
-                    if let Some(attribute) = native_base_attribute(document, *child) {
-                        declarations.push((*child, attribute));
-                    }
+                if let Some(attribute) = native_base_attribute(document, *child) {
+                    declarations.push((*child, attribute));
                 }
             }
         }
-        break;
     }
     declarations
 }
@@ -87,10 +85,11 @@ fn malformed_site(
 pub(crate) fn retain_pending_bases(
     schema_uri: &str,
     document: &CemDocument,
+    schema_id: Option<AstNodeId>,
     declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: &mut DeclarationReferenceCompilation,
 ) {
-    for (declaration, attribute) in authored_bases(document) {
+    for (declaration, attribute) in authored_bases(document, schema_id) {
         if declarations.contains_key(&declaration) {
             continue;
         }
@@ -250,13 +249,14 @@ pub(crate) fn compile<H: SchemaDeclarationHost>(
 pub(crate) fn compile_authored<H: SchemaDeclarationHost>(
     schema_uri: &str,
     document: &Arc<CemDocument>,
+    schema_id: Option<AstNodeId>,
     host: &mut H,
     limits: ReferenceTraversalLimits,
     seen: &mut BTreeSet<String>,
     declarations: &mut BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: &mut DeclarationReferenceCompilation,
 ) -> Result<(), ReferenceResolutionError> {
-    for (declaration, attribute) in authored_bases(document) {
+    for (declaration, attribute) in authored_bases(document, schema_id) {
         let Some(reference) = source_reference(document, attribute) else {
             declarations.insert(declaration, vec![]);
             compilation

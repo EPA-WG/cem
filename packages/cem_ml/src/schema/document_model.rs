@@ -4592,6 +4592,7 @@ fn compile_document_model_from_document_with_seen(
     compile_document_model_from_document_with_declarations(
         schema_uri,
         document,
+        schema_declaration_id(document),
         seen_schema_uris,
         &BTreeMap::new(),
         Default::default(),
@@ -4601,12 +4602,14 @@ fn compile_document_model_from_document_with_seen(
 pub(crate) fn compile_document_model_with_declarations(
     schema_uri: &str,
     document: &CemDocument,
+    schema_id: Option<AstNodeId>,
     declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
 ) -> SchemaDocumentModel {
     compile_document_model_from_document_with_declarations(
         schema_uri,
         document,
+        schema_id,
         &mut BTreeSet::new(),
         declarations,
         compilation,
@@ -4623,15 +4626,20 @@ pub(crate) enum CompiledSchemaDeclaration {
     FieldContract(Box<FieldContractDeclaration>),
 }
 
+pub(crate) fn schema_declaration_id(document: &CemDocument) -> Option<AstNodeId> {
+    first_element_id_by_local_name(document, "schema")
+}
+
 /// Discover supported collection sites in authored order. The collection,
 /// rather than the expression or returned value, selects the target contract.
 pub(crate) fn declaration_reference_sites(
     document: &CemDocument,
+    schema_id: Option<AstNodeId>,
 ) -> Vec<(
     AstNodeId,
     super::declaration_references::SchemaDeclarationKind,
 )> {
-    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
+    let Some(schema_id) = schema_id else {
         return vec![];
     };
     let Some(CemAstNode::Element { children, .. }) = document.get(schema_id) else {
@@ -4664,6 +4672,7 @@ pub(crate) fn declaration_reference_sites(
 fn compile_document_model_from_document_with_declarations(
     schema_uri: &str,
     document: &CemDocument,
+    schema_id: Option<AstNodeId>,
     seen_schema_uris: &mut BTreeSet<String>,
     declarations: &BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: super::declaration_references::DeclarationReferenceCompilation,
@@ -4675,11 +4684,11 @@ fn compile_document_model_from_document_with_declarations(
     let mut model = empty_document_model(schema_uri);
     model.declaration_references = compilation;
 
-    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
+    let Some(schema_id) = schema_id else {
         seen_schema_uris.remove(schema_uri);
         return model;
     };
-    for (id, kind) in declaration_reference_sites(document) {
+    for (id, kind) in declaration_reference_sites(document, Some(schema_id)) {
         if !declarations.contains_key(&id) {
             model.declaration_references.retain_pending(
                 schema_uri,
@@ -4691,12 +4700,14 @@ fn compile_document_model_from_document_with_declarations(
     super::declaration_references::element_bases::retain_pending_bases(
         schema_uri,
         document,
+        Some(schema_id),
         declarations,
         &mut model.declaration_references,
     );
     super::declaration_references::attribute_types::retain_authored_types(
         schema_uri,
         document,
+        Some(schema_id),
         &mut model.declaration_references,
     );
     let uses = collect_schema_uses(document, schema_id);

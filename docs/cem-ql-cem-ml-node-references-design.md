@@ -329,15 +329,26 @@ boundary over `SchemaDeclarationNode` handles. It returns both the selected node
 and exact declaration with their original arena owner. An explicit lookup supplies
 owner-checked expanded names from source-position metadata; lexical CEM prefixes
 are not namespace URIs. Missing metadata returns `NameNotReady`. Admission does
-not resolve reference chains, compile the declaration, establish a scope, authorize crossings
-or declare dependencies ready. Descendant reference nodes remain authored.
+not resolve reference chains, compile the declaration, establish a scope, authorize
+crossings or declare dependencies ready. Descendant reference nodes remain authored.
 
 Adopted on 2026-10-06: an explicit pending or invalid schema override keeps its
 governed region incomplete until a usable schema is available. Validation cannot
 fall back to the inherited schema for that region. This is distinct from keeping
 the last complete package active during package replacement. Namespace target
-contracts and exact selected-declaration compilation remain subsequent consumer
-work.
+contracts, source-position name handoff and lifecycle scope activation remain
+subsequent consumer work.
+
+`schema::scope_references::compile_schema_scope_target` now compiles the exact
+admitted declaration without rediscovering a schema elsewhere in its arena.
+Collection reference evaluation, authored element bases and native attribute-type
+readiness tracking all use that declaration ID. Original target handles, lexical
+aliases and occurrence source maps remain attached to dependency outcomes; other
+schema roots cannot supply declarations or reference sites implicitly. The legacy
+whole-document entry point retains its first-schema behavior. Compilation returns
+an inspectable model; lifecycle activation must still require complete dependencies
+and no hard compilation diagnostics. It neither activates a region nor supplies an
+inherited fallback.
 The decision, implementation tasks and verification scenarios are recorded in
 [todo.md](todo.md#ast-node-reference-implementation).
 

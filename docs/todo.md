@@ -1409,14 +1409,26 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: delayed dependencies never yield a
       falsely complete validation result; invalid overrides do not mutate source
       QNames or earlier bindings; region activation follows the chosen policy.
-- [ ] Fixture: compile an admitted schema scope declaration from its exact source
+- [x] Fixture: compile an admitted schema scope declaration from its exact source
       handle before lifecycle activation. Retain the original arena and lexical
       bindings; exclude unrelated schema roots and declaration-reference sites
       from compilation instead of picking the first schema in the document.
+      Cover selected collection resolution, pending bases/native types, retained
+      lexical aliases, source-attributed errors and unchanged legacy compilation.
+      Verified with four admission/selected-slot unit tests, 79 reference integration
+      tests and 154 document-model regressions; scope activation remains separate.
       Scenarios for later design verification: selecting a later schema compiles
       that declaration only; unresolved declaration dependencies and compilation
       diagnostics retain original source attribution and keep the governed region
       incomplete until its explicit override is usable.
+- [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
+      declaration compilation into lifecycle region readiness. Require one completed
+      target and a complete model without hard compilation diagnostics before
+      activation; pending/invalid explicit overrides keep their region incomplete.
+      Supply original source-position name metadata and keep literal forms compatible.
+      Scenarios for later design verification: no inherited fallback hides an invalid
+      override; retries keep earlier lexical bindings; leaving a completed child
+      override restores the enclosing schema; zero/multiple targets never activate.
 - [ ] Supply owner-checked source-position expanded-name metadata to schema
       scope admission, and specify namespace target-kind/readiness contracts.
       Distinguish inline schema wrappers,

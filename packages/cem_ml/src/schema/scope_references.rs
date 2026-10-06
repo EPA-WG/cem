@@ -86,6 +86,27 @@ where
     })
 }
 
+/// Compile the admitted declaration in its original arena. The host supplies
+/// captured lexical bindings and bounded dependency evaluation. Callers must
+/// check model readiness and hard compile diagnostics before activating a scope;
+/// this function does not select a scope or fall back to an inherited schema.
+pub fn compile_schema_scope_target<H: super::declaration_references::SchemaDeclarationHost>(
+    schema_uri: &str,
+    target: &SchemaScopeTarget,
+    host: &mut H,
+    limits: super::reference_traversal::ReferenceTraversalLimits,
+) -> Result<
+    super::document_model::SchemaDocumentModel,
+    crate::value::reference_resolution::ReferenceResolutionError,
+> {
+    super::declaration_references::compile_selected_schema_with_declaration_references(
+        schema_uri,
+        &target.declaration,
+        host,
+        limits,
+    )
+}
+
 fn is_schema_declaration(name: &ExpandedName) -> bool {
     name.namespace_uri == CEM_SCHEMA_URI && name.local_name == "schema"
 }
@@ -215,5 +236,57 @@ mod tests {
             .unwrap_err(),
             SchemaScopeTargetError::NameNotReady
         );
+    }
+
+    #[test]
+    fn selected_schema_pending_slots_exclude_other_roots() {
+        use crate::{
+            events::cem::CemEventNormalizer,
+            parser::builder::CemAstBuilder,
+            source::{BytesSource, SourceId},
+            tokenizer::cem::CemTokenizer,
+        };
+        let source = r#"{schema | {elements | {element @name="earlier" @base={#earlier-base}}} {attributes | {attribute @name="earlier" @type={#earlier-type}}}} {schema | {elements | {element @name="selected" @base={#selected-base}}} {attributes | {attribute @name="selected" @type={#selected-type}}}}"#;
+        let tokenizer =
+            CemTokenizer::from_source(BytesSource::new(SourceId(1), source.as_bytes().to_vec()));
+        let document = CemAstBuilder::new(CemEventNormalizer::new(tokenizer)).build();
+        assert!(document.diagnostics.is_empty());
+        let schema_ids: Vec<_> = document
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "schema" => Some(*node_id),
+                _ => None,
+            })
+            .collect();
+        let model = super::super::document_model::compile_document_model_with_declarations(
+            "selected",
+            &document,
+            Some(schema_ids[1]),
+            &Default::default(),
+            Default::default(),
+        );
+        assert!(!model.is_ready_for_validation());
+        assert!(model.element("earlier").is_none());
+        assert!(!model.attributes.contains_key("earlier"));
+        assert!(model.attributes["selected"].native_type_pending);
+        let expressions: Vec<_> = model
+            .declaration_references
+            .sites
+            .iter()
+            .map(|site| site.occurrence.expression.as_deref().unwrap())
+            .collect();
+        assert_eq!(expressions, vec!["#selected-base", "#selected-type"]);
+        for site in &model.declaration_references.sites {
+            let original = document.get(site.occurrence.node_id.unwrap()).unwrap();
+            assert!(matches!(
+                original,
+                CemAstNode::Reference { targets: None, .. }
+            ));
+        }
     }
 }

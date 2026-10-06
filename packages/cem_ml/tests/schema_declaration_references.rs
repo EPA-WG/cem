@@ -3221,3 +3221,139 @@ fn pending_native_types_defer_type_applicability_but_keep_known_facet_errors() {
         );
     }
 }
+
+fn imported_scope_target(xml: &str) -> cem_ml::schema::scope_references::SchemaScopeTarget {
+    let tree =
+        cem_ml::import::import_data_bytes(xml.as_bytes(), "application/xml", "cem", "selected.xml")
+            .unwrap();
+    let selected = tree
+        .ast_owner()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                attributes,
+                ..
+            } if matches!(
+                expanded_name.namespace_uri.as_str(),
+                "https://cem.dev/ns/schema/1" | "https://cem.dev/ns/core/1"
+            ) && expanded_name.local_name == "schema"
+                && attributes.iter().any(|id| {
+                    matches!(tree.ast_owner().get(*id),
+                    Some(CemAstNode::Attribute { value: Some(value), .. }) if value == "selected")
+                }) =>
+            {
+                SchemaDeclarationNode::new(tree.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    cem_ml::schema::scope_references::admit_schema_scope_target(selected, |node| {
+        match node.node() {
+            CemAstNode::Element { expanded_name, .. }
+            | CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+            _ => None,
+        }
+    })
+    .unwrap()
+}
+
+#[test]
+fn selected_scope_compilation_excludes_other_roots_and_retains_reference_sources() {
+    let selected = imported_scope_target(
+        r#"<root xmlns:s="https://cem.dev/ns/schema/1" xmlns:r="https://cem.dev/ns/cem-ml/1" xmlns:c="https://cem.dev/ns/core/1">
+        <s:schema name="earlier"><s:elements><s:element name="earlier"/><r:expr>#unrelated</r:expr></s:elements></s:schema>
+        <c:schema c:name="selected"><s:schema name="declaration"><s:elements><s:element name="own"/><r:expr>#selected</r:expr></s:elements></s:schema></c:schema>
+        <s:schema name="later"><s:elements><r:expr>#later</r:expr></s:elements></s:schema>
+    </root>"#,
+    );
+    assert_ne!(selected.selected.node_id(), selected.declaration.node_id());
+    let library = parse(
+        r#"{schema | {uses | {use @schema="https://cem.dev/ns/schema/1" @as="origin"}} {elements | {element @name="shared" @base="origin:element"}} }"#,
+    );
+    let shared = node(&library, "element");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#selected".into(),
+        ReferenceLinkEvaluation::Resolved(vec![shared.clone()]),
+    );
+    let model = cem_ml::schema::scope_references::compile_schema_scope_target(
+        "scope",
+        &selected,
+        &mut host,
+        ReferenceTraversalLimits::schema_defaults().unwrap(),
+    )
+    .unwrap();
+    assert!(model.is_ready_for_validation());
+    assert_eq!(host.calls, 1);
+    assert_eq!(
+        model
+            .elements
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        vec!["own", "shared"]
+    );
+    assert!(model
+        .element("shared")
+        .unwrap()
+        .optional_attributes
+        .contains("base"));
+    let site = &model.declaration_references.sites[0];
+    let resolution = site.resolution.as_ref().unwrap();
+    assert!(Arc::ptr_eq(resolution.nodes[0].document(), &library));
+    assert_eq!(resolution.nodes[0].node_id(), shared.node_id());
+    let original = selected
+        .declaration
+        .document()
+        .get(site.occurrence.node_id.unwrap())
+        .unwrap();
+    assert!(matches!(
+        original,
+        CemAstNode::Reference { targets: None, .. }
+    ));
+    let CemAstNode::Reference { source, .. } = original else {
+        unreachable!()
+    };
+    assert_eq!(&site.occurrence.source_map, source);
+    assert!(source.origin().is_some());
+}
+
+#[test]
+fn selected_scope_compilation_keeps_pending_and_invalid_dependencies_incomplete() {
+    let selected = imported_scope_target(
+        r#"<root xmlns:s="https://cem.dev/ns/schema/1" xmlns:r="https://cem.dev/ns/cem-ml/1">
+        <s:schema name="earlier"><s:elements><s:element name="inherited"/></s:elements></s:schema>
+        <s:schema name="selected"><s:elements><r:expr>#missing</r:expr></s:elements></s:schema>
+    </root>"#,
+    );
+    let mut host = Host::new();
+    host.disposition("ignore");
+    let pending = cem_ml::schema::scope_references::compile_schema_scope_target(
+        "scope",
+        &selected,
+        &mut host,
+        ReferenceTraversalLimits::schema_defaults().unwrap(),
+    )
+    .unwrap();
+    assert!(!pending.is_ready_for_validation());
+    assert!(pending.element("inherited").is_none());
+    host.outcomes.insert(
+        "#missing".into(),
+        ReferenceLinkEvaluation::Resolved(vec![selected.declaration.clone()]),
+    );
+    let invalid = cem_ml::schema::scope_references::compile_schema_scope_target(
+        "scope",
+        &selected,
+        &mut host,
+        ReferenceTraversalLimits::schema_defaults().unwrap(),
+    )
+    .unwrap();
+    assert!(!invalid.is_ready_for_validation());
+    assert!(invalid.compile_diagnostics.iter().any(|d| d.code
+        == "cem.schema_definition.invalid_reference_target"
+        && d.source_map.as_ref().and_then(|s| s.origin()).is_some()));
+    assert!(invalid.element("inherited").is_none());
+}

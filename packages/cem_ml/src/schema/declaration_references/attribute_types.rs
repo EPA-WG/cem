@@ -90,12 +90,10 @@ pub(crate) fn retain_attribute_type(
 pub(crate) fn retain_authored_types(
     schema_uri: &str,
     document: &CemDocument,
+    schema_id: Option<AstNodeId>,
     compilation: &mut DeclarationReferenceCompilation,
 ) {
-    let Some(CemAstNode::Element { children, .. }) = document
-        .nodes
-        .iter()
-        .find(|node| is_element(node, "schema"))
+    let Some(CemAstNode::Element { children, .. }) = schema_id.and_then(|id| document.get(id))
     else {
         return;
     };
