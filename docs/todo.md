@@ -22,6 +22,16 @@ workspace contains initial parser, operator, codec, schema, and fixture work;
 review and reuse it rather than assuming a fresh implementation. All items
 remain open until their adopted contract and verification evidence are met.
 
+Implementation checkpoint (2026-10-05): retained syntax/AST identity, lexical
+capture, unary construction, explicit bounded resolution, supported schema
+reuse/validation consumers, source codecs and native query ingress are implemented.
+This does not close native datatype/function composition, specialized schema and
+namespace property selection, or command/WASM replacement-grant admission.
+XML attribute expression recognition, enclosed child override syntax, public
+query/transport contracts and `cem-element` ID projection remain separate decisions
+or later consumer work. Their actionable items and verification scenarios remain
+below or in the roadmap; the implementation is not universal consumer support.
+
 ### 1. Audit current work and define schema contracts
 
 - [x] Fixture: verify schema-owned standard reference traversal limits and
@@ -1323,22 +1333,43 @@ only and adds no runtime behavior or public syntax.
       Draft: [general datatype compilation proposal](cem-datatype-compilation-proposal.md).
       Scenarios for later design verification: unsupported declarations cannot
       silently lose rules; source owners, lexical scope and budgets survive reuse.
-- [ ] Define native node-valued scalar composition sites before
-      extending existing string-valued `@base`, datatype and function contracts.
-      Element `@base` now adopts explicit references selecting exactly one named
-      element declaration under the dedicated `element-base` contract above.
-      Datatype and function scalar sites require their own consumer contracts.
+- [ ] Define native datatype and function scalar composition contracts before
+      extending their existing string-valued sites. Element `@base` is already
+      implemented under the dedicated singleton `element-base` contract above;
+      it is not blocked by these remaining consumer contracts.
       Scenarios for later design verification: singleton composition rejects
       multiple targets; recursive validation stays bounded; existing aliases
       remain compatible without making scalar strings implicit constructors.
-- [ ] Fixture: validate referenced constructs and reuse one declaration from
+- [x] Fixture: validate referenced constructs and reuse one declaration from
       multiple schema sites without cloning it into the source tree. Cover
       invalid target kinds, unresolved links under each disposition, source
       attribution, independent scopes, and bounded recursive relationships.
-- [ ] Integrate the shared reference evaluation path into those schema sites
-      and specialized scope records. Preserve existing schema/namespace
-      behavior and typed import boundaries; do not replace specialized storage
-      with a mandatory common struct or impose public root IDs.
+      Completed: ML declaration fixtures cover reuse across schemas, wrong kinds,
+      all unresolved dispositions, readiness and bounded cycles; QL fixtures cover
+      original-owner handoff, independent contexts, scope grants and destination
+      limits. These run in the package suites recorded in section 7.
+      Scenarios for later design verification: supported declaration collections
+      and validation inputs retain their original source arenas at every reuse;
+      new scalar sites require separate target-kind/cardinality contracts.
+- [x] Integrate shared reference evaluation into supported declaration collections,
+      singleton element bases, structural validation inputs and native attribute
+      validation. Preserve source-position capture and explicit scope handoff
+      alongside specialized schema/namespace records, without a mandatory common
+      storage struct or public root IDs.
+      Completed: `CemQlSchemaDeclarationHost`, the retained structural/attribute
+      consumers and optional engine lifecycle stage use the shared bounded path.
+      Specialized scope establishment remains caller-owned; capture/handoff does
+      not execute a namespace/schema selector during parsing.
+      Scenarios for later design verification: lexical snapshots and runtime
+      relationship boundaries remain distinct, with directed crossing grants.
+- [ ] Define and implement native reference consumption by specialized schema and
+      namespace scope properties after their target-kind, cardinality and readiness
+      contracts are specified. Reuse existing capture/handoff and bounded outcomes;
+      preserve established literal selectors and source-position binding semantics.
+      The exact enclosed child override syntax remains deferred in the roadmap.
+      Scenarios for later design verification: pending scope selection cannot
+      silently adopt a later binding; invalid property targets cannot establish a
+      scope; completed child overrides restore enclosing defaults on exit.
 
 - [ ] Integrate scoped replacement grants into command/WASM consumer APIs when
       override support is added. Do not infer grants from package URI lists or
@@ -1442,7 +1473,7 @@ roadmap; this closure adopts no new transport or public query access syntax.
 - [x] Fixture and fix: investigate generic native member lowering for an inferred
       unary-reference value in a local declaration. The module `declare let refs =
       #(input, input)` followed by `refs.targets` previously dispatched `targets`
-      as a function and reports `cem.ql.unknown_function`; the legacy
+      as a function and reported `cem.ql.unknown_function`; the legacy
       `dom:reference` result uses generic native field lookup successfully.
       Reconcile implementation-level inference/dispatch without adopting the deferred
       public reference type/target-access syntax or introducing implicit evaluation.
@@ -1462,14 +1493,30 @@ roadmap; this closure adopts no new transport or public query access syntax.
       and schema paths for retained references and explicit supplied-context
       evaluation. Confirm URL resolution stays at the resource/import boundary
       and no projected IDs or browser behavior are needed for CEM-ML references.
-- [ ] Run affected Rust package, schema consistency, grammar parity, codec,
+- [x] Run affected Rust package, schema consistency, grammar parity, codec,
       and focused CLI checks through the appropriate Nx targets. Record results
       and remaining failures; browser/WASM integration follows a green native
       path only where the changed shared boundary requires it.
-- [ ] Update public syntax/package/API documentation and initial implementation
+      Verification checkpoint (2026-10-05): full Nx bridge passes 148 tests;
+      CEM-QL passes 880 tests with nine profiling fixtures ignored; CLI query
+      integration passes 17 tests. Refreshed Nx CEM-ML prerequisites validate
+      15 observability cases, two command-type tests and CLI schema artifacts.
+      Its library run passes 2072 tests with two ignored and reproduces the known
+      missing `template#cem-dropdown` failure. Because that stops integration
+      execution, all 121 focused reference/declaration/policy/lexical/inspection
+      and native/editor parity integration tests were run separately and pass.
+      Codec unit cases pass within the library run. The broad gate remains red
+      for the existing dropdown failure; the two CLI override failures remain
+      tracked above for explicit grant API integration.
+- [x] Update public syntax/package/API documentation and initial implementation
       notes to match verified behavior. Mark only verified action items complete,
       record any unsupported cases, and retain deferred decisions and their
       verification scenarios without claiming full consumer support.
+      Completed: schema contracts, CEM-QL/bridge/CLI package guidance and the
+      maintained design document describe retained ownership, lexical handoff,
+      explicit consumption, codec/export boundaries and checked query admission.
+      The 2026-10-05 audit separates verified mechanisms and supported consumers
+      from deferred property/scalar APIs; it preserves the associated scenarios.
 
 The [enclosed child override syntax](../roadmap.md#deferred-cem-reference-syntax-decision)
 and [public query/transport contracts](../roadmap.md#deferred-cem-reference-query-and-transport-contracts)

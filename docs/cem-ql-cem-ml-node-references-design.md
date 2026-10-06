@@ -295,9 +295,12 @@ Consequences for this design:
 - Finalize pending relationships at their declared dependency/context completion boundary. Do not force all contextual references to wait until document end when parsing needs them earlier.
 - Preserve the established no-retroactive-rebinding principle for resolved contextual bindings. AST mutation and reference updates after finalization remain outside scope.
 
-Concrete linkage between typed reference views and specialized records is
-implementation work tracked in [todo.md](todo.md#ast-node-reference-implementation).
-No replacement of every frame or binding table is mandated.
+Parser-side lexical capture and explicit consumer scope handoff preserve these
+associations alongside the specialized records. Native reference consumption by
+the schema/namespace scope properties themselves still requires per-property
+target-kind, cardinality and readiness contracts, tracked in
+[todo.md](todo.md#ast-node-reference-implementation). No replacement of every
+frame or binding table is mandated.
 
 ### Implicit scope references and defaults
 
@@ -916,7 +919,7 @@ context replacement and effective policy remain keyed by lexical handle;
 directed crossing grants use relationship boundary identity. Nested lexical
 snapshots inherit that identity, and grants remain directed. Explicit same-owner
 boundaries still require grants. Existing callers of `register_scope` retain
-that boundary behavior; parser-frame capture/handoff remains separate work.
+that boundary behavior; parser snapshots enter through explicit host attachment.
 `assign_subtree_scope` supplies explicit effective child scope metadata; the
 nearest source ancestor selects it. `assign_following_scope` records a
 caller-completed existing sibling switch through its retained boundary handle.
@@ -926,7 +929,8 @@ containing scope ends. Nested transitions restore enclosing defaults; explicit
 child subtree mappings take precedence. Retained structural sibling order is
 used for CEM and imported sources, without global ID lookup. Identical repeat
 handoffs are idempotent and conflicting repeats are rejected. Parser/schema
-frame-to-runtime wiring remains separate implementation work. These handoffs
+snapshots can be attached through `attach_captured_lexical_scopes`; the runtime
+still supplies contexts and completed specialized scope transitions. These handoffs
 do not choose the deferred child scope-reference syntax. Different relationship
 boundaries require a directed `allow_scope_crossing` grant, and unregistered owners cannot borrow permission
 from an equal node ID or a supplied query binding. Native constructed references
@@ -1119,8 +1123,8 @@ input is rewritten. The existing sites are:
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
-| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Runtime-selected scope establishment; indirect reference integration and enclosed child override syntax remain tracked separately. |
-| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API and QL host stage implemented; source-only engine reports expose completion. Native per-placement QL behavior checks and typed node function candidates implemented; optional parser-backed engine runtime integration implemented; specialized lifecycle import integration remains actionable work. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture and explicit effective-scope handoff are implemented. Native property selection contracts and enclosed child override syntax remain tracked separately. |
+| Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
 Attribute collection references select zero or more named attribute declarations
 at their authored position. Selection order and repeated targets are retained;
@@ -1274,9 +1278,9 @@ The engine projects source-pipeline diagnostics before merging runtime outcomes,
 so vendor diagnostics never use the input's line index. Native behavior emission
 uses the placement's own source frame for byte offset while preserving the full
 original source-map stack. Explicit runtime report projection is the consumer's
-responsibility. Lifecycle adapters that finish source validation without a CEM
-parse retain their existing specialized paths; extending their runtime handoff
-through the shared typed import boundary is an actionable follow-up.
+responsibility. JSON/YAML/CSV lifecycle adapters already use the shared typed
+import handoff described above. Other specialized validators retain their
+existing paths and are not admitted by this consumer stage.
 
 Source AST attributes now retain `value_nodes`, an authoritative sequence of
 owning native arena handles. Literal attributes keep their optional text value
