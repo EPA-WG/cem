@@ -118,6 +118,28 @@ implementation. `git diff --check` passes.
       grammar, and tree-sitter parity with `{#...}` and `<cem:expr>#...</cem:expr>`.
       Retain the reference AST kind and expression artifact/source linkage in
       every supported slot instead of stringifying or inserting target children.
+- [x] Fixture: retain sibling-position scope transitions in the explicit QL
+      lifecycle host. Verify earlier occurrences and the boundary keep their scope,
+      following siblings/descendants inherit it, nested overrides restore on exit,
+      same-ID vendor owners stay distinct, and crossings require directed grants.
+      Reject unknown owners, foreign scope handles, non-sibling boundaries and
+      conflicting repeat handoffs at the same retained boundary.
+      Scenarios for later design verification: current schema/namespace context
+      boundaries can supply an effective scope without repeated root markers;
+      loading still performs no evaluation and later declarations cannot rebind earlier uses.
+- [x] Fixture: verify sibling handoff on imported XML with semantic comments/
+      whitespace and folded reference payloads, plus explicit child overrides.
+      Retain earlier compiled artifacts and prove registration never evaluates sources.
+      Scenarios for later design verification: parser-frame closure preserves original
+      source order and binding identity; specialized import frames can use the same handoff.
+- [x] Add the caller-supplied retained-boundary scope handoff under those fixtures.
+      Keep specialized parser-frame integration separate and retain source owners.
+      Scenarios for later design verification: source order follows retained structural
+      siblings, including imported sources, rather than arena IDs or global ID lookup.
+      Verification: all 26 native QL schema-reference fixtures pass, including
+      three new sibling-default, invalid-boundary and imported-source cases.
+      Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
+      The broader parser/schema-frame integration actions below remain open.
 - [ ] Fixture: verify inherited scope-property defaults, source-position
       bindings and shadowing, restoration after existing schema/namespace child
       scopes, and equal IDs in separate vendor scopes. Cover explicit permitted

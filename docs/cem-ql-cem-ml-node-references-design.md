@@ -796,8 +796,16 @@ allocation after the query context and semantic tree views are dropped.
 
 Runtime scope handles are specific to their host and do not add authored IDs.
 `assign_subtree_scope` supplies explicit effective child scope metadata; the
-nearest source ancestor selects it. This does not choose the deferred child
-scope-reference syntax. Different scopes require a directed
+nearest source ancestor selects it. `assign_following_scope` records a
+caller-completed existing sibling switch through its retained boundary handle.
+The boundary and earlier siblings keep their binding; following siblings and
+their descendants inherit the new effective scope until a later switch or the
+containing scope ends. Nested transitions restore enclosing defaults; explicit
+child subtree mappings take precedence. Retained structural sibling order is
+used for CEM and imported sources, without global ID lookup. Identical repeat
+handoffs are idempotent and conflicting repeats are rejected. Parser/schema
+frame-to-runtime wiring remains separate implementation work. These handoffs
+do not choose the deferred child scope-reference syntax. Different scopes require a directed
 `allow_scope_crossing` grant, and unregistered owners cannot borrow permission
 from an equal node ID or a supplied query binding. Native constructed references
 inherit the evaluating scope; retained targets use their registered scope.

@@ -1346,3 +1346,204 @@ fn runtime_expression_failures_map_local_calls_and_preserve_foreign_diagnostics(
         assert!(host.compiled_source_expression(&original).is_some());
     }
 }
+
+#[test]
+fn sibling_position_scope_defaults_shadow_and_restore_without_global_ids() {
+    use cem_ml::{
+        schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        value::reference_resolution::{resolve_reference, ReferenceResolutionHost},
+    };
+    let source = tree("{outer | {#library} {cem:schema @src=following} {child | {#library} {cem:schema @src=nested} {nested | {#library}}} {#library} {cem:schema @src=nested} {#library}} {#library}");
+    let vendors = [
+        tree("{schema | {elements | {element @id=same @name=outer}}}"),
+        tree("{schema | {elements | {element @id=same @name=following}}}"),
+        tree("{schema | {elements | {element @id=same @name=nested}}}"),
+    ];
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scopes: Vec<_> = vendors
+        .iter()
+        .map(|vendor| {
+            host.register_scope(
+                source.clone(),
+                Some(context(declarations(vendor))),
+                policy(),
+            )
+        })
+        .collect();
+    let destinations: Vec<_> = vendors
+        .iter()
+        .map(|vendor| host.register_scope(vendor.clone(), None, policy()))
+        .collect();
+    let switches: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "schema" => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    let refs: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(host.assign_following_scope(&source, switches[0], scopes[1]));
+    assert!(host.assign_following_scope(&source, switches[1], scopes[2]));
+    assert!(host.assign_following_scope(&source, switches[2], scopes[2]));
+    assert!(host.assign_following_scope(&source, switches[0], scopes[1]));
+    assert!(!host.assign_following_scope(&source, switches[0], scopes[2]));
+    for original in &refs {
+        let node = host.source_reference(original.clone());
+        let denied = resolve_reference(node, &mut host, limits()).unwrap();
+        assert!(!denied.is_complete(), "crossings require an explicit grant");
+        assert!(denied.issues.iter().any(|issue| issue.kind
+            == cem_ml::value::reference_resolution::ReferenceResolutionIssueKind::ScopeDenied));
+    }
+    for index in 0..3 {
+        assert!(host.allow_scope_crossing(scopes[index], destinations[index]));
+    }
+    for (index, scope) in [0, 1, 2, 1, 2, 0].into_iter().enumerate() {
+        let original = refs[index].clone();
+        let node = host.source_reference(original.clone());
+        assert_eq!(host.scope(&node), Some(scopes[scope]));
+        let resolved = resolve_reference(node.clone(), &mut host, limits()).unwrap();
+        assert!(!resolved.failed);
+        let selected = host.declaration_node(&resolved.nodes[0]).unwrap();
+        assert!(Arc::ptr_eq(selected.document(), vendors[scope].ast_owner()));
+        assert!(matches!(
+            original.node(),
+            CemAstNode::Reference { targets: None, .. }
+        ));
+    }
+    for (index, switch) in switches.iter().enumerate() {
+        let node = host.source_reference(
+            SchemaDeclarationNode::new(source.ast_owner().clone(), *switch).unwrap(),
+        );
+        assert_eq!(host.scope(&node), Some(scopes[[0, 1, 1][index]]));
+    }
+}
+
+#[test]
+fn following_scope_rejects_invalid_boundaries_and_foreign_handles() {
+    let source = tree("{item @key=value | {switch} {#library}}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(source.clone(), Some(context(vec![])), policy());
+    let attribute = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let mut foreign_host = CemQlSchemaDeclarationHost::new();
+    let foreign = foreign_host.register_scope(source.clone(), None, policy());
+    assert!(!host.assign_following_scope(&source, 0, scope));
+    assert!(!host.assign_following_scope(&source, attribute, scope));
+    assert!(!host.assign_following_scope(&source, u32::MAX, scope));
+    assert!(!host.assign_following_scope(&source, 1, foreign));
+    let unregistered = tree("{switch}");
+    assert!(!host.assign_following_scope(&unregistered, 1, scope));
+}
+
+#[test]
+fn imported_sibling_scope_handoff_preserves_artifacts_and_explicit_overrides() {
+    use cem_ml::schema::declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode};
+    use cem_ml::value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost};
+    let source = cem_ml::import::import_data_bytes(
+        br#"<root xmlns:c="https://cem.dev/ns/cem-ml/1">
+          <c:expr>#library</c:expr><c:schema src="child"/><!-- boundary trivia -->
+          <child><c:expr><![CDATA[#library]]></c:expr></child>
+          <c:expr>#library</c:expr>
+        </root>"#,
+        "application/xml",
+        "cem",
+        "scope.xml",
+    )
+    .unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let outer = host.register_scope(source.clone(), Some(context(vec![])), policy());
+    let following = host.register_scope(source.clone(), None, policy());
+    let explicit = host.register_scope(source.clone(), Some(context(vec![])), policy());
+    let boundary = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "schema" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let child = source
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "child" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let refs: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Reference { node_id, .. } => {
+                SchemaDeclarationNode::new(source.ast_owner().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(refs.len(), 3);
+    assert!(refs
+        .iter()
+        .all(|original| host.compiled_source_expression(original).is_none()));
+    let first = host.source_reference(refs[0].clone());
+    assert!(
+        matches!(host.evaluate(&first), ReferenceLinkEvaluation::Resolved(targets) if targets.is_empty())
+    );
+    let artifact = host.compiled_source_expression(&refs[0]).unwrap();
+    assert!(host.assign_following_scope(&source, boundary, following));
+    assert!(host.assign_subtree_scope(&source, child, explicit));
+    for (index, scope) in [outer, explicit, following].into_iter().enumerate() {
+        let node = host.source_reference(refs[index].clone());
+        assert_eq!(host.scope(&node), Some(scope));
+    }
+    assert!(Arc::ptr_eq(
+        &artifact,
+        &host.compiled_source_expression(&refs[0]).unwrap()
+    ));
+    assert!(host.compiled_source_expression(&refs[1]).is_none());
+    let pending = host.source_reference(refs[2].clone());
+    assert!(matches!(
+        host.evaluate(&pending),
+        ReferenceLinkEvaluation::Pending(_)
+    ));
+    assert!(host.set_context(following, Some(context(vec![]))));
+    assert!(
+        matches!(host.evaluate(&pending), ReferenceLinkEvaluation::Resolved(targets) if targets.is_empty())
+    );
+    assert!(refs
+        .iter()
+        .all(|original| matches!(original.node(), CemAstNode::Reference { targets: None, .. })));
+}

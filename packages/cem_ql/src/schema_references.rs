@@ -62,6 +62,8 @@ pub struct CemQlSchemaDeclarationHost {
     scopes: Vec<Scope>,
     // Arena addresses are private storage keys, not reference syntax or scopes.
     node_scopes: BTreeMap<(usize, AstNodeId), DeclarationScope>,
+    // Caller-completed sibling boundaries, indexed by retained structural order.
+    following_scopes: BTreeMap<(usize, AstNodeId), BTreeMap<usize, DeclarationScope>>,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     fallback_policy: ReferenceScopePolicy,
     // Compiled source only: runtime targets and contexts remain per invocation.
@@ -79,6 +81,7 @@ impl CemQlSchemaDeclarationHost {
             identity: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
             scopes: vec![],
             node_scopes: BTreeMap::new(),
+            following_scopes: BTreeMap::new(),
             grants: BTreeSet::new(),
             source_expressions: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
@@ -129,6 +132,57 @@ impl CemQlSchemaDeclarationHost {
             .insert((Arc::as_ptr(tree.ast_owner()) as usize, node), scope);
         true
     }
+    /// Record a completed existing schema/namespace sibling switch. The boundary
+    /// retains its previous scope; following siblings and descendants inherit the
+    /// supplied scope until another sibling switch or the containing scope ends.
+    /// The caller determines readiness and supplies runtime inputs separately.
+    /// Repeating the same handoff is idempotent; a conflicting repeat is rejected
+    /// rather than silently rebinding an established lexical boundary.
+    /// This neither recognizes syntax nor evaluates a selector on document load.
+    pub fn assign_following_scope(
+        &mut self,
+        tree: &Arc<RetainedCemTree>,
+        boundary: AstNodeId,
+        scope: DeclarationScope,
+    ) -> bool {
+        if self.scope_record(scope).is_none()
+            || !self
+                .scopes
+                .iter()
+                .any(|s| Arc::ptr_eq(s.tree.ast_owner(), tree.ast_owner()))
+        {
+            return false;
+        }
+        let Some(parent) = tree.source_parent(boundary) else {
+            return false;
+        };
+        let Some(index) = Self::source_children(tree, parent)
+            .and_then(|children| children.iter().position(|id| *id == boundary))
+        else {
+            return false;
+        };
+        match self
+            .following_scopes
+            .entry((Arc::as_ptr(tree.ast_owner()) as usize, parent))
+            .or_default()
+            .entry(index + 1)
+        {
+            std::collections::btree_map::Entry::Occupied(existing) => *existing.get() == scope,
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(scope);
+                true
+            }
+        }
+    }
+
+    fn source_children(tree: &RetainedCemTree, parent: AstNodeId) -> Option<&[AstNodeId]> {
+        match tree.ast().get(parent)? {
+            CemAstNode::Document { root_children, .. } => Some(root_children),
+            CemAstNode::Element { children, .. } => Some(children),
+            _ => None,
+        }
+    }
+
     pub fn set_context(
         &mut self,
         scope: DeclarationScope,
@@ -263,7 +317,19 @@ impl CemQlSchemaDeclarationHost {
             if let Some(scope) = self.node_scopes.get(&(owner, id)) {
                 return Some(*scope);
             }
-            node = tree.source_parent(id);
+            let parent = tree.source_parent(id);
+            if let Some(parent) = parent {
+                if let Some(transitions) = self.following_scopes.get(&(owner, parent)) {
+                    if let Some(index) = Self::source_children(&tree, parent)
+                        .and_then(|children| children.iter().position(|child| *child == id))
+                    {
+                        if let Some((_, scope)) = transitions.range(..=index).next_back() {
+                            return Some(*scope);
+                        }
+                    }
+                }
+            }
+            node = parent;
         }
         None
     }

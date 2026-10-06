@@ -891,6 +891,15 @@ shared bounded resolver for nested references. Effective child scopes can be
 supplied through `assign_subtree_scope`; runtime scope handles belong to their
 host and add no authored IDs.
 
+`assign_following_scope(tree, boundary, scope)` records a caller-completed
+sibling-position switch using the original retained boundary node. Earlier
+siblings and the boundary keep their scope; following siblings and their
+subtrees inherit the supplied default. Inner switches end with their containing
+scope, and explicit child subtree mappings take precedence. A repeated identical
+handoff succeeds; a conflicting repeat is rejected. This handoff does not parse
+scope syntax, evaluate expressions, scan authored IDs or wire parser frames
+into the runtime. Context readiness and crossing grants remain explicit.
+
 Package loading keeps source references pending unless a runtime compiler is
 explicitly installed. The [native bridge](../cem_ml_transform_cem_ql/README.md#schema-package-lifecycle-compilation)
 connects this host to the engine's package compilation stage before coordinated
