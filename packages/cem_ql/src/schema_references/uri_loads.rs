@@ -32,7 +32,7 @@ impl std::fmt::Display for SchemaUriLoadBindingError {
 }
 impl std::error::Error for SchemaUriLoadBindingError {}
 
-fn key(control: &SchemaDeclarationNode, uri: &str) -> (usize, AstNodeId, String) {
+pub(super) fn key(control: &SchemaDeclarationNode, uri: &str) -> (usize, AstNodeId, String) {
     (
         Arc::as_ptr(control.document()) as usize,
         control.node_id(),
@@ -45,6 +45,7 @@ impl CemQlSchemaDeclarationHost {
     /// base, redirect and public-part handling. Publication performs no evaluation,
     /// scope assignment or authorization. A later invocation consumes this snapshot;
     /// replacing it with Pending does not reuse the previous Ready selection.
+    /// Manual publication supersedes any outstanding byte-acquisition generation.
     pub fn set_schema_uri_load(
         &mut self,
         control: &SchemaDeclarationNode,
@@ -64,12 +65,15 @@ impl CemQlSchemaDeclarationHost {
         {
             return Err(SchemaUriLoadBindingError::UnregisteredOwner);
         }
+        self.schema_uri_generations.remove(&key(control, uri));
         self.schema_uri_loads.insert(key(control, uri), outcome);
         Ok(())
     }
 
-    /// Remove only this control/URI snapshot. No source nodes or scopes change.
+    /// Remove this control/URI snapshot and supersede its outstanding acquisition.
+    /// No source nodes or scopes change.
     pub fn clear_schema_uri_load(&mut self, control: &SchemaDeclarationNode, uri: &str) -> bool {
+        self.schema_uri_generations.remove(&key(control, uri));
         self.schema_uri_loads.remove(&key(control, uri)).is_some()
     }
 

@@ -657,8 +657,8 @@ reference evaluation is deferred, and the complete-forest behavior gate remains.
 Native CEM/XML retries restore original assignments and use fresh caller contexts
 and targets. No targets are written into authored references. Unentered prior
 controls are not scanned to infer omitted source dependencies. URI loader-result
-consumption now uses the same readiness stage; byte-loader integration remains
-actionable in `todo.md`. Enclosed child override syntax remains deferred.
+consumption and the native byte-loader bridge now use the same readiness stage;
+automatic engine queue dispatch remains actionable in `todo.md`. Enclosed child override syntax remains deferred.
 
 Literal document-prelude activation (2026-10-06) retains original
 `SchemaElementForm::Prelude` metadata and the directive's text payload. The shared
@@ -716,10 +716,45 @@ current pending replacement does not reuse an earlier completed result; earlier
 preparations remain inspectable. Retrying selection and execution restores source
 assignments and never writes evaluated targets into authored references.
 
-This implements the retained loader-result boundary, not automatic resolver
-fetching/import. Connecting the byte resolver/resource lifecycle and deciding the
-default target for a URI without a public fragment are actionable in `todo.md`.
-They must preserve the existing public-parts URL boundary and explicit scope grants.
+The native byte-loader bridge is now implemented (2026-10-06).
+`begin_schema_uri_resource` publishes Pending and returns an original-control/URI
+generation ticket. Its `SchemaUriResourceRequest` resolves a URL against the
+explicit document base, applies resolver policy to the fragment-free transport
+request and supports controlled native reads or host queue submission. Policy
+substitution changes acquisition; it does not grant AST scope access. Resolver
+cancellation/control codes and attributed source frames are preserved.
+
+`complete_schema_uri_resource` accepts a resolver response or attributed transport
+failure for the current ticket. Stale, foreign, settled and released generations
+reject before import/export callbacks or context preparation. A policy or transport
+failure replaces the current snapshot with Invalid. Shared opt-in lexical byte
+import parses native UTF-8 CEM or XML once, retaining one original CEM arena plus
+captured names/forms/occurrences; XML retains its native input provenance and
+encoding behavior. MIME/charset, response byte and node limits belong to import.
+Final response URLs identify the retained owner, source fingerprint and diagnostics.
+
+Adopted on 2026-10-06: without a public fragment, the loader selects exactly one
+direct schema-language declaration or named core schema wrapper. Zero/multiple
+candidates reject; unrelated roots are not candidates, and nested declarations are
+not searched. Wrapper admission still requires one direct schema declaration.
+With a public fragment, an explicit loader export callback selects the declared
+original part from the loaded owner. That callback owns fragment interpretation;
+there is no implicit ID scan, query evaluation or selection from another owner.
+Both paths use the established schema target admission contract.
+
+Completion supplies an explicit destination root context (including None for
+pending readiness) and registers original name metadata in a new relationship
+scope. The returned lexical capture supports the existing explicit local-occurrence
+context/policy handoff before reference consumption. Completion neither evaluates
+declarations nor grants crossings or activates regions. Repeated byte revisions
+keep distinct original owners. Manual snapshot publication or removal supersedes
+an outstanding generation as well as its prior result.
+
+The explicit bridge is usable by native callers and external resource queues.
+Automatic engine queue dispatch, readiness retries and operation-lifetime retention
+remain actionable in `todo.md`; they must use these stages and explicit host
+contexts/grants. Block-prelude parsing and enclosed child override syntax remain
+deferred independently.
 
 ### Implicit scope references and defaults
 

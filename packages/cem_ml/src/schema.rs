@@ -26,6 +26,7 @@ pub mod registry;
 pub mod scoping;
 pub mod scope_references;
 pub mod scope_controls;
+pub mod uri_loading;
 pub mod vocab;
 pub mod xslt;
 

@@ -1506,9 +1506,30 @@ URI-backed host/wrapping/following/prelude controls share invocation restoration
 nested scope behavior and per-consuming-model execution. A current pending load
 blocks the governed region without reusing a prior completed preparation; that
 older snapshot remains inspectable. Original controls keep separate load results
-for the same URI, and authored targets remain untouched. Automatic byte-resolver
-and import lifecycle wiring remains actionable in `todo.md`, with the default
-selection contract for a URI without a public fragment still to be decided.
+for the same URI, and authored targets remain untouched.
+
+The controlled native resolver/import bridge is implemented on 2026-10-06.
+`begin_schema_uri_resource` resolves the explicit base URL, applies transport policy
+and publishes a Pending generation ticket without I/O. Tickets expose a stable
+fragment-free resolver request for controlled reads or external queue submission.
+`complete_schema_uri_resource` rejects stale/foreign/settled/released completions
+before import or input callbacks. Transport/import failures publish attributed
+Invalid outcomes. Successful CEM/XML bytes pass through shared lexical import once,
+retain original owners and final response provenance, register explicit destination
+root inputs and preserve captured metadata for local-context handoff. Scope grants
+and schema compilation/activation remain explicit consumer stages.
+
+For a URI without a public fragment, the adopted loader default selects exactly one
+direct schema declaration or named core wrapper; zero/multiple candidates reject
+without recursive searching. Public fragments require the loader's explicit export
+callback over the original imported owner. Internal IDs never become implicit query
+lookups. Native CEM byte import requires UTF-8; XML retains the shared import's
+encoding and event correspondence. MIME/byte/node bounds apply before target
+publication. Manual publication/removal supersedes pending generation tickets.
+
+Automatic engine resource-queue dispatch, retry orchestration and operation-lifetime
+retention are still actionable in `todo.md`. They must reuse these native stages
+and caller-supplied contexts/grants.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

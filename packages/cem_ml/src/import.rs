@@ -21,7 +21,10 @@ pub mod documents;
 mod css;
 mod expression_sources;
 mod lexical_scopes;
-pub use lexical_scopes::{import_xml_ast_with_lexical_scopes, ScopedXmlCemImport};
+pub use lexical_scopes::{
+    import_bytes_with_lexical_scopes, import_xml_ast_with_lexical_scopes,
+    ScopedCemImport, ScopedXmlCemImport,
+};
 pub(crate) use css::annotate_retained_css_roles;
 mod strings;
 mod string_options;

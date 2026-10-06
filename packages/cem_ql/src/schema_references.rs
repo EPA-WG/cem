@@ -44,6 +44,8 @@ mod source_diagnostics;
 mod lexical_handoff;
 mod scope_preparation;
 mod uri_loads;
+mod uri_loader;
+pub use uri_loader::{SchemaUriLoadedScope, SchemaUriLoadTicket};
 pub use uri_loads::SchemaUriLoadBindingError;
 mod region_validation;
 mod host_controls;
@@ -102,6 +104,8 @@ pub struct CemQlSchemaDeclarationHost {
     // Explicit loader snapshots; keys keep original controls and authored URIs distinct.
     schema_uri_loads:
         BTreeMap<(usize, AstNodeId, String), ReferenceLinkEvaluation<SchemaDeclarationNode>>,
+    schema_uri_generations: BTreeMap<(usize, AstNodeId, String), u64>,
+    next_schema_uri_generation: u64,
     // Compiled source only: runtime targets and contexts remain per invocation.
     source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
 }
@@ -121,6 +125,8 @@ impl CemQlSchemaDeclarationHost {
             grants: BTreeSet::new(),
             source_expressions: BTreeMap::new(),
             schema_uri_loads: BTreeMap::new(),
+            schema_uri_generations: BTreeMap::new(),
+            next_schema_uri_generation: 0,
             captured_names: BTreeMap::new(),
             captured_schema_forms: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()

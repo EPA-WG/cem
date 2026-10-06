@@ -1733,22 +1733,52 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: the same URI in another control or
       host cannot borrow a load result; URI ingestion retains request/destination
       caps and declaration compilation readiness; source-only results never activate.
-- [ ] Decide the byte loader's default target-selection contract for schema URIs
-      without a public fragment. Recommended: select exactly one direct schema
-      declaration or named schema wrapper, rejecting zero/multiple candidates;
-      alternative: require an explicit public export even for a single-schema file.
-      Awaiting user decision. Public fragment interpretation remains loader-owned.
+- [x] Decide the byte loader's default target-selection contract for schema URIs
+      without a public fragment. Select exactly one direct schema declaration or
+      named schema wrapper, rejecting zero/multiple candidates.
+      Adopted on 2026-10-06: select exactly one direct target. Public fragment
+      interpretation remains loader-owned.
       Scenarios for later design verification: an assembly with several schema
       declarations cannot select an arbitrary first declaration; unrelated content
       cannot become a scope target; CEM-QL does not implement URL/ID lookup.
-- [ ] Fixture: connect resolver/resource lifecycle outcomes and shared retained
-      CEM import to the implemented schema URI handoff after default target selection
-      is decided. Retain original loaded owners, lexical metadata and explicit
-      contexts; preserve loader policies, abort/error states and directed grants.
+- [x] Fixture: import CEM/XML schema bytes once with retained lexical metadata;
+      prepare policy-controlled URI requests and exact singleton direct target
+      selection. Cover explicit public-part callbacks, redirects, MIME/byte bounds,
+      denial/substitution, abort, malformed input and original owner/source retention.
+      Implemented on 2026-10-06 with five native loader/import fixtures; verified
+      in 267 focused native reference, import, schema and behavior tests.
+      Scenarios for later design verification: native import never reserializes an
+      AST; public part callbacks cannot return a different owner; zero/multiple
+      direct targets cannot activate; transport policy does not grant scope access.
+- [x] Fixture: bind resolver completions to original control/URI generations.
+      Reject stale/foreign completions before import or context preparation; cover
+      pending retries, I/O/import failure, destination context readiness, explicit
+      lexical handoff and grant-controlled invocation activation. Implemented on
+      2026-10-06 with three native bridge fixtures; verified in 267 focused tests.
+      Manual publication/removal also supersedes outstanding generation tickets.
+      Scenarios for later design verification: a late response cannot replace a
+      newer load; completion never evaluates declarations; original target handles
+      and authored expressions survive imports and subsequent region execution.
+- [x] Fixture: connect resolver/resource lifecycle outcomes and shared retained
+      CEM import to the implemented schema URI handoff under the adopted direct
+      singleton target default. Retain original loaded owners, lexical metadata and
+      explicit contexts; preserve loader policies, abort/error states and directed grants.
       Cover relative URIs, public exports, fresh revisions and per-control retries.
+      Implemented explicit begin/read/import/complete APIs on 2026-10-06 and
+      verified in 267 focused tests. Automatic engine queue dispatch remains below.
       Scenarios for later design verification: byte completion alone does not
       activate a schema; public IDs do not authorize scope crossings; pending
       imports or missing metadata never borrow a prior model or caller context.
+- [ ] Fixture: connect entered URI-backed schema regions to the engine external
+      resource queue using native request/generation/import APIs. Schedule only
+      entered controls, hand off explicit destination/local contexts and directed
+      grants, and retry region readiness after queue completion. Preserve loader
+      operation cancellation and bounds; retain prior original owners only under
+      the operation's existing lifetime/memory contract.
+      Scenarios for later design verification: earlier/unentered controls are not
+      fetched; late replies cannot restore canceled/replaced generations; current
+      pending dependencies block model behavior without inherited fallback; retries
+      preserve lexical names, source owners and request/destination traversal caps.
 - [ ] Specify typed prelude reference slots only if that source capability is
       requested. Current directive payloads are literal text; native reference and
       expression slots already belong to schema-element/host attribute forms. Keep
@@ -1770,10 +1800,10 @@ only and adds no runtime behavior or public syntax.
       runtime handoff. No-body sibling controls now activate after the original
       control, using explicit runtime inputs and original owning positions. Existing
       literal document-prelude controls now use the same following stage.
-      Retained URI loader-result preparation is implemented. Next: connect byte loading
-      after the default URI target-selection decision. Block parsing stays deferred.
-      Reuse the
-      implemented preparation and region APIs; do not add an AST projection or choose
+      Retained URI loader-result preparation and controlled native byte loading/import
+      are implemented, with the direct singleton URI target default adopted. Next:
+      connect engine resource-queue dispatch and retries. Block parsing stays deferred.
+      Reuse the implemented preparation, loader and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid
       override; retries keep earlier lexical bindings; leaving a completed child
