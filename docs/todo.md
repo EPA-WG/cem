@@ -140,6 +140,43 @@ implementation. `git diff --check` passes.
       three new sibling-default, invalid-boundary and imported-source cases.
       Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
       The broader parser/schema-frame integration actions below remain open.
+- [x] Audit the existing parser/schema-frame completion path before automatic
+      runtime handoff. `CemSchemaMachine` applies namespace declarations while
+      consuming attributes/directives, inherits child contexts, and restores parents
+      on close. Schema switches apply in host/wrapping scopes; no-body schema
+      switches also update the parent for following siblings. Its outcome retains
+      remaining open frames and diagnostics, not a history of completed lexical
+      associations. The package QL bridge currently receives a caller-prepared host;
+      it does not feed these specialized frame transitions into the retained source.
+      Scenarios for later design verification: frame completion does not imply query
+      evaluation, and the effective occurrence binding must survive frame closure.
+      Verification: all 41 native schema-machine fixtures pass.
+- [ ] Decide whether lexical namespace/schema binding changes automatically create
+      reference relationship boundaries. The current QL `DeclarationScope` supplies
+      both expression contexts/artifact keys and directed crossing-grant identity.
+      Recommendation, awaiting user decision: retain source-position lexical snapshots
+      separately; preserve the caller's relationship scope unless an explicit boundary
+      is declared. Effective schema policies and traversal limits still apply.
+      Alternative: every binding change establishes a distinct relationship boundary
+      and crossing requires a grant even within one retained vendor owner.
+      Scenarios for later design verification: changing a namespace default cannot
+      accidentally grant a crossing or silently impose a new relationship boundary;
+      lexical rebinding and schema policy changes remain observable independently.
+- [ ] Fixture: retain completed namespace/schema associations through their original
+      source occurrences, including directive/host/wrapping/sibling forms, inherited
+      defaults, subsequent rebinding, nested restoration and pending schema selection.
+      Apply the selected lexical/relationship identity rule before implementing the
+      runtime bridge; verify original owners, grants, effective policies and budgets.
+      Scenarios for later design verification: identical expression source compiled
+      under different lexical bindings stays distinct; explicit vendor crossings remain
+      explicit; later declarations do not replace earlier occurrence bindings.
+- [ ] Connect completed specialized frame associations to the retained consumer host
+      after the identity decision and fixtures above. Keep occurrence binding retention,
+      runtime-provided evaluation inputs, schema dependency readiness and directed
+      crossing permissions separate. Do not infer runtime inputs from a saved context
+      node or execute schema `select` expressions during parse/closure.
+      Scenarios for later design verification: closed parser frames remain inspectable
+      through retained metadata while consumer evaluation waits for its lifecycle inputs.
 - [ ] Fixture: verify inherited scope-property defaults, source-position
       bindings and shadowing, restoration after existing schema/namespace child
       scopes, and equal IDs in separate vendor scopes. Cover explicit permitted
