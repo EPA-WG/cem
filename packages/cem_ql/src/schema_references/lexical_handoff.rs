@@ -67,6 +67,7 @@ impl CemQlSchemaDeclarationHost {
                 (source.node_id(), parent, context, policy)
             })
             .collect();
+        self.attach_captured_names(captured)?;
         Ok(prepared
             .into_iter()
             .map(|(node, parent, context, policy)| {

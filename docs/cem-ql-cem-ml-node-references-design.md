@@ -347,8 +347,11 @@ no resolved name; later declarations cannot fill an earlier occurrence. Folded
 reference nodes retain their expression snapshots without becoming named elements.
 XML capture retains its shared importer's resolved element and attribute names,
 including XML's distinct default-namespace rules. Allocation identity gates lookup;
-neither path rewrites the original AST or establishes schema readiness. Runtime
-consumers still attach the captured metadata during scope preparation.
+neither path rewrites the original AST or establishes schema readiness.
+`CemQlSchemaDeclarationHost::attach_captured_names` now installs scalar metadata
+only for an already-registered original owner. Repeat attachment is idempotent;
+foreign owners are rejected. Captured lexical-scope handoff also installs names
+once preflight succeeds. This does not rewrite the registered tree's query view.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
 admitted declaration without rediscovering a schema elsewhere in its arena.
@@ -362,6 +365,25 @@ and no hard compilation diagnostics. It neither activates a region nor supplies 
 inherited fallback.
 The decision, implementation tasks and verification scenarios are recorded in
 [todo.md](todo.md#ast-node-reference-implementation).
+
+`CemQlSchemaDeclarationHost::prepare_schema_scope` now provides an explicit
+consumer preparation stage for one retained native reference. It resolves the
+selection under the existing request/destination bounds and directed grants,
+requires one completed target, admits it using captured names, then compiles its
+exact declaration. An unavailable selected-declaration context remains pending
+even when the requesting context completed selection. Selection and compilation
+retain their existing bounded operation contracts; this adds no aggregate budget
+or implicit context inheritance.
+
+The result retains selection issues, original target handles and any candidate
+model for inspection. Its `is_ready()` requires complete successful selection,
+valid singleton admission, available declaration context, complete model dependencies
+and no hard compilation diagnostics. Pending native datatype dependencies and
+invalid regex facets therefore cannot establish readiness. Repeating preparation
+uses current inputs with unchanged captured names; it does not save targets on
+source references. Recognizing scope-property syntax, assigning governed regions,
+installing effective policies and preventing inherited validation in an incomplete
+region remain separate lifecycle wiring tasks in `todo.md`.
 
 ### Implicit scope references and defaults
 

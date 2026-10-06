@@ -1421,6 +1421,16 @@ only and adds no runtime behavior or public syntax.
       that declaration only; unresolved declaration dependencies and compilation
       diagnostics retain original source attribution and keep the governed region
       incomplete until its explicit override is usable.
+- [x] Fixture: hand captured name metadata to the registered CEM-QL owner and
+      prepare schema scopes through bounded native-reference selection, singleton
+      target admission and exact compilation. Cover unregistered/foreign owners,
+      pending requesting/selected-declaration contexts and name metadata,
+      zero/multiple targets, wrong namespaces,
+      pending dependencies, hard compile errors, work limits and directed grants.
+      Verified with 43 native CEM-QL preparation/handoff/declaration/runtime tests.
+      Scenarios for later design verification: preparation retains original owners
+      and diagnostics, cannot activate or use an inherited fallback, and retries
+      consume current inputs with unchanged authored names.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
@@ -1439,9 +1449,8 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: schema admission consumes real source
       namespace identities without rewriting nodes or applying a later binding;
       XML namespace and attribute rules stay those of its shared importer.
-- [ ] Attach captured owner-checked name metadata to consumer-owned schema
-      scope preparation, and specify namespace target-kind/readiness contracts.
-      Distinguish inline schema wrappers,
+- [ ] Specify namespace target-kind/readiness contracts independently of the
+      implemented schema preparation handoff. Distinguish inline schema wrappers,
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
       from an arbitrary selected node. Preserve existing literal forms.

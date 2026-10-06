@@ -38,6 +38,8 @@ use std::{
 
 mod source_diagnostics;
 mod lexical_handoff;
+mod scope_preparation;
+pub use scope_preparation::{SchemaScopePreparation, SchemaScopePreparationIssue};
 pub use lexical_handoff::LexicalScopeHandoffError;
 
 /// Runtime handle for a caller-provided scope; never an authored/context ID.
@@ -70,6 +72,8 @@ pub struct CemQlSchemaDeclarationHost {
     following_scopes: BTreeMap<(usize, AstNodeId), BTreeMap<usize, DeclarationScope>>,
     grants: BTreeSet<(DeclarationScope, DeclarationScope)>,
     fallback_policy: ReferenceScopePolicy,
+    // Immutable scalar name metadata, keyed by a registered original owner.
+    captured_names: BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::parser::ExpandedName>>,
     // Compiled source only: runtime targets and contexts remain per invocation.
     source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
 }
@@ -88,6 +92,7 @@ impl CemQlSchemaDeclarationHost {
             following_scopes: BTreeMap::new(),
             grants: BTreeSet::new(),
             source_expressions: BTreeMap::new(),
+            captured_names: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
                 .expect("embedded reference policy"),
         }
