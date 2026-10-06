@@ -177,6 +177,21 @@ implementation. `git diff --check` passes.
       child work limits and request-wide work limits apply within a shared boundary.
       Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
       Completed parser-frame association capture and automatic handoff remain open below.
+- [x] Fixture: share one normalized stream between lexical frame tracking and the
+      AST builder. Retain immutable snapshots at standalone/native attribute slots;
+      verify later namespace rebinding, host/wrapping/sibling schema defaults and
+      restoration after closure, pending schema selectors, original source spans,
+      unevaluated targets, and one final diagnostic notification even after repeated EOF.
+      Scenarios for later design verification: frame capture precedes the incoming
+      event's effects; no second AST, source reparse, query execution or event history is needed.
+- [x] Add opt-in lexical snapshot/stream observation to the schema machine under
+      those fixtures; forward original normalized events unchanged to the builder.
+      Keep retained associations in caller-owned metadata and report final diagnostics.
+      Scenarios for later design verification: completed snapshots survive parser
+      teardown; stream completion alone does not imply valid schema selection or readiness.
+      Verification: three new native capture fixtures, all 41 schema-machine tests,
+      and 18 existing node-reference, expression-source and tree-sitter parity tests
+      pass. Automatic retained-handle association and QL lifecycle handoff remain open below.
 - [ ] Fixture: retain completed namespace/schema associations through their original
       source occurrences, including directive/host/wrapping/sibling forms, inherited
       defaults, subsequent rebinding, nested restoration and pending schema selection.

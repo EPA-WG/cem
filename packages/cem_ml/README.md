@@ -39,6 +39,20 @@ Graph values, graph/output bytes, depth and bounded reference expansion obey the
 supplied limits. It produces compact JSON; retaining original formatting is an
 import-owner concern, not a promise of explicit export.
 
+## Lexical scope capture
+
+`schema::machine::CemSchemaMachine::track_lexical_scope` wraps a normalized
+event stream for `CemAstBuilder`. Its observer sees the effective state before
+each incoming event and receives `None` once after final EOF validation.
+`lexical_snapshot()` returns owned namespace and schema metadata that callers
+can retain after frames close; `diagnostics()` exposes validation findings.
+The wrapper forwards the original events without reparsing or keeping history.
+
+Capture does not evaluate references or schema selectors. Completion does not
+establish schema readiness. Associating snapshots with retained source handles
+and preparing runtime contexts, effective policies and crossing grants remain
+consumer lifecycle work; automatic handoff to the QL host is still pending.
+
 ## Verification
 
 Use Nx as the workspace task authority:

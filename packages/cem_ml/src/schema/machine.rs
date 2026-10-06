@@ -29,6 +29,10 @@ use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use std::collections::BTreeMap;
 
+#[path = "lexical_capture.rs"]
+mod lexical_capture;
+pub use lexical_capture::{LexicalScopeEvents, LexicalScopeSnapshot};
+
 pub struct CemSchemaMachine<E: EventNormalizer> {
     schema: CompiledSchema,
     events: E,

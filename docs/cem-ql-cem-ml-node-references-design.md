@@ -827,6 +827,19 @@ boundaries require a directed `allow_scope_crossing` grant, and unregistered own
 from an equal node ID or a supplied query binding. Native constructed references
 inherit the evaluating scope; retained targets use their registered scope.
 
+The parser-side `CemSchemaMachine::track_lexical_scope` is an opt-in normalized
+stream wrapper accepted by `CemAstBuilder`. Before each event changes the machine,
+the observer can retain `lexical_snapshot()` namespace/schema metadata alongside
+the original event's source occurrence. Host and wrapping schema defaults, sibling
+switches and namespace rebinding therefore remain inspectable after frames close.
+The original events reach the builder; no second AST, reparse or event history is
+required. One EOF notification exposes final machine diagnostics. Snapshots contain
+neither evaluator environments nor relationship boundaries, and capture does not
+execute reference or schema selector expressions. Completion alone establishes
+neither validity nor dependency readiness. Matching these occurrence snapshots to
+original retained handles and preparing their QL lifecycle contexts, policies and
+grants remains pending implementation work.
+
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before
 coordinated publication, as described below.
