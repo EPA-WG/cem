@@ -6,7 +6,7 @@ use cem_ml::{
     schema::{
         declaration_references::SchemaDeclarationNode,
         machine::{LexicalScopeSnapshot, LexicallyScopedDocument},
-        reference_policy::ReferenceScopePolicy,
+        reference_policy::{ReferenceScopePolicy, ReferenceScopePolicyOverrides},
     },
 };
 
@@ -36,6 +36,33 @@ impl CemQlSchemaDeclarationHost {
             DeclarationScope,
         ) -> (Option<StandaloneExpressionContext>, ReferenceScopePolicy),
     {
+        self.attach_captured_lexical_scopes_with_policy_overrides(
+            captured,
+            |source, snapshot, parent| {
+                let (context, policy) = prepare(source, snapshot, parent);
+                (context, ReferenceScopePolicyOverrides::explicit(policy))
+            },
+        )
+    }
+
+    /// Preserve local policy declarations separately from inherited settings.
+    /// All contexts/overrides are prepared before source occurrences are attached;
+    /// missing context is pending, regardless of available parent inputs.
+    pub fn attach_captured_lexical_scopes_with_policy_overrides<F>(
+        &mut self,
+        captured: &LexicallyScopedDocument,
+        mut prepare: F,
+    ) -> Result<Vec<(AstNodeId, DeclarationScope)>, LexicalScopeHandoffError>
+    where
+        F: FnMut(
+            &SchemaDeclarationNode,
+            &LexicalScopeSnapshot,
+            DeclarationScope,
+        ) -> (
+            Option<StandaloneExpressionContext>,
+            ReferenceScopePolicyOverrides,
+        ),
+    {
         let owner = captured.document();
         if !self
             .scopes
@@ -63,8 +90,8 @@ impl CemQlSchemaDeclarationHost {
                 let snapshot = captured
                     .snapshot(owner, source.node_id())
                     .expect("captured owner checked above");
-                let (context, policy) = prepare(&source, snapshot, parent);
-                (source.node_id(), parent, context, policy)
+                let (context, local_policy) = prepare(&source, snapshot, parent);
+                (source.node_id(), parent, context, local_policy)
             })
             .collect();
         self.attach_captured_names(captured)?;
@@ -72,7 +99,7 @@ impl CemQlSchemaDeclarationHost {
             .into_iter()
             .map(|(node, parent, context, policy)| {
                 let scope = self
-                    .register_lexical_scope(parent, context, policy)
+                    .register_lexical_scope_with_policy_overrides(parent, context, policy)
                     .expect("preflight checked parent in this host");
                 self.node_scopes.insert((key, node), scope);
                 (node, scope)

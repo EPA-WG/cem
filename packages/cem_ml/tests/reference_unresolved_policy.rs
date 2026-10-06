@@ -227,3 +227,71 @@ fn native_occurrences_do_not_require_saved_arena_or_context_handles() {
     assert!(diagnostic.message.contains("native:occurrence"));
     assert!(diagnostic.byte_offset.is_none());
 }
+
+
+#[test]
+fn local_policy_provenance_preserves_explicit_defaults_and_inherited_settings() {
+    use cem_ml::schema::reference_policy::{
+        ReferencePolicyOverrideOrigin, ReferenceScopePolicyOverrides,
+    };
+    let local_model =
+        scope("{schema | {constraints | {constraint @kind=reference-traversal-depth @value=128}}}");
+    let local = ReferenceScopePolicyOverrides::from_schema(&local_model).unwrap();
+    assert_eq!(*local.depth().unwrap().value(), 128);
+    let ReferencePolicyOverrideOrigin::Schema(source) = local.depth().unwrap().origin() else {
+        panic!("expected original schema declaration provenance");
+    };
+    assert!(source.origin().is_some());
+    assert!(local.work().is_none());
+    assert!(local.unresolved().is_none());
+    let child = ReferenceScopePolicy::schema_defaults().unwrap().for_scope(&scope("{schema | {constraints | {constraint @kind=reference-traversal-depth @value=3} {constraint @kind=reference-traversal-work @value=17} {constraint @kind=reference-unresolved-disposition @value=warning}}}")).unwrap();
+    let effective = local.apply_to(&child);
+    assert_eq!(effective.limits.max_depth, 128);
+    assert_eq!(effective.limits.max_work, 17);
+    assert_eq!(
+        effective.unresolved.disposition(),
+        UnresolvedDisposition::Warning
+    );
+    assert_eq!(child.limits.max_depth, 3);
+    let neutral = ReferenceScopePolicyOverrides::from_schema(&scope("{schema | {constraints | {constraint @kind=reference-unresolved-disposition @value=neutral}}}")).unwrap();
+    assert!(neutral.unresolved().is_some());
+    assert_eq!(
+        neutral.apply_to(&child).unresolved.disposition(),
+        UnresolvedDisposition::Neutral
+    );
+}
+
+#[test]
+fn complete_caller_policies_are_explicit_and_malformed_schema_provenance_is_rejected() {
+    use cem_ml::schema::reference_policy::{
+        ReferencePolicyOverrideOrigin, ReferenceScopePolicyOverrides,
+    };
+    let defaults = ReferenceScopePolicy::schema_defaults().unwrap();
+    let explicit = ReferenceScopePolicyOverrides::explicit(defaults.clone());
+    assert_eq!(
+        explicit.depth().unwrap().origin(),
+        &ReferencePolicyOverrideOrigin::Caller
+    );
+    assert_eq!(
+        explicit.work().unwrap().origin(),
+        &ReferencePolicyOverrideOrigin::Caller
+    );
+    assert_eq!(
+        explicit.unresolved().unwrap().origin(),
+        &ReferencePolicyOverrideOrigin::Caller
+    );
+    let child = defaults.for_scope(&scope("{schema | {constraints | {constraint @kind=reference-traversal-depth @value=3} {constraint @kind=reference-traversal-work @value=17} {constraint @kind=reference-unresolved-disposition @value=warning}}}")).unwrap();
+    let effective = explicit.apply_to(&child);
+    assert_eq!(effective.limits, defaults.limits);
+    assert_eq!(
+        effective.unresolved.disposition(),
+        defaults.unresolved.disposition()
+    );
+    for text in [
+        "{schema | {constraints | {constraint @kind=reference-traversal-depth @value=0}}}",
+        "{schema | {constraints | {constraint @kind=reference-unresolved-disposition @value=bad}}}",
+    ] {
+        let error = ReferenceScopePolicyOverrides::from_schema(&scope(text)).unwrap_err();
+        assert!(error.source_map.origin().is_some());
+    }
+}

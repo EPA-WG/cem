@@ -505,6 +505,48 @@ and per-region behavior dispatch remain actionable lifecycle work in `todo.md`.
 Generic and explicit controlled-region APIs keep their existing contracts. No
 deferred enclosed override syntax is selected by this integration stage.
 
+`prepare_schema_host_runtime_inputs` now prepares an independent child input
+snapshot from a ready host/schema preparation, the original host's enclosing
+policy and an explicit caller context. It validates all child policy declarations
+before publishing a derived policy. Missing context stays pending even if an
+inherited context is available; malformed policy retains its original source error
+without an enclosing-policy fallback. Unready schemas, unregistered hosts and
+preparations from another host cannot supply usable inputs. This step neither
+reruns selectors nor installs a body scope.
+
+Occurrence-policy precedence was adopted on 2026-10-06: preserve explicit local
+occurrence declarations and apply the selected child policy to inherited settings.
+`ReferenceScopePolicyOverrides` records declared depth, work and disposition
+settings independently, retaining caller origin or the schema declaration's source
+map. Omitted settings inherit; an explicit value equal to a standard default is
+still a declaration. Local declarations can be replayed in lexical order onto a
+new child policy without copying source or changing the previous effective policy.
+Explicit neutral resets remain declarations and retain precedence.
+
+Runtime lexical records now retain their parent and local declaration metadata.
+`register_lexical_scope_with_policy_overrides` and
+`attach_captured_lexical_scopes_with_policy_overrides` accept partial declarations
+or explicit inheritance. Existing complete-policy APIs retain their supplied
+policies as explicit caller declarations for compatibility; they do not guess
+provenance by comparing values. Context readiness remains separately supplied.
+
+`register_schema_host_runtime_scope` allocates a ready child lexical frame in the
+enclosing relationship boundary. `register_schema_host_occurrence_scope` replays
+declarations between the original enclosing and occurrence frames onto that child,
+preserving the nearest declaration's origin. Occurrence context is explicit,
+including `None` for pending inputs; a ready child context is not substituted.
+Foreign frames and independent relationship roots reject before registration.
+Original captured frames are unchanged, and registration neither assigns source
+nodes nor grants crossings. Explicit source handoff can consume the fresh frames
+through the existing bounded resolver, with request limits still enforced.
+
+Automatic body/occurrence assignment, invocation cleanup/restoration and combined
+runtime readiness in region validation remain lifecycle integration work. Behavior
+dispatch also remains pending. These stages must use the registered frames without
+resetting active traversal budgets, rebinding earlier lexical names or inheriting
+an unavailable child body. The remaining fixtures and their scenarios are in
+`todo.md`.
+
 ### Implicit scope references and defaults
 
 Scope properties provide an indirect form of reference. Syntax and its

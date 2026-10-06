@@ -1514,6 +1514,62 @@ only and adds no runtime behavior or public syntax.
       unselected source; structural budgets and active reference identities survive
       selector preparation; preparation uses current explicit lifecycle contexts,
       adds no grants, and never persists runtime targets or invented scope IDs.
+- [x] Fixture: prepare child runtime inputs from a ready original host/schema
+      snapshot and an explicit caller context. Derive the child reference policy
+      from its enclosing host policy, retain missing-context readiness and original
+      policy errors, and reject foreign host preparations. Cover inherited bounds/
+      diagnostics, child overrides, malformed declarations, pending/invalid selectors,
+      absent contexts, distinct caller inputs and unchanged existing expression scopes.
+      Implemented immutable runtime-input snapshots; custom diagnostic definitions
+      inherit intact. Verified with 174 native policy/reference/consumer tests.
+      Scenarios for later design verification: preparation does not execute selectors,
+      allocate/assign scopes, create grants or mutate source; missing caller context
+      does not silently inherit runtime inputs; invalid policy cannot become usable
+      by inheriting the enclosing policy; compiled models and source owners stay shared.
+- [x] Decide how selected child policies combine with already-captured occurrence
+      policies before installing runtime inputs. Adopted 2026-10-06: preserve explicit
+      local occurrence overrides while applying child policy to inherited settings.
+      Track declared/inherited provenance rather than comparing effective values.
+      Existing complete-policy handoffs retain their explicitly supplied policies;
+      provenance-aware handoff supplies local declarations or explicit inheritance.
+      Scenarios for later design verification: source-position bindings and runtime
+      contexts remain caller-owned; local precedence is deliberate; a handoff never
+      resets an active request's work/depth budget or creates crossing authority.
+- [x] Fixture: retain explicit/inherited policy provenance in lexical runtime
+      scopes and expose a provenance-aware captured occurrence handoff. Record schema
+      declaration source maps or caller origin per declared depth/work/disposition;
+      apply only declared local settings to a new enclosing child policy. Preserve
+      legacy complete-policy handoff and original context/crossing semantics. Cover
+      explicit values equal to defaults, partial inheritance, neutral resets,
+      malformed declarations and immutable enclosing records/source nodes.
+      Implemented per-setting origins, lexical parent metadata and partial-policy
+      registration/capture handoff; existing complete policies stay explicit.
+      Scenarios for later design verification: child defaults cannot erase local
+      declarations or mistake equal values for inheritance; missing occurrence
+      context stays pending; provenance is metadata, not a copied AST or context ID.
+- [x] Fixture: register ready child runtime frames and replay captured local policy
+      declarations onto fresh occurrence frames in lexical order. Require explicit
+      occurrence context, preserve its pending state, retain the original frames and
+      relationship boundary, and leave source assignment to explicit lifecycle handoff.
+      Cover inherited facets, explicit defaults, nested declaration origins, bounded
+      evaluation after explicit assignment, foreign frames and independent roots.
+      Implemented fresh frame registration and ordered declaration replay; native
+      consumption verifies pending contexts, effective policies and request work caps.
+      Scenarios for later design verification: scope registration never grants a
+      crossing or rewrites captured frames; missing context cannot borrow a ready
+      child context; replay preserves request limits; unrelated roots need an explicit
+      handoff rather than an inferred shared relationship.
+- [ ] Fixture: connect prepared runtime frames to automatic host body/occurrence
+      binding and combined region readiness through an explicit caller context hook.
+      Assign fresh frames while preserving source-position bindings/local provenance,
+      restore invocation mappings, and block missing contexts/invalid policy without
+      inherited or previously active body fallback. Cover nested/sibling restoration,
+      selected hosts, repeat calls with new inputs, inherited/declared facets and
+      request/destination budgets while preparing frames during selected traversal.
+      Scenarios for later design verification: fresh frame registration precedes
+      body consumption; original records/source names remain immutable; invocation
+      cleanup cannot invalidate retained result inspection or leak old contexts into
+      retries; body handoff never creates grants or resets work accounting.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
@@ -1521,9 +1577,11 @@ only and adds no runtime behavior or public syntax.
       Supply original source-position name metadata and keep literal forms compatible.
       Shared control ownership, explicit prepared host-region validation and
       on-entry discovery/preparation of original and selected hosts are implemented.
-      Next: add wrapping/sibling/prelude controls and external loading readiness,
-      install effective runtime contexts/policies explicitly, and connect retained
-      behavior validation to each consuming model. Reuse the implemented preparation
+      Runtime-input preparation, policy provenance and explicit fresh frame
+      registration are implemented. Next: bind those frames to host bodies/occurrences
+      with combined readiness and invocation restoration, add wrapping/sibling/prelude
+      controls and external loading readiness, and connect retained behavior validation
+      to each consuming model. Reuse the implemented preparation
       and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

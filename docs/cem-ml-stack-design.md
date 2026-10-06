@@ -1384,6 +1384,21 @@ Wrapping/sibling/prelude controls, external loading readiness, effective runtime
 scope installation and per-region behavior dispatch remain lifecycle integration
 work. Discovery does not create contexts, install policies or authorize crossings.
 
+Child runtime-input preparation now derives a validated reference policy from the
+enclosing host policy and requires an explicit caller context. Missing context
+remains pending, and invalid child policy retains its original error without
+fallback. Prepared inputs can register fresh child and occurrence lexical frames;
+registration preserves relationship identity and leaves source assignment separate.
+
+Adopted on 2026-10-06: explicit local occurrence policy declarations take precedence
+over selected child defaults; inherited settings use the selected child policy.
+Runtime records retain local declaration provenance and lexical parents. Source
+maps identify schema declarations; complete caller policies remain explicit through
+legacy APIs. Partial-policy handoff records actual declarations, including explicit
+values equal to defaults and neutral resets. Replaying those declarations does not
+mutate captured contexts or introduce grants. Automatic body binding, invocation
+restoration and combined runtime region readiness remain integration work.
+
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable
 source; an ordinary element with neither host control inherits its consuming model.

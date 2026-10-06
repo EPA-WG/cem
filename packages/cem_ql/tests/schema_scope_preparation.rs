@@ -1355,3 +1355,411 @@ fn discovered_invalid_selector_retains_diagnostics_without_body_fallback() {
         Some(SchemaScopePreparationIssue::TargetCount(0))
     );
 }
+
+
+#[test]
+fn child_runtime_inputs_derive_policy_and_preserve_existing_scope_contexts() {
+    use cem_ml::schema::{
+        declaration_references::SchemaDeclarationHost,
+        document_model::compile_schema_document_model, reference_policy::UnresolvedDisposition,
+    };
+    use cem_ml::value::reference_resolution::ReferenceResolutionHost;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}} {constraints | {constraint @kind=reference-traversal-depth @value=3} {constraint @kind=reference-unresolved-disposition @value=warning}}} {host @schema-select=library | {#body}}");
+    let enclosing = policy().for_scope(&compile_schema_document_model("outer", "{schema | {constraints | {constraint @kind=reference-traversal-work @value=57} {constraint @kind=reference-unresolved-disposition @value=mandatory}}}")).unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        enclosing.clone(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let root = source(&tree, elements(&tree, "host")[0]);
+    let prepared = host
+        .prepare_schema_host_region("child", root, policy().limits)
+        .unwrap();
+    assert!(prepared.is_ready());
+    let control = prepared.contract.control().unwrap().attribute.clone();
+    let compiled = host.compiled_source_expression(&control).unwrap();
+    let reference = source(&tree, captured.occurrences().last().unwrap());
+    let old_node = host.source_reference(reference.clone());
+    let inputs =
+        host.prepare_schema_host_runtime_inputs(prepared.clone(), Some(context(&tree, &[])));
+    assert!(inputs.is_ready(), "{:?}", inputs.issue());
+    assert_eq!(inputs.enclosing_scope(), Some(scope));
+    assert_eq!(inputs.policy().unwrap().limits.max_depth, 3);
+    assert_eq!(inputs.policy().unwrap().limits.max_work, 57);
+    assert_eq!(
+        inputs.policy().unwrap().unresolved.disposition(),
+        UnresolvedDisposition::Warning
+    );
+    assert!(Arc::ptr_eq(
+        inputs.region().contract.host().document(),
+        tree.ast_owner()
+    ));
+    assert!(Arc::ptr_eq(
+        inputs
+            .region()
+            .preparation
+            .as_ref()
+            .unwrap()
+            .model
+            .as_ref()
+            .unwrap(),
+        prepared
+            .preparation
+            .as_ref()
+            .unwrap()
+            .model
+            .as_ref()
+            .unwrap()
+    ));
+    assert_eq!(
+        host.scope(&host.source_reference(reference)),
+        host.scope(&old_node)
+    );
+    assert_eq!(host.scope_limits(&host.scope(&old_node)), enclosing.limits);
+    assert_eq!(
+        host.unresolved_policy(&old_node).disposition(),
+        UnresolvedDisposition::Mandatory
+    );
+    assert!(Arc::ptr_eq(
+        &compiled,
+        &host.compiled_source_expression(&control).unwrap()
+    ));
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn child_runtime_inputs_keep_missing_caller_context_pending_and_retry_explicitly() {
+    use cem_ql::schema_references::SchemaHostRuntimeInputIssue;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}}} {host @schema-select=library}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let prepared = host
+        .prepare_schema_host_region(
+            "child",
+            source(&tree, elements(&tree, "host")[0]),
+            policy().limits,
+        )
+        .unwrap();
+    let pending = host.prepare_schema_host_runtime_inputs(prepared.clone(), None);
+    assert!(!pending.is_ready());
+    assert_eq!(
+        pending.issue(),
+        Some(&SchemaHostRuntimeInputIssue::ContextNotReady)
+    );
+    assert!(pending.context().is_none());
+    assert!(pending.policy().is_some());
+    let first = host.prepare_schema_host_runtime_inputs(
+        prepared.clone(),
+        Some(context(&tree, &[]).with_binding(
+            "instance",
+            StandaloneExpressionBinding::any(ItemStream::from_items(vec![
+                cem_ql::eval::Item::Atomic(cem_ql::eval::AtomValue::Integer(1)),
+            ])),
+        )),
+    );
+    let second = host.prepare_schema_host_runtime_inputs(
+        prepared,
+        Some(context(&tree, &[]).with_binding(
+            "instance",
+            StandaloneExpressionBinding::any(ItemStream::from_items(vec![
+                cem_ql::eval::Item::Atomic(cem_ql::eval::AtomValue::Integer(2)),
+            ])),
+        )),
+    );
+    assert!(first.is_ready() && second.is_ready());
+    assert_eq!(
+        first.context().unwrap().bindings["instance"].value.items[0].atom(),
+        Some(cem_ql::eval::AtomValue::Integer(1))
+    );
+    assert_eq!(
+        second.context().unwrap().bindings["instance"].value.items[0].atom(),
+        Some(cem_ql::eval::AtomValue::Integer(2))
+    );
+}
+
+#[test]
+fn child_runtime_inputs_reject_invalid_policy_without_enclosing_fallback() {
+    use cem_ql::schema_references::SchemaHostRuntimeInputIssue;
+    for declaration in [
+        "{constraint @kind=reference-traversal-depth @value=0}",
+        "{constraint @kind=reference-traversal-work @value=bad}",
+        "{constraint @kind=reference-unresolved-disposition @value=bad}",
+    ] {
+        let text = format!("@ns s = https://cem.dev/ns/schema/1\n{{s:schema | {{elements | {{element @name=child}}}} {{constraints | {declaration}}}}} {{host @schema-select=library}}");
+        let (captured, tree) = capture(&text);
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(
+            tree.clone(),
+            Some(context(&tree, &elements(&tree, "schema"))),
+            policy(),
+        );
+        host.attach_captured_names(&captured).unwrap();
+        let prepared = host
+            .prepare_schema_host_region(
+                "child",
+                source(&tree, elements(&tree, "host")[0]),
+                policy().limits,
+            )
+            .unwrap();
+        assert!(prepared.is_ready(), "{:?}", prepared);
+        let inputs = host.prepare_schema_host_runtime_inputs(prepared, Some(context(&tree, &[])));
+        assert!(!inputs.is_ready());
+        assert!(inputs.policy().is_none());
+        let Some(SchemaHostRuntimeInputIssue::InvalidPolicy(error)) = inputs.issue() else {
+            panic!("{:?}", inputs.issue());
+        };
+        assert!(error.source_map.origin().is_some());
+    }
+}
+
+#[test]
+fn child_runtime_inputs_reject_foreign_preparations_and_unready_schema_snapshots() {
+    use cem_ql::schema_references::SchemaHostRuntimeInputIssue;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}}} {host @schema-select=library}");
+    let mut origin = CemQlSchemaDeclarationHost::new();
+    origin.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    origin.attach_captured_names(&captured).unwrap();
+    let root = source(&tree, elements(&tree, "host")[0]);
+    let ready = origin
+        .prepare_schema_host_region("child", root.clone(), policy().limits)
+        .unwrap();
+    let mut other = CemQlSchemaDeclarationHost::new();
+    other.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    let inputs = other.prepare_schema_host_runtime_inputs(ready.clone(), Some(context(&tree, &[])));
+    assert!(!inputs.is_ready());
+    assert_eq!(
+        inputs.issue(),
+        Some(&SchemaHostRuntimeInputIssue::ForeignPreparation)
+    );
+    assert!(inputs.policy().is_none());
+    let absent = CemQlSchemaDeclarationHost::new()
+        .prepare_schema_host_runtime_inputs(ready, Some(context(&tree, &[])));
+    assert!(!absent.is_ready());
+    assert_eq!(
+        absent.issue(),
+        Some(&SchemaHostRuntimeInputIssue::UnregisteredHost)
+    );
+    let pending = other
+        .prepare_schema_host_region("child", root, policy().limits)
+        .unwrap();
+    assert!(!pending.is_ready());
+    let inputs = other.prepare_schema_host_runtime_inputs(pending, Some(context(&tree, &[])));
+    assert!(!inputs.is_ready());
+    assert_eq!(
+        inputs.issue(),
+        Some(&SchemaHostRuntimeInputIssue::SchemaNotReady)
+    );
+    assert!(inputs.policy().is_none());
+}
+
+#[test]
+fn registered_child_frames_replay_local_policy_without_context_or_authority_fallback() {
+    use cem_ml::schema::{
+        declaration_references::SchemaDeclarationHost,
+        document_model::compile_schema_document_model,
+        reference_policy::{ReferenceScopePolicyOverrides, UnresolvedDisposition},
+        reference_traversal::ReferenceTraversalLimits,
+    };
+    use cem_ml::value::reference_resolution::{
+        resolve_reference, ReferenceResolutionHost, ReferenceResolutionState,
+    };
+    use cem_ql::schema_references::SchemaHostRuntimeInputIssue;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}} {constraints | {constraint @kind=reference-traversal-depth @value=3} {constraint @kind=reference-traversal-work @value=17} {constraint @kind=reference-unresolved-disposition @value=warning}}} {host @schema-select=library | {group | {#library}}} {chosen}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let parent = host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    let local = ReferenceScopePolicyOverrides::from_schema(&compile_schema_document_model(
+        "local",
+        "{schema | {constraints | {constraint @kind=reference-traversal-depth @value=128}}}",
+    ))
+    .unwrap();
+    let group_overrides =
+        ReferenceScopePolicyOverrides::from_schema(&compile_schema_document_model(
+            "group-local",
+            "{schema | {constraints | {constraint @kind=reference-traversal-work @value=11}}}",
+        ))
+        .unwrap();
+    let group_scope = host
+        .register_lexical_scope_with_policy_overrides(parent, None, group_overrides.clone())
+        .unwrap();
+    assert!(host.assign_subtree_scope(&tree, elements(&tree, "group")[0], group_scope));
+    let attached = host
+        .attach_captured_lexical_scopes_with_policy_overrides(&captured, |_, _, _| {
+            (None, local.clone())
+        })
+        .unwrap();
+    let original = attached[0].1;
+    let source_ref = source(&tree, attached[0].0);
+    let prepared = host
+        .prepare_schema_host_region(
+            "child",
+            source(&tree, elements(&tree, "host")[0]),
+            policy().limits,
+        )
+        .unwrap();
+    let inputs = host.prepare_schema_host_runtime_inputs(prepared, Some(context(&tree, &[])));
+    let child = host.register_schema_host_runtime_scope(inputs).unwrap();
+    assert_eq!(host.lexical_scope_parent(child.scope()), Some(parent));
+    assert_eq!(host.scope_limits(&Some(child.scope())).max_depth, 3);
+    let missing = host
+        .register_schema_host_occurrence_scope(&child, original, None)
+        .unwrap();
+    assert_eq!(host.scope_limits(&Some(missing)).max_depth, 128);
+    assert_eq!(host.scope_limits(&Some(missing)).max_work, 11);
+    assert_eq!(
+        host.unresolved_policy(&host.source_reference(source_ref.clone()))
+            .disposition(),
+        UnresolvedDisposition::Neutral
+    );
+    assert_eq!(
+        host.scope(&host.source_reference(source_ref.clone())),
+        Some(original)
+    );
+    host.assign_subtree_scope(&tree, source_ref.node_id(), missing);
+    let pending = resolve_reference(
+        host.source_reference(source_ref.clone()),
+        &mut host,
+        policy().limits,
+    )
+    .unwrap();
+    assert_eq!(pending.state, ReferenceResolutionState::Pending);
+    assert!(pending.nodes.is_empty());
+    let fresh = host
+        .register_schema_host_occurrence_scope(
+            &child,
+            original,
+            Some(context(&tree, &elements(&tree, "chosen"))),
+        )
+        .unwrap();
+    assert_eq!(
+        host.scope_policy_overrides(fresh)
+            .unwrap()
+            .work()
+            .unwrap()
+            .origin(),
+        group_overrides.work().unwrap().origin()
+    );
+    host.assign_subtree_scope(&tree, source_ref.node_id(), fresh);
+    let request = host.source_reference(source_ref.clone());
+    assert_eq!(
+        host.unresolved_policy(&request).disposition(),
+        UnresolvedDisposition::Warning
+    );
+    let resolved = resolve_reference(request.clone(), &mut host, policy().limits).unwrap();
+    assert!(resolved.is_complete() && !resolved.failed);
+    assert_eq!(
+        host.declaration_node(&resolved.nodes[0]).unwrap().node_id(),
+        elements(&tree, "chosen")[0]
+    );
+    let limited = resolve_reference(
+        request,
+        &mut host,
+        ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 1,
+        },
+    )
+    .unwrap();
+    assert!(!limited.is_complete());
+    assert_eq!(limited.work_used, 1);
+    assert!(limited
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+    let unrelated = host.register_scope(tree.clone(), None, policy());
+    assert_eq!(
+        host.register_schema_host_occurrence_scope(&child, unrelated, None),
+        Err(SchemaHostRuntimeInputIssue::UnrelatedOccurrenceScope)
+    );
+    let mut foreign = CemQlSchemaDeclarationHost::new();
+    assert_eq!(
+        foreign.register_schema_host_occurrence_scope(&child, original, None),
+        Err(SchemaHostRuntimeInputIssue::ForeignPreparation)
+    );
+    assert!(foreign
+        .register_schema_host_runtime_scope(child.inputs().clone())
+        .is_err());
+    assert_eq!(host.scope_limits(&Some(original)).max_work, 11);
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn child_runtime_inputs_inherit_the_complete_custom_diagnostic_definition() {
+    use cem_ml::schema::{
+        declaration_references::SchemaDeclarationHost,
+        document_model::compile_schema_document_model, reference_policy::UnresolvedReferenceFact,
+    };
+    use cem_ml::value::reference_resolution::ReferenceResolutionHost;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}}} {host @schema-select=library | {#library}}");
+    let enclosing = policy().for_scope(&compile_schema_document_model("outer", "{schema | {constraints | {constraint @kind=reference-unresolved-disposition @value=mandatory @diagnostic=vendor.reference.required}} {diagnostics | {diagnostic @code=vendor.reference.required @severity=fatal}}}")).unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        enclosing,
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let prepared = host
+        .prepare_schema_host_region(
+            "child",
+            source(&tree, elements(&tree, "host")[0]),
+            policy().limits,
+        )
+        .unwrap();
+    let inputs = host.prepare_schema_host_runtime_inputs(prepared, Some(context(&tree, &[])));
+    assert!(inputs.is_ready());
+    let occurrence = host
+        .reference_occurrence(
+            &host.source_reference(source(&tree, captured.occurrences().last().unwrap())),
+        )
+        .unwrap();
+    let treatment = inputs
+        .policy()
+        .unwrap()
+        .unresolved
+        .apply(&UnresolvedReferenceFact {
+            occurrence,
+            reason: "missing-dependency".into(),
+        });
+    assert!(treatment.failed);
+    let diagnostic = treatment.diagnostic.unwrap();
+    assert_eq!(diagnostic.code, "vendor.reference.required");
+    assert_eq!(diagnostic.severity, cem_ml::diagnostics::Severity::Fatal);
+    assert!(diagnostic.source_map.unwrap().origin().is_some());
+    let registered = host.register_schema_host_runtime_scope(inputs).unwrap();
+    assert!(host
+        .scope_policy_overrides(registered.scope())
+        .unwrap()
+        .unresolved()
+        .is_none());
+}

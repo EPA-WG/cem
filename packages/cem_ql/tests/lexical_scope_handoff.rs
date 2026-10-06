@@ -566,3 +566,76 @@ fn closed_malformed_reference_slots_keep_query_errors_deferred_and_source_attrib
         );
     }
 }
+
+
+#[test]
+fn provenance_handoff_retains_local_declarations_and_explicit_inheritance() {
+    use cem_ml::schema::{
+        document_model::compile_schema_document_model,
+        reference_policy::{ReferencePolicyOverrideOrigin, ReferenceScopePolicyOverrides},
+    };
+    use cem_ml::value::reference_resolution::ReferenceResolutionHost;
+    let (captured, tree) = captured("{outer | {#library}} {inner | {#library}} {target} {target}");
+    let refs: Vec<_> = captured.occurrences().collect();
+    let targets = elements(&tree, "target");
+    let parent_policy = policy().for_scope(&compile_schema_document_model("outer", "{schema | {constraints | {constraint @kind=reference-traversal-depth @value=3} {constraint @kind=reference-traversal-work @value=73}}}")).unwrap();
+    let local = ReferenceScopePolicyOverrides::from_schema(&compile_schema_document_model(
+        "local",
+        "{schema | {constraints | {constraint @kind=reference-traversal-depth @value=128}}}",
+    ))
+    .unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let parent = host.register_scope(tree.clone(), None, parent_policy);
+    let attached = host
+        .attach_captured_lexical_scopes_with_policy_overrides(&captured, |node, _, inherited| {
+            assert_eq!(inherited, parent);
+            if node.node_id() == refs[0] {
+                (
+                    Some(context(&tree, targets[0])),
+                    ReferenceScopePolicyOverrides::default(),
+                )
+            } else {
+                (Some(context(&tree, targets[1])), local.clone())
+            }
+        })
+        .unwrap();
+    assert_eq!(attached.len(), 2);
+    let first = attached[0].1;
+    let second = attached[1].1;
+    assert_eq!(host.lexical_scope_parent(first), Some(parent));
+    assert_eq!(host.lexical_scope_parent(second), Some(parent));
+    assert!(host
+        .scope_policy_overrides(first)
+        .unwrap()
+        .depth()
+        .is_none());
+    assert!(matches!(
+        host.scope_policy_overrides(second)
+            .unwrap()
+            .depth()
+            .unwrap()
+            .origin(),
+        ReferencePolicyOverrideOrigin::Schema(_)
+    ));
+    assert_eq!(host.scope_limits(&Some(first)).max_depth, 3);
+    assert_eq!(host.scope_limits(&Some(second)).max_depth, 128);
+    assert_eq!(host.scope_limits(&Some(second)).max_work, 73);
+    for (index, reference) in refs.iter().enumerate() {
+        let source = source(&captured, *reference);
+        assert!(host.compiled_source_expression(&source).is_none());
+        let resolved =
+            resolve_reference(host.source_reference(source), &mut host, policy().limits).unwrap();
+        assert!(resolved.is_complete() && !resolved.failed);
+        assert_eq!(
+            host.declaration_node(&resolved.nodes[0]).unwrap().node_id(),
+            targets[index]
+        );
+    }
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}

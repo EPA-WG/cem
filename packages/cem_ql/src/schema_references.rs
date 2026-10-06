@@ -22,7 +22,10 @@ use cem_ml::{
             validate_structural_input_references_with_behavior_evaluator,
             StructuralInputValidation,
         },
-        reference_policy::{ReferenceOccurrence, ReferenceScopePolicy, ReferenceUnresolvedPolicy},
+        reference_policy::{
+            ReferenceOccurrence, ReferenceScopePolicy, ReferenceScopePolicyOverrides,
+            ReferenceUnresolvedPolicy,
+        },
         reference_traversal::ReferenceTraversalLimits,
     },
     value::reference_resolution::{
@@ -43,6 +46,10 @@ mod scope_preparation;
 mod region_validation;
 mod host_controls;
 mod host_regions;
+mod host_runtime_inputs;
+pub use host_runtime_inputs::{
+    SchemaHostRuntimeInputIssue, SchemaHostRuntimeInputs, SchemaHostRuntimeScope,
+};
 pub use host_regions::{SchemaHostRegionPreparation, SchemaHostRegionValidation};
 pub use host_controls::{PreparedSchemaHostControl, SchemaHostPreparationError};
 pub use region_validation::SchemaInputRegion;
@@ -60,6 +67,8 @@ struct Scope {
     tree: Arc<RetainedCemTree>,
     context: Option<StandaloneExpressionContext>,
     policy: ReferenceScopePolicy,
+    lexical_parent: Option<DeclarationScope>,
+    local_policy: ReferenceScopePolicyOverrides,
     // Lexical contexts may differ while crossing permission identity stays shared.
     relationship: DeclarationScope,
 }
@@ -128,6 +137,8 @@ impl CemQlSchemaDeclarationHost {
         self.scopes.push(Scope {
             tree,
             context,
+            local_policy: ReferenceScopePolicyOverrides::explicit(policy.clone()),
+            lexical_parent: None,
             policy,
             relationship: scope,
         });
@@ -144,9 +155,24 @@ impl CemQlSchemaDeclarationHost {
         context: Option<StandaloneExpressionContext>,
         policy: ReferenceScopePolicy,
     ) -> Option<DeclarationScope> {
-        let parent = self.scope_record(parent)?;
-        let tree = parent.tree.clone();
-        let relationship = parent.relationship;
+        self.register_lexical_scope_with_policy_overrides(
+            parent,
+            context,
+            ReferenceScopePolicyOverrides::explicit(policy),
+        )
+    }
+    /// Declare only local settings; omitted settings inherit the complete parent
+    /// policy. Context readiness is explicitly supplied and is never inherited.
+    pub fn register_lexical_scope_with_policy_overrides(
+        &mut self,
+        parent: DeclarationScope,
+        context: Option<StandaloneExpressionContext>,
+        local_policy: ReferenceScopePolicyOverrides,
+    ) -> Option<DeclarationScope> {
+        let parent_record = self.scope_record(parent)?;
+        let tree = parent_record.tree.clone();
+        let relationship = parent_record.relationship;
+        let policy = local_policy.apply_to(&parent_record.policy);
         let scope = DeclarationScope {
             host: self.identity,
             index: self.scopes.len(),
@@ -156,8 +182,19 @@ impl CemQlSchemaDeclarationHost {
             context,
             policy,
             relationship,
+            lexical_parent: Some(parent),
+            local_policy,
         });
         Some(scope)
+    }
+    pub fn lexical_scope_parent(&self, scope: DeclarationScope) -> Option<DeclarationScope> {
+        self.scope_record(scope)?.lexical_parent
+    }
+    pub fn scope_policy_overrides(
+        &self,
+        scope: DeclarationScope,
+    ) -> Option<&ReferenceScopePolicyOverrides> {
+        Some(&self.scope_record(scope)?.local_policy)
     }
     /// Map an explicit child subtree to an effective scope. Syntax/scoping
     /// construction belongs to the caller; the nearest source ancestor wins.

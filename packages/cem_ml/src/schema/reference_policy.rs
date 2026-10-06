@@ -73,6 +73,113 @@ pub struct ReferenceScopePolicy {
     pub unresolved: ReferenceUnresolvedPolicy,
 }
 
+/// Declared settings keep their origin even when their values equal defaults.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReferencePolicyOverrideOrigin {
+    Caller,
+    Schema(SourceMapStack),
+}
+#[derive(Debug, Clone)]
+pub struct DeclaredReferencePolicySetting<T> {
+    value: T,
+    origin: ReferencePolicyOverrideOrigin,
+}
+impl<T> DeclaredReferencePolicySetting<T> {
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+    pub fn origin(&self) -> &ReferencePolicyOverrideOrigin {
+        &self.origin
+    }
+}
+
+/// None means inherit, not an explicit declaration of the standard value.
+/// Complete legacy caller policies declare all settings; schema construction
+/// retains only authored local declarations and validates them atomically.
+#[derive(Debug, Clone, Default)]
+pub struct ReferenceScopePolicyOverrides {
+    depth: Option<DeclaredReferencePolicySetting<usize>>,
+    work: Option<DeclaredReferencePolicySetting<usize>>,
+    unresolved: Option<DeclaredReferencePolicySetting<ReferenceUnresolvedPolicy>>,
+}
+impl ReferenceScopePolicyOverrides {
+    pub fn explicit(policy: ReferenceScopePolicy) -> Self {
+        let caller = |value| DeclaredReferencePolicySetting {
+            value,
+            origin: ReferencePolicyOverrideOrigin::Caller,
+        };
+        Self {
+            depth: Some(caller(policy.limits.max_depth)),
+            work: Some(caller(policy.limits.max_work)),
+            unresolved: Some(DeclaredReferencePolicySetting {
+                value: policy.unresolved,
+                origin: ReferencePolicyOverrideOrigin::Caller,
+            }),
+        }
+    }
+    pub fn from_schema(model: &SchemaDocumentModel) -> Result<Self, ReferencePolicyError> {
+        let policy = ReferenceScopePolicy::schema_defaults()?.for_scope(model)?;
+        let declaration = |kind, value| {
+            model
+                .constraint(kind)
+                .map(|constraint| DeclaredReferencePolicySetting {
+                    value,
+                    origin: ReferencePolicyOverrideOrigin::Schema(constraint.source_map.clone()),
+                })
+        };
+        Ok(Self {
+            depth: declaration("reference-traversal-depth", policy.limits.max_depth),
+            work: declaration("reference-traversal-work", policy.limits.max_work),
+            unresolved: model.constraint(DISPOSITION).map(|constraint| {
+                DeclaredReferencePolicySetting {
+                    value: policy.unresolved,
+                    origin: ReferencePolicyOverrideOrigin::Schema(constraint.source_map.clone()),
+                }
+            }),
+        })
+    }
+    pub fn depth(&self) -> Option<&DeclaredReferencePolicySetting<usize>> {
+        self.depth.as_ref()
+    }
+    pub fn work(&self) -> Option<&DeclaredReferencePolicySetting<usize>> {
+        self.work.as_ref()
+    }
+    pub fn unresolved(&self) -> Option<&DeclaredReferencePolicySetting<ReferenceUnresolvedPolicy>> {
+        self.unresolved.as_ref()
+    }
+    /// Combine local declarations in lexical order, preserving the nearest
+    /// declaration's origin. Omitted local settings retain earlier declarations.
+    pub fn overlay(&self, enclosing: &Self) -> Self {
+        Self {
+            depth: self.depth.clone().or_else(|| enclosing.depth.clone()),
+            work: self.work.clone().or_else(|| enclosing.work.clone()),
+            unresolved: self
+                .unresolved
+                .clone()
+                .or_else(|| enclosing.unresolved.clone()),
+        }
+    }
+    /// Replay declared local settings onto a new inherited child policy without
+    /// replacing omitted facets or mutating either policy's source metadata.
+    pub fn apply_to(&self, enclosing: &ReferenceScopePolicy) -> ReferenceScopePolicy {
+        ReferenceScopePolicy {
+            limits: ReferenceTraversalLimits {
+                max_depth: self
+                    .depth
+                    .as_ref()
+                    .map_or(enclosing.limits.max_depth, |setting| setting.value),
+                max_work: self
+                    .work
+                    .as_ref()
+                    .map_or(enclosing.limits.max_work, |setting| setting.value),
+            },
+            unresolved: self.unresolved.as_ref().map_or_else(
+                || enclosing.unresolved.clone(),
+                |setting| setting.value.clone(),
+            ),
+        }
+    }
+}
 impl ReferenceScopePolicy {
     pub fn schema_defaults() -> Result<Self, ReferencePolicyError> {
         Ok(Self {
