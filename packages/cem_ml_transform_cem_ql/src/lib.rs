@@ -5852,7 +5852,7 @@ impl QueryAstOwner for CemQlQueryAstOwner {
 
 #[derive(Debug, Clone)]
 pub struct CemQlNativeItemsOwner {
-    owner: Arc<LoadedInputAstStream>,
+    owner: cem_ml::query::QuerySourceOwner,
     identity: FormatIdentity,
     stream: ItemStream,
     source_map: SourceMapStack,
@@ -5863,7 +5863,23 @@ impl CemQlNativeItemsOwner {
         owner: Arc<LoadedInputAstStream>,
         identity: FormatIdentity,
     ) -> Result<Self, String> {
-        let stream = lifecycle_query_stream(Arc::clone(&owner))?;
+        Self::from_source_owner(cem_ml::query::QuerySourceOwner::Lifecycle(owner), identity)
+    }
+
+    fn from_source_owner(
+        owner: cem_ml::query::QuerySourceOwner,
+        identity: FormatIdentity,
+    ) -> Result<Self, String> {
+        let stream = match &owner {
+            cem_ml::query::QuerySourceOwner::Lifecycle(owner) => lifecycle_query_stream(owner.clone())?,
+            cem_ml::query::QuerySourceOwner::Cem { source, lexical_scopes } => {
+                if lexical_scopes.as_ref().is_some_and(|captured|
+                    !Arc::ptr_eq(captured.document(), source.ast_owner())) {
+                    return Err("CEM query capture does not belong to the supplied native owner".into());
+                }
+                ItemStream::once(cem_ql::eval::imported_cem_tree(source.clone()))
+            }
+        };
         let source_map = stream
             .items
             .first()
@@ -5892,8 +5908,17 @@ impl CemQlNativeItemsOwner {
         &self.stream
     }
 
-    pub fn lifecycle_owner(&self) -> &Arc<LoadedInputAstStream> {
+    pub fn source_owner(&self) -> &cem_ml::query::QuerySourceOwner {
         &self.owner
+    }
+
+    /// External imports retain their original lifecycle owner; CEM sources use
+    /// the original parser arena/capture available through `source_owner`.
+    pub fn lifecycle_owner(&self) -> Option<&Arc<LoadedInputAstStream>> {
+        match &self.owner {
+            cem_ml::query::QuerySourceOwner::Lifecycle(owner) => Some(owner),
+            cem_ml::query::QuerySourceOwner::Cem { .. } => None,
+        }
     }
 }
 
@@ -6103,7 +6128,7 @@ impl QueryRuntimeAdapter for CemQlQueryRuntimeAdapter {
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
         let input =
-            CemQlNativeItemsOwner::from_lifecycle(request.lifecycle_owner, request.input_identity)
+            CemQlNativeItemsOwner::from_source_owner(request.source_owner, request.input_identity)
                 .map_err(|message| {
                     vec![cem_ql_query_diagnostic(
                         request.input_uri,

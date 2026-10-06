@@ -752,3 +752,147 @@ declare function local:link(path as string) { u:href(path, base) }
     }
     fs::remove_dir_all(temp).unwrap();
 }
+
+#[test]
+fn query_reference_construction_uses_native_inputs_without_authored_ids() {
+    let (root, _) = query_data();
+    for (name, media, source) in [
+        ("data.cem", "application/cem", "{root}"),
+        ("data.xml", "application/xml", "<root/>"),
+        ("data.json", "application/json", "{}"),
+        ("data.yaml", "application/yaml", "value: literal\n"),
+        ("data.csv", "text/csv", "value\nliteral\n"),
+    ] {
+        let data = root.join(name);
+        fs::write(&data, source).unwrap();
+        // CLI JSON exposes the existing opaque native artifact descriptor;
+        // ordered duplicate targets are verified at the typed Rust boundary.
+        let result = assert_success(&run_query_with_data_type(
+            &data,
+            media,
+            &[
+                "--query",
+                "#(input, input)",
+                "--query-content-type",
+                CEM_QL_CONTENT_TYPE,
+                "--query-schema",
+                CEM_QL_SCHEMA,
+                "--output",
+                "json",
+            ],
+        ));
+        assert_eq!(result["result"]["items"].as_array().unwrap().len(), 1);
+        assert_eq!(result["result"]["items"][0]["kind"], "native");
+        assert_eq!(
+            result["result"]["items"][0]["representation"],
+            "cem.reference"
+        );
+        assert_eq!(fs::read_to_string(&data).unwrap(), source);
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn query_reference_source_remains_inert_when_selected_or_wrapped() {
+    let (root, _) = query_data();
+    for (name, media, source) in [(
+        "template.xml",
+        "application/xml",
+        "<root xmlns:r='https://cem.dev/ns/cem-ml/1'><r:expr>#missing[</r:expr><target/></root>",
+    )] {
+        let data = root.join(name);
+        fs::write(&data, source).unwrap();
+        for (query, wrapped) in [
+            ("seq:map(seq:where(input.descendants, fn(node) => node.kind == \"reference\"), fn(node) => node.expression)", false),
+            ("#seq:where(input.descendants, fn(node) => node.kind == \"reference\")", true),
+        ] {
+            let result = assert_success(&run_query_with_data_type(&data, media, &[
+                "--query", query, "--query-content-type", CEM_QL_CONTENT_TYPE,
+                "--query-schema", CEM_QL_SCHEMA, "--output", "json",
+            ]));
+            if wrapped {
+                assert_eq!(result["result"]["items"][0]["representation"], "cem.reference");
+            } else {
+                assert_eq!(result["result"]["items"], serde_json::json!([{"kind":"atomic", "type":"string", "value":"#missing["}]));
+            }
+        }
+        assert_eq!(fs::read_to_string(data).unwrap(), source);
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn query_reference_rejects_url_and_id_strings_instead_of_looking_up_targets() {
+    let (root, data) = query_data();
+    for (index, operand) in ["#part", "https://vendor.invalid/document#part"]
+        .iter()
+        .enumerate()
+    {
+        let report = root.join(format!("reference-{index}.report.json"));
+        let query = format!("#\"{operand}\"");
+        let output = run_query(
+            &data,
+            &[
+                "--query",
+                &query,
+                "--query-content-type",
+                CEM_QL_CONTENT_TYPE,
+                "--query-schema",
+                CEM_QL_SCHEMA,
+                "--output",
+                "json",
+                "--report-json",
+                report.to_str().unwrap(),
+            ],
+        );
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+        let diagnostic = report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|d| d["code"] == "cem.ql.type_error")
+            .unwrap();
+        assert!(!diagnostic["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert!(!diagnostic_codes(&report)
+            .iter()
+            .any(|code| code.contains("resolver")));
+    }
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn query_reference_cem_source_admits_native_owner_without_evaluating_authored_slots() {
+    let (root, _) = query_data();
+    let data = root.join("template.cem");
+    let source = "{root | {#missing[} {target}}";
+    fs::write(&data, source).unwrap();
+    let report = root.join("cem-source.report.json");
+    let output = run_query_with_data_type(
+        &data,
+        "application/cem",
+        &[
+            "--query",
+            "input.kind",
+            "--query-content-type",
+            CEM_QL_CONTENT_TYPE,
+            "--query-schema",
+            CEM_QL_SCHEMA,
+            "--output",
+            "json",
+            "--report-json",
+            report.to_str().unwrap(),
+        ],
+    );
+    let result = assert_success(&output);
+    assert_eq!(result["result"]["items"][0]["value"], "document");
+    let report: serde_json::Value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+    assert!(!diagnostic_codes(&report).contains(&"cem.query.input_model_unsupported"));
+    assert!(!diagnostic_codes(&report).contains(&"cem.ql.parse_error"));
+    assert_eq!(fs::read_to_string(data).unwrap(), source);
+    fs::remove_dir_all(root).unwrap();
+}

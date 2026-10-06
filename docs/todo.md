@@ -1407,7 +1407,49 @@ roadmap; this closure adopts no new transport or public query access syntax.
 
 ### 7. Verify and document completion
 
-- [ ] Fixture: add focused Rust integration cases through the existing CLI/query
+- [x] Fixture: CLI queries construct native references over CEM/XML/JSON/YAML/CSV
+      inputs without authored IDs, preserve duplicate selection and inspect malformed
+      authored reference source without evaluating it. Reject URL/ID string operands
+      with attributed query diagnostics; verify supplied native data never triggers
+      resource resolver reads during reference construction.
+      Scenarios for later design verification: resource/import owns URI fetching;
+      reference consumers receive nodes and decide when retained source is evaluated.
+- [x] Decide CEM source ingress for CLI/shared queries: the previous preparation
+      contract required `Arc<LoadedInputAstStream>` and rejected CEM
+      inputs with `cem.query.input_model_unsupported`, even though CEM-document
+      artifacts already used the shared native view. Adopted: admit the
+      original parsed CEM owner with captured lexical bindings; preserve literal
+      external imports and keep runtime evaluation explicit. User adopted shared
+      ingress migration on 2026-10-05.
+      Scenarios for later design verification: CEM source queries retain the original
+      parser arena and source-position bindings without fabricated lifecycle ASTs,
+      reparsing into an external format or automatic authored-reference evaluation.
+- [x] Fixture and implementation after that decision: extend the query preparation
+      owner contract and adapter admission for retained CEM inputs. Cover CEM CLI
+      construction/selection, lexical capture, original owner identity, inert malformed
+      reference slots and coexistence with existing external lifecycle owners.
+      Scenarios for later design verification: no implicit record fallback or authored
+      context IDs; unsupported source owners retain an explicit admission diagnostic.
+      Completed: `QuerySourceOwner` admits original lifecycle storage or the CEM
+      parser arena/capture. CEM-QL retains the same native query tree and exposes
+      saved snapshots to later explicit consumers. External adapters preserve
+      their ownership; CSS selector/XPath retain lifecycle admission. Four focused
+      query bridge fixtures and all 16 CLI query fixtures pass, including namespace
+      handoff, duplicate targets, inert malformed source and zero resolver reads.
+      Verification: the full Nx query bridge target passes 148 tests; CLI query
+      integration passes 16 tests; focused CEM-ML owner/capture/reference/schema,
+      CSS selector and grammar parity checks pass 33 tests.
+- [ ] Fixture and fix: investigate generic native member lowering for an inferred
+      unary-reference value in a local declaration. The module `declare let refs =
+      #(input, input)` followed by `refs.targets` currently dispatches `targets`
+      as a function and reports `cem.ql.unknown_function`; the legacy
+      `dom:reference` result uses generic native field lookup successfully.
+      Reconcile implementation-level inference/dispatch without adopting the deferred
+      public reference type/target-access syntax or introducing implicit evaluation.
+      Scenarios for later design verification: generic metadata access remains
+      consistent across source nodes, unary constructions and legacy helper results;
+      invalid member access never masquerades as a user function invocation.
+- [x] Fixture: add focused Rust integration cases through the existing CLI/query
       and schema paths for retained references and explicit supplied-context
       evaluation. Confirm URL resolution stays at the resource/import boundary
       and no projected IDs or browser behavior are needed for CEM-ML references.

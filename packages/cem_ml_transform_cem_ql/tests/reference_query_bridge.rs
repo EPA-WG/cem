@@ -80,7 +80,7 @@ fn lifecycle_query_bridge_constructs_references_to_original_native_owners_across
         assert!(Arc::ptr_eq(original.owner(), returned.owner()));
         assert_eq!(returned.node_id(), 0);
         let native = original.owner().native_owner().unwrap().downcast_ref::<LoadedInputAstStream>().unwrap();
-        assert!(std::ptr::eq(native, input.lifecycle_owner().as_ref()));
+        assert!(std::ptr::eq(native, input.lifecycle_owner().unwrap().as_ref()));
         assert_eq!(original.owner().source_uri(), "memory:reference-bridge");
         assert!(!items[0].source_map().unwrap().frames.is_empty());
         let repeated = targets(&items[1]);
@@ -141,4 +141,181 @@ fn lifecycle_query_bridge_can_reference_an_authored_reference_without_evaluating
         matches!(authored.node(), CemAstNode::Reference { expression, targets: None, .. } if expression == "#unavailable")
     );
     assert!(selected[0].view().unwrap().field("targets").is_none());
+}
+
+#[test]
+fn supplied_native_sources_and_reference_operands_do_not_fetch_uri_parts() {
+    use cem_ml::{
+        query::QueryRunError,
+        resolver::{
+            ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead, ResolvedWrite,
+            ResolverDiagnostic, ResourceResolver,
+        },
+    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct CountReads(Arc<AtomicUsize>);
+    impl ResourceResolver for CountReads {
+        fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: "unexpected resource read".into(),
+            })
+        }
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            _: &[u8],
+        ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::Io {
+                uri: request.uri.clone(),
+                message: "unexpected resource write".into(),
+            })
+        }
+    }
+    let reads = Arc::new(AtomicUsize::new(0));
+    for (expression, succeeds) in [
+        ("#input", true),
+        ("#seq:map(seq:where(input.descendants, fn(node) => node.kind == \"text\"), fn(node) => node.value)", false),
+    ] {
+        let mut context = engine_context_with_cem_ql_template_adapter();
+        for purpose in [ResolvePurpose::Input, ResolvePurpose::Query, ResolvePurpose::Template, ResolvePurpose::ModuleMap] {
+            context.resolver_registry.register("https", purpose, ResolveDirection::Read, CountReads(reads.clone()));
+        }
+        let response = run_query(QueryRunRequest {
+            data: EngineInput {
+                uri: "https://vendor.invalid/source.xml".into(),
+                bytes: b"<root>https://vendor.invalid/document#part</root>".to_vec(),
+                from_format: Some(InputFormat::Xml),
+                identity: Some(FormatIdentity { content_type: Some("application/xml".into()), ..Default::default() }),
+                root_scope: ScopeConfig { default_content_type: Some("application/xml".into()), ..Default::default() },
+            },
+            query: QuerySource {
+                uri: "memory:reference-resource-boundary.cemql".into(), bytes: expression.as_bytes().to_vec(),
+                identity: FormatIdentity { content_type: Some(CEM_QL_EXPRESSION_CONTENT_TYPE.into()), ..Default::default() },
+            },
+            context, context_item: None, bindings: Default::default(), limits: None,
+        });
+        if succeeds {
+            let response = response.unwrap();
+            let result = response.result.native_result.as_any().downcast_ref::<CemQlQueryResultArtifact>().unwrap();
+            let target = targets(&result.stream().items[0]).remove(0);
+            let node = retained_cem_node(&target).unwrap();
+            assert_eq!(node.owner().source_uri(), "https://vendor.invalid/source.xml");
+        } else {
+            let QueryRunError::Execution(failure) = response.unwrap_err() else { panic!("native operand failure") };
+            let diagnostic = failure.diagnostics.iter().find(|d| d.code == "cem.ql.type_error").unwrap_or_else(|| panic!("unexpected diagnostics: {:?}", failure.diagnostics));
+            assert_eq!(diagnostic.uri.as_deref(), Some("memory:reference-resource-boundary.cemql"));
+            assert!(!diagnostic.source_map.as_ref().unwrap().frames.is_empty());
+        }
+        assert_eq!(reads.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn cem_query_ingress_retains_original_parser_owner_and_captured_bindings_for_explicit_consumers() {
+    use cem_ml::{
+        query::QuerySourceOwner,
+        schema::{
+            declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+            reference_policy::ReferenceScopePolicy,
+        },
+        value::reference_resolution::resolve_reference,
+    };
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{ItemStream, RetainedCemNode},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let text = "@ns v = urn:first\n{outer @target={#library} | {#library} {target}}\n@ns v = urn:second\n{inner | {#library} {target}}";
+    let response = run(
+        Some(InputFormat::Cem),
+        "application/cem",
+        text,
+        "#(input, input)",
+    );
+    let input = response
+        .result
+        .input_ast_owner
+        .as_any()
+        .downcast_ref::<CemQlNativeItemsOwner>()
+        .unwrap();
+    assert!(input.lifecycle_owner().is_none());
+    let QuerySourceOwner::Cem {
+        source,
+        lexical_scopes,
+    } = input.source_owner()
+    else {
+        panic!("original CEM source")
+    };
+    let captured = lexical_scopes.as_ref().unwrap();
+    assert!(Arc::ptr_eq(source.ast_owner(), captured.document()));
+    let item = retained_cem_node(&input.stream().items[0]).unwrap();
+    assert!(Arc::ptr_eq(item.owner(), source));
+    let result = response
+        .result
+        .native_result
+        .as_any()
+        .downcast_ref::<CemQlQueryResultArtifact>()
+        .unwrap();
+    let result_targets = targets(&result.stream().items[0]);
+    assert_eq!(result_targets.len(), 2);
+    for result_target in result_targets {
+        assert!(Arc::ptr_eq(
+            retained_cem_node(&result_target).unwrap().owner(),
+            source
+        ));
+    }
+    let target_ids: Vec<_> = source
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "target" => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(target_ids.len(), 2);
+    let refs: Vec<_> = captured.occurrences().collect();
+    assert_eq!(refs.len(), 3);
+    let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let root = host.register_scope(source.clone(), None, policy.clone());
+    let mut bindings = vec![];
+    host.attach_captured_lexical_scopes(captured, |node, snapshot, parent| {
+        assert_eq!(parent, root);
+        let namespace = &snapshot.namespaces.binding("v").unwrap().namespace_uri;
+        bindings.push(namespace.clone());
+        assert!(Arc::ptr_eq(node.document(), source.ast_owner()));
+        let target = target_ids[usize::from(namespace == "urn:second")];
+        let context = StandaloneExpressionContext::default().with_binding(
+            "library",
+            StandaloneExpressionBinding::any(ItemStream::once(
+                RetainedCemNode::new(source.clone(), target)
+                    .unwrap()
+                    .query_item(),
+            )),
+        );
+        (Some(context), policy.clone())
+    })
+    .unwrap();
+    assert_eq!(bindings, ["urn:first", "urn:first", "urn:second"]);
+    for (index, &id) in refs.iter().enumerate() {
+        let original = SchemaDeclarationNode::new(source.ast_owner().clone(), id).unwrap();
+        assert!(host.compiled_source_expression(&original).is_none());
+        let reference = host.source_reference(original);
+        let result = resolve_reference(reference, &mut host, policy.limits).unwrap();
+        assert!(result.is_complete());
+        let selected = host.declaration_node(&result.nodes[0]).unwrap();
+        assert!(Arc::ptr_eq(selected.document(), source.ast_owner()));
+        assert_eq!(selected.node_id(), target_ids[usize::from(index == 2)]);
+        assert!(matches!(
+            source.ast().get(id),
+            Some(CemAstNode::Reference { targets: None, .. })
+        ));
+    }
 }

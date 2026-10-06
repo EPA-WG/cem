@@ -2087,6 +2087,19 @@ fn run_pipeline_as_with_context(
     run_pipeline_as_with_model_validation(bytes, from_format, root_scope, context, source_uri, true)
 }
 
+/// Query ingress shares the ordinary CEM parser/capture path without invoking
+/// the optional runtime model consumer or reparsing a lifecycle projection.
+pub(crate) fn prepare_cem_query_input(
+    bytes: &[u8],
+    root_scope: &ScopeConfig,
+    context: &EngineContext,
+    source_uri: &str,
+) -> PipelineRun {
+    run_pipeline_as_with_model_validation(
+        bytes, InputFormat::Cem, Some(root_scope), Some(context), Some(source_uri), false,
+    )
+}
+
 fn run_pipeline_as_with_model_validation(
     bytes: &[u8],
     from_format: InputFormat,

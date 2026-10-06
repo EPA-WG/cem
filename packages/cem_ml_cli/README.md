@@ -49,3 +49,19 @@ imports. External/plugin imports are rejected. `input` retains the native data
 tree, and local declarations follow lexical shadowing rules. Ordered nonfatal
 warnings reach the query result and report. See the
 [module-query contract](../../docs/cem-ql-cli-module-query-design.md).
+
+## Native CEM query input
+
+CEM-QL queries accept CEM source (`application/cem`) as well as supported native
+external data imports. CEM ingress parses once through the normal schema-machine
+and builder path and retains the original arena and lexical snapshots. Querying
+or constructing a reference to an authored reference does not evaluate its source;
+a consumer supplies the context and evaluation stage separately. No authored root
+or context ID is required.
+
+`#input` constructs a native reference to the input node. CLI JSON reports its
+existing opaque native artifact descriptor; it does not transport the reference's
+target graph. Native Rust consumers retain original owners and ordered targets.
+URL/ID strings are rejected as operands rather than treated as lookups. URI
+fetching belongs to the resource/import boundary. Public reference type/access
+syntax and graph transport remain deferred in the reference design.

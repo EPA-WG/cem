@@ -32,6 +32,20 @@ maps and URI provenance; the bridge does not reconstruct text or coordinates.
 The internal generic-node/target-view interfaces do not adopt new public query
 reference type or target-access syntax.
 
+Shared query preparation now accepts `QuerySourceOwner::Cem` alongside
+`QuerySourceOwner::Lifecycle`. CEM sources retain the original parser arena and
+captured lexical snapshots through the normal CEM pipeline; the input view and
+constructed reference targets share that native owner. Capture does not compile
+or evaluate source expressions. Hosts can attach those snapshots to a subsequent
+explicit reference consumer using their supplied contexts and crossing grants.
+
+`CemQlNativeItemsOwner::source_owner()` exposes this checked owner distinction.
+`lifecycle_owner()` now returns `Option`: external sources return their original
+lifecycle owner, while CEM sources expose their retained tree/capture through the
+source-owner variant. Query adapters read `QueryPreparationRequest.source_owner`
+instead of the former mandatory lifecycle field. CSS selector/XPath admission
+retains its existing lifecycle contract; this change adds CEM input for CEM-QL.
+
 The adapter supports CEM-native templates, standalone CEM-QL expression
 templates, and the [strict typed XSLT 3.0 profile](../../docs/xslt-runtime-lowering.md). It is infrastructure for
 hosts and embedders, not an application UI or an alternate query-language

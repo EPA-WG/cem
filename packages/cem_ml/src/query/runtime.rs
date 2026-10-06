@@ -155,10 +155,21 @@ impl fmt::Display for QueryRunError {
 
 impl std::error::Error for QueryRunError {}
 
+/// Original input storage, before a language adapter exposes its native view.
+/// CEM parsing retains lexical snapshots; runtime contexts and grants are absent.
+#[derive(Debug, Clone)]
+pub enum QuerySourceOwner {
+    Lifecycle(Arc<LoadedInputAstStream>),
+    Cem {
+        source: Arc<crate::parser::tree::RetainedCemTree>,
+        lexical_scopes: Option<Arc<crate::schema::machine::LexicallyScopedDocument>>,
+    },
+}
+
 pub struct QueryPreparationRequest<'a> {
     pub input_uri: &'a str,
     pub input_identity: FormatIdentity,
-    pub lifecycle_owner: Arc<LoadedInputAstStream>,
+    pub source_owner: QuerySourceOwner,
     pub query: &'a QuerySource,
     pub resolver_policy_stamp: &'a str,
 }
@@ -230,8 +241,12 @@ impl QueryRuntimeAdapter for CssSelectorQueryRuntimeAdapter {
         &self,
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
+        let QuerySourceOwner::Lifecycle(owner) = request.source_owner else {
+            return Err(vec![fatal_diagnostic(request.input_uri,
+                "cem.css_selector.input_unsupported", "CSS selector input requires its lifecycle owner")]);
+        };
         let input = CssSelectorElementTreeOwner::from_lifecycle(
-            request.lifecycle_owner,
+            owner,
             request.input_identity,
         )
         .map_err(|fact| {
@@ -276,8 +291,12 @@ impl QueryRuntimeAdapter for XPathQueryRuntimeAdapter {
         &self,
         request: QueryPreparationRequest<'_>,
     ) -> Result<QueryPreparedOwners, Vec<Diagnostic>> {
+        let QuerySourceOwner::Lifecycle(owner) = request.source_owner else {
+            return Err(vec![fatal_diagnostic(request.input_uri,
+                "cem.xpath.query_input_unsupported", "XPath input requires its lifecycle owner")]);
+        };
         let input =
-            XPathXdmTreeOwner::from_lifecycle(request.lifecycle_owner, request.input_identity)
+            XPathXdmTreeOwner::from_lifecycle(owner, request.input_identity)
                 .map_err(|message| {
                     vec![fatal_diagnostic(
                         request.input_uri,
@@ -393,11 +412,43 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
     if has_hard_violation(&diagnostics) {
         return Err(execution_failure(language, inputs, diagnostics));
     }
-    let Some(lifecycle_owner) = loaded.ast_stream.take().map(Arc::new) else {
+    let source_owner = if let Some(owner) = loaded.ast_stream.take() {
+        QuerySourceOwner::Lifecycle(Arc::new(owner))
+    } else if language == QueryLanguage::CemQl
+        && loaded.from_format == crate::engine::InputFormat::Cem
+        && matches!(loaded.adapter_id, None | Some("cem-ml"))
+    {
+        // Parse the source once through the normal CEM schema-machine/builder
+        // stream. Query ingress does not consume source references or behaviors.
+        let parsed = crate::real::prepare_cem_query_input(
+            &loaded.bytes, &request.data.root_scope, &request.context, &request.data.uri,
+        );
+        diagnostics.extend(parsed.diagnostics);
+        if has_hard_violation(&diagnostics) {
+            return Err(execution_failure(language, inputs, diagnostics));
+        }
+        let text = String::from_utf8_lossy(&loaded.bytes);
+        let source = match crate::parser::tree::RetainedCemTree::from_shared(
+            parsed.document,
+            &request.data.uri,
+            &text,
+            crate::parser::tree::CemTreeSemantics::default(),
+            None,
+        ) {
+            Ok(source) => source,
+            Err(message) => {
+                diagnostics.push(fatal_diagnostic(
+                    &request.data.uri, "cem.query.input_model_unsupported", message,
+                ));
+                return Err(execution_failure(language, inputs, diagnostics));
+            }
+        };
+        QuerySourceOwner::Cem { source, lexical_scopes: parsed.lexical_scopes }
+    } else {
         diagnostics.push(fatal_diagnostic(
             &request.data.uri,
             "cem.query.input_model_unsupported",
-            "data input did not produce a lifecycle-owned native AST view",
+            "data input did not produce a supported native source owner",
         ));
         return Err(execution_failure(language, inputs, diagnostics));
     };
@@ -413,7 +464,7 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
     let prepared = match runtime.prepare(QueryPreparationRequest {
         input_uri: &request.data.uri,
         input_identity,
-        lifecycle_owner,
+        source_owner,
         query: &request.query,
         resolver_policy_stamp: &resolver_policy_stamp,
     }) {

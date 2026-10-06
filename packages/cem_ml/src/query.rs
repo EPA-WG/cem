@@ -30,7 +30,7 @@ pub use runtime::{
     query_execution_limits, run_query, select_query_language, QueryOwnedBindings,
     QueryPreparationRequest, QueryPreparedOwners, QueryRunContractError, QueryRunError,
     QueryRunFailure, QueryRunRequest, QueryRunResponse, QueryRuntimeAdapter, QueryRuntimeRegistry,
-    QuerySource,
+    QuerySource, QuerySourceOwner,
 };
 
 pub const CSS_SELECTOR_LANGUAGE_VERSION: &str = "selectors-4-20260122";

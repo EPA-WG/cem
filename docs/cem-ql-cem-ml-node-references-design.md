@@ -709,6 +709,27 @@ Multiple projections of one source arena share node identity; independently
 imported arenas remain distinct. Native children/attributes are flat sequences,
 and document metadata uses `input.kind` instead of automatic record bindings.
 
+CLI/shared CEM-QL query ingress now admits CEM source through the same native
+view. `QueryPreparationRequest.source_owner` distinguishes the original external
+lifecycle AST from a retained CEM tree and captured lexical snapshots. CEM parsing
+uses the ordinary schema-machine/builder stream once, shares its original arena,
+and omits the runtime model consumer. The adapter retains those snapshots for a
+later explicit consumer; query preparation neither compiles authored reference
+expressions nor supplies their runtime contexts. The native fixture attaches the
+saved namespace bindings after ingress and consumes three references against the
+correct original targets without source cloning or target writeback.
+
+`CemQlNativeItemsOwner::source_owner()` exposes this distinction, and its
+`lifecycle_owner()` accessor is now optional. Existing external imports retain
+their original lifecycle owners; CSS selector and XPath keep their existing
+input admission. CLI fixtures cover construction without authored IDs across
+CEM/XML/JSON/YAML/CSV, inert malformed CEM/XML source slots, and attributed
+rejection of URL/ID string operands. A resolver-counting fixture verifies that
+supplied source bytes and reference construction do not trigger resource reads.
+CLI JSON retains its opaque native result descriptor, rather than adopting graph
+transport or a public reference-access spelling. Generic member lowering for
+inferred unary-reference values remains a separate implementation action.
+
 The former CEM-document record projection is available only through the explicit
 Rust `cem_document_record_query_stream` compatibility function. Its array-wrapped
 navigation and record operand rejection remain intact. Invalid native structure
