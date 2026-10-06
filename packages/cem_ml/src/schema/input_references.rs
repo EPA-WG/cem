@@ -224,6 +224,30 @@ pub fn validate_structural_input_regions_references<H: InputReferenceHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
+    validate_structural_input_controlled_regions_references(
+        source,
+        roots,
+        model,
+        regions,
+        &[],
+        host,
+        limits,
+    )
+}
+
+/// Shared schema controls validate their own shape and readiness. Only their
+/// original owner-checked attributes bypass application type/unknown-attribute
+/// checks and ordinary native-value consumption. Unclassified attributes defer
+/// while metadata is pending. Authored presence stays visible in both cases.
+pub fn validate_structural_input_controlled_regions_references<H: InputReferenceHost>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    regions: &[InputSchemaRegion<'_>],
+    controls: &[super::scope_controls::SchemaHostControlContract],
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
     let mut report = StructuralInputValidation {
         source: source.clone(),
         nodes: vec![],
@@ -247,15 +271,16 @@ pub fn validate_structural_input_regions_references<H: InputReferenceHost>(
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
-    let models = match RegionModels::new(model, regions) {
-        Ok(models) => models,
-        Err(diagnostics) => {
-            report.complete = false;
-            report.failed = true;
-            report.diagnostics = diagnostics;
-            return Ok(report);
-        }
-    };
+    let models =
+        match RegionModels::new(model, regions).and_then(|models| models.with_controls(controls)) {
+            Ok(models) => models,
+            Err(diagnostics) => {
+                report.complete = false;
+                report.failed = true;
+                report.diagnostics = diagnostics;
+                return Ok(report);
+            }
+        };
     let mut node_models = vec![];
     let mut seen_roots = HashSet::new();
     for id in roots {
@@ -384,6 +409,12 @@ pub fn validate_structural_input_regions_references<H: InputReferenceHost>(
             {
                 if let Some(element) = model.element(&expanded_name.local_name) {
                     for id in attributes {
+                        if models
+                            .control_attributes(&handle)
+                            .is_some_and(|attributes| attributes.contains(id))
+                        {
+                            continue;
+                        }
                         let Some(attribute) =
                             SchemaDeclarationNode::new(handle.document().clone(), *id)
                         else {
@@ -466,12 +497,13 @@ pub fn validate_structural_input_regions_references<H: InputReferenceHost>(
         let element = if model.is_empty() {
             None
         } else {
-            document_model::validate_element_shallow(
+            document_model::validate_element_shallow_with_controls(
                 current.source.document(),
                 model,
                 current.source.node_id(),
                 allows_any,
                 current.children_complete.then_some(sequence.as_slice()),
+                models.control_attributes(&current.source),
                 &mut report.diagnostics,
             )
         };

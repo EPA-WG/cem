@@ -1357,12 +1357,23 @@ governed region incomplete until a usable schema is available; validation does
 not fall back to the inherited schema. Source-position expanded-name metadata
 identifies target namespaces; parser retention does not evaluate selectors.
 
-At a child override, the enclosing schema retains the host's attribute and direct
-child relationship/sequence contracts; the child schema validates descendants.
+At a child override, the enclosing schema retains the host's ordinary attribute
+and direct child relationship/sequence contracts; the child schema validates
+descendants. Recognized `schema-src` and `schema-select` host attributes belong to
+the shared schema-control contract adopted on 2026-10-06. Application schemas need
+not declare or type them. Shared validation checks exclusivity, value shape and
+selector readiness over original handles. Original owner/host metadata identifies
+controls; foreign namespace lookalikes remain application data. Authored attributes
+and their presence remain available, without copying or filtering the source AST.
+Missing expanded-name metadata defers classification and blocks the child body.
+
 An unavailable child body leaves its sequence/count checks deferred and overall
 validation incomplete. Nested overrides restore the preceding consuming schema
-on exit. The retained validator implements this for explicit caller-declared
-regions; authored selector recognition and runtime scope installation remain
+on exit. Explicit host preparation snapshots now connect recognized controls to
+retained region validation, including hosts reached through selected subtrees.
+Invalid controls cannot activate even a supplied ready child model. Automatic
+host discovery, wrapping/sibling/prelude controls, external loading readiness,
+effective runtime scope installation and per-region behavior dispatch remain
 lifecycle integration work.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually

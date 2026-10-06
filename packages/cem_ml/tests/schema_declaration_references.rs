@@ -3903,3 +3903,157 @@ fn child_region_descriptors_reject_duplicates_and_non_element_hosts_before_evalu
             .is_some()));
     }
 }
+
+#[test]
+fn shared_host_controls_skip_application_types_and_native_consumption() {
+    use cem_ml::schema::{
+        input_references::{
+            validate_structural_input_controlled_regions_references, InputSchemaRegion,
+        },
+        scope_controls::validate_schema_host_controls,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @required-attributes=own @optional-attributes=schema-select @children=child}} {attributes | {attribute @name=schema-select @type=schema:node @minItems=1}}}");
+    let inner = compile_schema_document_model(
+        "inner",
+        "{schema | {elements | {element @name=child @required-attributes=inner}}}",
+    );
+    for text in [
+        "{host @own=yes @schema-select=library | {child @inner=yes}}",
+        "{host @own=yes @schema-select={#library} | {child @inner=yes}}",
+        "{host @schema-select={#library} | {child @inner=yes}}",
+    ] {
+        let source = parse(text);
+        let boundary = node(&source, "host");
+        let contract =
+            validate_schema_host_controls(boundary.clone(), |source| match source.node() {
+                CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+                _ => None,
+            });
+        assert!(contract.issue().is_none());
+        let regions = [InputSchemaRegion {
+            host: boundary.clone(),
+            model: Some(&inner),
+        }];
+        let mut host = Host::new();
+        let limits = host.policy.limits;
+        let report = validate_structural_input_controlled_regions_references(
+            source.clone(),
+            &[boundary.node_id()],
+            &outer,
+            &regions,
+            &[contract],
+            &mut host,
+            limits,
+        )
+        .unwrap();
+        assert!(report.complete);
+        assert_eq!(report.failed, !text.contains("@own=yes"));
+        assert_eq!(host.calls, 0);
+        assert!(report.nodes[0].attribute_values.is_empty());
+        assert!(Arc::ptr_eq(report.nodes[0].source.document(), &source));
+        assert!(report
+            .diagnostics
+            .iter()
+            .all(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE));
+    }
+}
+
+#[test]
+fn invalid_shared_control_contracts_block_even_a_supplied_child_model() {
+    use cem_ml::schema::{
+        input_references::{
+            validate_structural_input_controlled_regions_references, InputSchemaRegion,
+        },
+        scope_controls::validate_schema_host_controls,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @children=child @required-attributes=own}} {field-contracts | {field-contract @name=required @target=host @required-children=child}}}");
+    let inner =
+        compile_schema_document_model("inner", "{schema | {elements | {element @name=child}}}");
+    let source = parse("{host @schema-src=uri @schema-select={#library} | {#body}}");
+    let boundary = node(&source, "host");
+    let contract = validate_schema_host_controls(boundary.clone(), |source| match source.node() {
+        CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+        _ => None,
+    });
+    assert!(contract.issue().is_some());
+    let regions = [InputSchemaRegion {
+        host: boundary.clone(),
+        model: Some(&inner),
+    }];
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let report = validate_structural_input_controlled_regions_references(
+        source,
+        &[boundary.node_id()],
+        &outer,
+        &regions,
+        &[contract],
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(!report.complete && report.failed);
+    assert!(!report.nodes[0].children_complete);
+    assert_eq!(host.calls, 0);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "cem.schema_scope.invalid_control"
+            && d.source_map.as_ref().and_then(|s| s.origin()).is_some()));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE));
+    assert!(!report.diagnostics.iter().any(|d| d
+        .details
+        .as_ref()
+        .and_then(|v| v.get("contract"))
+        .and_then(|v| v.as_str())
+        == Some("required")));
+}
+
+#[test]
+fn shared_control_contracts_do_not_exempt_equal_ids_in_another_original_owner() {
+    use cem_ml::schema::{
+        input_references::{
+            validate_structural_input_controlled_regions_references, InputSchemaRegion,
+        },
+        scope_controls::validate_schema_host_controls,
+    };
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @optional-attributes=schema-select}} {attributes | {attribute @name=schema-select @type=integer}}}");
+    let first = parse("{host @schema-select=library}");
+    let second = parse("{host @schema-select=library}");
+    let first_host = node(&first, "host");
+    let second_host = node(&second, "host");
+    assert_eq!(first_host.node_id(), second_host.node_id());
+    let contract =
+        validate_schema_host_controls(first_host.clone(), |source| match source.node() {
+            CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+            _ => None,
+        });
+    let regions = [InputSchemaRegion {
+        host: first_host,
+        model: None,
+    }];
+    let mut host = Host::new();
+    let limits = host.policy.limits;
+    let report = validate_structural_input_controlled_regions_references(
+        second.clone(),
+        &[second_host.node_id()],
+        &outer,
+        &regions,
+        &[contract],
+        &mut host,
+        limits,
+    )
+    .unwrap();
+    assert!(report.complete && report.failed);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::document_model::INVALID_ATTRIBUTE_TYPE_CODE));
+    assert!(report
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), &second)));
+}

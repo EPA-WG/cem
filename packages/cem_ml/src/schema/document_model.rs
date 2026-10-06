@@ -1293,6 +1293,29 @@ pub(crate) fn validate_element_shallow<'a>(
     child_sequence: Option<&[String]>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<&'a ElementModel> {
+    validate_element_shallow_with_controls(
+        document,
+        model,
+        node_id,
+        parent_allows_any_child,
+        child_sequence,
+        None,
+        diagnostics,
+    )
+}
+
+/// Control IDs are validated metadata from this original host's shared contract.
+/// Keep authored presence for field conditions; skip application value typing.
+/// Unclassified attributes defer while their shared contract remains incomplete.
+pub(crate) fn validate_element_shallow_with_controls<'a>(
+    document: &CemDocument,
+    model: &'a SchemaDocumentModel,
+    node_id: AstNodeId,
+    parent_allows_any_child: bool,
+    child_sequence: Option<&[String]>,
+    controls: Option<&std::collections::HashSet<AstNodeId>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<&'a ElementModel> {
     let Some(node) = document.get(node_id) else {
         return None;
     };
@@ -1333,6 +1356,9 @@ pub(crate) fn validate_element_shallow<'a>(
             continue;
         };
         seen_attributes.insert(attr_local.to_owned());
+        if controls.is_some_and(|controls| controls.contains(attr_id)) {
+            continue;
+        }
         if matches!(attr, CemAstNode::Attribute { value_nodes, .. } if !value_nodes.is_empty()) {
             if !element_model.allows_attribute(attr_prefix, attr_local) {
                 diagnostics.push(diag_at(

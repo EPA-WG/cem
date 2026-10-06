@@ -79,45 +79,7 @@ impl CemQlSchemaDeclarationHost {
             {
                 continue;
             }
-            report.failed |= prepared.selection.failed;
-            report
-                .diagnostics
-                .extend(prepared.selection.diagnostics.iter().cloned());
-            if let Some(model) = &prepared.model {
-                report
-                    .diagnostics
-                    .extend(model.compile_diagnostics.iter().cloned());
-            }
-            let message = match prepared.issue {
-                Some(SchemaScopePreparationIssue::TargetCount(count)) => Some(format!(
-                    "Child schema override requires one target; selected {count}"
-                )),
-                Some(SchemaScopePreparationIssue::TargetHasNoSourceHandle) => {
-                    Some("Child schema override requires an original declaration handle".into())
-                }
-                Some(SchemaScopePreparationIssue::TargetAdmission(
-                    SchemaScopeTargetError::InvalidKindOrName,
-                )) => Some("Child schema override selected an invalid schema target".into()),
-                Some(SchemaScopePreparationIssue::TargetAdmission(
-                    SchemaScopeTargetError::DeclarationCount(count),
-                )) => Some(format!(
-                    "Child schema wrapper requires one direct declaration; found {count}"
-                )),
-                _ => None, // Context and name readiness are pending, not violations.
-            };
-            if let Some(message) = message {
-                let CemAstNode::Element { source, .. } = region.host.node() else {
-                    unreachable!("region host descriptors were validated before traversal")
-                };
-                report.diagnostics.push(Diagnostic {
-                    code: "cem.schema_scope.invalid_override".into(),
-                    severity: Severity::Error,
-                    message,
-                    node: Some(region.host.identity()),
-                    source_map: Some(source.clone()),
-                    ..Default::default()
-                });
-            }
+            append_preparation_diagnostics(&mut report, &region.host, prepared);
         }
         report.failed |= report
             .diagnostics
@@ -125,4 +87,54 @@ impl CemQlSchemaDeclarationHost {
             .any(|diagnostic| diagnostic.severity.is_hard_violation());
         Ok(report)
     }
+}
+
+pub(super) fn append_preparation_diagnostics(
+    report: &mut StructuralInputValidation<CemQlSchemaReferenceNode>,
+    host: &SchemaDeclarationNode,
+    prepared: &SchemaScopePreparation,
+) {
+    report.failed |= prepared.selection.failed;
+    report
+        .diagnostics
+        .extend(prepared.selection.diagnostics.iter().cloned());
+    if let Some(model) = &prepared.model {
+        report
+            .diagnostics
+            .extend(model.compile_diagnostics.iter().cloned());
+    }
+    let message = match prepared.issue {
+        Some(SchemaScopePreparationIssue::TargetCount(count)) => Some(format!(
+            "Child schema override requires one target; selected {count}"
+        )),
+        Some(SchemaScopePreparationIssue::TargetHasNoSourceHandle) => {
+            Some("Child schema override requires an original declaration handle".into())
+        }
+        Some(SchemaScopePreparationIssue::TargetAdmission(
+            SchemaScopeTargetError::InvalidKindOrName,
+        )) => Some("Child schema override selected an invalid schema target".into()),
+        Some(SchemaScopePreparationIssue::TargetAdmission(
+            SchemaScopeTargetError::DeclarationCount(count),
+        )) => Some(format!(
+            "Child schema wrapper requires one direct declaration; found {count}"
+        )),
+        _ => None, // Context and name readiness are pending, not violations.
+    };
+    if let Some(message) = message {
+        let CemAstNode::Element { source, .. } = host.node() else {
+            unreachable!("region host descriptors were validated before traversal")
+        };
+        report.diagnostics.push(Diagnostic {
+            code: "cem.schema_scope.invalid_override".into(),
+            severity: Severity::Error,
+            message,
+            node: Some(host.identity()),
+            source_map: Some(source.clone()),
+            ..Default::default()
+        });
+    }
+    report.failed |= report
+        .diagnostics
+        .iter()
+        .any(|d| d.severity.is_hard_violation());
 }

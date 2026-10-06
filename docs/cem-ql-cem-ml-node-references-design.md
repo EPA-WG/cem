@@ -306,8 +306,10 @@ frame or binding table is mandated.
 
 Existing namespace records retain URI bindings, while `SchemaSource::Select`
 retains an expression. Lexical capture and caller-completed scope handoff retain
-these associations; native schema/namespace property selection is still unimplemented.
-The deferred enclosed child override syntax remains separate.
+these associations. Explicit host-attribute schema selection now uses the bounded
+preparation and region APIs below; automatic lifecycle discovery and namespace
+property selection remain unimplemented. The deferred enclosed child override
+syntax remains separate.
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
 now distinguish lexical lookup from consumer cardinality. Adopted on 2026-10-06:
@@ -315,7 +317,8 @@ resolve names using the captured lexical scope, consume reference chains under
 existing bounds, then require exactly one completed schema target. Innermost
 lexical name shadowing remains applicable; it does not rank an arbitrary query
 sequence. Zero/multiple completed targets and pending resolution cannot establish
-an effective schema scope. Native selector evaluation is not implemented yet.
+an effective schema scope. Explicit schema-host preparation implements native
+selector evaluation; activation still requires lifecycle integration.
 
 Target shape was adopted on 2026-10-06: accept a schema-language declaration
 with expanded name `{https://cem.dev/ns/schema/1}schema` directly, or a core
@@ -449,13 +452,37 @@ decoded-value character map, so these errors anchor to that real handle without
 claiming precise positions inside the value. Ordinary attributes do not become
 implicit references outside this explicit consumer call.
 
-Full governed-host validation still needs a decision about the control attributes
-themselves: whether a shared schema-control contract validates them separately
-from ordinary enclosing-schema host attributes, or each application schema must
-declare and type them. The shared-contract option is recommended and tracked in
-`todo.md`. Wrapping/sibling/prelude controls, runtime policy installation and
-per-region behavior dispatch also remain open. No deferred enclosed override
-syntax is selected by this host-attribute preparation stage.
+Adopted on 2026-10-06: recognized `schema-select` and `schema-src` host
+attributes belong to a shared schema-control contract. The enclosing application
+schema validates ordinary host attributes and direct child contracts; it need not
+declare or type the controls. Control validation owns their exclusivity, value
+shape and selector readiness. Foreign namespace lookalikes remain ordinary data.
+
+`validate_schema_host_controls` retains an immutable `SchemaHostControlContract`
+with original host/attribute handles, recognized control IDs and any pending or
+invalid shape outcome. Only matching original owner/host metadata exempts controls
+from application unknown-attribute/type checks and ordinary native-value
+consumption. Authored presence remains visible to field conditions. Missing name
+metadata defers unclassified attributes and blocks the body; it cannot establish
+validity. Invalid contracts block the body even when a caller supplies a ready
+child model. Source attributes are never removed, copied or rewritten.
+
+`prepare_schema_host_region` retains this contract alongside the bounded selector
+preparation, including pending and invalid outcomes. `validate_input_host_regions`
+accepts explicit preparation snapshots and applies their ready child models to
+original hosts, including hosts reached through reference-selected subtrees in
+other original owners. Nested overrides restore enclosing models for following
+siblings. Shared controls are not evaluated again as ordinary node-valued
+attributes; entered blocked hosts retain control/selection diagnostics. Callers
+repeat preparation when current contexts or dependencies change. URI controls
+remain unready until the external loading stage supplies a usable schema.
+
+Automatic host discovery and preparation scheduling, wrapping/sibling/prelude
+controls, external loading readiness, effective runtime context/policy installation
+and per-region behavior dispatch remain actionable lifecycle work in `todo.md`.
+The generic region APIs retain their explicit caller-defined contracts; shared
+control handling is supplied through the controlled-region API. No deferred
+enclosed override syntax is selected by this host-attribute integration stage.
 
 ### Implicit scope references and defaults
 

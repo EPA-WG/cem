@@ -61,6 +61,21 @@ impl CemQlSchemaDeclarationHost {
         else {
             return Ok(None);
         };
+        let preparation = self
+            .prepare_decoded_host_control(schema_uri, &control, limits)
+            .map_err(SchemaHostPreparationError::Resolution)?;
+        Ok(Some(PreparedSchemaHostControl {
+            control,
+            preparation,
+        }))
+    }
+
+    pub(super) fn prepare_decoded_host_control(
+        &mut self,
+        schema_uri: &str,
+        control: &SchemaHostControl,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<Option<SchemaScopePreparation>, ReferenceResolutionError> {
         let root = match &control.source {
             SchemaHostSource::Uri(_) => None,
             SchemaHostSource::LiteralSelector(expression) => {
@@ -79,11 +94,7 @@ impl CemQlSchemaDeclarationHost {
         };
         let preparation = root
             .map(|root| self.prepare_schema_scope_node(schema_uri, root, limits))
-            .transpose()
-            .map_err(SchemaHostPreparationError::Resolution)?;
-        Ok(Some(PreparedSchemaHostControl {
-            control,
-            preparation,
-        }))
+            .transpose()?;
+        Ok(preparation)
     }
 }

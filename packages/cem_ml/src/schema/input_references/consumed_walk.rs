@@ -199,6 +199,12 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                             return Some(nodes);
                         };
                         for id in attributes {
+                            if models
+                                .control_attributes(&retained)
+                                .is_some_and(|attributes| attributes.contains(id))
+                            {
+                                continue;
+                            }
                             let Some(attribute) =
                                 SchemaDeclarationNode::new(retained.document().clone(), *id)
                             else {

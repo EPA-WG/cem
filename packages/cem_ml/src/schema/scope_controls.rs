@@ -57,9 +57,7 @@ where
         };
         let name = resolved_name(&attribute)
             .ok_or_else(|| error(attribute.clone(), SchemaHostControlIssue::NamesNotReady))?;
-        if !(name.namespace_uri.is_empty() || name.namespace_uri == CORE_NAMESPACE)
-            || !matches!(name.local_name.as_str(), "schema-src" | "schema-select")
-        {
+        if !is_host_control_name(&name) {
             continue;
         }
         if control.is_some() {
@@ -99,4 +97,119 @@ where
         });
     }
     Ok(control)
+}
+
+/// Validated control metadata over one original host. Construction stays in this
+/// module so consumers cannot exempt arbitrary application attributes by ID.
+#[derive(Debug, Clone)]
+pub struct SchemaHostControlContract {
+    host: SchemaDeclarationNode,
+    attributes: Vec<crate::parser::AstNodeId>,
+    pending_attributes: Vec<crate::parser::AstNodeId>,
+    control: Option<SchemaHostControl>,
+    issue: Option<SchemaHostControlError>,
+}
+impl SchemaHostControlContract {
+    pub fn host(&self) -> &SchemaDeclarationNode {
+        &self.host
+    }
+    pub fn attributes(&self) -> &[crate::parser::AstNodeId] {
+        &self.attributes
+    }
+    pub(crate) fn pending_attributes(&self) -> &[crate::parser::AstNodeId] {
+        &self.pending_attributes
+    }
+    pub fn control(&self) -> Option<&SchemaHostControl> {
+        self.control.as_ref()
+    }
+    pub fn issue(&self) -> Option<&SchemaHostControlError> {
+        self.issue.as_ref()
+    }
+    pub fn has_override(&self) -> bool {
+        self.control.is_some() || self.issue.is_some()
+    }
+    pub fn diagnostics(&self) -> Vec<crate::diagnostics::Diagnostic> {
+        use crate::diagnostics::{Diagnostic, Severity};
+        let Some(issue) = &self.issue else {
+            return vec![];
+        };
+        let message = match issue.issue {
+            SchemaHostControlIssue::NamesNotReady => return vec![],
+            SchemaHostControlIssue::InvalidHost => "Schema controls require an original element host",
+            SchemaHostControlIssue::ConflictingSources => "Host schema-src and schema-select controls are mutually exclusive and cannot repeat",
+            SchemaHostControlIssue::InvalidValue => "Host schema-src requires a nonempty URI literal; schema-select requires a nonempty selector or one native expression slot",
+        };
+        vec![Diagnostic {
+            code: "cem.schema_scope.invalid_control".into(),
+            severity: Severity::Error,
+            message: message.into(),
+            node: Some(issue.source.identity()),
+            source_map: Some(
+                super::document_model::source_stack_for_node(issue.source.node()).clone(),
+            ),
+            ..Default::default()
+        }]
+    }
+}
+
+/// Shared control validation retains recognized attributes even on malformed
+/// controls. Missing names are incomplete metadata, not guessed exemptions.
+/// Resolve each attribute name once; no source mutation or selector evaluation.
+pub fn validate_schema_host_controls<F>(
+    host: SchemaDeclarationNode,
+    mut resolved_name: F,
+) -> SchemaHostControlContract
+where
+    F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
+{
+    let mut names = std::collections::HashMap::new();
+    let mut attributes = vec![];
+    let mut pending_attributes = vec![];
+    let mut missing = None;
+    if let CemAstNode::Element {
+        attributes: source_attributes,
+        ..
+    } = host.node()
+    {
+        for id in source_attributes {
+            let Some(source) = SchemaDeclarationNode::new(host.document().clone(), *id) else {
+                continue;
+            };
+            if let Some(name) = resolved_name(&source) {
+                if is_host_control_name(&name) {
+                    attributes.push(*id);
+                }
+                names.insert(*id, name);
+            } else {
+                pending_attributes.push(*id);
+                if missing.is_none() {
+                    missing = Some(SchemaHostControlError {
+                        source,
+                        issue: SchemaHostControlIssue::NamesNotReady,
+                    });
+                }
+            }
+        }
+    }
+    let decoded = match missing {
+        Some(issue) => Err(issue),
+        None => {
+            decode_schema_host_control(host.clone(), |source| names.get(&source.node_id()).cloned())
+        }
+    };
+    let (control, issue) = match decoded {
+        Ok(control) => (control, None),
+        Err(issue) => (None, Some(issue)),
+    };
+    SchemaHostControlContract {
+        host,
+        attributes,
+        pending_attributes,
+        control,
+        issue,
+    }
+}
+fn is_host_control_name(name: &ExpandedName) -> bool {
+    (name.namespace_uri.is_empty() || name.namespace_uri == CORE_NAMESPACE)
+        && matches!(name.local_name.as_str(), "schema-src" | "schema-select")
 }

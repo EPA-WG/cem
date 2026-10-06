@@ -1474,27 +1474,41 @@ only and adds no runtime behavior or public syntax.
       source; literal and native selectors share cardinality/readiness rules; URI
       sources cannot become query text; an unavailable explicit host override cannot
       silently validate its body under the inherited schema.
-- [ ] Decide validation ownership for recognized `schema-select` / `schema-src`
-      host attributes before full host-region wiring. Requested 2026-10-06:
-      recommended shared schema-control contract, with ordinary host attributes
-      validated by the enclosing application schema; alternative requires each
-      application schema to declare and type controls. Preparation/decoding is
-      independent; do not exclude or retype controls in ordinary validation until
-      this distinction is chosen.
+- [x] Decide validation ownership for recognized `schema-select` / `schema-src`
+      host attributes before full host-region wiring. Adopted 2026-10-06 by
+      continuing the recommendation: shared schema-control validation, with
+      ordinary host attributes validated by the enclosing application schema.
+      Source controls remain authored attributes; their shape/selector readiness
+      cannot be delegated to each application's string/node declaration.
       Scenarios for later design verification: native and literal control forms
       cannot spuriously fail an application string/node contract; unrelated foreign
       attributes remain ordinary data; control validation still checks exclusivity,
       value shape and readiness without losing original source handles.
+- [x] Fixture: validate shared host schema-control contracts over original source
+      handles and connect prepared control snapshots to retained region validation.
+      Exclude recognized control attributes from application type/unknown-attribute
+      checks and ordinary native-attribute consumption; retain source and presence
+      metadata. Cover pending/invalid selectors and URI loading without fallback,
+      nested/sibling restoration, referenced hosts, ordinary attribute violations,
+      foreign lookalikes, conflicting controls and repeat validation with new inputs.
+      Implemented original-owner control contracts and explicit host-region snapshots.
+      Verified with 148 native reference/consumer tests and 154 document-model
+      regressions (302 tests), including equal node IDs in distinct arena owners.
+      Scenarios for later design verification: an invalid control cannot hide behind
+      an application declaration; control exemption is owner-checked metadata rather
+      than a copied/filtered AST; pending bodies cannot appear empty to host counts;
+      preparation diagnostics preserve selector attribution in selected placements.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
       activation; pending/invalid explicit overrides keep their region incomplete.
       Supply original source-position name metadata and keep literal forms compatible.
-      Host attribute decoding/preparation is implemented. Next: resolve control
-      attribute validation ownership, connect prepared original region hosts,
-      add wrapping/sibling/prelude controls, install effective runtime contexts/policies
-      explicitly and connect retained behavior validation to each consuming model. Reuse the
-      implemented preparation and region APIs; do not add an AST projection or choose
+      Shared control ownership and explicit prepared host-region validation are
+      implemented. Next: discover and schedule preparation for original and selected
+      hosts, add wrapping/sibling/prelude controls and external loading readiness,
+      install effective runtime contexts/policies explicitly, and connect retained
+      behavior validation to each consuming model. Reuse the implemented preparation
+      and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid
       override; retries keep earlier lexical bindings; leaving a completed child
