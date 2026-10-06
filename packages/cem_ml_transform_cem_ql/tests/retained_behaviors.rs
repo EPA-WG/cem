@@ -891,3 +891,188 @@ fn general_attribute_expressions_consume_native_results_and_preserve_failures() 
         }
     }
 }
+
+#[test]
+fn engine_cem_capture_retains_closed_child_bindings_for_runtime_validation() {
+    use cem_ml::{
+        engine::{
+            CemMlEngine, EngineContext, EngineInput, FailLevel, InputFormat, ValidateProjection,
+            ValidateRequest,
+        },
+        parser::tree::{CemTreeSemantics, RetainedCemTree},
+        real::RealCemMlEngine,
+        schema::{
+            input_validation::{
+                InputValidationOutcome, InputValidationRequest, InputValidationStage,
+            },
+            registry::CEM_ML_SCHEMA_URI,
+        },
+    };
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    #[derive(Debug)]
+    struct CapturedStage {
+        targets: Arc<RetainedCemTree>,
+    }
+    impl InputValidationStage for CapturedStage {
+        fn validate(
+            &self,
+            request: InputValidationRequest<'_>,
+        ) -> Result<InputValidationOutcome, Vec<cem_ml::diagnostics::Diagnostic>> {
+            let captured = request.lexical_scopes.as_ref().unwrap();
+            assert!(Arc::ptr_eq(request.source.ast_owner(), captured.document()));
+            assert_eq!(captured.occurrences().count(), 3);
+            let ready = request.source.source_uri() != "pending.cem";
+            let mut host = CemQlSchemaDeclarationHost::new();
+            let root = host.register_scope(request.source.clone(), None, request.policy.clone());
+            let target_scope =
+                host.register_scope(self.targets.clone(), None, request.policy.clone());
+            assert!(host.allow_scope_crossing(root, target_scope));
+            let mut bindings = Vec::new();
+            host.attach_captured_lexical_scopes(captured, |node, snapshot, parent| {
+                assert_eq!(parent, root);
+                assert!(matches!(
+                    node.node(),
+                    CemAstNode::Reference { targets: None, .. }
+                ));
+                assert_eq!(
+                    snapshot
+                        .namespaces
+                        .binding("inherited")
+                        .unwrap()
+                        .namespace_uri,
+                    "urn:inherited"
+                );
+                let uri = &snapshot.namespaces.binding("v").unwrap().namespace_uri;
+                bindings.push(uri.clone());
+                let name = match uri.as_str() {
+                    "urn:root" => "first",
+                    "urn:child" => "second",
+                    _ => panic!("{uri}"),
+                };
+                let target = element(self.targets.ast_owner(), name);
+                let context = ready.then(|| {
+                    StandaloneExpressionContext::default().with_binding(
+                        "items",
+                        StandaloneExpressionBinding::any(cem_ql::eval::ItemStream::once(
+                            cem_ql::eval::RetainedCemNode::new(
+                                self.targets.clone(),
+                                target.node_id(),
+                            )
+                            .unwrap()
+                            .query_item(),
+                        )),
+                    )
+                });
+                (context, request.policy.clone())
+            })
+            .unwrap();
+            assert_eq!(bindings, ["urn:root", "urn:child", "urn:root"]);
+            let report = host
+                .validate_input_with_behavior_evaluator(
+                    request.source.clone(),
+                    request.model,
+                    request.policy.limits,
+                    None,
+                )
+                .unwrap();
+            assert_eq!(report.complete, ready, "{:?}", report.diagnostics);
+            if ready {
+                let selected: Vec<_> = report
+                    .nodes
+                    .iter()
+                    .flat_map(|node| &node.attribute_values)
+                    .flat_map(|value| {
+                        value
+                            .access
+                            .roots()
+                            .iter()
+                            .map(|id| value.access.node(*id).unwrap())
+                    })
+                    .map(|node| match node.node() {
+                        CemAstNode::Element { expanded_name, .. } => {
+                            expanded_name.local_name.clone()
+                        }
+                        _ => panic!("expected native target"),
+                    })
+                    .collect();
+                assert_eq!(selected, ["first", "second", "first"]);
+            }
+            assert!(request.source.ast().nodes.iter().all(|node| !matches!(
+                node,
+                CemAstNode::Reference {
+                    targets: Some(_),
+                    ..
+                }
+            )));
+            Ok(InputValidationOutcome {
+                complete: report.complete,
+                diagnostics: report.diagnostics,
+            })
+        }
+    }
+    let target_text = "{first}{second}";
+    let targets = RetainedCemTree::new(
+        Arc::try_unwrap(parse(target_text)).unwrap(),
+        "targets.cem",
+        target_text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let mut context = EngineContext::default();
+    context.schema = Some(CEM_ML_SCHEMA_URI.into());
+    let mut model = compile_schema_document_model(
+        "https://example.test/native-attribute",
+        r#"{schema | {elements | {element @name=item @optional-attributes="kind v" @children=item}} {attributes | {attribute @name=kind @type=schema:node} {attribute @name=v @type=schema:string}}}"#,
+    );
+    assert!(
+        model.is_ready_for_validation(),
+        "{:?}",
+        model.compile_diagnostics
+    );
+    model.schema_uri = CEM_ML_SCHEMA_URI.into();
+    context.schema_document_models.register(model);
+    context.input_validation_stage = Some(Arc::new(CapturedStage { targets }));
+    let source = "@ns v = \"urn:root\"\n{item @kind={#items}}\n{item @xmlns:v=urn:child | {item @kind={#items}}}\n{item @kind={#items}}";
+    let input = |uri: &str| {
+        let mut root_scope = cem_ml::run_config::ScopeConfig::default();
+        root_scope.schema = Some(CEM_ML_SCHEMA_URI.into());
+        root_scope
+            .namespaces
+            .insert("inherited".into(), "urn:inherited".into());
+        EngineInput {
+            uri: uri.into(),
+            bytes: source.as_bytes().to_vec(),
+            from_format: Some(InputFormat::Cem),
+            identity: None,
+            root_scope,
+        }
+    };
+    let response = RealCemMlEngine
+        .validate(ValidateRequest {
+            inputs: vec![input("complete.cem"), input("pending.cem")],
+            projection: ValidateProjection::Cem,
+            fail_level: FailLevel::Validate,
+            context,
+        })
+        .unwrap();
+    let inputs = &response
+        .report
+        .report_ast
+        .validation
+        .as_ref()
+        .unwrap()
+        .inputs;
+    assert_eq!(
+        inputs
+            .iter()
+            .map(|input| input.complete)
+            .collect::<Vec<_>>(),
+        [true, false],
+        "{:?}",
+        response.report.diagnostics
+    );
+}

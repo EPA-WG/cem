@@ -1088,10 +1088,17 @@ remain valid empty selections.
 
 `EngineContext.input_validation_stage` is an optional, explicitly installed
 `InputValidationStage`. Parser-backed validate/check inputs with ready consuming
-models move their parsed arena into an `Arc<RetainedCemTree>` without reparsing or
-copying AST nodes. Each `InputValidationRequest` supplies that source, the consuming
-model, root scope, validated default/overridden reference policy and optional
-behavior evaluator. The runtime supplies fresh context snapshots and scope grants,
+models share their original parsed arena through an `Arc<RetainedCemTree>` without
+reparsing or copying AST nodes. The CEM pipeline captures occurrence bindings in
+the same schema-machine/builder stream, including root namespace/module-map
+bindings; diagnostics and version pins are finalized before sharing that owner.
+`PipelineRun.document` is now an `Arc<CemDocument>` and its `lexical_scopes` shares
+that allocation. Each `InputValidationRequest` supplies the retained source,
+optional `lexical_scopes`, consuming model, root scope, validated default/overridden
+reference policy and optional behavior evaluator. CEM inputs supply the saved
+metadata; other parser paths currently supply `None` until specialized import
+wiring is completed. The installed stage can call `attach_captured_lexical_scopes`
+to prepare occurrence contexts and policies; existing callbacks remain usable. The runtime supplies fresh context snapshots and scope grants,
 then invokes the existing retained structural/behavior consumer. Calls may run
 concurrently for independent inputs; the engine commits outcomes in stable input
 order. Query-adapter registration and parser/load requests never invoke this stage.

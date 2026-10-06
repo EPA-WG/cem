@@ -33,6 +33,11 @@ impl LexicallyScopedDocument {
             diagnostics,
         }
     }
+    /// Engine finalization before this owner is shared with consumers.
+    pub(crate) fn document_mut(&mut self) -> &mut CemDocument {
+        Arc::get_mut(&mut self.document).expect("captured document is not yet shared")
+    }
+
     pub fn document(&self) -> &Arc<CemDocument> {
         &self.document
     }

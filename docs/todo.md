@@ -264,6 +264,34 @@ implementation. `git diff --check` passes.
       All 12 package lifecycle fixtures and the full `cem_ml_transform_cem_ql:test`
       Nx target pass; 59 focused CEM-ML package tests and 33 registry tests pass.
       Ordinary engine CEM/XML input capture and lifecycle preparation remain below.
+- [x] Fixture: ordinary CEM input validation hands captured directive/root and
+      child namespace bindings to its installed lifecycle stage on the original AST.
+      Verify restoration after child closure, distinct runtime selections, pending
+      context, explicit grants and unchanged authored reference targets.
+      Scenarios for later design verification: closed child frames do not lose their
+      saved bindings; XML requires the specialized import handoff separately.
+- [x] Capture CEM input bindings during AST construction and expose them on
+      `InputValidationRequest`, sharing the pipeline AST owner and retaining existing
+      diagnostic/version-pin behavior. Keep runtime context preparation explicit.
+      Scenarios for later design verification: source-only requests remain pending;
+      source capture does not infer grants or schema readiness.
+      Verification: all 11 retained behavior/input-stage fixtures pass, including the
+      new root/child/restored binding and pending-context fixture. All 207 engine
+      tests, 22 focused root-scope checks and the full `cem_ml_transform_cem_ql:test`
+      Nx target pass. The pipeline shares its original AST owner with saved metadata;
+      CEM schema-machine and builder consume one stream without reparsing.
+- [ ] Fixture: connect specialized XML reference capture to an explicitly installed
+      engine validation lifecycle stage, preserving namespace aliases, entity/CDATA
+      source attribution and original imported owners. Verify pending contexts and
+      directed grants while XML attribute values remain literal.
+      Scenarios for later design verification: ordinary native XML source validation
+      still uses its dedicated adapter; CEM reference consumption waits for a ready
+      consuming schema and explicit runtime preparation.
+- [ ] Wire that XML lifecycle handoff through the existing specialized import and
+      retained source projection, preserving adapter diagnostics and avoiding a
+      second source parse or synthetic reference arenas.
+      Scenarios for later design verification: imported expression metadata and
+      effective lexical bindings must travel together to the lifecycle consumer.
 - [ ] Fixture: exercise completed namespace/schema associations through ordinary
       native engine input loading and consumer preparation, including directive/host/wrapping/sibling forms,
       inherited defaults, subsequent rebinding, nested restoration and pending schema

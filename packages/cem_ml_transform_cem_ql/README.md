@@ -79,6 +79,16 @@ error if none was supplied. Invalid traversal limits and a compiler returning a
 foreign schema identity also prevent publication. Native expression failures
 keep their original diagnostic code and source attribution.
 
+## Input validation lifecycle bindings
+
+An explicitly installed `EngineContext.input_validation_stage` receives
+`InputValidationRequest.lexical_scopes` for ordinary CEM inputs. It shares the
+source tree's original AST owner and preserves occurrence bindings after child
+frames close. Register the source and target owners, grant directed crossings,
+and call `attach_captured_lexical_scopes` with current contexts and policies before
+running retained validation. Missing runtime inputs remain pending. Other parser
+paths currently supply `None`; specialized XML engine handoff remains pending.
+
 ## Verification
 
 Use Nx for the publishable crate gates:

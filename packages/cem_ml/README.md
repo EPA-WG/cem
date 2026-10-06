@@ -61,7 +61,7 @@ Capture does not evaluate references or schema selectors. Completion does not
 establish schema readiness. Preparing runtime contexts, effective policies and
 crossing grants remains consumer lifecycle work. The QL host's explicit
 `attach_captured_lexical_scopes` callback accepts this metadata at that stage;
-automatic runtime preparation remains pending.
+runtime preparation remains explicit.
 
 `import::import_xml_ast_with_lexical_scopes(document, schema)` captures standalone
 XML reference occurrences during the existing import pass. The returned
@@ -70,8 +70,8 @@ correspondence; pass its owner and semantics to `RetainedCemTree::from_shared`.
 The XML parser's expanded namespace names select CEM schema behavior, including
 authored aliases and local namespace declarations. Capture preserves entity/CDATA
 payload provenance and final schema diagnostics. XML attributes remain literals.
-The same explicit QL lifecycle handoff consumes these associations; automatic
-runtime preparation remains pending.
+The same explicit QL lifecycle handoff consumes these associations;
+runtime preparation remains explicit.
 
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
@@ -80,7 +80,15 @@ AST owner. Unchanged reads reuse both; changed sources replace both together.
 Descriptor extraction borrows that tree, while compiler callbacks supply current
 contexts, policies and grants through the explicit QL handoff. Machine diagnostics
 remain inspectable and do not replace the existing package publication gates.
-Ordinary engine input loading still needs this capture and lifecycle handoff.
+The ordinary CEM pipeline now shares its schema-machine stream with AST
+construction. `PipelineRun.document` is an `Arc<CemDocument>` and
+`PipelineRun.lexical_scopes` shares that owner, including root namespace and
+module-map bindings. Diagnostics and root version pins are finalized before the
+owner is shared. `InputValidationRequest.lexical_scopes` exposes the same capture
+to an explicitly installed validation stage, which can prepare occurrence contexts
+through `attach_captured_lexical_scopes`. Parsing does not evaluate references.
+Existing callbacks remain usable without adopting capture. Other parser paths
+currently supply `None`; specialized XML input lifecycle wiring remains pending.
 
 ## Verification
 

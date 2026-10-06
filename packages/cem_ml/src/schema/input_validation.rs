@@ -3,6 +3,7 @@
 //! supplied anew by the stage, never by the parser or query registration.
 use super::{
     document_model::{SchemaBehaviorEvaluator, SchemaDocumentModel},
+    machine::LexicallyScopedDocument,
     reference_policy::ReferenceScopePolicy,
 };
 use crate::{
@@ -19,8 +20,11 @@ pub const RUNTIME_INPUT_VALIDATION_FAILED: &str = "cem.schema_validation.runtime
 
 #[derive(Debug)]
 pub struct InputValidationRequest<'a> {
-    /// The engine's parsed arena, moved into a retained owner without reparsing.
+    /// The engine's original parsed arena shared without copying or reparsing.
     pub source: Arc<RetainedCemTree>,
+    /// Saved CEM occurrence bindings; runtime inputs and grants remain stage supplied.
+    /// Other parser paths supply None until their specialized capture is connected.
+    pub lexical_scopes: Option<Arc<LexicallyScopedDocument>>,
     pub model: &'a SchemaDocumentModel,
     pub root_scope: &'a ScopeConfig,
     /// Standard bounds/disposition with the consuming schema's overrides.
@@ -52,7 +56,8 @@ pub trait InputValidationStage: Debug + Send + Sync {
 
 pub(crate) fn run(
     stage: &dyn InputValidationStage,
-    document: CemDocument,
+    document: Arc<CemDocument>,
+    lexical_scopes: Option<Arc<LexicallyScopedDocument>>,
     uri: &str,
     bytes: &[u8],
     root_scope: &ScopeConfig,
@@ -68,10 +73,12 @@ pub(crate) fn run(
                 vec![diagnostic]
             })?;
         let text = String::from_utf8_lossy(bytes);
-        let source = RetainedCemTree::new(document, uri, &text, CemTreeSemantics::default(), None)
-            .map_err(|message| vec![failure(uri, message)])?;
+        let source =
+            RetainedCemTree::from_shared(document, uri, &text, CemTreeSemantics::default(), None)
+                .map_err(|message| vec![failure(uri, message)])?;
         stage.validate(InputValidationRequest {
             source,
+            lexical_scopes,
             model,
             root_scope,
             policy,

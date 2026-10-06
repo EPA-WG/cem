@@ -2042,7 +2042,10 @@ fn converter_template_diagnostic(
 /// observability entry points [`observe_pipeline`] and
 /// [`observe_pipeline_scoped`].
 pub struct PipelineRun {
-    pub document: CemDocument,
+    pub document: Arc<CemDocument>,
+    /// CEM source-position bindings from the same original AST allocation.
+    /// Specialized XML capture remains a separate import path.
+    pub lexical_scopes: Option<Arc<crate::schema::machine::LexicallyScopedDocument>>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -2132,7 +2135,9 @@ where
         .map(|scope| load_root_module_map(scope, context))
         .unwrap_or_default();
     // Schema-machine pass.
-    let schema_outcome = {
+    let schema_outcome = if T::CAPTURE_LEXICAL_SCOPES {
+        None
+    } else {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
         let tok = T::from_bytes_with_context(src, context);
         let normalizer = CemEventNormalizer::new(tok);
@@ -2150,24 +2155,53 @@ where
                 &module_map.entries,
             );
         }
-        machine.run()
+        Some(machine.run())
     };
 
-    // AST + tokenizer-diag fold (separate parse so token-diags surface).
-    let mut document = {
+    // CEM capture shares one stream and one AST with the consumer. The other
+    // tokenizers retain their existing schema pass until specialized import wiring.
+    let (document, lexical_scopes) = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
         let mut tok = T::from_bytes_with_context(src, context);
         let tok_diags = tok.take_diagnostics();
         let normalizer = CemEventNormalizer::new(tok);
-        let mut doc = CemAstBuilder::new(normalizer).build();
-        doc.diagnostics.extend(tok_diags);
-        if let Some(root_scope) = root_scope {
-            apply_root_scope_version_pins(&mut doc, root_scope);
+        if T::CAPTURE_LEXICAL_SCOPES {
+            let mut machine = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer);
+            if let Some(root_scope) = root_scope {
+                machine = machine.with_root_namespace_bindings(
+                    root_scope.default_namespace.as_deref(),
+                    &root_scope.namespaces,
+                );
+                machine = machine.with_root_module_map_entries(
+                    module_map
+                        .uri
+                        .as_deref()
+                        .or(root_scope.module_map.as_deref()),
+                    &module_map.entries,
+                );
+            }
+            let mut captured = machine.build_with_lexical_scopes();
+            let machine_diags = captured.diagnostics().to_vec();
+            let doc = captured.document_mut();
+            doc.diagnostics.extend(tok_diags);
+            if let Some(root_scope) = root_scope {
+                apply_root_scope_version_pins(doc, root_scope);
+            }
+            doc.diagnostics.extend(machine_diags);
+            doc.diagnostics.extend(module_map.diagnostics);
+            let document = captured.document().clone();
+            (document, Some(Arc::new(captured)))
+        } else {
+            let mut doc = CemAstBuilder::new(normalizer).build();
+            doc.diagnostics.extend(tok_diags);
+            if let Some(root_scope) = root_scope {
+                apply_root_scope_version_pins(&mut doc, root_scope);
+            }
+            doc.diagnostics.extend(schema_outcome.unwrap().diagnostics);
+            doc.diagnostics.extend(module_map.diagnostics);
+            (Arc::new(doc), None)
         }
-        doc
     };
-    document.diagnostics.extend(schema_outcome.diagnostics);
-    document.diagnostics.extend(module_map.diagnostics);
 
     // Validation rule registry.
     let registry = if include_document_model {
@@ -2245,6 +2279,7 @@ where
     project_diagnostics_for_source(&mut diagnostics, bytes);
     PipelineRun {
         document,
+        lexical_scopes,
         diagnostics,
     }
 }
@@ -2309,11 +2344,13 @@ fn is_cem_ml_version_pin_target(target: &str) -> bool {
 }
 
 trait FromBytes: Sized {
+    const CAPTURE_LEXICAL_SCOPES: bool = false;
     fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self;
     fn take_diagnostics(&mut self) -> Vec<Diagnostic>;
 }
 
 impl FromBytes for CemTokenizer {
+    const CAPTURE_LEXICAL_SCOPES: bool = true;
     fn from_bytes_with_context(src: BytesSource, context: Option<&EngineContext>) -> Self {
         match context {
             Some(context) => CemTokenizer::from_source_with_control(
@@ -3151,7 +3188,7 @@ fn load_transform_data_artifact(
             &input_uri(input, context),
         );
         diagnostics.extend(run.diagnostics);
-        TransformArtifactBody::CemDocument(Arc::new(run.document))
+        TransformArtifactBody::CemDocument(run.document)
     } else {
         let identity = input.identity.clone().unwrap_or_default();
         let encoding = identity
@@ -10262,6 +10299,7 @@ fn run_scheduled_validation_document(
                 let outcome = crate::schema::input_validation::run(
                     stage,
                     run.document,
+                    run.lexical_scopes,
                     &source_uri,
                     &loaded.bytes,
                     &input.root_scope,
