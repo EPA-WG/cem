@@ -82,12 +82,17 @@ keep their original diagnostic code and source attribution.
 ## Input validation lifecycle bindings
 
 An explicitly installed `EngineContext.input_validation_stage` receives
-`InputValidationRequest.lexical_scopes` for ordinary CEM inputs. It shares the
-source tree's original AST owner and preserves occurrence bindings after child
+`InputValidationRequest.lexical_scopes` for ordinary CEM inputs and XML inputs
+with a ready consuming schema. It shares the source tree's original AST owner
+and preserves occurrence bindings after child
 frames close. Register the source and target owners, grant directed crossings,
 and call `attach_captured_lexical_scopes` with current contexts and policies before
-running retained validation. Missing runtime inputs remain pending. Other parser
-paths currently supply `None`; specialized XML engine handoff remains pending.
+running retained validation. Missing runtime inputs remain pending. XML uses its
+specialized importer, preserving aliases, entity/CDATA source maps and literal
+attributes. Its retained tree also keeps the original native XML owner. Already
+parsed XML is reused; custom-schema XML is parsed once. Source-only and other
+specialized XML-family validators retain their own paths. Other parser paths
+currently supply `None`.
 
 ## Verification
 

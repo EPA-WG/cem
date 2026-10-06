@@ -10218,13 +10218,72 @@ fn run_scheduled_validation_document(
     let ScheduledValidationDocument {
         started_at,
         mut diagnostics,
-        loaded,
+        mut loaded,
         source_bytes_for_projection,
     } = staged;
     let mut input_diags = std::mem::take(&mut diagnostics);
     let mut complete = true;
     let mut runtime_diagnostics = Vec::new();
-    if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
+    // An explicit consumer stage admits specialized XML import only for a ready
+    // consuming model. Other native XML-family validators retain their own paths.
+    let xml_runtime = if context.input_validation_stage.is_some()
+        && loaded.from_format == InputFormat::Xml
+        && matches!(loaded.adapter_id, None | Some("xml"))
+        && matches!(
+            loaded.ast_stream.as_ref(),
+            None | Some(LoadedInputAstStream::XmlDocument(_))
+        )
+    {
+        let identity = effective_input_identity(input, context);
+        let model = crate::schema::document_model::load_document_model_for_identity(
+            identity.schema.as_deref(),
+            identity.content_type.as_deref(),
+            Some(&context.schema_registry),
+            Some(&context.schema_document_models),
+        );
+        context
+            .input_validation_stage
+            .as_deref()
+            .zip(model)
+            .filter(|(_, model)| model.is_ready_for_validation())
+    } else {
+        None
+    };
+    if let Some((stage, model)) = xml_runtime {
+        let source_uri = input_uri(input, context);
+        let document = match loaded.ast_stream.take() {
+            Some(LoadedInputAstStream::XmlDocument(document)) => Some(document),
+            None => {
+                let identity = effective_input_identity(input, context);
+                let (document, diagnostics) = crate::validation::xml::xml_document_ast_from_source_bytes(
+                    crate::validation::xml::XmlSourceValidationRequest {
+                        bytes: &loaded.bytes,
+                        source_uri: &source_uri,
+                        content_type: identity.content_type.as_deref(),
+                    },
+                );
+                input_diags.extend(diagnostics);
+                document
+            }
+            _ => unreachable!("XML runtime source was checked before handoff"),
+        };
+        if let Some(document) = document {
+            context.ensure_active()?;
+            let outcome = crate::schema::input_validation::run_xml(
+                stage,
+                Arc::new(document),
+                &source_uri,
+                &loaded.bytes,
+                &input.root_scope,
+                &model,
+                context.schema_behavior_evaluator.as_deref(),
+            );
+            complete = outcome.complete;
+            runtime_diagnostics.extend(outcome.diagnostics);
+        } else {
+            complete = false;
+        }
+    } else if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
         if is_transform_config_schema(input, context) {
             input_diags.extend(validate_transform_config_document(
                 input,

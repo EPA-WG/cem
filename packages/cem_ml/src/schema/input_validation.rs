@@ -22,7 +22,7 @@ pub const RUNTIME_INPUT_VALIDATION_FAILED: &str = "cem.schema_validation.runtime
 pub struct InputValidationRequest<'a> {
     /// The engine's original parsed arena shared without copying or reparsing.
     pub source: Arc<RetainedCemTree>,
-    /// Saved CEM occurrence bindings; runtime inputs and grants remain stage supplied.
+    /// Saved CEM/XML occurrence bindings; runtime inputs and grants remain stage supplied.
     /// Other parser paths supply None until their specialized capture is connected.
     pub lexical_scopes: Option<Arc<LexicallyScopedDocument>>,
     pub model: &'a SchemaDocumentModel,
@@ -39,8 +39,8 @@ pub struct InputValidationOutcome {
     pub diagnostics: Vec<Diagnostic>,
 }
 /// Installed explicitly when a runtime can supply per-input context snapshots.
-/// The engine invokes it for parser-backed validate/check inputs with ready
-/// consuming models; specialized source validators retain their own paths.
+/// The engine invokes it for parser-backed and ordinary XML validate/check inputs
+/// with ready consuming models. Other specialized validators retain their paths.
 /// Validate the retained structure and its behaviors under the supplied model.
 /// A pending context returns an incomplete outcome, rather than a setup error.
 /// Diagnostics for selected owners must carry their original URI/coordinates;
@@ -64,6 +64,60 @@ pub(crate) fn run(
     model: &SchemaDocumentModel,
     behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
 ) -> InputValidationOutcome {
+    let text = String::from_utf8_lossy(bytes);
+    let source =
+        RetainedCemTree::from_shared(document, uri, &text, CemTreeSemantics::default(), None)
+            .map_err(|message| vec![failure(uri, message)]);
+    run_prepared(
+        stage,
+        source.map(|source| (source, lexical_scopes)),
+        uri,
+        root_scope,
+        model,
+        behavior_evaluator,
+    )
+}
+
+/// Reuse an already parsed native XML owner; import its reference payloads and
+/// lexical metadata once, retaining XML attribute literals and source semantics.
+pub(crate) fn run_xml(
+    stage: &dyn InputValidationStage,
+    document: Arc<crate::validation::xml::XmlDocumentAst>,
+    uri: &str,
+    bytes: &[u8],
+    root_scope: &ScopeConfig,
+    model: &SchemaDocumentModel,
+    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> InputValidationOutcome {
+    let source = (|| {
+        let imported = crate::import::import_xml_ast_with_lexical_scopes(
+            &document,
+            super::vocab::CompiledSchema::cem_core(),
+        )
+        .map_err(|message| vec![failure(uri, message)])?;
+        let captured = Arc::new(imported.captured);
+        let text = String::from_utf8_lossy(bytes);
+        let tree = RetainedCemTree::from_shared(
+            captured.document().clone(),
+            uri,
+            &text,
+            imported.semantics,
+            Some(document),
+        )
+        .map_err(|message| vec![failure(uri, message)])?;
+        Ok((tree, Some(captured)))
+    })();
+    run_prepared(stage, source, uri, root_scope, model, behavior_evaluator)
+}
+
+fn run_prepared(
+    stage: &dyn InputValidationStage,
+    source: Result<(Arc<RetainedCemTree>, Option<Arc<LexicallyScopedDocument>>), Vec<Diagnostic>>,
+    uri: &str,
+    root_scope: &ScopeConfig,
+    model: &SchemaDocumentModel,
+    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> InputValidationOutcome {
     let prepare = || {
         let policy = ReferenceScopePolicy::schema_defaults()
             .and_then(|policy| policy.for_scope(model))
@@ -72,10 +126,7 @@ pub(crate) fn run(
                 diagnostic.source_map = Some(error.source_map);
                 vec![diagnostic]
             })?;
-        let text = String::from_utf8_lossy(bytes);
-        let source =
-            RetainedCemTree::from_shared(document, uri, &text, CemTreeSemantics::default(), None)
-                .map_err(|message| vec![failure(uri, message)])?;
+        let (source, lexical_scopes) = source?;
         stage.validate(InputValidationRequest {
             source,
             lexical_scopes,

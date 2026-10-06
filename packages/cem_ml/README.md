@@ -87,8 +87,13 @@ module-map bindings. Diagnostics and root version pins are finalized before the
 owner is shared. `InputValidationRequest.lexical_scopes` exposes the same capture
 to an explicitly installed validation stage, which can prepare occurrence contexts
 through `attach_captured_lexical_scopes`. Parsing does not evaluate references.
-Existing callbacks remain usable without adopting capture. Other parser paths
-currently supply `None`; specialized XML input lifecycle wiring remains pending.
+Existing callbacks remain usable without adopting capture. With an explicitly
+installed stage and a ready consuming model, ordinary XML validation uses the
+specialized importer and supplies captured bindings too. It reuses an already
+parsed native XML document or parses custom-schema XML once, retains that native
+owner on the query tree, and preserves imported source semantics. XML attributes
+remain literal. Source-only XML and other specialized XML-family validators keep
+their dedicated paths; other parser paths currently supply `None`.
 
 ## Verification
 

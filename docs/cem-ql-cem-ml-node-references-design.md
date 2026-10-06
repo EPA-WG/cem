@@ -1096,9 +1096,15 @@ bindings; diagnostics and version pins are finalized before sharing that owner.
 that allocation. Each `InputValidationRequest` supplies the retained source,
 optional `lexical_scopes`, consuming model, root scope, validated default/overridden
 reference policy and optional behavior evaluator. CEM inputs supply the saved
-metadata; other parser paths currently supply `None` until specialized import
-wiring is completed. The installed stage can call `attach_captured_lexical_scopes`
-to prepare occurrence contexts and policies; existing callbacks remain usable. The runtime supplies fresh context snapshots and scope grants,
+metadata. Ordinary XML inputs with a ready consuming model and an explicit stage
+also use the specialized import: already parsed native XML owners are reused,
+while custom-schema XML is parsed once. The query tree retains that native owner,
+imported source semantics and captured aliases; XML attributes remain literals.
+Source-only XML and other specialized XML-family validators keep their dedicated
+paths. Other parser paths currently supply `None`. The installed stage can call
+`attach_captured_lexical_scopes` to prepare occurrence contexts and policies;
+existing callbacks remain usable. The runtime supplies fresh context snapshots
+and scope grants,
 then invokes the existing retained structural/behavior consumer. Calls may run
 concurrently for independent inputs; the engine commits outcomes in stable input
 order. Query-adapter registration and parser/load requests never invoke this stage.
