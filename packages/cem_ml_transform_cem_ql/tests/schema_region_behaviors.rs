@@ -769,3 +769,116 @@ fn document_prelude_behaviors_keep_control_enclosing_and_referenced_targets_cons
         }
     )));
 }
+
+#[test]
+fn uri_loaded_models_dispatch_retained_behaviors_only_after_current_load_is_ready() {
+    use cem_ml::schema::declaration_references::SchemaDeclarationNode;
+    use cem_ml::value::reference_resolution::ReferenceLinkEvaluation;
+    let (loaded, library) = capture(&format!("@ns s = https://cem.dev/ns/schema/1\n{{s:schema | {{elements | {{element @name=host @children=item}} {{element @name=item}}}} {} }}", behavior("fixture.loaded", "nodes", "{name: $candidate.name, parent: $candidate.parent.name}")));
+    let (captured, tree) = capture("@schema src=external.cem\n{host | {#items}} {item}");
+    let item = elements(&tree, "item")[0];
+    let chosen = elements(&library, "schema")[0];
+    let boundary =
+        SchemaDeclarationNode::new(tree.ast_owner().clone(), elements(&tree, "@schema")[0])
+            .unwrap();
+    let outer = compile_schema_document_model(
+        "base",
+        &format!(
+            "{{schema | {{elements | {{element @name=host}}}} {} }}",
+            behavior("fixture.outer", "nodes", "$candidate.name")
+        ),
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let ctx = context(&library, chosen, &tree, &[item]);
+    let origin = host.register_scope(tree.clone(), Some(ctx.clone()), policy());
+    let destination = host.register_scope(library.clone(), Some(ctx.clone()), policy());
+    host.attach_captured_names(&captured).unwrap();
+    host.attach_captured_names(&loaded).unwrap();
+    host.allow_scope_crossing(origin, destination);
+    for ready in [true, false, true] {
+        host.set_schema_uri_load(
+            &boundary,
+            "external.cem",
+            if ready {
+                ReferenceLinkEvaluation::Resolved(vec![SchemaDeclarationNode::new(
+                    library.ast_owner().clone(),
+                    chosen,
+                )
+                .unwrap()])
+            } else {
+                ReferenceLinkEvaluation::Pending("reload".into())
+            },
+        )
+        .unwrap();
+        let report = host
+            .validate_input_runtime_host_regions_with_behavior_evaluator(
+                "child",
+                tree.clone(),
+                &[boundary.node_id(), elements(&tree, "host")[0]],
+                &outer,
+                policy().limits,
+                |_| Some(ctx.clone()),
+                Some(&CemQlSchemaBehaviorEvaluator),
+            )
+            .unwrap();
+        assert_eq!(
+            report.validation.complete, ready,
+            "{:?}",
+            report.validation.diagnostics
+        );
+        assert!(
+            !report.validation.failed,
+            "{:?}",
+            report.validation.diagnostics
+        );
+        let diagnostics: Vec<_> = report
+            .validation
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == "fixture.loaded")
+            .collect();
+        assert_eq!(diagnostics.len(), if ready { 2 } else { 0 });
+        assert!(!report
+            .validation
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "fixture.outer"));
+        if ready {
+            let selected = diagnostics
+                .iter()
+                .find(|d| d.details.as_ref().unwrap()["observed"]["name"] == "item")
+                .unwrap();
+            assert_eq!(
+                selected.details.as_ref().unwrap()["observed"]["parent"],
+                "host"
+            );
+            let target = &report.inputs[0]
+                .region()
+                .preparation
+                .as_ref()
+                .unwrap()
+                .target
+                .as_ref()
+                .unwrap()
+                .declaration;
+            assert!(Arc::ptr_eq(target.document(), library.ast_owner()));
+        }
+        assert!(report
+            .validation
+            .nodes
+            .iter()
+            .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+    }
+    assert!(tree
+        .ast()
+        .nodes
+        .iter()
+        .chain(library.ast().nodes.iter())
+        .all(|node| !matches!(
+            node,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+}

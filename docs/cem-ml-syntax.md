@@ -628,7 +628,8 @@ form, wrapping content, or parity with XML examples.
 Implementation note (2026-10-06): native runtime activation supports retained
 **document-level** directive payloads with the existing literal `src`/`select`
 header. The tokenizer currently retains `@schema` inside block content as text;
-block recognition and literal-text compatibility remain a decision/task in
+block parsing is deferred until recognition and literal-text compatibility are
+specified in
 [the implementation list](todo.md). Native reference slots use the existing
 schema-element or host attribute forms until prelude slot syntax is specified.
 

@@ -16,8 +16,8 @@ use cem_ml::{
 #[derive(Debug, Clone)]
 pub struct PreparedSchemaHostControl {
     pub control: SchemaHostControl,
-    /// URI loading is a separate consumer stage. None retains its authored URI
-    /// without treating it as a query or assuming a ready inherited schema.
+    /// None means no explicit URI loader snapshot has been supplied. Published
+    /// outcomes use the same bounded preparation stage without URL query handling.
     pub preparation: Option<SchemaScopePreparation>,
 }
 impl PreparedSchemaHostControl {
@@ -87,7 +87,16 @@ pub(super) fn prepare_decoded_host_control<H: super::scope_preparation::SchemaPr
     limits: ReferenceTraversalLimits,
 ) -> Result<Option<SchemaScopePreparation>, ReferenceResolutionError> {
     let root = match &control.source {
-        SchemaHostSource::Uri(_) => None,
+        SchemaHostSource::Uri(_) => {
+            return host
+                .schema_uri_load(control)
+                .map(|outcome| {
+                    super::uri_loads::prepare_loaded_schema_scope(
+                        host, schema_uri, control, outcome, limits,
+                    )
+                })
+                .transpose();
+        }
         SchemaHostSource::LiteralSelector(expression) => {
             let mut root = host.source_reference(control.attribute.clone());
             root.selector_expression = Some(expression.clone());

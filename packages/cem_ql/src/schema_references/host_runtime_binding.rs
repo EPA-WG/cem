@@ -321,6 +321,12 @@ where
     fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
         self.host.captured_expanded_name(source)
     }
+    fn schema_uri_load(
+        &self,
+        control: &cem_ml::schema::scope_controls::SchemaHostControl,
+    ) -> Option<ReferenceLinkEvaluation<SchemaDeclarationNode>> {
+        self.host.schema_uri_load_for_control(control)
+    }
     fn target_context_is_ready(
         &mut self,
         target: &SchemaDeclarationNode,

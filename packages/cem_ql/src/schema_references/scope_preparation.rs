@@ -7,13 +7,14 @@ use cem_ml::{
         document_model::SchemaDocumentModel,
         machine::LexicallyScopedDocument,
         reference_traversal::ReferenceTraversalLimits,
+        scope_controls::SchemaHostControl,
         scope_references::{
             admit_schema_scope_target, compile_schema_scope_target, SchemaScopeTarget,
             SchemaScopeTargetError,
         },
     },
     value::reference_resolution::{
-        resolve_reference, ReferenceResolution, ReferenceResolutionError,
+        resolve_reference, ReferenceLinkEvaluation, ReferenceResolution, ReferenceResolutionError,
     },
 };
 use std::sync::Arc;
@@ -142,12 +143,22 @@ pub(super) trait SchemaPreparationHost:
     SchemaDeclarationHost<Node = CemQlSchemaReferenceNode>
 {
     fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName>;
+    fn schema_uri_load(
+        &self,
+        control: &SchemaHostControl,
+    ) -> Option<ReferenceLinkEvaluation<SchemaDeclarationNode>>;
     fn target_context_is_ready(
         &mut self,
         target: &SchemaDeclarationNode,
     ) -> Result<bool, ReferenceResolutionError>;
 }
 impl SchemaPreparationHost for CemQlSchemaDeclarationHost {
+    fn schema_uri_load(
+        &self,
+        control: &SchemaHostControl,
+    ) -> Option<ReferenceLinkEvaluation<SchemaDeclarationNode>> {
+        self.schema_uri_load_for_control(control)
+    }
     fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
         self.captured_expanded_name(source)
     }
@@ -169,6 +180,15 @@ pub(super) fn prepare_schema_scope_node<H: SchemaPreparationHost>(
     limits: ReferenceTraversalLimits,
 ) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
     let selection = resolve_reference(root, host, limits)?;
+    prepare_schema_scope_selection(host, schema_uri, selection, limits)
+}
+
+pub(super) fn prepare_schema_scope_selection<H: SchemaPreparationHost>(
+    host: &mut H,
+    schema_uri: &str,
+    selection: ReferenceResolution<CemQlSchemaReferenceNode>,
+    limits: ReferenceTraversalLimits,
+) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
     let mut prepared = SchemaScopePreparation {
         selection,
         target: None,

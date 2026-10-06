@@ -444,8 +444,9 @@ reference. Returned reference chains retain request/destination budgets and
 directed grants. Selection must still complete with one valid original schema
 target, an available declaration context and a ready model. Each invocation uses
 caller-supplied current scope contexts; captured names and authored values stay
-unchanged. URI controls retain their authored URI with no selection preparation:
-loading belongs to the external resource lifecycle, so they are not ready here.
+unchanged. URI controls retain their authored URI. Without an explicit loader
+snapshot their preparation is absent; pending or invalid snapshots cannot activate
+the region. The retained loader-result handoff is described below.
 
 Literal selector query errors retain the original attribute source and query
 frames. CEM literal attributes currently supply a name source map rather than a
@@ -655,9 +656,9 @@ ordinary descendant attributes do not borrow the inherited model, structural
 reference evaluation is deferred, and the complete-forest behavior gate remains.
 Native CEM/XML retries restore original assignments and use fresh caller contexts
 and targets. No targets are written into authored references. Unentered prior
-controls are not scanned to infer omitted source dependencies. External URI
-readiness remains actionable in `todo.md`; enclosed child override syntax remains
-deferred.
+controls are not scanned to infer omitted source dependencies. URI loader-result
+consumption now uses the same readiness stage; byte-loader integration remains
+actionable in `todo.md`. Enclosed child override syntax remains deferred.
 
 Literal document-prelude activation (2026-10-06) retains original
 `SchemaElementForm::Prelude` metadata and the directive's text payload. The shared
@@ -684,10 +685,41 @@ routing. Original sources and repeated placements remain retained.
 
 The source tokenizer currently recognizes document-level directives and retains
 `@schema` inside block content as text, despite the syntax guide describing block
-shorthand. A task and user decision cover block recognition, line-position and
-literal-text compatibility before changing parsing. Typed prelude reference slots
+shorthand. Block parsing is deferred (2026-10-06) until recognition, line-position
+and literal-text compatibility are specified. Typed prelude reference slots
 are likewise a separate source design task; existing native attribute forms remain
 available. This stage selects no enclosed child-reference syntax.
+
+### Explicit schema URI loader handoff (implemented 2026-10-06)
+
+`CemQlSchemaDeclarationHost::set_schema_uri_load` publishes one lifecycle outcome
+for an original control handle and its exact authored URI. The loader supplies
+pending, unavailable, invalid, or completed selections containing original retained
+`SchemaDeclarationNode` handles. URL/base/redirect handling and any public `#id`
+part selection belong to the loader. Publication performs no query evaluation,
+I/O, scope activation or grant creation. CEM-QL never interprets that URI as an
+expression. `clear_schema_uri_load` removes only the named snapshot.
+
+At explicit consumption, the original attribute or prelude text supplies the
+implicit reference occurrence and diagnostic provenance. Completed selections and
+any native reference chains traverse the existing request/destination limits and
+directed grants. The requesting query context is unnecessary for an already
+completed terminal load; destination contexts and source-position name metadata
+are still required. Singleton cardinality, target admission and exact original
+schema compilation apply unchanged. Completed bytes or target selection alone do
+not make incomplete dependencies or invalid compiled contracts ready.
+
+Host, wrapping, following-sibling and document-prelude regions use this handoff
+through the established invocation scheduler, explicit child inputs and per-model
+behavior gate. Original controls using the same URI have separate snapshots. A
+current pending replacement does not reuse an earlier completed result; earlier
+preparations remain inspectable. Retrying selection and execution restores source
+assignments and never writes evaluated targets into authored references.
+
+This implements the retained loader-result boundary, not automatic resolver
+fetching/import. Connecting the byte resolver/resource lifecycle and deciding the
+default target for a URI without a public fragment are actionable in `todo.md`.
+They must preserve the existing public-parts URL boundary and explicit scope grants.
 
 ### Implicit scope references and defaults
 

@@ -1602,3 +1602,161 @@ fn unavailable_prelude_controls_leave_following_region_incomplete_without_fallba
             .any(|node| node.source.node_id() == elements(&tree, "after")[0]));
     }
 }
+
+#[test]
+fn uri_runtime_regions_retry_loader_snapshots_across_existing_control_forms() {
+    use cem_ml::schema::{
+        declaration_references::SchemaDeclarationHost,
+        document_model::compile_schema_document_model,
+    };
+    use cem_ml::value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost};
+    let (loaded, library) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=selected @children=item} {element @name=item}}} {s:schema | {elements | {element @name=child @required-attributes=wrong @children=item} {element @name=item}}}");
+    let schemas = elements(&library, "schema");
+    let outer = compile_schema_document_model("base", "{schema | {elements | {element @name=host @children='schema child'} {element @name=schema @required-attributes=own @children=child} {element @name=child @required-attributes=enclosing} {element @name=outside @required-attributes=outer}}}");
+    for (text, control_name, root_names) in [
+        ("{host @schema-src=./schema.cem | {child @selected=yes | {#items}}} {outside @outer=yes} {item}", "host", vec!["host", "outside"]),
+        ("{schema @src=./schema.cem @own=yes | {child @selected=yes | {#items}}} {outside @outer=yes} {item}", "schema", vec!["schema", "outside"]),
+        ("{host | {schema @src=./schema.cem @own=yes} {child @selected=yes | {#items}}} {outside @outer=yes} {item}", "schema", vec!["host", "outside"]),
+        ("@schema src=./schema.cem\n{child @selected=yes | {#items}} {item}", "@schema", vec!["@schema", "child"]),
+    ] {
+        let (captured, tree) = capture(text);
+        let boundary = source(&tree, elements(&tree, control_name)[0]);
+        let roots: Vec<_> = root_names.iter().map(|name| elements(&tree, name)[0]).collect();
+        let ctx = body_context(&tree, &elements(&tree, "item"));
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let original = host.register_scope(tree.clone(), Some(ctx.clone()), policy());
+        let destination = host.register_scope(library.clone(), Some(StandaloneExpressionContext::default()), policy());
+        host.attach_captured_names(&captured).unwrap();
+        host.attach_captured_names(&loaded).unwrap();
+        host.allow_scope_crossing(original, destination);
+        // Another spelling cannot satisfy this original control's authored URI.
+        host.set_schema_uri_load(&boundary, "./other.cem", ReferenceLinkEvaluation::Resolved(vec![source(&library, schemas[0])])).unwrap();
+        for chosen in [Some(0), None, Some(1), Some(0)] {
+            host.set_schema_uri_load(&boundary, "./schema.cem", match chosen {
+                Some(index) => ReferenceLinkEvaluation::Resolved(vec![source(&library, schemas[index])]),
+                None => ReferenceLinkEvaluation::Pending("reload".into()),
+            }).unwrap();
+            let mut requests = 0;
+            let report = host.validate_input_runtime_host_regions("child", tree.clone(), &roots, &outer, policy().limits, |request| {
+                let SchemaHostRuntimeContextRequest::Body(region) = request else { panic!("no local frames"); };
+                assert_eq!(region.contract.host().node_id(), boundary.node_id());
+                requests += 1;
+                Some(ctx.clone())
+            }).unwrap();
+            assert_eq!(requests, usize::from(chosen.is_some()), "{control_name}");
+            assert_eq!(report.validation.complete, chosen.is_some(), "{control_name}: {:?}", report.validation.diagnostics);
+            assert_eq!(report.validation.failed, chosen == Some(1), "{control_name}: {:?}", report.validation.diagnostics);
+            assert_eq!(report.scopes.len(), usize::from(chosen.is_some()));
+            assert_eq!(report.validation.references.len(), usize::from(chosen.is_some()));
+            assert!(!report.validation.diagnostics.iter().any(|d| d.message.contains("enclosing")));
+            for id in captured.occurrences() {
+                assert_eq!(host.scope(&host.source_reference(source(&tree, id))), Some(original));
+            }
+            assert!(report.validation.nodes.iter().all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+        }
+        assert!(tree.ast().nodes.iter().all(|node| !matches!(node, CemAstNode::Reference { targets: Some(_), .. })));
+    }
+}
+
+#[test]
+fn nested_uri_controls_keep_independent_loads_and_restore_document_governance() {
+    use cem_ml::schema::{
+        declaration_references::SchemaDeclarationHost,
+        document_model::compile_schema_document_model,
+    };
+    use cem_ml::value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionHost};
+    let (captured, tree) = capture("@schema src=external.cem\n{host @schema-src=external.cem | {child @selected=yes | {#items}}} {outside @outer=yes} {item}");
+    let (loaded, library) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=host @children=child} {element @name=outside @required-attributes=outer}}} {s:schema | {elements | {element @name=child @required-attributes=selected @children=item} {element @name=item}}} {s:schema | {attributes | {attribute @name=value @type=string @pattern='['}}}");
+    let schemas = elements(&library, "schema");
+    let directive = source(&tree, elements(&tree, "@schema")[0]);
+    let inner = source(&tree, elements(&tree, "host")[0]);
+    let roots = [
+        directive.node_id(),
+        inner.node_id(),
+        elements(&tree, "outside")[0],
+    ];
+    let outer = compile_schema_document_model(
+        "base",
+        "{schema | {elements | {element @name=outside @required-attributes=wrong}}}",
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let ctx = body_context(&tree, &elements(&tree, "item"));
+    let original = host.register_scope(tree.clone(), Some(ctx.clone()), policy());
+    let destination = host.register_scope(
+        library.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    host.attach_captured_names(&loaded).unwrap();
+    host.allow_scope_crossing(original, destination);
+    host.set_schema_uri_load(
+        &directive,
+        "external.cem",
+        ReferenceLinkEvaluation::Resolved(vec![source(&library, schemas[0])]),
+    )
+    .unwrap();
+    for chosen in [Some(1), None, Some(2), Some(1)] {
+        host.set_schema_uri_load(
+            &inner,
+            "external.cem",
+            chosen.map_or_else(
+                || ReferenceLinkEvaluation::Pending("inner-reload".into()),
+                |index| ReferenceLinkEvaluation::Resolved(vec![source(&library, schemas[index])]),
+            ),
+        )
+        .unwrap();
+        let mut requests = vec![];
+        let report = host
+            .validate_input_runtime_host_regions(
+                "child",
+                tree.clone(),
+                &roots,
+                &outer,
+                policy().limits,
+                |request| {
+                    let SchemaHostRuntimeContextRequest::Body(region) = request else {
+                        panic!("no local frames");
+                    };
+                    requests.push(region.contract.host().node_id());
+                    Some(ctx.clone())
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            report.validation.complete,
+            chosen == Some(1),
+            "{:?}",
+            report.validation.diagnostics
+        );
+        assert_eq!(
+            report.validation.failed,
+            chosen == Some(2),
+            "{:?}",
+            report.validation.diagnostics
+        );
+        assert_eq!(requests.len(), if chosen == Some(1) { 2 } else { 1 });
+        assert_eq!(requests[0], directive.node_id());
+        assert_eq!(report.scopes.len(), if chosen == Some(1) { 2 } else { 1 });
+        assert_eq!(
+            report.validation.references.len(),
+            usize::from(chosen == Some(1))
+        );
+        assert!(report
+            .validation
+            .nodes
+            .iter()
+            .any(|node| node.source.node_id() == roots[2]));
+        assert!(!report
+            .validation
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("wrong")));
+        for id in captured.occurrences() {
+            assert_eq!(
+                host.scope(&host.source_reference(source(&tree, id))),
+                Some(original)
+            );
+        }
+    }
+}

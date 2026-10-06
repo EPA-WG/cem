@@ -1763,3 +1763,398 @@ fn child_runtime_inputs_inherit_the_complete_custom_diagnostic_definition() {
         .unresolved()
         .is_none());
 }
+
+#[test]
+fn uri_loader_handoff_keeps_original_targets_and_requires_directed_grants() {
+    use cem_ml::value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionState};
+    let (captured, tree) = capture("{host @schema-src=./external.cem}");
+    let (loaded, library) = capture(
+        "@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child}}}",
+    );
+    let boundary = source(&tree, elements(&tree, "host")[0]);
+    let target = source(&library, elements(&library, "schema")[0]);
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(
+        tree.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy(),
+    );
+    let destination = host.register_scope(
+        library.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    host.attach_captured_names(&loaded).unwrap();
+    assert!(host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .is_none());
+    host.set_schema_uri_load(
+        &boundary,
+        "./external.cem",
+        ReferenceLinkEvaluation::Pending("loading".into()),
+    )
+    .unwrap();
+    let pending = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap();
+    assert!(!pending.is_ready());
+    assert_eq!(
+        pending.preparation.unwrap().selection.state,
+        ReferenceResolutionState::Pending
+    );
+    host.set_schema_uri_load(
+        &boundary,
+        "./external.cem",
+        ReferenceLinkEvaluation::Resolved(vec![target.clone()]),
+    )
+    .unwrap();
+    let denied = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap();
+    assert!(!denied.is_ready());
+    assert!(denied
+        .preparation
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+    assert!(host.allow_scope_crossing(origin, destination));
+    let ready = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap();
+    assert!(ready.is_ready(), "{ready:?}");
+    let prepared = ready.preparation.as_ref().unwrap();
+    assert!(Arc::ptr_eq(
+        prepared.target.as_ref().unwrap().declaration.document(),
+        library.ast_owner()
+    ));
+    assert_eq!(
+        prepared.target.as_ref().unwrap().declaration.node_id(),
+        target.node_id()
+    );
+    assert!(prepared.model.as_ref().unwrap().element("child").is_some());
+    assert!(host
+        .compiled_source_expression(&ready.contract.control().unwrap().attribute)
+        .is_none());
+    host.set_schema_uri_load(
+        &boundary,
+        "./external.cem",
+        ReferenceLinkEvaluation::Pending("reload".into()),
+    )
+    .unwrap();
+    assert!(!host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .is_ready());
+    assert!(ready.is_ready());
+    assert!(host.clear_schema_uri_load(&boundary, "./external.cem"));
+    assert!(host
+        .prepare_schema_host_region("child", boundary, policy().limits)
+        .unwrap()
+        .preparation
+        .is_none());
+}
+
+#[test]
+fn uri_loader_selection_shares_bounds_cardinality_admission_and_target_readiness() {
+    use cem_ml::value::reference_resolution::ReferenceLinkEvaluation;
+    let (captured, tree) = capture("{host @schema-src='https://vendor.test/schema#public'}");
+    let (loaded, library) =
+        capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema} {s:element} {#library}");
+    let boundary = source(&tree, elements(&tree, "host")[0]);
+    let target = source(&library, elements(&library, "schema")[0]);
+    let chain = source(&library, loaded.occurrences().last().unwrap());
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(
+        tree.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy(),
+    );
+    let destination = host.register_scope(
+        library.clone(),
+        Some(context(&library, &[target.node_id()])),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    host.allow_scope_crossing(origin, destination);
+    let uri = "https://vendor.test/schema#public";
+    for targets in [vec![], vec![target.clone(), target.clone()]] {
+        let count = targets.len();
+        host.set_schema_uri_load(&boundary, uri, ReferenceLinkEvaluation::Resolved(targets))
+            .unwrap();
+        let prepared = host
+            .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+            .unwrap()
+            .preparation
+            .unwrap();
+        assert_eq!(
+            prepared.issue,
+            Some(SchemaScopePreparationIssue::TargetCount(count))
+        );
+    }
+    host.set_schema_uri_load(
+        &boundary,
+        uri,
+        ReferenceLinkEvaluation::Resolved(vec![target.clone()]),
+    )
+    .unwrap();
+    let missing_names = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .unwrap();
+    assert_eq!(
+        missing_names.issue,
+        Some(SchemaScopePreparationIssue::TargetAdmission(
+            SchemaScopeTargetError::NameNotReady
+        ))
+    );
+    host.attach_captured_names(&loaded).unwrap();
+    host.set_context(destination, None);
+    let pending = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .unwrap();
+    assert_eq!(
+        pending.issue,
+        Some(SchemaScopePreparationIssue::TargetContextNotReady)
+    );
+    host.set_context(destination, Some(context(&library, &[target.node_id()])));
+    host.set_schema_uri_load(
+        &boundary,
+        uri,
+        ReferenceLinkEvaluation::Resolved(vec![source(&library, elements(&library, "element")[0])]),
+    )
+    .unwrap();
+    assert_eq!(
+        host.prepare_schema_host_region("child", boundary.clone(), policy().limits)
+            .unwrap()
+            .preparation
+            .unwrap()
+            .issue,
+        Some(SchemaScopePreparationIssue::TargetAdmission(
+            SchemaScopeTargetError::InvalidKindOrName
+        ))
+    );
+    host.set_schema_uri_load(
+        &boundary,
+        uri,
+        ReferenceLinkEvaluation::Resolved(vec![chain]),
+    )
+    .unwrap();
+    assert!(host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .is_ready());
+    for limits in [
+        cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+            max_depth: 1,
+            max_work: 100,
+        },
+        cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 1,
+        },
+    ] {
+        assert!(!host
+            .prepare_schema_host_region("child", boundary.clone(), limits)
+            .unwrap()
+            .is_ready());
+    }
+    assert!(host
+        .prepare_schema_host_region(
+            "child",
+            boundary.clone(),
+            cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+                max_depth: 0,
+                max_work: 1
+            }
+        )
+        .is_err());
+    assert!(host
+        .set_schema_uri_load(
+            &source(&library, target.node_id()),
+            "",
+            ReferenceLinkEvaluation::Resolved(vec![])
+        )
+        .is_err());
+    let (_, foreign) = capture("{host @schema-src='https://vendor.test/schema#public'}");
+    assert!(host
+        .set_schema_uri_load(
+            &source(&foreign, elements(&foreign, "host")[0]),
+            uri,
+            ReferenceLinkEvaluation::Resolved(vec![])
+        )
+        .is_err());
+    assert!(tree
+        .ast()
+        .nodes
+        .iter()
+        .chain(library.ast().nodes.iter())
+        .all(|node| !matches!(
+            node,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+}
+
+#[test]
+fn uri_loader_unavailable_invalid_and_destination_limits_block_activation() {
+    use cem_ml::diagnostics::{Diagnostic, Severity};
+    use cem_ml::value::reference_resolution::{ReferenceLinkEvaluation, ReferenceResolutionState};
+    let (captured, tree) =
+        capture("{host @schema-src=external.cem} {host @schema-src=external.cem}");
+    let (loaded, library) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema} {#library}");
+    let boundaries = elements(&tree, "host");
+    let boundary = source(&tree, boundaries[0]);
+    let target = source(&library, elements(&library, "schema")[0]);
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(tree.clone(), None, policy());
+    let mut strict = policy();
+    strict.limits.max_work = 1;
+    let destination = host.register_scope(
+        library.clone(),
+        Some(context(&library, &[target.node_id()])),
+        strict,
+    );
+    host.attach_captured_names(&captured).unwrap();
+    host.attach_captured_names(&loaded).unwrap();
+    host.allow_scope_crossing(origin, destination);
+    host.set_schema_uri_load(
+        &boundary,
+        "external.cem",
+        ReferenceLinkEvaluation::Unresolved("not-found".into()),
+    )
+    .unwrap();
+    let missing = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .unwrap();
+    assert_eq!(
+        missing.selection.state,
+        ReferenceResolutionState::Unresolved
+    );
+    assert!(!missing.is_ready());
+    assert!(missing.selection.issues[0]
+        .occurrence
+        .source_map
+        .origin()
+        .is_some());
+    let diagnostic = Diagnostic {
+        code: "fixture.loader.failed".into(),
+        severity: Severity::Error,
+        message: "invalid external resource".into(),
+        ..Default::default()
+    };
+    host.set_schema_uri_load(
+        &boundary,
+        "external.cem",
+        ReferenceLinkEvaluation::Invalid(vec![diagnostic.clone()]),
+    )
+    .unwrap();
+    let invalid = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .unwrap();
+    assert_eq!(invalid.selection.state, ReferenceResolutionState::Invalid);
+    assert!(invalid.selection.failed);
+    assert_eq!(invalid.selection.diagnostics, vec![diagnostic]);
+    host.set_schema_uri_load(
+        &boundary,
+        "external.cem",
+        ReferenceLinkEvaluation::Resolved(vec![source(
+            &library,
+            loaded.occurrences().last().unwrap(),
+        )]),
+    )
+    .unwrap();
+    let limited = host
+        .prepare_schema_host_region("child", boundary.clone(), policy().limits)
+        .unwrap()
+        .preparation
+        .unwrap();
+    assert!(!limited.is_ready());
+    assert_eq!(limited.selection.work_used, 3);
+    assert!(limited
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+    // A loaded terminal schema does not require a requesting query context.
+    host.set_schema_uri_load(
+        &boundary,
+        "external.cem",
+        ReferenceLinkEvaluation::Resolved(vec![target]),
+    )
+    .unwrap();
+    assert!(host
+        .prepare_schema_host_region("child", boundary, policy().limits)
+        .unwrap()
+        .is_ready());
+    assert!(host
+        .prepare_schema_host_region("child", source(&tree, boundaries[1]), policy().limits)
+        .unwrap()
+        .preparation
+        .is_none());
+}
+
+#[test]
+fn completed_uri_loads_still_require_complete_declaration_compilation() {
+    use cem_ml::value::reference_resolution::ReferenceLinkEvaluation;
+    for body in [
+        "{elements | {#missing}}",
+        "{attributes | {attribute @name=value @type=string @pattern='['}}",
+    ] {
+        let (captured, tree) = capture("{host @schema-src=external.cem}");
+        let (loaded, library) = capture(&format!(
+            "@ns s = https://cem.dev/ns/schema/1\n{{s:schema | {body}}}"
+        ));
+        let boundary = source(&tree, elements(&tree, "host")[0]);
+        let target = source(&library, elements(&library, "schema")[0]);
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let origin = host.register_scope(
+            tree.clone(),
+            Some(StandaloneExpressionContext::default()),
+            policy(),
+        );
+        let destination = host.register_scope(
+            library.clone(),
+            Some(StandaloneExpressionContext::default()),
+            policy(),
+        );
+        host.attach_captured_names(&captured).unwrap();
+        host.attach_captured_names(&loaded).unwrap();
+        host.allow_scope_crossing(origin, destination);
+        host.set_schema_uri_load(
+            &boundary,
+            "external.cem",
+            ReferenceLinkEvaluation::Resolved(vec![target]),
+        )
+        .unwrap();
+        let prepared = host
+            .prepare_schema_host_region("child", boundary, policy().limits)
+            .unwrap()
+            .preparation
+            .unwrap();
+        assert!(prepared.selection.is_complete());
+        assert!(!prepared.is_ready());
+        let model = prepared.model.unwrap();
+        if body.contains("missing") {
+            assert!(!model.is_ready_for_validation());
+        } else {
+            assert!(model
+                .compile_diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation() && d.source_map.is_some()));
+        }
+    }
+}

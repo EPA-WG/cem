@@ -1695,19 +1695,60 @@ only and adds no runtime behavior or public syntax.
       child-reference syntax decision deferred. Completed literal document controls
       on 2026-10-06 using original text payload occurrences and shared following
       stages. Verified with 246 focused native reference, schema, lexical-capture
-      and retained behavior tests, including four new fixtures. Source capture remains passive; block parsing needs the decision below.
+      and retained behavior tests, including four new fixtures. Source capture remains passive; block parsing is deferred as recorded below.
       Scenarios for later design verification: control forms share the same reference
       consumer contracts without introducing a second AST projection; pending
       overrides cannot borrow inherited or previously active models/contexts; lexical
       names and active traversal budgets survive boundary changes.
-- [ ] Decide block-directive recognition before changing source parsing. The syntax
+- [x] Decide block-directive recognition before changing source parsing. The syntax
       guide describes `@schema` block-prelude shorthand, but the tokenizer currently
-      retains it inside block content as ordinary text. Recommendation pending user
-      decision: finish document preludes and retain block text until line-position
+      retains it inside block content as ordinary text. Adopted on 2026-10-06:
+      defer block parsing and retain its current text behavior until line-position
       recognition, literal-text escaping and compatibility are specified.
       Scenarios for later design verification: block content is not silently
       reclassified; nested directives end with the containing scope; existing host
       and schema-element controls remain available without a new delimiter.
+- [ ] Specify block-directive recognition and literal-text compatibility before
+      enabling the documented block-prelude shorthand. Cover line positions,
+      escaped directive-looking text, comments, nested restoration and existing
+      content behavior. Keep host/schema-element controls available meanwhile.
+      Scenarios for later design verification: defaults do not reclassify literal
+      content; blocked bodies do not execute directives; source provenance remains
+      original and earlier namespace bindings are not renamed.
+- [x] Fixture: hand off explicit schema URI loader outcomes for an original control
+      and exact authored URI. Cover pending/unavailable/invalid/complete states,
+      original target handles, no query parsing or I/O on handoff, directed grants,
+      bounded chains, cardinality, admission, source names, context readiness and
+      incomplete/hard-invalid declaration compilation. Implemented on 2026-10-06
+      with four new preparation fixtures and verified in 253 focused native tests.
+      Scenarios for later design verification: loading does not grant crossings or
+      activate scopes; the loader owns relative URI/public-part selection; stale
+      completed snapshots are inspectable but cannot replace a current pending load.
+- [x] Fixture: activate ready URI-backed host/body/following/prelude regions through
+      the established invocation stages. Cover fresh load retries, failed/pending
+      resources without fallback, nesting, consuming-model behavior and restoration
+      of original owners, scopes and authored target slots. Implemented on
+      2026-10-06 with two runtime fixtures and a retained behavior fixture;
+      verified in 253 focused native tests.
+      Scenarios for later design verification: the same URI in another control or
+      host cannot borrow a load result; URI ingestion retains request/destination
+      caps and declaration compilation readiness; source-only results never activate.
+- [ ] Decide the byte loader's default target-selection contract for schema URIs
+      without a public fragment. Recommended: select exactly one direct schema
+      declaration or named schema wrapper, rejecting zero/multiple candidates;
+      alternative: require an explicit public export even for a single-schema file.
+      Awaiting user decision. Public fragment interpretation remains loader-owned.
+      Scenarios for later design verification: an assembly with several schema
+      declarations cannot select an arbitrary first declaration; unrelated content
+      cannot become a scope target; CEM-QL does not implement URL/ID lookup.
+- [ ] Fixture: connect resolver/resource lifecycle outcomes and shared retained
+      CEM import to the implemented schema URI handoff after default target selection
+      is decided. Retain original loaded owners, lexical metadata and explicit
+      contexts; preserve loader policies, abort/error states and directed grants.
+      Cover relative URIs, public exports, fresh revisions and per-control retries.
+      Scenarios for later design verification: byte completion alone does not
+      activate a schema; public IDs do not authorize scope crossings; pending
+      imports or missing metadata never borrow a prior model or caller context.
 - [ ] Specify typed prelude reference slots only if that source capability is
       requested. Current directive payloads are literal text; native reference and
       expression slots already belong to schema-element/host attribute forms. Keep
@@ -1728,8 +1769,10 @@ only and adds no runtime behavior or public syntax.
       Wrapping body controls now use original CEM/XML source forms and the same
       runtime handoff. No-body sibling controls now activate after the original
       control, using explicit runtime inputs and original owning positions. Existing
-      literal document-prelude controls now use the same following stage. Next:
-      resolve block parsing and integrate external loading readiness. Reuse the
+      literal document-prelude controls now use the same following stage.
+      Retained URI loader-result preparation is implemented. Next: connect byte loading
+      after the default URI target-selection decision. Block parsing stays deferred.
+      Reuse the
       implemented preparation and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

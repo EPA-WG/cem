@@ -1485,11 +1485,30 @@ cannot replace it. Following controls inside the selected subtree still govern
 actual original child edges. Original destination contexts and limits remain
 independent of placement model routing.
 
-Block-prelude parsing needs an explicit decision: the syntax guide describes block
+Block-prelude parsing is deferred (2026-10-06): the syntax guide describes block
 shorthand, while the tokenizer currently retains `@schema` within block content as
 text. Recognition and literal-text compatibility must be specified before changing
-that behavior. Typed prelude slots and external URI readiness also remain
-separate actionable work; native host/schema-element attribute forms are available.
+that behavior. Typed prelude slots remain separate actionable work; native
+host/schema-element attribute forms are available.
+
+Explicit retained URI loader results now enter the same preparation and runtime
+stages. `set_schema_uri_load` keys pending/unavailable/invalid/completed selections
+by original control handle and exact authored URI. The loader supplies original
+retained target handles and owns URL/base/redirect/public-part handling; CEM-QL
+neither parses URLs as expressions nor performs I/O on publication. Consumption
+uses the existing request/destination traversal limits, directed grants, original
+name metadata, target cardinality/admission, destination context readiness and exact
+schema compilation. A complete load does not bypass pending dependencies or hard
+compile diagnostics. The requesting query context is unnecessary for a completed
+terminal load; runtime child inputs still come from the explicit callback.
+
+URI-backed host/wrapping/following/prelude controls share invocation restoration,
+nested scope behavior and per-consuming-model execution. A current pending load
+blocks the governed region without reusing a prior completed preparation; that
+older snapshot remains inspectable. Original controls keep separate load results
+for the same URI, and authored targets remain untouched. Automatic byte-resolver
+and import lifecycle wiring remains actionable in `todo.md`, with the default
+selection contract for a URI without a public fragment still to be decided.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable
