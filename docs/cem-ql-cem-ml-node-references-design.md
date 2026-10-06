@@ -856,6 +856,13 @@ required. One EOF notification exposes final machine diagnostics. Snapshots cont
 neither evaluator environments nor relationship boundaries, and capture does not
 execute reference or schema selector expressions. Completion alone establishes
 neither validity nor dependency readiness.
+Closed-slot lifecycle fixtures verify CEM standalone/native attribute slots and
+aliased XML CDATA references against forward source targets. Loading, frame
+closure, lexical attachment and context preparation invoke no native capability;
+only explicit consumer resolution executes it. Repeated consumption executes
+again while retaining source/artifact ownership. Balanced host slots with invalid
+query syntax remain pending without runtime inputs, then report source-attributed
+query errors when consumed. XML attributes continue to retain literal values.
 
 `build_with_lexical_scopes()` now builds one fragment with a
 `LexicallyScopedDocument` sidecar. It associates snapshots with the original
@@ -1189,7 +1196,12 @@ unquoted brace spans and `Literal` on quoted/bare CEM values and XML/HTML
 attributes. Normalized `ScalarValue::Expression` events carry that distinction
 into AST construction; expression-valued `type` does not trigger a static
 content-type switch. Attribute and standalone expressions share the scanner
-for strings, escaped/doubled quotes, nested comments and nested braces.
+for strings, escaped/doubled quotes, CEM-QL `/* ... */` block and `// ...`
+line comments, retained nested `(: ... :)` comments and nested braces. Line
+comments end at LF or CR (including CRLF); a host brace inside either CEM-QL
+comment form cannot close a standalone or attribute slot. Both native and editor
+scanners retain the same opaque payload. This does not validate the query or
+make additional comment/string conventions executable CEM-QL syntax.
 
 Native values share their immutable retained source owner. Their source parent
 is the attribute, while their lexical evaluation context remains the containing

@@ -391,3 +391,178 @@ fn imported_xml_capture_hands_original_aliases_and_payload_sources_to_the_same_l
     );
     assert!(Arc::ptr_eq(tree.ast_owner(), captured.document()));
 }
+
+fn slot_capture(
+    xml: bool,
+    attribute: bool,
+    query: &str,
+) -> (LexicallyScopedDocument, Arc<RetainedCemTree>, String) {
+    if !xml {
+        let text = if attribute {
+            format!("@ns v = urn:slot\n{{outer @target={{ {query} }} | {{target}}}}")
+        } else {
+            format!("@ns v = urn:slot\n{{outer | {{{query}}} {{target}}}}")
+        };
+        let (captured, tree) = captured(&text);
+        return (captured, tree, text);
+    }
+    use cem_ml::{
+        import::import_xml_ast_with_lexical_scopes,
+        validation::xml::{xml_document_ast_from_source_bytes, XmlSourceValidationRequest},
+    };
+    let text = format!("<outer xmlns:r='https://cem.dev/ns/cem-ml/1' xmlns:v='urn:slot' target='{{#literal}}'>\n<r:expr><![CDATA[{query}]]></r:expr><target/></outer>");
+    let (document, diagnostics) = xml_document_ast_from_source_bytes(XmlSourceValidationRequest {
+        bytes: text.as_bytes(),
+        source_uri: "scope.xml",
+        content_type: Some("application/xml"),
+    });
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let imported =
+        import_xml_ast_with_lexical_scopes(&document.unwrap(), CompiledSchema::cem_core()).unwrap();
+    let tree = RetainedCemTree::from_shared(
+        imported.captured.document().clone(),
+        "scope.xml",
+        &text,
+        imported.semantics,
+        None,
+    )
+    .unwrap();
+    (imported.captured, tree, text)
+}
+
+#[test]
+fn closed_reference_slots_wait_for_context_and_execute_only_at_the_consumer_lifecycle() {
+    use cem_ql::native::{NativeQueryFunction, NativeQueryRequest};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    #[derive(Debug)]
+    struct Pick(Arc<AtomicUsize>);
+    impl NativeQueryFunction for Pick {
+        fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            request.arguments[0].clone()
+        }
+    }
+    let query = r#"#native:call("fixture.pick", library) /* } */"#;
+    for (xml, attribute) in [(false, false), (false, true), (true, false)] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let (captured, tree, text) = slot_capture(xml, attribute, query);
+        assert!(captured.document().diagnostics.is_empty());
+        let refs: Vec<_> = captured.occurrences().collect();
+        assert_eq!(refs.len(), 1);
+        let original = source(&captured, refs[0]);
+        let target = elements(&tree, "target")[0];
+        assert!(target > refs[0], "forward node declaration");
+        assert!(
+            matches!(original.node(), CemAstNode::Reference { expression, targets: None, .. } if expression == query)
+        );
+        assert!(!tree.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Attribute { expanded_name, .. } if expanded_name.local_name == "id")));
+        if xml {
+            assert!(tree.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Attribute { value, value_nodes, .. } if value.as_deref() == Some("{#literal}") && value_nodes.is_empty())));
+        }
+        if attribute {
+            assert!(tree.ast().nodes.iter().any(|node| matches!(node, CemAstNode::Attribute { value_nodes, .. } if value_nodes == &refs)));
+        }
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let parent = host.register_scope(tree.clone(), None, policy());
+        let attached = host
+            .attach_captured_lexical_scopes(&captured, |_, snapshot, inherited| {
+                assert_eq!(inherited, parent);
+                assert_eq!(
+                    snapshot.namespaces.binding("v").unwrap().namespace_uri,
+                    "urn:slot"
+                );
+                (None, policy())
+            })
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert!(host.compiled_source_expression(&original).is_none());
+        let input = host.source_reference(original.clone());
+        let pending = resolve_reference(input.clone(), &mut host, policy().limits).unwrap();
+        assert_eq!(pending.state, ReferenceResolutionState::Pending);
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let mut runtime = context(&tree, target);
+        runtime
+            .native_functions
+            .register("fixture.pick", 1, Pick(calls.clone()))
+            .unwrap();
+        assert!(host.set_context(attached[0].1, Some(runtime)));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        for expected_calls in [1, 2] {
+            let result = resolve_reference(input.clone(), &mut host, policy().limits).unwrap();
+            assert!(result.is_complete(), "{:?}", result.diagnostics);
+            assert_eq!(calls.load(Ordering::SeqCst), expected_calls);
+            let selected = host.declaration_node(&result.nodes[0]).unwrap();
+            assert_eq!(selected.node_id(), target);
+            assert!(Arc::ptr_eq(selected.document(), captured.document()));
+        }
+        assert!(host.compiled_source_expression(&original).is_some());
+        let CemAstNode::Reference {
+            source: provenance,
+            targets,
+            ..
+        } = original.node()
+        else {
+            unreachable!()
+        };
+        assert!(targets.is_none());
+        let offset = query.find("library").unwrap() as u64;
+        assert_eq!(
+            cem_ml::source_map::map_expression_range(
+                provenance,
+                cem_ml::source::ByteRange::new(offset, 7)
+            ),
+            vec![(
+                SourceId(1),
+                cem_ml::source::ByteRange::new(text.find("library").unwrap() as u64, 7)
+            )]
+        );
+    }
+}
+
+#[test]
+fn closed_malformed_reference_slots_keep_query_errors_deferred_and_source_attributed() {
+    let query = "#library[";
+    for (xml, attribute) in [(false, false), (false, true), (true, false)] {
+        let (captured, tree, text) = slot_capture(xml, attribute, query);
+        assert!(captured.document().diagnostics.is_empty());
+        let original = source(&captured, captured.occurrences().next().unwrap());
+        let target = elements(&tree, "target")[0];
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(tree.clone(), None, policy());
+        let attached = host
+            .attach_captured_lexical_scopes(&captured, |_, _, _| (None, policy()))
+            .unwrap();
+        let input = host.source_reference(original.clone());
+        let pending = resolve_reference(input.clone(), &mut host, policy().limits).unwrap();
+        assert_eq!(pending.state, ReferenceResolutionState::Pending);
+        assert!(pending.diagnostics.is_empty());
+        assert!(host.compiled_source_expression(&original).is_none());
+        assert!(host.set_context(attached[0].1, Some(context(&tree, target))));
+        let invalid = resolve_reference(input, &mut host, policy().limits).unwrap();
+        assert_eq!(invalid.state, ReferenceResolutionState::Invalid);
+        assert!(!invalid.diagnostics.is_empty());
+        for diagnostic in &invalid.diagnostics {
+            assert_eq!(diagnostic.uri.as_deref(), Some(tree.source_uri()));
+            assert_eq!(
+                diagnostic.node.as_deref(),
+                Some(original.identity().as_str())
+            );
+            let offset = diagnostic.byte_offset.unwrap();
+            let start = text.find(query).unwrap() as u64;
+            assert!(offset >= start && offset <= start + query.len() as u64);
+            assert_eq!(
+                diagnostic.line,
+                Some(
+                    1 + text[..offset as usize]
+                        .bytes()
+                        .filter(|byte| *byte == b'\n')
+                        .count() as u32
+                )
+            );
+        }
+        assert!(host.compiled_source_expression(&original).is_none());
+        assert!(
+            matches!(original.node(), CemAstNode::Reference { expression, targets: None, .. } if expression == query)
+        );
+    }
+}

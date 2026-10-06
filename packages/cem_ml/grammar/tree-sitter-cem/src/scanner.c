@@ -32,10 +32,10 @@ bool tree_sitter_cem_external_scanner_scan(void *payload, TSLexer *lexer, const 
 
   uint32_t braces = 0, comments = 0;
   int32_t quote = 0;
-  bool consumed = false;
+  bool consumed = false, block_comment = false, line_comment = false;
   while (!lexer->eof(lexer)) {
     int32_t c = lexer->lookahead;
-    if (!quote && !comments && c == '}' && braces == 0) {
+    if (!quote && !comments && !block_comment && !line_comment && c == '}' && braces == 0) {
       if (!consumed) return false;
       lexer->mark_end(lexer);
       lexer->result_symbol = token;
@@ -49,12 +49,22 @@ bool tree_sitter_cem_external_scanner_scan(void *payload, TSLexer *lexer, const 
         if (lexer->lookahead == quote) lexer->advance(lexer, false);
         else quote = 0;
       }
+    } else if (block_comment) {
+      if (c == '*' && lexer->lookahead == '/') {
+        block_comment = false; lexer->advance(lexer, false);
+      }
+    } else if (line_comment) {
+      if (c == '\n' || c == '\r') line_comment = false;
     } else if (comments) {
       if (c == '(' && lexer->lookahead == ':') {
         comments++; lexer->advance(lexer, false);
       } else if (c == ':' && lexer->lookahead == ')') {
         comments--; lexer->advance(lexer, false);
       }
+    } else if (c == '/' && lexer->lookahead == '*') {
+      block_comment = true; lexer->advance(lexer, false);
+    } else if (c == '/' && lexer->lookahead == '/') {
+      line_comment = true; lexer->advance(lexer, false);
     } else if (c == '(' && lexer->lookahead == ':') {
       comments = 1; lexer->advance(lexer, false);
     } else if (c == '\'' || c == '"') quote = c;

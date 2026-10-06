@@ -799,6 +799,8 @@ impl CemTokenizer {
         let mut depth = 1u32;
         let mut quote = None;
         let mut comment_depth = 0u32;
+        let mut block_comment = false;
+        let mut line_comment = false;
         while let Some(c) = self.peek() {
             let next = self.scalars.get(self.cursor + 1).map(|(c, _)| *c);
             if let Some(delimiter) = quote {
@@ -817,6 +819,22 @@ impl CemTokenizer {
                 }
                 continue;
             }
+            if block_comment {
+                if c == '*' && next == Some('/') {
+                    block_comment = false;
+                    self.cursor += 2;
+                } else {
+                    self.cursor += 1;
+                }
+                continue;
+            }
+            if line_comment {
+                self.cursor += 1;
+                if c == '\n' || c == '\r' {
+                    line_comment = false;
+                }
+                continue;
+            }
             if comment_depth > 0 {
                 if c == '(' && next == Some(':') {
                     comment_depth += 1;
@@ -827,6 +845,16 @@ impl CemTokenizer {
                 } else {
                     self.cursor += 1;
                 }
+                continue;
+            }
+            if c == '/' && next == Some('*') {
+                block_comment = true;
+                self.cursor += 2;
+                continue;
+            }
+            if c == '/' && next == Some('/') {
+                line_comment = true;
+                self.cursor += 2;
                 continue;
             }
             if c == '(' && next == Some(':') {

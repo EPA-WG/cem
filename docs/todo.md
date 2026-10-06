@@ -109,15 +109,40 @@ implementation. `git diff --check` passes.
 - [x] Fixture: preserve query-payload source spans when XML text or CDATA is
       folded into a reference node, including namespace aliases and following
       siblings. Verify foreign `expr` elements remain ordinary elements.
-- [ ] Fixture: extend CEM/XML parsing parity coverage for standalone and
+- [x] Fixture: verify closed CEM standalone/native attribute and aliased XML
+      reference slots through the explicit lifecycle host. Retain delimiter-rich
+      query payloads and forward targets; check pending-to-ready execution with
+      a counted native capability, independent outcomes and unchanged AST edges.
+      Verify malformed query diagnostics appear only after context preparation
+      and map to original payload coordinates. XML attributes remain literals.
+      Scenarios for later design verification: frame closure captures source
+      bindings without executing a capability or requiring an authored root ID.
+- [x] Fixture: protect braces inside CEM-QL block/line comments in standalone
+      and native attribute slots, including CRLF and comment-looking strings;
+      assert native/tree-sitter parity and unterminated comment/slot errors.
+      Scenarios for later design verification: query comment syntax cannot close
+      host syntax; preserving a payload does not declare its query grammar valid.
+- [x] Align native and editor query-island scanners with CEM-QL `/* */` and
+      `//` comment boundaries while retaining existing opaque payload support.
+- [x] Fixture: extend CEM/XML parsing parity coverage for standalone and
       attribute expression slots, namespace aliases, forward expressions,
       query strings/comments containing delimiters, malformed expressions,
       and source locations. Prove loading and context closure never execute
       target selection or require an authored context-root ID.
-- [ ] Align tokenizer/event normalization, parser/builders, XML import, lexical
+- [x] Align tokenizer/event normalization, parser/builders, XML import, lexical
       grammar, and tree-sitter parity with `{#...}` and `<cem:expr>#...</cem:expr>`.
       Retain the reference AST kind and expression artifact/source linkage in
       every supported slot instead of stringifying or inserting target children.
+      Completed: existing native attribute/source-map, lexical capture and editor
+      fixtures cover the adopted slots; two new closed-slot lifecycle fixtures
+      verify delayed capability execution and mapped malformed-query diagnostics
+      across CEM standalone/attribute and aliased XML CDATA forms. Native and
+      tree-sitter scanners now also protect CEM-QL block/line comments, including
+      CRLF, without validating opaque query payloads. XML attribute expression
+      recognition remains the separate deferred design action below.
+      Verification: 25 tokenizer unit checks, 25 reference/provenance/capture/editor
+      fixtures and both new closed-slot lifecycle fixtures pass. The full native
+      `cem_ml_transform_cem_ql:test` and `cem_ql:test` Nx targets pass.
 - [x] Fixture: retain sibling-position scope transitions in the explicit QL
       lifecycle host. Verify earlier occurrences and the boundary keep their scope,
       following siblings/descendants inherit it, nested overrides restore on exit,

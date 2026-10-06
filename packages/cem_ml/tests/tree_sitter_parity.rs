@@ -396,6 +396,11 @@ fn query_delimiters_and_literal_lookalikes_preserve_native_editor_parity() {
         r#"#nodes["a\"}b"]"#,
         "#nodes (: } (: { :) still } :)",
         r#"#choose({nested: {value: "}"}}, nodes)"#,
+        "#nodes /* } */",
+        "#nodes /* \"}\" (: { :) // } */",
+        "#nodes // } { \"\n",
+        "#nodes // }\r\n /* } */",
+        r#"#nodes["/* } */ // }"]"#,
     ];
     for query in queries {
         let source = format!("{{section @target={{ {query} }} @quoted='{{#nodes}}' @bare=#nodes | {{{query}}} {{after}} }}");
@@ -426,6 +431,9 @@ fn malformed_query_slots_report_editor_and_native_boundary_errors() {
         r#"{item @target={#nodes["}]}"#,
         "{#nodes (: }",
         "{#nodes[{key: 1}",
+        "{#nodes /* }",
+        "{item @target={#nodes /* }",
+        "{#nodes // }\n",
     ] {
         assert!(!parse_rust(source).diagnostics.is_empty(), "{source}");
         let mut parser = Parser::new();
