@@ -3,7 +3,5 @@
 @default template
 
 {module |
-    {template |
-        {body | Missing the required template name.}
-    }
+    {import @as="ui"}
 }

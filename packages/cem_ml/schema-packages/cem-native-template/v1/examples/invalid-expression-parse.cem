@@ -6,7 +6,7 @@
 {module |
     {template @name="page" |
         {body |
-            {cem:if @test='input.kind = "element" and visible' |
+            {cem:if @test='input.kind == "element" and visible' |
                 Legacy boolean syntax.
             }
         }

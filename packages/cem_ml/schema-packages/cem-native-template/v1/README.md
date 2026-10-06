@@ -354,9 +354,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 @default template
 
 {module |
-    {template |
-        {body | Missing the required template name.}
-    }
+    {import @as="ui"}
 }
 ```
 
@@ -598,7 +596,7 @@ dist/target/cem_ml_cli/debug/cem-ml convert --input-spec \
 {module |
     {template @name="page" |
         {body |
-            {cem:if @test='input.kind = "element" and visible' |
+            {cem:if @test='input.kind == "element" and visible' |
                 Legacy boolean syntax.
             }
         }

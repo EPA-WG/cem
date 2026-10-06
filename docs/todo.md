@@ -1545,12 +1545,17 @@ roadmap; this closure adopts no new transport or public query access syntax.
       and schema paths for retained references and explicit supplied-context
       evaluation. Confirm URL resolution stays at the resource/import boundary
       and no projected IDs or browser behavior are needed for CEM-ML references.
-- [ ] Fixture: repair the CEM-native-template schema behavior expressions that
-      still use retired `=` equality. Re-run
-      `schema_owned_cem_native_template_examples_validate_through_cli`, including
-      missing-required-attribute diagnostics and the other invalid examples.
-      Scenarios for later design verification: schema behavior compilation must
-      succeed before example-specific validation diagnostics can be assessed.
+- [x] Fixture: repair stale CEM-native-template invalid examples. Use `==`
+      before legacy `and`, preserving the intended boolean-operator diagnostic.
+      Use an import without required `src` for the missing-required-attribute
+      case, since anonymous templates are permitted by the current schema.
+      Scenarios for later design verification: each invalid fixture isolates
+      its expected diagnostic and retains attributed expression-slot details.
+      Completed (2026-10-06): all three focused CLI integration tests pass,
+      including `schema_owned_cem_native_template_examples_validate_through_cli`,
+      expression-slot attribution and built-in manifest validation. Nx
+      `cem_ml_schema_package_cem_native_template_v1:samples2readme` and its CLI
+      build prerequisite pass; generated README examples match the repaired sources.
 - [x] Run affected Rust package, schema consistency, grammar parity, codec,
       and focused CLI checks through the appropriate Nx targets. Record results
       and remaining failures; browser/WASM integration follows a green native
@@ -1573,7 +1578,7 @@ roadmap; this closure adopts no new transport or public query access syntax.
       input navigation and version-1/version-2 projection header admission.
       The full Nx CLI run encountered an initial fixture compile error (fixed
       and covered by the passing library run) and the CEM-native-template schema
-      example equality failure tracked above. It was stopped after more than
+      example fixture failures subsequently repaired above. It was stopped after more than
       40 minutes of prerequisites; the full Nx gate is not claimed green.
 - [x] Update public syntax/package/API documentation and initial implementation
       notes to match verified behavior. Mark only verified action items complete,
