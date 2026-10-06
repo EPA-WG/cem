@@ -424,6 +424,39 @@ preparation when lifecycle inputs change. This API does not recognize authored
 scope-property syntax, install runtime contexts/policies or run child-specific
 behavior hooks; those lifecycle integration tasks remain in `todo.md`.
 
+`decode_schema_host_control` now recognizes the established `schema-src` and
+`schema-select` host attributes using captured expanded names: canonical
+unqualified names and core namespace aliases are accepted; foreign namespace
+lookalikes remain ordinary data. It retains the original host, attribute and
+native payload handles, checks source/selector exclusivity and value shape,
+and distinguishes literal URIs, literal selector expressions and native selector
+slots. Decoding performs no query execution or scope installation.
+
+`CemQlSchemaDeclarationHost::prepare_schema_host_control` feeds literal selectors
+into the same bounded selection/admission/compilation stage as native references
+and native expression slots. A literal selector is a consumer-owned implicit
+reference occurrence on its original attribute handle, never a fabricated AST
+reference. Returned reference chains retain request/destination budgets and
+directed grants. Selection must still complete with one valid original schema
+target, an available declaration context and a ready model. Each invocation uses
+caller-supplied current scope contexts; captured names and authored values stay
+unchanged. URI controls retain their authored URI with no selection preparation:
+loading belongs to the external resource lifecycle, so they are not ready here.
+
+Literal selector query errors retain the original attribute source and query
+frames. CEM literal attributes currently supply a name source map rather than a
+decoded-value character map, so these errors anchor to that real handle without
+claiming precise positions inside the value. Ordinary attributes do not become
+implicit references outside this explicit consumer call.
+
+Full governed-host validation still needs a decision about the control attributes
+themselves: whether a shared schema-control contract validates them separately
+from ordinary enclosing-schema host attributes, or each application schema must
+declare and type them. The shared-contract option is recommended and tracked in
+`todo.md`. Wrapping/sibling/prelude controls, runtime policy installation and
+per-region behavior dispatch also remain open. No deferred enclosed override
+syntax is selected by this host-attribute preparation stage.
+
 ### Implicit scope references and defaults
 
 Scope properties provide an indirect form of reference. Syntax and its

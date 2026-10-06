@@ -41,6 +41,8 @@ mod source_diagnostics;
 mod lexical_handoff;
 mod scope_preparation;
 mod region_validation;
+mod host_controls;
+pub use host_controls::{PreparedSchemaHostControl, SchemaHostPreparationError};
 pub use region_validation::SchemaInputRegion;
 pub use scope_preparation::{SchemaScopePreparation, SchemaScopePreparationIssue};
 pub use lexical_handoff::LexicalScopeHandoffError;
@@ -64,6 +66,9 @@ pub struct CemQlSchemaReferenceNode {
     source: Option<SchemaDeclarationNode>,
     query: Option<Item>,
     scope: Option<DeclarationScope>,
+    // A consumer-owned implicit selector occurrence on an original source node.
+    // This is absent on ordinary data nodes and is never persisted in the AST.
+    selector_expression: Option<String>,
 }
 #[derive(Debug, Clone)]
 pub struct CemQlSchemaDeclarationHost {
@@ -438,6 +443,7 @@ impl CemQlSchemaDeclarationHost {
             source: None,
             query: Some(item),
             scope: inherited_scope,
+            selector_expression: None,
         }
     }
 }
@@ -454,6 +460,20 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
     fn reference_occurrence(&self, node: &Self::Node) -> Option<ReferenceOccurrence> {
         if let Some(source) = &node.source {
+            if let Some(expression) = &node.selector_expression {
+                let provenance = match source.node() {
+                    CemAstNode::Attribute { source, .. } | CemAstNode::Element { source, .. } => source,
+                    _ => unreachable!(
+                        "implicit selectors keep their original attribute or expression"
+                    ),
+                };
+                return Some(ReferenceOccurrence {
+                    identity: source.identity(),
+                    node_id: Some(source.node_id()),
+                    expression: Some(expression.clone()),
+                    source_map: provenance.clone(),
+                });
+            }
             if let CemAstNode::Reference {
                 expression,
                 source: provenance,
@@ -518,6 +538,18 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
         };
         if scope.context.is_none() {
             return ReferenceLinkEvaluation::Pending("schema-context-not-ready".into());
+        }
+        if let Some(expression) = &node.selector_expression {
+            return match self.evaluate_source_expression(node, expression) {
+                Err(diagnostics) => ReferenceLinkEvaluation::Invalid(diagnostics),
+                Ok(evaluated) => ReferenceLinkEvaluation::Resolved(
+                    evaluated
+                        .items
+                        .into_iter()
+                        .map(|item| self.query_node(item, node.scope))
+                        .collect(),
+                ),
+            };
         }
         let Some(CemAstNode::Reference { expression, .. }) = node.source.as_ref().map(|s| s.node())
         else {
@@ -600,6 +632,7 @@ impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
             source: Some(source),
             query: None,
             scope,
+            selector_expression: None,
         }
     }
     fn declaration_node(&self, target: &Self::Node) -> Option<SchemaDeclarationNode> {

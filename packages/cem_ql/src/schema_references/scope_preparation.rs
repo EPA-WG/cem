@@ -100,6 +100,15 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
         let root = self.source_reference(reference);
+        self.prepare_schema_scope_node(schema_uri, root, limits)
+    }
+
+    pub(super) fn prepare_schema_scope_node(
+        &mut self,
+        schema_uri: &str,
+        root: CemQlSchemaReferenceNode,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
         let selection = resolve_reference(root, self, limits)?;
         let mut prepared = SchemaScopePreparation {
             selection,

@@ -21,7 +21,9 @@ impl CemQlSchemaDeclarationHost {
             return diagnostics;
         };
         let provenance = match source.node() {
-            CemAstNode::Reference { source, .. } | CemAstNode::Element { source, .. } => source,
+            CemAstNode::Reference { source, .. }
+            | CemAstNode::Element { source, .. }
+            | CemAstNode::Attribute { source, .. } => source,
             _ => return diagnostics,
         };
         diagnostics
@@ -35,6 +37,39 @@ impl CemQlSchemaDeclarationHost {
                         .as_deref()
                         .is_some_and(|uri| uri != tree.source_uri())
                 {
+                    return diagnostic;
+                }
+                if matches!(source.node(), CemAstNode::Attribute { .. }) {
+                    if diagnostic.source_map.as_ref().is_some_and(|stack| {
+                        !stack.frames.iter().any(|frame| {
+                            frame.source_id == SourceId(0)
+                                && matches!(
+                                    frame.transform,
+                                    TransformKind::Query | TransformKind::QueryStep
+                                )
+                        })
+                    }) {
+                        return diagnostic;
+                    }
+                    // CEM literal attributes retain their name's source map,
+                    // not a decoded-value character map. Anchor to that real source
+                    // handle; keep query frames without inventing value coordinates.
+                    let query = diagnostic.source_map.take().unwrap_or_default();
+                    let mut stack = provenance.clone();
+                    stack.frames.extend(query.frames);
+                    diagnostic.source_map = Some(stack);
+                    diagnostic.node = Some(source.identity());
+                    diagnostic.uri = Some(tree.source_uri().into());
+                    diagnostic.byte_offset =
+                        provenance.origin().and_then(|frame| match &frame.span {
+                            FrameSpan::Single(range) => Some(range.start),
+                            FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+                        });
+                    let coordinate = diagnostic
+                        .byte_offset
+                        .and_then(|offset| tree.source_byte_coordinate(offset));
+                    diagnostic.line = coordinate.map(|coordinate| coordinate.line);
+                    diagnostic.column = coordinate.map(|coordinate| coordinate.column);
                     return diagnostic;
                 }
                 let local = diagnostic.source_map.as_ref().and_then(|stack| {

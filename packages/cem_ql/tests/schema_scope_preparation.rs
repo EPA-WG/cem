@@ -400,3 +400,291 @@ fn invalid_prepared_child_models_keep_compilation_diagnostics_without_fallback()
         }
     }
 }
+
+#[test]
+fn authored_host_selectors_prepare_literal_and_native_values_under_one_contract() {
+    let (captured, tree) = capture("@ns c = https://cem.dev/ns/core/1\n@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=inner}}} {host @c:schema-select=library | {child @inner=yes}} {host @schema-select={#library} | {child @inner=yes}} {host @schema-select={library} | {child @inner=yes}} {host @schema-src=./external.cem}");
+    let target = elements(&tree, "schema")[0];
+    let roots = elements(&tree, "host");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let scope = host.register_scope(tree.clone(), Some(context(&tree, &[target])), policy());
+    host.attach_captured_names(&captured).unwrap();
+    for root in &roots[..3] {
+        let prepared = host
+            .prepare_schema_host_control("child", source(&tree, *root), policy().limits)
+            .unwrap()
+            .unwrap();
+        assert!(prepared.is_ready(), "{:?}", prepared);
+        let selection = prepared.preparation.as_ref().unwrap();
+        assert_eq!(
+            selection.target.as_ref().unwrap().declaration.node_id(),
+            target
+        );
+        assert!(Arc::ptr_eq(
+            prepared.control.attribute.document(),
+            tree.ast_owner()
+        ));
+        // Prepared child validation is independent of the open host-control
+        // attribute ownership decision; no host-attribute policy is assumed.
+        let children = match tree.ast().get(*root).unwrap() {
+            CemAstNode::Element { children, .. } => children.clone(),
+            _ => unreachable!(),
+        };
+        let report = host
+            .validate_input_roots(
+                tree.clone(),
+                &children,
+                selection.model.as_ref().unwrap(),
+                policy().limits,
+            )
+            .unwrap();
+        assert!(
+            report.complete && !report.failed,
+            "{:?}",
+            report.diagnostics
+        );
+    }
+    let uri = host
+        .prepare_schema_host_control("child", source(&tree, roots[3]), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!uri.is_ready());
+    assert!(uri.preparation.is_none());
+    assert!(host
+        .compiled_source_expression(&uri.control.attribute)
+        .is_none());
+    host.set_context(scope, None);
+    let pending = host
+        .prepare_schema_host_control("child", source(&tree, roots[0]), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!pending.is_ready());
+    host.set_context(scope, Some(context(&tree, &[])));
+    let empty = host
+        .prepare_schema_host_control("child", source(&tree, roots[0]), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        empty.preparation.unwrap().issue,
+        Some(SchemaScopePreparationIssue::TargetCount(0))
+    );
+}
+
+#[test]
+fn literal_host_selector_errors_keep_attribute_owners_and_reference_limits() {
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema} {host @schema-select='missing()'} {host @schema-select=library}");
+    let target = elements(&tree, "schema")[0];
+    let roots = elements(&tree, "host");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(tree.clone(), Some(context(&tree, &[target])), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let invalid = host
+        .prepare_schema_host_control("child", source(&tree, roots[0]), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!invalid.is_ready());
+    let selected = invalid.preparation.as_ref().unwrap();
+    assert!(selected.selection.failed);
+    assert!(selected
+        .selection
+        .diagnostics
+        .iter()
+        .any(
+            |d| d.node.as_deref() == Some(invalid.control.attribute.identity().as_str())
+                && d.source_map.as_ref().and_then(|s| s.origin()).is_some()
+        ));
+    let mut limits = policy().limits;
+    limits.max_work = 1;
+    let limited = host
+        .prepare_schema_host_control("child", source(&tree, roots[1]), limits)
+        .unwrap()
+        .unwrap();
+    assert!(!limited.is_ready());
+    assert!(limited
+        .preparation
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+}
+
+#[test]
+fn implicit_host_selectors_share_chain_grants_cardinality_and_destination_limits() {
+    let (captured, tree) = capture(
+        "@ns s = https://cem.dev/ns/schema/1\n{s:schema} {host @schema-select=library} {#library}",
+    );
+    let target = elements(&tree, "schema")[0];
+    let root = elements(&tree, "host")[0];
+    let reference = captured.occurrences().last().unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(tree.clone(), Some(context(&tree, &[reference])), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let destination = host.register_scope(tree.clone(), Some(context(&tree, &[target])), policy());
+    host.assign_subtree_scope(&tree, reference, destination);
+    host.assign_subtree_scope(&tree, target, destination);
+    let denied = host
+        .prepare_schema_host_control("child", source(&tree, root), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!denied.is_ready());
+    assert!(denied
+        .preparation
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+    host.allow_scope_crossing(origin, destination);
+    let ready = host
+        .prepare_schema_host_control("child", source(&tree, root), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(ready.is_ready(), "{:?}", ready);
+    assert_eq!(
+        ready
+            .preparation
+            .unwrap()
+            .target
+            .unwrap()
+            .declaration
+            .node_id(),
+        target
+    );
+    host.set_context(origin, Some(context(&tree, &[target, target])));
+    let multiple = host
+        .prepare_schema_host_control("child", source(&tree, root), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!multiple.is_ready());
+    assert_eq!(
+        multiple.preparation.unwrap().issue,
+        Some(SchemaScopePreparationIssue::TargetCount(2))
+    );
+    host.set_context(origin, Some(context(&tree, &[reference])));
+    let mut limited_policy = policy();
+    limited_policy.limits.max_work = 1;
+    let limited = host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &[target])),
+        limited_policy,
+    );
+    host.assign_subtree_scope(&tree, reference, limited);
+    host.assign_subtree_scope(&tree, target, limited);
+    host.allow_scope_crossing(origin, limited);
+    let blocked = host
+        .prepare_schema_host_control("child", source(&tree, root), policy().limits)
+        .unwrap()
+        .unwrap();
+    assert!(!blocked.is_ready());
+    assert!(blocked
+        .preparation
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn literal_selector_runtime_diagnostics_preserve_foreign_source_attribution() {
+    use cem_ml::{
+        source::ByteRange,
+        source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind},
+    };
+    use cem_ql::native::{NativeQueryFunction, NativeQueryRequest};
+    #[derive(Debug)]
+    struct Fail(u8);
+    impl NativeQueryFunction for Fail {
+        fn call(&self, request: NativeQueryRequest<'_>) -> ItemStream {
+            let mut result = request.raise("fixture.selector_failure", "original runtime message");
+            if self.0 == 1 {
+                result.diagnostics[0].uri = Some("foreign.cem".into());
+                result.diagnostics[0].node = Some("original-foreign-node".into());
+                result.diagnostics[0].byte_offset = Some(700);
+            } else if self.0 == 2 {
+                result.diagnostics[0].uri = None;
+                result.diagnostics[0].node = None;
+                result.diagnostics[0].byte_offset = Some(700);
+                result.diagnostics[0].source_map = Some(SourceMapStack {
+                    frames: vec![SourceMapFrame {
+                        source_id: SourceId(9),
+                        span: FrameSpan::Single(ByteRange::new(700, 3)),
+                        transform: TransformKind::Query,
+                    }],
+                });
+            }
+            result
+        }
+    }
+    for mode in [0, 1, 2] {
+        let (captured, tree) =
+            capture("{host @schema-select='native:call(\"fixture.fail\", library)'}");
+        let root = elements(&tree, "host")[0];
+        let mut runtime = context(&tree, &[]);
+        runtime
+            .native_functions
+            .register("fixture.fail", 1, Fail(mode))
+            .unwrap();
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(tree.clone(), Some(runtime), policy());
+        host.attach_captured_names(&captured).unwrap();
+        let prepared = host
+            .prepare_schema_host_control("child", source(&tree, root), policy().limits)
+            .unwrap()
+            .unwrap();
+        assert!(!prepared.is_ready());
+        let diagnostics = &prepared.preparation.as_ref().unwrap().selection.diagnostics;
+        let diagnostic = diagnostics
+            .iter()
+            .find(|d| d.code == "fixture.selector_failure")
+            .unwrap();
+        assert_eq!(diagnostic.message, "original runtime message");
+        match mode {
+            0 => {
+                assert_eq!(
+                    diagnostic.node.as_deref(),
+                    Some(prepared.control.attribute.identity().as_str())
+                );
+                assert_eq!(diagnostic.uri.as_deref(), Some("scope.cem"));
+                assert_eq!(
+                    diagnostic
+                        .source_map
+                        .as_ref()
+                        .unwrap()
+                        .origin()
+                        .unwrap()
+                        .source_id,
+                    SourceId(1)
+                );
+            }
+            1 => {
+                assert_eq!(diagnostic.node.as_deref(), Some("original-foreign-node"));
+                assert_eq!(diagnostic.uri.as_deref(), Some("foreign.cem"));
+                assert_eq!(diagnostic.byte_offset, Some(700));
+            }
+            _ => {
+                assert_eq!(diagnostic.node, None);
+                assert_eq!(diagnostic.uri, None);
+                assert_eq!(diagnostic.byte_offset, Some(700));
+                assert_eq!(
+                    diagnostic
+                        .source_map
+                        .as_ref()
+                        .unwrap()
+                        .origin()
+                        .unwrap()
+                        .source_id,
+                    SourceId(9)
+                );
+            }
+        }
+    }
+}

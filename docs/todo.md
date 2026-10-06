@@ -1460,14 +1460,40 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: per-placement models do not copy
       source arenas; pending child bodies cannot appear empty to parent counts;
       the CEM-QL adapter accepts prepared models only when their readiness gate passes.
+- [x] Fixture: decode existing host schema-source/selector attributes from original
+      handles and captured expanded names, then prepare literal and native selectors
+      through the shared bounded CEM-QL resolver and exact schema admission. Cover
+      canonical unqualified controls, namespace aliases/rebinding, mutual exclusion,
+      URI retention without query handling, pending contexts, singleton failures,
+      directed grants, nested chains and source-attributed selector errors. Keep
+      wrapping/sibling forms, runtime policy installation and behavior dispatch as
+      separate lifecycle work. Verified with 141 native reference/consumer tests,
+      including retained imported XML control decoding without attribute retyping
+      and preservation of diagnostics attributed to foreign original sources.
+      Scenarios for later design verification: decoding never evaluates or copies
+      source; literal and native selectors share cardinality/readiness rules; URI
+      sources cannot become query text; an unavailable explicit host override cannot
+      silently validate its body under the inherited schema.
+- [ ] Decide validation ownership for recognized `schema-select` / `schema-src`
+      host attributes before full host-region wiring. Requested 2026-10-06:
+      recommended shared schema-control contract, with ordinary host attributes
+      validated by the enclosing application schema; alternative requires each
+      application schema to declare and type controls. Preparation/decoding is
+      independent; do not exclude or retype controls in ordinary validation until
+      this distinction is chosen.
+      Scenarios for later design verification: native and literal control forms
+      cannot spuriously fail an application string/node contract; unrelated foreign
+      attributes remain ordinary data; control validation still checks exclusivity,
+      value shape and readiness without losing original source handles.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
       activation; pending/invalid explicit overrides keep their region incomplete.
       Supply original source-position name metadata and keep literal forms compatible.
-      Next: decode established authored schema controls into preparation requests and
-      original region hosts, install effective runtime contexts/policies explicitly,
-      and connect retained behavior validation to each consuming model. Reuse the
+      Host attribute decoding/preparation is implemented. Next: resolve control
+      attribute validation ownership, connect prepared original region hosts,
+      add wrapping/sibling/prelude controls, install effective runtime contexts/policies
+      explicitly and connect retained behavior validation to each consuming model. Reuse the
       implemented preparation and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid
