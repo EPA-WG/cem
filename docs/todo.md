@@ -1498,14 +1498,30 @@ only and adds no runtime behavior or public syntax.
       an application declaration; control exemption is owner-checked metadata rather
       than a copied/filtered AST; pending bodies cannot appear empty to host counts;
       preparation diagnostics preserve selector attribution in selected placements.
+- [x] Fixture: discover and prepare host schema controls on entry to the retained
+      validation walk, including original hosts and hosts selected through references.
+      Prepare each original host once per invocation, retain inspection snapshots,
+      and skip blocked descendants and unrelated roots without a discovery rewalk
+      or a second evaluation of structural references. Cover nested restoration,
+      repeated selections, empty enclosing models, pending names/contexts, retries,
+      denied/limited selections and selector diagnostics over original owners.
+      Retain authored attribute target subtrees without discovering their controls.
+      Implemented on-entry scheduling and per-call inspection snapshots, sharing
+      immutable compiled models while keeping source arenas and placements original.
+      Verified with 157 native reference/consumer tests and 154 document-model
+      regressions (311 tests), including foreign-host metadata rejection.
+      Scenarios for later design verification: discovery never scans inactive or
+      unselected source; structural budgets and active reference identities survive
+      selector preparation; preparation uses current explicit lifecycle contexts,
+      adds no grants, and never persists runtime targets or invented scope IDs.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
       activation; pending/invalid explicit overrides keep their region incomplete.
       Supply original source-position name metadata and keep literal forms compatible.
-      Shared control ownership and explicit prepared host-region validation are
-      implemented. Next: discover and schedule preparation for original and selected
-      hosts, add wrapping/sibling/prelude controls and external loading readiness,
+      Shared control ownership, explicit prepared host-region validation and
+      on-entry discovery/preparation of original and selected hosts are implemented.
+      Next: add wrapping/sibling/prelude controls and external loading readiness,
       install effective runtime contexts/policies explicitly, and connect retained
       behavior validation to each consuming model. Reuse the implemented preparation
       and region APIs; do not add an AST projection or choose

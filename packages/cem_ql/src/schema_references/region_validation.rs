@@ -48,7 +48,7 @@ impl CemQlSchemaDeclarationHost {
                 model: region
                     .preparation
                     .is_ready()
-                    .then(|| region.preparation.model.as_ref().unwrap()),
+                    .then(|| region.preparation.model.as_deref().unwrap()),
             })
             .collect();
         let mut report = validate_structural_input_regions_references(

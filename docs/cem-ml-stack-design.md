@@ -1371,13 +1371,22 @@ An unavailable child body leaves its sequence/count checks deferred and overall
 validation incomplete. Nested overrides restore the preceding consuming schema
 on exit. Explicit host preparation snapshots now connect recognized controls to
 retained region validation, including hosts reached through selected subtrees.
-Invalid controls cannot activate even a supplied ready child model. Automatic
-host discovery, wrapping/sibling/prelude controls, external loading readiness,
-effective runtime scope installation and per-region behavior dispatch remain
-lifecycle integration work.
+Invalid controls cannot activate even a supplied ready child model. The retained
+validation scheduler now discovers and prepares controls as each original or
+reference-selected structural host is entered. It prepares each original host
+once per call under stable caller-provided inputs, retaining inspection snapshots
+and shared compiled models. Blocked bodies, unselected source siblings and authored
+attribute target subtrees do not trigger discovery. Structural reference budgets
+and active identities continue across independently bounded selector preparation;
+no discovery rewalk repeats structural reference evaluation.
+
+Wrapping/sibling/prelude controls, external loading readiness, effective runtime
+scope installation and per-region behavior dispatch remain lifecycle integration
+work. Discovery does not create contexts, install policies or authorize crossings.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
-exclusive on a single host. A host declaring neither is a schema-compilation error.
+exclusive on a single host. A schema-switching construct requires an applicable
+source; an ordinary element with neither host control inherits its consuming model.
 
 **Identifier-resolution table — `cem:name` declarations and lookups:**
 

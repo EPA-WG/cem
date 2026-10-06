@@ -737,6 +737,38 @@ fn shared_host_regions_apply_nested_models_and_restore_enclosing_contracts() {
             ..
         }
     )));
+    let discovered = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &roots,
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        discovered.validation.complete && !discovered.validation.failed,
+        "{:?}",
+        discovered.validation.diagnostics
+    );
+    assert_eq!(discovered.preparations.len(), 2);
+    assert!(discovered
+        .preparations
+        .iter()
+        .all(|region| region.is_ready()));
+    assert_eq!(
+        discovered
+            .validation
+            .nodes
+            .iter()
+            .map(|node| node.source.node_id())
+            .collect::<Vec<_>>(),
+        report
+            .nodes
+            .iter()
+            .map(|node| node.source.node_id())
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -942,4 +974,384 @@ fn pending_names_defer_classification_and_foreign_controls_remain_application_da
         .diagnostics
         .iter()
         .any(|d| d.code == cem_ml::schema::document_model::INVALID_ATTRIBUTE_TYPE_CODE));
+}
+
+
+#[test]
+fn discovered_host_regions_prepare_only_entered_hosts_and_restore_models() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    let text = "@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=inner}}} {host @own=yes @schema-select=library | {child @inner=yes}} {sibling @outer=yes} {host @schema-select=missing | {#missing}}";
+    let (captured, tree) = capture(text);
+    let boundary = elements(&tree, "host")[0];
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @required-attributes=own @children=child} {element @name=sibling @required-attributes=outer}}}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let result = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &[boundary, elements(&tree, "sibling")[0]],
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        result.validation.complete && !result.validation.failed,
+        "{:?}",
+        result.validation.diagnostics
+    );
+    assert_eq!(result.preparations.len(), 1);
+    assert_eq!(result.preparations[0].contract.host().node_id(), boundary);
+    assert!(result.preparations[0].is_ready());
+    assert!(result.validation.references.is_empty());
+    assert_eq!(
+        result
+            .validation
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        3
+    );
+    assert!(result
+        .validation
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+}
+
+#[test]
+fn discovered_selected_hosts_share_structural_walk_and_prepare_once_per_call() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    let (input_capture, input) = capture("{box | {#library} {#library}}");
+    let (library_capture, library) = capture("{host @schema-select=library | {child @inner=yes}}");
+    let (schema_capture, schema) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=inner}}}");
+    let boundary = elements(&library, "host")[0];
+    let chosen = elements(&schema, "schema")[0];
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=box @children=host} {element @name=host @children=child}}}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(
+        input.clone(),
+        Some(context(&library, &[boundary])),
+        policy(),
+    );
+    let destination =
+        host.register_scope(library.clone(), Some(context(&schema, &[chosen])), policy());
+    let declaration = host.register_scope(schema.clone(), Some(context(&schema, &[])), policy());
+    for captured in [&input_capture, &library_capture, &schema_capture] {
+        host.attach_captured_names(captured).unwrap();
+    }
+    host.allow_scope_crossing(origin, destination);
+    host.allow_scope_crossing(destination, declaration);
+    let roots = elements(&input, "box");
+    let result = host
+        .validate_input_discovering_host_regions(
+            "child",
+            input.clone(),
+            &roots,
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        result.validation.complete && !result.validation.failed,
+        "{:?}",
+        result.validation.diagnostics
+    );
+    assert_eq!(result.preparations.len(), 1);
+    assert_eq!(result.validation.references.len(), 2);
+    assert!(result
+        .validation
+        .references
+        .iter()
+        .all(|reference| reference.resolution.work_used == 1 + reference.resolution.nodes.len()));
+    assert_eq!(
+        result
+            .validation
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        5
+    );
+    assert!(Arc::ptr_eq(
+        result.preparations[0].contract.host().document(),
+        library.ast_owner()
+    ));
+    host.set_context(destination, None);
+    let pending = host
+        .validate_input_discovering_host_regions(
+            "child",
+            input.clone(),
+            &roots,
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        !pending.validation.complete && !pending.validation.failed,
+        "{:?}",
+        pending.validation.diagnostics
+    );
+    assert_eq!(pending.preparations.len(), 1);
+    assert_eq!(
+        pending
+            .validation
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        3
+    );
+    assert!(pending
+        .validation
+        .references
+        .iter()
+        .all(|reference| reference.resolution.work_used == 2));
+    host.set_context(destination, Some(context(&schema, &[chosen])));
+    let retried = host
+        .validate_input_discovering_host_regions(
+            "child",
+            input.clone(),
+            &roots,
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        retried.validation.complete && !retried.validation.failed,
+        "{:?}",
+        retried.validation.diagnostics
+    );
+    assert!(input
+        .ast()
+        .nodes
+        .iter()
+        .chain(&library.ast().nodes)
+        .all(|node| !matches!(
+            node,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+}
+
+#[test]
+fn discovered_controls_block_unavailable_bodies_before_discovering_descendants() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    let (captured, tree) =
+        capture("{host @schema-src=external | {host @schema-select=missing | {#missing}}}");
+    let outer = compile_schema_document_model(
+        "outer",
+        "{schema | {elements | {element @name=host @children=host}}}",
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(tree.clone(), None, policy());
+    let root = elements(&tree, "host")[0];
+    let pending = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &[root],
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        !pending.validation.complete && !pending.validation.failed,
+        "{:?}",
+        pending.validation.diagnostics
+    );
+    assert_eq!(pending.preparations.len(), 1);
+    assert!(pending.preparations[0].contract.issue().is_some());
+    host.attach_captured_names(&captured).unwrap();
+    let waiting = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &[root],
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        !waiting.validation.complete && !waiting.validation.failed,
+        "{:?}",
+        waiting.validation.diagnostics
+    );
+    assert_eq!(waiting.preparations.len(), 1);
+    assert_eq!(waiting.validation.nodes.len(), 1);
+    assert!(waiting.validation.references.is_empty());
+    assert!(waiting.preparations[0].contract.issue().is_none());
+}
+
+#[test]
+fn discovered_overrides_work_under_empty_models_and_reject_invalid_roots_before_preparation() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    let (captured, tree) = capture("@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=child @required-attributes=inner}}} {container | {host @schema-select=library | {child}}}");
+    let outer = compile_schema_document_model("outer", "{schema}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(
+        tree.clone(),
+        Some(context(&tree, &elements(&tree, "schema"))),
+        policy(),
+    );
+    host.attach_captured_names(&captured).unwrap();
+    let roots = elements(&tree, "container");
+    let invalid = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &[roots[0], roots[0]],
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(!invalid.validation.complete && invalid.validation.failed);
+    assert!(invalid.preparations.is_empty());
+    let result = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &roots,
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(
+        result.validation.complete && result.validation.failed,
+        "{:?}",
+        result.validation.diagnostics
+    );
+    assert_eq!(result.preparations.len(), 1);
+    assert!(result.preparations[0].is_ready());
+    assert_eq!(
+        result
+            .validation
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        3
+    );
+    assert!(result
+        .validation
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code
+            == cem_ml::schema::document_model::MISSING_REQUIRED_ATTRIBUTE_CODE));
+}
+
+#[test]
+fn discovered_selected_hosts_obey_structural_grants_and_remaining_work() {
+    use cem_ml::schema::{
+        document_model::compile_schema_document_model,
+        reference_traversal::ReferenceTraversalLimits,
+    };
+    let (input_capture, input) = capture("{box | {#library}}");
+    let (library_capture, library) =
+        capture("{host @schema-src=external | {host @schema-select=missing}}");
+    let boundary = elements(&library, "host")[0];
+    let roots = elements(&input, "box");
+    let outer = compile_schema_document_model("outer", "{schema | {elements | {element @name=box @children=host} {element @name=host @children=host}}}");
+    for (granted, work, expected_preparations) in [(false, 100, 0), (true, 1, 0), (true, 2, 1)] {
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let origin = host.register_scope(
+            input.clone(),
+            Some(context(&library, &[boundary])),
+            policy(),
+        );
+        let destination = host.register_scope(library.clone(), None, policy());
+        host.attach_captured_names(&input_capture).unwrap();
+        host.attach_captured_names(&library_capture).unwrap();
+        if granted {
+            host.allow_scope_crossing(origin, destination);
+        }
+        let result = host
+            .validate_input_discovering_host_regions(
+                "child",
+                input.clone(),
+                &roots,
+                &outer,
+                ReferenceTraversalLimits {
+                    max_depth: 128,
+                    max_work: work,
+                },
+            )
+            .unwrap();
+        assert!(!result.validation.complete);
+        assert_eq!(result.preparations.len(), expected_preparations);
+        assert!(result.validation.references[0].resolution.work_used <= work);
+        if !granted {
+            assert!(result.validation.references[0]
+                .resolution
+                .issues
+                .iter()
+                .any(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied));
+        }
+        if work == 1 {
+            assert!(result.validation.references[0]
+                .resolution
+                .issues
+                .iter()
+                .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+        }
+        if work == 2 {
+            assert_eq!(result.validation.references[0].resolution.work_used, 2);
+            assert!(
+                !result.validation.failed,
+                "{:?}",
+                result.validation.diagnostics
+            );
+            assert!(result.preparations[0].preparation.is_none());
+        }
+    }
+}
+
+#[test]
+fn discovered_invalid_selector_retains_diagnostics_without_body_fallback() {
+    use cem_ml::schema::document_model::compile_schema_document_model;
+    let (captured, tree) =
+        capture("{host @schema-select=library | {host @schema-select=missing | {#missing}}}");
+    let outer = compile_schema_document_model(
+        "outer",
+        "{schema | {elements | {element @name=host @children=host}}}",
+    );
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(tree.clone(), Some(context(&tree, &[])), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let root = elements(&tree, "host")[0];
+    let result = host
+        .validate_input_discovering_host_regions(
+            "child",
+            tree.clone(),
+            &[root],
+            &outer,
+            policy().limits,
+        )
+        .unwrap();
+    assert!(!result.validation.complete && result.validation.failed);
+    assert_eq!(result.preparations.len(), 1);
+    assert!(result.validation.references.is_empty());
+    let error = result
+        .validation
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "cem.schema_scope.invalid_override")
+        .unwrap();
+    assert_eq!(
+        error.node.as_deref(),
+        Some(source(&tree, root).identity().as_str())
+    );
+    assert!(error.source_map.as_ref().unwrap().origin().is_some());
+    assert_eq!(
+        result.preparations[0].preparation.as_ref().unwrap().issue,
+        Some(SchemaScopePreparationIssue::TargetCount(0))
+    );
 }

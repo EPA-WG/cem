@@ -10,8 +10,32 @@ pub struct InputSchemaRegion<'a> {
     pub model: Option<&'a SchemaDocumentModel>,
 }
 
+/// Prepared metadata supplied on first entry to an original element host.
+/// The compiled model is shared consumer state, never a copied source arena.
+#[derive(Debug, Clone)]
+pub struct DiscoveredInputSchemaRegion {
+    pub contract: crate::schema::scope_controls::SchemaHostControlContract,
+    pub model: Option<Arc<SchemaDocumentModel>>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+enum RegionModel<'a> {
+    Borrowed(&'a SchemaDocumentModel),
+    Prepared(Arc<SchemaDocumentModel>),
+}
+impl RegionModel<'_> {
+    fn model(&self) -> &SchemaDocumentModel {
+        match self {
+            Self::Borrowed(model) => model,
+            Self::Prepared(model) => model,
+        }
+    }
+}
+
 pub(super) struct RegionModels<'a> {
-    pub models: Vec<&'a SchemaDocumentModel>,
+    models: Vec<RegionModel<'a>>,
+    discovering: bool,
+    inspected: HashMap<(usize, crate::parser::AstNodeId), SchemaDeclarationNode>,
     available: Vec<bool>,
     boundaries: HashMap<(usize, crate::parser::AstNodeId), Option<usize>>,
     controls: HashMap<(usize, crate::parser::AstNodeId), RegionControl>,
@@ -27,7 +51,9 @@ impl<'a> RegionModels<'a> {
         regions: &[InputSchemaRegion<'a>],
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut result = Self {
-            models: vec![model],
+            models: vec![RegionModel::Borrowed(model)],
+            discovering: false,
+            inspected: HashMap::new(),
             available: vec![ready(model)],
             boundaries: HashMap::new(),
             controls: HashMap::new(),
@@ -46,7 +72,7 @@ impl<'a> RegionModels<'a> {
             }
             let index = region.model.map(|model| {
                 let index = result.models.len();
-                result.models.push(model);
+                result.models.push(RegionModel::Borrowed(model));
                 result.available.push(ready(model));
                 index
             });
@@ -57,6 +83,77 @@ impl<'a> RegionModels<'a> {
         } else {
             Err(diagnostics)
         }
+    }
+    pub fn model(&self, index: usize) -> &SchemaDocumentModel {
+        self.models[index].model()
+    }
+    pub fn enable_discovery(&mut self) {
+        self.discovering = true;
+    }
+    pub fn discover<H, D>(
+        &mut self,
+        source: &SchemaDeclarationNode,
+        host: &mut H,
+        limits: ReferenceTraversalLimits,
+        scheduler: &mut D,
+    ) -> Result<(), ReferenceResolutionError>
+    where
+        H: InputReferenceHost,
+        D: FnMut(
+            &mut H,
+            SchemaDeclarationNode,
+            ReferenceTraversalLimits,
+        ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError>,
+    {
+        let source_key = key(source);
+        if !self.discovering
+            || !matches!(source.node(), CemAstNode::Element { .. })
+            || self.inspected.contains_key(&source_key)
+        {
+            return Ok(());
+        }
+        self.inspected.insert(source_key, source.clone());
+        let Some(region) = scheduler(host, source.clone(), limits)? else {
+            return Ok(());
+        };
+        if key(region.contract.host()) != source_key {
+            self.boundaries.insert(source_key, None);
+            self.controls.insert(
+                source_key,
+                RegionControl {
+                    attributes: HashSet::new(),
+                    blocked: true,
+                    diagnostics: vec![invalid_target(
+                        "Discovered controls require the same original element host",
+                        document_model::source_stack_for_node(source.node()).clone(),
+                    )],
+                },
+            );
+            return Ok(());
+        }
+        if !region.contract.has_override() {
+            return Ok(());
+        }
+        let index = region.model.map(|model| {
+            let index = self.models.len();
+            self.available.push(ready(&model));
+            self.models.push(RegionModel::Prepared(model));
+            index
+        });
+        self.boundaries.insert(source_key, index);
+        let mut attributes: HashSet<_> = region.contract.attributes().iter().copied().collect();
+        attributes.extend(region.contract.pending_attributes().iter().copied());
+        let mut diagnostics = region.contract.diagnostics();
+        diagnostics.extend(region.diagnostics);
+        self.controls.insert(
+            source_key,
+            RegionControl {
+                attributes,
+                blocked: region.contract.issue().is_some(),
+                diagnostics,
+            },
+        );
+        Ok(())
     }
     pub fn with_controls(
         mut self,
@@ -125,7 +222,7 @@ impl<'a> RegionModels<'a> {
                 (children, *index, true)
             }
             Some(_) => (&[], model, false),
-            None if self.models[model].is_empty() => {
+            None if self.model(model).is_empty() => {
                 let children = match source.node() {
                     CemAstNode::Element { children, .. } => children.as_slice(),
                     _ => &[],
@@ -133,7 +230,7 @@ impl<'a> RegionModels<'a> {
                 (children, model, true)
             }
             None => (
-                consumable_children(source.node(), self.models[model]).unwrap_or(&[]),
+                consumable_children(source.node(), self.model(model)).unwrap_or(&[]),
                 model,
                 true,
             ),
@@ -151,7 +248,7 @@ impl<'a> RegionModels<'a> {
                     .get(&key(source))
                     .is_some_and(|control| control.blocked)
             {
-                diagnostics.extend(self.models[*index].validation_blocker_diagnostics());
+                diagnostics.extend(self.model(*index).validation_blocker_diagnostics());
             }
         }
         diagnostics

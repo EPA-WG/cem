@@ -163,7 +163,7 @@ pub fn resolve_reference<H: ReferenceResolutionHost>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<ReferenceResolution<H::Node>, ReferenceResolutionError> {
-    Ok(walk_reference_structure(root, host, limits, |_, _| None, false, None)?.resolution)
+    Ok(walk_reference_structure(root, host, limits, |_, _| Ok(None), false, None)?.resolution)
 }
 
 /// Resolve a reference and descend into consumer-selected terminal children
@@ -174,13 +174,20 @@ pub fn resolve_reference_structure<H, C>(
     root: H::Node,
     host: &mut H,
     limits: ReferenceTraversalLimits,
-    structural_children: C,
+    mut structural_children: C,
 ) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
 where
     H: ReferenceResolutionHost,
     C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
 {
-    walk_reference_structure(root, host, limits, structural_children, true, None)
+    walk_reference_structure(
+        root,
+        host,
+        limits,
+        |host, node| Ok(structural_children(host, node)),
+        true,
+        None,
+    )
 }
 
 /// Internal consumer entry over an original owning container, such as a native
@@ -191,11 +198,36 @@ pub(crate) fn resolve_consumer_structure<H, C>(
     host: &mut H,
     limits: ReferenceTraversalLimits,
     origin: Option<ReferenceOccurrence>,
-    children: C,
+    mut children: C,
 ) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
 where
     H: ReferenceResolutionHost,
     C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+{
+    walk_reference_structure(
+        root,
+        host,
+        limits,
+        |host, node| Ok(children(host, node)),
+        true,
+        origin,
+    )
+}
+
+/// Enter consumer lifecycle stages only after the original structural node has
+/// passed authorization and the current traversal budgets. Stages may prepare
+/// schemas using stable caller contexts, but must not mutate those scope inputs.
+/// Existing read-only child callbacks retain their public contracts above.
+pub(crate) fn resolve_consumer_structure_with_stage<H, C>(
+    root: H::Node,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    origin: Option<ReferenceOccurrence>,
+    children: C,
+) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
+where
+    H: ReferenceResolutionHost,
+    C: FnMut(&mut H, &H::Node) -> Result<Option<Vec<H::Node>>, ReferenceResolutionError>,
 {
     walk_reference_structure(root, host, limits, children, true, origin)
 }
@@ -210,7 +242,7 @@ fn walk_reference_structure<H, C>(
 ) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
 where
     H: ReferenceResolutionHost,
-    C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+    C: FnMut(&mut H, &H::Node) -> Result<Option<Vec<H::Node>>, ReferenceResolutionError>,
 {
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
@@ -392,7 +424,7 @@ where
             } else {
                 structure.roots.push(index);
             }
-            if let Some(children) = structural_children(host, &node) {
+            if let Some(children) = structural_children(host, &node)? {
                 frames.push(Frame {
                     nodes: children.into_iter(),
                     reference: parent,

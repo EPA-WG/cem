@@ -6,7 +6,7 @@ use crate::schema::attribute_references::{
 };
 use crate::schema::reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy};
 use crate::value::reference_resolution::{
-    resolve_consumer_structure, ReferenceLinkEvaluation, ReferenceResolution,
+    resolve_consumer_structure_with_stage, ReferenceLinkEvaluation, ReferenceResolution,
     ReferenceResolutionIssue, ReferenceResolutionIssueKind,
 };
 
@@ -109,18 +109,31 @@ pub(super) fn walk<H: InputReferenceHost>(
     limits: ReferenceTraversalLimits,
     attribute: Option<(SchemaDeclarationNode, String)>,
 ) -> Result<ConsumedWalk<H::Node>, ReferenceResolutionError> {
-    let models = RegionModels::new(model, &[]).expect("no region descriptors");
-    walk_regions(root, &models, 0, host, limits, attribute)
+    let mut models = RegionModels::new(model, &[]).expect("no region descriptors");
+    walk_regions_scheduled(
+        root,
+        &mut models,
+        0,
+        host,
+        limits,
+        attribute,
+        &mut |_: &mut H, _: SchemaDeclarationNode, _: ReferenceTraversalLimits| Ok(None),
+    )
 }
-
-pub(super) fn walk_regions<H: InputReferenceHost>(
+pub(super) fn walk_regions_scheduled<H, D>(
     root: H::Node,
-    models: &RegionModels<'_>,
+    models: &mut RegionModels<'_>,
     model_index: usize,
     host: &mut H,
     limits: ReferenceTraversalLimits,
     attribute: Option<(SchemaDeclarationNode, String)>,
-) -> Result<ConsumedWalk<H::Node>, ReferenceResolutionError> {
+    scheduler: &mut D,
+) -> Result<ConsumedWalk<H::Node>, ReferenceResolutionError>
+where
+    H: InputReferenceHost,
+    D: FnMut(&mut H, SchemaDeclarationNode, ReferenceTraversalLimits)
+        -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError>,
+{
     let mut sites = vec![];
     let role = if let Some((attribute, element)) = attribute {
         sites.push(Site {
@@ -161,7 +174,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
     } else {
         None
     };
-    let mut resolved = resolve_consumer_structure(
+    let mut resolved = resolve_consumer_structure_with_stage(
         Tagged { node: root, role },
         &mut tagged_host,
         limits,
@@ -169,10 +182,13 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
         |host, entry| {
             let position = next_index;
             next_index += 1;
-            let retained = host.inner.retained_node(&entry.node)?;
+            let Some(retained) = host.inner.retained_node(&entry.node) else {
+                return Ok(None);
+            };
             match entry.role {
                 Role::Structural(_, current_model) => {
-                    let model = models.models[current_model];
+                    models.discover(&retained, host.inner, limits, scheduler)?;
+                    let model = models.model(current_model);
                     let (children, child_model, complete) =
                         models.children(current_model, &retained);
                     if !complete {
@@ -196,7 +212,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                     } = retained.node()
                     {
                         let Some(element) = model.elements.get(&expanded_name.local_name) else {
-                            return Some(nodes);
+                            return Ok(Some(nodes));
                         };
                         for id in attributes {
                             if models
@@ -256,7 +272,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                             }
                         }
                     }
-                    Some(nodes)
+                    Ok(Some(nodes))
                 }
                 Role::Container(site) => {
                     host.started.borrow_mut().insert(site);
@@ -275,7 +291,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                     {
                         invalid_sites.insert(site);
                     }
-                    Some(
+                    Ok(Some(
                         nodes
                             .into_iter()
                             .map(|source| {
@@ -290,7 +306,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                                 }
                             })
                             .collect(),
-                    )
+                    ))
                 }
                 Role::Value(site) | Role::Expression(site) | Role::Authored(site) => {
                     let edges = owning_edges(retained.node());
@@ -301,7 +317,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                     {
                         invalid_sites.insert(site);
                     }
-                    Some(
+                    Ok(Some(
                         edges
                             .into_iter()
                             .filter_map(|id| {
@@ -312,7 +328,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
                                 role: Role::Authored(site),
                             })
                             .collect(),
-                    )
+                    ))
                 }
             }
         },
@@ -387,7 +403,7 @@ pub(super) fn walk_regions<H: InputReferenceHost>(
     diagnostics.extend(region_diagnostics);
     let mut attributes = vec![];
     for (site_id, (site, indices)) in sites.into_iter().zip(site_indices).enumerate() {
-        let model = models.models[site.model];
+        let model = models.model(site.model);
         let mut access = NativeAttributeTargetAccess {
             nodes: vec![],
             roots: vec![],

@@ -306,10 +306,10 @@ frame or binding table is mandated.
 
 Existing namespace records retain URI bindings, while `SchemaSource::Select`
 retains an expression. Lexical capture and caller-completed scope handoff retain
-these associations. Explicit host-attribute schema selection now uses the bounded
-preparation and region APIs below; automatic lifecycle discovery and namespace
-property selection remain unimplemented. The deferred enclosed child override
-syntax remains separate.
+these associations. Host-attribute schema selection now uses the bounded
+preparation and region APIs below, including discovery during retained input
+validation; runtime scope installation and namespace property selection remain
+unimplemented. The deferred enclosed child override syntax remains separate.
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
 now distinguish lexical lookup from consumer cardinality. Adopted on 2026-10-06:
@@ -317,8 +317,9 @@ resolve names using the captured lexical scope, consume reference chains under
 existing bounds, then require exactly one completed schema target. Innermost
 lexical name shadowing remains applicable; it does not rank an arbitrary query
 sequence. Zero/multiple completed targets and pending resolution cannot establish
-an effective schema scope. Explicit schema-host preparation implements native
-selector evaluation; activation still requires lifecycle integration.
+an effective schema scope. Schema-host preparation implements native selector
+evaluation and supplies ready consuming models to retained region validation;
+runtime scope installation remains lifecycle integration work.
 
 Target shape was adopted on 2026-10-06: accept a schema-language declaration
 with expanded name `{https://cem.dev/ns/schema/1}schema` directly, or a core
@@ -477,12 +478,32 @@ attributes; entered blocked hosts retain control/selection diagnostics. Callers
 repeat preparation when current contexts or dependencies change. URI controls
 remain unready until the external loading stage supplies a usable schema.
 
-Automatic host discovery and preparation scheduling, wrapping/sibling/prelude
-controls, external loading readiness, effective runtime context/policy installation
+`validate_input_discovering_host_regions` now schedules shared host preparation
+on entry to each structural placement. The shared CEM-ML scheduler sees original
+hosts and hosts reached through structural references in the same walk. Entry to
+a selected host follows that reference's existing authorization and work checks;
+blocked bodies and unrelated roots are never scanned for controls. Invalid roots
+reject before preparation. Attribute target subtrees retain their authored
+structure and do not trigger structural host discovery.
+
+Each original owner/host is prepared once per invocation under stable, explicitly
+registered lifecycle inputs, even when selected into several placements. The
+returned `SchemaHostRegionValidation` retains those preparation snapshots beside
+the validation outcome. Compiled models are shared through `Arc` handles in
+`SchemaScopePreparation`; source nodes and arenas stay original. A later invocation
+prepares anew against current inputs, so there is no persistent target or readiness
+cache. Empty enclosing models still walk the requested forest to discover child
+controls. Ordinary hosts without controls inherit the consuming model.
+
+Selector preparation remains its own bounded consumer request, as in explicit
+preparation. It does not reset the structural traversal's work, destination caps
+or active reference identities, and discovery does not evaluate structural
+references a second time. These APIs validate consuming models; they do not
+install effective runtime contexts or policies during an active request.
+Wrapping/sibling/prelude controls, external loading readiness, runtime installation
 and per-region behavior dispatch remain actionable lifecycle work in `todo.md`.
-The generic region APIs retain their explicit caller-defined contracts; shared
-control handling is supplied through the controlled-region API. No deferred
-enclosed override syntax is selected by this host-attribute integration stage.
+Generic and explicit controlled-region APIs keep their existing contracts. No
+deferred enclosed override syntax is selected by this integration stage.
 
 ### Implicit scope references and defaults
 

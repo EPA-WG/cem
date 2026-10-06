@@ -17,7 +17,7 @@ use std::{collections::HashSet, sync::Arc};
 
 mod consumed_walk;
 mod regions;
-pub use regions::InputSchemaRegion;
+pub use regions::{DiscoveredInputSchemaRegion, InputSchemaRegion};
 use regions::RegionModels;
 
 pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_reference_target";
@@ -248,6 +248,68 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
     host: &mut H,
     limits: ReferenceTraversalLimits,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError> {
+    validate_input_regions_scheduled(
+        source,
+        roots,
+        model,
+        regions,
+        controls,
+        host,
+        limits,
+        false,
+        &mut |_: &mut H, _: SchemaDeclarationNode, _: ReferenceTraversalLimits| Ok(None),
+    )
+}
+
+/// Discover host controls only when entering original structural placements.
+/// Scheduling is explicit lifecycle work over stable caller inputs. Selected
+/// subtrees retain the same structural reference traversal; no pre-scan or retry
+/// walk evaluates input references twice. Each original host is scheduled once
+/// per invocation, even if selected into several consuming placements.
+pub fn validate_structural_input_discovering_regions_references<H, D>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    mut scheduler: D,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError>
+where
+    H: InputReferenceHost,
+    D: FnMut(
+        &mut H,
+        SchemaDeclarationNode,
+        ReferenceTraversalLimits,
+    ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError>,
+{
+    validate_input_regions_scheduled(
+        source,
+        roots,
+        model,
+        &[],
+        &[],
+        host,
+        limits,
+        true,
+        &mut scheduler,
+    )
+}
+fn validate_input_regions_scheduled<H, D>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    regions: &[InputSchemaRegion<'_>],
+    controls: &[super::scope_controls::SchemaHostControlContract],
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    discovering: bool,
+    scheduler: &mut D,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError>
+where
+    H: InputReferenceHost,
+    D: FnMut(&mut H, SchemaDeclarationNode, ReferenceTraversalLimits)
+        -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError>,
+{
     let mut report = StructuralInputValidation {
         source: source.clone(),
         nodes: vec![],
@@ -271,7 +333,7 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
     if limits.max_depth == 0 || limits.max_work == 0 {
         return Err(ReferenceResolutionError::InvalidBounds);
     }
-    let models =
+    let mut models =
         match RegionModels::new(model, regions).and_then(|models| models.with_controls(controls)) {
             Ok(models) => models,
             Err(diagnostics) => {
@@ -281,6 +343,9 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
                 return Ok(report);
             }
         };
+    if discovering {
+        models.enable_discovery();
+    }
     let mut node_models = vec![];
     let mut seen_roots = HashSet::new();
     for id in roots {
@@ -303,13 +368,12 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
             ));
         }
     }
-    if !report.complete || (model.is_empty() && regions.is_empty()) {
+    if !report.complete || (model.is_empty() && regions.is_empty() && !discovering) {
         return Ok(report);
     }
     let mut pending: Vec<_> = roots.iter().rev().map(|id| (*id, None, 0)).collect();
     let mut owned = HashSet::new();
     while let Some((id, parent, model_index)) = pending.pop() {
-        let model = models.models[model_index];
         let Some(handle) = SchemaDeclarationNode::new(source.clone(), id) else {
             continue;
         };
@@ -324,13 +388,14 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
             continue;
         }
         if matches!(handle.node(), CemAstNode::Reference { .. }) {
-            let consumed = consumed_walk::walk_regions(
+            let consumed = consumed_walk::walk_regions_scheduled(
                 host.source_node(handle),
-                &models,
+                &mut models,
                 model_index,
                 host,
                 limits,
                 None,
+                scheduler,
             )?;
             let mut resolved = consumed.structure;
             let mut indices = vec![];
@@ -395,6 +460,8 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
                 .extend(resolved.resolution.diagnostics.iter().cloned());
             report.references.push(resolved);
         } else {
+            models.discover(&handle, host, limits, scheduler)?;
+            let model = models.model(model_index);
             let position = report.nodes.len();
             let (children, child_model, children_complete) = models.children(model_index, &handle);
             let children = children.to_vec();
@@ -484,7 +551,7 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
     let mut pending: Vec<_> = report.roots.iter().rev().map(|id| (*id, false)).collect();
     while let Some((index, allows_any)) = pending.pop() {
         let current = &report.nodes[index];
-        let model = models.models[node_models[index]];
+        let model = models.model(node_models[index]);
         let boundary = models.is_boundary(&current.source);
         let sequence: Vec<_> = current
             .children

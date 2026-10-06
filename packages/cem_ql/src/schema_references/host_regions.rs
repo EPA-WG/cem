@@ -9,8 +9,9 @@ use cem_ml::{
         declaration_references::SchemaDeclarationNode,
         document_model::SchemaDocumentModel,
         input_references::{
-            validate_structural_input_controlled_regions_references, InputSchemaRegion,
-            StructuralInputValidation,
+            validate_structural_input_controlled_regions_references,
+            validate_structural_input_discovering_regions_references, DiscoveredInputSchemaRegion,
+            InputSchemaRegion, StructuralInputValidation,
         },
         reference_traversal::ReferenceTraversalLimits,
         scope_controls::{validate_schema_host_controls, SchemaHostControlContract},
@@ -80,9 +81,15 @@ impl CemQlSchemaDeclarationHost {
             .filter(|region| region.contract.has_override())
             .map(|region| InputSchemaRegion {
                 host: region.contract.host().clone(),
-                model: region
-                    .is_ready()
-                    .then(|| region.preparation.as_ref().unwrap().model.as_ref().unwrap()),
+                model: region.is_ready().then(|| {
+                    region
+                        .preparation
+                        .as_ref()
+                        .unwrap()
+                        .model
+                        .as_deref()
+                        .unwrap()
+                }),
             })
             .collect();
         let controls: Vec<_> = prepared
@@ -122,5 +129,76 @@ impl CemQlSchemaDeclarationHost {
             }
         }
         Ok(report)
+    }
+}
+
+/// One invocation's structural outcome and encountered override preparations.
+/// Snapshots retain current inputs for inspection; a later call prepares anew.
+#[derive(Debug, Clone)]
+pub struct SchemaHostRegionValidation {
+    pub validation: StructuralInputValidation<CemQlSchemaReferenceNode>,
+    pub preparations: Vec<SchemaHostRegionPreparation>,
+}
+
+impl CemQlSchemaDeclarationHost {
+    /// Discover and prepare host attributes on structural entry using stable
+    /// explicitly registered contexts, names and grants. URI loading, effective
+    /// policy/context installation and behavior execution remain separate stages.
+    /// Selector preparation is its own bounded consumer request; structural
+    /// traversal accounting and active references continue without resetting.
+    pub fn validate_input_discovering_host_regions(
+        &mut self,
+        schema_uri: &str,
+        source: Arc<RetainedCemTree>,
+        roots: &[AstNodeId],
+        model: &SchemaDocumentModel,
+        limits: ReferenceTraversalLimits,
+    ) -> Result<SchemaHostRegionValidation, ReferenceResolutionError> {
+        let mut preparations = vec![];
+        let mut validation = validate_structural_input_discovering_regions_references(
+            source.ast_owner().clone(),
+            roots,
+            model,
+            self,
+            limits,
+            |host, source, limits| {
+                let prepared = host.prepare_schema_host_region(schema_uri, source, limits)?;
+                if !prepared.contract.has_override() {
+                    return Ok(None);
+                }
+                let ready = prepared.is_ready();
+                let region = DiscoveredInputSchemaRegion {
+                    contract: prepared.contract.clone(),
+                    model: ready.then(|| {
+                        prepared
+                            .preparation
+                            .as_ref()
+                            .unwrap()
+                            .model
+                            .as_ref()
+                            .unwrap()
+                            .clone()
+                    }),
+                    diagnostics: vec![],
+                };
+                preparations.push(prepared);
+                Ok(Some(region))
+            },
+        )?;
+        for prepared in &preparations {
+            if !prepared.is_ready() {
+                if let Some(preparation) = &prepared.preparation {
+                    append_preparation_diagnostics(
+                        &mut validation,
+                        prepared.contract.host(),
+                        preparation,
+                    );
+                }
+            }
+        }
+        Ok(SchemaHostRegionValidation {
+            validation,
+            preparations,
+        })
     }
 }

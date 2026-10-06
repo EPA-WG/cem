@@ -4057,3 +4057,156 @@ fn shared_control_contracts_do_not_exempt_equal_ids_in_another_original_owner() 
         .iter()
         .all(|node| Arc::ptr_eq(node.source.document(), &second)));
 }
+
+
+#[test]
+fn discovery_schedules_each_original_host_once_without_reevaluating_input_references() {
+    use cem_ml::schema::{
+        input_references::validate_structural_input_discovering_regions_references,
+        scope_controls::validate_schema_host_controls,
+    };
+    let input = parse("{box | {#targets} {#targets}}");
+    let library = parse("{child}");
+    let target = node(&library, "child");
+    let root = node(&input, "box");
+    let model = compile_schema_document_model(
+        "outer",
+        "{schema | {elements | {element @name=box @children=child} {element @name=child}}}",
+    );
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#targets".into(),
+        ReferenceLinkEvaluation::Resolved(vec![target.clone()]),
+    );
+    let mut entered = vec![];
+    let report = validate_structural_input_discovering_regions_references(
+        input.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 100000,
+        },
+        |_, source, _| {
+            entered.push(source.identity());
+            let contract =
+                validate_schema_host_controls(source, |attribute| match attribute.node() {
+                    CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+                    _ => None,
+                });
+            assert!(!contract.has_override());
+            Ok(None)
+        },
+    )
+    .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(host.calls, 2);
+    assert_eq!(entered, vec![root.identity(), target.identity()]);
+    assert_eq!(report.references.len(), 2);
+}
+
+#[test]
+fn discovery_never_prepares_controls_inside_authored_attribute_target_subtrees() {
+    use cem_ml::schema::input_references::validate_structural_input_discovering_regions_references;
+    let input = parse("{host @target={#targets}}");
+    let library = parse("{value @schema-select=missing | {#missing}}");
+    let target = node(&library, "value");
+    let root = node(&input, "host");
+    let model = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @optional-attributes=target}} {attributes | {attribute @name=target @type=node}}}");
+    let mut host = Host::new();
+    host.outcomes.insert(
+        "#targets".into(),
+        ReferenceLinkEvaluation::Resolved(vec![target.clone()]),
+    );
+    let mut entered = vec![];
+    let report = validate_structural_input_discovering_regions_references(
+        input.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 100000,
+        },
+        |_, source, _| {
+            entered.push(source.identity());
+            Ok(None)
+        },
+    )
+    .unwrap();
+    assert!(
+        report.complete && !report.failed,
+        "{:?}",
+        report.diagnostics
+    );
+    assert_eq!(host.calls, 1);
+    assert_eq!(entered, vec![root.identity()]);
+    assert_eq!(report.nodes[0].attribute_values.len(), 1);
+    let value = &report.nodes[0].attribute_values[0];
+    assert!(value.complete);
+    let root = value.access.roots()[0];
+    assert!(value.access.children(root).unwrap().iter().any(|index| {
+        value.access.node(*index).is_some_and(|source| matches!(source.node(), CemAstNode::Reference { expression, targets: None, .. } if expression == "#missing"))
+    }));
+}
+
+#[test]
+fn discovery_rejects_control_metadata_from_another_original_host() {
+    use cem_ml::schema::{
+        input_references::{
+            validate_structural_input_discovering_regions_references, DiscoveredInputSchemaRegion,
+        },
+        scope_controls::validate_schema_host_controls,
+    };
+    let input = parse("{host @schema-select=real | {#body}}");
+    let other = parse("{host @schema-select=real | {#body}}");
+    let root = node(&input, "host");
+    let contract =
+        validate_schema_host_controls(node(&other, "host"), |source| match source.node() {
+            CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+            _ => None,
+        });
+    let model = compile_schema_document_model("outer", "{schema | {elements | {element @name=host @optional-attributes=schema-select}} {attributes | {attribute @name=schema-select @type=integer}}}");
+    let child = Arc::new(compile_schema_document_model(
+        "child",
+        "{schema | {elements | {element @name=child}}}",
+    ));
+    let mut host = Host::new();
+    let report = validate_structural_input_discovering_regions_references(
+        input.clone(),
+        &[root.node_id()],
+        &model,
+        &mut host,
+        ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 100000,
+        },
+        |_, _, _| {
+            Ok(Some(DiscoveredInputSchemaRegion {
+                contract: contract.clone(),
+                model: Some(child.clone()),
+                diagnostics: vec![],
+            }))
+        },
+    )
+    .unwrap();
+    assert!(!report.complete && report.failed);
+    assert_eq!(host.calls, 0);
+    assert!(report.references.is_empty());
+    assert!(!report.nodes[0].children_complete);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code
+            == cem_ml::schema::input_references::INVALID_STRUCTURAL_TARGET));
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code
+            == cem_ml::schema::document_model::INVALID_ATTRIBUTE_TYPE_CODE));
+}

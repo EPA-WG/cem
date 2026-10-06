@@ -33,7 +33,8 @@ pub enum SchemaScopePreparationIssue {
 pub struct SchemaScopePreparation {
     pub selection: ReferenceResolution<CemQlSchemaReferenceNode>,
     pub target: Option<SchemaScopeTarget>,
-    pub model: Option<SchemaDocumentModel>,
+    /// Shared immutable candidate for inspection and consuming region placement.
+    pub model: Option<Arc<SchemaDocumentModel>>,
     pub issue: Option<SchemaScopePreparationIssue>,
 }
 impl SchemaScopePreparation {
@@ -150,9 +151,9 @@ impl CemQlSchemaDeclarationHost {
             prepared.issue = Some(SchemaScopePreparationIssue::TargetContextNotReady);
             return Ok(prepared);
         }
-        prepared.model = Some(compile_schema_scope_target(
+        prepared.model = Some(Arc::new(compile_schema_scope_target(
             schema_uri, &target, self, limits,
-        )?);
+        )?));
         prepared.target = Some(target);
         Ok(prepared)
     }

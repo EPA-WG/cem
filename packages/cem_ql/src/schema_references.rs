@@ -43,7 +43,7 @@ mod scope_preparation;
 mod region_validation;
 mod host_controls;
 mod host_regions;
-pub use host_regions::SchemaHostRegionPreparation;
+pub use host_regions::{SchemaHostRegionPreparation, SchemaHostRegionValidation};
 pub use host_controls::{PreparedSchemaHostControl, SchemaHostPreparationError};
 pub use region_validation::SchemaInputRegion;
 pub use scope_preparation::{SchemaScopePreparation, SchemaScopePreparationIssue};
