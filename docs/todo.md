@@ -303,7 +303,7 @@ implementation. `git diff --check` passes.
       provenance. The full `cem_ml_transform_cem_ql:test` Nx target and all 207 engine
       tests pass. After restricting admission to ordinary XML adapters, both handoff
       fixtures and all 30 focused engine validation tests pass again.
-- [ ] Fixture: exercise completed namespace/schema associations through ordinary
+- [x] Fixture: exercise completed namespace/schema associations through ordinary
       native engine input loading and consumer preparation, including directive/host/wrapping/sibling forms,
       inherited defaults, subsequent rebinding, nested restoration and pending schema
       selection. Verify original owners, grants, effective policies and budgets
@@ -311,7 +311,13 @@ implementation. `git diff --check` passes.
       Scenarios for later design verification: identical expression source compiled
       under different lexical bindings stays distinct; explicit vendor crossings remain
       explicit; later declarations do not replace earlier occurrence bindings.
-- [ ] Wire completed specialized frame associations into ordinary native engine
+- [x] Fixture: CEM and XML engine handoffs keep request-wide depth/work accounting
+      across a chain entering another captured lexical scope. Apply stricter
+      destination limits from its effective schema without creating a new relationship
+      boundary, and preserve denial until the runtime supplies a directed grant.
+      Scenarios for later design verification: looser destination budgets cannot reset
+      request work; reference chains can cross lexical scopes within one boundary.
+- [x] Wire completed specialized frame associations into ordinary native engine
       input loading and consumer preparation using the explicit retained-host handoff.
       Keep occurrence binding retention,
       runtime-provided evaluation inputs, schema dependency readiness and directed
@@ -319,6 +325,13 @@ implementation. `git diff --check` passes.
       node or execute schema `select` expressions during parse/closure.
       Scenarios for later design verification: closed parser frames remain inspectable
       through retained metadata while consumer evaluation waits for its lifecycle inputs.
+      Verification: both engine scope-matrix fixtures pass through CEM and XML input
+      loading. They exercise directive/host/wrapping/sibling schema forms, inherited
+      bindings, rebinding/restoration, pending-to-ready preparation and independent
+      contexts on one original owner. Schema-derived destination work limits and
+      request work/depth limits remain effective across lexical changes; vendor
+      grants remain explicit. Existing lifecycle wiring needs no further production
+      change. The full `cem_ml_transform_cem_ql:test` Nx target passes.
 - [ ] Fixture: verify inherited scope-property defaults, source-position
       bindings and shadowing, restoration after existing schema/namespace child
       scopes, and equal IDs in separate vendor scopes. Cover explicit permitted

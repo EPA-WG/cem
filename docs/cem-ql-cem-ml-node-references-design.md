@@ -857,9 +857,10 @@ before attaching distinct lexical scopes, preserving each existing subtree/sibli
 relationship boundary. Returned occurrence/scope handles support readiness updates
 through `set_context`; attachment neither evaluates selectors nor creates grants,
 compiles expressions or writes source targets. Separate host executions can share
-the saved source without sharing results. Automatic engine/package preparation
-remains pending. Effective destination and
-request limits still constrain evaluation under the existing common resolver.
+the saved source without sharing results. Package compilation and ordinary
+CEM/XML input validation expose these associations at their explicit lifecycle
+hooks; callbacks supply contexts, readiness and policies. Effective destination
+and request limits still constrain evaluation under the existing common resolver.
 
 `import_xml_ast_with_lexical_scopes(document, schema)` now attaches XML occurrence
 bindings during the existing typed import pass. Original event/node correspondence
@@ -873,6 +874,14 @@ remain literal. The returned captured AST, semantic metadata and correspondence
 share the original owner through `RetainedCemTree::from_shared` and the same QL
 lifecycle handoff. Capture executes neither selectors nor reference expressions;
 consumer preparation still determines schema readiness, policies, inputs and grants.
+
+Engine verification now covers the existing schema directive, host, wrapping and
+sibling forms together with inherited namespace bindings, rebinding and nested
+restoration. Identical retained expression source remains distinct across saved
+bindings; a pending selector waits for explicit runtime preparation. Independent
+hosts can evaluate one original owner against different current inputs. Captured
+lexical scope changes neither create vendor grants nor reset request depth/work;
+stricter effective destination limits constrain their consumed subtree.
 
 The host is opt-in consumer code. Source-only package loading remains pending.
 The native package bridge supplies caller-selected lifecycle context before
