@@ -34,6 +34,15 @@ fn generated_command_types_follow_the_serde_wire_contract() {
     emit_command_service_types_v1(&fixture.0).expect("command declarations generate");
 
     let files = declaration_files(&fixture.0);
+    let host = text(&files, "CommandHostConfigurationV1.d.ts");
+    assert!(host.contains("schemaPackageReplacementGrants: Array<CommandHostReplacementGrantV1>"));
+    let grant = text(&files, "CommandHostReplacementGrantV1.d.ts");
+    assert!(grant.contains("expectedOrigin: CommandHostPackageOriginV1"));
+    assert!(grant.contains("replacementManifestUri: string"));
+    let origin = text(&files, "CommandHostPackageOriginV1.d.ts");
+    for kind in ["builtin", "manifest", "untracked"] {
+        assert!(origin.contains(&format!("\"kind\": \"{kind}\"")));
+    }
     let request = text(&files, "CommandServiceRequestV1.d.ts");
     assert!(request.contains("protocolVersion: number"));
     assert!(request.contains("requestId: string"));

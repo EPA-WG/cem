@@ -66,7 +66,7 @@ for (const target of ['browser', 'node']) {
   assert.match(declarations, /disposeCommandArtifactsV1\(request_id: string\): string/);
   assert.match(
     declarations,
-    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress\?: CommandProgressJsonCallbackV1 \| null\): Promise<string>/,
+    /executeCommandServiceV1\(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress\?: CommandProgressJsonCallbackV1 \| null, host_configuration_json\?: string \| null\): Promise<string>/,
   );
   assert.match(
     declarations,

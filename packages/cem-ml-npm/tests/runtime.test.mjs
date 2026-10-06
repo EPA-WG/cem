@@ -197,6 +197,38 @@ test('async command-service binding owns success, stale, and callback failure pr
   assert.match(failure.error.message, /fixture\.ledger: currentRevision: ledger unavailable/);
 });
 
+test('trusted host grant setup is explicit, strict and scoped to one WASM execution', async () => {
+  const runtime = await import('@epa-wg/cem-ml/wasm');
+  for (const expectedOrigin of [
+    { kind: 'builtin' }, { kind: 'untracked' },
+    { kind: 'manifest', uri: 'vendor://old/package.cem' },
+  ]) {
+    const result = await executeVersionCommand(runtime, 'wasm-node', undefined, {
+      hostConfigurationJson: JSON.stringify({ schemaPackageReplacementGrants: [{
+        packageId: 'vendor', expectedOrigin, replacementManifestUri: 'vendor://new/package.cem',
+      }] }),
+    });
+    assert.equal(result.status, 'succeeded');
+  }
+  let callbacks = 0;
+  for (const configuration of [
+    null, [], { extra: true },
+    { schemaPackageReplacementGrants: [['vendor', { kind: 'builtin' }, 'vendor://new']] },
+    { schemaPackageReplacementGrants: [{ packageId: '', expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'vendor://new' }] },
+    { schemaPackageReplacementGrants: [{ packageId: 'vendor', expectedOrigin: { kind: 'any' }, replacementManifestUri: 'vendor://new' }] },
+    { schemaPackageReplacementGrants: [{ packageId: 'vendor', expectedOrigin: { kind: 'builtin', uri: 'extra' }, replacementManifestUri: 'vendor://new' }] },
+  ]) {
+    const result = await executeVersionCommand(runtime, 'wasm-node', undefined, {
+      hostConfigurationJson: JSON.stringify(configuration),
+      currentRevision: async () => { callbacks++; throw new Error('must not run'); },
+    });
+    assert.equal(result.error.code, 'cem.command.host_configuration_invalid');
+  }
+  assert.equal(callbacks, 0);
+  const next = await executeVersionCommand(runtime, 'wasm-node');
+  assert.equal(next.status, 'succeeded');
+});
+
 test('command-service registry owns duplicate admission, cooperative cancellation, progress, and cleanup', async () => {
   const runtime = await import('@epa-wg/cem-ml/wasm');
   const progress = [];
@@ -506,6 +538,7 @@ async function executeVersionCommand(runtime, runtimeKind, ledger = undefined, o
       async () => unexpected('commitWrite'),
       async () => unexpected('rollbackWrite'),
       options.progress,
+      options.hostConfigurationJson,
     ),
   );
 }

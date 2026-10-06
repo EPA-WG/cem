@@ -104,3 +104,19 @@ export const nodeExecution: Promise<string> = nodeRuntime.executeCommandServiceV
 );
 export const artifactWire: Browser.CommandArtifactReadWireResponseV1 =
   browserRuntime.readCommandArtifactV1('request:1', 1, 0, 1024);
+
+export const hostConfiguration: Browser.CommandHostConfigurationV1 = {
+  schemaPackageReplacementGrants: [{
+    packageId: 'vendor',
+    expectedOrigin: { kind: 'manifest', uri: 'vendor://old/package.cem' },
+    replacementManifestUri: 'vendor://new/package.cem',
+  }],
+};
+export const trustedHostExecution: Promise<string> = browserRuntime.executeCommandServiceV1(
+  '{}', '{}', currentRevision, readResource, prepareWrite, commitWrite,
+  rollbackWrite, onProgress, JSON.stringify(hostConfiguration),
+);
+export const trustedNodeHostExecution: Promise<string> = nodeRuntime.executeCommandServiceV1(
+  '{}', '{}', currentRevision, readResource, prepareWrite, commitWrite,
+  rollbackWrite, onProgress, JSON.stringify(hostConfiguration),
+);

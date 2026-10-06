@@ -1076,8 +1076,12 @@ in the shared engine. Config merging preserves caller grants but cannot create
 them; the existing permissive run-config decoder ignores unknown grant fields.
 Virtual command arguments attempting to supply grants fail before resource loading
 with `cem.command.replacement_grant_host_required`. Common command preparation
-clones and preserves only the embedding host's existing grants. JavaScript WASM
-host configuration is a subsequent API integration, not request-owned authority.
+clones and preserves only the embedding host's existing grants. The low-level
+WASM executor accepts an optional final `host_configuration_json` argument,
+strictly decoded as `CommandHostConfigurationV1` before callbacks. It supplies
+exact grants to a fresh per-execution context; omission supplies none. Invalid
+setup reports `cem.command.host_configuration_invalid`. Node/browser worker-client
+constructor setup remains subsequent API integration, not request-owned authority.
 
 ### Explicit package lifecycle compilation (2026-10-04)
 

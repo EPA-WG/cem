@@ -94,13 +94,37 @@ callbacks, while the `*JsonCallbackV1` aliases describe the raw generated WASM
 boundary. This keeps both runtime targets and the native wire contract on one
 declaration source of truth.
 
-Hosts may supply an optional final progress callback to
+Hosts may supply an optional progress callback to
 `executeCommandServiceV1`; it receives monotonic Rust-owned lifecycle JSON.
 `cancelCommandServiceV1(requestId, reason?)` cooperatively cancels the matching
 active request and returns an idempotent control acknowledgement. Active request
 ids are unique per runtime instance and are released on every terminal or early
 failure path. Progress callbacks are observational and cannot change command
 semantics.
+
+The optional final `host_configuration_json` argument supplies trusted embedding
+setup for that execution. Its generated `CommandHostConfigurationV1` contract
+accepts `schemaPackageReplacementGrants`:
+
+```js
+const hostConfiguration = {
+  schemaPackageReplacementGrants: [{
+    packageId: 'vendor',
+    expectedOrigin: { kind: 'manifest', uri: 'vendor://old/package.cem' },
+    replacementManifestUri: 'vendor://new/package.cem',
+  }],
+};
+// Pass JSON.stringify(hostConfiguration) after the optional progress callback.
+```
+
+Origins are exactly `builtin`, `untracked`, or `manifest` with its current URI.
+Unknown fields/kinds, positional arrays and empty identities fail with
+`cem.command.host_configuration_invalid` before host callbacks run. Omission
+supplies no grants; setup is confined to the execution's fresh `EngineContext`.
+Grants neither load manifests nor bypass the shared engine's exact ownership
+checks. Command requests and run configs cannot create this authority. The
+Node/browser worker clients do not yet forward host configuration; their
+constructor-owned setup is tracked separately in `docs/todo.md`.
 
 Committed artifact handles remain request-scoped inside Rust.
 `readCommandArtifactV1(requestId, handleId, offset, maxBytes)` returns a plain

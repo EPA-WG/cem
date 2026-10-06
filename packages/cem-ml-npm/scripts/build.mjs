@@ -244,8 +244,8 @@ function installCommandDeclarations(outputRoot) {
   let declarations = readFileSync(declarationPath, 'utf8');
   declarations = replaceDeclaration(
     declarations,
-    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress?: Function | null): Promise<string>;',
-    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress?: CommandProgressJsonCallbackV1 | null): Promise<string>;',
+    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: Function, read_resource: Function, prepare_write: Function, commit_write: Function, rollback_write: Function, progress?: Function | null, host_configuration_json?: string | null): Promise<string>;',
+    'export function executeCommandServiceV1(request_json: string, capability_request_json: string, current_revision: CommandRevisionLedgerJsonCallbackV1, read_resource: CommandResourceReadJsonCallbackV1, prepare_write: CommandPrepareWriteJsonCallbackV1, commit_write: CommandCommitWriteJsonCallbackV1, rollback_write: CommandRollbackWriteJsonCallbackV1, progress?: CommandProgressJsonCallbackV1 | null, host_configuration_json?: string | null): Promise<string>;',
   );
   declarations = replaceDeclaration(
     declarations,

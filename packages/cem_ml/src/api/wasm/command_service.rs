@@ -59,7 +59,9 @@ thread_local! {
 /// either the canonical `CommandServiceResultV1` or `{ "error": ... }` for a
 /// pre-terminal host/admission failure. When supplied, `progress` receives
 /// canonical `CommandServiceProgressV1` JSON records and cannot alter command
-/// semantics by returning or throwing a value.
+/// semantics by returning or throwing a value. `host_configuration_json` is
+/// trusted embedding-host setup, separate from request/config data. It applies
+/// only to this execution; omission supplies no replacement grants.
 #[wasm_bindgen(js_name = "executeCommandServiceV1")]
 pub async fn execute_command_service_v1(
     request_json: String,
@@ -70,6 +72,7 @@ pub async fn execute_command_service_v1(
     commit_write: Function,
     rollback_write: Function,
     progress: Option<Function>,
+    host_configuration_json: Option<String>,
 ) -> String {
     command_service_response(
         execute_command_service(
@@ -83,6 +86,7 @@ pub async fn execute_command_service_v1(
                 rollback_write,
             },
             progress,
+            host_configuration_json.as_deref(),
         )
         .await,
     )
@@ -171,7 +175,15 @@ async fn execute_command_service(
     capability_request_json: &str,
     callbacks: JsCommandServiceCallbacks,
     progress_callback: Option<Function>,
+    host_configuration_json: Option<&str>,
 ) -> Result<CommandServiceResultV1, WasmCommandServiceError> {
+    let host_configuration = crate::command_host_config::decode_command_host_configuration_v1(
+        host_configuration_json,
+    ).map_err(|error| WasmCommandServiceError::new(
+        "cem.command.host_configuration_invalid", error,
+    ))?;
+    let mut context = EngineContext::default();
+    host_configuration.apply_to_context(&mut context);
     let request = decode_command_service_request_v1(request_json.as_bytes())
         .map_err(|error| WasmCommandServiceError::new(error.code(), error.to_string()))?;
     let projection_request = request.clone();
@@ -204,7 +216,7 @@ async fn execute_command_service(
             query_exporters,
         },
         limits,
-        EngineContext::default(),
+        context,
         capability.clone(),
     )
     .map_err(host_error)?;

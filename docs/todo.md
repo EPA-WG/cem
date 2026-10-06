@@ -26,7 +26,7 @@ Implementation checkpoint (2026-10-05): retained syntax/AST identity, lexical
 capture, unary construction, explicit bounded resolution, supported schema
 reuse/validation consumers, source codecs and native query ingress are implemented.
 This does not close native datatype/function composition, specialized schema and
-namespace property selection, or JavaScript WASM host replacement-grant setup.
+namespace property selection, or Node/browser worker-client replacement-grant setup.
 XML attribute expression recognition, enclosed child override syntax, public
 query/transport contracts and `cem-element` ID projection remain separate decisions
 or later consumer work. Their actionable items and verification scenarios remain
@@ -1396,13 +1396,34 @@ only and adds no runtime behavior or public syntax.
       authority; expected-owner or incoming-URI mismatches preserve the active
       package; native consumer grants survive the boundary without widening scope.
 
-- [ ] Add JavaScript WASM embedding-host configuration for scoped replacement
-      grants, mapped into the trusted `EngineContext` before command preparation.
-      Add fixtures before implementation; never populate grants from parsed argv,
+- [x] Fixture: add native trusted-host configuration decoding and WASM admission
+      cases before exposing replacement grants. Cover all exact origin variants,
+      unknown fields/kinds, empty identities, omitted setup, host context handoff
+      and rejection before callbacks. Verify the generated Node/browser API types.
+      Scenarios for later design verification: per-execution host setup neither
+      persists into later executions nor grants authority from request/config data.
+- [x] Add low-level JavaScript WASM embedding-host configuration for scoped
+      replacement grants, mapped into a fresh trusted `EngineContext` before
+      callbacks and command preparation. Never populate grants from parsed argv,
       virtual requests or run-config data.
-      Scenarios for later design verification: host setup retains exact package,
-      expected origin and incoming URI; config/request attempts cannot widen it;
-      mismatches preserve the active package and report attributed diagnostics.
+      Scenarios for later design verification: exact package/origin/URI identities
+      survive handoff; omitted setup supplies no grants; invalid host control JSON
+      fails before callbacks; host setup does not leak between executions.
+      Completed (2026-10-06): optional final `host_configuration_json` on
+      `executeCommandServiceV1` strictly decodes named JSON objects, rejects
+      duplicate/unknown fields and empty identities, and maps exact origins into
+      a fresh execution context. It does not load manifests. All 49 native
+      command-boundary tests, two TypeScript projection tests and eight WASM
+      runtime tests pass. Nx `@epa-wg/cem-ml:verify` passes generated browser/Node
+      types, ABI and integrity checks. Worker-client forwarding remains below.
+- [ ] Forward trusted host configuration through constructor-owned Node/browser
+      worker-client options. Snapshot host setup separately from execution requests,
+      transport it through the worker bridge and pass it to the low-level executor.
+      Add worker and type fixtures before implementation.
+      Scenarios for later design verification: requests/configs cannot override
+      host authority; distinct clients retain distinct grant snapshots; callbacks,
+      cancellation and worker restarts preserve the exact configured boundary;
+      mismatches retain the active package and report attributed diagnostics.
 
 - [x] Migrate CLI external CEMT package override fixtures to the scoped grant
       consumer API. Prior broad CLI verification reported

@@ -62,6 +62,7 @@ fn emit_into(output_directory: &Path) -> Result<(), String> {
         .with_import_extension(Some("js"));
 
     export::<CapabilityRequest>(&config)?;
+    export::<crate::command_host_config::CommandHostConfigurationV1>(&config)?;
     export::<CommandServiceRequestV1>(&config)?;
     export::<CommandServiceResultV1>(&config)?;
     export::<CommandRevisionLedgerRequestV1>(&config)?;
