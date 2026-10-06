@@ -123,8 +123,9 @@ Unknown fields/kinds, positional arrays and empty identities fail with
 supplies no grants; setup is confined to the execution's fresh `EngineContext`.
 Grants neither load manifests nor bypass the shared engine's exact ownership
 checks. Command requests and run configs cannot create this authority. The
-Node/browser worker clients do not yet forward host configuration; their
-constructor-owned setup is tracked separately in `docs/todo.md`.
+Node/browser worker clients forward their constructor-owned `hostConfiguration`
+snapshot separately from command requests; caller mutation after startup does
+not alter that snapshot.
 
 Committed artifact handles remain request-scoped inside Rust.
 `readCommandArtifactV1(requestId, handleId, offset, maxBytes)` returns a plain

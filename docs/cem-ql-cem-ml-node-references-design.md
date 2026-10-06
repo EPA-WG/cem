@@ -1080,8 +1080,11 @@ clones and preserves only the embedding host's existing grants. The low-level
 WASM executor accepts an optional final `host_configuration_json` argument,
 strictly decoded as `CommandHostConfigurationV1` before callbacks. It supplies
 exact grants to a fresh per-execution context; omission supplies none. Invalid
-setup reports `cem.command.host_configuration_invalid`. Node/browser worker-client
-constructor setup remains subsequent API integration, not request-owned authority.
+setup reports `cem.command.host_configuration_invalid`. Node/browser worker clients
+capture optional constructor-owned `hostConfiguration` before asynchronous startup
+and pass its JSON snapshot separately from request data on each execution. A new
+client captures fresh setup; existing request fields and execute options cannot
+replace the snapshot. The Node service wrapper forwards the same host option.
 
 ### Explicit package lifecycle compilation (2026-10-04)
 

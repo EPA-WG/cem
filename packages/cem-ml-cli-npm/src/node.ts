@@ -81,6 +81,7 @@ export type {
 } from './node-service.js';
 export type {
     CommandArtifactHandleV1,
+    CommandHostConfigurationV1,
     CommandInvocationBuildResponseV1,
     CommandInvocationEnvironmentV1,
     CommandInvocationResourceRequirementKindV1,

@@ -25,6 +25,7 @@ import type {
 } from './protocol.js';
 import type {
     CommandArtifactHandleV1,
+    CommandHostConfigurationV1,
     CommandServiceArtifactDisposeAckV1,
     CommandServiceArtifactReadV1,
     CommandServiceControlAckV1,
@@ -37,6 +38,7 @@ import type {
 
 export type {
     CommandArtifactHandleV1,
+    CommandHostConfigurationV1,
     CommandPreparedWriteTokenV1,
     CommandResolvedResourceV1,
     CommandResolvedWriteV1,
@@ -71,6 +73,7 @@ interface BrowserCommandActionResponse {
 }
 
 export interface BrowserCommandServiceClientOptions {
+    readonly hostConfiguration?: CommandHostConfigurationV1;
     readonly host: CommandServiceHostCapabilitiesV1;
     readonly startupTimeoutMs?: number;
     readonly onWorkerFailure?: (failure: BrowserCommandWorkerFailure) => void;
@@ -244,6 +247,7 @@ export class BrowserCommandServiceClient {
 
     #physicalWorker: Worker;
     #host: CommandServiceHostCapabilitiesV1;
+    #hostConfigurationJson: string | undefined;
     #onWorkerFailure: ((failure: BrowserCommandWorkerFailure) => void) | undefined;
     #executions = new Map<number, BrowserCommandServiceHandle>();
     #actions = new Map<number, PendingAction>();
@@ -255,10 +259,12 @@ export class BrowserCommandServiceClient {
         physicalWorker: Worker,
         initialization: BrowserWorkerInitializePayload,
         host: CommandServiceHostCapabilitiesV1,
+        hostConfigurationJson: string | undefined,
         onWorkerFailure: ((failure: BrowserCommandWorkerFailure) => void) | undefined,
     ) {
         this.#physicalWorker = physicalWorker;
         this.#host = host;
+        this.#hostConfigurationJson = hostConfigurationJson;
         this.#onWorkerFailure = onWorkerFailure;
         this.capability = Object.freeze(initialization.capability);
         this.worker = Object.freeze({
@@ -274,6 +280,10 @@ export class BrowserCommandServiceClient {
 
     static async create(options: BrowserCommandServiceClientOptions): Promise<BrowserCommandServiceClient> {
         validateOptions(options);
+        // Capture trusted setup before worker startup yields. Requests and later
+        // mutations of the caller's configuration cannot replace this snapshot.
+        const hostConfigurationJson = options.hostConfiguration === undefined
+            ? undefined : JSON.stringify(options.hostConfiguration);
         if (typeof Worker !== 'function') {
             throw new BrowserCommandServiceError(
                 'cem.browser_command.worker_unavailable',
@@ -293,6 +303,7 @@ export class BrowserCommandServiceClient {
                 physicalWorker,
                 initialization,
                 options.host,
+                hostConfigurationJson,
                 options.onWorkerFailure,
             );
         } catch (error) {
@@ -313,6 +324,7 @@ export class BrowserCommandServiceClient {
             type: 'cem-command-execute',
             executionId,
             request,
+            hostConfigurationJson: this.#hostConfigurationJson,
         };
         try {
             this.#physicalWorker.postMessage(message);

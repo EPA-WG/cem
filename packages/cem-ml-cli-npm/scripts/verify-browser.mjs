@@ -155,6 +155,12 @@ try {
     assert.equal(operationMain.cancelled.status, 'cancelled');
     assert.equal(operationMain.replacementEvents.length, 0);
 
+    const hostConfiguration = await runFixture(page, 'command-host-configuration');
+    assert.deepEqual(hostConfiguration, {
+        rejected: ['cem.command.host_configuration_invalid', 'cem.command.host_configuration_invalid'],
+        before: 0, callbacks: 1, status: 'succeeded',
+    });
+
     const command = await runFixture(page, 'command-service');
     assert.equal(command.worker.slot, 1);
     assert.equal(command.worker.generation, 1);

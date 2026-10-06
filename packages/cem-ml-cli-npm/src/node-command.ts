@@ -24,6 +24,7 @@ import type {
 } from './protocol.js';
 import type {
     CommandArtifactHandleV1,
+    CommandHostConfigurationV1,
     CommandServiceArtifactDisposeAckV1,
     CommandServiceArtifactReadV1,
     CommandServiceControlAckV1,
@@ -47,6 +48,7 @@ interface NodeCommandActionResponse {
 }
 
 export interface NodeCommandServiceClientOptions {
+    readonly hostConfiguration?: CommandHostConfigurationV1;
     readonly host: CommandServiceHostCapabilitiesV1;
     readonly startupTimeoutMs?: number;
     readonly onWorkerFailure?: (error: Error) => void;
@@ -200,6 +202,7 @@ export class NodeCommandServiceClient {
 
     #worker: Worker;
     #host: CommandServiceHostCapabilitiesV1;
+    #hostConfigurationJson: string | undefined;
     #executions = new Map<number, NodeCommandServiceHandle>();
     #actions = new Map<number, PendingAction>();
     #nextExecutionId = 1;
@@ -210,10 +213,12 @@ export class NodeCommandServiceClient {
         worker: Worker,
         initialization: NodeWorkerInitializePayload,
         host: CommandServiceHostCapabilitiesV1,
+        hostConfigurationJson: string | undefined,
         onWorkerFailure: ((error: Error) => void) | undefined,
     ) {
         this.#worker = worker;
         this.#host = host;
+        this.#hostConfigurationJson = hostConfigurationJson;
         this.capability = Object.freeze(initialization.capability);
         this.runtimeInstanceId = initialization.runtimeInstanceId;
         worker.on('message', this.#onMessage);
@@ -233,6 +238,10 @@ export class NodeCommandServiceClient {
 
     static async create(options: NodeCommandServiceClientOptions): Promise<NodeCommandServiceClient> {
         validateOptions(options);
+        // Capture trusted setup before worker startup yields. Requests and later
+        // mutations of the caller's configuration cannot replace this snapshot.
+        const hostConfigurationJson = options.hostConfiguration === undefined
+            ? undefined : JSON.stringify(options.hostConfiguration);
         const timeout = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
         requireBoundedInteger('startupTimeoutMs', timeout, 1, MAX_STARTUP_TIMEOUT_MS);
         const worker = new Worker(new URL('./node-worker.js', import.meta.url), {
@@ -244,6 +253,7 @@ export class NodeCommandServiceClient {
                 worker,
                 initialization,
                 options.host,
+                hostConfigurationJson,
                 options.onWorkerFailure,
             );
         } catch (error) {
@@ -264,6 +274,7 @@ export class NodeCommandServiceClient {
             type: 'cem-command-execute',
             executionId,
             request,
+            hostConfigurationJson: this.#hostConfigurationJson,
         };
         try {
             this.#worker.postMessage(message);

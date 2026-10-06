@@ -153,6 +153,7 @@ async function executeCommand(message: BrowserCommandExecuteRequest): Promise<vo
             };
             port.postMessage(progress);
         },
+        message.hostConfigurationJson,
     );
     const result: BrowserCommandResultMessage = {
         type: 'cem-command-result',

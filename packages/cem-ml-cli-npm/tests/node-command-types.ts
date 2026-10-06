@@ -37,7 +37,11 @@ async function compilePublicNodeCommandContract(): Promise<void> {
         signal: new AbortController().signal,
         onProgress: (event) => void event.sequence,
     } satisfies NodeCommandServiceExecuteOptions;
-    const client = await createNodeCommandServiceClient({ host });
+    const client = await createNodeCommandServiceClient({ host, hostConfiguration: {
+        schemaPackageReplacementGrants: [{ packageId: 'vendor',
+            expectedOrigin: { kind: 'manifest', uri: 'vendor://old/package.cem' },
+            replacementManifestUri: 'vendor://new/package.cem' }],
+    } });
     const handle = client.execute(invocation.request, executeOptions);
     const result: CommandServiceResultV1 = await handle;
     const presentation: CommandPresentationV1 = projectNodeCommandPresentation(
@@ -47,7 +51,7 @@ async function compilePublicNodeCommandContract(): Promise<void> {
     await handle.dispose();
     await client.close();
 
-    const service = await createNodeCommandService({ host });
+    const service = await createNodeCommandService({ host, hostConfiguration: { schemaPackageReplacementGrants: [] } });
     const run = await service.run(parsed, {}, executeOptions);
     const runResult = await run.handle;
     const published: CommandPresentationV1 = await service.publish(run.invocation, runResult);

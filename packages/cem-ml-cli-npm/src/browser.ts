@@ -43,6 +43,7 @@ export type {
     BrowserCommandWorkerDescriptor,
     BrowserCommandWorkerFailure,
     CommandArtifactHandleV1,
+    CommandHostConfigurationV1,
     CommandPreparedWriteTokenV1,
     CommandResolvedResourceV1,
     CommandResolvedWriteV1,

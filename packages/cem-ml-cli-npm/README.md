@@ -146,6 +146,32 @@ re-exported directly from the Rust-generated `@epa-wg/cem-ml/wasm`
 declarations. Pre-terminal command errors reject with
 `BrowserCommandServiceError`; canonical terminal statuses remain typed results.
 
+Both command-service clients accept optional constructor-owned
+`hostConfiguration: CommandHostConfigurationV1`. `createNodeCommandService`
+forwards the same option to its worker client:
+
+```js
+const client = await createBrowserCommandServiceClient({
+    host,
+    hostConfiguration: {
+        schemaPackageReplacementGrants: [{
+            packageId: 'vendor',
+            expectedOrigin: { kind: 'manifest', uri: 'vendor://old/package.cem' },
+            replacementManifestUri: 'vendor://new/package.cem',
+        }],
+    },
+});
+```
+
+Configuration is snapshotted before worker startup. Later mutation of the
+caller's object, request fields and execute options cannot replace the snapshot.
+Each execution passes it separately to the Rust-owned host configuration decoder;
+invalid setup rejects before host callbacks with
+`cem.command.host_configuration_invalid`. Omitting setup supplies no grants.
+Grants do not load manifests; the common engine still checks exact ownership.
+A new client takes a new snapshot. Worker failure closes the existing client;
+there is no implicit restart or authority change.
+
 The Node command service adds explicit filesystem, local `file://`, HTTPS, and
 application-stream resolution plus prepared file/stream writes. Parsed command
 lowering, resource discovery, canonical requests, diagnostics, reports,

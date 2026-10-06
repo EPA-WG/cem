@@ -134,6 +134,49 @@ test('Rust lowering and Node worker execution preserve file URI and terminal pre
     }
 });
 
+test('Node worker host setup is snapshotted at construction and isolated from requests', async () => {
+    let callbacks = 0;
+    const host = {
+        currentRevision: ({ project }) => { callbacks++; return { project, resourceVersions: {} }; },
+        readResource: unexpected('readResource'), prepareWrite: unexpected('prepareWrite'),
+        commitWrite: unexpected('commitWrite'), rollbackWrite: unexpected('rollbackWrite'),
+    };
+    const hostConfiguration = { schemaPackageReplacementGrants: [{
+        packageId: '', expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'vendor://new',
+    }] };
+    const options = { host, hostConfiguration };
+    const starting = createNodeCommandServiceClient(options);
+    hostConfiguration.schemaPackageReplacementGrants[0].packageId = 'vendor';
+    options.hostConfiguration = { schemaPackageReplacementGrants: [] };
+    const original = await starting;
+    const distinct = await createNodeCommandServiceClient(options);
+    try {
+        for (const requestId of ['host-snapshot-1', 'host-snapshot-2']) {
+            await assert.rejects(original.execute(versionRequest(requestId)).result(),
+                (error) => error.code === 'cem.command.host_configuration_invalid');
+        }
+        assert.equal(callbacks, 0);
+        const request = { ...versionRequest('host-distinct'),
+            hostConfiguration: { schemaPackageReplacementGrants: null },
+            host_configuration_json: 'null',
+        };
+        const result = await distinct.execute(request, { hostConfiguration: null });
+        assert.equal(result.status, 'succeeded');
+        assert.equal(callbacks, 1);
+    } finally {
+        await original.close(); await distinct.close();
+    }
+    const service = await createNodeCommandService({
+        hostConfiguration: { schemaPackageReplacementGrants: [{
+            packageId: '', expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'vendor://new',
+        }] },
+    });
+    try {
+        await assert.rejects(service.execute(versionRequest('wrapper-host-setup')).result(),
+            (error) => error.code === 'cem.command.host_configuration_invalid');
+    } finally { await service.close(); }
+});
+
 test('Node command AbortSignal produces the stable cooperative cancellation terminal', async () => {
     let resolveRevision;
     let revisionRequested;

@@ -66,7 +66,11 @@ async function compilePublicBrowserCommandContract(): Promise<void> {
         parsed,
         async (requirement) => [{ uri: requirement.uri, bytes }],
     );
-    const client = await createBrowserCommandServiceClient({ host });
+    const client = await createBrowserCommandServiceClient({ host, hostConfiguration: {
+        schemaPackageReplacementGrants: [{ packageId: 'vendor',
+            expectedOrigin: { kind: 'manifest', uri: 'vendor://old/package.cem' },
+            replacementManifestUri: 'vendor://new/package.cem' }],
+    } });
     const handle = client.execute(invocation.request, executeOptions);
     const unsubscribe: () => void = handle.subscribe((event) => progress.push(event));
     const resultFromThen: CommandServiceResultV1 = await handle;

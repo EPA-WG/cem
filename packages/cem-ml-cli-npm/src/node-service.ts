@@ -1,5 +1,6 @@
 import type {
     CommandInvocationV1,
+    CommandHostConfigurationV1,
     CommandPresentationV1,
     CommandServiceRequestV1,
     CommandServiceResultV1,
@@ -22,6 +23,7 @@ import {
 const STDOUT_URI = 'cem-stdio://stdout';
 
 export interface NodeCommandServiceOptions extends NodeCommandHostOptions {
+    readonly hostConfiguration?: CommandHostConfigurationV1;
     readonly host?: NodeCommandHost;
     readonly startupTimeoutMs?: number;
     readonly onWorkerFailure?: (error: Error) => void;
@@ -45,6 +47,7 @@ export class NodeCommandService {
         const host = options.host ?? createNodeCommandHost(options);
         const client = await createNodeCommandServiceClient({
             host,
+            ...(options.hostConfiguration === undefined ? {} : { hostConfiguration: options.hostConfiguration }),
             ...(options.startupTimeoutMs === undefined ? {} : { startupTimeoutMs: options.startupTimeoutMs }),
             ...(options.onWorkerFailure === undefined ? {} : { onWorkerFailure: options.onWorkerFailure }),
         });

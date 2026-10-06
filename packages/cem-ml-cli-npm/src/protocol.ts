@@ -149,6 +149,7 @@ export interface BrowserCommandExecuteRequest {
     readonly type: 'cem-command-execute';
     readonly executionId: number;
     readonly request: unknown;
+    readonly hostConfigurationJson?: string | undefined;
 }
 
 export interface BrowserCommandCancelRequest {

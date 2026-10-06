@@ -26,7 +26,8 @@ Implementation checkpoint (2026-10-05): retained syntax/AST identity, lexical
 capture, unary construction, explicit bounded resolution, supported schema
 reuse/validation consumers, source codecs and native query ingress are implemented.
 This does not close native datatype/function composition, specialized schema and
-namespace property selection, or Node/browser worker-client replacement-grant setup.
+namespace property selection. Native CLI, low-level WASM and Node/browser worker
+clients now support explicit host-owned replacement-grant setup.
 XML attribute expression recognition, enclosed child override syntax, public
 query/transport contracts and `cem-element` ID projection remain separate decisions
 or later consumer work. Their actionable items and verification scenarios remain
@@ -1416,7 +1417,15 @@ only and adds no runtime behavior or public syntax.
       command-boundary tests, two TypeScript projection tests and eight WASM
       runtime tests pass. Nx `@epa-wg/cem-ml:verify` passes generated browser/Node
       types, ABI and integrity checks. Worker-client forwarding remains below.
-- [ ] Forward trusted host configuration through constructor-owned Node/browser
+- [x] Fixture: verify constructor host configuration through both worker clients.
+      Snapshot before asynchronous startup, mutate the caller's options, and
+      confirm the original setup survives repeated executions while a new client
+      receives its own snapshot. Request/execute-option lookalikes cannot replace
+      setup. Cover the Node service wrapper and public Node/browser option types.
+      Scenarios for later design verification: malformed configured authority
+      fails before callbacks; existing cancellation and worker-failure paths retain
+      their behavior; omitted constructor setup remains compatible.
+- [x] Forward trusted host configuration through constructor-owned Node/browser
       worker-client options. Snapshot host setup separately from execution requests,
       transport it through the worker bridge and pass it to the low-level executor.
       Add worker and type fixtures before implementation.
@@ -1424,6 +1433,15 @@ only and adds no runtime behavior or public syntax.
       host authority; distinct clients retain distinct grant snapshots; callbacks,
       cancellation and worker restarts preserve the exact configured boundary;
       mismatches retain the active package and report attributed diagnostics.
+      Completed (2026-10-06): clients capture `hostConfiguration` as JSON before
+      asynchronous startup and send it outside request data to the WASM executor.
+      The Node service wrapper forwards the same option. Node/browser fixtures
+      prove caller mutation cannot replace existing setup, new clients receive
+      independent snapshots and request/execute-option lookalikes supply no
+      authority. Nx `@epa-wg/cem-ml-cli:verify` passes worker suites, browser
+      fixtures, cancellation/failure regressions and public API type checks;
+      package lint also passes. The Node suite passes all 19 tests.
+      Worker failures close the client; recreation explicitly captures new setup.
 
 - [x] Migrate CLI external CEMT package override fixtures to the scoped grant
       consumer API. Prior broad CLI verification reported

@@ -14,6 +14,7 @@ import {
 } from './command-all-operations.fixture.mjs';
 
 globalThis.runCemMlBrowserFixture = async (scenario) => {
+    if (scenario === 'command-host-configuration') return runHostConfigurationFixture();
     if (scenario === 'command-service') return runCommandServiceFixture();
     if (scenario === 'command-all-operations') return runCommandAllOperationsFixture();
     if (scenario === 'command-cancellation') return runCommandCancellationFixture();
@@ -601,4 +602,34 @@ function xpathSource(expression) {
             schema: 'https://cem.dev/ns/query/xpath/1',
         },
     };
+}
+
+async function runHostConfigurationFixture() {
+    let callbacks = 0;
+    const host = versionCommandHost(({ project }) => {
+        callbacks++; return { project, resourceVersions: {} };
+    });
+    const hostConfiguration = { schemaPackageReplacementGrants: [{
+        packageId: '', expectedOrigin: { kind: 'builtin' }, replacementManifestUri: 'vendor://new',
+    }] };
+    const options = { host, hostConfiguration };
+    const starting = createBrowserCommandServiceClient(options);
+    hostConfiguration.schemaPackageReplacementGrants[0].packageId = 'vendor';
+    options.hostConfiguration = { schemaPackageReplacementGrants: [] };
+    const original = await starting;
+    const distinct = await createBrowserCommandServiceClient(options);
+    try {
+        const rejected = [];
+        for (const requestId of ['browser-host-snapshot-1', 'browser-host-snapshot-2']) {
+            try { await original.execute(versionCommandRequest(requestId)); rejected.push('accepted'); }
+            catch (error) { rejected.push(error.code); }
+        }
+        const before = callbacks;
+        const request = { ...versionCommandRequest('browser-host-distinct'),
+            hostConfiguration: { schemaPackageReplacementGrants: null },
+            host_configuration_json: 'null',
+        };
+        const result = await distinct.execute(request, { hostConfiguration: null });
+        return { rejected, before, callbacks, status: result.status };
+    } finally { await original.close(); await distinct.close(); }
 }
