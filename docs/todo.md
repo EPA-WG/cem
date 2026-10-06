@@ -1559,17 +1559,40 @@ only and adds no runtime behavior or public syntax.
       crossing or rewrites captured frames; missing context cannot borrow a ready
       child context; replay preserves request limits; unrelated roots need an explicit
       handoff rather than an inferred shared relationship.
-- [ ] Fixture: connect prepared runtime frames to automatic host body/occurrence
+- [x] Fixture: hand off entered native resolver handles before effective-scope
+      activation, after work and existing edge checks. Verify one root preparation,
+      rejected roots, denied/exhausted targets, post-handoff edge authorization and
+      fresh destination limits. Restore invocation bindings after a handoff error
+      or caller unwind, retaining earlier frame handles for inspection.
+      Implemented an optional native lifecycle handoff with reauthorization after
+      scope changes, plus invocation restoration on rejection and caller unwind.
+      Scenarios for later design verification: preparation preserves original node
+      kind/identity and ownership, never grants authority, and cannot replenish
+      active request/ancestor budgets or invoke contexts on rejected descendants.
+- [x] Fixture: connect prepared runtime frames to automatic host body/occurrence
       binding and combined region readiness through an explicit caller context hook.
       Assign fresh frames while preserving source-position bindings/local provenance,
       restore invocation mappings, and block missing contexts/invalid policy without
       inherited or previously active body fallback. Cover nested/sibling restoration,
       selected hosts, repeat calls with new inputs, inherited/declared facets and
       request/destination budgets while preparing frames during selected traversal.
+      Implemented explicit runtime-region validation, lazy local frame replay and
+      invocation-local source assignments. Native fixtures also verify enclosing
+      host attributes, body general expressions and authored target descendants.
+      Verified with 195 native resolver, policy, schema and retained consumer tests.
       Scenarios for later design verification: fresh frame registration precedes
       body consumption; original records/source names remain immutable; invocation
       cleanup cannot invalidate retained result inspection or leak old contexts into
       retries; body handoff never creates grants or resets work accounting.
+- [ ] Fixture: connect retained behavior validation to each placement's consuming
+      model and active runtime frame. Retain original declaring/consuming contexts,
+      native candidate nodes and already-consumed attribute values, and execute
+      before invocation scope restoration. Cover nested/sibling models, repeated
+      selected sources, model-specific behaviors/diagnostics and blocked regions.
+      Scenarios for later design verification: behaviors use the actual consuming
+      model without losing original source ownership; pending regions cannot pass
+      or borrow an enclosing behavior contract; behavior dispatch does not resolve
+      structural/attribute references a second time or reset active traversal limits.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
@@ -1577,11 +1600,11 @@ only and adds no runtime behavior or public syntax.
       Supply original source-position name metadata and keep literal forms compatible.
       Shared control ownership, explicit prepared host-region validation and
       on-entry discovery/preparation of original and selected hosts are implemented.
-      Runtime-input preparation, policy provenance and explicit fresh frame
-      registration are implemented. Next: bind those frames to host bodies/occurrences
-      with combined readiness and invocation restoration, add wrapping/sibling/prelude
-      controls and external loading readiness, and connect retained behavior validation
-      to each consuming model. Reuse the implemented preparation
+      Runtime-input preparation, policy provenance, fresh frame registration and
+      automatic entered-body/occurrence binding with combined readiness and invocation
+      restoration are implemented. Next: connect retained behavior validation to each
+      consuming model, then add wrapping/sibling/prelude controls and external loading
+      readiness. Reuse the implemented preparation
       and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

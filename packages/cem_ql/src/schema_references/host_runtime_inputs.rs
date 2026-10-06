@@ -43,6 +43,17 @@ impl SchemaHostRuntimeInputs {
     pub fn issue(&self) -> Option<&SchemaHostRuntimeInputIssue> {
         self.issue.as_ref()
     }
+    pub(super) fn with_context(mut self, context: Option<StandaloneExpressionContext>) -> Self {
+        self.context = context;
+        if matches!(
+            self.issue,
+            Some(SchemaHostRuntimeInputIssue::ContextNotReady)
+        ) && self.context.is_some()
+        {
+            self.issue = None;
+        }
+        self
+    }
     pub fn is_ready(&self) -> bool {
         self.issue.is_none()
             && self.region.is_ready()
@@ -165,10 +176,24 @@ impl CemQlSchemaDeclarationHost {
         original: DeclarationScope,
         context: Option<StandaloneExpressionContext>,
     ) -> Result<DeclarationScope, SchemaHostRuntimeInputIssue> {
+        self.register_schema_host_occurrence_scope_from(
+            child,
+            child.inputs.enclosing_scope.unwrap(),
+            original,
+            context,
+        )
+    }
+
+    pub(super) fn register_schema_host_occurrence_scope_from(
+        &mut self,
+        child: &SchemaHostRuntimeScope,
+        enclosing: DeclarationScope,
+        original: DeclarationScope,
+        context: Option<StandaloneExpressionContext>,
+    ) -> Result<DeclarationScope, SchemaHostRuntimeInputIssue> {
         if self.scope_record(child.scope).is_none() {
             return Err(SchemaHostRuntimeInputIssue::ForeignPreparation);
         }
-        let enclosing = child.inputs.enclosing_scope.unwrap();
         let mut current = original;
         let mut path = vec![];
         while current != enclosing {

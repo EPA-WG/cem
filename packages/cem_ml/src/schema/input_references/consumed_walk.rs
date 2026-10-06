@@ -31,6 +31,13 @@ struct Host<'a, H> {
 impl<H: InputReferenceHost> ReferenceResolutionHost for Host<'_, H> {
     type Node = Tagged<H::Node>;
     type Scope = H::Scope;
+    fn prepare_node(&mut self, node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
+        // Navigable attribute targets retain authored descendant references.
+        if !matches!(node.role, Role::Authored(_)) {
+            self.inner.prepare_node(&mut node.node)?;
+        }
+        Ok(())
+    }
     fn scope(&self, node: &Self::Node) -> Self::Scope {
         self.inner.scope(&node.node)
     }

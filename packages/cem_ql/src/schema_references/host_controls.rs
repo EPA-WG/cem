@@ -3,7 +3,7 @@ use super::{CemQlSchemaDeclarationHost, SchemaScopePreparation};
 use cem_ml::{
     parser::CemAstNode,
     schema::{
-        declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
+        declaration_references::SchemaDeclarationNode,
         input_references::native_attribute_expression,
         reference_traversal::ReferenceTraversalLimits,
         scope_controls::{
@@ -76,25 +76,36 @@ impl CemQlSchemaDeclarationHost {
         control: &SchemaHostControl,
         limits: ReferenceTraversalLimits,
     ) -> Result<Option<SchemaScopePreparation>, ReferenceResolutionError> {
-        let root = match &control.source {
-            SchemaHostSource::Uri(_) => None,
-            SchemaHostSource::LiteralSelector(expression) => {
-                let mut root = self.source_reference(control.attribute.clone());
-                root.selector_expression = Some(expression.clone());
-                Some(root)
-            }
-            SchemaHostSource::NativeSelector(source) => {
-                let mut root = self.source_reference(source.clone());
-                if !matches!(source.node(), CemAstNode::Reference { .. }) {
-                    root.selector_expression = native_attribute_expression(source)
-                        .and_then(|occurrence| occurrence.expression);
-                }
-                Some(root)
-            }
-        };
-        let preparation = root
-            .map(|root| self.prepare_schema_scope_node(schema_uri, root, limits))
-            .transpose()?;
-        Ok(preparation)
+        prepare_decoded_host_control(self, schema_uri, control, limits)
     }
+}
+
+pub(super) fn prepare_decoded_host_control<H: super::scope_preparation::SchemaPreparationHost>(
+    host: &mut H,
+    schema_uri: &str,
+    control: &SchemaHostControl,
+    limits: ReferenceTraversalLimits,
+) -> Result<Option<SchemaScopePreparation>, ReferenceResolutionError> {
+    let root = match &control.source {
+        SchemaHostSource::Uri(_) => None,
+        SchemaHostSource::LiteralSelector(expression) => {
+            let mut root = host.source_reference(control.attribute.clone());
+            root.selector_expression = Some(expression.clone());
+            Some(root)
+        }
+        SchemaHostSource::NativeSelector(source) => {
+            let mut root = host.source_reference(source.clone());
+            if !matches!(source.node(), CemAstNode::Reference { .. }) {
+                root.selector_expression = native_attribute_expression(source)
+                    .and_then(|occurrence| occurrence.expression);
+            }
+            Some(root)
+        }
+    };
+    let preparation = root
+        .map(|root| {
+            super::scope_preparation::prepare_schema_scope_node(host, schema_uri, root, limits)
+        })
+        .transpose()?;
+    Ok(preparation)
 }

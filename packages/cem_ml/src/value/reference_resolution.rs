@@ -33,6 +33,14 @@ pub trait ReferenceResolutionHost {
     type Node: Clone;
     /// Runtime scope identity, independent of authored IDs and document owners.
     type Scope: Clone + Eq + Hash;
+    /// Optional explicit lifecycle handoff of this entered original handle.
+    /// Runs after work and existing edge authorization checks for descendants,
+    /// before activating its effective scope. Keep original node identity and
+    /// ownership, retain immutable previous frames, and never grant crossings.
+    /// Readiness/evaluation stays in `evaluate`; this prepares metadata only.
+    fn prepare_node(&mut self, _node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
+        Ok(())
+    }
     fn scope(&self, node: &Self::Node) -> Self::Scope;
     /// Effective bounds must remain stable for a scope during this request.
     fn scope_limits(&self, scope: &Self::Scope) -> ReferenceTraversalLimits;
@@ -115,12 +123,14 @@ impl<N> ReferenceStructureResolution<N> {
 pub enum ReferenceResolutionError {
     InvalidBounds,
     NotReference,
+    InvalidScopeHandoff,
 }
 impl fmt::Display for ReferenceResolutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::InvalidBounds => "Reference resolution requires positive depth and work bounds",
             Self::NotReference => "Reference resolution requires a typed reference root",
+            Self::InvalidScopeHandoff => "Reference lifecycle scope handoff was rejected",
         })
     }
 }
@@ -233,7 +243,7 @@ where
 }
 
 fn walk_reference_structure<H, C>(
-    root: H::Node,
+    mut root: H::Node,
     host: &mut H,
     limits: ReferenceTraversalLimits,
     mut structural_children: C,
@@ -251,6 +261,7 @@ where
     let root_occurrence = consumer_origin
         .or_else(|| host.reference_occurrence(&root))
         .ok_or(ReferenceResolutionError::NotReference)?;
+    host.prepare_node(&mut root)?;
     let mut result = ReferenceResolution {
         nodes: vec![],
         state: ReferenceResolutionState::Resolved,
@@ -293,7 +304,7 @@ where
     }];
     let mut active = HashSet::new();
     while let Some(frame) = frames.last_mut() {
-        let Some(node) = frame.nodes.next() else {
+        let Some(mut node) = frame.nodes.next() else {
             if frame.owns_reference {
                 if let Some((_, occurrence)) = &frame.reference {
                     active.remove(&occurrence.identity);
@@ -372,6 +383,28 @@ where
                     "scope-denied".into(),
                 );
                 continue;
+            }
+        }
+        let previous_scope = host.scope(&node);
+        // The initial root was prepared before establishing its scope budget.
+        if result.work_used != 1 {
+            host.prepare_node(&mut node)?;
+        }
+        // A handoff may change lexical scope, but cannot widen edge authority.
+        if host.scope(&node) != previous_scope {
+            if let Some((reference, occurrence)) = &parent {
+                if !host.permits_edge(reference, &node) {
+                    structure.mark_incomplete(structural_parent);
+                    unresolved(
+                        &mut result,
+                        host,
+                        reference.clone(),
+                        occurrence.clone(),
+                        ReferenceResolutionIssueKind::ScopeDenied,
+                        "scope-denied".into(),
+                    );
+                    continue;
+                }
             }
         }
         let scope = host.scope(&node);

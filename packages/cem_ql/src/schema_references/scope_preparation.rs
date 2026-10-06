@@ -110,51 +110,79 @@ impl CemQlSchemaDeclarationHost {
         root: CemQlSchemaReferenceNode,
         limits: ReferenceTraversalLimits,
     ) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
-        let selection = resolve_reference(root, self, limits)?;
-        let mut prepared = SchemaScopePreparation {
-            selection,
-            target: None,
-            model: None,
-            issue: None,
-        };
-        if !prepared.selection.is_complete() || prepared.selection.failed {
-            return Ok(prepared);
-        }
-        if prepared.selection.nodes.len() != 1 {
-            prepared.issue = Some(SchemaScopePreparationIssue::TargetCount(
-                prepared.selection.nodes.len(),
-            ));
-            return Ok(prepared);
-        }
-        let Some(source) = self.declaration_node(&prepared.selection.nodes[0]) else {
-            prepared.issue = Some(SchemaScopePreparationIssue::TargetHasNoSourceHandle);
-            return Ok(prepared);
-        };
-        let target = match admit_schema_scope_target(source, |node| {
-            self.captured_expanded_name(node).cloned()
-        }) {
-            Ok(target) => target,
-            Err(issue) => {
-                prepared.issue = Some(SchemaScopePreparationIssue::TargetAdmission(issue));
-                return Ok(prepared);
-            }
-        };
-        // A declaration's lifecycle context can remain unavailable even when
-        // selection from the requesting context completed and needs no inputs.
-        if self
-            .source_scope(&target.declaration)
-            .and_then(|scope| self.scope_record(scope))
-            .and_then(|scope| scope.context.as_ref())
-            .is_none()
-        {
-            prepared.target = Some(target);
-            prepared.issue = Some(SchemaScopePreparationIssue::TargetContextNotReady);
-            return Ok(prepared);
-        }
-        prepared.model = Some(Arc::new(compile_schema_scope_target(
-            schema_uri, &target, self, limits,
-        )?));
-        prepared.target = Some(target);
-        Ok(prepared)
+        prepare_schema_scope_node(self, schema_uri, root, limits)
     }
+}
+
+pub(super) trait SchemaPreparationHost:
+    SchemaDeclarationHost<Node = CemQlSchemaReferenceNode>
+{
+    fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName>;
+    fn target_context_is_ready(
+        &mut self,
+        target: &SchemaDeclarationNode,
+    ) -> Result<bool, ReferenceResolutionError>;
+}
+impl SchemaPreparationHost for CemQlSchemaDeclarationHost {
+    fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
+        self.captured_expanded_name(source)
+    }
+    fn target_context_is_ready(
+        &mut self,
+        target: &SchemaDeclarationNode,
+    ) -> Result<bool, ReferenceResolutionError> {
+        Ok(self
+            .source_scope(target)
+            .and_then(|scope| self.scope_record(scope))
+            .is_some_and(|scope| scope.context.is_some()))
+    }
+}
+
+pub(super) fn prepare_schema_scope_node<H: SchemaPreparationHost>(
+    host: &mut H,
+    schema_uri: &str,
+    root: CemQlSchemaReferenceNode,
+    limits: ReferenceTraversalLimits,
+) -> Result<SchemaScopePreparation, ReferenceResolutionError> {
+    let selection = resolve_reference(root, host, limits)?;
+    let mut prepared = SchemaScopePreparation {
+        selection,
+        target: None,
+        model: None,
+        issue: None,
+    };
+    if !prepared.selection.is_complete() || prepared.selection.failed {
+        return Ok(prepared);
+    }
+    if prepared.selection.nodes.len() != 1 {
+        prepared.issue = Some(SchemaScopePreparationIssue::TargetCount(
+            prepared.selection.nodes.len(),
+        ));
+        return Ok(prepared);
+    }
+    let Some(source) = host.declaration_node(&prepared.selection.nodes[0]) else {
+        prepared.issue = Some(SchemaScopePreparationIssue::TargetHasNoSourceHandle);
+        return Ok(prepared);
+    };
+    let target = match admit_schema_scope_target(source, |node| {
+        host.captured_expanded_name(node).cloned()
+    }) {
+        Ok(target) => target,
+        Err(issue) => {
+            prepared.issue = Some(SchemaScopePreparationIssue::TargetAdmission(issue));
+            return Ok(prepared);
+        }
+    };
+    // A declaration's lifecycle context can remain unavailable even when
+    // selection from the requesting context completed and needs no inputs.
+    if !host.target_context_is_ready(&target.declaration)? {
+        prepared.target = Some(target);
+        prepared.issue = Some(SchemaScopePreparationIssue::TargetContextNotReady);
+        return Ok(prepared);
+    }
+    prepared.model = Some(Arc::new(compile_schema_scope_target(
+        schema_uri, &target, host, limits,
+    )?));
+    prepared.target = Some(target);
+    Ok(prepared)
 }

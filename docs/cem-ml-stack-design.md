@@ -1380,9 +1380,10 @@ attribute target subtrees do not trigger discovery. Structural reference budgets
 and active identities continue across independently bounded selector preparation;
 no discovery rewalk repeats structural reference evaluation.
 
-Wrapping/sibling/prelude controls, external loading readiness, effective runtime
-scope installation and per-region behavior dispatch remain lifecycle integration
-work. Discovery does not create contexts, install policies or authorize crossings.
+Wrapping/sibling/prelude controls, external loading readiness and per-region
+behavior dispatch remain lifecycle integration work. Preparation-only discovery
+does not create contexts, install policies or authorize crossings; effective body
+installation is an explicitly invoked consumer stage described below.
 
 Child runtime-input preparation now derives a validated reference policy from the
 enclosing host policy and requires an explicit caller context. Missing context
@@ -1396,8 +1397,26 @@ Runtime records retain local declaration provenance and lexical parents. Source
 maps identify schema declarations; complete caller policies remain explicit through
 legacy APIs. Partial-policy handoff records actual declarations, including explicit
 values equal to defaults and neutral resets. Replaying those declarations does not
-mutate captured contexts or introduce grants. Automatic body binding, invocation
-restoration and combined runtime region readiness remain integration work.
+mutate captured contexts or introduce grants.
+
+The explicit runtime host-region validation API now combines selected model,
+validated policy and caller context readiness before activating a body. It requests
+body inputs only for ready controls/selection/compilation/policy; missing inputs or
+invalid policy block descendants without inherited or previously active fallback.
+Entered original local frames request their own context and replay local overrides
+onto fresh child defaults. Inherited body frames use the explicitly supplied body
+inputs. Context handoff is lazy: unentered, blocked and denied descendants do not
+request inputs. Host attributes stay enclosing, nested selectors consume enclosing
+body inputs, and nested/sibling exit follows original owning ancestry.
+
+The native resolver prepares effective frames before destination-budget activation
+without resetting request/active scope accounting or widening edge authorization.
+Authored attribute target descendants remain retained and unevaluated. Source scope
+assignments are invocation-local and restore on success, error and unwind; returned
+input/frame handles remain inspectable, while original lexical records and source
+owners are unchanged. Unrelated relationship roots reject automatic lexical replay.
+No context ID, source target writeback or implicit crossing grant is introduced.
+Per-region retained behavior dispatch remains the next lifecycle integration step.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

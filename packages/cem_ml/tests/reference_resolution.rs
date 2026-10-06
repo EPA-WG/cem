@@ -24,6 +24,9 @@ struct Host {
     default: ReferenceScopePolicy,
     denied: HashSet<(AstNodeId, AstNodeId)>,
     calls: usize,
+    prepared: Vec<AstNodeId>,
+    handoffs: HashMap<AstNodeId, usize>,
+    denied_scopes: HashSet<usize>,
     scopes: HashMap<u32, usize>,
     scope_bounds: HashMap<usize, cem_ml::schema::reference_traversal::ReferenceTraversalLimits>,
 }
@@ -75,6 +78,9 @@ impl Host {
             default: ReferenceScopePolicy::schema_defaults().unwrap(),
             denied: HashSet::new(),
             calls: 0,
+            prepared: vec![],
+            handoffs: HashMap::new(),
+            denied_scopes: HashSet::new(),
             scopes: HashMap::new(),
             scope_bounds: HashMap::new(),
         }
@@ -97,6 +103,16 @@ impl Host {
 impl ReferenceResolutionHost for Host {
     type Node = AstNodeId;
     type Scope = usize;
+    fn prepare_node(
+        &mut self,
+        node: &mut u32,
+    ) -> Result<(), cem_ml::value::reference_resolution::ReferenceResolutionError> {
+        self.prepared.push(*node);
+        if let Some(scope) = self.handoffs.get(node) {
+            self.scopes.insert(*node, *scope);
+        }
+        Ok(())
+    }
     fn scope(&self, node: &u32) -> usize {
         *self.scopes.get(node).unwrap_or(&0)
     }
@@ -126,7 +142,7 @@ impl ReferenceResolutionHost for Host {
         self.policies.get(node).unwrap_or(&self.default.unresolved)
     }
     fn permits_edge(&self, from: &u32, to: &u32) -> bool {
-        !self.denied.contains(&(*from, *to))
+        !self.denied.contains(&(*from, *to)) && !self.denied_scopes.contains(&self.scope(to))
     }
     fn evaluate(&mut self, node: &u32) -> ReferenceLinkEvaluation<u32> {
         self.calls += 1;
@@ -458,4 +474,55 @@ fn structural_destination_work_is_cumulative_and_restores_outer_siblings() {
     assert!(!graph.children_complete[0]);
     assert!(!graph.resolution.is_complete());
     assert_eq!(graph.roots, vec![0, 1]);
+}
+
+#[test]
+fn lifecycle_handoff_activates_fresh_scope_bounds_without_preparing_exhausted_targets() {
+    let mut host = Host::graph(&[Some(vec![2, 3]), None, None]);
+    let limits = host.default.limits;
+    host.handoffs.insert(1, 1);
+    host.scope_bounds.insert(
+        1,
+        cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 2,
+        },
+    );
+    let result = resolve_reference(1, &mut host, limits).unwrap();
+    assert_eq!(host.prepared, vec![1, 2]);
+    assert_eq!(result.nodes, vec![2]);
+    assert_eq!(result.work_used, 3);
+    assert_eq!(result.issues[0].reason, "scope-work-limit");
+    let mut host = Host::graph(&[Some(vec![2]), None]);
+    let mut limits = host.default.limits;
+    limits.max_work = 1;
+    let result = resolve_reference(1, &mut host, limits).unwrap();
+    assert_eq!(host.prepared, vec![1]);
+    assert!(!result.is_complete());
+}
+
+#[test]
+fn lifecycle_handoff_cannot_prepare_denied_targets_or_widen_edge_authority() {
+    let mut host = Host::graph(&[Some(vec![2, 3]), None, None]);
+    let limits = host.default.limits;
+    host.denied.insert((1, 2));
+    let result = resolve_reference(1, &mut host, limits).unwrap();
+    assert_eq!(host.prepared, vec![1, 3]);
+    assert_eq!(result.nodes, vec![3]);
+    let mut host = Host::graph(&[Some(vec![2, 3]), None, None]);
+    host.handoffs.insert(2, 1);
+    host.denied_scopes.insert(1);
+    let result = resolve_reference(1, &mut host, limits).unwrap();
+    assert_eq!(host.prepared, vec![1, 2, 3]);
+    assert_eq!(result.nodes, vec![3]);
+    assert_eq!(
+        result.issues[0].kind,
+        ReferenceResolutionIssueKind::ScopeDenied
+    );
+    let mut host = Host::graph(&[None]);
+    assert_eq!(
+        resolve_reference(1, &mut host, limits).unwrap_err(),
+        cem_ml::value::reference_resolution::ReferenceResolutionError::NotReference
+    );
+    assert!(host.prepared.is_empty());
 }

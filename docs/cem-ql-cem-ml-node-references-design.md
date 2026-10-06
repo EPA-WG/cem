@@ -500,8 +500,9 @@ preparation. It does not reset the structural traversal's work, destination caps
 or active reference identities, and discovery does not evaluate structural
 references a second time. These APIs validate consuming models; they do not
 install effective runtime contexts or policies during an active request.
-Wrapping/sibling/prelude controls, external loading readiness, runtime installation
-and per-region behavior dispatch remain actionable lifecycle work in `todo.md`.
+Wrapping/sibling/prelude controls, external loading readiness and per-region
+behavior dispatch remain actionable lifecycle work in `todo.md`. Runtime body
+installation is available through the explicit invocation API described below.
 Generic and explicit controlled-region APIs keep their existing contracts. No
 deferred enclosed override syntax is selected by this integration stage.
 
@@ -540,12 +541,42 @@ Original captured frames are unchanged, and registration neither assigns source
 nodes nor grants crossings. Explicit source handoff can consume the fresh frames
 through the existing bounded resolver, with request limits still enforced.
 
-Automatic body/occurrence assignment, invocation cleanup/restoration and combined
-runtime readiness in region validation remain lifecycle integration work. Behavior
-dispatch also remains pending. These stages must use the registered frames without
-resetting active traversal budgets, rebinding earlier lexical names or inheriting
-an unavailable child body. The remaining fixtures and their scenarios are in
-`todo.md`.
+`validate_input_runtime_host_regions` now combines discovery, child runtime-input
+readiness and invocation-local body assignment. Its caller context hook receives
+`SchemaHostRuntimeContextRequest::Body` only after control validation, bounded
+selection, exact compilation and child policy validation are ready. Missing body
+inputs block the governed descendants, even after an earlier completed invocation;
+invalid policy reports the original constraint source. No inherited model or old
+body context substitutes for an unavailable explicit override.
+
+Entered body nodes use fresh child frames. A local original frame requests its own
+`Occurrence` context once per child boundary; declarations replay from the original
+host's enclosing frame onto that child. Missing occurrence context stays pending,
+regardless of available body inputs. Frames are prepared on consumption, so inactive
+occurrences, denied targets and targets beyond active work caps do not request
+contexts. Nested selectors use their enclosing body inputs; host attributes retain
+the enclosing frame, and nested/sibling exit restores the enclosing body by original
+owning ancestry. Literal and native selectors share the same preparation stages.
+
+The optional resolver `prepare_node` lifecycle hook preserves typed original
+handles while selecting effective frames. The initial typed root is prepared before
+establishing its scope budget. Descendant handoff follows existing work and edge
+checks and precedes effective destination-scope activation; a changed scope requires
+another edge-authorization check. Request and active ancestor/destination budgets
+continue without replenishment. The validation's authored attribute-target subtree
+walk retains descendant references and does not hand them off for evaluation.
+
+`SchemaHostRuntimeValidation` retains input snapshots and registered child/occurrence
+frame handles beside the validation result. Source assignment maps restore before
+return, including resolution/handoff errors and caller unwinds. Earlier captured
+records, lexical names and original arenas remain unchanged. A later invocation
+prepares fresh contexts and frames, while returned handles remain inspectable.
+Independent relationship roots reject the automatic lexical replay with
+`InvalidScopeHandoff`; the handoff never creates crossing grants. This is an explicit
+consumer invocation, not a parse/load side effect. The existing preparation-only
+and controlled-region APIs retain their contracts. Per-region retained behavior
+dispatch and broader control forms remain actionable work with verification
+scenarios in `todo.md`.
 
 ### Implicit scope references and defaults
 

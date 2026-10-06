@@ -47,6 +47,8 @@ mod region_validation;
 mod host_controls;
 mod host_regions;
 mod host_runtime_inputs;
+mod host_runtime_binding;
+pub use host_runtime_binding::{SchemaHostRuntimeContextRequest, SchemaHostRuntimeValidation};
 pub use host_runtime_inputs::{
     SchemaHostRuntimeInputIssue, SchemaHostRuntimeInputs, SchemaHostRuntimeScope,
 };
@@ -409,6 +411,13 @@ impl CemQlSchemaDeclarationHost {
         )
     }
     fn source_scope(&self, source: &SchemaDeclarationNode) -> Option<DeclarationScope> {
+        self.source_scope_with_assignments(source, &self.node_scopes)
+    }
+    fn source_scope_with_assignments(
+        &self,
+        source: &SchemaDeclarationNode,
+        assignments: &BTreeMap<(usize, AstNodeId), DeclarationScope>,
+    ) -> Option<DeclarationScope> {
         let owner = Arc::as_ptr(source.document()) as usize;
         let tree = self
             .scopes
@@ -418,7 +427,7 @@ impl CemQlSchemaDeclarationHost {
             .clone();
         let mut node = Some(source.node_id());
         while let Some(id) = node {
-            if let Some(scope) = self.node_scopes.get(&(owner, id)) {
+            if let Some(scope) = assignments.get(&(owner, id)) {
                 return Some(*scope);
             }
             let parent = tree.source_parent(id);

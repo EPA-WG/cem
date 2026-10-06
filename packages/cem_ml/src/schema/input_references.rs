@@ -387,9 +387,15 @@ where
             mark_incomplete(&mut report, parent);
             continue;
         }
+        let mut entered = host.source_node(handle.clone());
+        // Direct owning placements have no reference resolver entry hook.
+        // References are handed off by their bounded consuming walk instead.
+        if !matches!(handle.node(), CemAstNode::Reference { .. }) {
+            host.prepare_node(&mut entered)?;
+        }
         if matches!(handle.node(), CemAstNode::Reference { .. }) {
             let consumed = consumed_walk::walk_regions_scheduled(
-                host.source_node(handle),
+                entered,
                 &mut models,
                 model_index,
                 host,
