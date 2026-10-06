@@ -302,6 +302,26 @@ target-kind, cardinality and readiness contracts, tracked in
 [todo.md](todo.md#ast-node-reference-implementation). No replacement of every
 frame or binding table is mandated.
 
+### Scope-property consumption audit (2026-10-06)
+
+Existing namespace records retain URI bindings, while `SchemaSource::Select`
+retains an expression. Lexical capture and caller-completed scope handoff retain
+these associations; native schema/namespace property selection is still unimplemented.
+The deferred enclosed child override syntax remains separate.
+
+The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
+state that a schema selector returns the innermost match. The current reference
+model leaves target cardinality to each consuming construct. Before implementing
+native selection, decide whether a selector returning several schema nodes is
+invalid or chooses the innermost result. Innermost lexical name shadowing remains
+applicable in either case; it does not by itself rank an arbitrary query sequence.
+
+The recommendation is to resolve names using the captured lexical scope, consume
+reference chains under the existing bounds, then require one completed schema
+target. This is a pending proposal, not an adopted cardinality rule. The decision,
+remaining target-kind/readiness work and verification scenarios are recorded in
+[todo.md](todo.md#ast-node-reference-implementation).
+
 ### Implicit scope references and defaults
 
 Scope properties provide an indirect form of reference. Syntax and its

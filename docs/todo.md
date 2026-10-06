@@ -1363,6 +1363,33 @@ only and adds no runtime behavior or public syntax.
       not execute a namespace/schema selector during parsing.
       Scenarios for later design verification: lexical snapshots and runtime
       relationship boundaries remain distinct, with directed crossing grants.
+- [x] Audit specialized scope-property reference adoption before implementation.
+      Completed (2026-10-06): namespace bindings retain URI/context identities;
+      `SchemaSource::Select` retains selector text; lexical capture and explicit
+      subtree/following-sibling handoff are implemented. None of these executes
+      native property selection. The older stack design's schema-selector
+      innermost-match wording needs reconciliation with consumer cardinality.
+      Scenarios for later design verification: distinguish lexical shadowing
+      from a selector's ordered target sequence; retained QNames and earlier
+      bindings remain unchanged by later consumer completion.
+- [ ] Decide schema scope-selector multi-target behavior before implementing
+      consumption. Recommended: preserve innermost lexical declaration lookup,
+      then require exactly one completed target after bounded reference-chain
+      resolution. Alternative: select the innermost schema from multiple returned
+      targets under the older stack-design contract. Decision requested 2026-10-06;
+      neither alternative is adopted by this audit.
+      Scenarios for later design verification: nested same-name declarations
+      retain lexical shadowing; a query deliberately returning multiple schemas
+      follows the chosen cardinality rule; target order is not an implicit depth
+      ranking; pending resolution cannot establish an effective schema scope.
+- [ ] Specify schema and namespace target-kind/readiness contracts after the
+      schema-selector cardinality decision. Distinguish inline schema wrappers,
+      schema-language declarations and namespace binding/context identities;
+      do not treat context record IDs as AST node IDs or silently extract a URI
+      from an arbitrary selected node. Preserve existing literal forms.
+      Scenarios for later design verification: wrong target kinds cannot establish
+      a scope; original owners and source provenance survive consumption; namespace
+      completion does not retroactively rename already expanded source QNames.
 - [ ] Define and implement native reference consumption by specialized schema and
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;
