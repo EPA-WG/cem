@@ -616,3 +616,71 @@ fn wrapping_controls_route_native_behaviors_and_preserve_enclosing_host_validati
         .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
     assert_eq!(report.validation.diagnostics.len(), 3);
 }
+
+#[test]
+fn following_regions_dispatch_behaviors_with_enclosing_switch_nodes_and_native_relationships() {
+    let inner = behavior(
+        "fixture.inner",
+        "nodes",
+        "{name: $candidate.name, parent: $candidate.parent.name}",
+    );
+    let (captured,tree)=capture(&format!("@ns s = https://cem.dev/ns/schema/1\n{{s:schema | {{elements | {{element @name=child @children=item}} {{element @name=after}} {{element @name=item}}}} {inner}}} {{host | {{schema @own=yes @select={{#library}}}} {{child | {{#items}}}} {{after}}}} {{outside}} {{item}}"));
+    let schemas = elements(&tree, "schema");
+    let item = elements(&tree, "item")[0];
+    let outer=compile_schema_document_model("base",&format!("{{schema | {{elements | {{element @name=host @children='schema child after'}} {{element @name=schema @required-attributes=own}} {{element @name=outside}}}} {} }}",behavior("fixture.outer","nodes","{name: $candidate.name, parent: $candidate.parent.name}")));
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let ctx = context(&tree, schemas[0], &tree, &[item]);
+    host.register_scope(tree.clone(), Some(ctx.clone()), policy());
+    host.attach_captured_names(&captured).unwrap();
+    let report = host
+        .validate_input_runtime_host_regions_with_behavior_evaluator(
+            "child",
+            tree.clone(),
+            &[elements(&tree, "host")[0], elements(&tree, "outside")[0]],
+            &outer,
+            policy().limits,
+            |_| Some(ctx.clone()),
+            Some(&CemQlSchemaBehaviorEvaluator),
+        )
+        .unwrap();
+    assert!(
+        report.validation.complete && !report.validation.failed,
+        "{:?}",
+        report.validation.diagnostics
+    );
+    let counts: BTreeMap<_, _> =
+        report
+            .validation
+            .diagnostics
+            .iter()
+            .fold(BTreeMap::new(), |mut counts, d| {
+                *counts.entry(d.code.as_str()).or_insert(0) += 1;
+                counts
+            });
+    assert_eq!(counts.get("fixture.outer"), Some(&3));
+    assert_eq!(counts.get("fixture.inner"), Some(&3));
+    let selected = report
+        .validation
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code == "fixture.inner" && d.details.as_ref().unwrap()["observed"]["name"] == "item"
+        })
+        .unwrap();
+    assert_eq!(
+        selected.details.as_ref().unwrap()["observed"]["parent"],
+        "child"
+    );
+    assert!(report
+        .validation
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), tree.ast_owner())));
+    assert!(tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}

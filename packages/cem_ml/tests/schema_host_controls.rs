@@ -342,3 +342,147 @@ fn imported_empty_wrapper_and_sibling_forms_require_original_event_metadata() {
     );
     assert!(no_element_name.attributes().is_empty());
 }
+
+#[test]
+fn following_controls_decode_without_choosing_the_switch_nodes_consuming_model() {
+    use cem_ml::schema::scope_controls::{
+        validate_schema_scope_controls, SchemaScopeControlExtent,
+    };
+    let captured = capture("@ns c = https://cem.dev/ns/core/1\n{c:schema @select=library} {schema @select={#library}} {schema @select={library}} {schema @src=./external.cem} {schema @select=library |} {host @schema-select=library} {schema @name=declaration}\n@ns c = urn:foreign\n{c:schema @select=ordinary}");
+    let nodes: Vec<_> = captured
+        .document()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if matches!(expanded_name.local_name.as_str(), "schema" | "host") => {
+                SchemaDeclarationNode::new(captured.document().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    let validate = |node: &SchemaDeclarationNode| {
+        validate_schema_scope_controls(
+            node.clone(),
+            |source| {
+                captured
+                    .expanded_name(source.document(), source.node_id())
+                    .cloned()
+            },
+            captured.schema_element_form(node.document(), node.node_id()),
+        )
+    };
+    for node in &nodes[..4] {
+        let contract = validate(node);
+        assert!(contract.issue().is_none());
+        assert_eq!(contract.extent(), SchemaScopeControlExtent::Following);
+        assert_eq!(contract.attributes().len(), 1);
+        assert!(Arc::ptr_eq(
+            contract.control().unwrap().host.document(),
+            captured.document()
+        ));
+    }
+    assert!(
+        matches!(&validate(&nodes[0]).control().unwrap().source,SchemaHostSource::LiteralSelector(value) if value=="library")
+    );
+    for node in &nodes[1..3] {
+        let contract = validate(node);
+        let SchemaHostSource::NativeSelector(payload) = &contract.control().unwrap().source else {
+            panic!("native selector")
+        };
+        assert!(Arc::ptr_eq(payload.document(), captured.document()));
+        assert!(matches!(
+            payload.node(),
+            CemAstNode::Reference { targets: None, .. } | CemAstNode::Element { .. }
+        ));
+    }
+    assert!(
+        matches!(&validate(&nodes[3]).control().unwrap().source,SchemaHostSource::Uri(value) if value=="./external.cem")
+    );
+    for node in &nodes[4..6] {
+        assert_eq!(validate(node).extent(), SchemaScopeControlExtent::Body);
+        assert!(validate(node).control().is_some());
+    }
+    for node in &nodes[6..] {
+        assert!(!validate(node).has_override());
+    }
+    assert!(captured.document().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn following_control_metadata_and_conflicts_are_checked_before_selection() {
+    use cem_ml::schema::scope_controls::{
+        validate_schema_scope_controls, SchemaScopeControlExtent,
+    };
+    let captured=capture("{schema @src=uri @select={#library}} {schema @select} {schema @select=library @schema-select=other}");
+    let nodes: Vec<_> = captured
+        .document()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "schema" => {
+                SchemaDeclarationNode::new(captured.document().clone(), *node_id)
+            }
+            _ => None,
+        })
+        .collect();
+    for (node, issue, count) in [
+        (
+            nodes[0].clone(),
+            SchemaHostControlIssue::ConflictingSources,
+            2,
+        ),
+        (nodes[1].clone(), SchemaHostControlIssue::InvalidValue, 1),
+        (
+            nodes[2].clone(),
+            SchemaHostControlIssue::ConflictingSources,
+            2,
+        ),
+    ] {
+        let contract = validate_schema_scope_controls(
+            node.clone(),
+            |source| {
+                captured
+                    .expanded_name(source.document(), source.node_id())
+                    .cloned()
+            },
+            captured.schema_element_form(node.document(), node.node_id()),
+        );
+        assert_eq!(contract.extent(), SchemaScopeControlExtent::Following);
+        assert_eq!(contract.issue().unwrap().issue, issue);
+        assert_eq!(contract.attributes().len(), count);
+        assert_eq!(contract.diagnostics().len(), 1);
+        assert!(Arc::ptr_eq(
+            contract.issue().unwrap().source.document(),
+            captured.document()
+        ));
+    }
+    let missing = validate_schema_scope_controls(
+        nodes[0].clone(),
+        |source| {
+            captured
+                .expanded_name(source.document(), source.node_id())
+                .cloned()
+        },
+        None,
+    );
+    assert_eq!(
+        missing.issue().unwrap().issue,
+        SchemaHostControlIssue::BodyFormNotReady
+    );
+    assert!(missing.control().is_none());
+    assert!(missing.diagnostics().is_empty());
+}

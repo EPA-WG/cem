@@ -1,6 +1,6 @@
 //! Per-placement consuming models over immutable original source handles.
 use super::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// An explicit child override selected by the consumer. None is an unavailable
 /// override, never permission to inherit the enclosing model for its body.
@@ -39,6 +39,8 @@ pub(super) struct RegionModels<'a> {
     available: Vec<bool>,
     boundaries: HashMap<(usize, crate::parser::AstNodeId), Option<usize>>,
     controls: HashMap<(usize, crate::parser::AstNodeId), RegionControl>,
+    positions: HashMap<usize, HashMap<crate::parser::AstNodeId, (crate::parser::AstNodeId, usize)>>,
+    following: HashMap<(usize, crate::parser::AstNodeId), BTreeMap<usize, Option<usize>>>,
 }
 struct RegionControl {
     attributes: HashSet<crate::parser::AstNodeId>,
@@ -57,6 +59,8 @@ impl<'a> RegionModels<'a> {
             available: vec![ready(model)],
             boundaries: HashMap::new(),
             controls: HashMap::new(),
+            positions: HashMap::new(),
+            following: HashMap::new(),
         };
         let mut diagnostics = vec![];
         for region in regions {
@@ -143,7 +147,21 @@ impl<'a> RegionModels<'a> {
             self.models.push(RegionModel::Prepared(model));
             index
         });
-        self.boundaries.insert(source_key, index);
+        let following = region.contract.extent()
+            == crate::schema::scope_controls::SchemaScopeControlExtent::Following;
+        if following {
+            self.index_positions(source);
+            let (parent, position) = self.positions[&source_key.0]
+                .get(&source.node_id())
+                .copied()
+                .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+            self.following
+                .entry((source_key.0, parent))
+                .or_default()
+                .insert(position + 1, index);
+        } else {
+            self.boundaries.insert(source_key, index);
+        }
         let mut attributes: HashSet<_> = region.contract.attributes().iter().copied().collect();
         attributes.extend(region.contract.pending_attributes().iter().copied());
         let mut diagnostics = region.contract.diagnostics();
@@ -152,11 +170,65 @@ impl<'a> RegionModels<'a> {
             source_key,
             RegionControl {
                 attributes,
-                blocked: region.contract.issue().is_some(),
+                blocked: region.contract.issue().is_some()
+                    || (following && !index.is_some_and(|index| self.available[index])),
                 diagnostics,
             },
         );
         Ok(())
+    }
+    // Scalar original owning positions, never a second AST or target projection.
+    // Index each arena once when its first following control is entered.
+    fn index_positions(&mut self, source: &SchemaDeclarationNode) {
+        self.positions.entry(key(source).0).or_insert_with(|| {
+            source
+                .document()
+                .nodes
+                .iter()
+                .enumerate()
+                .flat_map(|(parent, node)| {
+                    let children: &[crate::parser::AstNodeId] = match node {
+                        CemAstNode::Document { root_children, .. } => root_children,
+                        CemAstNode::Element { children, .. } => children,
+                        _ => &[],
+                    };
+                    children
+                        .iter()
+                        .enumerate()
+                        .map(move |(index, id)| (*id, (parent as crate::parser::AstNodeId, index)))
+                })
+                .collect()
+        });
+    }
+    /// A following override starts after the original control and ends with its
+    /// containing scope. Nearest body overrides still take precedence. None is
+    /// unavailable governance, not permission to use the preceding model.
+    pub fn effective_model(&self, model: usize, source: &SchemaDeclarationNode) -> Option<usize> {
+        let owner = key(source).0;
+        let Some(positions) = self.positions.get(&owner) else {
+            return Some(model);
+        };
+        let mut child = source.node_id();
+        let mut remaining = positions.len();
+        while let Some((parent, index)) = positions.get(&child) {
+            // Malformed owning cycles cannot make metadata lookup unbounded.
+            if remaining == 0 {
+                return None;
+            }
+            remaining -= 1;
+            if let Some((_, selected)) = self
+                .following
+                .get(&(owner, *parent))
+                .and_then(|transitions| transitions.range(..=*index).next_back())
+            {
+                return selected.filter(|index| self.available[*index]);
+            }
+            if let Some(selected) = self.boundaries.get(&(owner, *parent)) {
+                return selected.filter(|index| self.available[*index]);
+            }
+            child = *parent;
+        }
+        Some(model)
     }
     pub fn with_controls(
         mut self,
@@ -168,9 +240,12 @@ impl<'a> RegionModels<'a> {
                 continue;
             }
             let key = key(contract.host());
-            if !self.boundaries.contains_key(&key) || self.controls.contains_key(&key) {
+            if contract.extent() != crate::schema::scope_controls::SchemaScopeControlExtent::Body
+                || !self.boundaries.contains_key(&key)
+                || self.controls.contains_key(&key)
+            {
                 diagnostics.push(invalid_target(
-                    "Shared control contracts require distinct matching original region hosts",
+                    "Shared body control contracts require distinct matching original region hosts",
                     document_model::source_stack_for_node(contract.host().node()).clone(),
                 ));
                 continue;

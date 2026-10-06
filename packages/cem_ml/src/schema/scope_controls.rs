@@ -13,7 +13,15 @@ pub enum SchemaHostSource {
     NativeSelector(SchemaDeclarationNode),
 }
 
-/// The host retains its enclosing contracts; this control governs its body.
+/// Selection metadata only. A following switch retains its enclosing model and
+/// context; activation applies after the original control in its parent scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaScopeControlExtent {
+    Body,
+    Following,
+}
+
+/// The host retains its enclosing contracts; extent identifies the governed region.
 /// Names and values belong to the original arena, with no scope installation.
 #[derive(Debug, Clone)]
 pub struct SchemaHostControl {
@@ -120,8 +128,12 @@ pub struct SchemaHostControlContract {
     pending_attributes: Vec<crate::parser::AstNodeId>,
     control: Option<SchemaHostControl>,
     issue: Option<SchemaHostControlError>,
+    extent: SchemaScopeControlExtent,
 }
 impl SchemaHostControlContract {
+    pub fn extent(&self) -> SchemaScopeControlExtent {
+        self.extent
+    }
     pub fn host(&self) -> &SchemaDeclarationNode {
         &self.host
     }
@@ -174,7 +186,7 @@ pub fn validate_schema_host_controls<F>(
 where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
-    validate_body_controls(host, &mut resolved_name, false, None)
+    validate_body_controls(host, &mut resolved_name, false, false, None)
 }
 
 /// Established host attributes and wrapping schema elements use one body
@@ -190,13 +202,27 @@ pub fn validate_schema_body_controls<F>(
 where
     F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
 {
-    validate_body_controls(host, &mut resolved_name, true, form)
+    validate_body_controls(host, &mut resolved_name, true, false, form)
+}
+
+/// Decode established body and no-body sibling controls with original names and
+/// source form. No evaluation, scope installation or readiness is implied.
+pub fn validate_schema_scope_controls<F>(
+    host: SchemaDeclarationNode,
+    mut resolved_name: F,
+    form: Option<super::machine::SchemaElementForm>,
+) -> SchemaHostControlContract
+where
+    F: FnMut(&SchemaDeclarationNode) -> Option<ExpandedName>,
+{
+    validate_body_controls(host, &mut resolved_name, true, true, form)
 }
 
 fn validate_body_controls<F>(
     host: SchemaDeclarationNode,
     resolved_name: &mut F,
     include_wrappers: bool,
+    include_following: bool,
     form: Option<super::machine::SchemaElementForm>,
 ) -> SchemaHostControlContract
 where
@@ -212,7 +238,10 @@ where
             name.local_name == "schema"
                 && (name.namespace_uri.is_empty() || name.namespace_uri == CORE_NAMESPACE)
         });
-    let wrapping = wrapper && form == Some(super::machine::SchemaElementForm::Wrapping);
+    let following =
+        wrapper && include_following && form == Some(super::machine::SchemaElementForm::Following);
+    let wrapping =
+        wrapper && (form == Some(super::machine::SchemaElementForm::Wrapping) || following);
     if let CemAstNode::Element {
         attributes: source_attributes,
         ..
@@ -270,6 +299,11 @@ where
         pending_attributes,
         control,
         issue,
+        extent: if following {
+            SchemaScopeControlExtent::Following
+        } else {
+            SchemaScopeControlExtent::Body
+        },
     }
 }
 fn is_body_control_name(name: &ExpandedName, wrapping: bool) -> bool {

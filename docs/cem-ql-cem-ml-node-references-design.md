@@ -500,8 +500,8 @@ preparation. It does not reset the structural traversal's work, destination caps
 or active reference identities, and discovery does not evaluate structural
 references a second time. These APIs validate consuming models; they do not
 install effective runtime contexts or policies during an active request.
-No-body sibling/prelude controls and external loading readiness remain actionable
-lifecycle work in `todo.md`. Wrapping body installation and per-consuming-model
+Document-prelude controls and external loading readiness remain actionable
+lifecycle work in `todo.md`. Wrapping and following installation and per-consuming-model
 behavior dispatch are available through the explicit invocation API described below.
 Generic and explicit controlled-region APIs keep their existing contracts. No
 deferred enclosed override syntax is selected by this integration stage.
@@ -629,10 +629,35 @@ a no-body sibling switch even when both AST child lists are empty. Generic AST
 boundary defaults are not permission to infer source form. `attach_captured_names`
 now hands off these forms with the captured names. Missing form metadata on a
 source-bearing schema element stays pending (`BodyFormNotReady`), without selecting
-an inherited model. No-body following forms are captured but require their separate
-following-region scheduler; this body stage does not implement sibling/prelude
-activation or choose the deferred enclosed child-reference syntax. Existing
-preparation-only host APIs retain their contracts.
+an inherited model. The body-only APIs retain their established extent and reject
+following contracts used as explicit body overrides. Preparation-only host APIs
+retain their contracts; the invocation scheduler adds following activation through
+the shared scope-control decoder.
+
+Following activation (2026-10-06) retains the enclosing model/context on the
+no-body control node, its ordinary attributes and its selector. The selected scope
+starts after that original node and governs subsequent siblings and descendants
+until the containing scope ends. `validate_schema_scope_controls` exposes
+`SchemaScopeControlExtent::Following` alongside body controls, preserving original
+names, value slots and source-form metadata without evaluating queries.
+
+The explicit runtime scheduler records only entered original controls and derives
+region membership from scalar original owning positions. A nearer body boundary or
+nested following transition takes precedence; leaving it restores the enclosing
+region. Repeated reference-selected subtrees share one original preparation per
+invocation while retaining distinct consumed placements. Callers provide selected
+region inputs through the existing `SchemaHostRuntimeContextRequest::Body` callback,
+with `contract.extent()` distinguishing body and following. Source references keep
+directed grants, local policy provenance and request/destination accounting.
+
+Pending or invalid explicit following overrides retain unavailable governance:
+ordinary descendant attributes do not borrow the inherited model, structural
+reference evaluation is deferred, and the complete-forest behavior gate remains.
+Native CEM/XML retries restore original assignments and use fresh caller contexts
+and targets. No targets are written into authored references. Unentered prior
+controls are not scanned to infer omitted source dependencies. Document-prelude
+scheduling and external URI readiness remain actionable in `todo.md`; enclosed
+child override syntax remains deferred.
 
 ### Implicit scope references and defaults
 

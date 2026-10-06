@@ -57,6 +57,7 @@ struct Host {
     expression_calls: usize,
     denied_nodes: std::collections::HashSet<String>,
     scope_bounds: HashMap<usize, ReferenceTraversalLimits>,
+    unretained_nodes: std::collections::HashSet<String>,
 }
 impl Host {
     fn new() -> Self {
@@ -69,6 +70,7 @@ impl Host {
             expression_calls: 0,
             denied_nodes: Default::default(),
             scope_bounds: Default::default(),
+            unretained_nodes: Default::default(),
         }
     }
     fn disposition(&mut self, value: &str) {
@@ -150,7 +152,7 @@ impl SchemaDeclarationHost for Host {
         source
     }
     fn declaration_node(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
-        Some(target.clone())
+        (!self.unretained_nodes.contains(&target.identity())).then(|| target.clone())
     }
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
         self.schema_calls
@@ -4209,4 +4211,100 @@ fn discovery_rejects_control_metadata_from_another_original_host() {
         .iter()
         .any(|diagnostic| diagnostic.code
             == cem_ml::schema::document_model::INVALID_ATTRIBUTE_TYPE_CODE));
+}
+
+#[test]
+fn following_control_contracts_cannot_be_passed_as_legacy_body_regions() {
+    use cem_ml::schema::{
+        input_references::{
+            validate_structural_input_controlled_regions_references, InputSchemaRegion,
+        },
+        machine::SchemaElementForm,
+        scope_controls::validate_schema_scope_controls,
+    };
+    let input = parse("{schema @select=real}");
+    let boundary = node(&input, "schema");
+    let control = validate_schema_scope_controls(
+        boundary.clone(),
+        |source| match source.node() {
+            CemAstNode::Element { expanded_name, .. }
+            | CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.clone()),
+            _ => None,
+        },
+        Some(SchemaElementForm::Following),
+    );
+    let model =
+        compile_schema_document_model("base", "{schema | {elements | {element @name=schema}}}");
+    let child =
+        compile_schema_document_model("child", "{schema | {elements | {element @name=child}}}");
+    let mut host = Host::new();
+    let report = validate_structural_input_controlled_regions_references(
+        input.clone(),
+        &[boundary.node_id()],
+        &model,
+        &[InputSchemaRegion {
+            host: boundary,
+            model: Some(&child),
+        }],
+        &[control],
+        &mut host,
+        ReferenceTraversalLimits {
+            max_depth: 128,
+            max_work: 100000,
+        },
+    )
+    .unwrap();
+    assert!(!report.complete && report.failed);
+    assert_eq!(host.calls, 0);
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == cem_ml::schema::input_references::INVALID_STRUCTURAL_TARGET));
+}
+
+#[test]
+fn unsupported_retained_structural_target_reports_invalid_admission_without_panicking() {
+    use cem_ml::schema::input_references::{
+        validate_structural_input_references, INVALID_STRUCTURAL_TARGET,
+    };
+    let source = parse("{box | {#items}}");
+    let library = parse("{item}");
+    let target = node(&library, "item");
+    let mut host = Host::new();
+    host.unretained_nodes.insert(target.identity());
+    host.outcomes.insert(
+        "#items".into(),
+        ReferenceLinkEvaluation::Resolved(vec![target]),
+    );
+    let model = compile_schema_document_model(
+        "consumer",
+        "{schema | {elements | {element @name=box @children=item} {element @name=item}}}",
+    );
+    let limits = host.policy.limits;
+    let report =
+        validate_structural_input_references(source.clone(), &model, &mut host, limits).unwrap();
+    assert!(report.failed && !report.complete);
+    assert_eq!(host.calls, 1);
+    assert!(report.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == INVALID_STRUCTURAL_TARGET && diagnostic.source_map.is_some()
+    }));
+    assert_eq!(
+        report
+            .nodes
+            .iter()
+            .filter(|node| matches!(node.source.node(), CemAstNode::Element { .. }))
+            .count(),
+        1
+    );
+    assert!(report
+        .nodes
+        .iter()
+        .all(|node| Arc::ptr_eq(node.source.document(), &source)));
+    assert!(source.nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
 }

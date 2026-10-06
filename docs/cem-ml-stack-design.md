@@ -1334,7 +1334,7 @@ attributes:
 | Form                                                          | Self-closing | Effect                                                                                                                                                                                            |
 |---------------------------------------------------------------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `<cem:schema cem:name="...">…body…</cem:schema>`              | No           | Declares an inline schema with an addressable name. Does **not** switch the active schema on its parent scope. Native scope selection admits this named wrapper only when it contains exactly one direct schema-language declaration child; that original declaration is the compilation target. |
-| `<cem:schema src="..."/>`                                     | Yes          | Mid-document schema switch at sibling position. Opens a new scope that adopts the loaded schema for itself and subsequent siblings until the end of the parent scope.                              |
+| `<cem:schema src="..."/>`                                     | Yes          | Mid-document schema switch at sibling position. The switch node retains its enclosing model/context. The selected schema governs subsequent siblings and their descendants until the end of the parent scope.                              |
 | `<cem:schema src="...">…children…</cem:schema>`               | No           | Wrapping switch. Opens a scope around its children; the loaded schema applies inside the wrapper only. The parent scope is unaffected after `</cem:schema>`.                                       |
 | `<cem:schema select="..."/>` or `<cem:schema select="...">…</cem:schema>` | either | Same as the `src` forms but the schema body is resolved by cem-ql query within the document — resolving to one schema-language declaration or a named inline wrapper containing exactly one direct schema-language declaration.                                |
 | `cem:schema-src="..."` on any element                         | n/a          | The host element becomes a scope. The loaded schema applies **inside** the element only; the parent scope's active schema is unchanged. No upward propagation.                                     |
@@ -1380,7 +1380,7 @@ attribute target subtrees do not trigger discovery. Structural reference budgets
 and active identities continue across independently bounded selector preparation;
 no discovery rewalk repeats structural reference evaluation.
 
-No-body sibling/prelude controls and external loading readiness remain lifecycle
+Document-prelude controls and external loading readiness remain lifecycle
 integration work. Preparation-only discovery
 does not create contexts, install policies or authorize crossings; effective body
 installation is an explicitly invoked consumer stage described below.
@@ -1430,7 +1430,7 @@ behavior execution; unsupported region evaluators remain incomplete without lega
 or all-candidate fallback. Dispatch preserves source attribution and never consumes
 references again or expands authored attribute-target links. Existing single-model
 behavior APIs keep their contracts. Remaining lifecycle work concerns existing
-no-body sibling/prelude controls and external loading readiness.
+document-prelude controls and external loading readiness.
 
 Wrapping controls now enter the same invocation-local body scheduler as host
 attributes. Shared `validate_schema_body_controls` recognizes captured core schema
@@ -1446,9 +1446,30 @@ empty wrapping bodies from no-body following switches. CEM retains the actual
 body boundary/content, and XML retains start/empty-element event form; generic AST
 boundary defaults cannot establish a scope. Missing metadata stays pending. Nested
 exit restores enclosing contexts and models, and repeated reference-selected
-wrappers preserve placement identity and active traversal accounting. Following
-forms are captured for their next scheduling stage; this does not choose enclosed
-child override syntax.
+wrappers preserve placement identity and active traversal accounting. The body-only
+APIs retain this extent and reject following contracts passed as body overrides;
+this does not choose enclosed child override syntax.
+
+Adopted and implemented on 2026-10-06: a no-body sibling switch retains the
+preceding model/context for the control node, ordinary attributes and selector.
+Its selected model and explicitly supplied runtime inputs activate after that
+original control, governing subsequent siblings and descendants until the
+containing scope ends. `validate_schema_scope_controls` exposes body versus
+following extent through the same pure control contract. The invocation scheduler
+registers transitions only for entered original controls; scalar original owning
+positions determine the affected region, independently of consumed placement order.
+Nearer body boundaries and nested following switches restore the applicable model
+and context on exit. Unentered controls are not scanned or activated.
+
+The existing `SchemaHostRuntimeContextRequest::Body` callback supplies inputs for
+both extents; callers can inspect `contract.extent()` to distinguish them. An
+unavailable following override keeps its region incomplete without inherited
+attribute validation or descendant reference evaluation. Ready selected subtrees
+retain original owners and repeated placements, directed authorization, explicit
+local policy precedence and active traversal accounting. Per-model behavior
+execution uses the same complete-forest gate. Invocation assignments restore on
+exit, and CEM/XML retries prepare fresh inputs without storing reference targets.
+Document-prelude scheduling and URI loading remain separate actionable work.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

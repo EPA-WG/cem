@@ -1629,7 +1629,42 @@ only and adds no runtime behavior or public syntax.
       foreign schema/select lookalikes remain ordinary data; unavailable explicit
       overrides never borrow inherited models or contexts; consumed wrappers retain
       enclosing contracts and descendants use only the selected model.
-- [ ] Fixture: connect existing no-body sibling and prelude schema controls to the
+- [x] Fixture: decode no-body sibling schema controls through the shared original
+      source contract before wiring activation. Expose body versus following extent,
+      retain literal/native selectors and URI sources, require original source-form
+      metadata, preserve host/body APIs and namespace distinctions, and reject
+      conflicts or malformed slots without evaluating queries or installing scopes.
+      Completed on 2026-10-06 with pure extent/slot/namespace fixtures and a guard
+      rejecting following contracts supplied to legacy explicit body-region APIs.
+      Scenarios for later design verification: switch decoding does not choose which
+      model governs the switch node; named declarations without a source do not
+      switch; repeated original selectors remain execution-local consumer requests.
+- [x] Fixture: preserve invalid-target diagnostics when a structural reference host
+      cannot supply the original retained target handle after resolution. Model
+      routing must not panic or borrow a selected scope for an unsupported target.
+      Verified the missing-metadata panic before the fix and attributed invalid
+      admission afterward with the original-node fixture.
+      Scenarios for later design verification: malformed consumer handoffs remain
+      attributed hard errors and do not bypass original-node admission.
+- [x] Adopt following-switch activation after the control node (2026-10-06):
+      the control node keeps the enclosing model/context and the selected scope
+      governs subsequent siblings and descendants until the containing scope ends.
+      Align the design table with the established original-source handoff.
+      Scenarios for later design verification: selectors and ordinary control-node
+      attributes use the preceding scope; earlier siblings cannot acquire later inputs.
+- [x] Fixture: activate no-body sibling controls at entered original boundaries.
+      Cover literal/native selectors, enclosing switch-node contracts, original sibling
+      order, nested and body-region restoration, pending regions without fallback,
+      repeated reference-selected subtrees, directed grants, policy limits and
+      per-consuming-model behavior dispatch. Keep prelude and URI loading separate.
+      Completed on 2026-10-06: 242 focused native tests pass, including ten new
+      control, runtime, compatibility and behavior fixtures. CEM/XML retries restore
+      assignments and consume fresh explicit contexts without source target writeback.
+      Scenarios for later design verification: active traversal accounting survives
+      switches; an incomplete following region cannot borrow prior contexts/models;
+      retries restore original assignments and use fresh caller inputs; declaring
+      owners and repeated placements retain their provenance.
+- [ ] Fixture: connect existing document-prelude schema controls to the
       entered-boundary runtime scheduler. Reuse captured original boundaries and
       the shared admission/readiness/frame/behavior stages, preserve earlier source
       names and local policy provenance, and restore enclosing/following regions.
@@ -1651,9 +1686,10 @@ only and adds no runtime behavior or public syntax.
       automatic entered-body/occurrence binding with combined readiness and invocation
       restoration and per-consuming-model retained behavior dispatch are implemented.
       Wrapping body controls now use original CEM/XML source forms and the same
-      runtime handoff. Next: add existing no-body sibling/prelude controls and
-      external loading readiness. Reuse the implemented preparation
-      and region APIs; do not add an AST projection or choose
+      runtime handoff. No-body sibling controls now activate after the original
+      control, using explicit runtime inputs and original owning positions. Next:
+      add document-prelude controls and external loading readiness. Reuse the
+      implemented preparation and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid
       override; retries keep earlier lexical bindings; leaving a completed child

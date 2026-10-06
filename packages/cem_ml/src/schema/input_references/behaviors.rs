@@ -3,7 +3,7 @@ use super::*;
 
 pub(super) fn validate<H: InputReferenceHost>(
     report: &mut StructuralInputValidation<H::Node>,
-    node_models: &[usize],
+    node_models: &[Option<usize>],
     models: &RegionModels<'_>,
     host: &H,
     evaluator: &dyn SchemaBehaviorEvaluator,
@@ -16,7 +16,7 @@ pub(super) fn validate<H: InputReferenceHost>(
     }
     let mut domains: Vec<Vec<usize>> = (0..models.len()).map(|_| vec![]).collect();
     for (placement, model) in node_models.iter().enumerate() {
-        domains[*model].push(placement);
+        domains[model.expect("complete retained governance")].push(placement);
     }
     let mut diagnostics = vec![];
     let mut complete = true;

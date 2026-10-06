@@ -18,7 +18,7 @@ use cem_ml::{
         },
         reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
-        scope_controls::validate_schema_body_controls,
+        scope_controls::{validate_schema_scope_controls, SchemaScopeControlExtent},
     },
     value::reference_resolution::{
         ReferenceLinkEvaluation, ReferenceResolutionError, ReferenceResolutionHost,
@@ -32,8 +32,9 @@ fn key(source: &SchemaDeclarationNode) -> SourceKey {
 }
 
 /// The caller supplies inputs at consumption time from its captured bindings.
-/// None stays pending. Body inputs apply to inherited body frames; an original
-/// local frame requests its own context instead of borrowing the body context.
+/// None stays pending. Body inputs apply to inherited region frames; inspect the
+/// contract extent for body versus following regions. An original local frame
+/// requests its own context instead of borrowing the selected region context.
 pub enum SchemaHostRuntimeContextRequest<'a> {
     Body(&'a SchemaHostRegionPreparation),
     Occurrence {
@@ -63,6 +64,8 @@ struct RuntimeHost<'a, F> {
     context: F,
     original_assignments: BTreeMap<SourceKey, DeclarationScope>,
     bodies: BTreeMap<SourceKey, BodyBinding>,
+    following: BTreeMap<SourceKey, BTreeMap<usize, SourceKey>>,
+    blocked: BTreeMap<SourceKey, DeclarationScope>,
     frames: BTreeMap<(SourceKey, DeclarationScope), DeclarationScope>,
     inputs: Vec<SchemaHostRuntimeInputs>,
     scopes: Vec<SchemaHostRuntimeScope>,
@@ -77,9 +80,8 @@ impl<F> RuntimeHost<'_, F>
 where
     F: for<'a> FnMut(SchemaHostRuntimeContextRequest<'a>) -> Option<StandaloneExpressionContext>,
 {
-    // Host attributes retain their enclosing context. Only a branch reached via
-    // an original owning child edge is in a host's body; nested/sibling exit
-    // therefore restores context by ancestry, without editing earlier frames.
+    // Original owning order chooses a following scope; the switch itself stays
+    // enclosing. Nearest body boundaries override enclosing following scopes.
     fn body(&self, source: &SchemaDeclarationNode) -> Option<SourceKey> {
         let tree = &self
             .host
@@ -91,9 +93,17 @@ where
         let mut child = source.node_id();
         while let Some(parent) = tree.source_parent(child) {
             let candidate = (owner, parent);
-            if self.bodies.contains_key(&candidate)
-                && CemQlSchemaDeclarationHost::source_children(tree, parent)
-                    .is_some_and(|children| children.contains(&child))
+            if let Some(boundary) = CemQlSchemaDeclarationHost::source_children(tree, parent)
+                .and_then(|children| children.iter().position(|id| *id == child))
+                .and_then(|index| self.following.get(&candidate)?.range(..=index).next_back())
+                .map(|(_, boundary)| *boundary)
+            {
+                return Some(boundary);
+            }
+            if self.bodies.get(&candidate).is_some_and(|binding| {
+                binding.child.inputs().region().contract.extent() == SchemaScopeControlExtent::Body
+            }) && CemQlSchemaDeclarationHost::source_children(tree, parent)
+                .is_some_and(|children| children.contains(&child))
             {
                 return Some(candidate);
             }
@@ -108,7 +118,7 @@ where
         source: SchemaDeclarationNode,
         limits: ReferenceTraversalLimits,
     ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError> {
-        let contract = validate_schema_body_controls(
+        let contract = validate_schema_scope_controls(
             source.clone(),
             |source| self.host.captured_expanded_name(source).cloned(),
             self.host.captured_schema_element_form(&source),
@@ -135,6 +145,37 @@ where
             inputs = inputs.with_context(context);
         }
         let ready = inputs.is_ready();
+        let following = inputs.region().contract.extent() == SchemaScopeControlExtent::Following;
+        if following {
+            let tree = self
+                .host
+                .scopes
+                .iter()
+                .find(|scope| Arc::ptr_eq(scope.tree.ast_owner(), source.document()))
+                .map(|scope| &scope.tree)
+                .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+            let parent = tree
+                .source_parent(source.node_id())
+                .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+            let position = CemQlSchemaDeclarationHost::source_children(tree, parent)
+                .and_then(|children| children.iter().position(|id| *id == source.node_id()))
+                .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+            self.following
+                .entry((key(&source).0, parent))
+                .or_default()
+                .insert(position + 1, key(&source));
+            if !ready {
+                let parent = self
+                    .host
+                    .source_scope(&source)
+                    .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+                let pending = self
+                    .host
+                    .register_lexical_scope_with_policy_overrides(parent, None, Default::default())
+                    .ok_or(ReferenceResolutionError::InvalidScopeHandoff)?;
+                self.blocked.insert(key(&source), pending);
+            }
+        }
         let mut diagnostics = vec![];
         if let Some(SchemaHostRuntimeInputIssue::InvalidPolicy(error)) = inputs.issue() {
             diagnostics.push(Diagnostic {
@@ -197,6 +238,11 @@ where
         let Some(boundary) = self.body(source) else {
             return Ok(());
         };
+        if let Some(pending) = self.blocked.get(&boundary) {
+            self.host.node_scopes.insert(key(source), *pending);
+            node.scope = Some(*pending);
+            return Ok(());
+        }
         let binding = &self.bodies[&boundary];
         let original = self
             .host
@@ -339,6 +385,8 @@ impl CemQlSchemaDeclarationHost {
             context,
             original_assignments,
             bodies: BTreeMap::new(),
+            following: BTreeMap::new(),
+            blocked: BTreeMap::new(),
             frames: BTreeMap::new(),
             inputs: vec![],
             scopes: vec![],

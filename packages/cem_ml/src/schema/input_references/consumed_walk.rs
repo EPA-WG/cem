@@ -10,6 +10,8 @@ use crate::value::reference_resolution::{
     ReferenceResolutionIssue, ReferenceResolutionIssueKind,
 };
 
+use std::collections::HashMap;
+
 #[derive(Clone, Copy)]
 enum Role {
     Structural(Option<usize>, usize),
@@ -105,7 +107,7 @@ struct Site {
 pub(super) struct ConsumedWalk<N> {
     pub structure: ReferenceStructureResolution<N>,
     pub attributes: Vec<(Option<usize>, ConsumedAttributeValue)>,
-    pub models: Vec<usize>,
+    pub models: Vec<Option<usize>>,
 }
 /// Directly authored attribute requests and structurally selected attributes use
 /// exactly this walk. The latter keep the enclosing active identities/budgets.
@@ -170,6 +172,7 @@ where
     let mut invalid_sites = HashSet::new();
     let mut blocked_positions = HashSet::new();
     let mut region_diagnostics = vec![];
+    let mut effective_models = HashMap::new();
     let origin = if matches!(role, Role::Container(_)) {
         let source = tagged_host.inner.retained_node(&root).unwrap();
         Some(ReferenceOccurrence {
@@ -189,11 +192,23 @@ where
         |host, entry| {
             let position = next_index;
             next_index += 1;
+            // Unsupported targets still reach original-node admission below.
+            // Retain their incoming model metadata instead of indexing a missing
+            // entry before the existing attributed invalid-target diagnostic.
+            if let Role::Structural(_, model) = entry.role {
+                effective_models.insert(position, Some(model));
+            }
             let Some(retained) = host.inner.retained_node(&entry.node) else {
                 return Ok(None);
             };
             match entry.role {
                 Role::Structural(_, current_model) => {
+                    let effective = models.effective_model(current_model, &retained);
+                    effective_models.insert(position, effective);
+                    let Some(current_model) = effective else {
+                        blocked_positions.insert(position);
+                        return Ok(Some(vec![]));
+                    };
                     models.discover(&retained, host.inner, limits, scheduler)?;
                     let model = models.model(current_model);
                     let (children, child_model, complete) =
@@ -558,10 +573,7 @@ where
     Ok(ConsumedWalk {
         models: structural_indices
             .iter()
-            .map(|index| match resolved.resolution.nodes[*index].role {
-                Role::Structural(_, model) => model,
-                _ => unreachable!(),
-            })
+            .map(|index| effective_models[index])
             .collect(),
         structure: ReferenceStructureResolution {
             roots: resolved

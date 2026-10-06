@@ -435,6 +435,22 @@ where
             mark_incomplete(&mut report, parent);
             continue;
         }
+        let Some(model_index) = models.effective_model(model_index, &handle) else {
+            mark_incomplete(&mut report, parent);
+            if structural_target(handle.node()) {
+                let position = report.nodes.len();
+                report.nodes.push(StructuralValidationNode {
+                    declaring_schema: None,
+                    source: handle,
+                    children: vec![],
+                    children_complete: false,
+                    attribute_values: vec![],
+                });
+                node_models.push(None);
+                attach(&mut report, parent, position);
+            }
+            continue;
+        };
         let mut entered = host.source_node(handle.clone());
         // Direct owning placements have no reference resolver entry hook.
         // References are handed off by their bounded consuming walk instead.
@@ -592,7 +608,7 @@ where
                 children_complete,
                 attribute_values,
             });
-            node_models.push(model_index);
+            node_models.push(Some(model_index));
             attach(&mut report, parent, position);
             pending.extend(
                 children
@@ -605,7 +621,10 @@ where
     let mut pending: Vec<_> = report.roots.iter().rev().map(|id| (*id, false)).collect();
     while let Some((index, allows_any)) = pending.pop() {
         let current = &report.nodes[index];
-        let model = models.model(node_models[index]);
+        let Some(model_index) = node_models[index] else {
+            continue;
+        };
+        let model = models.model(model_index);
         let boundary = models.is_boundary(&current.source);
         let sequence: Vec<_> = current
             .children
@@ -629,6 +648,9 @@ where
             )
         };
         for child in &current.children {
+            if node_models[*child].is_none() {
+                continue;
+            }
             document_model::validate_child_relationship(
                 model,
                 current.source.node(),
