@@ -47,11 +47,13 @@ Install `schema_packages::CemQlSchemaPackageCompiler` explicitly with
 `register_cem_ql_schema_package_compiler` when a native host has the runtime
 inputs needed for element, attribute, behavior, diagnostic, constraint or
 field-contract declaration references. Its preparation callback receives the package/schema identities,
-manifest origin and retained schema source, and
+manifest origin, retained schema source and `request.lexical_scopes`, and
 returns a fresh `CemQlSchemaDeclarationHost` plus request traversal limits.
 Register that source in the host, supply its current expression context and
 effective policies, register target owners, and grant directed scope crossings
-as required. No context root ID is needed.
+as required. Call `attach_captured_lexical_scopes` with the saved bindings to
+prepare occurrence contexts and policies; existing callbacks remain valid when
+they supply their own associations. No context root ID is needed.
 
 Call `cem_ml::real::load_schema_package_manifest_into_context` at the chosen
 lifecycle stage. Engine requests containing `schema_package_manifests` use the
@@ -60,8 +62,11 @@ registration does not install this compiler; source-only loading keeps
 unevaluated declaration references pending.
 
 `EngineContext.schema_package_sources` retains the latest valid source arena
-by resolved URI and byte revision. Unchanged reads reuse that allocation;
-changed bytes retain a new arena. This registry caches source structure only.
+by resolved URI and byte revision, together with lexical snapshots from the same
+AST allocation. `get_lexical_scopes(uri)` exposes those snapshots and machine
+diagnostics. Unchanged reads reuse both; changed bytes replace them together.
+Successful descriptor extraction borrows the retained AST. This registry caches
+source structure and bindings, with runtime selections supplied per invocation.
 Independent context snapshots share immutable source ownership and compile
 against their own runtime inputs. An incomplete or failed refresh preserves the
 last active schema, converters and artifacts while keeping its candidate model

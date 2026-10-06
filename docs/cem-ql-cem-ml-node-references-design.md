@@ -934,13 +934,19 @@ invoke the same stage on their enriched context. No scheduler or parser-time
 reference evaluation is introduced.
 
 The compilation request carries package/schema identities, resolved manifest
-origin and the retained schema tree. `schema_package_sources` retains source
-arenas by resolved URI and byte revision, including inactive candidates.
-Unchanged source reuses the original allocation when a pending candidate is
-compiled later. Changed bytes retain a new arena; failed parsing leaves the
-last valid arena available. This is a source cache, not an evaluated-target
-cache. Independent engine snapshots can share the source without sharing
-reference selections or writing results back into the authored tree.
+origin, the retained schema tree and `lexical_scopes` captured from its original
+AST allocation. `schema_package_sources` retains source arenas and bindings by
+resolved URI and byte revision, including inactive candidates;
+`get_lexical_scopes(uri)` exposes their snapshots and machine diagnostics.
+Unchanged source reuses both allocations when a pending candidate is compiled
+later. Changed bytes replace tree and metadata together; failed parsing or
+descriptor validation leaves the last valid pair available. Successful descriptor
+extraction borrows the retained tree. Preparation callbacks can pass the saved
+metadata to `attach_captured_lexical_scopes`, supplying current contexts, policies
+and grants explicitly. Bootstrap machine diagnostics remain inspectable without
+changing package admission or publication gates. The cache stores source
+structure and bindings, with evaluated targets supplied by each lifecycle.
+Independent engine snapshots can share the source without sharing reference selections or writing results back into the authored tree.
 
 Replacement authority is checked before invoking the runtime compiler.
 Candidate compilation must return the requested schema identity. Compiler

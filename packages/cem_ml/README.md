@@ -61,7 +61,7 @@ Capture does not evaluate references or schema selectors. Completion does not
 establish schema readiness. Preparing runtime contexts, effective policies and
 crossing grants remains consumer lifecycle work. The QL host's explicit
 `attach_captured_lexical_scopes` callback accepts this metadata at that stage;
-automatic engine/package preparation remains pending.
+automatic runtime preparation remains pending.
 
 `import::import_xml_ast_with_lexical_scopes(document, schema)` captures standalone
 XML reference occurrences during the existing import pass. The returned
@@ -71,7 +71,16 @@ The XML parser's expanded namespace names select CEM schema behavior, including
 authored aliases and local namespace declarations. Capture preserves entity/CDATA
 payload provenance and final schema diagnostics. XML attributes remain literals.
 The same explicit QL lifecycle handoff consumes these associations; automatic
-engine/package preparation remains pending.
+runtime preparation remains pending.
+
+`EngineContext.schema_package_sources` captures these bindings alongside each
+valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
+compiler's `SchemaPackageCompilationRequest.lexical_scopes` share the same original
+AST owner. Unchanged reads reuse both; changed sources replace both together.
+Descriptor extraction borrows that tree, while compiler callbacks supply current
+contexts, policies and grants through the explicit QL handoff. Machine diagnostics
+remain inspectable and do not replace the existing package publication gates.
+Ordinary engine input loading still needs this capture and lifecycle handoff.
 
 ## Verification
 

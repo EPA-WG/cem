@@ -244,16 +244,36 @@ implementation. `git diff --check` passes.
       All 25 focused CEM-ML capture/reference/source/parity tests and 41 machine
       tests pass. Full `cem_ql:test` and `cem_ml_transform_cem_ql:test` Nx targets pass.
       Automatic engine/package loading and consumer preparation remain open below.
-- [ ] Fixture: exercise completed namespace/schema associations through the native
-      engine/package lifecycle, including directive/host/wrapping/sibling forms,
+- [x] Fixture: package loading retains captured bindings beside the same source AST
+      and exposes them to the installed compiler's lifecycle preparation. Verify
+      unchanged reads reuse both owners, changed bindings produce a new candidate,
+      unready selection preserves the active package, and later preparation completes
+      that candidate without reparsing or mutating reference targets. Reuse its
+      parsed source for successful descriptor extraction; preserve metadata-error
+      and malformed-source retention behavior.
+      Scenarios for later design verification: cached source metadata is independent
+      of current runtime inputs; source-only loading cannot resolve references.
+- [x] Wire retained package source capture into compilation requests under that
+      fixture, preserving existing compiler callbacks and publication gates. Provide
+      registry inspection of the captured source; prepare contexts/policies/grants
+      through the existing explicit handoff at each lifecycle invocation.
+      Scenarios for later design verification: machine diagnostics remain inspectable
+      and source revision changes replace tree and binding metadata together.
+      Verification: the native package lifecycle fixture covers closure, shared owners,
+      changed bindings, pending/ready refresh and malformed-source preservation.
+      All 12 package lifecycle fixtures and the full `cem_ml_transform_cem_ql:test`
+      Nx target pass; 59 focused CEM-ML package tests and 33 registry tests pass.
+      Ordinary engine CEM/XML input capture and lifecycle preparation remain below.
+- [ ] Fixture: exercise completed namespace/schema associations through ordinary
+      native engine input loading and consumer preparation, including directive/host/wrapping/sibling forms,
       inherited defaults, subsequent rebinding, nested restoration and pending schema
       selection. Verify original owners, grants, effective policies and budgets
       using the adopted lexical/relationship identity rule and explicit CEM/XML handoffs.
       Scenarios for later design verification: identical expression source compiled
       under different lexical bindings stays distinct; explicit vendor crossings remain
       explicit; later declarations do not replace earlier occurrence bindings.
-- [ ] Wire completed specialized frame associations into native engine/package
-      loading and consumer preparation using the explicit retained-host handoff.
+- [ ] Wire completed specialized frame associations into ordinary native engine
+      input loading and consumer preparation using the explicit retained-host handoff.
       Keep occurrence binding retention,
       runtime-provided evaluation inputs, schema dependency readiness and directed
       crossing permissions separate. Do not infer runtime inputs from a saved context

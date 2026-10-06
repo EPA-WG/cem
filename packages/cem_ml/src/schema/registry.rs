@@ -490,6 +490,18 @@ pub fn schema_descriptor_from_manifest_and_schema_sources(
     )
 }
 
+/// Read source metadata from the original retained AST rather than parsing it
+/// again. Manifest parsing and descriptor validation retain their existing rules.
+pub fn schema_descriptor_from_manifest_and_schema_document(
+    package_id_hint: &str,
+    manifest_source: &str,
+    schema_path: &str,
+    schema: &CemDocument,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(manifest_source);
+    schema_descriptor_from_documents_inner(package_id_hint, &manifest, schema, schema_path, None)
+}
+
 pub fn schema_package_id_from_manifest_source(
     manifest_source: &str,
     package_id_hint: &str,
@@ -527,9 +539,25 @@ fn schema_descriptor_from_manifest_and_schema_sources_inner(
 ) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
     let manifest = parse_cem_document(manifest_source);
     let schema = parse_cem_document(schema_source);
-    let package_id = first_element_id_by_local_name(&manifest, "package")
+    schema_descriptor_from_documents_inner(
+        package_id_hint,
+        &manifest,
+        &schema,
+        schema_path,
+        expected_package_id,
+    )
+}
+
+fn schema_descriptor_from_documents_inner(
+    package_id_hint: &str,
+    manifest: &CemDocument,
+    schema: &CemDocument,
+    schema_path: &str,
+    expected_package_id: Option<&str>,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    let package_id = first_element_id_by_local_name(manifest, "package")
         .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
-    let package_attrs = collect_attrs(&manifest, package_id);
+    let package_attrs = collect_attrs(manifest, package_id);
     let package_id_attr = optional_attr(&package_attrs, "id").unwrap_or(package_id_hint);
     if let Some(expected_package_id) = expected_package_id {
         if optional_attr(&package_attrs, "id").is_some_and(|id| id != expected_package_id) {
@@ -540,13 +568,13 @@ fn schema_descriptor_from_manifest_and_schema_sources_inner(
         }
     }
 
-    let schema_root_attrs = first_element_id_by_local_name(&schema, "schema")
-        .map(|schema_id| collect_attrs(&schema, schema_id))
+    let schema_root_attrs = first_element_id_by_local_name(schema, "schema")
+        .map(|schema_id| collect_attrs(schema, schema_id))
         .unwrap_or_default();
-    let schema_attrs = element_child_ids_by_local_name(&manifest, package_id, "schema")
+    let schema_attrs = element_child_ids_by_local_name(manifest, package_id, "schema")
         .into_iter()
         .next()
-        .map(|schema_id| collect_attrs(&manifest, schema_id))
+        .map(|schema_id| collect_attrs(manifest, schema_id))
         .unwrap_or_default();
     let schema_uri = optional_attr(&schema_attrs, "uri")
         .or_else(|| optional_attr(&schema_root_attrs, "namespace"))
@@ -564,9 +592,9 @@ fn schema_descriptor_from_manifest_and_schema_sources_inner(
         schema_uri: schema_uri.to_owned(),
         version: version.to_owned(),
         source: descriptor_source,
-        content_types: collect_package_content_types(&manifest, package_id)?,
-        namespaces: collect_package_namespaces(&manifest, package_id)?,
-        uses: collect_schema_uses(&schema),
+        content_types: collect_package_content_types(manifest, package_id)?,
+        namespaces: collect_package_namespaces(manifest, package_id)?,
+        uses: collect_schema_uses(schema),
     })
 }
 

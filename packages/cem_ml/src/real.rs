@@ -1201,12 +1201,26 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
             return false;
         }
     };
-    let descriptor = match schema_descriptor_from_manifest_and_schema_sources(
-        package_id_hint,
-        manifest_source,
-        &read.uri,
-        &schema_source,
-    ) {
+    // Stage tree and binding metadata together until descriptor validation succeeds.
+    // The clone shares old immutable owners and never copies an AST allocation.
+    let mut retained_sources = context.schema_package_sources.clone();
+    let retained = retained_sources.retain(&read.uri, &schema_source);
+    let descriptor_result = match &retained {
+        Ok(source) => crate::schema::registry::schema_descriptor_from_manifest_and_schema_document(
+            package_id_hint,
+            manifest_source,
+            &read.uri,
+            source.ast(),
+        ),
+        // Preserve the existing malformed-source metadata/diagnostic path.
+        Err(_) => schema_descriptor_from_manifest_and_schema_sources(
+            package_id_hint,
+            manifest_source,
+            &read.uri,
+            &schema_source,
+        ),
+    };
+    let descriptor = match descriptor_result {
         Ok(descriptor) => descriptor,
         Err(error) => {
             diagnostics.push(schema_package_manifest_error_diagnostic(
@@ -1220,10 +1234,7 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
     use crate::schema::package_compilation::{
         compilation_failure, source_only_model, SchemaPackageCompilationRequest,
     };
-    let source = match context
-        .schema_package_sources
-        .retain(&read.uri, &schema_source)
-    {
+    let source = match retained {
         Ok(source) => source,
         Err(mut errors) => {
             for error in &mut errors {
@@ -1242,12 +1253,18 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
             return false;
         }
     };
+    context.schema_package_sources = retained_sources;
     let mut model = if let Some(compiler) = &context.schema_package_compiler {
         let request = SchemaPackageCompilationRequest {
             package_id: descriptor.package_id.clone(),
             manifest_uri: manifest_uri.into(),
             schema_uri: descriptor.schema_uri.clone(),
             source: source.clone(),
+            lexical_scopes: context
+                .schema_package_sources
+                .get_lexical_scopes(&read.uri)
+                .expect("retained source and lexical metadata are paired")
+                .clone(),
         };
         let compiled = compiler.compile(&request).and_then(|model| {
             if model.schema_uri == descriptor.schema_uri {

@@ -12,6 +12,7 @@ use std::{
 
 /// Original builder allocation with source-position expression metadata.
 /// Lookup checks allocation identity, not IDs or source-coordinate equality.
+#[derive(Debug)]
 pub struct LexicallyScopedDocument {
     document: Arc<CemDocument>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,

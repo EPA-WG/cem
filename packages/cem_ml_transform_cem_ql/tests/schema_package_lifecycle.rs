@@ -846,3 +846,209 @@ fn unconsumed_native_attribute_types_preserve_the_complete_active_package() {
         ));
     assert_active(&context, "old", "runtime-converter", "old.cemt");
 }
+
+#[test]
+fn package_source_capture_survives_closure_refresh_and_pending_lifecycle_preparation() {
+    fn scoped_compiler(ready: bool) -> CemQlSchemaPackageCompiler {
+        let first = tree("{schema | {elements | {element @name=first}}}");
+        let second = tree("{schema | {elements | {element @name=second}}}");
+        CemQlSchemaPackageCompiler::new(move |request| {
+            assert!(Arc::ptr_eq(
+                request.source.ast_owner(),
+                request.lexical_scopes.document()
+            ));
+            assert_eq!(request.lexical_scopes.occurrences().count(), 1);
+            let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+            let mut host = CemQlSchemaDeclarationHost::new();
+            let root = host.register_scope(request.source.clone(), None, policy.clone());
+            let first_scope = host.register_scope(first.clone(), None, policy.clone());
+            let second_scope = host.register_scope(second.clone(), None, policy.clone());
+            assert!(host.allow_scope_crossing(root, first_scope));
+            assert!(host.allow_scope_crossing(root, second_scope));
+            host.attach_captured_lexical_scopes(
+                &request.lexical_scopes,
+                |node, snapshot, parent| {
+                    assert_eq!(parent, root);
+                    assert!(matches!(
+                        node.node(),
+                        CemAstNode::Reference { targets: None, .. }
+                    ));
+                    let uri = &snapshot.namespaces.binding("v").unwrap().namespace_uri;
+                    let library = match uri.as_str() {
+                        "urn:first" => &first,
+                        "urn:second" => &second,
+                        _ => panic!("unexpected saved source binding {uri}"),
+                    };
+                    let target = library
+                        .ast()
+                        .nodes
+                        .iter()
+                        .find_map(|node| match node {
+                            CemAstNode::Element {
+                                node_id,
+                                expanded_name,
+                                ..
+                            } if expanded_name.local_name == "element" => Some(*node_id),
+                            _ => None,
+                        })
+                        .unwrap();
+                    let evaluation = ready.then(|| {
+                        StandaloneExpressionContext::default().with_binding(
+                            "library",
+                            StandaloneExpressionBinding::any(ItemStream::once(
+                                RetainedCemNode::new(library.clone(), target)
+                                    .unwrap()
+                                    .query_item(),
+                            )),
+                        )
+                    });
+                    (evaluation, policy.clone())
+                },
+            )
+            .map_err(|error| {
+                vec![cem_ml::schema::package_compilation::compilation_failure(
+                    &request.schema_uri,
+                    format!("captured scope handoff: {error:?}"),
+                )]
+            })?;
+            Ok((host, policy.limits))
+        })
+    }
+    let first_source = SOURCE.replace("{schema ", "{schema @xmlns:v=urn:first ");
+    let second_source = SOURCE.replace("{schema ", "{schema @xmlns:v=urn:second ");
+    let mut context = context(&first_source);
+    let load = |context: &mut EngineContext| {
+        let errors = load_schema_package_manifest_into_context(context, &input()).unwrap();
+        assert!(
+            errors
+                .iter()
+                .all(|error| !error.severity.is_hard_violation()),
+            "{errors:?}"
+        );
+    };
+    load(&mut context);
+    let original = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let original_bindings = context
+        .schema_package_sources
+        .get_lexical_scopes(SOURCE_URI)
+        .unwrap()
+        .clone();
+    assert!(Arc::ptr_eq(
+        original.ast_owner(),
+        original_bindings.document()
+    ));
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    context.schema_package_compiler = Some(Arc::new(scoped_compiler(true)));
+    load(&mut context);
+    assert!(context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap()
+        .elements
+        .contains_key("first"));
+    assert!(Arc::ptr_eq(
+        &original_bindings,
+        context
+            .schema_package_sources
+            .get_lexical_scopes(SOURCE_URI)
+            .unwrap()
+    ));
+    set_source(&mut context, &second_source);
+    context.schema_package_compiler = Some(Arc::new(scoped_compiler(false)));
+    load(&mut context);
+    let candidate = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let candidate_bindings = context
+        .schema_package_sources
+        .get_lexical_scopes(SOURCE_URI)
+        .unwrap()
+        .clone();
+    assert!(!Arc::ptr_eq(&original, &candidate));
+    assert!(!Arc::ptr_eq(&original_bindings, &candidate_bindings));
+    assert!(Arc::ptr_eq(
+        candidate.ast_owner(),
+        candidate_bindings.document()
+    ));
+    assert!(!context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .is_ready_for_validation());
+    assert!(context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap()
+        .elements
+        .contains_key("first"));
+    // Previously completed frames keep their earlier meaning after a source refresh.
+    let original_occurrence = original_bindings.occurrences().next().unwrap();
+    assert_eq!(
+        original_bindings
+            .snapshot(original.ast_owner(), original_occurrence)
+            .unwrap()
+            .namespaces
+            .binding("v")
+            .unwrap()
+            .namespace_uri,
+        "urn:first"
+    );
+    context.schema_package_compiler = Some(Arc::new(scoped_compiler(true)));
+    load(&mut context);
+    assert!(context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap()
+        .elements
+        .contains_key("second"));
+    assert!(Arc::ptr_eq(
+        &candidate,
+        context.schema_package_sources.get(SOURCE_URI).unwrap()
+    ));
+    assert!(Arc::ptr_eq(
+        &candidate_bindings,
+        context
+            .schema_package_sources
+            .get_lexical_scopes(SOURCE_URI)
+            .unwrap()
+    ));
+    assert!(candidate.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+    set_source(&mut context, "{schema |");
+    let errors = load_schema_package_manifest_into_context(&mut context, &input()).unwrap();
+    assert!(errors
+        .iter()
+        .any(|error| error.severity.is_hard_violation()));
+    assert!(Arc::ptr_eq(
+        &candidate,
+        context.schema_package_sources.get(SOURCE_URI).unwrap()
+    ));
+    assert!(Arc::ptr_eq(
+        &candidate_bindings,
+        context
+            .schema_package_sources
+            .get_lexical_scopes(SOURCE_URI)
+            .unwrap()
+    ));
+    assert!(context
+        .schema_document_models
+        .resolve_for_identity(Some(SCHEMA_URI), None, None)
+        .unwrap()
+        .elements
+        .contains_key("second"));
+}
