@@ -924,12 +924,29 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: pending snapshots stay incomplete;
       warning-only preparation failures receive a hard stage diagnostic; original
       vendor URI/coordinates never inherit the input document's line index.
-- [ ] Extend runtime-stage validation to lifecycle adapters that currently
-      finish source validation without a CEM parse. Supply their source owner
+- [x] Fixture: JSON/YAML/CSV validate and check supply their retained lifecycle
+      owners through the shared native import to an explicit runtime stage.
+      Resolve a retained template against independent inputs; verify pending
+      context, source ownership, literal reference lookalikes, malformed import
+      rejection and original foreign diagnostic coordinates. Parse/load must not
+      invoke the stage, and missing or incomplete models must not admit it.
+      Scenarios for later design verification: consuming data schemas use the
+      same native tree as query ingress without reparsing or JSON record handles.
+- [x] Extend runtime-stage validation to XML/JSON/YAML/CSV lifecycle adapters
+      that finish source validation without a CEM parse. Supply their source owner
       through the shared typed import boundary; never reparse imported data or
       pass format-specific parser ASTs/JSON records into the runtime consumer.
       Scenarios for later design verification: imported XML/JSON/YAML/CSV sources
       and CEM sources share native ownership, completion and provenance contracts.
+      Completed: JSON/YAML/CSV use `import::retain_lifecycle` on the loaded
+      native AST, with no parser retry or record runtime values. Three native
+      bridge fixtures cover validate/check, parse-only isolation, independent
+      ready/pending contexts, literal lookalikes, malformed source rejection,
+      missing/incomplete model admission and original foreign diagnostics.
+      Other specialized validators retain their existing paths.
+      Verification: the full `cem_ml_transform_cem_ql:test` Nx target passes,
+      alongside nine focused ML runtime/completion fixtures and the existing
+      two XML lifecycle fixtures.
 - [x] Adopt retained behavior function candidate typing: require
       explicit `node` candidate parameters on the retained path while preserving
       existing `object` signatures on the legacy whole-document path.

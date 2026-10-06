@@ -93,7 +93,14 @@ specialized importer and supplies captured bindings too. It reuses an already
 parsed native XML document or parses custom-schema XML once, retains that native
 owner on the query tree, and preserves imported source semantics. XML attributes
 remain literal. Source-only XML and other specialized XML-family validators keep
-their dedicated paths; other parser paths currently supply `None`.
+their dedicated paths. JSON/YAML/CSV validate/check inputs with a ready model
+reuse their existing lifecycle AST through the same native import as query
+ingress. Their native source owners remain attached to the retained tree, and
+`lexical_scopes` is `None` because their data payloads remain literal. Missing
+or incomplete consuming models do not invoke the stage; an inspected incomplete
+model or a failed native import cannot report completed runtime validation.
+Parse/load does not invoke the stage. Other specialized validators keep their
+existing paths.
 
 ## Verification
 

@@ -20,10 +20,10 @@ pub const RUNTIME_INPUT_VALIDATION_FAILED: &str = "cem.schema_validation.runtime
 
 #[derive(Debug)]
 pub struct InputValidationRequest<'a> {
-    /// The engine's original parsed arena shared without copying or reparsing.
+    /// Shared native tree retaining its original parsed source owner without reparsing.
     pub source: Arc<RetainedCemTree>,
     /// Saved CEM/XML occurrence bindings; runtime inputs and grants remain stage supplied.
-    /// Other parser paths supply None until their specialized capture is connected.
+    /// Literal data imports supply None; runtime contexts remain caller supplied.
     pub lexical_scopes: Option<Arc<LexicallyScopedDocument>>,
     pub model: &'a SchemaDocumentModel,
     pub root_scope: &'a ScopeConfig,
@@ -39,8 +39,9 @@ pub struct InputValidationOutcome {
     pub diagnostics: Vec<Diagnostic>,
 }
 /// Installed explicitly when a runtime can supply per-input context snapshots.
-/// The engine invokes it for parser-backed and ordinary XML validate/check inputs
-/// with ready consuming models. Other specialized validators retain their paths.
+/// The engine invokes it for parser-backed, ordinary XML and JSON/YAML/CSV
+/// validate/check inputs with ready consuming models. Other specialized
+/// validators retain their paths.
 /// Validate the retained structure and its behaviors under the supplied model.
 /// A pending context returns an incomplete outcome, rather than a setup error.
 /// Diagnostics for selected owners must carry their original URI/coordinates;
@@ -107,6 +108,22 @@ pub(crate) fn run_xml(
         .map_err(|message| vec![failure(uri, message)])?;
         Ok((tree, Some(captured)))
     })();
+    run_prepared(stage, source, uri, root_scope, model, behavior_evaluator)
+}
+
+/// Reuse a lifecycle data AST through the same native import as query ingress.
+/// JSON/YAML/CSV payloads remain literal; importing never evaluates references.
+pub(crate) fn run_data(
+    stage: &dyn InputValidationStage,
+    document: Arc<crate::lifecycle::LoadedInputAstStream>,
+    uri: &str,
+    root_scope: &ScopeConfig,
+    model: &SchemaDocumentModel,
+    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> InputValidationOutcome {
+    let source = crate::import::retain_lifecycle(document)
+        .map(|tree| (tree, None))
+        .map_err(|message| vec![failure(uri, message)]);
     run_prepared(stage, source, uri, root_scope, model, behavior_evaluator)
 }
 

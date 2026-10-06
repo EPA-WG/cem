@@ -1180,7 +1180,17 @@ also use the specialized import: already parsed native XML owners are reused,
 while custom-schema XML is parsed once. The query tree retains that native owner,
 imported source semantics and captured aliases; XML attributes remain literals.
 Source-only XML and other specialized XML-family validators keep their dedicated
-paths. Other parser paths currently supply `None`. The installed stage can call
+paths. JSON/YAML/CSV validate/check inputs with a ready model now reuse their
+already parsed lifecycle AST through `import::retain_lifecycle`, the shared query
+import boundary. The returned native tree retains that original lifecycle owner;
+no source reparse or record-shaped runtime substitute is used. Reference-looking
+strings remain literal data, and these inputs supply `None` for `lexical_scopes`.
+The stage can evaluate a retained template against each supplied native input
+under its explicit runtime context and crossing grants. Missing or incomplete
+models do not invoke the stage. An inspected incomplete model, failed native
+parse or failed import cannot report completed runtime validation; native source
+diagnostics remain present. Other specialized validators keep their existing
+paths. The installed stage can call
 `attach_captured_lexical_scopes` to prepare occurrence contexts and policies;
 existing callbacks remain usable. The runtime supplies fresh context snapshots
 and scope grants,

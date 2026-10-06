@@ -10249,7 +10249,53 @@ fn run_scheduled_validation_document(
     } else {
         None
     };
-    if let Some((stage, model)) = xml_runtime {
+    // Data adapters already own their parsed AST. Admit their literal native
+    // projection only when an explicit runtime consumer and ready model exist.
+    let data_input = matches!(
+        loaded.ast_stream.as_ref(),
+        Some(
+            LoadedInputAstStream::JsonDocument(_)
+                | LoadedInputAstStream::YamlDocument(_)
+                | LoadedInputAstStream::CsvDocument(_)
+        )
+    ) || (loaded.ast_stream.is_none()
+        && matches!(loaded.adapter_id, Some("json" | "yaml" | "csv")));
+    let data_runtime = if context.input_validation_stage.is_some() && data_input {
+        let identity = effective_input_identity(input, context);
+        let model = crate::schema::document_model::load_document_model_for_identity(
+            identity.schema.as_deref(),
+            identity.content_type.as_deref(),
+            Some(&context.schema_registry),
+            Some(&context.schema_document_models),
+        );
+        context
+            .input_validation_stage
+            .as_deref()
+            .zip(model)
+            .filter(|(_, model)| model.is_ready_for_validation())
+    } else {
+        None
+    };
+    if let Some((stage, model)) = data_runtime {
+        let source_uri = input_uri(input, context);
+        if let Some(document) = loaded.ast_stream.take() {
+            context.ensure_active()?;
+            let outcome = crate::schema::input_validation::run_data(
+                stage,
+                Arc::new(document),
+                &source_uri,
+                &input.root_scope,
+                &model,
+                context.schema_behavior_evaluator.as_deref(),
+            );
+            complete = outcome.complete;
+            runtime_diagnostics.extend(outcome.diagnostics);
+        } else {
+            // Failed native parsing has no source to consume. Preserve its
+            // diagnostics without reparsing or invoking the stage on an empty AST.
+            complete = false;
+        }
+    } else if let Some((stage, model)) = xml_runtime {
         let source_uri = input_uri(input, context);
         let document = match loaded.ast_stream.take() {
             Some(LoadedInputAstStream::XmlDocument(document)) => Some(document),
@@ -10283,6 +10329,18 @@ fn run_scheduled_validation_document(
         } else {
             complete = false;
         }
+    } else if data_input && context.input_validation_stage.is_some() {
+        let identity = effective_input_identity(input, context);
+        // An explicitly inspected but unavailable model cannot complete runtime
+        // validation. Preserve normal source-only handling when none is requested.
+        complete = context
+            .schema_document_models
+            .inspect_for_identity(
+                identity.schema.as_deref(),
+                identity.content_type.as_deref(),
+                Some(&context.schema_registry),
+            )
+            .is_none();
     } else if !loaded_input_consumes_validation_without_cem_parse(&loaded) {
         if is_transform_config_schema(input, context) {
             input_diags.extend(validate_transform_config_document(
