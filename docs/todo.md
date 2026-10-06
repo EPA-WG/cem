@@ -1371,6 +1371,24 @@ only and adds no runtime behavior or public syntax.
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
 
+- [ ] Decide the authority source for command/WASM replacement grants before
+      exposing them. The native CLI has explicit caller arguments; run configs
+      and virtual command request JSON can arrive as data. Recommendation pending
+      user decision: explicit CLI grant arguments and embedding-host
+      `EngineContext` supply authority; loading a config or parsing a request
+      must not manufacture a grant. Existing command preparation clones the host
+      context and already preserves its scoped grants.
+      Scenarios for later design verification: a config or request naming the
+      expected owner cannot authorize itself; a trusted host grant remains exact
+      across command preparation; standalone CLI intent is expressed separately
+      from `--schema-package` manifest inclusion.
+- [ ] Fixture: after that decision, cover explicit CLI/host grant handoff, no-grant
+      rejection, wrong package/expected origin/replacement URI, built-in versus
+      manifest ownership and unchanged active package after rejection. Verify
+      config/request admission follows the selected authority contract. Add the
+      fixtures before implementation and preserve the existing override outputs.
+      Scenarios for later design verification: grants select one expected owner
+      and incoming manifest, never a wildcard or inferred manifest-list privilege.
 - [ ] Integrate scoped replacement grants into command/WASM consumer APIs when
       override support is added. Do not infer grants from package URI lists or
       manifest contents. Add native boundary fixtures before extending those APIs.
