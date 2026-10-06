@@ -65,3 +65,28 @@ target graph. Native Rust consumers retain original owners and ordered targets.
 URL/ID strings are rejected as operands rather than treated as lookups. URI
 fetching belongs to the resource/import boundary. Public reference type/access
 syntax and graph transport remain deferred in the reference design.
+
+## Explicit schema package replacement
+
+`--schema-package` loads a manifest. To replace a built-in or a package owned by
+a different manifest, pass a separate, repeatable native CLI grant:
+
+```sh
+cem-ml convert input.cem --to-format cem \
+  --resolver-read-map vendor://packages=/path/to/vendor \
+  --schema-package vendor://packages/cem-ml/package.cem \
+  --schema-package-replacement-grant '{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"vendor://packages/cem-ml/package.cem"}'
+```
+
+The grant matches the exact package ID, current origin and incoming resolved
+manifest URI. `expectedOrigin` is `{"kind":"builtin"}`, `{"kind":"untracked"}`
+or `{"kind":"manifest","uri":"the current resolved manifest URI"}`. Unknown
+fields, unknown origin kinds and empty identities are rejected. A grant does not
+load its manifest. Ordinary same-origin refreshes retain their existing behavior.
+
+Run configs do not supply grants. Their existing permissive JSON decoder ignores
+unknown grant fields, which never become authority. Virtual command arguments
+attempting to supply grants fail with `cem.command.replacement_grant_host_required`;
+embedding hosts set `EngineContext.schema_package_replacement_grants` directly.
+Command preparation retains those host grants without widening them. JavaScript
+WASM host configuration remains a subsequent API integration item.

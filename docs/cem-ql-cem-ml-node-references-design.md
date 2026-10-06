@@ -1068,6 +1068,17 @@ rather than borrowing an earlier manifest's ownership.
 
 The grant and publication APIs are runtime consumer policy, not CEM-ML syntax.
 
+Grant authority comes from explicit native CLI arguments or the embedding host's
+`EngineContext` (adopted 2026-10-05). The native CLI accepts repeatable
+`--schema-package-replacement-grant` JSON control values with `packageId`, a typed
+`expectedOrigin` and `replacementManifestUri`. Exact ownership matching remains
+in the shared engine. Config merging preserves caller grants but cannot create
+them; the existing permissive run-config decoder ignores unknown grant fields.
+Virtual command arguments attempting to supply grants fail before resource loading
+with `cem.command.replacement_grant_host_required`. Common command preparation
+clones and preserves only the embedding host's existing grants. JavaScript WASM
+host configuration is a subsequent API integration, not request-owned authority.
+
 ### Explicit package lifecycle compilation (2026-10-04)
 
 `EngineContext.schema_package_compiler` is an optional native consumer hook.

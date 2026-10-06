@@ -1258,6 +1258,9 @@ fn context_with_template_adapters(
     context.schema = c.schema.clone();
     context.content_type = c.content_type.clone();
     context.base_uri = c.base_uri.clone();
+    context.schema_package_replacement_grants.extend(
+        c.schema_package_replacement_grants.iter().map(|grant| grant.to_engine()),
+    );
     register_cli_resolvers(&mut context.resolver_registry, c, None);
     context.schema_package_manifests.extend(
         c.schema_packages
@@ -4145,10 +4148,10 @@ fn validate_cem_dom_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'stati
         "CEM DOM",
     );
     let version = reader.read_u16("version")?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err((
             "cem.projection.dom.binary_version",
-            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+            format!("unsupported CEM projection binary version `{version}`; expected `1` or `2`"),
         ));
     }
 
@@ -4200,10 +4203,10 @@ fn validate_cem_ast_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'stati
         "CEM AST",
     );
     let version = reader.read_u16("version")?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err((
             "cem.projection.ast.binary_version",
-            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+            format!("unsupported CEM projection binary version `{version}`; expected `1` or `2`"),
         ));
     }
 
@@ -4255,10 +4258,10 @@ fn validate_cem_events_projection_binary_bytes(bytes: &[u8]) -> Result<(), (&'st
         "CEM events",
     );
     let version = reader.read_u16("version")?;
-    if version != 1 {
+    if !matches!(version, 1 | 2) {
         return Err((
             "cem.projection.events.binary_version",
-            format!("unsupported CEM projection binary version `{version}`; expected `1`"),
+            format!("unsupported CEM projection binary version `{version}`; expected `1` or `2`"),
         ));
     }
 
@@ -8862,6 +8865,7 @@ mod tests {
         let context = context_with_config(&context_options, &config);
 
         assert_eq!(context.schema_package_manifests.len(), 2);
+        assert!(context.schema_package_replacement_grants.is_empty());
         assert_schema_package_manifest(&context.schema_package_manifests[0], "cli-package.cem");
         assert_schema_package_manifest(&context.schema_package_manifests[1], "config-package.cem");
         assert_eq!(
@@ -8871,6 +8875,50 @@ mod tests {
                 .as_deref(),
             Some("urn:config-package")
         );
+    }
+
+    #[test]
+    fn explicit_replacement_grants_survive_cli_context_and_config_handoff() {
+        let grant = r#"{"packageId":"vendor","expectedOrigin":{"kind":"manifest","uri":"vendor://old/package.cem"},"replacementManifestUri":"vendor://new/package.cem"}"#.parse::<cli::SchemaPackageReplacementGrant>().unwrap();
+        let expected = grant.to_engine();
+        let options = cli::ContextOptions {
+            schema_package_replacement_grants: vec![grant],
+            ..cli::ContextOptions::default()
+        };
+        let config = RunConfig::default();
+        for value in [
+            context(&options),
+            convert_context(&options),
+            context_with_config(&options, &config),
+            convert_context_with_config(&options, &config),
+        ] {
+            assert_eq!(
+                value.schema_package_replacement_grants,
+                vec![expected.clone()]
+            );
+            assert!(
+                value.schema_package_manifests.is_empty(),
+                "authority does not itself load a manifest"
+            );
+        }
+    }
+
+    #[test]
+    fn run_config_values_cannot_supply_replacement_grants() {
+        let config = run_config::parse_run_config(run_config::RunConfigParseRequest {
+                bytes: br#"{"schemaPackages":[{"uri":"vendor://new/package.cem"}],"schemaPackageReplacementGrants":[{"packageId":"vendor","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"vendor://new/package.cem"}]}"#.to_vec(),
+                identity: eng::FormatIdentity::default(),
+                base_uri: None,
+            }).unwrap().config;
+        // Existing permissive config decoding ignores unknown fields; they do
+        // not become authority in either native CLI context path.
+        for value in [
+            context_with_config(&cli::ContextOptions::default(), &config),
+            convert_context_with_config(&cli::ContextOptions::default(), &config),
+        ] {
+            assert_eq!(value.schema_package_manifests.len(), 1);
+            assert!(value.schema_package_replacement_grants.is_empty());
+        }
     }
 
     #[test]
@@ -8889,7 +8937,7 @@ mod tests {
         let data = write_fixture("transform-run-data.cem", "{p @id=\"source\"}");
         let template = write_fixture(
             "transform-run-template.cem",
-            "{section | {$datadom.attributes.kind}}",
+            "{section | {$input.kind}}",
         );
 
         let (outcome, stdout, stderr) = run(
@@ -9038,10 +9086,10 @@ mod tests {
         std::fs::write(root.join("data.cem"), "{p @id=\"source\"}").unwrap();
         std::fs::write(
             root.join("html.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
-        std::fs::write(root.join("chart.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        std::fs::write(root.join("chart.cem"), "{svg | {$input.kind}}").unwrap();
         let config = root.join("graph.cem");
         std::fs::write(
             &config,
@@ -9085,10 +9133,10 @@ mod tests {
         std::fs::write(root.join("inputs/ch02.cem"), "{p @id=\"two\"}").unwrap();
         std::fs::write(
             root.join("page.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
-        std::fs::write(root.join("chart.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        std::fs::write(root.join("chart.cem"), "{svg | {$input.kind}}").unwrap();
         let config = root.join("graph.cem");
         std::fs::write(
             &config,
@@ -9797,7 +9845,7 @@ mod tests {
         std::fs::write(root.join("inputs/part-b/nested/skip.txt"), "skip").unwrap();
         std::fs::write(
             root.join("page.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
         let config = root.join("graph.cem");
@@ -9845,7 +9893,7 @@ mod tests {
         std::fs::write(root.join("mirror/inputs/ch01.cem"), "{p @id=\"one\"}").unwrap();
         std::fs::write(
             root.join("page.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
         let config = root.join("graph.cem");
@@ -9905,7 +9953,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             root.join("page.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
         let config = root.join("graph.cem");
@@ -10171,10 +10219,10 @@ mod tests {
         std::fs::write(root.join("data.cem"), "{p @id=\"source\"}").unwrap();
         std::fs::write(
             root.join("html.cem"),
-            "{article | {$datadom.attributes.kind}}",
+            "{article | {$input.kind}}",
         )
         .unwrap();
-        std::fs::write(root.join("svg.cem"), "{svg | {$datadom.attributes.kind}}").unwrap();
+        std::fs::write(root.join("svg.cem"), "{svg | {$input.kind}}").unwrap();
         let config = root.join("graph.cem");
         let report = root.join("report.json");
         std::fs::write(
@@ -16874,6 +16922,58 @@ start =
     }
 
     #[test]
+    fn binary_projection_headers_match_shared_version_admission() {
+        let doc = test_cem_document("{p | Hi}");
+        type Validator = fn(&[u8]) -> Result<(), (&'static str, String)>;
+        let cases: [(
+            cem_ml::projection::BinaryProjectionArtifact,
+            Validator,
+            &str,
+        ); 3] = [
+            (
+                cem_ml::projection::dom_binary_projection_artifact(&doc),
+                validate_cem_dom_projection_binary_bytes,
+                "cem.projection.dom",
+            ),
+            (
+                cem_ml::projection::ast_binary_projection_artifact(&doc),
+                validate_cem_ast_projection_binary_bytes,
+                "cem.projection.ast",
+            ),
+            (
+                cem_ml::projection::events_binary_projection_artifact_as(
+                    b"{p | Hi}",
+                    cem_ml::engine::InputFormat::Cem,
+                ),
+                validate_cem_events_projection_binary_bytes,
+                "cem.projection.events",
+            ),
+        ];
+        for (artifact, validate, prefix) in cases {
+            assert!(validate(&artifact.bytes).is_ok());
+            for version in [1u16, 2] {
+                let mut bytes = artifact.bytes.clone();
+                bytes[8..10].copy_from_slice(&version.to_be_bytes());
+                assert!(validate(&bytes).is_ok());
+            }
+            for version in [0u16, 3] {
+                let mut bytes = artifact.bytes.clone();
+                bytes[8..10].copy_from_slice(&version.to_be_bytes());
+                assert_eq!(
+                    validate(&bytes).unwrap_err().0,
+                    format!("{prefix}.binary_version")
+                );
+            }
+            let mut bytes = artifact.bytes.clone();
+            bytes[10] = 0;
+            assert_eq!(
+                validate(&bytes).unwrap_err().0,
+                format!("{prefix}.projection_mismatch")
+            );
+        }
+    }
+
+    #[test]
     fn validate_cem_dom_binary_projection_source_uses_binary_validator() {
         let doc = test_cem_document("{p | Hi}");
         let artifact = cem_ml::projection::dom_binary_projection_artifact(&doc);
@@ -22727,6 +22827,30 @@ start =
         std::fs::write(&input, "@doc cem-ml 1\n{main}").unwrap();
         let resolver_map = format!("cem+vfs://workspace={}", mirror.display());
 
+        let (baseline, baseline_output, baseline_errors) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--to-format", "cem", input.to_str().unwrap()],
+        );
+        assert_eq!(baseline.exit_code, EXIT_OK, "{baseline_errors}");
+        assert!(baseline_errors.is_empty());
+
+        for grant in [
+            None,
+            Some(r#"{"packageId":"other","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#),
+            Some(r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"manifest","uri":"vendor://old/package.cem"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#),
+            Some(r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"vendor://wrong/package.cem"}"#),
+        ] {
+            let mut args = vec!["convert", "--to-format", "cem", "--resolver-read-map", &resolver_map,
+                "--schema-package", "cem+vfs://workspace/packages/cem-ml/v1/package.cem", input.to_str().unwrap()];
+            if let Some(grant) = grant {
+                args.extend(["--schema-package-replacement-grant", grant]);
+            }
+            let (outcome, stdout, stderr) = run(&RealCemMlEngine::new(), &args);
+            assert_eq!(outcome.exit_code, baseline.exit_code, "{stderr}");
+            assert_eq!(stdout, baseline_output, "unauthorized replacement must preserve the active built-in output");
+            assert!(stderr.contains("cem.schema_package.replacement_not_authorized"), "{stderr}");
+        }
+
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
             &[
@@ -22737,6 +22861,8 @@ start =
                 &resolver_map,
                 "--schema-package",
                 "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--schema-package-replacement-grant",
+                r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
                 input.to_str().unwrap(),
             ],
         );
@@ -22755,6 +22881,8 @@ start =
                 &resolver_map,
                 "--schema-package",
                 "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--schema-package-replacement-grant",
+                r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
                 input.to_str().unwrap(),
             ],
         );
@@ -22992,6 +23120,8 @@ start =
                 &resolver_map,
                 "--schema-package",
                 "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--schema-package-replacement-grant",
+                r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
                 "--cemt-formatter-profile",
                 "acme.ambiguous",
                 "--cemt-color-profile",
@@ -23021,6 +23151,8 @@ start =
                 &resolver_map,
                 "--schema-package",
                 "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--schema-package-replacement-grant",
+                r#"{"packageId":"cem-ml","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"cem+vfs://workspace/packages/cem-ml/v1/package.cem"}"#,
                 "--cemt-formatter",
                 "acme.format-a",
                 "--cemt-formatter-profile",

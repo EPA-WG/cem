@@ -26,7 +26,7 @@ Implementation checkpoint (2026-10-05): retained syntax/AST identity, lexical
 capture, unary construction, explicit bounded resolution, supported schema
 reuse/validation consumers, source codecs and native query ingress are implemented.
 This does not close native datatype/function composition, specialized schema and
-namespace property selection, or command/WASM replacement-grant admission.
+namespace property selection, or JavaScript WASM host replacement-grant setup.
 XML attribute expression recognition, enclosed child override syntax, public
 query/transport contracts and `cem-element` ID projection remain separate decisions
 or later consumer work. Their actionable items and verification scenarios remain
@@ -1371,10 +1371,10 @@ only and adds no runtime behavior or public syntax.
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
 
-- [ ] Decide the authority source for command/WASM replacement grants before
+- [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs
-      and virtual command request JSON can arrive as data. Recommendation pending
-      user decision: explicit CLI grant arguments and embedding-host
+      and virtual command request JSON can arrive as data. Adopted on 2026-10-05:
+      explicit CLI grant arguments and embedding-host
       `EngineContext` supply authority; loading a config or parsing a request
       must not manufacture a grant. Existing command preparation clones the host
       context and already preserves its scoped grants.
@@ -1382,25 +1382,35 @@ only and adds no runtime behavior or public syntax.
       expected owner cannot authorize itself; a trusted host grant remains exact
       across command preparation; standalone CLI intent is expressed separately
       from `--schema-package` manifest inclusion.
-- [ ] Fixture: after that decision, cover explicit CLI/host grant handoff, no-grant
+- [x] Fixture: cover explicit CLI/host grant handoff, no-grant
       rejection, wrong package/expected origin/replacement URI, built-in versus
       manifest ownership and unchanged active package after rejection. Verify
       config/request admission follows the selected authority contract. Add the
       fixtures before implementation and preserve the existing override outputs.
       Scenarios for later design verification: grants select one expected owner
       and incoming manifest, never a wildcard or inferred manifest-list privilege.
-- [ ] Integrate scoped replacement grants into command/WASM consumer APIs when
-      override support is added. Do not infer grants from package URI lists or
-      manifest contents. Add native boundary fixtures before extending those APIs.
+- [x] Integrate scoped replacement grants into native CLI and common command
+      context handoff. Do not infer grants from package URI lists or manifest
+      contents. Verify explicit caller and embedding-host boundaries.
       Scenarios for later design verification: manifest inclusion does not grant
       authority; expected-owner or incoming-URI mismatches preserve the active
       package; native consumer grants survive the boundary without widening scope.
 
-- [ ] Migrate CLI external CEMT package override fixtures to the scoped grant
-      consumer API once available. Broad CLI verification currently reports
+- [ ] Add JavaScript WASM embedding-host configuration for scoped replacement
+      grants, mapped into the trusted `EngineContext` before command preparation.
+      Add fixtures before implementation; never populate grants from parsed argv,
+      virtual requests or run-config data.
+      Scenarios for later design verification: host setup retains exact package,
+      expected origin and incoming URI; config/request attempts cannot widen it;
+      mismatches preserve the active package and report attributed diagnostics.
+
+- [x] Migrate CLI external CEMT package override fixtures to the scoped grant
+      consumer API. Prior broad CLI verification reported
       `convert_schema_package_option_loads_external_cemt_output_artifacts` and
       `convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve`
-      failing with `cem.schema_package.replacement_not_authorized`.
+      failing with `cem.schema_package.replacement_not_authorized`. Both now pass
+      with exact native CLI grants. Four denied replacement cases preserve the
+      active built-in output while reporting the rejection diagnostic.
       Scenarios for later design verification: explicit grants authorize the
       expected owner/origin; listing a manifest alone remains insufficient.
 
@@ -1507,10 +1517,40 @@ roadmap; this closure adopts no new transport or public query access syntax.
       duplicate original target identity, and missing fields remain empty. All
       34 focused query tests and 17 CLI query fixtures pass. The full Nx
       `cem_ql:test` target passes 880 tests with nine profiling fixtures ignored.
+- [x] Fixture: finish CLI transformation fixture migration to the adopted native
+      document view. Use `input.kind` for original document metadata instead of the
+      legacy record-shaped `datadom.attributes.kind` convenience. Cover stdout, branched
+      exports, local/custom-resolver globs and recursive globs with unchanged output.
+      Scenarios for later design verification: template and query inputs share
+      native navigation without retaining implicit record metadata wrappers.
+      Completed: all six previously failing transformation tests pass through
+      the original native `input` root, including both branches and recursive
+      local/custom-resolver glob exports.
+- [x] Fixture: align CLI binary projection header validation with the shared
+      version-1/version-2 contract. Cover all three emitted projection kinds,
+      legacy version admission, unsupported versions and kind mismatches.
+      Scenarios for later design verification: header admission does not imply
+      full payload decoding or evaluation of retained references.
+- [x] Audit the three CLI binary-projection validation failures found by broad
+      verification: AST, DOM and event source validation return a hard violation
+      for emitted binary fixtures. Inspect attributed diagnostics and distinguish
+      prior codec/schema gaps from grant handoff before choosing a repair.
+      Scenarios for later design verification: an emitted source artifact must
+      validate under its declared schema/version without runtime reference evaluation.
+      Completed: CLI header validators retained a version-1-only check while the
+      shared validators already admitted versions 1 and 2. Aligned all three CLI
+      paths, retaining magic/kind/schema/content-type checks. Emitted version-2
+      source cases and legacy/unknown-version header regression cases pass.
 - [x] Fixture: add focused Rust integration cases through the existing CLI/query
       and schema paths for retained references and explicit supplied-context
       evaluation. Confirm URL resolution stays at the resource/import boundary
       and no projected IDs or browser behavior are needed for CEM-ML references.
+- [ ] Fixture: repair the CEM-native-template schema behavior expressions that
+      still use retired `=` equality. Re-run
+      `schema_owned_cem_native_template_examples_validate_through_cli`, including
+      missing-required-attribute diagnostics and the other invalid examples.
+      Scenarios for later design verification: schema behavior compilation must
+      succeed before example-specific validation diagnostics can be assessed.
 - [x] Run affected Rust package, schema consistency, grammar parity, codec,
       and focused CLI checks through the appropriate Nx targets. Record results
       and remaining failures; browser/WASM integration follows a green native
@@ -1524,8 +1564,17 @@ roadmap; this closure adopts no new transport or public query access syntax.
       execution, all 121 focused reference/declaration/policy/lexical/inspection
       and native/editor parity integration tests were run separately and pass.
       Codec unit cases pass within the library run. The broad gate remains red
-      for the existing dropdown failure; the two CLI override failures remain
-      tracked above for explicit grant API integration.
+      for the existing dropdown failure. The two CLI override failures were
+      subsequently resolved by explicit scoped grant integration above.
+      Scoped grant follow-through (2026-10-05): all 529 native CLI library tests
+      and 47 core command-boundary tests pass. This includes strict CLI grant
+      parsing, host/config/request boundaries, both migrated external override
+      fixtures, unchanged active output on denied replacements, native template
+      input navigation and version-1/version-2 projection header admission.
+      The full Nx CLI run encountered an initial fixture compile error (fixed
+      and covered by the passing library run) and the CEM-native-template schema
+      example equality failure tracked above. It was stopped after more than
+      40 minutes of prerequisites; the full Nx gate is not claimed green.
 - [x] Update public syntax/package/API documentation and initial implementation
       notes to match verified behavior. Mark only verified action items complete,
       record any unsupported cases, and retain deferred decisions and their

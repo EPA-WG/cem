@@ -319,6 +319,59 @@ pub struct ContextOptions {
         help = "Load a schema-package manifest into the conversion context; repeatable"
     )]
     pub schema_packages: Vec<String>,
+
+    #[arg(
+        long = "schema-package-replacement-grant",
+        value_name = "JSON",
+        action = clap::ArgAction::Append,
+        help = "Authorize one package replacement with packageId, expectedOrigin and replacementManifestUri; repeatable, native caller only"
+    )]
+    pub schema_package_replacement_grants: Vec<SchemaPackageReplacementGrant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SchemaPackageReplacementGrant {
+    package_id: String,
+    expected_origin: ReplacementOrigin,
+    replacement_manifest_uri: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum ReplacementOrigin {
+    Builtin {},
+    Manifest { uri: String },
+    Untracked {},
+}
+
+impl FromStr for SchemaPackageReplacementGrant {
+    type Err = String;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        let grant: Self = serde_json::from_str(source).map_err(|error| error.to_string())?;
+        if grant.package_id.trim().is_empty() || grant.replacement_manifest_uri.trim().is_empty()
+            || matches!(&grant.expected_origin, ReplacementOrigin::Manifest { uri } if uri.trim().is_empty())
+        {
+            return Err("replacement grants require nonempty package and manifest identities".into());
+        }
+        Ok(grant)
+    }
+}
+
+impl SchemaPackageReplacementGrant {
+    pub fn to_engine(&self) -> cem_ml::engine::SchemaPackageReplacementGrant {
+        use cem_ml::schema::registry::SchemaPackageOrigin;
+        cem_ml::engine::SchemaPackageReplacementGrant {
+            package_id: self.package_id.clone(),
+            expected_origin: match &self.expected_origin {
+                ReplacementOrigin::Builtin {} => SchemaPackageOrigin::Builtin,
+                ReplacementOrigin::Manifest { uri } => SchemaPackageOrigin::Manifest(uri.clone()),
+                ReplacementOrigin::Untracked {} => SchemaPackageOrigin::Untracked,
+            },
+            replacement_manifest_uri: self.replacement_manifest_uri.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1847,4 +1900,44 @@ mod tests {
     fn fixture_validate_allows_empty_inputs() {
         try_parse(&["fixture", "validate"]).unwrap();
     }
+
+    #[test]
+    fn replacement_grants_require_exact_typed_origins_and_nonempty_identities() {
+        for origin in [
+            r#"{"kind":"builtin"}"#,
+            r#"{"kind":"untracked"}"#,
+            r#"{"kind":"manifest","uri":"vendor://old/package.cem"}"#,
+        ] {
+            let source = format!(
+                r#"{{"packageId":"vendor","expectedOrigin":{origin},"replacementManifestUri":"vendor://new/package.cem"}}"#
+            );
+            let grant: SchemaPackageReplacementGrant = source.parse().unwrap();
+            assert_eq!(grant.to_engine().package_id, "vendor");
+            assert_eq!(
+                grant.to_engine().replacement_manifest_uri,
+                "vendor://new/package.cem"
+            );
+            try_parse(&[
+                "convert",
+                "input.cem",
+                "--schema-package-replacement-grant",
+                &source,
+            ])
+            .unwrap();
+        }
+        for source in [
+            r#"{"packageId":"","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"vendor://new"}"#,
+            r#"{"packageId":"vendor","expectedOrigin":{"kind":"manifest","uri":""},"replacementManifestUri":"vendor://new"}"#,
+            r#"{"packageId":"vendor","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":""}"#,
+            r#"{"packageId":"vendor","expectedOrigin":{"kind":"any"},"replacementManifestUri":"vendor://new"}"#,
+            r#"{"packageId":"vendor","expectedOrigin":{"kind":"builtin","uri":"extra"},"replacementManifestUri":"vendor://new"}"#,
+            r#"{"packageId":"vendor","expectedOrigin":{"kind":"builtin"},"replacementManifestUri":"vendor://new","extra":true}"#,
+        ] {
+            assert!(
+                source.parse::<SchemaPackageReplacementGrant>().is_err(),
+                "{source}"
+            );
+        }
+    }
+
 }

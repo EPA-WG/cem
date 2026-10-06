@@ -1318,6 +1318,34 @@ mod tests {
     }
 
     #[test]
+    fn command_context_retains_only_embedding_host_replacement_grants() {
+        let request = request(PortableOperationRequestV1::Parse {
+            input_id: "input:0".into(),
+            projection: ParseProjection::Json,
+            preserve_source_offsets: true,
+        });
+        let grant = crate::engine::SchemaPackageReplacementGrant {
+            package_id: "vendor".into(),
+            expected_origin: crate::schema::registry::SchemaPackageOrigin::Manifest(
+                "studio://old/package.cem".into(),
+            ),
+            replacement_manifest_uri: "studio://new/package.cem".into(),
+        };
+        let mut base = EngineContext::default();
+        assert!(context_from_plan(&request, &plan(), &base)
+            .unwrap()
+            .schema_package_replacement_grants
+            .is_empty());
+        base.schema_package_replacement_grants.push(grant.clone());
+        let prepared = context_from_plan(&request, &plan(), &base).unwrap();
+        assert_eq!(prepared.schema_package_replacement_grants, vec![grant]);
+        assert_eq!(
+            prepared.schema_package_replacement_grants,
+            base.schema_package_replacement_grants
+        );
+    }
+
+    #[test]
     fn preparation_owns_query_direct_transform_graph_and_capability_metadata() {
         let query = prepare(&request(PortableOperationRequestV1::Query {
             data_input_id: "input:0".to_owned(),

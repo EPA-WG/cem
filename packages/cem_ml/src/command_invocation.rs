@@ -297,6 +297,14 @@ fn build_command_invocation(
 fn validate_parsed_command(
     parsed: &ParsedCommandInvocationV1,
 ) -> Result<(), CommandInvocationErrorV1> {
+    if parsed.options.contains_key("schema_package_replacement_grants")
+        || parsed.global_options.contains_key("schema_package_replacement_grants")
+    {
+        return Err(usage(
+            "cem.command.replacement_grant_host_required",
+            "replacement grants must be supplied by the embedding host, not a virtual command request",
+        ));
+    }
     if parsed.schema_version != COMMAND_SCHEMA_VERSION {
         return Err(usage(
             "cem.command.schema_version",
@@ -1558,6 +1566,28 @@ mod tests {
             safety_policy_stamp: "portable-v1".to_owned(),
             budget_policy_stamp: "common-default-v1".to_owned(),
             stdout_is_terminal: false,
+        }
+    }
+
+    #[test]
+    fn virtual_command_requests_cannot_supply_replacement_authority() {
+        for global in [false, true] {
+            let mut command = parsed("convert");
+            let options = if global {
+                &mut command.global_options
+            } else {
+                &mut command.options
+            };
+            options.insert(
+                "schema_package_replacement_grants".into(),
+                ParsedCommandValueV1::String("caller-supplied".into()),
+            );
+            let response =
+                build_command_invocation_v1(command, environment(), CommandUriMapV1::default());
+            let CommandInvocationBuildResponseV1::Error { error } = response else {
+                panic!("virtual replacement grant must fail before resource loading");
+            };
+            assert_eq!(error.code, "cem.command.replacement_grant_host_required");
         }
     }
 
