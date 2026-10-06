@@ -84,6 +84,9 @@ impl<'a> RegionModels<'a> {
             Err(diagnostics)
         }
     }
+    pub fn len(&self) -> usize {
+        self.models.len()
+    }
     pub fn model(&self, index: usize) -> &SchemaDocumentModel {
         self.models[index].model()
     }

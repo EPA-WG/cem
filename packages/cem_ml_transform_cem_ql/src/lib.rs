@@ -341,6 +341,14 @@ impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
         retained_behaviors::validate(structure, model)
     }
 
+    fn validate_retained_region(
+        &self,
+        region: cem_ml::schema::input_references::RetainedBehaviorRegion<'_>,
+        model: &SchemaDocumentModel,
+    ) -> cem_ml::schema::input_references::RetainedBehaviorValidation {
+        retained_behaviors::validate_region(region, model)
+    }
+
     fn validate_document(
         &self,
         document: &CemDocument,

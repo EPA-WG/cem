@@ -1,12 +1,29 @@
 //! Behavior evaluation over explicit consumed placements of original AST nodes.
 use super::*;
-use cem_ml::schema::input_references::{RetainedBehaviorValidation, RetainedValidationStructure};
+use cem_ml::schema::input_references::{
+    RetainedBehaviorRegion, RetainedBehaviorValidation, RetainedValidationStructure,
+};
 use cem_ql::validation_structure::{RetainedValidationQueryTree, ValidationPlacementNode};
 
 pub(super) fn validate(
     structure: RetainedValidationStructure<'_>,
     model: &SchemaDocumentModel,
 ) -> RetainedBehaviorValidation {
+    let placements: Vec<_> = (0..structure.nodes.len()).collect();
+    validate_region(
+        RetainedBehaviorRegion {
+            structure,
+            placements: &placements,
+        },
+        model,
+    )
+}
+
+pub(super) fn validate_region(
+    region: RetainedBehaviorRegion<'_>,
+    model: &SchemaDocumentModel,
+) -> RetainedBehaviorValidation {
+    let structure = region.structure;
     if !structure.complete || structure.nodes.iter().any(|node| !node.children_complete) {
         return RetainedBehaviorValidation::default();
     }
@@ -25,12 +42,30 @@ pub(super) fn validate(
             }
         }
     };
+    let mut eligible = BTreeSet::new();
+    if region
+        .placements
+        .iter()
+        .any(|index| *index >= structure.nodes.len() || !eligible.insert(*index))
+    {
+        return RetainedBehaviorValidation {
+            complete: true,
+            diagnostics: vec![schema_behavior_diagnostic(
+                SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+                Severity::Error,
+                "Invalid or repeated consuming-model placement index".into(),
+                &SourceMapStack::default(),
+                json!({"schemaUri": model.schema_uri}),
+            )],
+        };
+    }
     // Only scalar diagnostic/binding metadata is materialized here; candidates
     // passed into queries and function bodies remain native placement nodes.
     let candidates: Vec<_> = structure
         .nodes
         .iter()
         .enumerate()
+        .filter(|(index, _)| eligible.contains(index))
         .filter_map(|(index, node)| {
             let CemAstNode::Element {
                 node_id,
@@ -145,7 +180,11 @@ pub(super) fn validate(
                                 .to_owned(),
                         ));
                     }
-                    indices.insert(node.placement());
+                    // Cross-model navigation is permitted in the authorized
+                    // forest; execution remains in this model's placement domain.
+                    if eligible.contains(&node.placement()) {
+                        indices.insert(node.placement());
+                    }
                 }
                 Ok(indices)
             });

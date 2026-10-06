@@ -16,6 +16,7 @@ use crate::{
 use std::{collections::HashSet, sync::Arc};
 
 mod consumed_walk;
+mod behaviors;
 mod regions;
 pub use regions::{DiscoveredInputSchemaRegion, InputSchemaRegion};
 use regions::RegionModels;
@@ -127,6 +128,15 @@ pub struct RetainedValidationStructure<'a> {
     pub source: &'a Arc<CemDocument>,
     pub nodes: &'a [StructuralValidationNode],
     pub roots: &'a [usize],
+}
+
+/// A consuming model's execution domain over the complete authorized forest.
+/// Indices are placements, not original AST IDs. Navigation keeps all retained
+/// edges; only these placements are eligible for this model's behavior execution.
+#[derive(Debug, Clone, Copy)]
+pub struct RetainedBehaviorRegion<'a> {
+    pub structure: RetainedValidationStructure<'a>,
+    pub placements: &'a [usize],
 }
 
 /// Deferred/unsupported behavior is incomplete, independently of violations.
@@ -258,6 +268,7 @@ pub fn validate_structural_input_controlled_regions_references<H: InputReference
         limits,
         false,
         &mut |_: &mut H, _: SchemaDeclarationNode, _: ReferenceTraversalLimits| Ok(None),
+        None,
     )
 }
 
@@ -292,8 +303,44 @@ where
         limits,
         true,
         &mut scheduler,
+        None,
     )
 }
+/// Complete structural consumption followed by model-specific retained behavior
+/// execution, while the host's invocation frames are still installed. Pending
+/// forests defer this entire behavior stage. Navigation remains the authorized
+/// full forest; execution eligibility is the supplied consuming-model domain.
+pub fn validate_structural_input_discovering_regions_references_with_behavior_evaluator<H, D>(
+    source: Arc<CemDocument>,
+    roots: &[crate::parser::AstNodeId],
+    model: &SchemaDocumentModel,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    mut scheduler: D,
+    evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError>
+where
+    H: InputReferenceHost,
+    D: FnMut(
+        &mut H,
+        SchemaDeclarationNode,
+        ReferenceTraversalLimits,
+    ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError>,
+{
+    validate_input_regions_scheduled(
+        source,
+        roots,
+        model,
+        &[],
+        &[],
+        host,
+        limits,
+        true,
+        &mut scheduler,
+        evaluator,
+    )
+}
+
 fn validate_input_regions_scheduled<H, D>(
     source: Arc<CemDocument>,
     roots: &[crate::parser::AstNodeId],
@@ -304,6 +351,7 @@ fn validate_input_regions_scheduled<H, D>(
     limits: ReferenceTraversalLimits,
     discovering: bool,
     scheduler: &mut D,
+    evaluator: Option<&dyn SchemaBehaviorEvaluator>,
 ) -> Result<StructuralInputValidation<H::Node>, ReferenceResolutionError>
 where
     H: InputReferenceHost,
@@ -594,6 +642,9 @@ where
                 !boundary && element.is_some_and(|element| element.allow_any_child),
             )
         }));
+    }
+    if let Some(evaluator) = evaluator {
+        behaviors::validate(&mut report, &node_models, &models, host, evaluator);
     }
     report.failed |= report
         .diagnostics

@@ -574,9 +574,38 @@ prepares fresh contexts and frames, while returned handles remain inspectable.
 Independent relationship roots reject the automatic lexical replay with
 `InvalidScopeHandoff`; the handoff never creates crossing grants. This is an explicit
 consumer invocation, not a parse/load side effect. The existing preparation-only
-and controlled-region APIs retain their contracts. Per-region retained behavior
-dispatch and broader control forms remain actionable work with verification
-scenarios in `todo.md`.
+and controlled-region APIs retain their contracts. Broader control forms and
+external loading readiness remain actionable work with verification scenarios in
+`todo.md`.
+
+The explicit `validate_input_runtime_host_regions_with_behavior_evaluator` entry
+point now runs retained behavior before restoring invocation assignments. The
+shared consuming walk keeps each placement's model identity and supplies a
+`RetainedBehaviorRegion`: the complete authorized forest plus the placement indices
+governed by that model. No selected subtree is copied or cut from its consumed
+parent/child context. Each active model compiles its behavior contract once per
+invocation, including an empty ready child region; original declaring schema
+handles remain available separately from the consuming model.
+
+Adopted on 2026-10-06: behavior selectors may navigate across child model boundaries,
+while execution is filtered to the behavior's consuming-model placements. Native
+select/match bindings start with eligible candidates; navigating from them to a
+placement governed by another model does not invalidate the selector, but does not
+execute this model's behavior on it. Invalid/stage-foreign handles, non-element
+selection and invalid/repeated placement-domain indices retain hard diagnostics.
+Repeated placements of one original source remain distinct and can receive
+behaviors from different models while sharing their original source handle.
+
+The CEM-QL region evaluator reads the existing native candidate view, consumed
+relationships and already-consumed attribute `.value` nodes. It retains source
+attribution and original declaring owners; behavior dispatch neither resolves
+references again nor expands authored attribute-target descendant links. The
+existing complete-forest gate remains: pending structural/attribute/region inputs
+defer the entire behavior stage. Unsupported region evaluators report incomplete
+execution and cannot fall back to the legacy document hook or an all-candidate
+compatibility hook. Existing single-model retained behavior APIs remain compatible.
+Evaluator unwind restores invocation bindings through the same lifecycle guard.
+Remaining control-form and external readiness fixtures are in `todo.md`.
 
 ### Implicit scope references and defaults
 

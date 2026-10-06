@@ -1584,15 +1584,48 @@ only and adds no runtime behavior or public syntax.
       body consumption; original records/source names remain immutable; invocation
       cleanup cannot invalidate retained result inspection or leak old contexts into
       retries; body handoff never creates grants or resets work accounting.
-- [ ] Fixture: connect retained behavior validation to each placement's consuming
+- [x] Decide behavior selector execution across child consuming-model boundaries.
+      Adopted 2026-10-06: retain navigation across the authorized forest and filter
+      execution to placements governed by the behavior's consuming model. Returned
+      placements governed by another model do not invalidate selection; invalid
+      source/stage handles and non-element selection remain errors.
+      Scenarios for later design verification: relationship checks keep consumed
+      parent/child navigation, while selector navigation cannot apply another
+      region's behavior contract to a candidate.
+- [x] Fixture: verify behavior-region admission and completion independently of
+      candidate count: reject invalid/repeated placement domains and non-node
+      selection, compile empty ready child contracts, defer incomplete forests,
+      retain unsupported-evaluator incompleteness without compatibility fallback,
+      and restore invocation assignments if a region evaluator unwinds.
+      Verified admission, unsupported completion, empty-contract compilation and
+      consumer-unwind restoration in native region/retained behavior fixtures.
+      Scenarios for later design verification: missing executable support cannot
+      become an empty pass; compilation does not depend on matching candidates;
+      failed behavior execution cannot leak body scopes into the next invocation.
+- [x] Fixture: connect retained behavior validation to each placement's consuming
       model and active runtime frame. Retain original declaring/consuming contexts,
       native candidate nodes and already-consumed attribute values, and execute
       before invocation scope restoration. Cover nested/sibling models, repeated
       selected sources, model-specific behaviors/diagnostics and blocked regions.
+      Implemented per-model placement routing over the complete authorized forest,
+      native region behavior evaluation and explicit runtime-stage integration.
+      Ready empty models compile once; incomplete forests defer behavior. Verified
+      with 215 native policy, reference, retained consumer and behavior tests.
       Scenarios for later design verification: behaviors use the actual consuming
       model without losing original source ownership; pending regions cannot pass
       or borrow an enclosing behavior contract; behavior dispatch does not resolve
       structural/attribute references a second time or reset active traversal limits.
+- [ ] Fixture: connect existing wrapping/sibling/prelude schema controls to the
+      entered-boundary runtime scheduler. Reuse captured original boundaries and
+      the shared admission/readiness/frame/behavior stages, preserve earlier source
+      names and local policy provenance, and restore enclosing/following regions.
+      Cover ready and pending literal/native selectors, nested restoration, repeated
+      consumption, original owners and explicit caller contexts. Keep the enclosed
+      child-reference syntax decision deferred.
+      Scenarios for later design verification: control forms share the same reference
+      consumer contracts without introducing a second AST projection; pending
+      overrides cannot borrow inherited or previously active models/contexts; lexical
+      names and active traversal budgets survive boundary changes.
 - [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
@@ -1602,8 +1635,8 @@ only and adds no runtime behavior or public syntax.
       on-entry discovery/preparation of original and selected hosts are implemented.
       Runtime-input preparation, policy provenance, fresh frame registration and
       automatic entered-body/occurrence binding with combined readiness and invocation
-      restoration are implemented. Next: connect retained behavior validation to each
-      consuming model, then add wrapping/sibling/prelude controls and external loading
+      restoration and per-consuming-model retained behavior dispatch are implemented.
+      Next: add existing wrapping/sibling/prelude controls and external loading
       readiness. Reuse the implemented preparation
       and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.

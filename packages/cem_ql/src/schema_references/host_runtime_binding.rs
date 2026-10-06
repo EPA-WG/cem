@@ -11,10 +11,10 @@ use cem_ml::{
     parser::{tree::RetainedCemTree, AstNodeId, ExpandedName},
     schema::{
         declaration_references::{SchemaDeclarationHost, SchemaDeclarationNode},
-        document_model::SchemaDocumentModel,
+        document_model::{SchemaBehaviorEvaluator, SchemaDocumentModel},
         input_references::{
-            validate_structural_input_discovering_regions_references, DiscoveredInputSchemaRegion,
-            StructuralInputValidation,
+            validate_structural_input_discovering_regions_references_with_behavior_evaluator,
+            DiscoveredInputSchemaRegion, StructuralInputValidation,
         },
         reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
@@ -307,6 +307,30 @@ impl CemQlSchemaDeclarationHost {
             SchemaHostRuntimeContextRequest<'a>,
         ) -> Option<StandaloneExpressionContext>,
     {
+        self.validate_input_runtime_host_regions_with_behavior_evaluator(
+            schema_uri, source, roots, model, limits, context, None,
+        )
+    }
+
+    /// Run each consuming model's retained behavior stage over its placements
+    /// before restoring invocation assignments. Original node/attribute handles,
+    /// consumed relationships and completed attribute values stay shared; the
+    /// behavior stage cannot repeat reference consumption or borrow a child model.
+    pub fn validate_input_runtime_host_regions_with_behavior_evaluator<F>(
+        &mut self,
+        schema_uri: &str,
+        source: Arc<RetainedCemTree>,
+        roots: &[AstNodeId],
+        model: &SchemaDocumentModel,
+        limits: ReferenceTraversalLimits,
+        context: F,
+        evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+    ) -> Result<SchemaHostRuntimeValidation, ReferenceResolutionError>
+    where
+        F: for<'a> FnMut(
+            SchemaHostRuntimeContextRequest<'a>,
+        ) -> Option<StandaloneExpressionContext>,
+    {
         let original_assignments = self.node_scopes.clone();
         let mut host = RuntimeHost {
             host: self,
@@ -318,14 +342,16 @@ impl CemQlSchemaDeclarationHost {
             scopes: vec![],
             occurrences: vec![],
         };
-        let mut validation = validate_structural_input_discovering_regions_references(
-            source.ast_owner().clone(),
-            roots,
-            model,
-            &mut host,
-            limits,
-            |host, source, limits| host.discover(schema_uri, source, limits),
-        )?;
+        let mut validation =
+            validate_structural_input_discovering_regions_references_with_behavior_evaluator(
+                source.ast_owner().clone(),
+                roots,
+                model,
+                &mut host,
+                limits,
+                |host, source, limits| host.discover(schema_uri, source, limits),
+                evaluator,
+            )?;
         for inputs in &host.inputs {
             if !inputs.region().is_ready() {
                 if let Some(preparation) = &inputs.region().preparation {

@@ -1076,3 +1076,79 @@ fn engine_cem_capture_retains_closed_child_bindings_for_runtime_validation() {
         response.report.diagnostics
     );
 }
+
+#[test]
+fn region_behavior_filters_execution_while_preserving_cross_model_navigation() {
+    use cem_ml::schema::input_references::RetainedBehaviorRegion;
+    let (source, nodes) = snapshot();
+    let model = make_model(
+        "node",
+        "nodes.children",
+        "candidate.parent.name == \"left\"",
+        "$candidate.parent.name",
+    );
+    let result = CemQlSchemaBehaviorEvaluator.validate_retained_region(
+        RetainedBehaviorRegion {
+            structure: view(&source, &nodes, &[0, 1], true),
+            placements: &[0, 3],
+        },
+        &model,
+    );
+    assert!(
+        result.complete && result.diagnostics.is_empty(),
+        "{:?}",
+        result.diagnostics
+    );
+    let result = CemQlSchemaBehaviorEvaluator.validate_retained_region(
+        RetainedBehaviorRegion {
+            structure: view(&source, &nodes, &[0, 1], true),
+            placements: &[0, 2],
+        },
+        &model,
+    );
+    assert!(result.complete);
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(
+        result.diagnostics[0].details.as_ref().unwrap()["observed"],
+        "left"
+    );
+    assert_eq!(
+        result.diagnostics[0].details.as_ref().unwrap()["placement"],
+        2
+    );
+}
+
+#[test]
+fn region_behavior_rejects_invalid_domains_and_keeps_selection_type_errors() {
+    use cem_ml::schema::input_references::RetainedBehaviorRegion;
+    let (source, nodes) = snapshot();
+    let model = make_model("node", "nodes", "true", "$candidate.name");
+    for placements in [&[4usize][..], &[2usize, 2][..]] {
+        let report = CemQlSchemaBehaviorEvaluator.validate_retained_region(
+            RetainedBehaviorRegion {
+                structure: view(&source, &nodes, &[0, 1], true),
+                placements,
+            },
+            &model,
+        );
+        assert!(report.complete);
+        assert_eq!(report.diagnostics.len(), 1);
+        assert_eq!(
+            report.diagnostics[0].code,
+            "cem.schema_behavior.result_invalid"
+        );
+    }
+    let model = make_model("node", "1", "true", "$candidate.name");
+    let report = CemQlSchemaBehaviorEvaluator.validate_retained_region(
+        RetainedBehaviorRegion {
+            structure: view(&source, &nodes, &[0, 1], true),
+            placements: &[2],
+        },
+        &model,
+    );
+    assert!(report.complete);
+    assert_eq!(
+        report.diagnostics[0].code,
+        "cem.schema_behavior.result_invalid"
+    );
+}

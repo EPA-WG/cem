@@ -1380,8 +1380,8 @@ attribute target subtrees do not trigger discovery. Structural reference budgets
 and active identities continue across independently bounded selector preparation;
 no discovery rewalk repeats structural reference evaluation.
 
-Wrapping/sibling/prelude controls, external loading readiness and per-region
-behavior dispatch remain lifecycle integration work. Preparation-only discovery
+Wrapping/sibling/prelude controls and external loading readiness remain lifecycle
+integration work. Preparation-only discovery
 does not create contexts, install policies or authorize crossings; effective body
 installation is an explicitly invoked consumer stage described below.
 
@@ -1416,7 +1416,21 @@ assignments are invocation-local and restore on success, error and unwind; retur
 input/frame handles remain inspectable, while original lexical records and source
 owners are unchanged. Unrelated relationship roots reject automatic lexical replay.
 No context ID, source target writeback or implicit crossing grant is introduced.
-Per-region retained behavior dispatch remains the next lifecycle integration step.
+Retained behavior dispatch now runs before invocation assignments restore. The
+consumer receives the complete authorized forest and the indices governed by each
+consuming model, retaining original declaring schema handles and completed native
+attribute values. Each active model compiles its behavior contract once, including
+an empty ready region. Repeated original targets preserve distinct consumed
+placements and their model-specific diagnostics.
+
+Adopted on 2026-10-06: cross-model selector navigation remains available for
+relationship checks, while execution is filtered to the behavior's consuming model.
+Invalid/stage-foreign or non-element selections remain errors. Pending forests defer
+behavior execution; unsupported region evaluators remain incomplete without legacy
+or all-candidate fallback. Dispatch preserves source attribution and never consumes
+references again or expands authored attribute-target links. Existing single-model
+behavior APIs keep their contracts. Remaining lifecycle work concerns existing
+wrapping/sibling/prelude controls and external loading readiness.
 
 Both `src`/`select` (and their `cem:schema-*` attribute variants) are mutually
 exclusive on a single host. A schema-switching construct requires an applicable

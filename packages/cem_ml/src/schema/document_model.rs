@@ -113,6 +113,17 @@ pub trait SchemaBehaviorEvaluator: std::fmt::Debug + Send + Sync {
         super::input_references::RetainedBehaviorValidation::default()
     }
 
+    /// Explicit consuming-model domain over a retained authorized forest.
+    /// Unsupported evaluators leave this stage incomplete; never fall back to
+    /// the all-candidate or legacy document hook across region boundaries.
+    fn validate_retained_region(
+        &self,
+        _region: super::input_references::RetainedBehaviorRegion<'_>,
+        _model: &SchemaDocumentModel,
+    ) -> super::input_references::RetainedBehaviorValidation {
+        super::input_references::RetainedBehaviorValidation::default()
+    }
+
     fn validate_document(
         &self,
         document: &CemDocument,
