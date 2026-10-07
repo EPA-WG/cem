@@ -5,6 +5,9 @@
 //! that `cem-ml-cli` calls through. This is the production engine that
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
+#[cfg(not(target_arch = "wasm32"))]
+mod validation_resources;
+
 use crate::conversion::{
     conversion_descriptors_from_validated_schema_package_manifest,
     conversion_output_safety_contract,
@@ -10039,6 +10042,14 @@ fn scheduler_policy_json(policy: crate::scheduler::ScopePolicy) -> Value {
 struct ScheduledValidationOutcome {
     diagnostics: Vec<Diagnostic>,
     completion: Vec<crate::report::InputValidationCompletion>,
+    pending: Option<PendingScheduledValidation>,
+}
+
+struct PendingScheduledValidation {
+    validation: crate::schema::input_validation::resumable::PendingInputValidation,
+    started_at: Instant,
+    input: EngineInput,
+    budget_aliases: Vec<String>,
 }
 
 struct ScheduledValidationDocument {
@@ -10126,13 +10137,13 @@ fn run_scheduled_validation_documents(
             )
             .map_err(native_scheduler_error)?;
         let dependency = load.id();
-        handles.push(load);
+        handles.push((load, index as u32));
 
         let validate_input = input.clone();
         let validate_context = context.clone();
         let validate_aliases = aliases.clone();
         let validate_control = scheduler.control().clone();
-        handles.push(
+        handles.push((
             scheduler
                 .submit_cpu(
                     crate::scheduler::ScheduledTaskSpec::new(
@@ -10158,19 +10169,31 @@ fn run_scheduled_validation_documents(
                             &validate_input,
                             &validate_aliases,
                             staged,
+                            Some(crate::schema::input_validation::resumable::InputValidationExecution {
+                                control: validate_control.clone(),
+                                scope,
+                                resolver_policy: validate_context.resolver_policy.clone(),
+                                retained_input_bytes: 0, // filled from the loaded original bytes
+                            }),
                         );
-                        let _ = validate_control.complete_scope(scope);
+                        validate_control.check_scope(scope)
+                            .map_err(|error| native_scheduler_error(error.into()))?;
+                        if result.as_ref().map_or(true, |result| result.pending.is_none()) {
+                            let _ = validate_control.complete_scope(scope);
+                        }
                         result
                     },
                 )
                 .map_err(native_scheduler_error)?,
-        );
+            index as u32,
+        ));
     }
-    let committed = crate::scheduler::executor::commit_in_stable_order(handles)
-        .map_err(native_scheduler_error)?;
     let mut outcome = ScheduledValidationOutcome::default();
-    for result in committed {
-        let result = result.value?;
+    // Handles are created in stable input/path order. Drive suspended sessions
+    // as each result arrives, while other documents remain runnable on CPU.
+    for (handle, index) in handles {
+        let result = handle.join().map_err(native_scheduler_error)?.value?;
+        let result = validation_resources::finish(&scheduler, context, index, result)?;
         outcome.diagnostics.extend(result.diagnostics);
         outcome.completion.extend(result.completion);
     }
@@ -10194,7 +10217,7 @@ fn run_scheduled_validation_documents(
         let (_, policy_diagnostics) =
             scheduler_policy_for_scope(context, &input.uri, &input.root_scope, "input");
         let staged = run_scheduled_validation_load(context, input, policy_diagnostics);
-        let result = run_scheduled_validation_document(context, input, &aliases, staged)?;
+        let result = run_scheduled_validation_document(context, input, &aliases, staged, None)?;
         outcome.diagnostics.extend(result.diagnostics);
         outcome.completion.extend(result.completion);
     }
@@ -10226,6 +10249,7 @@ fn run_scheduled_validation_document(
     input: &EngineInput,
     budget_aliases: &[String],
     staged: ScheduledValidationDocument,
+    mut execution: Option<crate::schema::input_validation::resumable::InputValidationExecution>,
 ) -> EngineResult<ScheduledValidationOutcome> {
     context.ensure_active()?;
     let ScheduledValidationDocument {
@@ -10237,6 +10261,10 @@ fn run_scheduled_validation_document(
     let mut input_diags = std::mem::take(&mut diagnostics);
     let mut complete = true;
     let mut runtime_diagnostics = Vec::new();
+    let mut pending = None;
+    if let Some(execution) = &mut execution {
+        execution.retained_input_bytes = source_bytes_for_projection.len();
+    }
     // An explicit consumer stage admits specialized XML import only for a ready
     // consuming model. Other native XML-family validators retain their own paths.
     let xml_runtime = if context.input_validation_stage.is_some()
@@ -10299,9 +10327,11 @@ fn run_scheduled_validation_document(
                 &source_uri,
                 &input.root_scope,
                 &model,
-                context.schema_behavior_evaluator.as_deref(),
+                context.schema_behavior_evaluator.as_ref(),
+                execution.clone(),
             );
             complete = outcome.complete;
+            pending = outcome.pending;
             runtime_diagnostics.extend(outcome.diagnostics);
         } else {
             // Failed native parsing has no source to consume. Preserve its
@@ -10335,9 +10365,11 @@ fn run_scheduled_validation_document(
                 &loaded.bytes,
                 &input.root_scope,
                 &model,
-                context.schema_behavior_evaluator.as_deref(),
+                context.schema_behavior_evaluator.as_ref(),
+                execution.clone(),
             );
             complete = outcome.complete;
+            pending = outcome.pending;
             runtime_diagnostics.extend(outcome.diagnostics);
         } else {
             complete = false;
@@ -10434,9 +10466,11 @@ fn run_scheduled_validation_document(
                     &loaded.bytes,
                     &input.root_scope,
                     model,
-                    context.schema_behavior_evaluator.as_deref(),
+                    context.schema_behavior_evaluator.as_ref(),
+                    execution.clone(),
                 );
                 complete = outcome.complete;
+                pending = outcome.pending;
                 runtime_diagnostics.extend(outcome.diagnostics);
             }
         }
@@ -10446,11 +10480,13 @@ fn run_scheduled_validation_document(
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>();
-    input_diags.extend(time_budget_diagnostics(
-        &input.root_scope,
-        &aliases,
-        started_at.elapsed().as_nanos(),
-    ));
+    if pending.is_none() {
+        input_diags.extend(time_budget_diagnostics(
+            &input.root_scope,
+            &aliases,
+            started_at.elapsed().as_nanos(),
+        ));
+    }
     project_diagnostics_for_source(&mut input_diags, &source_bytes_for_projection);
     // Runtime outcomes already carry original-owner provenance. Project only
     // source pipeline diagnostics before merging the explicit consumer result.
@@ -10462,6 +10498,12 @@ fn run_scheduled_validation_document(
             input: input_uri(input, context),
             complete,
         }],
+        pending: pending.map(|validation| PendingScheduledValidation {
+            validation,
+            started_at,
+            input: input.clone(),
+            budget_aliases: budget_aliases.to_vec(),
+        }),
     })
 }
 

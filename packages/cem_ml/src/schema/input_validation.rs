@@ -16,6 +16,12 @@ use crate::{
 };
 use std::{fmt::Debug, sync::Arc};
 
+pub mod resumable;
+use resumable::{
+    InputValidationExecution, InputValidationRun, OwnedInputValidationRequest,
+    PendingInputValidation,
+};
+
 pub const RUNTIME_INPUT_VALIDATION_FAILED: &str = "cem.schema_validation.runtime_stage_failed";
 
 #[derive(Debug)]
@@ -49,6 +55,16 @@ pub struct InputValidationOutcome {
 /// Calls may run concurrently for independent inputs. Do not cache evaluation
 /// results or write targets into the source arena shared with runtime consumers.
 pub trait InputValidationStage: Debug + Send + Sync {
+    /// Native engines offer this owned request when a document execution scope
+    /// is available. Return None to keep the existing synchronous path. Portable
+    /// synchronous engines continue calling validate; no implicit I/O wait.
+    fn start_resumable(
+        &self,
+        _request: OwnedInputValidationRequest,
+    ) -> Option<Box<dyn resumable::InputValidationSession>> {
+        None
+    }
+
     fn validate(
         &self,
         request: InputValidationRequest<'_>,
@@ -63,8 +79,9 @@ pub(crate) fn run(
     bytes: &[u8],
     root_scope: &ScopeConfig,
     model: &SchemaDocumentModel,
-    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
-) -> InputValidationOutcome {
+    behavior_evaluator: Option<&Arc<dyn SchemaBehaviorEvaluator>>,
+    execution: Option<InputValidationExecution>,
+) -> InputValidationRun {
     let text = String::from_utf8_lossy(bytes);
     let source =
         RetainedCemTree::from_shared(document, uri, &text, CemTreeSemantics::default(), None)
@@ -76,6 +93,7 @@ pub(crate) fn run(
         root_scope,
         model,
         behavior_evaluator,
+        execution,
     )
 }
 
@@ -88,8 +106,9 @@ pub(crate) fn run_xml(
     bytes: &[u8],
     root_scope: &ScopeConfig,
     model: &SchemaDocumentModel,
-    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
-) -> InputValidationOutcome {
+    behavior_evaluator: Option<&Arc<dyn SchemaBehaviorEvaluator>>,
+    execution: Option<InputValidationExecution>,
+) -> InputValidationRun {
     let source = (|| {
         let imported = crate::import::import_xml_ast_with_lexical_scopes(
             &document,
@@ -108,7 +127,15 @@ pub(crate) fn run_xml(
         .map_err(|message| vec![failure(uri, message)])?;
         Ok((tree, Some(captured)))
     })();
-    run_prepared(stage, source, uri, root_scope, model, behavior_evaluator)
+    run_prepared(
+        stage,
+        source,
+        uri,
+        root_scope,
+        model,
+        behavior_evaluator,
+        execution,
+    )
 }
 
 /// Reuse a lifecycle data AST through the same native import as query ingress.
@@ -119,12 +146,21 @@ pub(crate) fn run_data(
     uri: &str,
     root_scope: &ScopeConfig,
     model: &SchemaDocumentModel,
-    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
-) -> InputValidationOutcome {
+    behavior_evaluator: Option<&Arc<dyn SchemaBehaviorEvaluator>>,
+    execution: Option<InputValidationExecution>,
+) -> InputValidationRun {
     let source = crate::import::retain_lifecycle(document)
         .map(|tree| (tree, None))
         .map_err(|message| vec![failure(uri, message)]);
-    run_prepared(stage, source, uri, root_scope, model, behavior_evaluator)
+    run_prepared(
+        stage,
+        source,
+        uri,
+        root_scope,
+        model,
+        behavior_evaluator,
+        execution,
+    )
 }
 
 fn run_prepared(
@@ -133,8 +169,9 @@ fn run_prepared(
     uri: &str,
     root_scope: &ScopeConfig,
     model: &SchemaDocumentModel,
-    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
-) -> InputValidationOutcome {
+    behavior_evaluator: Option<&Arc<dyn SchemaBehaviorEvaluator>>,
+    execution: Option<InputValidationExecution>,
+) -> InputValidationRun {
     let prepare = || {
         let policy = ReferenceScopePolicy::schema_defaults()
             .and_then(|policy| policy.for_scope(model))
@@ -144,16 +181,41 @@ fn run_prepared(
                 vec![diagnostic]
             })?;
         let (source, lexical_scopes) = source?;
-        stage.validate(InputValidationRequest {
-            source,
-            lexical_scopes,
-            model,
-            root_scope,
-            policy,
-            behavior_evaluator,
-        })
+        if let Some(execution) = execution {
+            let request = OwnedInputValidationRequest {
+                source: source.clone(),
+                lexical_scopes: lexical_scopes.clone(),
+                model: Arc::new(model.clone()),
+                root_scope: root_scope.clone(),
+                policy: policy.clone(),
+                behavior_evaluator: behavior_evaluator.cloned(),
+                execution,
+            };
+            if let Some(session) = stage.start_resumable(request.clone()) {
+                return Ok(PendingInputValidation::start(session, request, uri));
+            }
+        }
+        stage
+            .validate(InputValidationRequest {
+                source,
+                lexical_scopes,
+                model,
+                root_scope,
+                policy,
+                behavior_evaluator: behavior_evaluator.map(|e| e.as_ref()),
+            })
+            .map(|outcome| InputValidationRun::finished(normalize(Ok(outcome), uri)))
     };
-    let mut result = match prepare() {
+    match prepare() {
+        Ok(run) => run,
+        Err(diagnostics) => InputValidationRun::finished(normalize(Err(diagnostics), uri)),
+    }
+}
+pub(crate) fn normalize(
+    result: Result<InputValidationOutcome, Vec<Diagnostic>>,
+    uri: &str,
+) -> InputValidationOutcome {
+    let mut result = match result {
         Ok(outcome) => outcome,
         Err(mut diagnostics) => {
             if !diagnostics.iter().any(|d| d.severity.is_hard_violation()) {

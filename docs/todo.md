@@ -1769,16 +1769,51 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: byte completion alone does not
       activate a schema; public IDs do not authorize scope crossings; pending
       imports or missing metadata never borrow a prior model or caller context.
-- [ ] Fixture: connect entered URI-backed schema regions to the engine external
+- [x] Fixture: add opt-in resumable native input validation sessions. Yield typed
+      schema resource requests from CPU stages; dispatch reads on the engine I/O
+      executor and resume the retained session on CPU without holding a CPU slot
+      during I/O. Keep synchronous stages compatible. Adopted on 2026-10-06.
+      Cover multiple rounds, original owner identity, stable diagnostic provenance,
+      failed reads, cancellation, memory accounting and invalid/no-progress yields.
+      Implemented on 2026-10-06 with eight native engine fixtures, including CPU
+      availability during I/O and cumulative payload retention across rounds.
+      Scenarios for later design verification: one CPU worker can serve another
+      document while a session awaits I/O; pending sessions retain original owners;
+      cancellation prevents import/resume; resource accounting never resets on retry.
+- [x] Fixture: provide a reusable retained CEM-QL validation session over the
+      engine suspension boundary. Discover URI loads from entered region reports,
+      retain original control generations, prepare caller-supplied destination
+      contexts/local bindings/grants and retry the same source after completion.
+      Cover nested controls entering in successive rounds, unavailable contexts,
+      denied crossings and failed reads without inherited fallback. Implemented
+      on 2026-10-06 with two bridge fixtures covering CEM/XML input and schema
+      owners, declaration references, child-policy inheritance and explicit MIME hints.
+      Scenarios for later design verification: blocked descendants are not fetched;
+      byte completion alone does not activate; no callback synthesizes context IDs;
+      original owners and unresolved authored reference nodes survive every retry.
+- [x] Fixture: connect entered URI-backed schema regions to the engine external
       resource queue using native request/generation/import APIs. Schedule only
       entered controls, hand off explicit destination/local contexts and directed
       grants, and retry region readiness after queue completion. Preserve loader
       operation cancellation and bounds; retain prior original owners only under
-      the operation's existing lifetime/memory contract.
+      the operation's existing lifetime/memory contract. Implemented on 2026-10-06
+      through the opt-in session contract and reusable CEM-QL session. Native
+      coordinator reads run on I/O and imports/readiness retries run on CPU.
+      Verified in 327 focused native reference, import, engine, scheduler and
+      retained-behavior tests, including ten new resumable-session fixtures.
       Scenarios for later design verification: earlier/unentered controls are not
       fetched; late replies cannot restore canceled/replaced generations; current
       pending dependencies block model behavior without inherited fallback; retries
       preserve lexical names, source owners and request/destination traversal caps.
+- [ ] Fixture: broaden resumable queued schema loading across wrapping controls,
+      following sibling switches, document preludes and reference-selected foreign
+      subtrees. Include explicit public exports and multi-request batches with
+      stable completion order under existing queue/overflow policies. Reuse the
+      session's native controls, original-owner URI bases and generation checks.
+      Scenarios for later design verification: a foreign placement resolves relative
+      URIs against its authored owner; public parts do not grant crossings; following
+      switches stay enclosing; blocked controls are not fetched; peer failures never
+      hide pending regions or overwrite original diagnostics.
 - [ ] Specify typed prelude reference slots only if that source capability is
       requested. Current directive payloads are literal text; native reference and
       expression slots already belong to schema-element/host attribute forms. Keep
@@ -1786,7 +1821,7 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: a literal query constructor is not an
       authored AST reference slot; consumers retain original source occurrences and
       do not manufacture attributes or reparse a second CEM tree.
-- [ ] Fixture: integrate bounded schema-scope selection, target admission and exact
+- [x] Fixture: integrate bounded schema-scope selection, target admission and exact
       declaration compilation into lifecycle region readiness. Require one completed
       target and a complete model without hard compilation diagnostics before
       activation; pending/invalid explicit overrides keep their region incomplete.
@@ -1801,8 +1836,9 @@ only and adds no runtime behavior or public syntax.
       control, using explicit runtime inputs and original owning positions. Existing
       literal document-prelude controls now use the same following stage.
       Retained URI loader-result preparation and controlled native byte loading/import
-      are implemented, with the direct singleton URI target default adopted. Next:
-      connect engine resource-queue dispatch and retries. Block parsing stays deferred.
+      are implemented, with the direct singleton URI target default adopted.
+      Opt-in native engine resource dispatch, retained imports and entered-region
+      readiness retries are implemented on 2026-10-06. Block parsing stays deferred.
       Reuse the implemented preparation, loader and region APIs; do not add an AST projection or choose
       the deferred enclosed child-reference syntax as part of this wiring.
       Scenarios for later design verification: no inherited fallback hides an invalid

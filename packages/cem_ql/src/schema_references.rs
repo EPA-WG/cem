@@ -204,6 +204,16 @@ impl CemQlSchemaDeclarationHost {
         });
         Some(scope)
     }
+    /// Inspect the original tree owning this registered source handle. Returning
+    /// its provenance grants no reference crossing or schema activation authority.
+    pub fn source_tree(&self, source: &SchemaDeclarationNode) -> Option<&Arc<RetainedCemTree>> {
+        self.scopes.iter()
+            .find(|scope| Arc::ptr_eq(scope.tree.ast_owner(), source.document()))
+            .map(|scope| &scope.tree)
+    }
+    pub fn reference_scope_policy(&self, scope: DeclarationScope) -> Option<&ReferenceScopePolicy> {
+        Some(&self.scope_record(scope)?.policy)
+    }
     pub fn lexical_scope_parent(&self, scope: DeclarationScope) -> Option<DeclarationScope> {
         self.scope_record(scope)?.lexical_parent
     }

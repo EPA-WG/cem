@@ -135,6 +135,30 @@ and restoration are covered too. Equal authored IDs in different vendors still
 require distinct directed grants. Named inline declaration source handles remain
 tracked in `docs/todo.md`; retained metadata does not supply runtime inputs.
 
+## Resumable native validation
+
+An installed stage can override `InputValidationStage::start_resumable` and return
+`CemQlInputValidationSession::new(owned_request, prepared_host, runtime_inputs)`.
+Prepare the host with the original source owner, captured names and occurrence
+bindings. Implement `SchemaValidationSessionInputs` to supply current body/local
+contexts, loaded destination policy/context, optional explicit MIME hints, public
+exports and loaded-owner lexical handoff/crossing grants. The adapter grants no
+crossings and does not assign IDs to runtime contexts.
+
+The session discovers URI dependencies only from entered regions. The native
+engine coordinator schedules its typed requests on I/O workers, releases the CPU
+slot while reads run and resumes the same retained session on CPU. Nested blocked
+controls are requested only after their parent region becomes usable. Missing
+contexts, denied crossings and failed reads leave validation incomplete without an
+inherited-model fallback. Resource correlation, cancellation, import byte limits
+and retained payload memory accounting span all rounds.
+
+Return `None` from `start_resumable` for the existing synchronous path. Portable
+synchronous engines continue calling `validate`. Registration, parsing and query
+preparation remain passive. Native CEM/XML fixtures cover queued nested loads and
+retained schema declaration references; the deferred syntax decisions stay in
+[`docs/todo.md`](../../docs/todo.md).
+
 ## Verification
 
 Use Nx for the publishable crate gates:

@@ -6,6 +6,7 @@
 //! cycle from `cem_ml` back into `cem_ql`.
 
 pub mod schema_packages;
+pub mod schema_validation_session;
 
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};

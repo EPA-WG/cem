@@ -658,7 +658,8 @@ Native CEM/XML retries restore original assignments and use fresh caller context
 and targets. No targets are written into authored references. Unentered prior
 controls are not scanned to infer omitted source dependencies. URI loader-result
 consumption and the native byte-loader bridge now use the same readiness stage;
-automatic engine queue dispatch remains actionable in `todo.md`. Enclosed child override syntax remains deferred.
+opt-in resumable native engine dispatch and readiness retries are implemented
+below. Enclosed child override syntax remains deferred.
 
 Literal document-prelude activation (2026-10-06) retains original
 `SchemaElementForm::Prelude` metadata and the directive's text payload. The shared
@@ -751,10 +752,10 @@ keep distinct original owners. Manual snapshot publication or removal supersedes
 an outstanding generation as well as its prior result.
 
 The explicit bridge is usable by native callers and external resource queues.
-Automatic engine queue dispatch, readiness retries and operation-lifetime retention
-remain actionable in `todo.md`; they must use these stages and explicit host
-contexts/grants. Block-prelude parsing and enclosed child override syntax remain
-deferred independently.
+Opt-in resumable native engine dispatch, readiness retries and session-lifetime
+retention are now implemented through the shared stage contract described below.
+Block-prelude parsing and enclosed child override syntax remain deferred
+independently.
 
 ### Implicit scope references and defaults
 
@@ -1744,6 +1745,46 @@ Malformed scope bounds and preparation failures remain incomplete. Original
 failure diagnostics are preserved; preparation failure without a hard diagnostic
 receives `cem.schema_validation.runtime_stage_failed`. A returned incomplete
 outcome can have no violations, and a completed outcome can have violations.
+
+Native engine stages can now opt into `InputValidationStage::start_resumable`
+(2026-10-06). Returning a session replaces that input's synchronous `validate`
+call; returning `None` preserves it. The owned request shares the original source
+and lexical metadata, carries the compiled consuming model and explicit evaluator,
+and exposes the actual engine document execution scope and resolver policy.
+Portable synchronous execution continues to use `validate`.
+
+`InputValidationSession::advance` runs on CPU and returns either a final outcome
+or typed `SchemaUriResourceRequest` acquisitions with fresh session correlation
+tokens. The coordinator dispatches reads on the existing native I/O executor,
+releases the CPU slot throughout I/O, then resumes the same session on CPU with
+ordered native completions. Independent documents remain runnable. Document
+scope state and total elapsed time span all rounds, and report completion remains
+independent of diagnostic severity. Empty, duplicate or reused request tokens
+are rejected before transport. Total acquisition count is additionally capped by
+the initial requesting scope's effective work limit for the session; consumer
+graph traversal and destination limits retain their existing separate accounting.
+
+`CemQlInputValidationSession` in the bridge crate discovers acquisitions from
+entered region reports, retains original control/URI generation tickets and retries
+validation over the same source after completions. Blocked descendant controls are
+not requested. `SchemaValidationSessionInputs` supplies runtime contexts, destination
+root context/policy, optional explicit MIME hints, public exports and preparation
+of loaded local bindings and directed grants. Relative URI bases come from the
+control's original retained owner, including reference-selected foreign subtrees.
+Destination policy inherits the entered requesting frame unless explicitly supplied;
+selected schema constraints apply at consumption. Neither transport nor this session
+grants crossings or borrows a prior context/model. Unavailable inputs or failed
+acquisitions finish incomplete rather than retrying transport indefinitely.
+
+Operation cancellation or budget expiry after a read blocks import/context/resume
+callbacks. Input and successful response byte retention use document-scope memory
+permits across all rounds; the shared import byte limit is checked before callbacks.
+These permits account payload retention, not a complete AST heap-size estimate;
+resolver implementations retain their existing transport allocation/control duties.
+Session completion/failure releases its permits and owners. An embedding runtime
+retaining inspection handles beyond the operation owns their subsequent lifetime
+and memory accounting. Original target arenas and authored unresolved references
+remain unchanged.
 
 Runtime diagnostics for selected owners carry their original URI/coordinates.
 The engine projects source-pipeline diagnostics before merging runtime outcomes,

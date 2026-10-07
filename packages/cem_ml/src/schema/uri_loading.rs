@@ -82,6 +82,9 @@ impl SchemaUriResourceRequest {
             source,
         })
     }
+    pub fn source_map(&self) -> &SourceMapStack {
+        &self.source
+    }
     pub fn request(&self) -> &ResolveRequest {
         &self.request
     }
