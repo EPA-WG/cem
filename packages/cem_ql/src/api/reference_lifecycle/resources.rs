@@ -45,6 +45,7 @@ struct LoadedInputs {
     scopes: Vec<(AstNodeId, DeclarationScope)>,
     names: Arc<NamespaceNameCompletion>,
     name_issues: Vec<(AstNodeId, String)>,
+    namespace: Option<Arc<NamespaceLifecycleSnapshot>>,
 }
 #[derive(Debug, Default)]
 struct State {
@@ -148,7 +149,9 @@ pub struct ReferenceResourceExecution {
     control: OperationControl,
     pending: BTreeSet<u64>,
     requested: usize,
+    namespace_work: usize,
     max_work: usize,
+    max_depth: usize,
     report: Option<ReferenceConsumerReport>,
     finished: bool,
     permits: Vec<MemoryPermit>,
@@ -171,6 +174,15 @@ impl ReferenceValidationSession {
                     .unwrap()
                     .limits
                     .max_work,
+            );
+        let max_depth = prepared
+            .as_ref()
+            .map(|(_, policy)| policy.limits.max_depth)
+            .unwrap_or(
+                ReferenceScopePolicy::schema_defaults()
+                    .unwrap()
+                    .limits
+                    .max_depth,
             );
         let coordinator = if let Some((model, policy)) = prepared {
             let request = OwnedInputValidationRequest {
@@ -207,7 +219,9 @@ impl ReferenceValidationSession {
             control,
             pending: BTreeSet::new(),
             requested: 0,
+            namespace_work: 0,
             max_work,
+            max_depth,
             report: Some(report),
             finished: false,
             permits: vec![],
@@ -249,7 +263,7 @@ impl ReferenceResourceExecution {
                     .requested
                     .checked_add(requests.len())
                     .ok_or("Resource work exhausted")?;
-                if self.requested > self.max_work {
+                if self.requested > self.max_work.saturating_sub(self.namespace_work) {
                     self.cancel();
                     return Err("Resource work exhausted".into());
                 }
@@ -408,6 +422,7 @@ impl ReferenceResourceExecution {
             scopes: std::iter::once((0, loaded.scope)).chain(scopes).collect(),
             names,
             name_issues,
+            namespace: None,
         });
         if let Some(permit) = permit {
             self.permits.push(permit);
@@ -433,6 +448,7 @@ impl ReferenceResourceExecution {
             )
             .ok_or("Unknown loaded source")?;
         loaded.inputs.context = context;
+        loaded.namespace = None;
         for (node, scope) in &loaded.scopes {
             self.coordinator
                 .as_mut()
@@ -533,6 +549,7 @@ impl ReferenceResourceExecution {
         } else {
             loaded.inputs.occurrence_contexts.remove(&node);
         }
+        loaded.namespace = None;
         for (node, scope) in &loaded.scopes {
             self.coordinator
                 .as_mut()
@@ -542,9 +559,82 @@ impl ReferenceResourceExecution {
         }
         Ok(())
     }
+    /// Explicitly prepare one loaded owner's names using supplied destination
+    /// inputs. Retries share the requesting execution's work cap; the loaded
+    /// scope's effective limits can constrain it further. Querying stays passive.
+    pub fn prepare_loaded_names(
+        &mut self,
+        index: usize,
+    ) -> Result<ReferenceConsumerReport, String> {
+        self.check()?;
+        if !self.pending.is_empty() {
+            return Err("Complete the resource batch before preparing names".into());
+        }
+        let offset = index
+            .checked_sub(self.config.sources.len())
+            .ok_or("Only loaded names may be prepared")?;
+        let (inputs, scope) = {
+            let mut state = self.state.lock().unwrap();
+            let loaded = state
+                .loaded
+                .get_mut(offset)
+                .ok_or("Unknown loaded source")?;
+            loaded.namespace = None;
+            (loaded.inputs.clone(), loaded.scopes[0].1)
+        };
+        let remaining = self
+            .max_work
+            .saturating_sub(self.requested)
+            .saturating_sub(self.namespace_work);
+        if remaining == 0 {
+            return Err("Namespace preparation work exhausted".into());
+        }
+        let host = self
+            .coordinator
+            .as_mut()
+            .ok_or("No resource coordinator")?
+            .host_mut();
+        let mut limits = host
+            .reference_scope_policy(scope)
+            .ok_or("Unknown loaded policy")?
+            .limits;
+        // Loaded policies inherit the request; scope overrides can only narrow
+        // the request-wide cap during this invocation.
+        limits.max_work = limits.max_work.min(remaining);
+        limits.max_depth = limits.max_depth.min(self.max_depth);
+        let capture = inputs
+            .source
+            .require_lexical()
+            .map_err(|e| format!("{e:?}"))?
+            .clone();
+        let result = host.with_namespace_lifecycle(
+            capture,
+            &roots(&inputs.source),
+            limits,
+            |node, _, _, _| (inputs.context_for(node.node_id()), Default::default()),
+            |_, _| (),
+        );
+        let (snapshot, ()) = match result {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                // An unsuccessful bounded pass cannot make its spent work free
+                // on retry. Conservatively charge its allocated cap.
+                self.namespace_work += limits.max_work;
+                return Err(format!("Loaded namespace lifecycle: {error:?}"));
+            }
+        };
+        self.namespace_work += snapshot.work_used;
+        self.check()?;
+        let mut report = ReferenceConsumerReport::pending();
+        ReferenceValidationSession::namespace_dependencies(&mut report, &snapshot, &inputs.source);
+        report.complete = snapshot.is_complete();
+        report.placements = snapshot.ready_roots.len();
+        self.state.lock().unwrap().loaded[offset].namespace = Some(Arc::new(snapshot));
+        Ok(report)
+    }
     /// Query a saved completion without import, selection or expression evaluation.
     /// Index 0 is the latest input namespace snapshot; loaded indices retain the
-    /// captured ready name forest from import. Pending imported names stay excluded.
+    /// latest explicitly prepared names, or the captured ready forest from import.
     pub fn query_snapshot(
         &self,
         index: usize,
@@ -567,6 +657,12 @@ impl ReferenceResourceExecution {
                     .ok_or("No saved completion for this source")?,
             )
             .ok_or("Unknown loaded source")?;
+        if let Some(namespace) = &loaded.namespace {
+            return super::query_snapshot::ReferenceQuerySnapshot::from_lifecycle(
+                loaded.inputs.source.clone(),
+                namespace,
+            );
+        }
         let mut report = ReferenceConsumerReport::pending();
         report.complete = loaded.name_issues.is_empty();
         report.placements = loaded.names.roots().len();

@@ -2948,7 +2948,17 @@ future work, with their scenarios preserved above.
 
 ### Next three reference follow-ups
 
-- [ ] Fixture and implementation: prepare loaded-owner namespace lifecycles in the
+- [x] Fixture: extend local loaded-owner namespace preparation checks for explicit
+      resume, occurrence shadowing, immutable earlier views, independent crossing
+      grants, cumulative preparation bounds and stale/cancelled execution guards.
+      Scenarios for later design verification: changing destination inputs requires
+      another preparation; saved node values retain original owners after disposal.
+- [x] Fixture: extend native host adapters and the maintained two-worker source
+      transport fixture for marked XML slots, reload provenance, entity diagnostics,
+      inert descendants and independent worker contexts/authority.
+      Scenarios for later design verification: transport carries syntax and capture,
+      never evaluated targets, runtime bindings or relationship grants.
+- [x] Fixture and implementation: prepare loaded-owner namespace lifecycles in the
       local resource adapter after explicit destination inputs are supplied, and
       retain the resulting name completion for loaded query snapshots. Use the
       shared lifecycle, effective policy/bounds and original capture; avoid query
@@ -2956,12 +2966,29 @@ future work, with their scenarios preserved above.
       Scenarios for later design verification: pending loaded names remain excluded;
       an explicit resume completes only its own owner; earlier snapshots stay
       immutable and crossing authority remains separately required.
-- [ ] Fixture: verify explicitly marked XML attribute slots through CEMB reload,
+- [x] Fixture: verify explicitly marked XML attribute slots through CEMB reload,
       native query snapshots and two-worker transport, including entity-expanded
       diagnostics, original-owner identity and inert descendant references.
       Scenarios for later design verification: marker intent survives reload without
       reparse; unlisted strings remain literal and transport creates no contexts
       or crossing grants.
+
+Verification (2026-10-07): `cem_ql:test:reference-consumers` passes 306 native
+checks in 36 suites and both real WASM worker fixtures. The 14 host adapter cases
+include five new loaded-namespace and XML reload cases. These two follow-ups are
+complete; selected-schema compiler name readiness remains tracked below.
+
+- [ ] Fixture and implementation: hand loaded-owner completed-name views into
+      selected-schema admission/compilation and guard pending declaration names
+      before activating a model. Preserve original owners, invocation restoration,
+      requesting/destination contexts and crossing checks; query readiness alone
+      must not claim schema readiness. Reproduce a loaded `s:schema` whose
+      `p:elements`/`p:element` names depend on `@xmlns:p={#namespace}`: supplying
+      context without namespace preparation currently permits completion.
+      Scenarios for later design verification: missing name completion keeps the
+      governed region incomplete; explicit preparation enables the original
+      declaration; replacing inputs cannot reuse stale compiled names, and pending
+      constructs cannot be silently ignored into an apparently complete model.
 - [ ] Design the deferred cem-element reference-to-ID consumption mode now that
       the CEM-ML reference syntax is settled. Detect native template references,
       resolve element targets at transformation time, preserve explicit IDs and
@@ -2970,6 +2997,10 @@ future work, with their scenarios preserved above.
       Scenarios for later design verification: two instances share one template
       with distinct datadom inputs and IDs; cross-scope relationships are explicit;
       source references remain typed and unchanged by DOM projection.
+
+After that consumer design is adopted, the third follow-up is its existing
+[shared transformation implementation item](#deferred-cem-element-reference-consumption).
+Its verification scenarios remain beside the canonical action items below.
 
 ## Reference adoption: dependency binding and readiness
 
@@ -3341,6 +3372,9 @@ establish ownership; adoption does not choose or implement the consumer mode.
 - [ ] After that consumer contract is specified, implement and verify the
       reference-to-ID mode in the shared `cem-elements` transformation path.
       Add actionable fixture items before creating fixtures.
+      Scenarios for later design verification: explicit IDs survive projection;
+      generated IDs and datadom inputs are independent between instances, with
+      explicit relationship crossings and unchanged authored references.
 
 ### Scenarios for later design verification
 

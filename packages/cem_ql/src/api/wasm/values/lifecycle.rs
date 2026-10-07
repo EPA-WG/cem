@@ -272,6 +272,18 @@ pub fn resource_snapshot(id: u32, source: u32) -> Result<u32, JsValue> {
     SNAPSHOTS.with(|snapshots| snapshots.borrow_mut().insert(id, Arc::new(snapshot)));
     Ok(id)
 }
+#[wasm_bindgen(js_name = "prepareReferenceResourceNamespaces")]
+pub fn resource_names(id: u32, source: u32) -> Result<String, JsValue> {
+    EXECUTIONS.with(|runs| {
+        let report = runs
+            .borrow_mut()
+            .get_mut(&id)
+            .ok_or_else(|| validation_error("Unknown resource execution"))?
+            .prepare_loaded_names(source as usize)
+            .map_err(validation_error)?;
+        serde_json::to_string(&report).map_err(validation_error)
+    })
+}
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PublicExport {

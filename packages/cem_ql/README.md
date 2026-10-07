@@ -487,6 +487,17 @@ with its explicit registered source. Foreign/constructed handles are rejected.
 operation after the complete resource batch settles;
 `clearReferenceResourceOccurrenceContext` restores its owner/ancestor default.
 
+After supplying destination inputs and any required directed crossings, call
+`prepareReferenceResourceNamespaces(execution, sourceIndex)` (native:
+`ReferenceResourceExecution::prepare_loaded_names`). This explicitly runs the
+shared namespace lifecycle over that loaded owner's original capture and returns
+a readiness report. Request and destination limits apply; preparation retries
+and resource requests share the execution's cumulative work cap. A bounded pass
+that fails before returning its accounting conservatively spends its assigned cap.
+Preparation requires a settled resource batch and a live, unchanged execution.
+Replacing owner/occurrence inputs discards its current prepared completion;
+another explicit preparation is required. Earlier saved views remain immutable.
+
 `completeReferenceResourceWithExports(execution, requestId, bytes, contentType,
 finalUri, exports)` supplies an explicit embedding-host public export contract:
 control JSON `[{"part":"leaf","select":"..."}]`. Selectors run over the original
@@ -497,10 +508,14 @@ creates no directed crossing or package replacement authority; no ID scan is use
 `prepareReferenceResourceQuerySnapshot(execution, sourceIndex)` retains saved
 names from that resource execution, without a second import or reference evaluation.
 Index 0 uses the latest input namespace snapshot; loaded indices retain the
-captured ready name forest from import. Pending imported names remain excluded;
-this method does not itself run a loaded-owner namespace lifecycle. Original
+latest explicitly prepared completion, or the captured ready forest from import
+before preparation. Pending names remain excluded; creating a snapshot does not
+evaluate namespace properties. Original
 schema/additional registered owners without a saved completion are rejected.
 Saved views and results survive parent/execution disposal and later input changes.
+Loaded query-name preparation is independent of schema compilation. Propagating
+these views into selected-schema compilation and guarding pending declaration
+names are tracked in `docs/todo.md` under the reference follow-ups.
 
 `prepareReferenceQuerySnapshot(session)` creates an immutable local namespace
 execution view. `inspectReferenceQuerySnapshot` returns its readiness report;

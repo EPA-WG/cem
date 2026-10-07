@@ -2739,8 +2739,8 @@ and transformation adapter Nx test targets pass.
 
 Remaining expression-slot, lexical default/shadowing and tree-sitter parity work is
 still tracked in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
-XML attribute expression recognition, child override syntax and cem-element ID
-consumption remain on their existing deferred tracks.
+XML attribute opt-in and enclosed child overrides are adopted and verified below;
+cem-element ID consumption remains on its separate consumer track.
 
 
 ## Host adapter and syntax closure (2026-10-07)
@@ -2764,10 +2764,23 @@ implicit flattened ID scan or CEM-QL URL protocol is introduced.
 Resource executions expose saved query snapshots without importing resources or
 repeating reference selection. The input snapshot is the latest completed-name
 view retained from validation; loaded snapshots currently retain their captured
-ready name forest from import. Pending imported names stay excluded until an
-explicit loaded-owner namespace lifecycle integration is implemented; preparing
-a snapshot does not perform that integration. Values retain their original owner
-and completed view independently of session/snapshot disposal.
+ready name forest from import until explicit loaded-owner preparation. The native
+`prepare_loaded_names` / local WASM `prepareReferenceResourceNamespaces` stage
+runs the shared lifecycle using that original capture and supplied destination
+inputs. Request and destination bounds apply, and preparation retries share the
+execution work cap with resource requests. Context changes invalidate the current
+completion; another explicit preparation is required. Pending names stay excluded
+and creating a snapshot performs no namespace evaluation. Earlier values retain
+their original owner and completed view independently of disposal or later inputs.
+This query-name stage does not establish schema compiler readiness. Consuming
+loaded completed names during selected-schema compilation and rejecting pending
+declaration names remain explicit follow-ups with verification scenarios.
+
+Marked XML attribute slots preserve their syntax and captured bindings through
+the executable reload bundle. Native and two-heap WASM fixtures verify original
+owners, inert target descendants, literal unlisted attributes, authored XML entity
+diagnostic spans and independent runtime contexts/grants. Source-reference CEMV
+guards remain separate from executable bundle transport.
 
 The existing host/schema enclosure, explicit XML attribute opt-in, and bounded
 literal block preludes are adopted and verified. Typed prelude payloads and

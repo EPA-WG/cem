@@ -6,6 +6,7 @@ import * as wasm from '../dist/wasm/cem_ql.js';
 
 await wasm.default({ module_or_path: await readFile(new URL('../dist/wasm/cem_ql_bg.wasm', import.meta.url)) });
 const encode = text => new TextEncoder().encode(text);
+const entityMarkup = "<item xmlns:c='https://cem.dev/ns/core/1' c:expression-attributes='target' target='{#(items &lt;)}'/>";
 const fail = (fn, code) => assert.throws(fn, error => JSON.parse(String(error)).code === code);
 
 function consume(bundle) {
@@ -67,6 +68,62 @@ function lifecycle() {
     assert.equal(run().complete, true);
     assert.equal(wasm.disposeReferenceValidationSession(session), true);
     fail(() => wasm.runReferenceValidationSession(session), 'cem.reference.validation');
+}
+
+function xmlSlots(bundle, nativeReference) {
+    const source = wasm.importReferenceReloadBundle(new Uint8Array(bundle), 1, '');
+    const schema = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=item @required-attributes=target @optional-attributes=literal}} {attributes | {attribute @name=target @type=node} {attribute @name=literal @type=string}}}'), 'text/cem-ml', 'memory:xml-schema.cem', '');
+    const session = wasm.beginReferenceValidationSession(source, schema);
+    const other = wasm.beginReferenceValidationSession(source, schema);
+    const run = () => JSON.parse(wasm.runReferenceValidationSession(session));
+    assert.equal(run().complete, false, 'reload supplies no execution context');
+    wasm.setReferenceValidationContext(session, 0, true, '[]');
+    const snapshot = wasm.prepareReferenceQuerySnapshot(session);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(snapshot)).complete, true);
+    const authored = wasm.queryReferenceQuerySnapshot(snapshot, 'seq:where(input.attributes, fn(a) => a.name == "target").valueNodes', 'memory:xml-slot.cemql');
+    const inspectAuthored = () => {
+        if (nativeReference) fail(() => wasm.exportNativeValueArtifact(authored, ''), 'cem.value.unsupported_source_reference');
+    };
+    inspectAuthored();
+    const kind = wasm.queryReferenceQuerySnapshot(snapshot, 'seq:where(input.attributes, fn(a) => a.name == "target").valueNodes.kind', 'memory:xml-kind.cemql');
+    assert.ok(wasm.exportNativeValueArtifact(kind, '').length);
+    const literal = wasm.queryReferenceQuerySnapshot(snapshot, 'seq:where(input.attributes, fn(a) => a.name == "literal").value', 'memory:xml-literal.cemql');
+    assert.ok(new TextDecoder().decode(wasm.exportNativeValueArtifact(literal, '')).includes('{#items}'));
+    const library = wasm.parseReferenceSource(encode('{target | {#not-consumed}}'), 'text/cem-ml', 'memory:xml-target.cem', '');
+    const targets = wasm.queryReferenceSource(library, 'input.children', 'memory:xml-bindings.cemql');
+    const destination = wasm.registerReferenceValidationSource(session, library);
+    wasm.setReferenceValidationContext(session, destination, true, '[]');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name:'items', valueId:targets}]));
+    assert.equal(run().complete, false, 'transport creates no crossing grant');
+    wasm.allowReferenceValidationCrossing(session, 0, destination);
+    const result = run();
+    assert.equal(result.complete, true, JSON.stringify(result));
+    assert.equal(result.failed, false);
+    assert.equal(JSON.parse(wasm.runReferenceValidationSession(other)).complete, false);
+    // The export still contains authored slots, never the evaluated targets.
+    const exported = wasm.exportReferenceReloadBundle(source, '');
+    assert.deepEqual(exported, new Uint8Array(bundle));
+    for (const id of [session, other]) wasm.disposeReferenceValidationSession(id);
+    for (const id of [source, schema, library]) wasm.disposeReferenceSource(id);
+    wasm.disposeReferenceQuerySnapshot(snapshot);
+    inspectAuthored();
+    for (const id of [authored, kind, literal, targets]) wasm.disposeNativeValueArtifact(id);
+    return exported;
+}
+function xmlEntityDiagnostics(bundle) {
+    const source = wasm.importReferenceReloadBundle(new Uint8Array(bundle), 1, '');
+    const schema = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=item @required-attributes=target}} {attributes | {attribute @name=target @type=node}}}'), 'text/cem-ml', 'memory:xml-schema.cem', '');
+    const session = wasm.beginReferenceValidationSession(source, schema);
+    const empty = wasm.queryReferenceSource(source, '()', 'memory:empty.cemql');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name:'items',valueId:empty}]));
+    const report = JSON.parse(wasm.runReferenceValidationSession(session));
+    assert.equal(report.complete, false);
+    assert.equal(report.failed, true);
+    const attributed = report.diagnostics.find(d => d.uri === 'memory:entity.xml' && d.sourceMap?.frames.some(f => f.transform.kind === 'ExpressionEmbedding'));
+    assert.ok(attributed, JSON.stringify(report));
+    assert.ok(attributed.sourceMap.frames.some(f => f.transform.kind === 'ExpressionEmbedding' && f.span.ranges.start === entityMarkup.indexOf('&lt;') && f.span.ranges.len === 4), JSON.stringify(attributed));
+    wasm.disposeNativeValueArtifact(empty); wasm.disposeReferenceValidationSession(session);
+    wasm.disposeReferenceSource(source); wasm.disposeReferenceSource(schema);
 }
 
 function resources() {
@@ -147,16 +204,25 @@ function hostAdapters() {
     wasm.setReferenceValidationContext(parent,0,true,'[]');
     const run = wasm.startReferenceResourceExecution(parent);
     const request = JSON.parse(wasm.advanceReferenceResourceExecution(run)).result[0];
-    const bytes = encode('@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=leaf}}}');
+    const bytes = encode('@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=leaf}}}\n@ns public = urn:loaded\n{extras @xmlns:p={#namespace} | {p:item}{#later}}');
     fail(() => wasm.completeReferenceResourceWithExports(run,request.id,bytes,'text/cem-ml','https://vendor.test/child.cem',JSON.stringify([{part:'leaf',select:'input.children',grant:true}])),'cem.reference.validation');
     const loaded = JSON.parse(wasm.completeReferenceResourceWithExports(run,request.id,bytes,'text/cem-ml','https://vendor.test/child.cem',JSON.stringify([{part:'leaf',select:'seq:where(input.children, fn(node) => node.kind == "element" && node.name == "schema")'}])));
-    wasm.setReferenceResourceContext(run,loaded.sourceIndex,true,'[]');
+    const pendingNames = wasm.prepareReferenceResourceQuerySnapshot(run, loaded.sourceIndex);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(pendingNames)).complete, false);
+    const namespace = wasm.queryReferenceSource(loaded.sourceId, 'seq:last(seq:where(input.children, fn(node) => node.kind == "element" && node.name == "@ns"))', 'memory:loaded-bindings.cemql');
+    wasm.setReferenceResourceContext(run,loaded.sourceIndex,true,JSON.stringify([{name:'namespace',valueId:namespace}]));
+    assert.equal(JSON.parse(wasm.prepareReferenceResourceNamespaces(run,loaded.sourceIndex)).complete,true);
     const snapshot = wasm.prepareReferenceResourceQuerySnapshot(run,loaded.sourceIndex);
     const nodes = wasm.queryReferenceQuerySnapshot(snapshot,'seq:where(input, fn(node) => node.kind == "element" && node.name == "schema")','memory:loaded.cemql');
     wasm.setReferenceResourceOccurrenceContext(run,loaded.sourceIndex,nodes,0,false,'[]');
     wasm.clearReferenceResourceOccurrenceContext(run,loaded.sourceIndex,nodes,0);
+    assert.equal(JSON.parse(wasm.prepareReferenceResourceNamespaces(run,loaded.sourceIndex)).complete,true);
     wasm.allowReferenceResourceCrossing(run,0,loaded.sourceIndex);
     assert.equal(JSON.parse(wasm.advanceReferenceResourceExecution(run)).result.complete,true);
+    fail(() => wasm.prepareReferenceResourceNamespaces(run, loaded.sourceIndex), 'cem.reference.validation');
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(pendingNames)).complete, false);
+    const completedNames = wasm.queryReferenceQuerySnapshot(snapshot, 'input.children.namespace', 'memory:loaded-names.cemql');
+    assert.ok(new TextDecoder().decode(wasm.exportNativeValueArtifact(completedNames, '')).includes('urn:loaded'));
     const saved = wasm.prepareReferenceResourceQuerySnapshot(run,0);
     wasm.disposeReferenceResourceExecution(run);
     wasm.disposeReferenceValidationSession(parent);
@@ -164,8 +230,8 @@ function hostAdapters() {
     const names = wasm.queryReferenceQuerySnapshot(snapshot,'input.children.name','memory:saved.cemql');
     assert.ok(wasm.exportNativeValueArtifact(names,'').length);
     assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(saved)).complete,true);
-    for(const id of [nodes,names]) wasm.disposeNativeValueArtifact(id);
-    for(const id of [snapshot,saved]) wasm.disposeReferenceQuerySnapshot(id);
+    for(const id of [nodes,names,namespace,completedNames]) wasm.disposeNativeValueArtifact(id);
+    for(const id of [snapshot,saved,pendingNames]) wasm.disposeReferenceQuerySnapshot(id);
 }
 hostAdapters();
 resources();
@@ -176,7 +242,17 @@ lifecycle();
 if (isMainThread) {
     const source = wasm.parseReferenceSource(encode('{div}{#input}'), 'text/cem-ml', 'memory:original.cem', '');
     const bytes = wasm.exportReferenceReloadBundle(source, '');
-    const worker = new Worker(new URL(import.meta.url), { workerData: { bundle: bytes.slice().buffer } });
+    const xmlBundles = ['#items','items'].map(expression => {
+        const xml = wasm.parseReferenceSource(encode(`<item xmlns:c='https://cem.dev/ns/core/1' c:expression-attributes='target' target='{${expression}}' literal='{#items}'/>`), 'application/xml', 'memory:slots.xml', '');
+        const bundle = wasm.exportReferenceReloadBundle(xml, '');
+        wasm.disposeReferenceSource(xml);
+        return xmlSlots(bundle, expression === '#items').slice().buffer;
+    });
+    const invalid = wasm.parseReferenceSource(encode(entityMarkup), 'application/xml', 'memory:entity.xml', '');
+    const entity = wasm.exportReferenceReloadBundle(invalid, '');
+    wasm.disposeReferenceSource(invalid);
+    xmlEntityDiagnostics(entity);
+    const worker = new Worker(new URL(import.meta.url), { workerData: { bundle: bytes.slice().buffer, xmlBundles, entity: entity.slice().buffer } });
     const output = await new Promise((resolve, reject) => {
         worker.once('message', resolve);
         worker.once('error', reject);
@@ -189,7 +265,9 @@ if (isMainThread) {
     fail(() => wasm.importReferenceReloadBundle(bytes, 77, ''), 'cem.reference.reload');
     fail(() => wasm.exportReferenceReloadBundle(source, '{"maxBytes":1,"maxNodes":1}'), 'cem.reference.reload_export');
     wasm.disposeReferenceSource(source);
-    console.log('reference transport: native handles, attributed guards, worker reload and disposal passed');
+    console.log('reference transport: loaded namespaces, XML slots/entities, independent worker contexts/grants, reload and disposal passed');
 } else {
+    for (const [index, bundle] of workerData.xmlBundles.entries()) xmlSlots(bundle, index === 0);
+    xmlEntityDiagnostics(workerData.entity);
     parentPort.postMessage(consume(workerData.bundle));
 }

@@ -98,10 +98,14 @@ exports remain incomplete. Exposure and context bindings create no crossing or
 replacement authority. URL parts stay loader conventions, without ID scans.
 
 `ReferenceResourceExecution::query_snapshot` saves the input's latest namespace
-completion or a loaded owner's captured ready name forest. It does not import,
-resolve or evaluate again. Pending imported names remain excluded; loaded-owner
-namespace lifecycle completion is an explicit follow-up. Snapshots and values
-retain owners independently of execution disposal.
+completion or a loaded owner's explicitly prepared completion; before preparation
+it uses the captured ready name forest. `prepare_loaded_names` and the local WASM
+`prepareReferenceResourceNamespaces` explicitly run the shared lifecycle after
+destination inputs are supplied. They preserve original capture, separate grants,
+request/destination bounds and cumulative preparation accounting. Context changes
+discard the current completion and require another explicit preparation.
+Saving/querying snapshots performs no import or namespace evaluation. Pending
+names remain excluded; earlier views retain owners independently of disposal.
 
 Evidence: `reference_host_adapters.rs` verifies occurrence inheritance and stale
 completion, public export admission, separate grants, query lifetime, XML native
@@ -109,8 +113,17 @@ attribute consumption, combined enclosed schema/namespace overrides and parsed
 block-prelude runtime restoration. `reference_syntax_adoption.rs` checks XML alias
 ownership, element-local intent, entity frames, malformed/reserved targets,
 quote/comment-aware slot boundaries and bounded nested preludes. The local WASM
-worker fixture exercises the same adapter APIs in two heaps. Actionable follow-ups
-retain their scenarios in
+worker fixture exercises the same adapter APIs in two heaps. Five additional
+native cases cover explicit loaded-name resume, pending occurrence shadowing,
+crossing/cancellation/stale-input guards, cumulative work limits and marked XML
+reload/snapshot identity and entity diagnostics. Both native reference slots and
+general expression slots are consumed after reload, while unlisted attributes
+stay literal and target descendants stay authored. Worker reload starts with
+independent contexts and grants and preserves entity source spans. Query-name
+readiness does not establish selected-schema compilation readiness; the remaining
+compiler handoff and pending-declaration guard are recorded separately.
+The maintained target passes 306 native checks in 36 suites and both real WASM
+worker fixtures (2026-10-07). Actionable follow-ups retain their scenarios in
 [todo.md](todo.md#next-three-reference-follow-ups).
 
 ## Separately deferred work

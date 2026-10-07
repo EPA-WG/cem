@@ -419,3 +419,297 @@ fn loaded_query_snapshots_exclude_pending_names_without_context_evaluation() {
         .error
         .is_none());
 }
+
+fn stage_names(
+    run: &mut cem_ql::api::reference_lifecycle::resources::ReferenceResourceExecution,
+) -> cem_ql::api::reference_lifecycle::resources::ReferenceLoadedSource {
+    let ReferenceResourceProgress::AwaitResources(requests) = run.advance().unwrap() else {
+        panic!()
+    };
+    let mut bytes = response();
+    bytes.bytes.extend_from_slice(
+        b"\n@ns public = urn:loaded\n{extras @xmlns:p={#namespace} | {p:item} {#later}}",
+    );
+    run.complete_with_exports(requests[0].id, Ok(bytes), |imported, _| {
+        Ok(imported
+            .tree
+            .ast()
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "schema" => {
+                    SchemaDeclarationNode::new(imported.tree.ast_owner().clone(), *node_id)
+                }
+                _ => None,
+            })
+            .collect())
+    })
+    .unwrap()
+    .unwrap()
+}
+fn namespace_context(source: &RetainedReferenceSource) -> StandaloneExpressionContext {
+    let values = source.evaluate("seq:last(seq:where(input.children, fn(node) => node.kind == \"element\" && node.name == \"@ns\"))", &Default::default()).unwrap().result;
+    StandaloneExpressionContext::default()
+        .with_binding("namespace", StandaloneExpressionBinding::any(values))
+}
+#[test]
+fn loaded_namespace_preparation_is_explicit_and_saved_views_are_immutable() {
+    let parent = uri_session();
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_names(&mut run);
+    let pending = run.query_snapshot(loaded.index).unwrap();
+    run.set_loaded_context(loaded.index, Some(namespace_context(&loaded.source)))
+        .unwrap();
+    assert!(!run.query_snapshot(loaded.index).unwrap().report().complete);
+    assert!(run.prepare_loaded_names(loaded.index).unwrap().complete);
+    let ready = run.query_snapshot(loaded.index).unwrap();
+    let values = ready
+        .evaluate("input.children", &Default::default())
+        .unwrap()
+        .result;
+    assert!(values
+        .items
+        .iter()
+        .any(|item| item.view().is_some_and(|v| v.field("kind")
+            == Some(vec![cem_ql::eval::Item::Atomic(
+                cem_ql::eval::AtomValue::String("reference".into())
+            )]))));
+    let names = ready
+        .evaluate("input.children.namespace", &Default::default())
+        .unwrap()
+        .result;
+    assert!(names.items.contains(&cem_ql::eval::Item::Atomic(
+        cem_ql::eval::AtomValue::String("urn:loaded".into())
+    )));
+    run.set_loaded_occurrence_context(loaded.index, id(&loaded.source, "extras"), None)
+        .unwrap();
+    assert!(!run.query_snapshot(loaded.index).unwrap().report().complete);
+    assert!(!run.prepare_loaded_names(loaded.index).unwrap().complete);
+    run.clear_loaded_occurrence_context(loaded.index, id(&loaded.source, "extras"))
+        .unwrap();
+    assert!(run.prepare_loaded_names(loaded.index).unwrap().complete);
+    // Name preparation establishes no relationship grant for the selected schema.
+    let ReferenceResourceProgress::Finished(report) = run.advance().unwrap() else {
+        panic!()
+    };
+    assert!(!report.complete);
+    assert!(run.prepare_loaded_names(loaded.index).is_err());
+    drop(run);
+    drop(parent);
+    drop(loaded);
+    assert!(!pending.report().complete);
+    assert!(ready.report().complete);
+    assert!(values.items.iter().all(|item| item.view().is_some()));
+}
+#[test]
+fn loaded_namespace_crossings_require_explicit_authority_and_live_execution() {
+    let foreign = parse("@ns public = urn:foreign", "memory:foreign.cem");
+    let mut parent = uri_session();
+    let destination = parent.add_source(foreign.clone());
+    parent
+        .set_context(destination, Some(Default::default()))
+        .unwrap();
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_names(&mut run);
+    run.set_loaded_context(loaded.index, Some(namespace_context(&foreign)))
+        .unwrap();
+    assert!(!run.prepare_loaded_names(loaded.index).unwrap().complete);
+    run.allow_crossing(loaded.index, destination).unwrap();
+    assert!(run.prepare_loaded_names(loaded.index).unwrap().complete);
+    let saved = run.query_snapshot(loaded.index).unwrap();
+    run.cancel();
+    assert!(run.prepare_loaded_names(loaded.index).is_err());
+    assert!(saved.report().complete);
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_names(&mut run);
+    parent.set_context(0, Some(Default::default())).unwrap();
+    assert!(run.prepare_loaded_names(loaded.index).is_err());
+}
+#[test]
+fn loaded_namespace_preparation_cannot_reset_execution_work_budget() {
+    let mut parent = uri_session();
+    parent
+        .set_limits(
+            0,
+            cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+                max_depth: 128,
+                max_work: 256,
+            },
+        )
+        .unwrap();
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_names(&mut run);
+    run.set_loaded_context(loaded.index, Some(namespace_context(&loaded.source)))
+        .unwrap();
+    let mut exhausted = false;
+    for _ in 0..257 {
+        if run.prepare_loaded_names(loaded.index).is_err() {
+            exhausted = true;
+            break;
+        }
+    }
+    assert!(
+        exhausted,
+        "explicit retries must retain cumulative work accounting"
+    );
+}
+
+#[test]
+fn marked_xml_reload_snapshots_preserve_slots_source_owner_and_inert_targets() {
+    use cem_ql::eval::{retained_cem_node, AtomValue, Item};
+    use std::sync::Arc;
+    for expression in ["#items", "items"] {
+        let xml = format!("<item xmlns:c='https://cem.dev/ns/core/1' c:expression-attributes='target' target='{{{expression}}}' literal='{{#items}}'/>");
+        let authored = RetainedReferenceSource::parse(
+            xml.as_bytes(),
+            "application/xml",
+            "memory:slots.xml",
+            ReloadLimits::default(),
+        )
+        .unwrap();
+        let bytes = authored.export_bundle(ReloadLimits::default()).unwrap();
+        let loaded = RetainedReferenceSource::reload(&bytes, 1, ReloadLimits::default()).unwrap();
+        assert!(!Arc::ptr_eq(
+            authored.ingress().source().ast_owner(),
+            loaded.ingress().source().ast_owner()
+        ));
+        assert_eq!(
+            format!("{:?}", authored.ingress().source().ast().nodes),
+            format!("{:?}", loaded.ingress().source().ast().nodes)
+        );
+        let schema = parse("{schema | {elements | {element @name=item @required-attributes=target @optional-attributes=literal}} {attributes | {attribute @name=target @type=node} {attribute @name=literal @type=string}}}", "memory:schema.cem");
+        let library = parse("{target | {#not-consumed}}", "memory:target.cem");
+        let values = library
+            .evaluate("input.children", &Default::default())
+            .unwrap()
+            .result;
+        let mut session = ReferenceValidationSession::new(loaded.clone(), schema);
+        let other =
+            ReferenceValidationSession::new(loaded.clone(), parse("{schema}", "memory:other.cem"));
+        session.set_context(0, Some(Default::default())).unwrap();
+        let snapshot = session.query_snapshot().unwrap();
+        assert!(snapshot.report().complete);
+        let root = snapshot
+            .evaluate("input", &Default::default())
+            .unwrap()
+            .result
+            .items[0]
+            .clone();
+        assert!(Arc::ptr_eq(
+            retained_cem_node(&root).unwrap().owner().ast_owner(),
+            loaded.ingress().source().ast_owner()
+        ));
+        let literal = snapshot
+            .evaluate(
+                "seq:where(input.attributes, fn(a) => a.name == \"literal\").value",
+                &Default::default(),
+            )
+            .unwrap()
+            .result;
+        assert_eq!(
+            literal.items,
+            vec![Item::Atomic(AtomValue::String("{#items}".into()))]
+        );
+        let slots = snapshot
+            .evaluate(
+                "seq:where(input.attributes, fn(a) => a.name == \"target\").valueNodes",
+                &Default::default(),
+            )
+            .unwrap()
+            .result;
+        assert!(slots.items.iter().all(|item| item.view().is_some()));
+        let raw = slots.items[0].view().unwrap().field("source").unwrap();
+        assert!(Arc::ptr_eq(
+            retained_cem_node(&raw[0]).unwrap().owner().ast_owner(),
+            loaded.ingress().source().ast_owner()
+        ));
+        session.set_context(0, Some(context(values))).unwrap();
+        let destination = session.add_source(library.clone());
+        session
+            .set_context(destination, Some(Default::default()))
+            .unwrap();
+        assert!(!session.run().unwrap().complete);
+        session.allow_crossing(0, destination).unwrap();
+        let report = session.run().unwrap();
+        assert!(report.complete && !report.failed, "{report:?}");
+        assert!(!other.run().unwrap().complete);
+        assert!(library
+            .ingress()
+            .source()
+            .ast()
+            .nodes
+            .iter()
+            .any(|n| matches!(n, CemAstNode::Reference { targets: None, .. })));
+        drop(session);
+        drop(other);
+        drop(snapshot);
+        drop(loaded);
+        assert!(root.view().is_some());
+        assert_eq!(raw[0].source_map(), slots.items[0].source_map());
+    }
+}
+#[test]
+fn marked_xml_entity_expression_diagnostics_retain_authored_spans_after_reload() {
+    use cem_ml::source_map::{FrameSpan, TransformKind};
+    let xml = "<item xmlns:c='https://cem.dev/ns/core/1' c:expression-attributes='target' target='{#(items &lt;)}'/>";
+    let source = RetainedReferenceSource::parse(
+        xml.as_bytes(),
+        "application/xml",
+        "memory:entity.xml",
+        ReloadLimits::default(),
+    )
+    .unwrap();
+    let bytes = source.export_bundle(ReloadLimits::default()).unwrap();
+    let loaded = RetainedReferenceSource::reload(&bytes, 1, ReloadLimits::default()).unwrap();
+    let schema = parse("{schema | {elements | {element @name=item @required-attributes=target}} {attributes | {attribute @name=target @type=node}}}","memory:schema.cem");
+    let mut session = ReferenceValidationSession::new(loaded.clone(), schema);
+    session
+        .set_context(0, Some(context(ItemStream::empty())))
+        .unwrap();
+    let report = session.run().unwrap();
+    assert!(!report.complete && report.failed, "{report:?}");
+    let diagnostic = report
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.source_map.as_ref().is_some_and(|s| {
+                s.frames
+                    .iter()
+                    .any(|f| matches!(f.transform, TransformKind::ExpressionEmbedding { .. }))
+            })
+        })
+        .expect("attributed expression diagnostic");
+    assert_eq!(diagnostic.uri.as_deref(), Some("memory:entity.xml"));
+    let entity_start = xml.find("&lt;").unwrap();
+    assert!(
+        diagnostic
+            .source_map
+            .as_ref()
+            .unwrap()
+            .frames
+            .iter()
+            .any(|frame| match (&frame.transform, &frame.span) {
+                (TransformKind::ExpressionEmbedding { .. }, FrameSpan::Single(span)) =>
+                    span.start as usize == entity_start && span.end() as usize == entity_start + 4,
+                _ => false,
+            }),
+        "{diagnostic:?}"
+    );
+    assert!(loaded
+        .ingress()
+        .source()
+        .ast()
+        .nodes
+        .iter()
+        .all(|n| !matches!(
+            n,
+            CemAstNode::Reference {
+                targets: Some(_),
+                ..
+            }
+        )));
+}
