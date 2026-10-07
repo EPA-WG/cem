@@ -341,13 +341,32 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
 
 Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element-dist@0.0.39/src/material/components/autocomplete.html).
 
-- [ ] Audit and map the source autocomplete API and examples, including its `input`/`menu` slots, explicit data/option values, text-as-value fallback, grouped suggestions, filtering and selected-value behavior; distinguish preserved contracts from extensions.
+- [x] Audit and map the source autocomplete API and examples, including its `input`/`menu` slots, explicit data/option values, text-as-value fallback, grouped suggestions, filtering and selected-value behavior; distinguish preserved contracts from extensions.
+      Completed 2026-10-07: [source audit](cem-autocomplete-source-audit.md)
+      inventories all 27 attributes, both slots and all seven demos against the
+      pinned 0.0.39 source and dependencies. The local declaration and demos are
+      byte-identical. Filtering and option commit are documented intents without
+      implementation in the inspected declarations; parity markers and the
+      frozen standalone product are separate evidence. Explicit option values
+      are a compatibility case to verify, not a demonstrated source example.
 
 - [ ] Design reusable suggestions composition that attaches to existing `cem-field`, `cem-text-field` and applicable CEM input controls through their actual native input; preserve one form owner, naming, value/input/change events, validation, disabled/readonly behavior and normal editing. Decide textarea applicability explicitly.
+      Use the [source audit](cem-autocomplete-source-audit.md#value-filtering-and-compatibility-boundaries)
+      to specify stored-value/display-label handoff and applicable input types.
+      Scenarios for later design verification: numeric stored values with word
+      labels remain input-compatible; an edit to empty survives refresh and
+      rerender; one named field contributes one form value.
 
 - [ ] Evaluate reuse of `cem-dropdown` for autocomplete/suggestions: compare direct dropdown composition with reuse of its shared popup capability/controller for visibility, placement, collision handling and dismissal. Keep focus on the editable input, use combobox/listbox semantics rather than menu semantics, and avoid duplicate triggers, focus restoration handlers or form controls; record the selected composition and tradeoffs before implementation.
 
 - [ ] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
+      Record filtering ownership and compatibility for legacy `data` values and
+      native options, including explicit empty values, text fallback and labels
+      that differ from text. Do not silently inherit the frozen product's
+      upstream-filtering or computed-label value fallback.
+      Scenarios for later design verification: grouped filtering hides empty
+      groups without changing retained option identity; clearing or replacing
+      suggestions removes stale active-descendant relationships.
 
 - [ ] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
 
@@ -356,6 +375,9 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 - [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
 
 - [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
+      Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
+      add explicit native option values and label/text edge cases, and distinguish
+      example-intent coverage from the existing static material parity markers.
 
 ## Respect action states in cem-icon-button
 
