@@ -1,8 +1,8 @@
 # Granted element placements
 
-Status: adopted design, 2026-10-07; implementation remains in
-[todo.md](todo.md#next-consumer-actions). Current native export still requires
-exactly one target placement in the requesting producer forest.
+Status: adopted and implemented through the native, browser and SSR adapters,
+2026-10-07. Verification and remaining consumer work are maintained in
+[todo.md](todo.md#next-consumer-actions).
 
 A native reference identifies an original CEM node. Crossing its source scope
 requires the existing directed lifecycle grant. Using a DOM placement owned by
@@ -20,7 +20,7 @@ it does not attach a shared target list to authored references.
 
 The embedding host owns a placement registry and a publication coordinator.
 Each admitted placement binds a retained native node handle to its producer's
-durable instance identity, stable placement path, committed render revision,
+durable instance identity, stable placement path, admitted render revision,
 DOM root and concrete element. Host-owned elements outside cem-element output
 have an explicit host producer identity and revision with the same obligations.
 The registry retains the original source owner for the lifetime of the admission.
@@ -64,8 +64,15 @@ of a replacement plan or its relationships is published.
 For a ready, already committed producer, the coordinator can publish the
 consumer alone. If several producers must introduce or change placements
 together, a coordinated transaction stages all affected forests and relationships,
-checks their combined ID space, and commits them together. Nested producers may
-not acknowledge readiness until their concrete target placement has committed.
+checks their combined ID space, and commits them together. The host may admit
+prepared placements only inside an explicit transaction naming every producer
+and revision. That private snapshot carries its transaction token and never
+qualifies for ordinary publication. Nested prepared forests must lead to the
+same permitted root through their enlisted parent stages; cycles remain invalid.
+Relationship attributes remain absent from staged browser forests until every
+participant commits and readiness is checked again. Failed activation restores
+all prior forests and producer ID reservations. This exception was explicitly
+adopted on 2026-10-07; it does not make uncommitted targets generally ready.
 Cycles of preparation dependencies remain incomplete and receive a diagnostic;
 they do not acquire authority by waiting or repeating preparation.
 
@@ -86,8 +93,27 @@ they convey no grants. Hydration obtains fresh admissions and validates live
 elements before enabling relationships. Removing and reconnecting an instance
 reuses its durable identity but requires fresh readiness and authority.
 
-Implement the bounded native admission snapshot and negative fixtures first,
-then the host coordinator and transactional browser publication, then SSR and
-hydration re-admission. Until those actions are complete, targets outside the
-current forest continue to produce the existing missing-placement result.
-The four focus/geometry slots do not create a placement exception.
+`project_element_reference_ids_with_host_and_placements` and
+`ElementReferenceExecution::prepare_with_placements` accept the bounded native
+snapshot. `.project_with_placements` returns a new output plan plus admitted
+relationship uses, preserving original owners. The WASM bridge resolves passive
+selectors over retained source handles and exports use metadata beside the
+explicit DOM plan; it transfers no DOM elements or AST records.
+
+`CemElementPlacementCoordinator` registers concrete committed host elements and
+issues property-specific grants. `CemElementRuntimeOptions.placementCoordinator`
+uses its private per-invocation snapshots and checks actual publication, including
+the CSS/DOM queue. Host-controlled groups use `transaction`, `stage`, `enlist`,
+`registerPrepared` and `publishGroup`; enlist a staged parent before preparing
+its detached child producer. A group names hosts and revisions explicitly.
+The coordinator removes affected relationship attributes and runtime markers on
+revocation or placement loss; providers observe these changes through their
+existing endpoint cleanup. Disconnect revokes the consumer's outgoing grants.
+
+`CemSsrPlacementCoordinator` retains candidate plans privately, reserves IDs in
+new terminal export plans and exposes committed plans only after group success.
+Its fixed Recommendation-profile resume hints omit admission tokens, grants and
+source captures. Browser hydration clears foreign relationships before behavior
+activation and requests fresh native consumption. Fresh registration and grants
+are required after reconnect. Unknown or stale hints are not imported as authority.
+The four focus/geometry slots use these same admission requirements.

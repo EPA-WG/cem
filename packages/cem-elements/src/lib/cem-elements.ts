@@ -1,4 +1,6 @@
-import type { CemElementReferenceInputs } from './element-reference-inputs.js';
+import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
+import { CemElementPlacementCoordinator, clearCemPlacementRelationships, hasCemPlacementRelationships } from './element-placement-coordinator.js';
+import { placementRoutes } from './element-placement-plans.js';
 import { exportNativeCemSlices, importNativeCemSlices, sameNativeCemValue, type NativeCemValue, type NativeCemSliceBinding, exportNativeCemAttributes, importNativeCemAttributes, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "./native-values.js";
 import { renderedNativeAttributeBindings, restoreNativeAttributeBindings } from "./projection.js";
 import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemXPathFunctionLibrarySource } from './internal/runtime-support/xpath-function-library.js';
@@ -28,6 +30,7 @@ import {
     type SourceMapRef,
     type TemplateSourceNode,
     type TemplateValue,
+    type SerializedNode,
 } from './projection.js';
 import {
     cemMlTemplateArtifactPayloadKey,
@@ -546,6 +549,8 @@ export interface CemStorageStatusEnvelope {
 export type CemModuleUrlReferrer = string | Node;
 
 export interface CemElementRuntimeOptions {
+    /** Host-issued placement authority and synchronous publication checks. */
+    placementCoordinator?: CemElementPlacementCoordinator;
     /** Explicit invocation-owned reference authority; never derived from document JSON. */
     elementReferenceInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot, signal: AbortSignal) => CemElementReferenceInputs | undefined | Promise<CemElementReferenceInputs | undefined>;
     declarationTag?: string;
@@ -1732,6 +1737,8 @@ export class CemElementRuntime {
     private readonly xpathLibrarySources = new WeakMap<CemDeclarationScope, Map<string, Promise<CemXPathFunctionLibrarySource>>>();
     private readonly referenceInputControllers = new WeakMap<HTMLElement, AbortController>();
     private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
+    private readonly placementCoordinator?: CemElementPlacementCoordinator;
+    private readonly placementInputs = new WeakMap<HTMLElement, { token: number; inputs: CemElementReferenceInputs }>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -1764,6 +1771,7 @@ export class CemElementRuntime {
         this.moduleUrlRootOption = options.moduleUrlRoot;
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.elementReferenceInputsOption = options.elementReferenceInputs;
+        this.placementCoordinator = options.placementCoordinator;
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.resolveResourceUrlOption = options.resolveResourceUrl;
@@ -2596,6 +2604,10 @@ export class CemElementRuntime {
         if (this.retainedStylesheets) reconcileStylesheetContextMarker(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         this.observeInstance(instance, island, state);
+        if (this.hydratedServerRenders.has(instance) && hasCemPlacementRelationships(instance)) {
+            clearCemPlacementRelationships(instance);
+            this.hydratedServerRenders.delete(instance);
+        }
         compiled.behavior?.connected?.(instance, this.behaviorContext(instance));
         if (this.hydratedServerRenders.has(instance)) {
             const hydrationSnapshot = this.hydrationSnapshots.get(instance);
@@ -2642,6 +2654,10 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        clearCemPlacementRelationships(instance);
+        const producer = this.instanceIds.get(instance);
+        if (producer) this.placementCoordinator?.release(producer);
+        this.placementInputs.delete(instance);
         this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
         this.moduleInstanceContexts.delete(instance);
         this.referenceInputControllers.get(instance)?.abort();
@@ -3018,7 +3034,7 @@ export class CemElementRuntime {
             );
             this.recordGeneratedRenderPlanDiagnostics(instance, scoped.renderPlan, compiled.producedTag);
             const island = this.ensureDataIsland(instance);
-            await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token);
+            await this.commitRenderPlan(instance, compiled, island, scoped.renderPlan, token, result.elementPlacementUses);
         } catch (error) {
             if (this.renderTokens.get(instance) !== token) {
                 return;
@@ -3495,6 +3511,7 @@ export class CemElementRuntime {
                     result.resourceControls,
                     committedRevision,
                     token,
+                    result.elementPlacementUses,
                 );
             } catch (error) {
                 if (!(error instanceof CemPatchCommitError) || error.status !== 'aborted') {
@@ -3541,6 +3558,7 @@ export class CemElementRuntime {
                     result.resourceControls,
                     committedRevision,
                     token,
+                    result.elementPlacementUses,
                 );
             }
             this.processingRenderPlans.set(instance, result.nextRenderPlan);
@@ -3629,6 +3647,7 @@ export class CemElementRuntime {
                 const patch = preparePatchFramesForRange(bounds, result.frames, revision, instance.ownerDocument,
                     this.processingPatchOptions(instance, compiled));
                 return { entries, registryConnection: registry, instanceStyles: styles, patch,
+                    publish: commit => this.publishElementPlacements(instance, token, 'elementPlacementUses' in result ? result.elementPlacementUses ?? [] : [], commit),
                     signal: controller.signal, currentRevision: () => revision,
                     onPublished: connection => {
                         if (!connection || !current()) throw new Error('superseded runtime publication');
@@ -3701,7 +3720,11 @@ export class CemElementRuntime {
                 if (controller.signal.aborted) throw new Error('Reference invocation was superseded or disposed');
                 return this.elementReferenceInputsOption?.(instance, snapshot, controller.signal);
             });
-            return await Promise.race([prepare, disposed]);
+            const inputs = await Promise.race([prepare, disposed]);
+            if (!inputs) { this.placementInputs.delete(instance); return undefined; }
+            const admitted = this.placementCoordinator ? this.placementCoordinator.prepare(instance, snapshot.instanceId, inputs) : inputs;
+            this.placementInputs.set(instance, { token, inputs: admitted });
+            return admitted;
         } finally {
             controller.signal.removeEventListener('abort', abort);
             releaseScope();
@@ -3759,6 +3782,21 @@ export class CemElementRuntime {
         resourceControls: readonly CemProcessingResourceControl[],
         revision: Parameters<typeof applyPatchFramesToRange>[2],
         token: number,
+        uses: readonly CemElementPlacementUse[] = [],
+    ): Promise<void> {
+        const marker = (node: SerializedNode): boolean => node.kind === 'element'
+            && (Object.keys(node.attributes).some(name => name.startsWith('data-cem-placement-ref-')) || node.children.some(marker));
+        const addsPlacement = frames.some(frame => frame.type === 'ops' && frame.ops.some(op =>
+            op.op === 'setAttribute' ? op.value !== null && op.name.startsWith('data-cem-placement-ref-')
+                : op.op === 'reconcileChildren' ? op.children.some(child => marker(child.node))
+                    : 'node' in op && marker(op.node.node)));
+        if (!uses.length && addsPlacement) throw new Error('Foreign placement patch needs fresh native admission');
+        return this.publishElementPlacements(instance, token, uses, () => this.commitProcessingFramesUnchecked(instance, compiled, island, frames, resourceControls, revision, token));
+    }
+    private commitProcessingFramesUnchecked(
+        instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement,
+        frames: Parameters<typeof applyPatchFramesToRange>[1], resourceControls: readonly CemProcessingResourceControl[],
+        revision: Parameters<typeof applyPatchFramesToRange>[2], token: number,
     ): Promise<void> {
         const bounds = this.ensureRenderBounds(instance, island);
         const result = applyPatchFramesToRange(bounds, frames, revision, instance.ownerDocument,
@@ -3776,6 +3814,18 @@ export class CemElementRuntime {
         this.bindRenderedCustomValidityInRange(bounds);
         this.bindRenderedFormEventsInRange(instance, compiled, bounds);
         return this.bindProcessingResourceControls(instance, compiled, resourceControls, token);
+    }
+
+    private publishElementPlacements<T>(instance: HTMLElement, token: number, uses: readonly CemElementPlacementUse[], commit: () => T): T {
+        const prepared = this.placementInputs.get(instance);
+        if (!prepared || prepared.token !== token || !this.placementCoordinator) {
+            if (uses.length) throw new Error('Foreign placement publication requires the current host coordinator');
+            return commit();
+        }
+        return this.placementCoordinator.publish(instance, prepared.inputs, uses, commit, () => {
+            this.processingRenderPlans.delete(instance); this.committedRenderPlans.delete(instance);
+            this.recordDiagnostics(instance, [renderDiagnostic('cem-element.placement_invalidated', 'A referenced placement lost its admission', instance.localName)]);
+        }, () => this.renderTokens.get(instance) === token && instance.isConnected);
     }
 
     private bindProcessingResourceControls(
@@ -6406,6 +6456,13 @@ export class CemElementRuntime {
         island: HTMLTemplateElement,
         renderPlan: RenderPlan,
         token: number,
+        uses: readonly CemElementPlacementUse[] = [],
+    ): Promise<void> {
+        if (!uses.length && placementRoutes(renderPlan).length) throw new Error('Foreign placement plan needs fresh native admission');
+        return this.publishElementPlacements(instance, token, uses, () => this.commitRenderPlanUnchecked(instance, compiled, island, renderPlan, token));
+    }
+    private commitRenderPlanUnchecked(
+        instance: HTMLElement, compiled: CompiledDeclaration, island: HTMLTemplateElement, renderPlan: RenderPlan, token: number,
     ): Promise<void> {
         const previous = this.committedRenderPlans.get(instance) ?? null;
         if (

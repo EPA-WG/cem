@@ -1,4 +1,4 @@
-import type { CemElementReferenceInputs } from '../../element-reference-inputs.js';
+import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
@@ -282,6 +282,7 @@ export type CemProcessingResourceControl =
     | CemProcessingStorageStatusControl;
 
 export interface CemProcessingRenderDiffResult {
+    elementPlacementUses?: CemElementPlacementUse[];
     revision: RenderRevision;
     nextRenderPlan: CemProcessingRenderPlanHandle;
     frames: PatchFrame[];

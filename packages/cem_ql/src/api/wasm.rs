@@ -432,12 +432,17 @@ fn plan_json_for_elements(
     };
     let control = cem_ml::operation_control::OperationControl::default();
     let projected = if let Some(execution) = execution {
-        execution.project(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+        execution.project_with_placements(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
     } else {
         crate::render::project_element_reference_ids(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+            .map(|plan| crate::render::ElementReferenceProjection { plan, placements: vec![] })
     };
     match projected {
-        Ok(plan) => plan_json_with_limits(&plan, limits),
+        Ok(projected) => {
+            let mut result = plan_json_with_limits(&projected.plan, limits);
+            result["elementPlacementUses"] = serde_json::to_value(projected.placements).expect("placement control metadata");
+            result
+        },
         Err(error) => {
             values::clear_output();
             json!({

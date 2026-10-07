@@ -1187,6 +1187,6 @@ guards, shared reload ingress and CLI/low-level WASM transport entry points are
 implemented. Source/result handles retain native owners and capture; contexts
 and authority stay with the consumer. The
 [consumer matrix](../../../../../docs/reference-consumer-verification.md) records
-coverage and the remaining
-[adapter work](../../../../../docs/todo.md#next-three-reload-consumer-items).
+coverage and the
+[adapter implementation history](../../../../../docs/archive/todo-snapshot-2026-10-07.md#next-three-reload-consumer-items).
 Consumer element-to-ID behavior remains deferred.

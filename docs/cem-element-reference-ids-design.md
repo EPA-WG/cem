@@ -7,8 +7,9 @@ and original owners; it neither chooses DOM relationships nor extracts IDs.
 A cem-element transformation evaluates its template with that instance's supplied
 `datadom` and native bindings. At final DOM export, the native consumer recognizes
 node/reference values in relationship attributes and maps their terminal element
-targets to produced placements. A target must have exactly one placement in the
-current producer forest. It may occur after the invoker. Selecting the same source
+targets to produced placements. A target must have exactly one local placement,
+or one uniquely granted foreign placement admitted through the
+[host placement contract](cem-element-granted-placements-design.md). It may occur after the invoker. Selecting the same source
 node twice for output makes its placement ambiguous; the consumer never chooses
 one by position or an ID scan. Use distinct constructed nodes when both copies
 need independent relationships.
@@ -122,8 +123,9 @@ incomplete links publish no replacement plan and preserve the last committed
 relationships. Existing hydration snapshots carry produced IDs and persisted
 instance identity; contexts/grants must be supplied afresh by the host and are
 never serialized into the island. Relationships to elements produced by another
-instance still require a separately designed placement/authority channel; the
-consumer rejects targets outside its own forest.
+instance require a separate source crossing grant and a host-issued placement
+grant. `CemElementRuntimeOptions.placementCoordinator` supplies that authority;
+foreign targets without a live admission still fail consumption.
 
 Resolution follows reference chains, not targets' owning descendants. Metadata
 and DOM export walk owning structure under the existing operation control and
@@ -146,7 +148,7 @@ geometry rather than activation or focus ownership. A boundary supplies the
 fitting rectangle, intersected with the visual viewport. Selecting one never
 changes the other relationships. Missing focus targets use the accepted safe
 semantic fallback with diagnostics; unavailable geometry follows the declared
-anchor-lost/opening policy. Cross-instance targets require the future placement
+anchor-lost/opening policy. Cross-instance targets require the explicit placement
 channel, even when a DOM ID happens to exist.
 
 These slots are enabled in native export and the shared popup/composite-menu
@@ -167,10 +169,18 @@ Pointer/selection anchors still require a future invocation geometry adapter;
 these providers diagnose unavailable explicit geometry rather than guessing it.
 
 The [granted placement design](cem-element-granted-placements-design.md)
-specifies future access to targets outside the producer forest; the current
-consumer continues to reject those placements. The
+specifies the implemented opt-in access to targets outside the producer forest.
+Without its separate grant and readiness proof, those targets remain incomplete. The
 [ARIA profile review](cem-element-aria-reference-profile.md) pins the existing
 1.2 Recommendation default and specifies a future experimental draft opt-in.
+
+Foreign relationships also carry runtime-owned
+`data-cem-placement-ref-<property>` markers and a native admission-use report.
+These markers identify cleanup routes and convey no authority. Both marker
+prefixes are reserved in authored templates. A private host transaction may admit
+prepared producers; all participants must commit before their relationships
+activate. Serialized hints and copied snapshot objects cannot authorize browser
+publication.
 
 ## ID ownership and publication
 

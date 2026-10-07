@@ -1,4 +1,4 @@
-import { assertElementReferenceInputs, type CemElementReferenceInputs } from '../../element-reference-inputs.js';
+import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
 import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
@@ -83,6 +83,7 @@ export interface CemQlHostAttributeUpdate {
 }
 
 export interface CemQlRenderResult {
+    elementPlacementUses?: CemElementPlacementUse[];
     nodes: RenderPlanNode[];
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
     diagnostics: RuntimeSupportDiagnostic[];
@@ -359,6 +360,7 @@ export interface RetainedCemMlTemplate {
 }
 
 export interface CemMlTemplateProcessingResult {
+    elementPlacementUses?: CemElementPlacementUse[];
     renderPlan: RenderPlan;
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
     diagnostics: RuntimeSupportDiagnostic[];
@@ -819,7 +821,7 @@ function withElementReferences<T>(options: CemQlRenderOptions, render: (metadata
             handles.push(sourceId);
             return { ...source, sourceId };
         });
-        return render(JSON.stringify({ requesting: input.requesting, sources, bindings: input.bindings, grants: input.grants }));
+        return render(JSON.stringify({ requesting: input.requesting, sources, bindings: input.bindings, grants: input.grants, ...(input.placements ? { placements: input.placements } : {}) }));
     } finally {
         for (const id of handles) disposeReferenceSource(id);
     }
@@ -859,8 +861,16 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
         });
     };
 
+    const nodes = mapNodes(plan.nodes ?? [], `${prefix}:root`);
+    const uses = (plan.elementPlacementUses ?? []).map(({ path, ...use }) => {
+        let children = nodes, target: RenderPlanNode | undefined;
+        for (const index of path) { target = children[index]; children = target?.kind === 'element' ? target.children : []; }
+        if (target?.kind !== 'element') throw new TypeError('Invalid native placement consumer path');
+        return { ...use, renderNodeId: target.renderNodeId };
+    });
     return {
-        nodes: mapNodes(plan.nodes ?? [], `${prefix}:root`),
+        nodes,
+        elementPlacementUses: uses,
         hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
             name: update.name,
             value: update.value,
@@ -913,6 +923,7 @@ export async function processCemMlTemplate(
     return {
         renderPlan,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
+        elementPlacementUses: rendered.elementPlacementUses,
         diagnostics: [...declaration.diagnostics, ...rendered.diagnostics],
         patchFrames:
             input.previousRenderPlan === undefined
@@ -958,6 +969,7 @@ export async function processRetainedCemMlTemplate(
     return {
         renderPlan,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
+        elementPlacementUses: rendered.elementPlacementUses,
         diagnostics: rendered.diagnostics,
         patchFrames:
             input.previousRenderPlan === undefined
@@ -967,6 +979,7 @@ export async function processRetainedCemMlTemplate(
 }
 
 interface WasmRenderPlan {
+    elementPlacementUses?: (Omit<CemElementPlacementUse, 'renderNodeId'> & { path: number[] })[];
     referenceProjectionComplete?: boolean;
     referenceProjectionCode?: string;
     referenceProjectionMessage?: string;

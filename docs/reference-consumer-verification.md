@@ -18,6 +18,7 @@ transport never claim that an authored reference has been evaluated.
 | CLI query / transport | Explicit bundle admission and primary source ID; original source/capture export; binary CEMV output without a text newline. Export failures retain kind and source map in the report and emit no partial successful bytes. Existing JSON descriptors and textual projections remain explicit compatibility exports. | `cem_ml_cli/tests/reference_transport_cli.rs`, `cem_ml_cli/tests/query_cli.rs` |
 | Low-level WASM / worker transport | Source and result handles stay local. Result handles retain the source capture after the source handle is disposed. Workers transfer bundle or CEMV bytes explicitly. Guards report code, kind, original source URI and source map; disposal rejects stale handles. | `cem_ql/tests/reference-transport-wasm.mjs` |
 | cem-element DOM relationships | Native attribute targets map to unique produced placements, preserving explicit IDs or generating instance/placement IDs. All slots share bounded traversal; authored source chains require explicit original contexts/grants. Explicit invocation source captures/contexts/grants work in worker/fallback; typed action, popup and submenu endpoints coexist with local names. SSR/Edge/hydration preserves IDs and rejects incomplete publication. | `cem_ql/tests/reference_runtime_resolution/{element_ids,element_lifecycle}.rs`, `cem_ql/tests/native-values-wasm.mjs`, `cem-elements/src/lib/element-reference-{ids,lifecycle}.stories.ts`, `cem-elements/src/lib/element-reference-ids.edge-ssr.{spec,stories}.ts` |
+| Granted producer placements | Native snapshots require source and host grants, unique producer placement and bounded work. Private transactions admit prepared producers, then publish the entire group with producer-owned ID reservations. Browser revocation/disconnect clears affected routes; SSR hints grant no authority and hydration/reconnect requires fresh admission. | `cem_ql/tests/reference_runtime_resolution/element_placements.rs`, `cem_ql/tests/native-values-wasm.mjs`, `cem-elements/src/lib/element-placement-authority.spec.ts`, `cem-elements/src/lib/element-placement-coordinator.stories.ts`, `cem-elements/src/lib/element-placement-ssr.edge-ssr.spec.ts`, `cem-elements/src/lib/element-placement-hydration.edge-ssr.stories.ts` |
 
 ## Reload lifecycle adoption (2026-10-07)
 
@@ -138,7 +139,7 @@ and cancellation. The dedicated browser story checks native command activation,
 typed action endpoints, per-instance IDs, stable rerender and local-name
 compatibility in worker and fallback modes. The runtime unit target passes 588
 tests; typecheck and lint pass. Actionable follow-ups retain their scenarios in
-[todo.md](todo.md#next-three-reference-follow-ups).
+[todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 The next consumer checkpoint passes 327 native checks in 36 suites, both real
 WASM worker fixtures, 588 runtime unit tests, 54 Node Edge/SSR cases and dedicated
@@ -149,6 +150,31 @@ incompleteness and stale handle disposal. Browser tests cover failed replacement
 async disposal, stable reconnect, popup rebinding/local names, competing submenu
 panels/cycles and restored authored/generated IDs. Typecheck and lint pass (the two
 existing non-null assertion warnings remain).
+
+## Granted placement checkpoint (2026-10-07)
+
+Eight native cases verify separate source/placement grants, local precedence and
+ambiguity, unique external grants, repeated targets, metadata/destination bounds,
+ID conflicts, cancellation and transaction-only prepared admission. Both real WASM
+heaps exercise committed and prepared metadata, then reject stale/denied snapshots.
+
+The browser host fixtures cover worker/fallback activation, immediate revocation,
+disconnect and fresh reconnect, stale group rejection, producer-owned reservations,
+ID conflicts, nested prepared producer readiness and activation-time revocation
+with rollback that strips detached routes before retry. Five authority unit cases
+cover copied snapshots, dependency retention after partial revocation and activation
+rollback. Node SSR fixtures retain original source owners, keep plans private until
+coordinated commit and export hints without tokens/grants. Hydration preserves IDs
+but strips foreign routes before fresh admission; stale hints grant nothing.
+
+The maintained native gate passes 336 checks in 36 suites and both WASM fixtures.
+Runtime units pass 594 checks; all 56 Node SSR and 12 Edge browser cases pass.
+Typecheck and lint pass with the two existing non-null assertion warnings.
+The full browser run passes 412/417: the workflow gallery and three icon-button
+cases reproduce with the pre-placement runtime; the single-frame form-isolation
+failure does not reproduce in either focused current/baseline run. Their actionable
+follow-ups are recorded in [todo.md](todo.md#browser-failures-observed-during-placement-verification).
+No aggregate browser pass is claimed.
 
 ## Separately deferred work
 
@@ -161,8 +187,8 @@ on a separate request. General datatype compilation, executable native attribute
 equality remain the separate datatype workstream. The
 [cem-element reference-to-ID mode](cem-element-reference-ids-design.md) now
 implements the first native consumer contract. Browser/worker foreign-source lifecycle handoff, popup/submenu endpoints and
-dedicated native SSR/Edge/hydration fixtures are implemented. Focus/geometry slots,
-granted cross-instance placements and a future ARIA profile remain actionable in
+dedicated native SSR/Edge/hydration fixtures are implemented. Granted cross-instance placements and popup/menu focus/geometry consumption
+are implemented. Additional surface adapters and a future ARIA profile remain actionable in
 [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 The debug CEMB codec is not a stable production binary format. External AST-owner

@@ -987,8 +987,8 @@ Follow-ups to the
 [adopted reference design](docs/cem-ql-cem-ml-node-references-design.md#deferred-details-and-implementation-work).
 Design decisions adopted on 2026-10-06; the heading remains stable for existing
 links. These contracts preserve the adopted scope and lifecycle principles.
-Implementation is tracked in
-[docs/todo.md](docs/todo.md#reference-query-and-transport-contract-implementation).
+Completed implementation and verification are recorded in the
+[archived checklist](docs/archive/todo-snapshot-2026-10-07.md#reference-query-and-transport-contract-implementation).
 
 - [x] Specify the public query reference type and target-access surface, and
       decide whether target-sequence comparison needs an additional public
@@ -1026,9 +1026,10 @@ execution query snapshots remain adapter extensions with actionable items and
 adjacent verification scenarios in the todo list. Host-bound child overrides and
 explicit XML attribute opt-in are adopted. The
 [cem-element native ID consumer](docs/cem-element-reference-ids-design.md) now
-implements relationships within a single producer; its explicit foreign-source
-browser lifecycle channel, further provider endpoints and SSR/hydration evidence
-remain actionable in [the consumer list](docs/todo.md#deferred-cem-element-reference-consumption).
+implements local and explicitly granted foreign placements through its native
+lifecycle, browser coordinator and SSR/hydration adapters. Private host-owned
+transactions may admit prepared producers only for coordinated publication.
+Versioned ARIA selection and additional surface adapters remain actionable in [the consumer list](docs/todo.md#deferred-cem-element-reference-consumption).
 
 ### Scenarios for later design verification
 

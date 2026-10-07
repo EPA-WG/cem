@@ -1,11 +1,14 @@
 //! Control metadata names local retained source handles, never AST records.
 use super::*;
 use crate::api::element_references::{
-    ElementReferenceBinding, ElementReferenceExecution, ElementReferenceSource,
+    ElementPlacementInputs, ElementPlacementSelection, ElementReferenceBinding,
+    ElementReferenceExecution, ElementReferenceSource,
 };
+use crate::render::{ElementPlacementGrant, ElementPlacementTransaction};
 use cem_ml::schema::reference_policy::{
     ReferenceScopePolicy, ReferenceUnresolvedPolicy, UnresolvedDisposition,
 };
+use std::collections::{BTreeMap, BTreeSet};
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Source {
@@ -29,6 +32,41 @@ struct Inputs {
     sources: Vec<Source>,
     bindings: Vec<Binding>,
     grants: Vec<(usize, usize)>,
+    #[serde(default)]
+    placements: Option<Placements>,
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Placements {
+    admissions: Vec<Admission>,
+    grants: Vec<PlacementGrant>,
+    committed_revisions: BTreeMap<String, String>,
+    prepared_transaction: Option<Transaction>,
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Transaction {
+    token: String,
+    participants: BTreeSet<String>,
+    producer_revisions: BTreeMap<String, String>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Admission {
+    source: usize,
+    select: String,
+    token: String,
+    producer: String,
+    path: Vec<usize>,
+    revision: String,
+    id: String,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PlacementGrant {
+    requester: String,
+    token: String,
+    properties: Vec<String>,
 }
 pub(crate) fn prepare(
     data: &mut TemplateData,
@@ -80,6 +118,46 @@ pub(crate) fn prepare(
             select: b.select,
         })
         .collect::<Vec<_>>();
-    ElementReferenceExecution::prepare(sources, inputs.requesting, &bindings, &inputs.grants, data)
-        .map(Some)
+    let placements = inputs
+        .placements
+        .map(|p| ElementPlacementInputs {
+            admissions: p
+                .admissions
+                .into_iter()
+                .map(|a| ElementPlacementSelection {
+                    source: a.source,
+                    select: a.select,
+                    token: a.token,
+                    producer: a.producer,
+                    path: a.path,
+                    revision: a.revision,
+                    id: a.id,
+                })
+                .collect(),
+            grants: p
+                .grants
+                .into_iter()
+                .map(|g| ElementPlacementGrant {
+                    requester: g.requester,
+                    token: g.token,
+                    properties: g.properties,
+                })
+                .collect(),
+            committed_revisions: p.committed_revisions,
+            prepared_transaction: p.prepared_transaction.map(|t| ElementPlacementTransaction {
+                token: t.token,
+                participants: t.participants,
+                producer_revisions: t.producer_revisions,
+            }),
+        })
+        .unwrap_or_default();
+    ElementReferenceExecution::prepare_with_placements(
+        sources,
+        inputs.requesting,
+        &bindings,
+        &inputs.grants,
+        placements,
+        data,
+    )
+    .map(Some)
 }

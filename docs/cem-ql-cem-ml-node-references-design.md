@@ -1382,8 +1382,10 @@ original targets to unique produced placements, preserves explicit IDs, and
 uses persisted instance identity when generating IDs. Typed interaction inputs
 and existing local-name conveniences use separate runtime projection metadata.
 Source-reference evaluation uses an explicitly supplied lifecycle host with
-original scopes, contexts and directed grants. Browser wiring for foreign-source
-chains and additional provider adoption remain actionable in
+original scopes, contexts and directed grants. Browser/SSR placement adapters
+also require independent host grants and fresh revision/readiness checks.
+Prepared producers are admitted only within private coordinated transactions;
+serialized hints confer no authority. Additional provider adoption remains actionable in
 [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 ## Public query reference access (adopted 2026-10-06)
@@ -1556,8 +1558,8 @@ without requiring runtime contexts or synthetic context IDs in source exports.
   [roadmap checkpoint](../roadmap.md#deferred-cem-reference-syntax-decision)
   is closed. Native typed prelude payloads remain conditional future work.
 - Public query access, lexical reload and graph/transport contracts are adopted
-  above. Their implementation and fixtures are tracked in
-  [todo.md](todo.md#reference-query-and-transport-contract-implementation), with
+  above. Their completed implementation and fixtures are recorded in the
+  [archived checklist](archive/todo-snapshot-2026-10-07.md#reference-query-and-transport-contract-implementation), with
   the design checkpoint in
   [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 - Concrete expression/lexical representation, linkage to existing specialized
@@ -2804,4 +2806,4 @@ guards remain separate from executable bundle transport.
 The existing host/schema enclosure, explicit XML attribute opt-in, and bounded
 literal block preludes are adopted and verified. Typed prelude payloads and
 cem-element ID projection remain separate. Actionable follow-ups retain adjacent
-scenarios in [todo.md](todo.md#reference-host-adapters-and-syntax-completion).
+scenarios in [todo.md](todo.md#ast-node-reference-implementation).

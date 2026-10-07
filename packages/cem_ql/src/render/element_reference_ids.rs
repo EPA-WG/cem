@@ -17,6 +17,257 @@ use cem_ml::{
     },
 };
 
+/// Host-owned control metadata. The target is an original retained native node;
+/// only the producer may reserve the supplied ID for its committed placement.
+#[derive(Debug, Clone)]
+pub struct ElementPlacementAdmission {
+    pub token: String,
+    pub target: Item,
+    pub producer: String,
+    pub path: Vec<usize>,
+    pub revision: String,
+    pub id: String,
+}
+#[derive(Debug, Clone)]
+pub struct ElementPlacementGrant {
+    pub requester: String,
+    pub token: String,
+    pub properties: Vec<String>,
+}
+#[derive(Debug, Clone, Default)]
+pub struct ElementPlacementSnapshot {
+    pub admissions: Vec<ElementPlacementAdmission>,
+    pub grants: Vec<ElementPlacementGrant>,
+    pub committed_revisions: BTreeMap<String, String>,
+    pub prepared_transaction: Option<ElementPlacementTransaction>,
+}
+#[derive(Debug, Clone)]
+pub struct ElementPlacementTransaction {
+    pub token: String,
+    pub participants: BTreeSet<String>,
+    pub producer_revisions: BTreeMap<String, String>,
+}
+/// Publication dependencies contain control metadata, never serialized nodes.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementPlacementUse {
+    pub token: String,
+    pub producer: String,
+    pub revision: String,
+    pub id: String,
+    pub path: Vec<usize>,
+    pub attribute: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transaction: Option<String>,
+}
+#[derive(Debug, Clone)]
+pub struct ElementReferenceProjection {
+    pub plan: RenderPlan,
+    pub placements: Vec<ElementPlacementUse>,
+}
+
+struct AdmissionIndex<'a> {
+    targets: BTreeMap<String, Vec<&'a ElementPlacementAdmission>>,
+    grants: BTreeMap<String, GrantedRequesters<'a>>,
+}
+type GrantedRequesters<'a> =
+    BTreeMap<&'a str, BTreeMap<&'a str, BTreeMap<&'a str, &'a ElementPlacementAdmission>>>;
+fn valid_token(value: &str) -> bool {
+    !value.is_empty() && !value.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+impl<'a> AdmissionIndex<'a> {
+    fn prepare(
+        snapshot: &'a ElementPlacementSnapshot,
+        instance: &str,
+        budget: &mut ValueControl<'_>,
+    ) -> Result<Self, ElementReferenceProjectionError> {
+        let source = SourceMapStack::default();
+        let mut targets = BTreeMap::<String, Vec<_>>::new();
+        let mut tokens = BTreeSet::new();
+        let mut by_token = BTreeMap::new();
+        let mut ids = BTreeSet::new();
+        let mut placements = BTreeSet::new();
+        if let Some(transaction) = &snapshot.prepared_transaction {
+            budget
+                .charge(transaction.token.len(), 0)
+                .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+            if !valid_token(&transaction.token) || !transaction.participants.contains(instance) {
+                return Err(error(
+                    "cem.element_reference.transaction_invalid",
+                    "Prepared placement transaction does not include this requester",
+                    &source,
+                ));
+            }
+            for participant in &transaction.participants {
+                budget
+                    .charge(participant.len(), 0)
+                    .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+                if !valid_token(participant) {
+                    return Err(error(
+                        "cem.element_reference.transaction_invalid",
+                        "Invalid transaction participant",
+                        &source,
+                    ));
+                }
+            }
+            for (producer, revision) in &transaction.producer_revisions {
+                budget
+                    .charge(producer.len() + revision.len(), 0)
+                    .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+                if !transaction.participants.contains(producer) || !valid_token(revision) {
+                    return Err(error(
+                        "cem.element_reference.transaction_invalid",
+                        "Prepared revision needs a participating producer",
+                        &source,
+                    ));
+                }
+            }
+        }
+        for (producer, revision) in &snapshot.committed_revisions {
+            budget
+                .charge(producer.len() + revision.len(), 0)
+                .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+            if !valid_token(producer) || !valid_token(revision) {
+                return Err(error(
+                    "cem.element_reference.placement_invalid",
+                    "Invalid committed producer revision",
+                    &source,
+                ));
+            }
+        }
+        for admission in &snapshot.admissions {
+            let source = admission.target.source_map().unwrap_or_default();
+            budget
+                .charge(
+                    std::mem::size_of::<ElementPlacementAdmission>()
+                        + admission.token.len()
+                        + admission.producer.len()
+                        + admission.revision.len()
+                        + admission.id.len()
+                        + admission
+                            .path
+                            .len()
+                            .saturating_mul(std::mem::size_of::<usize>()),
+                    admission.path.len(),
+                )
+                .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+            if kind(&admission.target).as_deref() != Some("element")
+                || !valid_token(&admission.token)
+                || !valid_token(&admission.producer)
+                || admission.producer == instance
+                || !valid_token(&admission.id)
+                || admission.path.is_empty()
+                || !tokens.insert(admission.token.as_str())
+                || !ids.insert(admission.id.as_str())
+                || !placements.insert((admission.producer.as_str(), admission.path.as_slice()))
+            {
+                return Err(error(
+                    "cem.element_reference.placement_invalid",
+                    "Invalid or duplicate native placement admission",
+                    &source,
+                ));
+            }
+            if snapshot.committed_revisions.get(&admission.producer) != Some(&admission.revision)
+                && !snapshot.prepared_transaction.as_ref().is_some_and(|t| {
+                    t.producer_revisions.get(&admission.producer) == Some(&admission.revision)
+                })
+            {
+                let mut failure = error(
+                    "cem.element_reference.placement_stale",
+                    "Placement has no matching committed producer revision",
+                    &source,
+                );
+                failure.incomplete = true;
+                return Err(failure);
+            }
+            let key = target_key(&admission.target);
+            budget
+                .charge(key.len(), 0)
+                .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+            targets.entry(key).or_default().push(admission);
+            by_token.insert(admission.token.as_str(), admission);
+        }
+        let mut grants = BTreeMap::<String, GrantedRequesters<'a>>::new();
+        for grant in &snapshot.grants {
+            budget
+                .charge(grant.requester.len() + grant.token.len(), 0)
+                .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+            if !valid_token(&grant.requester)
+                || !tokens.contains(grant.token.as_str())
+                || grant.properties.is_empty()
+            {
+                return Err(error(
+                    "cem.element_reference.placement_invalid",
+                    "Invalid placement grant",
+                    &source,
+                ));
+            }
+            for property in &grant.properties {
+                budget
+                    .charge(property.len(), 0)
+                    .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+                if arity("", property).is_none() {
+                    return Err(error(
+                        "cem.element_reference.placement_invalid",
+                        "Unknown granted relationship property",
+                        &source,
+                    ));
+                }
+                let admission = by_token[grant.token.as_str()];
+                let key = target_key(&admission.target);
+                budget
+                    .charge(key.len() + std::mem::size_of::<ElementPlacementGrant>(), 0)
+                    .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+                grants
+                    .entry(key)
+                    .or_default()
+                    .entry(&grant.requester)
+                    .or_default()
+                    .entry(property)
+                    .or_default()
+                    .insert(&grant.token, admission);
+            }
+        }
+        Ok(Self { targets, grants })
+    }
+    fn select(
+        &self,
+        target: &Item,
+        instance: &str,
+        property: &str,
+        source: &SourceMapStack,
+    ) -> Result<&'a ElementPlacementAdmission, ElementReferenceProjectionError> {
+        let key = target_key(target);
+        if !self.targets.contains_key(&key) {
+            return Err(error(
+                "cem.element_reference.target_missing",
+                "Target has no produced or admitted placement",
+                source,
+            ));
+        }
+        let allowed = self
+            .grants
+            .get(&key)
+            .and_then(|requests| requests.get(instance))
+            .and_then(|properties| properties.get(property));
+        let Some(allowed) = allowed else {
+            return Err(error(
+                "cem.element_reference.placement_denied",
+                "Relationship needs an explicit placement grant",
+                source,
+            ));
+        };
+        if allowed.len() != 1 {
+            return Err(error(
+                "cem.element_reference.placement_ambiguous",
+                "Grant must select exactly one foreign placement",
+                source,
+            ));
+        }
+        Ok(*allowed.values().next().expect("nonempty granted admission"))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ElementReferenceProjectionError {
     pub diagnostics: Vec<Diagnostic>,
@@ -186,6 +437,31 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
     scope: ExecutionScopeId,
     host: &mut H,
 ) -> Result<RenderPlan, ElementReferenceProjectionError> {
+    project_element_reference_ids_with_host_and_placements(
+        plan,
+        instance_id,
+        limits,
+        control,
+        scope,
+        host,
+        &ElementPlacementSnapshot::default(),
+    )
+    .map(|result| result.plan)
+}
+
+/// Placement grants supplement source-scope grants. Native export checks one
+/// immutable snapshot; the host must recheck its returned tokens before commit.
+pub fn project_element_reference_ids_with_host_and_placements<
+    H: ReferenceResolutionHost<Node = Item>,
+>(
+    plan: &RenderPlan,
+    instance_id: &str,
+    limits: &CemValueArtifactLimits,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    host: &mut H,
+    snapshot: &ElementPlacementSnapshot,
+) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
     let source = SourceMapStack::default();
     if instance_id.is_empty() || instance_id.chars().any(char::is_whitespace) {
         return Err(error(
@@ -196,6 +472,8 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
     }
     let mut budget = ValueControl::new(control, scope, QueryContextScope(0), *limits)
         .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
+    let admissions = AdmissionIndex::prepare(snapshot, instance_id, &mut budget)?;
+    let mut used_placements = Vec::new();
     let mut projection = Projection {
         placements: BTreeMap::new(),
         budget: &mut budget,
@@ -211,6 +489,14 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
     collect(&result.nodes, &[], &mut relationships, &mut budget)?;
     let mut ids = BTreeMap::<String, Vec<Vec<usize>>>::new();
     collect_ids(&result.nodes, &[], &mut ids);
+    let foreign_ids: BTreeSet<_> = snapshot.admissions.iter().map(|a| a.id.as_str()).collect();
+    if ids.keys().any(|id| foreign_ids.contains(id.as_str())) {
+        return Err(error(
+            "cem.element_reference.id_conflict",
+            "Produced and admitted placements share an ID",
+            &source,
+        ));
+    }
     let targets = resolve_slots(&relationships, host, &mut budget)?;
     for ((path, index, attribute), targets) in relationships.into_iter().zip(targets) {
         let tag = element_tag(&result.nodes, &path);
@@ -224,6 +510,7 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
             ));
         }
         let mut values = Vec::new();
+        let mut uses_foreign_placement = false;
         let mut seen = std::collections::BTreeSet::new();
         for target in targets {
             if kind(&target).as_deref() != Some("element") {
@@ -234,11 +521,54 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
                 ));
             }
             let Some(paths) = placements.get(&target_key(&target)) else {
-                return Err(error(
-                    "cem.element_reference.target_missing",
-                    "Target has no produced placement in this instance",
+                let admission = admissions.select(
+                    &target,
+                    instance_id,
+                    &attribute.name,
                     &attribute.source_map,
-                ));
+                )?;
+                if ids.contains_key(&admission.id) {
+                    return Err(error(
+                        "cem.element_reference.id_conflict",
+                        "Admitted ID conflicts with this producer's ID space",
+                        &attribute.source_map,
+                    ));
+                }
+                budget
+                    .charge(
+                        admission.id.len() + std::mem::size_of::<ElementPlacementUse>(),
+                        path.len(),
+                    )
+                    .map_err(|e| {
+                        error(
+                            "cem.element_reference.limit",
+                            e.to_string(),
+                            &attribute.source_map,
+                        )
+                    })?;
+                used_placements.push(ElementPlacementUse {
+                    token: admission.token.clone(),
+                    producer: admission.producer.clone(),
+                    revision: admission.revision.clone(),
+                    id: admission.id.clone(),
+                    path: path.clone(),
+                    attribute: attribute.name.clone(),
+                    transaction: if snapshot.committed_revisions.get(&admission.producer)
+                        == Some(&admission.revision)
+                    {
+                        None
+                    } else {
+                        snapshot
+                            .prepared_transaction
+                            .as_ref()
+                            .map(|t| t.token.clone())
+                    },
+                });
+                uses_foreign_placement = true;
+                if !unique || seen.insert(admission.id.clone()) {
+                    values.push(admission.id.clone());
+                }
+                continue;
             };
             let [target_path] = paths.as_slice() else {
                 return Err(error(
@@ -272,7 +602,7 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
                         .collect::<Vec<_>>()
                         .join("-")
                 );
-                if ids.contains_key(&id) {
+                if ids.contains_key(&id) || foreign_ids.contains(id.as_str()) {
                     return Err(error(
                         "cem.element_reference.id_conflict",
                         "Generated ID conflicts with an authored ID",
@@ -322,11 +652,21 @@ pub fn project_element_reference_ids_with_host<H: ReferenceResolutionHost<Node =
                 &attribute.source_map,
             ));
         }
+        if uses_foreign_placement {
+            attributes.push(lexical_attribute(
+                &format!("data-cem-placement-ref-{}", attribute.name),
+                "",
+                &attribute.source_map,
+            ));
+        }
     }
     control
         .check_scope(scope)
         .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
-    Ok(result)
+    Ok(ElementReferenceProjection {
+        plan: result,
+        placements: used_placements,
+    })
 }
 // One owning structure groups attribute slots without adding an authored
 // reference constructor or resetting destination accounting between slots.
@@ -586,10 +926,10 @@ impl Projection<'_, '_> {
             ..
         } = &mut copy
         {
-            if attributes
-                .iter()
-                .any(|a| a.name.starts_with("data-cem-node-ref-"))
-            {
+            if attributes.iter().any(|a| {
+                a.name.starts_with("data-cem-node-ref-")
+                    || a.name.starts_with("data-cem-placement-ref-")
+            }) {
                 return Err(error(
                     "cem.element_reference.reserved",
                     "Relationship projection markers are runtime-owned",

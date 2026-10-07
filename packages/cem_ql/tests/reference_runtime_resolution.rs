@@ -389,3 +389,6 @@ mod element_ids;
 
 #[path = "reference_runtime_resolution/element_lifecycle.rs"]
 mod element_lifecycle;
+
+#[path = "reference_runtime_resolution/element_placements.rs"]
+mod element_placements;

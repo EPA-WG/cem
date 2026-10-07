@@ -16,6 +16,23 @@ export interface CemElementReferenceInputs {
     /** Passive source selection supplies native slice values for declared names. */
     bindings: readonly { source: number; name: string; select: string }[];
     grants: readonly (readonly [number, number])[];
+    /** Issued by the embedding placement coordinator, separate from source grants. */
+    placements?: CemElementPlacementSnapshot;
+}
+export interface CemElementPlacementSnapshot {
+    admissions: readonly { source: number; select: string; token: string; producer: string; path: readonly number[]; revision: string; id: string }[];
+    grants: readonly { requester: string; token: string; properties: readonly string[] }[];
+    committedRevisions: Readonly<Record<string, string>>;
+    preparedTransaction?: { token: string; participants: readonly string[]; producerRevisions: Readonly<Record<string, string>> };
+}
+export interface CemElementPlacementUse {
+    token: string;
+    producer: string;
+    revision: string;
+    id: string;
+    renderNodeId: string;
+    attribute: string;
+    transaction?: string;
 }
 export function assertElementReferenceInputs(input: CemElementReferenceInputs, limits: CemValueArtifactLimits): void {
     const index = (n: number) => Number.isSafeInteger(n) && n >= 0 && n < input.sources.length;

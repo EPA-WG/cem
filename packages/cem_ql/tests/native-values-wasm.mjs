@@ -93,6 +93,36 @@ function verifyElementReferenceLifecycle() {
         assert.equal(render(input).referenceProjectionComplete, false);
     } finally { wasm.disposeReferenceSource(relation); wasm.disposeReferenceSource(target); wasm.disposeTemplate(artifact.artifactId); }
 }
+function verifyPlacementAdmissions() {
+    const parse = (text, uri) => wasm.parseReferenceSource(new TextEncoder().encode(text), 'text/cem-ml', uri, '');
+    const relation = parse('{#datadom.slices.destination}', 'memory:foreign-relation.cem');
+    const target = parse('{dialog}', 'memory:foreign-target.cem');
+    const compiled = JSON.parse(wasm.compileTemplate('{slice @name=relation}{slice @name=destination}{button @commandfor={#relation}}', '[]'));
+    const input = { requesting: 0, sources: [{ sourceId: relation, context: true }, { sourceId: target, context: true }],
+        bindings: [{ source: 0, name: 'relation', select: 'input.children' }, { source: 1, name: 'destination', select: 'input.children' }], grants: [[0, 1]],
+        placements: { admissions: [{ source: 1, select: 'input.children', token: 'placement', producer: 'owner', path: [0], revision: '1', id: 'owner-ref-0' }],
+            grants: [{ requester: 'consumer', token: 'placement', properties: ['commandfor'] }], committedRevisions: { owner: '1' } } };
+    const render = metadata => JSON.parse(wasm.renderTemplateWithNativeValues(compiled.artifactId, 0, '{}', '[]', '[]', limits, 'consumer', JSON.stringify(metadata)));
+    try {
+        const ready = render(input);
+        assert.deepEqual(ready.diagnostics, []);
+        assert.equal(ready.nodes[0].attributes.find(a => a.name === 'commandfor').value, 'owner-ref-0');
+        assert.equal(ready.nodes[0].attributes.find(a => a.name === 'data-cem-placement-ref-commandfor').value, '');
+        assert.deepEqual(ready.elementPlacementUses, [{ token: 'placement', producer: 'owner', revision: '1', id: 'owner-ref-0', path: [0], attribute: 'commandfor' }]);
+        const staged = { ...input, placements: { ...input.placements, committedRevisions: {}, preparedTransaction: {
+            token: 'host-transaction', participants: ['owner', 'consumer'], producerRevisions: { owner: '1', consumer: '1' },
+        } } };
+        const prepared = render(staged);
+        assert.deepEqual(prepared.diagnostics, []);
+        assert.equal(prepared.elementPlacementUses[0].transaction, 'host-transaction');
+        assert.equal(render({ ...staged, placements: { ...staged.placements, preparedTransaction: undefined } }).referenceProjectionComplete, false);
+        for (const bad of [{ ...input, grants: [] }, { ...input, placements: { ...input.placements, grants: [] } },
+            { ...input, placements: { ...input.placements, committedRevisions: { owner: '2' } } },
+            { ...input, placements: { ...input.placements, grants: [{ requester: 'consumer', token: 'placement', properties: ['anchor'] }] } }]) {
+            const rejected = render(bad); assert.equal(rejected.referenceProjectionComplete, false); assert.deepEqual(rejected.nodes, []);
+        }
+    } finally { wasm.disposeReferenceSource(relation); wasm.disposeReferenceSource(target); wasm.disposeTemplate(compiled.artifactId); }
+}
 function produce() {
     const plan = JSON.parse(wasm.renderTemplateSource(source, '{}'));
     assert.deepEqual(plan.diagnostics, []);
@@ -161,6 +191,7 @@ if (isMainThread) {
         verifyDirectReferences();
         verifyElementReferenceIds();
         verifyElementReferenceLifecycle();
+        verifyPlacementAdmissions();
         assert.equal(consume(restored), true);
         console.log('Native CEM values: separate workers, saved pipeline, fallback and disposal passed.');
     } finally { await rm(directory, { recursive: true, force: true }); }
@@ -170,5 +201,6 @@ if (isMainThread) {
     verifyDirectReferences();
     verifyElementReferenceIds();
         verifyElementReferenceLifecycle();
+    verifyPlacementAdmissions();
     parentPort.postMessage(workerData.operation === 'produce' ? produce() : consume(workerData.artifact));
 }

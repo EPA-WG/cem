@@ -8,7 +8,8 @@ the Phase 3.1 runtime gate before the project moves into Edge/SSR support and la
 Native CEM-ML node/reference values in relationship attributes use the shared
 [reference-to-ID consumer](../../docs/cem-element-reference-ids-design.md): preserve
 an explicit target ID or generate one from persisted instance identity and output
-placement. The producer must contain exactly one placement of each target.
+placement. A target needs one local placement, or one foreign placement admitted
+by the [host placement coordinator](../../docs/cem-element-granted-placements-design.md).
 `command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`,
 `return-focus`, `anchor` and `boundary` retain typed endpoint markers for their
 shared capabilities; literal local names remain scoped. Popup/menu providers
@@ -32,8 +33,32 @@ The signal aborts on replacement/disconnect; ignored late callback results canno
 hold the publication queue or supply authority to a later render.
 Incomplete updates preserve prior DOM relationships. Contexts and grants are not
 saved in hydration snapshots. Worker protocol v15, fallback and retained Node SSR
-use the same native adapter; stable production source transport and cross-instance
-placement remain separate boundaries.
+use the same native adapter. Stable production source transport remains a
+separate boundary; cross-instance placement requires an additional host grant.
+
+`CemElementRuntimeOptions.placementCoordinator` opts into host-controlled
+cross-producer relationships. A `CemElementPlacementCoordinator(document)` (or
+one permitted shadow root) registers committed elements with original source
+capsules, native selectors and current producer revisions. Its `grant` explicitly
+names the requesting instance and relationship properties. Matching DOM IDs
+create no grant. IDs are reserved by the target producer at publication.
+
+For coordinated producers, `transaction` captures all participant hosts/revisions;
+`stage` prepares their native terminal plans without foreign relationships;
+`enlist` admits a parent stage before preparing its detached child host.
+`registerPrepared` permits targets only inside that private transaction, and
+`publishGroup` commits every forest before activating relationships. Changed
+revisions, grants, roots or IDs prevent publication and restore prior forests.
+Revocation/disconnect removes affected relationships immediately. A reconnect
+needs fresh grants, even when its durable instance identity stays the same.
+
+`CemSsrPlacementCoordinator` provides the corresponding retained export-plan
+transaction without browser globals. Its `resumeHints` carries paths, reserved
+IDs, revisions, scope stamps and the Recommendation ARIA profile; it omits
+admission tokens, grants and source captures. Hydration clears foreign routes
+before behavior activation and obtains fresh live host admission. Serialized
+hints cannot recreate authority. Native/worker metadata stays on the named control
+boundary and never transports DOM elements or AST records.
 
 Declarations may publish an exact Semantic Version for SSR adoption:
 
@@ -174,7 +199,8 @@ for low-level retained CEM-ML/XSLT render calls. The shared cem-element processi
 path supplies `identity.instanceId` automatically. Generic CEM-QL rendering keeps
 its existing projection. Authored foreign-source chains require an explicit
 native lifecycle host; the browser convenience mode does not manufacture their
-contexts or crossing grants. Targets outside the producer forest remain unsupported.
+contexts or crossing grants. Foreign placements additionally require the host
+placement channel described below.
 
 The `instanceID` binding creates no DOM attribute or CSS custom property. When needed, author
 a complete URL-valued property and matching target explicitly:

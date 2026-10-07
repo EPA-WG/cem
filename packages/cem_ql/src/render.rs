@@ -31,7 +31,12 @@ mod hooks;
 mod dispatch;
 mod projection;
 mod element_reference_ids;
-pub use element_reference_ids::{project_element_reference_ids, project_element_reference_ids_with_host, ElementReferenceProjectionError};
+pub use element_reference_ids::{
+    project_element_reference_ids, project_element_reference_ids_with_host,
+    project_element_reference_ids_with_host_and_placements, ElementPlacementAdmission,
+    ElementPlacementGrant, ElementPlacementSnapshot, ElementPlacementTransaction, ElementPlacementUse,
+    ElementReferenceProjection, ElementReferenceProjectionError,
+};
 mod whitespace;
 pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};
 pub use hooks::ExpressionScope;

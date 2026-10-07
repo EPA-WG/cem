@@ -24,3 +24,7 @@ export type { CemEdgeStylesheetBatch, CemEdgeStylesheetState, CemEdgeSsrRenderUp
 export { getCemActionInvocation, type CemActionInvocation } from './lib/action-command-capability.js';
 
 export type { CemElementReferenceInputs } from './lib/element-reference-inputs.js';
+export { CemElementPlacementCoordinator, type CemBrowserPlacementStage, type CemBrowserPlacementPublication, type CemBrowserPlacementRegistration,
+    type CemPlacementLease, type CemPlacementTransaction } from './lib/element-placement-coordinator.js';
+export type { CemElementPlacementUse, CemElementPlacementSnapshot } from './lib/element-reference-inputs.js';
+export { CemSsrPlacementCoordinator, type CemSsrPlacementStage, type CemSsrPlacementPublication, type CemPlacementResumeHints } from './lib/element-placement-ssr.js';

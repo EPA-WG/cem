@@ -12,6 +12,7 @@ export interface PreparedCssDomPublication {
     instanceStyles?: PreparedInstanceStylesheets;
     registryConnection?: CemPreparedStylesheetConnection;
     onPublished?(connection: CemStylesheetConnection | undefined): void;
+    publish?(commit: () => DeclarationStylesheetPatchResult): DeclarationStylesheetPatchResult;
 }
 
 const queues = new WeakMap<HTMLElement, CemCssDomPublicationQueue>();
@@ -62,8 +63,9 @@ export class CemCssDomPublicationQueue {
             const invalidHost = request.patch.container !== this.element;
             const rejected = new AbortController();
             if (invalidHost) rejected.abort();
-            result = DeclarationStyleOwnership.commitGroupWithPatch(request.entries, request.patch,
+            const commit = () => DeclarationStyleOwnership.commitGroupWithPatch(request.entries, request.patch,
                 request.currentRevision, invalidHost ? rejected.signal : request.signal, request.instanceStyles, request.registryConnection, request.onPublished);
+            result = request.publish ? request.publish(commit) : commit();
         } catch (error) {
             // An unexpected exception cannot establish that publication never began.
             result = { status: 'recovery-required', diagnostics: [], errors: [error] };

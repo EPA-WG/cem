@@ -339,6 +339,7 @@ export class CemProcessingEngine {
             revision: input.revision,
             nextRenderPlan,
             frames,
+            elementPlacementUses: processed.elementPlacementUses,
             hostAttributeUpdates: processed.hostAttributeUpdates,
             resourceControls: lowered.resourceControls,
             diagnostics: [

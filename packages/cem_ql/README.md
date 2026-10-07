@@ -1281,3 +1281,31 @@ local handles after the invocation. Pending or invalid consumption returns
 policies retain their actual diagnostics and never create a successful relationship.
 See the [consumer design](../../docs/cem-element-reference-ids-design.md) and
 [verification matrix](../../docs/reference-consumer-verification.md).
+
+
+### Granted producer placements
+
+`ElementReferenceExecution::prepare_with_placements` accepts
+`ElementPlacementInputs`: passive selections over original retained sources,
+opaque admission tokens, producer/path/revision/ID reservations, property-specific
+requester grants and committed producer revisions. Native callers with evaluated
+nodes can supply `ElementPlacementSnapshot` directly to
+`project_element_reference_ids_with_host_and_placements`. Both APIs require the
+independent directed source-scope grants and share request/destination bounds.
+Local placement wins; local ambiguity cannot be repaired by a foreign grant.
+
+A host-owned `prepared_transaction` can admit uncommitted placements only for
+its declared participants and revisions. The embedding coordinator must publish
+the entire group atomically. Ordinary publication cannot consume this snapshot.
+`.project_with_placements()` returns the new DOM plan and `ElementPlacementUse`
+metadata; it changes no source AST or foreign producer. Uses identify the token,
+producer, revision, reserved ID, consumer path/property and optional transaction.
+
+The explicit WASM lifecycle metadata adds optional `placements` with
+`admissions`, `grants`, `committedRevisions` and `preparedTransaction`.
+Admission selectors must select one original retained element, never a constructed
+record. Native output adds `elementPlacementUses` beside the terminal DOM plan.
+The browser bridge maps consumer paths to exported render identities; DOM elements
+remain in `CemElementPlacementCoordinator`. `CemSsrPlacementCoordinator` stages
+and commits terminal export plans, then emits authority-free resume hints.
+Neither an ID, source bundle, serialized hint nor template can issue host grants.
