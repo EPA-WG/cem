@@ -944,6 +944,25 @@ from `import_xml_ast_with_lexical_scopes`, then use this handoff after preparing
 schema readiness and runtime inputs. Automatic engine/package preparation remains
 separate work.
 
+For a ready per-execution namespace view, call
+`attach_completed_namespace_lexical_scopes(&completion, prepare)`. Only captured
+occurrences in that selected forest are attached. Registration, repeat-assignment
+and **all captured pending prefix** checks finish before any callback or mutation;
+an unused pending prefix still blocks namespace-aware context preparation. An
+incomplete attempt is retryable. A declaration's own selector can be selected
+separately and use its original pre-declaration bindings.
+
+The callback receives the original source, a `NamespaceLexicalSnapshot` and nearest
+relationship scope. Use `snapshot.namespace_uri(prefix)` for completed bindings,
+`snapshot.original()` for saved scalar namespace/schema metadata, and
+`snapshot.completed_bindings()` for original typed declaration provenance. Return
+runtime inputs and `ReferenceScopePolicyOverrides`; `None` context stays pending.
+Contexts can retain the matching `NamespaceQueryTree`, preserving completed native
+navigation and authored `source` access independently for each execution. The
+handoff keeps original captured-name metadata, local policy provenance and directed
+grants, and performs no reference evaluation or scope activation. Shared query
+ingress and automatic namespace lifecycle activation remain separate work.
+
 `assign_following_scope(tree, boundary, scope)` records a caller-completed
 sibling-position switch using the original retained boundary node. Earlier
 siblings and the boundary keep their scope; following siblings and their

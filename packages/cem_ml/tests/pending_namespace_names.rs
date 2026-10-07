@@ -210,7 +210,7 @@ fn pending_default_aliases_and_child_restoration_use_original_declaration_identi
         std::iter::from_fn(|| source.next_event()).collect()
     }
     let mut stream = Vec::new();
-    for event in events("{host @xmlns:v={#library} | {first} {inner @xmlns:v=urn:inner | {second}} {third} {plain}} {outside}") {
+    for event in events("{host @xmlns:v={#library} | {first | {#later}} {inner @xmlns:v=urn:inner | {second | {#later}}} {third | {#later}} {plain | {#later}}} {outside}") {
         if let NormalizedEvent::OpenScope { name, .. } = &event {
             match name.lexical_name.as_str() {
                 "first" | "second" => stream.extend(events("@default v\n")),
@@ -254,12 +254,33 @@ fn pending_default_aliases_and_child_restoration_use_original_declaration_identi
             uri
         );
     }
+    let occurrences = source.captured.occurrences().filter(|id| matches!(
+        source.tree.ast().get(*id), Some(CemAstNode::Reference {expression, ..}) if expression == "#later"
+    )).collect::<Vec<_>>();
+    assert_eq!(occurrences.len(), 4);
+    for (id, uri) in occurrences
+        .iter()
+        .zip(["urn:chosen", "urn:inner", "urn:chosen", ""])
+    {
+        let occurrence = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), *id).unwrap();
+        let snapshot = completed.lexical_snapshot(&occurrence).unwrap();
+        assert_eq!(snapshot.namespace_uri(""), Some(uri));
+    }
     let default_alias = elements(&source, "@default")[0];
     let alias = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), default_alias).unwrap();
     assert_eq!(
         completed.binding_namespace_uri(&alias).unwrap(),
         "urn:chosen"
     );
+    let first_occurrence =
+        SchemaDeclarationNode::new(source.tree.ast_owner().clone(), occurrences[0]).unwrap();
+    let snapshot = completed.lexical_snapshot(&first_occurrence).unwrap();
+    assert_eq!(
+        snapshot.completed_bindings()[""].declaration.node_id(),
+        default_alias
+    );
+    assert!(snapshot.original().namespaces.binding("").is_none());
+
     let unrelated = NamespaceNameCompletion::new(
         source.captured.clone(),
         &[elements(&source, "outside")[0]],
@@ -375,4 +396,117 @@ fn completion_rejects_bad_roots_wrong_declarations_and_unbound_names() {
         .captured
         .pending_namespace_name(other.tree.ast_owner(), item)
         .is_none());
+}
+
+#[test]
+fn completed_occurrence_bindings_require_unused_dependencies_and_preserve_original_snapshots() {
+    let source = import("@ns v = urn:outer\n{host @xmlns:v={#library} | {#later} {inner @xmlns:v=urn:inner | {#later}} {#later}} {#outside}");
+    let declaration = declarations(&source)[0];
+    let host = elements(&source, "host")[0];
+    let occurrences = source.captured.occurrences().collect::<Vec<_>>();
+    assert_eq!(occurrences.len(), 5);
+    let handle = |id| SchemaDeclarationNode::new(source.tree.ast_owner().clone(), id).unwrap();
+    let pending =
+        NamespaceNameCompletion::new(source.captured.clone(), &[host], BTreeMap::new()).unwrap();
+    // The property's own selector still has the pre-declaration binding.
+    assert_eq!(
+        pending
+            .lexical_snapshot(&handle(occurrences[0]))
+            .unwrap()
+            .namespace_uri("v"),
+        Some("urn:outer")
+    );
+    assert!(
+        matches!(pending.lexical_snapshot(&handle(occurrences[1])), Err(NamespaceNameCompletionError::Pending {node, declaration: dep}) if node == occurrences[1] && dep == declaration)
+    );
+    assert_eq!(
+        pending
+            .lexical_snapshot(&handle(occurrences[2]))
+            .unwrap()
+            .namespace_uri("v"),
+        Some("urn:inner")
+    );
+    assert!(
+        matches!(pending.lexical_snapshot(&handle(occurrences[4])), Err(NamespaceNameCompletionError::OutsideSelection(id)) if id == occurrences[4])
+    );
+    assert!(
+        matches!(pending.lexical_snapshot(&handle(host)), Err(NamespaceNameCompletionError::InvalidOccurrence(id)) if id == host)
+    );
+    for uri in ["urn:one", "urn:two", ""] {
+        let names = NamespaceNameCompletion::new(
+            source.captured.clone(),
+            &[host],
+            BTreeMap::from([(declaration, completion(uri))]),
+        )
+        .unwrap();
+        for id in [occurrences[1], occurrences[3]] {
+            let snapshot = names.lexical_snapshot(&handle(id)).unwrap();
+            assert_eq!(snapshot.namespace_uri("v"), Some(uri));
+            assert!(snapshot.original().namespaces.binding("v").is_none());
+            let binding = &snapshot.completed_bindings()["v"];
+            assert_eq!(binding.declaration.node_id(), declaration);
+            assert!(Arc::ptr_eq(
+                binding.declaration.document(),
+                source.tree.ast_owner()
+            ));
+            assert_eq!(snapshot.namespace_uri("unknown"), None);
+        }
+    }
+    let foreign = import("{#later}");
+    let foreign_node = SchemaDeclarationNode::new(
+        foreign.tree.ast_owner().clone(),
+        foreign.captured.occurrences().next().unwrap(),
+    )
+    .unwrap();
+    assert!(matches!(
+        pending.lexical_snapshot(&foreign_node),
+        Err(NamespaceNameCompletionError::OwnerMismatch)
+    ));
+    assert!(source
+        .captured
+        .snapshot(source.tree.ast_owner(), occurrences[1])
+        .unwrap()
+        .namespaces
+        .binding("v")
+        .is_none());
+}
+
+#[test]
+fn general_expression_waits_for_every_original_pending_prefix() {
+    let source = import("{host @xmlns:v={#one} @xmlns:w={#two} @target={library} | }");
+    let declarations = declarations(&source);
+    assert_eq!(declarations.len(), 2);
+    let occurrence = *source
+        .captured
+        .occurrences()
+        .collect::<Vec<_>>()
+        .last()
+        .unwrap();
+    let original = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), occurrence).unwrap();
+    assert!(
+        matches!(original.node(), CemAstNode::Element {expanded_name, ..} if expanded_name.local_name == "$")
+    );
+    let root = elements(&source, "host")[0];
+    let first = NamespaceNameCompletion::new(
+        source.captured.clone(),
+        &[root],
+        BTreeMap::from([(declarations[0], completion("urn:one"))]),
+    )
+    .unwrap();
+    assert!(
+        matches!(first.lexical_snapshot(&original), Err(NamespaceNameCompletionError::Pending {node, declaration}) if node == occurrence && declaration == declarations[1])
+    );
+    let ready = NamespaceNameCompletion::new(
+        source.captured.clone(),
+        &[root],
+        BTreeMap::from([
+            (declarations[0], completion("urn:one")),
+            (declarations[1], completion("urn:two")),
+        ]),
+    )
+    .unwrap();
+    let snapshot = ready.lexical_snapshot(&original).unwrap();
+    assert_eq!(snapshot.namespace_uri("v"), Some("urn:one"));
+    assert_eq!(snapshot.namespace_uri("w"), Some("urn:two"));
+    assert_eq!(snapshot.completed_bindings().len(), 2);
 }

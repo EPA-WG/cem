@@ -412,17 +412,35 @@ cannot supply a URI. Missing metadata and pending declaration bindings remain
 inspectable readiness issues, separate from invalid target admission and graph
 failures. Repeated calls use current runtime inputs without source writeback or
 cached selections. Preparation does not evaluate a selected pending declaration's
-own value slots or activate a namespace scope. Completion handoff and lifecycle
-activation remain separate todo items.
+own value slots or activate a namespace scope. Lifecycle activation remains a
+separate todo item.
 `NamespaceNameCompletion::binding_namespace_uri` reads an original declaration's
 completed literal or supplied native URI, following retained default aliases.
 It checks original allocation identity and reports a missing native result with
 both the requested declaration and pending dependency handles. Binding metadata
 outside the selected forest can supply an inherited dependency without exposing
 those nodes through query axes. A ready selected-name view can therefore still
-report an unused captured binding as pending. Whether such unused bindings block
-namespace-aware expression-context handoff is an open decision in `todo.md`;
-the lookup constructs no context and selects neither readiness policy.
+report an unused captured binding as pending. Namespace-aware expression-context
+handoff requires **every captured pending binding** to complete, including unused
+prefixes. `NamespaceNameCompletion::lexical_snapshot` checks original owner,
+selected-forest membership and occurrence identity before resolving those original
+dependencies. It returns the saved scalar namespace/schema snapshot alongside
+execution-specific URI overlays and original declaration handles. Empty URIs are
+ready resets; no synthetic namespace record or authored context ID is created.
+Original snapshots, completed source names and source maps remain unchanged.
+
+`CemQlSchemaDeclarationHost::attach_completed_namespace_lexical_scopes` checks all
+selected occurrences for registration, assignment conflicts and binding readiness
+before invoking any preparation callback or attaching a context. An incomplete
+attempt can be retried without partial attachment. A declaration's own selector
+can be handed off separately using its original pre-declaration bindings; dependent
+occurrences wait for completion. The callback supplies runtime inputs and explicit
+local policy overrides, and can bind the matching native `NamespaceQueryTree`.
+Missing inputs remain pending even with a ready parent. Existing relationship
+boundaries and directed grants are preserved. Completed names do not replace the
+host's original captured-name metadata, and unselected occurrences remain free
+for their own handoff. Shared query ingress and lifecycle activation remain todo
+items; this API performs neither reference evaluation nor scope activation.
 The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact

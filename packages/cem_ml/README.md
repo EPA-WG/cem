@@ -93,13 +93,23 @@ fixed names and authored reference descendants. CEM-QL's `NamespaceQueryTree`
 exposes an independent native name view with explicit authored `source` access;
 The explicit CEM-QL declaration host provides bounded namespace selection through
 `attach_captured_namespaces` and `prepare_namespace_scope`. Pending property-value
-consumption, completion handoff and lifecycle activation remain consumer work.
+consumption and lifecycle activation remain consumer work.
 
 `NamespaceNameCompletion::binding_namespace_uri` accepts an original declaration
 handle and returns its completed URI or pending dependency. It follows captured
 default aliases, preserves empty literal resets and rejects foreign owners and
 ordinary nodes. An inherited declaration can be outside the selected query forest;
 reading its metadata does not expose it through axes or create an expression context.
+
+`NamespaceNameCompletion::lexical_snapshot` accepts only selected original
+expression occurrences. It requires every captured pending prefix to complete,
+including unused prefixes. `NamespaceLexicalSnapshot::original()` preserves the
+saved scalar namespace/schema metadata; `namespace_uri(prefix)` reads this
+execution's completed URI or the original completed binding. Empty URIs remain
+ready resets. `completed_bindings()` retains original typed declaration handles,
+including pending default aliases; no namespace record IDs are manufactured.
+The explicit QL completion handoff uses these snapshots before constructing
+runtime contexts, leaving the source owner and original snapshots unchanged.
 
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed

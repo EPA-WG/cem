@@ -755,8 +755,15 @@ selected-forest metadata only when the forest's namespace dependencies are ready
 the CEM-QL native view exposes completed names per execution and explicit authored
 source inspection. The explicit CEM-QL namespace preparation stage applies shared
 request/destination bounds and directed grants before singleton declaration
-admission; incomplete bindings cannot activate a namespace. Completion handoff
-and activation tasks are tracked in
+admission; incomplete bindings cannot activate a namespace. Namespace-aware
+expression contexts require every captured pending prefix to complete, including
+unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
+snapshots and declaration handles alongside ready per-execution URI overlays.
+The explicit QL completion handoff preflights all selected occurrences before
+callbacks or mutation, preserves local policy provenance and relationship
+boundaries, and leaves missing runtime inputs pending. A property's own selector
+can still use its earlier pre-declaration context. Shared query ingress and
+activation tasks are tracked in
 [`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
 enclosed child-override syntax.
 

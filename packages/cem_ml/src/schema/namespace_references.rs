@@ -6,7 +6,10 @@ use super::{
 use std::sync::Arc;
 
 mod completion;
-pub use completion::{NamespaceNameCompletion, NamespaceNameCompletionError};
+pub use completion::{
+    CompletedNamespaceBinding, NamespaceLexicalSnapshot, NamespaceNameCompletion,
+    NamespaceNameCompletionError,
+};
 
 /// Original declaration dependency, not a stored evaluation or runtime context.
 #[derive(Debug, Clone)]

@@ -1945,19 +1945,31 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: zero/multiple targets do not activate;
       denied crossings retain source diagnostics; missing runtime input stays pending;
       independent consumers can select different namespace declarations from one source.
-- [ ] Fixture: integrate ready namespace completion views into explicit lexical
-      handoff. Retain original occurrence snapshots
+- [x] Fixture: integrate ready namespace completion views into explicit lexical
+      handoff in `namespace_lexical_handoff` and `pending_namespace_names`.
+      Retain original occurrence snapshots
       and selected-subtree boundaries; supply completed prefix bindings only to the
       execution that resolved their original declarations. Preserve source metadata
       and fixed completed names without replacing the original registered arena.
+      Implemented: `lexical_snapshot` and
+      `attach_completed_namespace_lexical_scopes` preflight every selected
+      occurrence and its pending prefixes before preparation or mutation. Ready
+      URI overlays retain original declaration handles and saved scalar snapshots;
+      contexts and local policy overrides remain caller supplied. General attribute
+      expression wrappers preserve their intrinsic native names; their captured
+      namespace dependencies still must complete. Unselected occurrences, existing
+      relationship grants and original captured names remain unchanged.
       Scenarios for later design verification: unavailable namespace dependencies
       block executable name views; retries never borrow later bindings; independent
       executions sharing one source can expose different completed namespaces.
-- [ ] Decide captured-expression namespace readiness for completion handoff.
+- [x] Decide captured-expression namespace readiness for completion handoff.
       A selected forest may have no dependent QName but its expression occurrences
       can retain pending prefix bindings. Require every captured pending binding
       before constructing a namespace-aware context (recommended), or preserve
       unused pending bindings and check them only on namespace-sensitive access.
+      Adopted on 2026-10-06 through the user's instruction to continue recommended:
+      require every captured pending binding before preparing a namespace-aware
+      expression context, even when the selected forest has no dependent QName.
       Scenarios for later design verification: pending declaration selectors can
       run in their original pre-declaration context; unused prefix dependencies
       cannot be mistaken for completed namespaces or borrow inherited/later URIs.
@@ -1984,6 +1996,15 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: pending scope selection cannot
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
+- [ ] Fixture: verify namespace-property lifecycle activation through shared
+      native query ingress and lexical completion handoff after those integrations.
+      Cover independently completed executions, pending retries, pre-declaration
+      selectors, general attribute expressions, default aliases/resets and nested
+      child restoration. Assert original owners, fixed names, source maps and
+      request/destination traversal bounds through the full lifecycle.
+      Scenarios for later design verification: unavailable bindings block only
+      their governed execution; retries reuse original dependencies; granting a
+      crossing does not implicitly complete or activate a namespace property.
 
 - [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs

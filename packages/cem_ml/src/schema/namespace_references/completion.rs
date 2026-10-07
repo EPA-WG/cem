@@ -2,7 +2,10 @@
 use super::{NamespaceScopeTarget, PendingNamespaceValue};
 use crate::{
     parser::{AstNodeId, CemAstNode, ExpandedName},
-    schema::{declaration_references::SchemaDeclarationNode, machine::LexicallyScopedDocument},
+    schema::{
+        declaration_references::SchemaDeclarationNode,
+        machine::{LexicalScopeSnapshot, LexicallyScopedDocument},
+    },
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -14,6 +17,8 @@ pub enum NamespaceNameCompletionError {
     InvalidRoot(AstNodeId),
     OverlappingRoots(AstNodeId),
     InvalidDeclaration(AstNodeId),
+    OutsideSelection(AstNodeId),
+    InvalidOccurrence(AstNodeId),
     Pending {
         node: AstNodeId,
         declaration: AstNodeId,
@@ -27,6 +32,42 @@ pub struct NamespaceNameCompletion {
     nodes: BTreeSet<AstNodeId>,
     names: BTreeMap<AstNodeId, ExpandedName>,
     targets: BTreeMap<AstNodeId, NamespaceScopeTarget>,
+}
+
+/// Execution-only binding completion, retaining the original declaration rather
+/// than assigning it an authored ID or rewriting namespace capture records.
+#[derive(Debug, Clone)]
+pub struct CompletedNamespaceBinding {
+    pub declaration: SchemaDeclarationNode,
+    pub namespace_uri: String,
+}
+
+/// Original scalar lexical metadata plus this execution's ready URI overlays.
+/// Original namespace binding records, schema metadata and AST owners stay fixed.
+#[derive(Debug, Clone)]
+pub struct NamespaceLexicalSnapshot {
+    original: LexicalScopeSnapshot,
+    completed: BTreeMap<String, CompletedNamespaceBinding>,
+}
+impl NamespaceLexicalSnapshot {
+    pub fn original(&self) -> &LexicalScopeSnapshot {
+        &self.original
+    }
+    pub fn completed_bindings(&self) -> &BTreeMap<String, CompletedNamespaceBinding> {
+        &self.completed
+    }
+    /// Empty default URIs are ready resets; absent prefixes remain unbound.
+    pub fn namespace_uri(&self, prefix: &str) -> Option<&str> {
+        self.completed
+            .get(prefix)
+            .map(|binding| binding.namespace_uri.as_str())
+            .or_else(|| {
+                self.original
+                    .namespaces
+                    .binding(prefix)
+                    .map(|binding| binding.namespace_uri.as_str())
+            })
+    }
 }
 impl NamespaceNameCompletion {
     /// The caller supplies results of its explicit bounded/authorized consumer.
@@ -87,6 +128,20 @@ impl NamespaceNameCompletion {
                 continue;
             }
             let Some(name) = captured.pending_namespace_name(captured.document(), *id) else {
+                // General attribute expressions have a builder-owned intrinsic
+                // `$` name, with no lexical QName event. Admit only the original
+                // captured expression wrapper, never arbitrary unbound elements.
+                if let Some(CemAstNode::Element { expanded_name, .. }) =
+                    captured.document().get(*id)
+                {
+                    if expanded_name.local_name == "$"
+                        && expanded_name.namespace_uri.is_empty()
+                        && captured.snapshot(captured.document(), *id).is_some()
+                    {
+                        names.insert(*id, expanded_name.clone());
+                        continue;
+                    }
+                }
                 // Namespace declaration attributes have reserved lexical names,
                 // and do not depend on an authored 'xmlns' namespace binding.
                 if let Some(CemAstNode::Attribute { expanded_name, .. }) =
@@ -138,6 +193,47 @@ impl NamespaceNameCompletion {
     }
     pub fn targets(&self) -> &BTreeMap<AstNodeId, NamespaceScopeTarget> {
         &self.targets
+    }
+    /// Prepare only selected original expression occurrences. Every captured
+    /// pending prefix must complete, including prefixes unused by selected QNames.
+    /// The property's own selector retains its pre-declaration snapshot. Reading
+    /// inherited dependencies outside this forest does not expand query axes.
+    pub fn lexical_snapshot(
+        &self,
+        occurrence: &SchemaDeclarationNode,
+    ) -> Result<NamespaceLexicalSnapshot, NamespaceNameCompletionError> {
+        let owner = self.captured.document();
+        if !Arc::ptr_eq(occurrence.document(), owner) {
+            return Err(NamespaceNameCompletionError::OwnerMismatch);
+        }
+        let node = occurrence.node_id();
+        if !self.contains(node) {
+            return Err(NamespaceNameCompletionError::OutsideSelection(node));
+        }
+        let original = self
+            .captured
+            .snapshot(owner, node)
+            .ok_or(NamespaceNameCompletionError::InvalidOccurrence(node))?;
+        let mut completed = BTreeMap::new();
+        if let Some(bindings) = self.captured.pending_namespace_bindings(owner, node) {
+            for (prefix, declaration) in bindings {
+                let namespace_uri = binding_uri(&self.captured, &self.targets, *declaration, node)?;
+                completed.insert(
+                    prefix.clone(),
+                    CompletedNamespaceBinding {
+                        declaration: SchemaDeclarationNode::new(owner.clone(), *declaration)
+                            .ok_or(NamespaceNameCompletionError::InvalidDeclaration(
+                                *declaration,
+                            ))?,
+                        namespace_uri: namespace_uri.into(),
+                    },
+                );
+            }
+        }
+        Ok(NamespaceLexicalSnapshot {
+            original: original.clone(),
+            completed,
+        })
     }
     /// Read an original binding dependency without creating an expression
     /// context. Declarations outside the selected forest can supply inherited
