@@ -32,6 +32,7 @@ pub struct NamespacePropertyPreparation {
     pub property: Option<NativeNamespaceProperty>,
     pub preparation: Option<NamespaceScopePreparation>,
     pub issue: Option<NamespacePropertyPreparationIssue>,
+    pub(super) publication: Option<super::namespace_publication::NamespacePublicationProof>,
 }
 impl NamespacePropertyPreparation {
     pub fn is_ready(&self) -> bool {
@@ -67,6 +68,7 @@ impl CemQlSchemaDeclarationHost {
             property: None,
             preparation: None,
             issue: None,
+            publication: None,
         };
         let key = Arc::as_ptr(declaration.document()) as usize;
         let Some(captured) = self.captured_namespaces.get(&key) else {
@@ -83,16 +85,46 @@ impl CemQlSchemaDeclarationHost {
         let root = self.source_reference(property.value.clone());
         let expression = matches!(property.value.node(), CemAstNode::Element { .. })
             .then(|| property.value.clone());
-        let selection = resolve_reference(
-            root,
-            &mut NamespaceExpressionHost {
-                host: self,
-                expression,
-            },
-            limits,
-        )?;
+        let mut consumer = NamespaceExpressionHost {
+            host: self,
+            expression,
+            dependencies: vec![],
+        };
+        let selection = resolve_reference(root, &mut consumer, limits)?;
+        let mut dependencies = consumer.dependencies;
+        dependencies
+            .sort_by_key(|(source, _)| (Arc::as_ptr(source.document()) as usize, source.node_id()));
+        dependencies.dedup_by_key(|(source, _)| {
+            (Arc::as_ptr(source.document()) as usize, source.node_id())
+        });
         report.preparation = Some(self.admit_namespace_selection(selection));
         report.property = Some(property);
+        if report.is_ready() {
+            report.publication = Some(super::namespace_publication::NamespacePublicationProof {
+                snapshot: self.namespace_input_snapshot,
+                dependencies,
+                declaration: report.declaration.clone(),
+                selected: report
+                    .preparation
+                    .as_ref()
+                    .unwrap()
+                    .target
+                    .as_ref()
+                    .unwrap()
+                    .selected
+                    .clone(),
+                target: cem_ml::schema::namespace_references::completed_namespace_scope_target(
+                    report.property.as_ref().unwrap(),
+                    report
+                        .preparation
+                        .as_ref()
+                        .unwrap()
+                        .target
+                        .as_ref()
+                        .unwrap(),
+                ),
+            });
+        }
         Ok(report)
     }
 }
@@ -102,6 +134,7 @@ impl CemQlSchemaDeclarationHost {
 struct NamespaceExpressionHost<'a> {
     host: &'a mut CemQlSchemaDeclarationHost,
     expression: Option<SchemaDeclarationNode>,
+    dependencies: Vec<(SchemaDeclarationNode, Option<DeclarationScope>)>,
 }
 impl NamespaceExpressionHost<'_> {
     fn is_expression(&self, node: &CemQlSchemaReferenceNode) -> bool {
@@ -118,7 +151,22 @@ impl ReferenceResolutionHost for NamespaceExpressionHost<'_> {
     type Node = CemQlSchemaReferenceNode;
     type Scope = Option<DeclarationScope>;
     fn prepare_node(&mut self, node: &mut Self::Node) -> Result<(), ReferenceResolutionError> {
-        self.host.prepare_node(node)
+        self.host.prepare_node(node)?;
+        if let Some(source) = node.source.as_ref() {
+            self.dependencies
+                .push((source.clone(), self.host.source_scope(source)));
+            let key = (Arc::as_ptr(source.document()) as usize, source.node_id());
+            if let Some(published) = self
+                .host
+                .namespace_publications
+                .get(&key)
+                .filter(|proof| proof.matches(self.host))
+            {
+                self.dependencies
+                    .extend(published.dependencies.iter().cloned());
+            }
+        }
+        Ok(())
     }
     fn scope(&self, node: &Self::Node) -> Self::Scope {
         self.host.scope(node)

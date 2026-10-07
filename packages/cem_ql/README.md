@@ -202,8 +202,19 @@ contexts or supply the completion to shared native query ingress with the origin
 source. Selector-only roots can activate before governed children; already assigned
 selectors remain outside subsequent roots. Activation does not reevaluate selectors,
 reset bounds, grant crossings or publish results on the source. Independent
-executions retain separate views. Completed pending declarations selected by later
-references still require a separately designed publication stage.
+executions retain separate views.
+
+`publish_namespace_property(&prepared)` explicitly publishes a ready result for
+later target admission within its producing execution-input snapshot. It retains
+the original property handle and literal binding provider separately; no parser
+binding, synthetic binding ID or source targets are created. Pending, stale or
+mismatched reports reject, and matching publication is idempotent. A changed host
+context expires publications; changed scopes on visited dependencies make them
+unavailable, including dependencies inherited through reused publications.
+Unrelated occurrence handoffs do not alter those inputs. Later consumers still
+apply their own grants and request/destination bounds without reevaluating the
+published declaration's value. Independent hosts do not borrow each other's
+results. Opt-in automatic namespace lifecycle coordination remains future work.
 
 `with_completed_namespace_names(completion, callback)` exposes a registered
 original owner's selected-forest name completion to schema target admission and

@@ -2210,15 +2210,38 @@ only and adds no runtime behavior or public syntax.
       and foreign original-tree provenance while preserving legacy raw snapshots.
       Scenarios for later design verification: a snapshot cannot attach another
       arena's source tree, omit a required name or change an authored local name.
-- [ ] Define per-execution publication and reuse of completed native namespace
-      declaration results. Selecting a pending declaration currently remains
-      `TargetBindingNotReady`, even after another consumer completed its value.
-      Specify how the lifecycle exposes those results to bounded target admission
-      without caching them on the source or restarting traversal/dependency budgets;
-      decide any additional value-consumption stage before implementation.
+- [x] Adopt completed namespace publication per execution-input snapshot rather
+      than implicit value reevaluation on target selection. Results remain off
+      the source; changed input contexts or scope assignments invalidate reuse.
+      Each consuming request still applies its own grants and traversal limits.
+      Scenarios for later design verification: a ready result in one execution
+      cannot complete another execution's declaration or bypass a denied crossing.
+- [x] Fixture: publish only ready namespace property results from the producing
+      host/input snapshot; cover repeated selection, original binding provenance,
+      empty URI resets, independent executions, changed contexts/assignments,
+      stale reports, denied crossings and stricter consuming traversal limits.
+      Scenarios for later design verification: pending or edited reports do not
+      publish; selecting a result does not reevaluate its declaration value slots;
+      no source bindings/targets or synthetic binding IDs are created.
+- [x] Define and implement per-execution publication and reuse of completed native
+      namespace declaration results. `publish_namespace_property` accepts matching
+      ready preparation proofs and exposes original declarations to later bounded
+      admission without reevaluating value slots or writing source bindings/targets.
+      Input context changes expire results; changed visited dependency scopes make
+      them unavailable, including transitive publication dependencies. Retain the
+      original literal binding provider separately without synthetic binding IDs.
+      Verification: eight new publication fixtures and 137 adjacent native
+      namespace, declaration, lexical, runtime and retained behavior checks pass.
       Scenarios for later design verification: a completed declaration can be
       reused only in the execution that supplied its result; an incomplete target
       never borrows inherited/later URIs or another execution's completion.
+- [ ] Decide the opt-in namespace coordinator's unavailable runtime-input
+      contract before implementation: return an incomplete snapshot for explicit
+      caller retry (recommended, consistent with current pending contexts), or
+      introduce typed host-input suspension/completion alongside URI resource waits.
+      Scenarios for later design verification: missing input never inherits an
+      unrelated context; retries preserve source owners and rerun under a fresh
+      input snapshot without holding an execution slot while waiting.
 - [ ] Wire the explicit namespace preparation/activation stages into an opt-in
       document lifecycle coordinator after completed-declaration publication is
       specified. Use caller-provided runtime inputs and original lexical dependencies

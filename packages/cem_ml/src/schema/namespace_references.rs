@@ -34,15 +34,24 @@ pub struct PendingNamespaceName {
     pub local_name: String,
 }
 
-/// Original source declaration plus its completed parser binding. A binding ID
-/// identifies a namespace record in its lexical context, never an AST node.
+/// Selected original declaration plus its original completed binding provider.
+/// Publication can select a native property while retaining the literal provider.
+/// A binding ID identifies that provider's lexical record, never an AST node.
 /// The consuming property supplies its own destination prefix and lifecycle.
 #[derive(Debug, Clone)]
 pub struct NamespaceScopeTarget {
     pub selected: SchemaDeclarationNode,
     binding: NamespaceBinding,
+    binding_declaration: SchemaDeclarationNode,
 }
 impl NamespaceScopeTarget {
+    /// Original completed binding provider, retained even when selection reuses
+    /// an execution-completed native property. No synthetic binding ID is made.
+    pub fn binding_declaration(&self) -> &SchemaDeclarationNode {
+        &self.binding_declaration
+    }
+    /// Original provider metadata; its prefix is independent of the consuming
+    /// property's destination prefix and of a published property's authored name.
     pub fn binding(&self) -> &NamespaceBinding {
         &self.binding
     }
@@ -73,5 +82,23 @@ pub fn admit_namespace_scope_target(
         .namespace_binding(selected.document(), selected.node_id())
         .ok_or(NamespaceScopeTargetError::NotNamespaceDeclaration)?
         .clone();
-    Ok(NamespaceScopeTarget { selected, binding })
+    Ok(NamespaceScopeTarget {
+        binding_declaration: selected.clone(),
+        selected,
+        binding,
+    })
+}
+
+/// Retain a completed property's original declaration and its original binding
+/// provider separately. The caller owns bounded evaluation and snapshot readiness;
+/// this creates neither a parser binding nor a runtime/source cache.
+pub fn completed_namespace_scope_target(
+    property: &NativeNamespaceProperty,
+    target: &NamespaceScopeTarget,
+) -> NamespaceScopeTarget {
+    NamespaceScopeTarget {
+        selected: property.declaration.clone(),
+        binding: target.binding.clone(),
+        binding_declaration: target.binding_declaration.clone(),
+    }
 }

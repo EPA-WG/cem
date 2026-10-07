@@ -47,6 +47,8 @@ mod namespace_preparation;
 mod namespace_handoff;
 mod namespace_property;
 mod namespace_activation;
+mod namespace_publication;
+pub use namespace_publication::NamespacePublicationError;
 mod namespace_schema_names;
 pub use namespace_activation::{NamespacePropertyActivation, NamespacePropertyActivationError};
 pub use namespace_property::{NamespacePropertyPreparation, NamespacePropertyPreparationIssue};
@@ -121,6 +123,10 @@ pub struct CemQlSchemaDeclarationHost {
         BTreeMap<(usize, AstNodeId, String), ReferenceLinkEvaluation<SchemaDeclarationNode>>,
     schema_uri_generations: BTreeMap<(usize, AstNodeId, String), u64>,
     next_schema_uri_generation: u64,
+    // Namespace publications belong to one immutable input snapshot, not ASTs.
+    namespace_input_snapshot: u64,
+    namespace_publications:
+        BTreeMap<(usize, AstNodeId), namespace_publication::NamespacePublicationProof>,
     // Compiled source only: runtime targets and contexts remain per invocation.
     source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
 }
@@ -139,6 +145,8 @@ impl CemQlSchemaDeclarationHost {
             following_scopes: BTreeMap::new(),
             grants: BTreeSet::new(),
             source_expressions: BTreeMap::new(),
+            namespace_input_snapshot: namespace_publication::next_snapshot(),
+            namespace_publications: BTreeMap::new(),
             schema_uri_loads: BTreeMap::new(),
             schema_uri_generations: BTreeMap::new(),
             next_schema_uri_generation: 0,
@@ -326,6 +334,7 @@ impl CemQlSchemaDeclarationHost {
         self.source_expressions
             .retain(|(owner, _), _| *owner != scope);
         self.scopes[scope.index].context = context;
+        self.invalidate_namespace_publications();
         true
     }
     /// Inspect compilation for an original expression occurrence in its current

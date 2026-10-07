@@ -313,7 +313,7 @@ reference resolver. Target admission and lifecycle work remain specialized:
 | Original owner and saved bindings | Original names/forms and selector handles; explicit invocation completion supplies selected names without changing capture. | Original property/value handles and declaration dependencies; selectors retain their pre-declaration snapshots. |
 | Authored value forms | Literal selectors, native `#` values and general expressions; URI sources use the explicit loader stage. | Native `#` values and general expressions; completed literal declarations, default aliases and resets retain their existing binding semantics. |
 | Reference chains and permissions | Shared request/destination limits, ordered selections, directed grants and original diagnostic policy. | The same resolver contracts; target admission does not start another traversal. |
-| Final target | One schema-language declaration, or one named core wrapper containing exactly one direct declaration. | One original namespace declaration with completed binding metadata; the property retains its own destination prefix. |
+| Final target | One schema-language declaration, or one named core wrapper containing exactly one direct declaration. | One original namespace declaration with captured or explicitly published execution binding metadata; the property retains its own destination prefix. |
 | Readiness | Successful singleton selection, ready target context, complete exact-declaration compilation and no hard compile diagnostics. | Successful singleton selection, ready target context and completed binding; empty default URI is a ready reset. |
 | Explicit activation | Entered body/following/prelude regions install invocation-local consuming models, contexts and effective policies; original assignments restore afterward. | Ready property reports complete a selected forest and attach caller-supplied lexical contexts; the returned completion feeds native views/shared query ingress. |
 | Incomplete/invalid outcomes | Explicit override keeps its governed region incomplete without inherited-schema fallback; diagnostics remain attributed. | Missing/invalid reports or selected dependencies reject before activation callbacks/mutation; a missing callback context remains pending. |
@@ -351,9 +351,19 @@ host disposal; `source` exposes the unchanged original tree when the host suppli
 it. Pending names in the authorized target subtree keep the behavior stage incomplete,
 without evaluating authored descendant references. A completed query or admission
 view alone does not make validation ready.
-Selecting a pending namespace declaration still returns `TargetBindingNotReady`;
-completing its value for one execution does not publish that result for later target
-admission. Automatic namespace lifecycle coordination is not part of ordinary
+Completed native namespace values now have an explicit execution-input publication
+stage, `publish_namespace_property(&prepared)`. It accepts only a ready report
+produced in the matching input snapshot and preserves the original selected
+property separately from the original literal binding provider. No synthetic
+parser binding ID is created. Matching publication is idempotent; pending,
+stale or mismatched property/target reports cannot publish. Changing a host input
+context expires publications, while changing a visited dependency's scope makes
+its result unavailable; reused publications retain transitive scope dependencies.
+Later bounded selections can admit the published declaration without evaluating
+its value again. Each request still applies its own grants and request/destination
+limits; unpublished declarations remain `TargetBindingNotReady`. Results stay
+on the execution host, never on the source or another independent execution.
+Automatic namespace lifecycle coordination is not part of ordinary
 loading/query preparation or the schema URI validation session. Explicit host
 orchestration supplies the supported stages today.
 Remaining integrations have actionable items and adjacent verification scenarios in

@@ -105,14 +105,22 @@ impl CemQlSchemaDeclarationHost {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetMetadataNotReady);
             return prepared;
         };
-        if captured
-            .pending_namespace_declaration(source.document(), source.node_id())
-            .is_some()
+        let published = self
+            .namespace_publications
+            .get(&(Arc::as_ptr(source.document()) as usize, source.node_id()))
+            .filter(|published| published.matches(self));
+        if published.is_none()
+            && captured
+                .pending_namespace_declaration(source.document(), source.node_id())
+                .is_some()
         {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetBindingNotReady);
             return prepared;
         }
-        let target = match admit_namespace_scope_target(source, captured) {
+        let target = match published
+            .map(|proof| Ok(proof.target.clone()))
+            .unwrap_or_else(|| admit_namespace_scope_target(source, captured))
+        {
             Ok(target) => target,
             Err(issue) => {
                 prepared.issue = Some(NamespaceScopePreparationIssue::TargetAdmission(issue));
