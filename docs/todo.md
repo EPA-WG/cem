@@ -364,11 +364,23 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       keeps stored values with word labels input-compatible; an edit to empty
       survives refresh and rerender; one named field contributes one form value.
 
-- [ ] Evaluate reuse of `cem-dropdown` for autocomplete/suggestions: compare direct dropdown composition with reuse of its shared popup capability/controller for visibility, placement, collision handling and dismissal. Keep focus on the editable input, use combobox/listbox semantics rather than menu semantics, and avoid duplicate triggers, focus restoration handlers or form controls; record the selected composition and tradeoffs before implementation.
+- [x] Evaluate reuse of `cem-dropdown` for autocomplete/suggestions: compare direct dropdown composition with reuse of its shared popup capability/controller for visibility, placement, collision handling and dismissal. Keep focus on the editable input, use combobox/listbox semantics rather than menu semantics, and avoid duplicate triggers, focus restoration handlers or form controls; record the selected composition and tradeoffs before implementation.
+      Completed 2026-10-07: [adopted popup-service design](cem-suggestions-popup-design.md).
+      Reuse shared geometry/native surface services through an explicit suggestions
+      profile, using a manual native popover and one dismissal region spanning
+      editor/listbox. Dropdown's button/link trigger, focus and ARIA policy remain
+      separate. Neutral services and a listbox delegate require implementation;
+      the current native adapter admits only dialog/tooltip kinds.
       Follow the [composition ownership contract](cem-suggestions-composition-design.md#composition-and-ownership);
       verify editor support rather than inheriting button-trigger or menu focus rules.
+      Scenarios for later design verification: caret clicks do not toggle/dismiss;
+      nested Escape closes only suggestions; refits preserve input identity and
+      selection; independent surface leases do not overwrite one another.
 
 - [ ] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
+      Apply the [manual listbox surface and service boundary](cem-suggestions-popup-design.md#shared-service-boundary).
+      Identify editor/provider/surface roles explicitly; require one visibility
+      controller and one semantic owner without a generated dropdown button.
       Record filtering ownership and compatibility for legacy `data` values and
       native options, including explicit empty values, text fallback and labels
       that differ from text. Do not silently inherit the frozen product's
@@ -383,8 +395,14 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       native/host/submitted value; commit followed by blur has no duplicate change;
       a later real edit still changes normally; option replacement has an explicit
       tested undo/redo policy; Enter without a commit preserves form behavior.
+      Follow [close routing](cem-suggestions-popup-design.md#focus-and-close-routing):
+      one handled Escape cannot also close a parent dialog; pointer activation,
+      focus-leave and scrolling must not compete with outside dismissal.
 
 - [ ] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
+      Scenarios for later design verification: a late result from a dismissed
+      opening generation cannot reopen the popup; refresh preserves the field's
+      value and focus; source readiness never overwrites field-owned `busy`.
 
 - [ ] Implement the shared editor-provider boundary, synchronous user-commit
       transaction and reset/restore/rebinding notifications in cem-elements,
@@ -392,6 +410,10 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       the remaining design items settle. Inventory and add applicable native
       metadata/constraint forwarding on both field declarations before promising
       the legacy surface. Add focused fixture actions before implementation.
+      Extract shared profile-neutral surface/geometry/dismissal services, add the
+      manual-listbox delegate and isolated per-surface leases, and preserve current
+      dropdown/dialog/tooltip behavior with regression fixtures. Admit no source-
+      or component-local popup controller or broadened button endpoint shortcut.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are
@@ -402,6 +424,11 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       one submission owner, supported text editors, unsupported type/list/role
       conflicts, independent sessions over a shared native source, disable/readonly
       during an open session and fresh editor/placement admission after resume.
+      Add [popup verification scenarios](cem-suggestions-popup-design.md#delivery-gaps-and-verification):
+      native visibility/ARIA agreement, editor clicks and pointer scrolling,
+      nested Escape/modal containment/ancestor teardown, RTL/vertical and viewport/
+      container fitting, lost anchor/boundary closure, observer/style cleanup,
+      stale callbacks and unchanged dropdown/dialog/tooltip profiles.
 
 - [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
@@ -420,6 +447,14 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Scenarios for later design verification: the numeric source example commits
       `1` rather than `One`; native browser routes remain singular; a future
       multiline profile preserves newline/caret/undo and accessible feedback.
+
+- [ ] Design non-key platform close-request support for manual suggestions
+      surfaces before claiming Back/dismiss-gesture integration. Evaluate native
+      CloseWatcher activation/grouping against parent dialogs/popovers and provide
+      one close route without a competing keyboard watcher or local behavior.
+      Scenarios for later design verification: first Escape closes only the child;
+      a platform close request follows its declared scope; async opening does not
+      silently group an independently dismissible child with its parent.
 
 ## Respect action states in cem-icon-button
 

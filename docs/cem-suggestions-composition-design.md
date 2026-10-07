@@ -5,8 +5,9 @@ continue with recommended options. Implementation is pending. This document
 completes the composition item in the [active checklist](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 It builds on the [source audit](cem-autocomplete-source-audit.md) and the current
 [field contract](../packages/cem-components/docs/field-controls-contract.md).
-Public attachment syntax, popup reuse and the full interaction matrix remain
-the next design items; no new attribute or component name is introduced here.
+Popup reuse is adopted in the [popup-service design](cem-suggestions-popup-design.md).
+Public attachment syntax and the full interaction matrix remain subsequent
+design items; no new attribute or component name is introduced here.
 
 Attach a shared suggestions session to the existing field's editor provider.
 Keep that field as the sole form and value owner, and its actual native input
@@ -29,7 +30,7 @@ component-, gallery- or application-local behavior module.
 | Actual native input | Text entry, caret, selection, IME, focus, native input/change behavior and constraint semantics |
 | Suggestions session | Its own active/committed option handles, open state, query observation, candidate eligibility and requests to commit through the editor provider |
 | Suggestion presentation | Listbox, groups, option labels/content and their produced placements; no submitted control |
-| Shared popup service, to be selected next | Visibility/geometry/dismissal with an editor-preserving focus policy |
+| Shared popup service, selected in the popup design | Manual native listbox visibility, shared geometry/dismissal and an editor-preserving focus policy; implementation pending |
 
 There is one attachment per editor. Several fields may consume the same retained
 suggestion source, with separate active state, selection and lifecycle contexts.
@@ -241,11 +242,11 @@ only after the new editor is admitted.
 
 ## Delivery and verification
 
-The checklist promotes this composition contract. Its next three items select
-popup reuse, define declarative attachment/shared capability and complete
-keyboard/event/constrained-selection behavior. Subsequent implementation must
-add the editor-provider commit boundary and lifecycle notifications in
-cem-elements before authoring component attachment conveniences.
+The checklist promotes this composition contract and the selected popup service.
+Remaining design items define declarative attachment/shared capability,
+keyboard/event/constrained-selection behavior and static/async data.
+Implementation must add the editor-provider commit boundary and lifecycle
+notifications in cem-elements before authoring component attachment conveniences.
 
 The current field declarations forward only a subset of the legacy metadata
 and constraints. Before promising the broader surface, inventory and add

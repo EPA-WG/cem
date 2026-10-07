@@ -146,6 +146,13 @@ preparation, nested menu-to-task focus relay, component API migration and manual
 browser/AT verification remain [actionable follow-ups](todo.md#native-surface-delivery-follow-ups).
 It does not yet deliver the complete acceptance matrix in section 13.
 
+Attached suggestions now have an [adopted popup-service profile](cem-suggestions-popup-design.md):
+manual native listbox presentation, shared geometry and one editor/listbox
+dismissal policy with retained input focus. This is a planned semantic delegate,
+not another implemented native surface kind. It requires neutral service
+extraction and its own fixtures; dialog/tooltip kinds, dropdown trigger rules
+and the existing generic popup mode defaults do not change.
+
 ### Slots and produced parts
 
 | Hook | Contract |
