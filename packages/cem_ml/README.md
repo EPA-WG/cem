@@ -93,8 +93,12 @@ fixed names and authored reference descendants. CEM-QL's `NamespaceQueryTree`
 exposes an independent native name view with explicit authored `source` access;
 The explicit CEM-QL declaration host provides bounded namespace selection through
 `attach_captured_namespaces` and `prepare_namespace_scope`. Pending property-value
-consumption is available through `prepare_namespace_property`; lifecycle
-activation remains consumer work.
+consumption is available through `prepare_namespace_property`; the explicit
+`activate_namespace_properties` consumer connects ready reports to selected-name
+completion and original occurrence lexical handoff. Its returned completion can
+enter shared native query ingress without reevaluation or source mutation.
+Completed-declaration publication and automatic opt-in lifecycle coordination
+remain separately tracked work.
 
 `namespace_references::decode_native_namespace_property` accepts the original
 captured native namespace attribute and returns its destination prefix and owning

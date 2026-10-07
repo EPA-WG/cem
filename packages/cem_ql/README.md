@@ -189,6 +189,22 @@ URIs are ready resets. Calls neither cache results nor write source targets,
 complete captured bindings, activate a scope or consume a selected pending
 declaration's own slots.
 
+`activate_namespace_properties(captured, roots, prepared, callback)` consumes ready
+property reports, completes selected names and installs original occurrence
+contexts through the existing lexical handoff. It preflights owner/property
+identity, duplicate reports, readiness, selected dependencies and assignment
+conflicts before callbacks or mutation. The callback receives the original
+occurrence, completed lexical snapshot, enclosing scope and this execution's
+`Arc<NamespaceNameCompletion>`; it returns runtime context readiness and local
+policy overrides. A `None` context stays pending. The returned activation exposes
+that same completion and the installed scopes. Bind `NamespaceQueryTree` in
+contexts or supply the completion to shared native query ingress with the original
+source. Selector-only roots can activate before governed children; already assigned
+selectors remain outside subsequent roots. Activation does not reevaluate selectors,
+reset bounds, grant crossings or publish results on the source. Independent
+executions retain separate views. Completed pending declarations selected by later
+references still require a separately designed publication stage.
+
 ### Native values in templates
 
 CEM-QL accepts optional `$` prefixes on expression references in queries and

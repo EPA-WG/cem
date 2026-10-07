@@ -412,8 +412,8 @@ cannot supply a URI. Missing metadata and pending declaration bindings remain
 inspectable readiness issues, separate from invalid target admission and graph
 failures. Repeated calls use current runtime inputs without source writeback or
 cached selections. Preparation does not evaluate a selected pending declaration's
-own value slots or activate a namespace scope. Lifecycle activation remains a
-separate todo item.
+own value slots or activate a namespace scope. Prepared property results enter
+the explicit activation stage described below.
 
 `decode_native_namespace_property` recognizes an original captured native
 namespace attribute and retains its destination prefix and single original
@@ -432,9 +432,33 @@ bindings, invalid property forms and cardinality failures remain inspectable.
 Ready results can supply `NamespaceNameCompletion` using the original property's
 declaration ID; the target's prefix does not replace the property's destination
 prefix. Independent calls evaluate current inputs without caching selections,
-writing source targets or changing captured bindings. Publication, namespace
-activation and consumption of a selected pending declaration's own value remain
-separate lifecycle work.
+writing source targets or changing captured bindings. Publication and reuse of
+completed pending declarations, and any additional consumption of their own
+values, remain separate lifecycle work.
+
+`activate_namespace_properties(captured, roots, prepared, callback)` connects
+ready property reports to selected-name completion and explicit lexical handoff.
+Supplied reports must identify distinct original native properties in this owner
+and be ready. Original destination prefixes/value handles are checked against
+capture; missing selected-name dependencies, unused pending occurrence prefixes
+and existing occurrence assignments reject before any callback or mutation.
+This execution's `NamespaceNameCompletion` retains each admitted result under
+its original property declaration identity. It preserves fixed completed names,
+saved dependency aliases, child shadowing/restoration and original source metadata.
+The callback receives this completion alongside each original source occurrence,
+completed lexical snapshot and enclosing scope, then supplies runtime context and
+explicit local policy overrides. A missing runtime context stays pending.
+
+Selector-only forests can activate before governed children: a child selector can
+use its saved enclosing binding once that result is ready. Already-assigned
+selectors remain excluded from subsequent roots; binding dependencies outside
+those roots do not expand query axes. Returned completion metadata can bind
+`NamespaceQueryTree` in contexts and enter `QuerySourceOwner::NamespaceCompleted`
+shared ingress. Activation consumes the supplied result without reevaluating
+selectors, restarting bounds or creating crossing grants. Independent executions
+retain independent views over the same original arena. Automatic document
+coordination and publication of completed declarations for later target admission
+remain explicit todo items; ordinary loading/inspection does not run these stages.
 
 `NamespaceNameCompletion::binding_namespace_uri` reads an original declaration's
 completed literal or supplied native URI, following retained default aliases.

@@ -763,6 +763,15 @@ or general expressions through one bounded traversal with existing lifecycle
 hooks. Singleton admission does not restart budgets; scalar general-expression
 results retain attributed invalid-target diagnostics. Missing inputs/bindings
 stay pending, and no source targets or captured bindings are rewritten.
+`activate_namespace_properties` connects ready reports with selected-forest name
+completion and the explicit lexical handoff. Original property identity/shape,
+readiness, duplicates, selected dependencies and assignment conflicts are checked
+before callbacks or mutation. Context callbacks receive completion metadata for
+native view bindings; missing runtime contexts remain pending. Selector-only
+forests can activate original enclosing dependencies before child bodies, keeping
+fixed names and child restoration intact. Results feed shared query ingress
+without selector re-evaluation or budget resets. Completed-declaration publication
+and automatic opt-in lifecycle coordination remain separately tracked tasks.
 Namespace-aware expression contexts require every captured pending prefix to complete, including
 unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
 snapshots and declaration handles alongside ready per-execution URI overlays.
@@ -775,7 +784,7 @@ can still use its earlier pre-declaration context. Shared query ingress accepts
 reparsing input bytes, and the native QL adapter projects only selected roots,
 including an empty forest. Completed-name projection does not evaluate captured
 expressions or prepare their contexts; lexical handoff remains explicit.
-Activation tasks are tracked in
+Remaining lifecycle integration tasks are tracked in
 [`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
 enclosed child-override syntax.
 

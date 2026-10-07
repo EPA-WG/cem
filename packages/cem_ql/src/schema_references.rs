@@ -46,6 +46,8 @@ mod scope_preparation;
 mod namespace_preparation;
 mod namespace_handoff;
 mod namespace_property;
+mod namespace_activation;
+pub use namespace_activation::{NamespacePropertyActivation, NamespacePropertyActivationError};
 pub use namespace_property::{NamespacePropertyPreparation, NamespacePropertyPreparationIssue};
 pub use namespace_handoff::NamespaceLexicalScopeHandoffError;
 pub use namespace_preparation::{NamespaceScopePreparation, NamespaceScopePreparationIssue};

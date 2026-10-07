@@ -338,3 +338,495 @@ fn retained_owner_runner_keeps_cancellation_budgets_and_language_admission() {
         );
     }
 }
+
+/// The normalized producer exercises existing block-prelude alias semantics;
+/// inline CEM body parsing does not claim to recognize document directives.
+fn lifecycle_input() -> ScopedCemImport {
+    use cem_ml::{
+        events::{cem::CemEventNormalizer, EventNormalizer, NormalizedEvent},
+        parser::tree::{CemTreeSemantics, RetainedCemTree},
+        schema::machine::CemSchemaMachine,
+        source::{BytesSource, SourceId},
+        tokenizer::cem::CemTokenizer,
+    };
+    struct Events(std::vec::IntoIter<NormalizedEvent>);
+    impl EventNormalizer for Events {
+        fn next_event(&mut self) -> Option<NormalizedEvent> {
+            self.0.next()
+        }
+    }
+    fn events(text: &str) -> Vec<NormalizedEvent> {
+        let mut source = CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
+            SourceId(1),
+            text.as_bytes().to_vec(),
+        )));
+        std::iter::from_fn(|| source.next_event()).collect()
+    }
+    let text = "@ns v = urn:fixed\n@ns public = urn:one\n@ns other = urn:two\n@default \"\"\n{fixed @v:flag=yes}\n{host @xmlns:v={library} | {first | {#related}} {inner @xmlns:v={#other} | {second | {#related}}} {third | {#related}} {plain @xmlns={#reset} | {reset | {#related}}}} {outside}";
+    let mut stream = vec![];
+    for event in events(text) {
+        if matches!(&event, NormalizedEvent::OpenScope {name, ..} if name.lexical_name == "first" || name.lexical_name == "second")
+        {
+            stream.extend(events("@default v\n"));
+        }
+        stream.push(event);
+    }
+    let captured = Arc::new(
+        CemSchemaMachine::new(CompiledSchema::cem_core(), Events(stream.into_iter()))
+            .build_with_lexical_scopes(),
+    );
+    let tree = RetainedCemTree::from_shared(
+        captured.document().clone(),
+        "memory:namespace-input.cem",
+        text,
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    ScopedCemImport { captured, tree }
+}
+
+#[test]
+fn prepared_properties_activate_saved_dependencies_and_shared_query_ingress() {
+    use cem_ml::schema::{
+        namespace_references::decode_native_namespace_property,
+        reference_policy::{ReferenceScopePolicy, ReferenceScopePolicyOverrides},
+    };
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{ItemStream, RetainedCemNode},
+        namespace_names::NamespaceQueryTree,
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let input = lifecycle_input();
+    let properties = input
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Attribute {
+                node_id,
+                value_nodes,
+                ..
+            } if !value_nodes.is_empty() => Some(*node_id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(properties.len(), 3);
+    let declarations = input
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "@ns" => Some(*node_id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let handle = |id| SchemaDeclarationNode::new(input.tree.ast_owner().clone(), id).unwrap();
+    let native = properties
+        .iter()
+        .map(|id| decode_native_namespace_property(handle(*id), &input.captured).unwrap())
+        .collect::<Vec<_>>();
+    let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+    let roots = [
+        element(&input, "first"),
+        element(&input, "second"),
+        element(&input, "third"),
+        element(&input, "reset"),
+        element(&input, "fixed"),
+    ];
+    let mut identities = vec![];
+    for (outer, inner, expected) in [
+        (
+            declarations[1],
+            declarations[2],
+            ["urn:one", "urn:two", "urn:one", "", ""],
+        ),
+        (
+            declarations[2],
+            declarations[1],
+            ["urn:two", "urn:one", "urn:two", "", ""],
+        ),
+    ] {
+        let mut base = StandaloneExpressionContext::default();
+        for (name, id) in [
+            ("library", outer),
+            ("other", inner),
+            ("reset", element(&input, "@default")),
+        ] {
+            base = base.with_binding(
+                name,
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(input.tree.clone(), id)
+                        .unwrap()
+                        .query_item(),
+                )),
+            );
+        }
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(input.tree.clone(), Some(base.clone()), policy.clone());
+        host.attach_captured_namespaces(input.captured.clone())
+            .unwrap();
+        // The outer property's general expression runs with original fixed v.
+        let selector_names = Arc::new(
+            NamespaceNameCompletion::new(
+                input.captured.clone(),
+                &[native[0].value.node_id()],
+                BTreeMap::new(),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            selector_names
+                .lexical_snapshot(&native[0].value)
+                .unwrap()
+                .namespace_uri("v"),
+            Some("urn:fixed")
+        );
+        host.attach_completed_namespace_lexical_scopes(&selector_names, |_, _, _| {
+            (Some(base.clone()), ReferenceScopePolicyOverrides::default())
+        })
+        .unwrap();
+        let outer_result = host
+            .prepare_namespace_property(handle(properties[0]), policy.limits)
+            .unwrap();
+        assert!(outer_result.is_ready());
+        // Child/reset selectors wait for the saved outer binding. Their roots
+        // exclude governed children and never borrow a later child binding.
+        let selector_activation = host
+            .activate_namespace_properties(
+                input.captured.clone(),
+                &[native[1].value.node_id(), native[2].value.node_id()],
+                &[outer_result.clone()],
+                |source, snapshot, _, _| {
+                    assert!(
+                        source.node_id() == native[1].value.node_id()
+                            || source.node_id() == native[2].value.node_id()
+                    );
+                    assert_eq!(snapshot.namespace_uri("v"), Some(expected[0]));
+                    (Some(base.clone()), ReferenceScopePolicyOverrides::default())
+                },
+            )
+            .unwrap();
+        assert_eq!(selector_activation.scopes.len(), 2);
+        let inner_result = host
+            .prepare_namespace_property(handle(properties[1]), policy.limits)
+            .unwrap();
+        let reset_result = host
+            .prepare_namespace_property(handle(properties[2]), policy.limits)
+            .unwrap();
+        assert!(inner_result.is_ready() && reset_result.is_ready());
+        let mut seen = vec![];
+        let activation = host
+            .activate_namespace_properties(
+                input.captured.clone(),
+                &roots,
+                &[outer_result, inner_result, reset_result],
+                |source, snapshot, _, names| {
+                    let index = seen.len();
+                    assert_eq!(snapshot.namespace_uri(""), Some(expected[index]));
+                    seen.push(source.node_id());
+                    let view = NamespaceQueryTree::new(input.tree.clone(), names.clone()).unwrap();
+                    (
+                        Some(StandaloneExpressionContext::default().with_binding(
+                            "related",
+                            StandaloneExpressionBinding::any(ItemStream::once(
+                                view.node(roots[index]).unwrap(),
+                            )),
+                        )),
+                        ReferenceScopePolicyOverrides::default(),
+                    )
+                },
+            )
+            .unwrap();
+        assert_eq!(activation.scopes.len(), 4);
+        let response = run(
+            &input,
+            activation.completion.clone(),
+            "(input.namespace, input.source.namespace, input)",
+        );
+        assert_eq!(&items(&response)[..5], strings(&expected));
+        identities.push(items(&response)[10].identity());
+        let owner = response
+            .result
+            .input_ast_owner
+            .as_any()
+            .downcast_ref::<CemQlNativeItemsOwner>()
+            .unwrap();
+        let QuerySourceOwner::NamespaceCompleted { source, completion } = owner.source_owner()
+        else {
+            panic!("completed ingress");
+        };
+        assert!(Arc::ptr_eq(source, &input.tree));
+        assert!(Arc::ptr_eq(completion, &activation.completion));
+        assert_eq!(
+            activation
+                .completion
+                .expanded_name(element(&input, "fixed"))
+                .unwrap()
+                .namespace_uri,
+            ""
+        );
+        assert_eq!(
+            activation
+                .completion
+                .expanded_name(
+                    input
+                        .tree
+                        .ast()
+                        .nodes
+                        .iter()
+                        .find_map(|node| match node {
+                            CemAstNode::Attribute {
+                                node_id,
+                                expanded_name,
+                                ..
+                            } if expanded_name.local_name == "flag" => Some(*node_id),
+                            _ => None,
+                        })
+                        .unwrap()
+                )
+                .unwrap()
+                .namespace_uri,
+            "urn:fixed"
+        );
+        for source_id in seen {
+            use cem_ml::{
+                schema::declaration_references::SchemaDeclarationHost,
+                value::reference_resolution::resolve_reference,
+            };
+            let result = resolve_reference(
+                host.source_reference(handle(source_id)),
+                &mut host,
+                policy.limits,
+            )
+            .unwrap();
+            assert!(result.is_complete(), "{:?}", result.issues);
+            let source = host.declaration_node(&result.nodes[0]).unwrap();
+            assert!(Arc::ptr_eq(source.document(), input.tree.ast_owner()));
+        }
+        assert!(items(&response)[10].source_map().is_some());
+    }
+    assert_ne!(identities[0], identities[1]);
+    assert!(properties.iter().all(|id| input
+        .captured
+        .namespace_binding(input.tree.ast_owner(), *id)
+        .is_none()));
+    assert!(input.tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn property_activation_retries_keep_readiness_crossings_and_budgets_before_query_ingress() {
+    use cem_ml::{
+        schema::reference_policy::{ReferenceScopePolicy, ReferenceScopePolicyOverrides},
+        value::reference_resolution::{ReferenceResolutionIssueKind, ReferenceResolutionState},
+    };
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{ItemStream, RetainedCemNode},
+        schema_references::{
+            CemQlSchemaDeclarationHost, NamespacePropertyActivationError,
+            NamespaceScopePreparationIssue,
+        },
+    };
+    let input =
+        import("@ns v = urn:fixed\n{host @xmlns:v={#library} | {v:item | {#related}}} {outside}");
+    let vendor = import("@ns public = urn:ready\n{#library}");
+    let original =
+        SchemaDeclarationNode::new(input.tree.ast_owner().clone(), declaration(&input)).unwrap();
+    let target = element(&vendor, "@ns");
+    let link = vendor.captured.occurrences().next().unwrap();
+    let binding = |tree: &ScopedCemImport, id| {
+        StandaloneExpressionContext::default().with_binding(
+            "library",
+            StandaloneExpressionBinding::any(ItemStream::once(
+                RetainedCemNode::new(tree.tree.clone(), id)
+                    .unwrap()
+                    .query_item(),
+            )),
+        )
+    };
+    let policy = ReferenceScopePolicy::schema_defaults().unwrap();
+    let mut strict = policy.clone();
+    strict.limits.max_work = 1;
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let origin = host.register_scope(input.tree.clone(), None, policy.clone());
+    let destination = host.register_scope(vendor.tree.clone(), None, strict);
+    host.attach_captured_namespaces(input.captured.clone())
+        .unwrap();
+    host.attach_captured_namespaces(vendor.captured.clone())
+        .unwrap();
+    let roots = [element(&input, "item")];
+    let pending = host
+        .prepare_namespace_property(original.clone(), policy.limits)
+        .unwrap();
+    assert_eq!(
+        pending.preparation.as_ref().unwrap().selection.state,
+        ReferenceResolutionState::Pending
+    );
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[pending],
+            |_, _, _, _| panic!("pending source")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    host.set_context(origin, Some(binding(&vendor, target)));
+    let denied = host
+        .prepare_namespace_property(original.clone(), policy.limits)
+        .unwrap();
+    let scope_issue = denied
+        .preparation
+        .as_ref()
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .find(|issue| issue.kind == ReferenceResolutionIssueKind::ScopeDenied)
+        .unwrap();
+    assert!(!scope_issue.occurrence.source_map.frames.is_empty());
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[denied],
+            |_, _, _, _| panic!("denied crossing")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    assert!(host.allow_scope_crossing(origin, destination));
+    let pending_target = host
+        .prepare_namespace_property(original.clone(), policy.limits)
+        .unwrap();
+    assert_eq!(
+        pending_target.preparation.as_ref().unwrap().issue,
+        Some(NamespaceScopePreparationIssue::TargetContextNotReady)
+    );
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[pending_target],
+            |_, _, _, _| panic!("pending target")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    host.set_context(destination, Some(binding(&vendor, target)));
+    let mut limited = policy.limits;
+    limited.max_work = 1;
+    let request_bounded = host
+        .prepare_namespace_property(original.clone(), limited)
+        .unwrap();
+    assert!(request_bounded
+        .preparation
+        .as_ref()
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit));
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[request_bounded],
+            |_, _, _, _| panic!("request work cap")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    host.set_context(origin, Some(binding(&vendor, link)));
+    let destination_bounded = host
+        .prepare_namespace_property(original.clone(), policy.limits)
+        .unwrap();
+    assert!(destination_bounded
+        .preparation
+        .as_ref()
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(
+            |issue| issue.kind == ReferenceResolutionIssueKind::WorkLimit
+                && issue.reason == "scope-work-limit"
+        ));
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[destination_bounded],
+            |_, _, _, _| panic!("destination cap")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    let relaxed = host
+        .register_lexical_scope(destination, Some(binding(&vendor, target)), policy.clone())
+        .unwrap();
+    assert!(host.assign_subtree_scope(&vendor.tree, link, relaxed));
+    assert!(host.assign_subtree_scope(&vendor.tree, target, relaxed));
+    limited = policy.limits;
+    limited.max_depth = 1;
+    let depth_bounded = host
+        .prepare_namespace_property(original.clone(), limited)
+        .unwrap();
+    assert!(depth_bounded
+        .preparation
+        .as_ref()
+        .unwrap()
+        .selection
+        .issues
+        .iter()
+        .any(|issue| issue.kind == ReferenceResolutionIssueKind::DepthLimit));
+    assert!(matches!(
+        host.activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[depth_bounded],
+            |_, _, _, _| panic!("depth cap")
+        ),
+        Err(NamespacePropertyActivationError::PropertyNotReady(_))
+    ));
+    let ready = host
+        .prepare_namespace_property(original, policy.limits)
+        .unwrap();
+    assert!(ready.is_ready());
+    assert_eq!(ready.preparation.as_ref().unwrap().selection.work_used, 3);
+    // Activation consumes exactly this result. It does not traverse the chain
+    // again; current source inputs can be unavailable after explicit preparation.
+    host.set_context(origin, None);
+    let activation = host
+        .activate_namespace_properties(
+            input.captured.clone(),
+            &roots,
+            &[ready],
+            |_, snapshot, _, _| {
+                assert_eq!(snapshot.namespace_uri("v"), Some("urn:ready"));
+                (None, ReferenceScopePolicyOverrides::default())
+            },
+        )
+        .unwrap();
+    assert_eq!(activation.scopes.len(), 1);
+    let response = run(
+        &input,
+        activation.completion,
+        "(input.namespace, input.source.namespace)",
+    );
+    assert_eq!(items(&response), strings(&["urn:ready", "v"]));
+    assert!(input
+        .captured
+        .namespace_binding(input.tree.ast_owner(), declaration(&input))
+        .is_none());
+}

@@ -2027,19 +2027,49 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: pending declaration selectors use
       pre-declaration bindings; invalid cardinality and denied crossings cannot
       supply a URI; repeated consumers never write source targets or share results.
-- [ ] Integrate prepared namespace-property results with lifecycle activation
+- [x] Integrate prepared namespace-property results with lifecycle activation
       and selected-name completion. Preserve source-position dependencies, fixed
       completed QNames, child shadowing/restoration and pending governed regions;
       reuse explicit lexical handoff and native query ingress for execution.
+      Implemented: `activate_namespace_properties` consumes ready original property
+      reports and creates this execution's `NamespaceNameCompletion`. Owner,
+      duplicate declaration, original property shape, selected-name readiness and
+      occurrence assignment/dependency checks finish before callbacks or mutation.
+      The callback receives completion metadata for native context bindings and
+      supplies runtime readiness/local overrides through existing lexical handoff.
+      Missing callback inputs remain pending. Selector-only roots can activate
+      before their governed children; already assigned selectors stay excluded
+      from later roots. The same completion feeds shared query ingress without
+      reevaluating selectors, changing ASTs or manufacturing relationship grants.
       Scenarios for later design verification: earlier and later declarations do
       not rebind each other's saved uses; missing runtime input stays pending;
       child exit restores enclosing defaults without moving original source nodes.
-- [ ] Fixture: verify namespace-property lifecycle activation through shared
+- [x] Fixture: add ready-result namespace-property activation preflight in
+      `namespace_property_activation` and connect it to shared query ingress in
+      `namespace_query_ingress`. Verify multiple original declarations, missing
+      results, duplicate/foreign properties, pending retries and assignment
+      conflicts before callbacks or context mutation. Keep completed views
+      execution-local, and exercise child selector dependencies and restoration.
+      Scenarios for later design verification: incomplete results never install
+      partial contexts; selectors retain pre-declaration bindings; activation
+      neither restarts traversal nor grants a crossing.
+- [x] Fixture: verify namespace-property lifecycle activation through shared
       native query ingress and lexical completion handoff after those integrations.
       Cover independently completed executions, pending retries, pre-declaration
       selectors, general attribute expressions, default aliases/resets and nested
       child restoration. Assert original owners, fixed names, source maps and
       request/destination traversal bounds through the full lifecycle.
+      Implemented: `namespace_property_activation` covers missing/unused pending
+      dependencies, invalid/foreign/duplicate reports, assignment conflicts and
+      retry without partial contexts. `namespace_query_ingress` consumes multiple
+      prepared properties, stages child selectors with their original dependencies,
+      retains original default aliases and literal resets, restores enclosing
+      bindings and exposes independently completed native executions. Pending
+      source/target contexts, directed crossings and request/destination work/depth
+      failures reject before activation; ready results remain usable without
+      selector re-evaluation. Source owners, metadata and fixed names stay original.
+      Block-prelude aliases use the established normalized producer fixture;
+      this does not extend inline body directive syntax.
       Scenarios for later design verification: unavailable bindings block only
       their governed execution; retries reuse original dependencies; granting a
       crossing does not implicitly complete or activate a namespace property.
@@ -2051,6 +2081,24 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: supported consumers share native
       reference contracts without rewriting ASTs or inventing context IDs;
       remaining deferred work is distinguishable from implemented behavior.
+- [ ] Define per-execution publication and reuse of completed native namespace
+      declaration results. Selecting a pending declaration currently remains
+      `TargetBindingNotReady`, even after another consumer completed its value.
+      Specify how the lifecycle exposes those results to bounded target admission
+      without caching them on the source or restarting traversal/dependency budgets;
+      decide any additional value-consumption stage before implementation.
+      Scenarios for later design verification: a completed declaration can be
+      reused only in the execution that supplied its result; an incomplete target
+      never borrows inherited/later URIs or another execution's completion.
+- [ ] Wire the explicit namespace preparation/activation stages into an opt-in
+      document lifecycle coordinator after completed-declaration publication is
+      specified. Use caller-provided runtime inputs and original lexical dependencies
+      to stage selectors, retry pending regions and hand matching ready views to
+      validation/query consumers. Preserve ordinary parse/load/inspect behavior.
+      Scenarios for later design verification: waiting releases execution work;
+      unrelated ready regions stay consumable; separate instances never share
+      mutable namespace results, contexts or source targets.
+
 
 - [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs
