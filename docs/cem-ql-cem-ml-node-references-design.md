@@ -2772,9 +2772,19 @@ execution work cap with resource requests. Context changes invalidate the curren
 completion; another explicit preparation is required. Pending names stay excluded
 and creating a snapshot performs no namespace evaluation. Earlier values retain
 their original owner and completed view independently of disposal or later inputs.
-This query-name stage does not establish schema compiler readiness. Consuming
-loaded completed names during selected-schema compilation and rejecting pending
-declaration names remain explicit follow-ups with verification scenarios.
+This query-name stage alone does not establish schema compiler readiness.
+Validation hands current loaded-owner completions into selected-schema compilation
+as invocation views, restoring previous names on return or unwind. A bounded
+owning-subtree scan checks declaration QNames and native namespace properties
+before interpreting declarations or evaluating their selectors. Missing completion
+keeps the governed region incomplete, including reused declarations; unrelated
+pending roots outside the selected declaration remain independent. Request and
+destination work caps constrain a shared compilation metadata budget separately
+from reference traversal. Original owners, runtime contexts and directed crossing
+requirements remain intact; supplying inputs or grants does not prepare names.
+Replacing inputs invalidates the current completion and requires explicit
+preparation again. Native and two-heap WASM fixtures cover these admission states,
+work bounds, source retention and saved-view independence.
 
 Marked XML attribute slots preserve their syntax and captured bindings through
 the executable reload bundle. Native and two-heap WASM fixtures verify original

@@ -1721,3 +1721,171 @@ fn lexical_snapshots_retain_effective_policy_and_reject_foreign_parent() {
             .is_none());
     }
 }
+
+#[test]
+fn pending_reused_declaration_names_do_not_compile_or_change_original_owners() {
+    use cem_ml::{
+        import::import_bytes_with_lexical_scopes,
+        schema::{
+            declaration_references::{DeclarationNameIssueKind, SchemaDeclarationNode},
+            namespace_references::{admit_namespace_scope_target, NamespaceNameCompletion},
+            vocab::CompiledSchema,
+        },
+    };
+    use std::collections::BTreeMap;
+    let library = import_bytes_with_lexical_scopes(b"@ns s = https://cem.dev/ns/schema/1\n{s:schema @xmlns:p={#namespace} | {elements | {element @p:name=shared}}}","text/cem-ml","memory:library.cem",CompiledSchema::cem_core()).unwrap();
+    let source = tree("{schema | {elements | {#library}}}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let requesting = host.register_scope(
+        source.clone(),
+        Some(context(declarations(&library.tree))),
+        policy(),
+    );
+    let destination = host.register_scope(library.tree.clone(), Some(Default::default()), policy());
+    host.attach_captured_names(&library.captured).unwrap();
+    host.allow_scope_crossing(requesting, destination);
+    let pending = host.compile("selected", source.clone(), limits()).unwrap();
+    assert!(!pending.is_ready_for_validation());
+    assert_eq!(
+        pending.declaration_references.name_issues[0].kind,
+        DeclarationNameIssueKind::Pending
+    );
+    assert!(Arc::ptr_eq(
+        pending.declaration_references.name_issues[0]
+            .source
+            .document(),
+        library.tree.ast_owner()
+    ));
+    assert!(pending.elements.is_empty());
+    let property = library
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                value_nodes,
+                ..
+            } if expanded_name.namespace_uri == "xmlns" && !value_nodes.is_empty() => {
+                Some(*node_id)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let namespace = library
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .find_map(|n| match n {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "@ns" => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    let roots = match library.tree.ast().get(0).unwrap() {
+        CemAstNode::Document { root_children, .. } => root_children,
+        _ => panic!(),
+    };
+    let completion = Arc::new(
+        NamespaceNameCompletion::new(
+            library.captured.clone(),
+            roots,
+            BTreeMap::from([(
+                property,
+                admit_namespace_scope_target(
+                    SchemaDeclarationNode::new(library.tree.ast_owner().clone(), namespace)
+                        .unwrap(),
+                    &library.captured,
+                )
+                .unwrap(),
+            )]),
+        )
+        .unwrap(),
+    );
+    let ready = host
+        .with_completed_namespace_names(completion, |host| {
+            host.compile("selected", source.clone(), limits())
+        })
+        .unwrap()
+        .unwrap();
+    assert!(
+        ready.is_ready_for_validation(),
+        "{:?}",
+        ready.declaration_references
+    );
+    assert!(ready.elements.contains_key("shared"));
+    assert!(!host
+        .compile("selected", source, limits())
+        .unwrap()
+        .is_ready_for_validation());
+    assert!(library.tree.ast().nodes.iter().any(|node|matches!(node,CemAstNode::Attribute{expanded_name,..} if expanded_name.namespace_uri=="p")));
+}
+#[test]
+fn declaration_name_checks_obey_destination_and_request_work_limits() {
+    use cem_ml::schema::declaration_references::DeclarationNameIssueKind;
+    for (destination_cap, request_cap) in [(2, 100000), (100000, 3)] {
+        let source = tree("{schema|{elements|{#library}}}");
+        let imported = cem_ml::import::import_bytes_with_lexical_scopes(
+            b"{elements | {element @name=shared @required-attributes='one two three' @optional-attributes=four}}",
+            "text/cem-ml", "memory:bounds.cem", cem_ml::schema::vocab::CompiledSchema::cem_core(),
+        ).unwrap();
+        let library = imported.tree.clone();
+        let mut host = CemQlSchemaDeclarationHost::new();
+        let request = host.register_scope(
+            source.clone(),
+            Some(context(declarations(&library))),
+            policy(),
+        );
+        let mut destination_policy = policy();
+        destination_policy.limits.max_work = destination_cap;
+        let destination =
+            host.register_scope(library, Some(Default::default()), destination_policy);
+        host.attach_captured_names(&imported.captured).unwrap();
+        host.allow_scope_crossing(request, destination);
+        let result = host
+            .compile(
+                "bounded",
+                source,
+                ReferenceTraversalLimits {
+                    max_depth: 128,
+                    max_work: request_cap,
+                },
+            )
+            .unwrap();
+        assert!(!result.is_ready_for_validation());
+        assert_eq!(
+            result.declaration_references.name_issues[0].kind,
+            DeclarationNameIssueKind::WorkLimit
+        );
+        assert!(result.compile_diagnostics.is_empty());
+    }
+}
+
+#[test]
+fn pending_authored_names_defer_declaration_selectors_before_compilation() {
+    use cem_ml::{import::import_bytes_with_lexical_scopes, schema::vocab::CompiledSchema};
+    let source = import_bytes_with_lexical_scopes(
+        b"{schema @xmlns:p={#namespace}|{p:elements|{#unavailable}}}",
+        "text/cem-ml",
+        "memory:pending.cem",
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    host.register_scope(source.tree.clone(), Some(Default::default()), policy());
+    host.attach_captured_names(&source.captured).unwrap();
+    let result = host.compile("selected", source.tree, limits()).unwrap();
+    assert!(!result.is_ready_for_validation());
+    assert!(result.compile_diagnostics.is_empty());
+    assert!(
+        result.declaration_references.sites.is_empty(),
+        "selectors must not run under pending declaration names"
+    );
+    assert!(!result.declaration_references.name_issues.is_empty());
+}

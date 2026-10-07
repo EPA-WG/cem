@@ -154,6 +154,38 @@ function resources() {
     wasm.disposeReferenceResourceExecution(run);
     fail(() => wasm.advanceReferenceResourceExecution(run), 'cem.reference.validation');
 }
+function loadedSchemaNames() {
+    for (const mode of ['pending', 'ready', 'replaced', 'denied']) {
+        const input = wasm.parseReferenceSource(encode('{host @schema-src=child.cem#leaf | {leaf}}'), 'text/cem-ml', 'https://vendor.test/main.cem', '');
+        const base = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=host @children=leaf}}}'), 'text/cem-ml', 'memory:base.cem', '');
+        const parent = wasm.beginReferenceValidationSession(input, base);
+        wasm.setReferenceValidationContext(parent, 0, true, '[]');
+        const run = wasm.startReferenceResourceExecution(parent);
+        const request = JSON.parse(wasm.advanceReferenceResourceExecution(run)).result[0];
+        const bytes = encode('@ns s = https://cem.dev/ns/schema/1\n{s:schema @xmlns:p={#namespace} | {p:elements | {p:element @name=leaf}}}');
+        const loaded = JSON.parse(wasm.completeReferenceResourceWithExports(run, request.id, bytes, 'text/cem-ml', 'https://vendor.test/child.cem', JSON.stringify([{part:'leaf',select:'seq:where(input.children, fn(node) => node.kind == "element" && node.name == "schema")'}])));
+        const namespace = wasm.queryReferenceSource(loaded.sourceId, 'seq:where(input.children, fn(node) => node.kind == "element" && node.name == "@ns")', 'memory:namespace.cemql');
+        wasm.setReferenceResourceContext(run, loaded.sourceIndex, true, JSON.stringify([{name:'namespace',valueId:namespace}]));
+        let saved;
+        if (mode !== 'pending') {
+            assert.equal(JSON.parse(wasm.prepareReferenceResourceNamespaces(run, loaded.sourceIndex)).complete, true);
+            saved = wasm.prepareReferenceResourceQuerySnapshot(run, loaded.sourceIndex);
+        }
+        if (mode === 'replaced') wasm.setReferenceResourceContext(run, loaded.sourceIndex, true, '[]');
+        if (mode !== 'denied') wasm.allowReferenceResourceCrossing(run, 0, loaded.sourceIndex);
+        const result = JSON.parse(wasm.advanceReferenceResourceExecution(run)).result;
+        assert.equal(result.complete, mode === 'ready', JSON.stringify({mode, result}));
+        assert.equal(result.failed, false);
+        wasm.disposeReferenceResourceExecution(run);
+        wasm.disposeReferenceValidationSession(parent);
+        for (const id of [input, base, loaded.sourceId]) wasm.disposeReferenceSource(id);
+        wasm.disposeNativeValueArtifact(namespace);
+        if (saved !== undefined) {
+            assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(saved)).complete, true);
+            wasm.disposeReferenceQuerySnapshot(saved);
+        }
+    }
+}
 function snapshots() {
     const source = wasm.parseReferenceSource(encode('@ns public = urn:vendor\n{item @xmlns:p={#namespace} | {p:item} {#later}}'), 'text/cem-ml', 'memory:names.cem', '');
     const schema = wasm.parseReferenceSource(encode('{schema}'), 'text/cem-ml', 'memory:schema.cem', '');
@@ -234,6 +266,7 @@ function hostAdapters() {
     for(const id of [snapshot,saved,pendingNames]) wasm.disposeReferenceQuerySnapshot(id);
 }
 hostAdapters();
+loadedSchemaNames();
 resources();
 snapshots();
 

@@ -27,6 +27,48 @@ impl Drop for NameInvocation<'_> {
 }
 
 impl CemQlSchemaDeclarationHost {
+    /// Install independently prepared owners together for one consumer invocation.
+    /// Iterative guards avoid nesting the stack once per loaded resource.
+    pub(super) fn with_completed_namespace_name_views<R, F>(
+        &mut self,
+        completions: &[Arc<NamespaceNameCompletion>],
+        consume: F,
+    ) -> Result<R, LexicalScopeHandoffError>
+    where
+        F: FnOnce(&mut Self) -> R,
+    {
+        for completion in completions {
+            self.attach_captured_names(completion.captured())?;
+        }
+        struct Views<'a> {
+            host: &'a mut CemQlSchemaDeclarationHost,
+            previous: Vec<(usize, Option<Arc<NamespaceNameCompletion>>)>,
+        }
+        impl Drop for Views<'_> {
+            fn drop(&mut self) {
+                for (owner, names) in self.previous.drain(..).rev() {
+                    if let Some(names) = names {
+                        self.host.namespace_name_completions.insert(owner, names);
+                    } else {
+                        self.host.namespace_name_completions.remove(&owner);
+                    }
+                }
+            }
+        }
+        let mut views = Views {
+            host: self,
+            previous: Vec::with_capacity(completions.len()),
+        };
+        for completion in completions {
+            let owner = Arc::as_ptr(completion.captured().document()) as usize;
+            let previous = views
+                .host
+                .namespace_name_completions
+                .insert(owner, completion.clone());
+            views.previous.push((owner, previous));
+        }
+        Ok(consume(views.host))
+    }
     /// Supply one registered owner's completed selected forest for the consumer
     /// invocation. Original capture is attached idempotently and never changed;
     /// completion restores on return, errors and unwind. A nested invocation for

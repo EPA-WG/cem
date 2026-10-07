@@ -713,3 +713,117 @@ fn marked_xml_entity_expression_diagnostics_retain_authored_spans_after_reload()
             }
         )));
 }
+
+fn stage_schema_names(
+    run: &mut cem_ql::api::reference_lifecycle::resources::ReferenceResourceExecution,
+    extra: &str,
+) -> cem_ql::api::reference_lifecycle::resources::ReferenceLoadedSource {
+    let ReferenceResourceProgress::AwaitResources(requests) = run.advance().unwrap() else {
+        panic!()
+    };
+    let mut response = response();
+    response.bytes = format!("@ns s = https://cem.dev/ns/schema/1\n{{s:schema @xmlns:p={{#namespace}} | {{p:elements | {{p:element @name=leaf}}}}}}\n{extra}").into_bytes();
+    run.complete_with_exports(requests[0].id, Ok(response), |imported, _| {
+        Ok(imported
+            .tree
+            .ast()
+            .nodes
+            .iter()
+            .filter_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "schema" => {
+                    SchemaDeclarationNode::new(imported.tree.ast_owner().clone(), *node_id)
+                }
+                _ => None,
+            })
+            .collect())
+    })
+    .unwrap()
+    .unwrap()
+}
+#[test]
+fn loaded_schema_names_require_current_preparation_before_activation() {
+    for mode in ["pending", "ready", "replaced", "denied"] {
+        let parent = uri_session();
+        let mut run = parent.start_resources(Default::default()).unwrap();
+        let loaded = stage_schema_names(&mut run, "");
+        let authored = format!("{:?}", loaded.source.ingress().source().ast().nodes);
+        run.set_loaded_context(loaded.index, Some(namespace_context(&loaded.source)))
+            .unwrap();
+        let saved = if mode != "pending" {
+            assert!(run.prepare_loaded_names(loaded.index).unwrap().complete);
+            Some(run.query_snapshot(loaded.index).unwrap())
+        } else {
+            None
+        };
+        if mode == "replaced" {
+            run.set_loaded_context(loaded.index, Some(Default::default()))
+                .unwrap();
+        }
+        if mode != "denied" {
+            run.allow_crossing(0, loaded.index).unwrap();
+        }
+        let ReferenceResourceProgress::Finished(report) = run.advance().unwrap() else {
+            panic!()
+        };
+        assert_eq!(report.complete, mode == "ready", "mode={mode} {report:?}");
+        assert!(!report.failed, "mode={mode} {report:?}");
+        assert_eq!(
+            authored,
+            format!("{:?}", loaded.source.ingress().source().ast().nodes)
+        );
+        if let Some(saved) = saved {
+            assert!(saved.report().complete);
+        }
+    }
+}
+#[test]
+fn unrelated_loaded_pending_roots_do_not_block_a_prepared_selected_schema() {
+    let parent = uri_session();
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_schema_names(&mut run, "{other @xmlns:q={#unavailable} | {q:item}}");
+    run.set_loaded_context(loaded.index, Some(namespace_context(&loaded.source)))
+        .unwrap();
+    let names = run.prepare_loaded_names(loaded.index).unwrap();
+    assert!(!names.complete);
+    run.allow_crossing(0, loaded.index).unwrap();
+    let ReferenceResourceProgress::Finished(report) = run.advance().unwrap() else {
+        panic!()
+    };
+    assert!(report.complete && !report.failed, "{report:?}");
+    assert!(!run.query_snapshot(loaded.index).unwrap().report().complete);
+}
+#[test]
+fn completed_loaded_declarations_are_compiled_instead_of_an_empty_fallback() {
+    let mut parent = ReferenceValidationSession::new(
+        parse(
+            "{host @schema-src=lib.cem#leaf | {leaf}{forbidden}}",
+            "https://vendor.test/main.cem",
+        ),
+        parse(
+            "{schema | {elements | {element @name=host @children='leaf forbidden'}}}",
+            "memory:base.cem",
+        ),
+    );
+    parent.set_context(0, Some(Default::default())).unwrap();
+    let mut run = parent.start_resources(Default::default()).unwrap();
+    let loaded = stage_schema_names(&mut run, "");
+    run.set_loaded_context(loaded.index, Some(namespace_context(&loaded.source)))
+        .unwrap();
+    assert!(run.prepare_loaded_names(loaded.index).unwrap().complete);
+    run.allow_crossing(0, loaded.index).unwrap();
+    let ReferenceResourceProgress::Finished(report) = run.advance().unwrap() else {
+        panic!()
+    };
+    assert!(report.complete && report.failed, "{report:?}");
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("forbidden")),
+        "{report:?}"
+    );
+}

@@ -77,6 +77,21 @@ impl Inputs {
     }
 }
 impl SchemaValidationSessionInputs for Inputs {
+    fn loaded_namespace_completions(&self) -> Vec<Arc<NamespaceNameCompletion>> {
+        self.state
+            .lock()
+            .unwrap()
+            .loaded
+            .iter()
+            .map(|loaded| {
+                loaded
+                    .namespace
+                    .as_ref()
+                    .map(|snapshot| snapshot.completion.clone())
+                    .unwrap_or_else(|| loaded.names.clone())
+            })
+            .collect()
+    }
     fn namespace_lifecycle_enabled(&self) -> bool {
         true
     }

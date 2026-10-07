@@ -120,9 +120,15 @@ reload/snapshot identity and entity diagnostics. Both native reference slots and
 general expression slots are consumed after reload, while unlisted attributes
 stay literal and target descendants stay authored. Worker reload starts with
 independent contexts and grants and preserves entity source spans. Query-name
-readiness does not establish selected-schema compilation readiness; the remaining
-compiler handoff and pending-declaration guard are recorded separately.
-The maintained target passes 306 native checks in 36 suites and both real WASM
+readiness alone does not establish selected-schema compilation readiness.
+Validation now installs current loaded-owner completions for compilation and
+restores prior views afterward. Pending declaration names defer selector execution
+and model activation, with request/destination metadata work bounds. Six further
+native cases verify unprepared/prepared/replaced/denied admission, independent
+pending roots, actual compiled declarations, borrowed declaration owners, bounded
+name scans and invocation restoration. Both WASM heaps exercise all four admission
+states and retain independent saved query views.
+The maintained target passes 312 native checks in 36 suites and both real WASM
 worker fixtures (2026-10-07). Actionable follow-ups retain their scenarios in
 [todo.md](todo.md#next-three-reference-follow-ups).
 

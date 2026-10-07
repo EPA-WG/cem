@@ -298,6 +298,12 @@ impl<F> SchemaDeclarationHost for RuntimeHost<'_, F>
 where
     F: for<'a> FnMut(SchemaHostRuntimeContextRequest<'a>) -> Option<StandaloneExpressionContext>,
 {
+    fn declaration_name_metadata_required(&self, source: &SchemaDeclarationNode) -> bool {
+        self.host.declaration_name_metadata_required(source)
+    }
+    fn declaration_namespace_is_ready(&self, source: &SchemaDeclarationNode) -> bool {
+        self.host.declaration_namespace_is_ready(source)
+    }
     fn input_consumed_namespace_attribute(&self, source: &SchemaDeclarationNode) -> bool {
         SchemaDeclarationHost::input_consumed_namespace_attribute(self.host, source)
     }

@@ -689,6 +689,17 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn declaration_name_metadata_required(&self, source: &SchemaDeclarationNode) -> bool {
+        self.captured_names
+            .contains_key(&(Arc::as_ptr(source.document()) as usize))
+    }
+    fn declaration_namespace_is_ready(&self, source: &SchemaDeclarationNode) -> bool {
+        let owner = Arc::as_ptr(source.document()) as usize;
+        self.namespace_name_completions
+            .get(&owner)
+            .is_some_and(|names| names.binding_namespace_uri(source).is_ok())
+            || self.input_consumed_namespace_attribute(source)
+    }
     fn input_consumed_namespace_attribute(&self, source: &SchemaDeclarationNode) -> bool {
         if !matches!(source.node(), CemAstNode::Attribute { .. }) {
             return false;

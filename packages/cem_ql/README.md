@@ -513,9 +513,23 @@ before preparation. Pending names remain excluded; creating a snapshot does not
 evaluate namespace properties. Original
 schema/additional registered owners without a saved completion are rejected.
 Saved views and results survive parent/execution disposal and later input changes.
-Loaded query-name preparation is independent of schema compilation. Propagating
-these views into selected-schema compilation and guarding pending declaration
-names are tracked in `docs/todo.md` under the reference follow-ups.
+Validation installs the current loaded-owner completed-name views for selected
+schema compilation, restoring the previous views afterward. A bounded scan of
+each selected declaration's owning subtree checks QName and native namespace
+readiness before compiling declarations or evaluating their selectors. Pending
+names keep the governed region incomplete; unrelated pending roots do not block
+a ready selected schema. Request and destination work limits both apply to a
+compilation-wide metadata budget, separate from reference traversal accounting.
+Replacing destination inputs requires fresh explicit namespace preparation;
+saved query views remain immutable.
+
+Embedding validation sessions supply foreign-owner completions through
+`SchemaValidationSessionInputs::loaded_namespace_completions`. Declaration hosts
+with pending lexical metadata opt into readiness checks through
+`SchemaDeclarationHost::declaration_name_metadata_required`, supplying current
+expanded names and namespace-property readiness without evaluation. Fixed legacy
+AST hosts retain their existing complete-name path. Original owner/node handles
+are preserved; the name scan does not follow reference target or context edges.
 
 `prepareReferenceQuerySnapshot(session)` creates an immutable local namespace
 execution view. `inspectReferenceQuerySnapshot` returns its readiness report;

@@ -25,6 +25,8 @@ use std::{
 
 pub(crate) mod attribute_types;
 pub(crate) mod element_bases;
+mod names;
+pub use names::{DeclarationNameIssue, DeclarationNameIssueKind};
 
 pub const INVALID_REFERENCE_TARGET: &str = "cem.schema_definition.invalid_reference_target";
 
@@ -59,6 +61,16 @@ impl SchemaDeclarationNode {
 }
 
 pub trait SchemaDeclarationHost: ReferenceResolutionHost {
+    /// Opt in when original lexical metadata can contain pending QName bindings.
+    /// Fixed legacy AST hosts already supply complete names and need no scan.
+    fn declaration_name_metadata_required(&self, _source: &SchemaDeclarationNode) -> bool {
+        false
+    }
+    /// Readiness of a native namespace property within a checked declaration.
+    /// This inspects an explicit completion; compilation never evaluates it.
+    fn declaration_namespace_is_ready(&self, _source: &SchemaDeclarationNode) -> bool {
+        true
+    }
     /// True only for an original namespace attribute whose own consumer has
     /// completed its binding. It is scope metadata, not an application data field.
     fn input_consumed_namespace_attribute(&self, _source: &SchemaDeclarationNode) -> bool {
@@ -179,6 +191,8 @@ impl DeclarationReferenceSite {
 #[derive(Debug, Clone, Default)]
 pub struct DeclarationReferenceCompilation {
     pub sites: Vec<DeclarationReferenceSite>,
+    /// Original name dependencies, kept separate from reference occurrences.
+    pub name_issues: Vec<DeclarationNameIssue>,
 }
 impl DeclarationReferenceCompilation {
     pub fn state(&self) -> ReferenceResolutionState {
@@ -194,19 +208,25 @@ impl DeclarationReferenceCompilation {
         ]
         .into_iter()
         .find(|state| states.contains(state))
-        .unwrap_or(ReferenceResolutionState::Resolved)
+        .unwrap_or(if self.name_issues.is_empty() {
+            ReferenceResolutionState::Resolved
+        } else {
+            ReferenceResolutionState::Pending
+        })
     }
     pub fn is_complete(&self) -> bool {
         self.state() == ReferenceResolutionState::Resolved
     }
     pub(crate) fn collection_is_complete(&self, kind: SchemaDeclarationKind) -> bool {
-        self.sites
-            .iter()
-            .filter(|site| site.kind == kind)
-            .all(|site| {
-                site.state() == ReferenceResolutionState::Resolved
-                    && !site.resolution.as_ref().is_some_and(|r| r.failed)
-            })
+        self.name_issues.is_empty()
+            && self
+                .sites
+                .iter()
+                .filter(|site| site.kind == kind)
+                .all(|site| {
+                    site.state() == ReferenceResolutionState::Resolved
+                        && !site.resolution.as_ref().is_some_and(|r| r.failed)
+                })
     }
     pub fn failed(&self) -> bool {
         self.sites
@@ -286,6 +306,22 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
 ) -> Result<SchemaDocumentModel, ReferenceResolutionError> {
     let mut declarations: BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>> = BTreeMap::new();
     let mut compilation = DeclarationReferenceCompilation::default();
+    let mut name_work = 0;
+    if let Some(source) = schema_id.and_then(|id| SchemaDeclarationNode::new(document.clone(), id))
+    {
+        if let Err(issue) = names::check(&source, host, limits, &mut name_work) {
+            compilation.name_issues.push(issue);
+            // Retain an inspectable incomplete candidate without interpreting
+            // declarations or evaluating selectors under unavailable names.
+            return Ok(document_model::compile_document_model_with_declarations(
+                schema_uri,
+                &document,
+                None,
+                &declarations,
+                compilation,
+            ));
+        }
+    }
     let mut seen = BTreeSet::from([schema_uri.to_owned()]);
     for (id, kind) in document_model::declaration_reference_sites(&document, schema_id) {
         let expected_kind = kind.node_name();
@@ -303,6 +339,8 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
                 occurrence.clone(),
                 false,
                 &mut seen,
+                &mut name_work,
+                &mut compilation.name_issues,
             )?;
             declarations.insert(id, models);
             compilation.sites.push(DeclarationReferenceSite {
@@ -343,6 +381,13 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
                 continue;
             };
             resolution.nodes.push(target.clone());
+            if let Err(issue) = names::check(&target, host, limits, &mut name_work) {
+                if resolution.state == ReferenceResolutionState::Resolved {
+                    resolution.state = ReferenceResolutionState::Pending;
+                }
+                compilation.name_issues.push(issue);
+                continue;
+            }
             let lexical_schema = host.declaration_schema(&target);
             let declaring_uri = lexical_schema
                 .as_ref()
@@ -462,6 +507,7 @@ fn compile_schema_at<H: SchemaDeclarationHost>(
         &mut seen,
         &mut declarations,
         &mut compilation,
+        &mut name_work,
     )?;
     Ok(document_model::compile_document_model_with_declarations(
         schema_uri,

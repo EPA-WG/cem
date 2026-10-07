@@ -2978,25 +2978,51 @@ checks in 36 suites and both real WASM worker fixtures. The 14 host adapter case
 include five new loaded-namespace and XML reload cases. These two follow-ups are
 complete; selected-schema compiler name readiness remains tracked below.
 
-- [ ] Fixture and implementation: hand loaded-owner completed-name views into
+- [x] Fixture and implementation: hand loaded-owner completed-name views into
       selected-schema admission/compilation and guard pending declaration names
       before activating a model. Preserve original owners, invocation restoration,
       requesting/destination contexts and crossing checks; query readiness alone
       must not claim schema readiness. Reproduce a loaded `s:schema` whose
       `p:elements`/`p:element` names depend on `@xmlns:p={#namespace}`: supplying
-      context without namespace preparation currently permits completion.
+      context without namespace preparation previously permitted completion.
       Scenarios for later design verification: missing name completion keeps the
       governed region incomplete; explicit preparation enables the original
       declaration; replacing inputs cannot reuse stale compiled names, and pending
       constructs cannot be silently ignored into an apparently complete model.
+- [x] Fixture: verify loaded schema name admission before/after explicit preparation,
+      replaced destination inputs, independent pending roots, separate crossings,
+      original owner retention, and bounded name checks. Cover referenced
+      declarations and restoration of a completed view after compilation too.
+      Scenarios for later design verification: no selector runs while declaration
+      names are pending; prepared views do not turn unrelated roots into blockers
+      or survive replacement as the current compilation view.
+- [x] Fixture: exercise the loaded-name compiler handoff and pending-name guard in
+      the maintained two-heap WASM resource fixture after native checks pass.
+      Scenarios for later design verification: runtime inputs plus a crossing grant
+      cannot activate an unprepared schema; a saved old query view remains immutable.
+
+Verification (2026-10-07): `cem_ql:test:reference-consumers` passes 312 native
+checks in 36 suites and both real WASM worker fixtures. Current loaded-name views
+reach selected-schema and reused-declaration compilation; pending metadata stops
+selectors and activation under request/destination work caps. Six added native
+cases and both WASM heaps cover preparation, replacement, crossing grants,
+independent roots, original owners and invocation restoration.
+
 - [ ] Design the deferred cem-element reference-to-ID consumption mode now that
       the CEM-ML reference syntax is settled. Detect native template references,
       resolve element targets at transformation time, preserve explicit IDs and
-      generate scoped IDs only when the consumer needs them; define compatibility
-      with existing local-name convenience attributes before implementation.
+      generate scoped IDs only when the consumer needs them. Define evaluation
+      timing and target-to-produced-element mapping before implementation.
       Scenarios for later design verification: two instances share one template
       with distinct datadom inputs and IDs; cross-scope relationships are explicit;
       source references remain typed and unchanged by DOM projection.
+- [ ] Design the cem-element interaction attribute API for typed node references
+      and explicit cross-scope relationships, including compatibility with existing
+      local-name convenience attributes. Adopt it with the reference-to-ID mode
+      before implementing the shared transformation path.
+      Scenarios for later design verification: local conveniences keep their
+      documented scope; explicit native relationships preserve target identity;
+      unsupported crossings and incomplete targets cannot fabricate valid DOM IDs.
 
 After that consumer design is adopted, the third follow-up is its existing
 [shared transformation implementation item](#deferred-cem-element-reference-consumption).
@@ -3369,6 +3395,8 @@ establish ownership; adoption does not choose or implement the consumer mode.
       explicit cross-scope relationships, and compatibility with local-name
       conveniences in this consumer work. The runtime supplies evaluation
       context and timing; ID generation and extraction remain consumer-owned.
+      The two design actions in [the reference follow-ups](#next-three-reference-follow-ups)
+      track this contract's mode and interaction API separately.
 - [ ] After that consumer contract is specified, implement and verify the
       reference-to-ID mode in the shared `cem-elements` transformation path.
       Add actionable fixture items before creating fixtures.

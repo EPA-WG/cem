@@ -61,6 +61,12 @@ pub trait SchemaValidationSessionInputs: Debug + Send {
     /// Ready names remain original-owner execution views. The runtime may retain
     /// this completion for shared query ingress or subsequent context preparation.
     fn namespace_inspected(&mut self, _snapshot: &NamespaceLifecycleSnapshot) {}
+    /// Explicitly prepared foreign-owner views. Their installation supplies no
+    /// runtime inputs, relationship grants or implicit namespace evaluation.
+    fn loaded_namespace_completions(&self) -> Vec<Arc<NamespaceNameCompletion>> {
+        vec![]
+    }
+
     fn runtime_context(
         &mut self,
         request: SchemaHostRuntimeContextRequest<'_>,
@@ -238,6 +244,7 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
         else {
             return Err(vec![self.error("Input source is not a retained document")]);
         };
+        let loaded_names = self.inputs.loaded_namespace_completions();
         let mut namespace_complete = true;
         let mut namespace_diagnostics = vec![];
         let report = if self.inputs.namespace_lifecycle_enabled() {
@@ -259,15 +266,18 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
                     },
                     |host, snapshot| {
                         inputs.borrow_mut().namespace_inspected(snapshot);
-                        host.validate_input_runtime_host_regions_with_behavior_evaluator(
-                            &request.model.schema_uri,
-                            request.source.clone(),
-                            &snapshot.ready_roots,
-                            &request.model,
-                            request.policy.limits,
-                            |context| inputs.borrow_mut().runtime_context(context),
-                            request.behavior_evaluator.as_deref(),
-                        )
+                        with_loaded_names(host, &loaded_names, |host| {
+                            host.validate_input_runtime_host_regions_with_behavior_evaluator(
+                                &request.model.schema_uri,
+                                request.source.clone(),
+                                &snapshot.ready_roots,
+                                &request.model,
+                                request.policy.limits,
+                                |context| inputs.borrow_mut().runtime_context(context),
+                                request.behavior_evaluator.as_deref(),
+                            )
+                            .map_err(|error| error.to_string())
+                        })
                     },
                 )
                 .map_err(|error| vec![self.error(format!("Namespace lifecycle: {error:?}"))])?;
@@ -280,8 +290,8 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
             validation
         } else {
             let inputs = &mut self.inputs;
-            self.host
-                .validate_input_runtime_host_regions_with_behavior_evaluator(
+            with_loaded_names(&mut self.host, &loaded_names, |host| {
+                host.validate_input_runtime_host_regions_with_behavior_evaluator(
                     &self.request.model.schema_uri,
                     self.request.source.clone(),
                     root_children,
@@ -290,6 +300,8 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
                     |request| inputs.runtime_context(request),
                     self.request.behavior_evaluator.as_deref(),
                 )
+                .map_err(|error| error.to_string())
+            })
         }
         .map_err(|error| vec![self.error(error.to_string())])?;
         self.check_active()?;
@@ -379,4 +391,16 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
             diagnostics,
         }))
     }
+}
+
+fn with_loaded_names<F>(
+    host: &mut CemQlSchemaDeclarationHost,
+    names: &[Arc<NamespaceNameCompletion>],
+    consume: F,
+) -> Result<SchemaHostRuntimeValidation, String>
+where
+    F: FnOnce(&mut CemQlSchemaDeclarationHost) -> Result<SchemaHostRuntimeValidation, String>,
+{
+    host.with_completed_namespace_name_views(names, consume)
+        .map_err(|error| format!("Loaded namespace names: {error:?}"))?
 }

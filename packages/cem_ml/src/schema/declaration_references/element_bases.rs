@@ -117,6 +117,8 @@ pub(crate) fn compile<H: SchemaDeclarationHost>(
     origin: ReferenceOccurrence,
     owning: bool,
     seen: &mut BTreeSet<String>,
+    name_work: &mut usize,
+    name_issues: &mut Vec<DeclarationNameIssue>,
 ) -> Result<
     (
         Vec<CompiledSchemaDeclaration>,
@@ -127,8 +129,15 @@ pub(crate) fn compile<H: SchemaDeclarationHost>(
     use crate::value::reference_resolution::{
         resolve_consumer_structure, resolve_reference_structure,
     };
+    let initial_issues = name_issues.len();
+    let mut blocked = BTreeSet::new();
     let children = |host: &H, value: &H::Node| {
         let target = host.declaration_node(value)?;
+        if let Err(issue) = names::check(&target, host, limits, name_work) {
+            blocked.insert(target.identity());
+            name_issues.push(issue);
+            return None;
+        }
         if !is_element(target.node(), "element") {
             return None;
         }
@@ -165,12 +174,20 @@ pub(crate) fn compile<H: SchemaDeclarationHost>(
         diagnostics: walk.resolution.diagnostics,
         work_used: walk.resolution.work_used,
     };
+    if name_issues.len() != initial_issues {
+        if result.state == ReferenceResolutionState::Resolved {
+            result.state = ReferenceResolutionState::Pending;
+        }
+    }
     let mut models = vec![None; walk.resolution.nodes.len()];
     for index in (0..models.len()).rev() {
         let target = host.declaration_node(&walk.resolution.nodes[index]);
         let mut occurrence = walk.origins[index].clone();
         let mut error = None;
         if let Some(target) = target.as_ref() {
+            if blocked.contains(&target.identity()) {
+                continue;
+            }
             let lexical = host.declaration_schema(target);
             let aliases = match lexical {
                 Some(schema)
@@ -255,6 +272,7 @@ pub(crate) fn compile_authored<H: SchemaDeclarationHost>(
     seen: &mut BTreeSet<String>,
     declarations: &mut BTreeMap<AstNodeId, Vec<CompiledSchemaDeclaration>>,
     compilation: &mut DeclarationReferenceCompilation,
+    name_work: &mut usize,
 ) -> Result<(), ReferenceResolutionError> {
     for (declaration, attribute) in authored_bases(document, schema_id) {
         let Some(reference) = source_reference(document, attribute) else {
@@ -279,6 +297,8 @@ pub(crate) fn compile_authored<H: SchemaDeclarationHost>(
             occurrence.clone(),
             true,
             seen,
+            name_work,
+            &mut compilation.name_issues,
         )?;
         declarations.insert(declaration, models);
         compilation.sites.push(DeclarationReferenceSite {
