@@ -176,7 +176,7 @@ fn import_xml_ast_tracked(
                     }
                     attribute_nodes[index].push(aid);
                 }
-                if let Some(capture) = capture.as_mut() { capture.open(event, id); }
+                if let Some(capture) = capture.as_mut() { capture.open(event, id, &attribute_nodes[index]); }
                 if event.kind == StartElement {
                     stack.push(id);
                 }

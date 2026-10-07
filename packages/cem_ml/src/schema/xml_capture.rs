@@ -24,6 +24,7 @@ pub(crate) struct XmlLexicalCapture {
     machine: CemSchemaMachine<NoEvents>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
     schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
+    namespace_bindings: BTreeMap<AstNodeId, crate::schema::namespace::NamespaceBinding>,
 }
 impl XmlLexicalCapture {
     pub(crate) fn new(schema: CompiledSchema) -> Self {
@@ -31,9 +32,10 @@ impl XmlLexicalCapture {
             machine: CemSchemaMachine::new(schema, NoEvents),
             occurrences: BTreeMap::new(),
             schema_element_forms: BTreeMap::new(),
+            namespace_bindings: BTreeMap::new(),
         }
     }
-    pub(crate) fn open(&mut self, event: &XmlEventAst, node: AstNodeId) {
+    pub(crate) fn open(&mut self, event: &XmlEventAst, node: AstNodeId, attributes: &[AstNodeId]) {
         if event.namespace_uri.as_deref() == Some("https://cem.dev/ns/core/1")
             && event.local_name.as_deref() == Some("schema")
         {
@@ -75,7 +77,7 @@ impl XmlLexicalCapture {
             select: None,
             is_self_closing: true,
         });
-        for attr in &event.attributes {
+        for (attr, node) in event.attributes.iter().zip(attributes) {
             self.machine.commit_pending_annotation();
             let value = attr
                 .entity_decoded_value
@@ -97,6 +99,13 @@ impl XmlLexicalCapture {
                     .last_mut()
                     .expect("opened namespace frame")
                     .declare(prefix, value, range, range, source.source_map());
+                let binding = self
+                    .machine
+                    .current_ns_context()
+                    .binding(prefix)
+                    .unwrap()
+                    .clone();
+                self.namespace_bindings.insert(*node, binding);
             } else {
                 let name = if attr.namespace_uri.as_deref() == Some(CEM_NS) {
                     format!("cem:{}", attr.local_name)
@@ -141,12 +150,14 @@ impl XmlLexicalCapture {
         BTreeMap<AstNodeId, LexicalScopeSnapshot>,
         Vec<Diagnostic>,
         BTreeMap<AstNodeId, SchemaElementForm>,
+        BTreeMap<AstNodeId, crate::schema::namespace::NamespaceBinding>,
     ) {
         self.machine.finalize();
         (
             self.occurrences,
             self.machine.diagnostics,
             self.schema_element_forms,
+            self.namespace_bindings,
         )
     }
 }

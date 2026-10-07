@@ -690,6 +690,8 @@ Resolution rules:
   the later effective namespace wins for subsequent unqualified uses.
 - Previously resolved references keep their expanded namespace identity even if a later
   declaration changes which namespace the same lexical name resolves to.
+- `@default ""` clears the default namespace; it does not copy the previous blank-name
+  binding. Existing explicit default-prefix aliases keep their source-position meaning.
 - The runtime tracks namespace binding changes as source-mapped binding events so the
   same lexical name can resolve to different schema-owned tags at different source
   positions.
@@ -744,6 +746,12 @@ attribute must lower to the same ordered `NamespaceBinding` events before valida
 
 Namespace-resolution implementation contracts are in
 [`cem-ml-stack-design-impl.md`](cem-ml-stack-design-impl.md#341-namespace-context-contracts).
+Native reference target admission accepts only original namespace declarations
+with completed binding metadata. Pending namespace declarations retain their own
+binding identity until dependent QName completion; already-completed names remain
+fixed. Completion-view and activation tasks are tracked in
+[`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
+enclosed child-override syntax.
 
 ### Schema Version Compatibility
 

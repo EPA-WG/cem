@@ -15,6 +15,7 @@ pub mod attribute_references;
 pub mod input_validation;
 pub mod machine;
 pub mod namespace;
+pub mod namespace_references;
 pub mod package_compilation;
 pub mod package_consistency;
 pub mod package_loader;

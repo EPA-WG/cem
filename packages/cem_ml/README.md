@@ -73,6 +73,15 @@ payload provenance and final schema diagnostics. XML attributes remain literals.
 The same explicit QL lifecycle handoff consumes these associations;
 runtime preparation remains explicit.
 
+`LexicallyScopedDocument::namespace_binding(owner, node)` exposes completed
+bindings from original CEM namespace directives and CEM/XML namespace attributes.
+Lookup checks original allocation identity, preserving earlier URI values across
+rebinding and child restoration. `namespace_references::admit_namespace_scope_target`
+accepts those declarations without interpreting schema/data nodes as namespace
+sources. Empty default URIs are ready resets. Given root bindings do not create
+source declarations. Admission leaves evaluation, singleton checks, crossing grants
+and pending QName completion/activation to explicit consumers tracked in `docs/todo.md`.
+
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
 compiler's `SchemaPackageCompilationRequest.lexical_scopes` share the same original

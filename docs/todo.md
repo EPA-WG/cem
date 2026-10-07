@@ -1870,19 +1870,68 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: schema admission consumes real source
       namespace identities without rewriting nodes or applying a later binding;
       XML namespace and attribute rules stay those of its shared importer.
-- [ ] Specify namespace target-kind/readiness contracts independently of the
+- [x] Specify namespace target-kind/readiness contracts independently of the
       implemented schema preparation handoff. Distinguish inline schema wrappers,
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
       from an arbitrary selected node. Preserve existing literal forms.
-      Decision point after queued schema-loading verification: choose whether
-      namespace selection admits only an explicit namespace binding/declaration
-      contract (recommended), or additionally admits schema declarations with an
-      explicitly defined namespace-URI contract. Specify singleton readiness and
-      source-position activation before implementation; keep enclosed syntax deferred.
+      Adopted on 2026-10-06: namespace selection admits only explicit namespace
+      bindings/declarations; schema declarations are not namespace targets. Require
+      one completed target with original-owner binding metadata and an available
+      URI before activation. Preserve empty default-namespace resets and the
+      destination's own prefix designation. Keep enclosed syntax deferred.
       Scenarios for later design verification: wrong target kinds cannot establish
       a scope; original owners and source provenance survive consumption; namespace
       completion does not retroactively rename already expanded source QNames.
+- [x] Fixture: capture original namespace declaration nodes and parser binding
+      metadata through CEM/XML source events. Admit only owner-checked explicit
+      declarations, preserving source positions, rebinding, default alias/reset,
+      child restoration and decoded XML values. Reject schema/data lookalikes and
+      declarations with no completed binding; never infer targets from source IDs.
+      Include given root namespace defaults without synthesized source declarations.
+      Implemented on 2026-10-06 with six native fixtures and 218 focused namespace,
+      reference, scope and lifecycle regressions. The retained admission API uses
+      original parser/import binding records; `@default ""` now clears its default
+      instead of copying the prior blank-name binding. Pending declaration/use
+      capture, completed query views and namespace property execution remain separate.
+      Scenarios for later design verification: selecting an earlier declaration
+      keeps its earlier URI; sibling contexts can reuse local binding IDs without
+      merging targets; XML namespace attributes remain available by source handles
+      even when omitted from the normalized query tree; no target admission evaluates
+      a reference, authorizes a crossing or rewrites captured QNames.
+- [x] Decide the completion boundary for pending namespace-property references.
+      Namespace QNames currently expand during parsing, while native references
+      are evaluated at consumer lifecycle stages. Choose whether to retain the
+      pending source-position binding identity and defer dependent QName completion,
+      or require the namespace target to be ready during parsing. Adopted on
+      2026-10-06: retain the original pending binding identity and complete dependent
+      QNames when that same binding resolves. Completed names stay fixed. Completion
+      belongs to an explicit consumer lifecycle, not loading or later lexical rebinding.
+      Scenarios for later design verification: completing the same pending binding
+      is distinct from adopting a later declaration; completed names remain fixed;
+      retry never borrows a later alias or an inherited URI; root contexts need no IDs.
+- [x] Decide how completed pending QNames are exposed to CEM-QL consumers.
+      Adopted on 2026-10-06: expose completed expanded names through a per-execution
+      native query view, retaining the original AST and fixed completed source names.
+      Current captured-name handoff does not yet change the registered query tree.
+      Scenarios for later design verification: authored source inspection stays
+      available; completion in one execution cannot alter another query's names.
+- [ ] Fixture: capture pending namespace declaration/use associations and implement
+      independent completion views over one original owner, then expose them through
+      the adopted native query view. Specify its readiness boundary before execution:
+      require completed namespace dependencies in the selected query subtree
+      (recommended, consistent with retained validation query readiness), or allow
+      partial views with namespace-sensitive operations reporting pending names.
+      Scenarios for later design verification: no source arena or completed name is
+      rewritten; independent executions can resolve one pending declaration differently;
+      QName lookup never substitutes a later alias; missing completion remains pending.
+- [ ] Fixture: add bounded CEM-QL namespace selection over original declaration
+      handles after adopting the completion boundary. Reuse request/destination
+      limits, directed grants, singleton admission and pending/unresolved outcomes;
+      consume original captured binding metadata without schema URI extraction.
+      Scenarios for later design verification: zero/multiple targets do not activate;
+      denied crossings retain source diagnostics; missing runtime input stays pending;
+      independent consumers can select different namespace declarations from one source.
 - [ ] Define and implement native reference consumption by specialized schema and
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;

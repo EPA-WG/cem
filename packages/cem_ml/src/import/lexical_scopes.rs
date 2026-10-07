@@ -25,7 +25,7 @@ pub fn import_xml_ast_with_lexical_scopes(
 ) -> Result<ScopedXmlCemImport, String> {
     let mut capture = Some(XmlLexicalCapture::new(schema));
     let imported = import_xml_ast_tracked(document, &mut capture)?;
-    let (occurrences, diagnostics, schema_element_forms) =
+    let (occurrences, diagnostics, schema_element_forms, namespace_bindings) =
         capture.take().expect("capture installed").finish();
     Ok(ScopedXmlCemImport {
         captured: LexicallyScopedDocument::from_import(
@@ -33,6 +33,7 @@ pub fn import_xml_ast_with_lexical_scopes(
             occurrences,
             diagnostics,
             schema_element_forms,
+            namespace_bindings,
         ),
         semantics: imported.semantics,
         event_nodes: imported.event_nodes,

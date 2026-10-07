@@ -308,8 +308,9 @@ Existing namespace records retain URI bindings, while `SchemaSource::Select`
 retains an expression. Lexical capture and caller-completed scope handoff retain
 these associations. Host-attribute schema selection now uses the bounded
 preparation and region APIs below, including discovery during retained input
-validation; runtime scope installation and namespace property selection remain
-unimplemented. The deferred enclosed child override syntax remains separate.
+validation. Schema runtime region installation is implemented below; namespace
+property selection/activation remains subsequent work. The deferred enclosed child
+override syntax remains separate.
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
 now distinguish lexical lookup from consumer cardinality. Adopted on 2026-10-06:
@@ -340,8 +341,7 @@ Adopted on 2026-10-06: an explicit pending or invalid schema override keeps its
 governed region incomplete until a usable schema is available. Validation cannot
 fall back to the inherited schema for that region. This is distinct from keeping
 the last complete package active during package replacement. Namespace target
-contracts, consumer name handoff and lifecycle scope activation remain subsequent
-consumer work.
+activation timing and consumer name handoff remain separate from schema readiness.
 
 `LexicallyScopedDocument::expanded_name(owner, node)` now supplies immutable
 namespace metadata to the admission lookup. CEM name events use the namespace
@@ -356,6 +356,40 @@ neither path rewrites the original AST or establishes schema readiness.
 only for an already-registered original owner. Repeat attachment is idempotent;
 foreign owners are rejected. Captured lexical-scope handoff also installs names
 once preflight succeeds. This does not rewrite the registered tree's query view.
+
+Namespace target admission was adopted on 2026-10-06: consume only an explicit
+namespace binding/declaration, with exactly one completed selection and an
+available original-owner URI. Schema declarations and arbitrary data nodes do
+not supply namespace URIs. The destination property supplies its own prefix;
+selecting a declaration does not copy the target's prefix into that property.
+An empty default URI is a completed reset, not pending readiness.
+
+`LexicallyScopedDocument::namespace_binding(owner, node)` now exposes completed
+bindings declared by original CEM `@ns`/`@default` nodes and CEM/XML namespace
+attributes. The CEM event observer links declaration effects to builder IDs; XML
+uses its import-owned attribute correspondence and decoded namespace values.
+Literal alias defaults retain the binding effective at that declaration. Later
+rebinding and child restoration do not change earlier target metadata. Given root
+bindings can expand names without creating source declarations or authored IDs.
+Local namespace binding IDs remain context records, distinct from AST node IDs.
+
+`schema::namespace_references::admit_namespace_scope_target` retains the selected
+source and completed binding, checks original allocation identity, and rejects
+uncompleted declarations and schema/data lookalikes. XML namespace attributes
+remain source targets even when omitted from the normalized query tree. Admission
+does not evaluate references, check selection cardinality/grants or install a scope.
+
+The completion boundary was also adopted on 2026-10-06: retain a pending namespace
+declaration's original binding identity and defer dependent QName completion until
+that same binding resolves at the explicit consumer lifecycle. Completed names
+remain fixed; resolution cannot adopt a later alias or inherited URI. Pending
+declaration/use capture and completion views still require implementation. The
+query exposure was adopted on 2026-10-06: completed expanded names appear in a
+per-execution native query view, preserving the original source arena and fixed
+completed source names. This view remains to be implemented. Its readiness boundary
+needs a decision: require completed namespace dependencies in the selected query
+subtree, or permit partial views with pending outcomes on namespace-sensitive access.
+The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
 admitted declaration without rediscovering a schema elsewhere in its arena.
@@ -1596,7 +1630,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
-| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture and explicit effective-scope handoff are implemented. Native property selection contracts and enclosed child override syntax remain tracked separately. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff and explicit namespace declaration admission are implemented. Pending namespace completion views, native property selection/activation and enclosed child override syntax remain tracked separately. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
 Attribute collection references select zero or more named attribute declarations

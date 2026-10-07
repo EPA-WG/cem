@@ -4,7 +4,8 @@ use crate::{
     diagnostics::Diagnostic,
     parser::{builder::CemAstBuilder, document::CemDocument, AstNodeId, CemAstNode, ExpandedName},
     schema::{
-        declaration_references::SchemaDeclarationNode, namespace::NsContext,
+        declaration_references::SchemaDeclarationNode,
+        namespace::{NamespaceBinding, NsContext},
         scoping::SchemaScopeFrame,
     },
 };
@@ -12,6 +13,10 @@ use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
+
+#[path = "lexical_capture/namespace_capture.rs"]
+mod namespace_capture;
+use namespace_capture::NamespaceDeclarationCapture;
 
 /// Original source form, distinct even when both elements have no child nodes.
 /// Importers retain this event metadata; it cannot be inferred from a generic
@@ -32,6 +37,7 @@ pub struct LexicallyScopedDocument {
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
     names: BTreeMap<AstNodeId, ExpandedName>,
     schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
+    namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -41,6 +47,7 @@ impl LexicallyScopedDocument {
         mut occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
         diagnostics: Vec<Diagnostic>,
         schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
+        namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
     ) -> Self {
         occurrences
             .retain(|node, _| matches!(document.get(*node), Some(CemAstNode::Reference { .. })));
@@ -66,6 +73,7 @@ impl LexicallyScopedDocument {
             occurrences,
             names,
             schema_element_forms,
+            namespace_bindings,
             diagnostics,
         }
     }
@@ -113,6 +121,19 @@ impl LexicallyScopedDocument {
             .flatten()
     }
 
+    /// Completed parser binding declared by this original node. These records
+    /// are not AST IDs or runtime contexts; lookup requires the original owner.
+    /// No declaration text is reparsed and no later binding is substituted.
+    pub fn namespace_binding(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<&NamespaceBinding> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.namespace_bindings.get(&node))
+            .flatten()
+    }
+
     /// Original named declaration visible at this occurrence. Lookup requires
     /// this captured owner; no source-coordinate matching or evaluation occurs.
     pub fn inline_schema(
@@ -156,6 +177,7 @@ pub struct LexicalScopeEvents<E: EventNormalizer, F> {
     complete: bool,
     builder_node: Option<Arc<Mutex<Option<AstNodeId>>>>,
     awaiting_open_node: bool,
+    namespace_capture: Option<Arc<Mutex<NamespaceDeclarationCapture>>>,
 }
 
 impl<E: EventNormalizer> CemSchemaMachine<E> {
@@ -168,6 +190,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let opening_name = Mutex::new(None);
         let attribute_names = Mutex::new(VecDeque::new());
         let builder_node = Arc::new(Mutex::new(None));
+        let namespace_capture = Arc::new(Mutex::new(NamespaceDeclarationCapture::default()));
         let mut events = self.track_lexical_scope(|event, machine| {
             let expression = match event {
                 Some(NormalizedEvent::OpenScope { name, .. }) => {
@@ -197,10 +220,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             }
         });
         events.builder_node = Some(builder_node.clone());
+        events.namespace_capture = Some(namespace_capture.clone());
         let mut occurrences = BTreeMap::new();
         let mut names = BTreeMap::new();
         let document = CemAstBuilder::new(events).build_with_node_observer(|node, attribute| {
             *builder_node.lock().unwrap() = node;
+            namespace_capture.lock().unwrap().observed(node, attribute);
             if let Some(attribute) = attribute {
                 if let Some(Some(name)) = attribute_names.lock().unwrap().pop_front() {
                     names.insert(attribute, name);
@@ -271,11 +296,19 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 ))
             })
             .collect();
+        let mut namespace_bindings = namespace_capture.lock().unwrap().take_bindings();
+        namespace_bindings.retain(|node, _| {
+            matches!(
+                document.get(*node),
+                Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. })
+            )
+        });
         LexicallyScopedDocument {
             document: Arc::new(document),
             occurrences,
             names,
             schema_element_forms,
+            namespace_bindings,
             diagnostics: diagnostics.into_inner().unwrap(),
         }
     }
@@ -306,6 +339,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             complete: false,
             builder_node: None,
             awaiting_open_node: false,
+            namespace_capture: None,
         }
     }
 }
@@ -338,7 +372,11 @@ where
                 // the original reaches the builder and no AST/history is copied.
                 self.awaiting_open_node = self.builder_node.is_some()
                     && matches!(event, NormalizedEvent::OpenScope { .. });
-                self.machine.consume(event.clone());
+                if let Some(capture) = &self.namespace_capture {
+                    capture.lock().unwrap().consume(&mut self.machine, &event);
+                } else {
+                    self.machine.consume(event.clone());
+                }
                 Some(event)
             }
             None => {

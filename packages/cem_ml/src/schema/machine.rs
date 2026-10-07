@@ -1209,6 +1209,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 let uri = self
                     .ns_contexts
                     .last()
+                    .filter(|_| !token.is_empty())
                     .and_then(|ctx| ctx.binding(&token).map(|b| b.namespace_uri.clone()))
                     .unwrap_or(token);
                 if let Some(ctx) = self.ns_contexts.last_mut() {
