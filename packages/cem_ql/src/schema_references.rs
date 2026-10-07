@@ -658,6 +658,13 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn structural_diagnostic(
+        &self,
+        source: &SchemaDeclarationNode,
+        diagnostic: cem_ml::diagnostics::Diagnostic,
+    ) -> cem_ml::diagnostics::Diagnostic {
+        self.authored_structural_diagnostic(source, diagnostic)
+    }
     fn evaluate_input_expression(
         &mut self,
         node: &Self::Node,

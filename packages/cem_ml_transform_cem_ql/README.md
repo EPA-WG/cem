@@ -156,7 +156,10 @@ and retained payload memory accounting span all rounds.
 Return `None` from `start_resumable` for the existing synchronous path. Portable
 synchronous engines continue calling `validate`. Registration, parsing and query
 preparation remain passive. Native CEM/XML fixtures cover queued nested loads and
-retained schema declaration references; the deferred syntax decisions stay in
+retained schema declaration references, wrapping/sibling/prelude controls,
+foreign-owner URI bases and structural diagnostics, explicit public parts and
+multi-request batch ordering across queue policies. Failed peers remain incomplete
+while independently ready peers activate. The deferred syntax decisions stay in
 [`docs/todo.md`](../../docs/todo.md).
 
 ## Verification

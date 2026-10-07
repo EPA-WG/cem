@@ -307,6 +307,13 @@ where
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
         self.host.declaration_schema(target)
     }
+    fn structural_diagnostic(
+        &self,
+        source: &SchemaDeclarationNode,
+        diagnostic: cem_ml::diagnostics::Diagnostic,
+    ) -> cem_ml::diagnostics::Diagnostic {
+        self.host.structural_diagnostic(source, diagnostic)
+    }
     fn evaluate_input_expression(
         &mut self,
         node: &Self::Node,

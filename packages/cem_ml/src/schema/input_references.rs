@@ -27,6 +27,14 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 pub trait InputReferenceHost: ReferenceResolutionHost {
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node;
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode>;
+    /// Attach original-owner URI/coordinates to an authored structural error.
+    fn structural_diagnostic(
+        &self,
+        _source: &SchemaDeclarationNode,
+        diagnostic: Diagnostic,
+    ) -> Diagnostic {
+        diagnostic
+    }
     /// Explicit lifecycle evaluation of an authored native expression slot.
     /// Return retained nodes/references, or preserve pending context readiness.
     fn evaluate_input_expression(
@@ -49,6 +57,13 @@ impl<H: SchemaDeclarationHost> InputReferenceHost for H {
     }
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode> {
         self.declaration_node(node)
+    }
+    fn structural_diagnostic(
+        &self,
+        source: &SchemaDeclarationNode,
+        diagnostic: Diagnostic,
+    ) -> Diagnostic {
+        SchemaDeclarationHost::structural_diagnostic(self, source, diagnostic)
     }
     fn declaring_schema(&self, node: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode> {
         self.declaration_schema(node)
@@ -634,6 +649,7 @@ where
                     .map(str::to_owned)
             })
             .collect();
+        let mut diagnostics = vec![];
         let element = if model.is_empty() {
             None
         } else {
@@ -644,9 +660,15 @@ where
                 allows_any,
                 current.children_complete.then_some(sequence.as_slice()),
                 models.control_attributes(&current.source),
-                &mut report.diagnostics,
+                &mut diagnostics,
             )
         };
+        report
+            .diagnostics
+            .extend(diagnostics.drain(..).map(|diagnostic| {
+                let source = structural_diagnostic_source(&current.source, &diagnostic);
+                host.structural_diagnostic(&source, diagnostic)
+            }));
         for child in &current.children {
             if node_models[*child].is_none() {
                 continue;
@@ -655,8 +677,13 @@ where
                 model,
                 current.source.node(),
                 report.nodes[*child].source.node(),
-                &mut report.diagnostics,
+                &mut diagnostics,
             );
+            report
+                .diagnostics
+                .extend(diagnostics.drain(..).map(|diagnostic| {
+                    host.structural_diagnostic(&report.nodes[*child].source, diagnostic)
+                }));
         }
         pending.extend(current.children.iter().rev().map(|child| {
             (
@@ -673,6 +700,27 @@ where
         .iter()
         .any(|d| d.severity.is_hard_violation());
     Ok(report)
+}
+
+/// Shallow validation emits errors on the element or its authored attributes.
+/// Select within that known owner using the original source stack; arena/source
+/// IDs alone cannot identify a node after references cross document boundaries.
+fn structural_diagnostic_source(
+    element: &SchemaDeclarationNode,
+    diagnostic: &Diagnostic,
+) -> SchemaDeclarationNode {
+    if let CemAstNode::Element { attributes, .. } = element.node() {
+        for id in attributes {
+            if let Some(attribute) = SchemaDeclarationNode::new(element.document().clone(), *id) {
+                if diagnostic.source_map.as_ref()
+                    == Some(document_model::source_stack_for_node(attribute.node()))
+                {
+                    return attribute;
+                }
+            }
+        }
+    }
+    element.clone()
 }
 
 fn consumable_children<'a>(

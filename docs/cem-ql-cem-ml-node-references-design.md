@@ -1776,6 +1776,16 @@ selected schema constraints apply at consumption. Neither transport nor this ses
 grants crossings or borrows a prior context/model. Unavailable inputs or failed
 acquisitions finish incomplete rather than retrying transport indefinitely.
 
+Queued-control verification now covers CEM wrapping controls, following sibling
+switches and literal document preludes, plus core-namespace XML wrapping/sibling
+controls. Reference-selected foreign hosts resolve relative resources against
+their authored owner; earlier and unselected controls are not fetched. Explicit
+vendor public exports select a declared part without authorizing a crossing.
+Multi-request batches resume in authored request order even when I/O finishes
+out of order, under blocking and parent-spill queue policies. Oversized batches
+retain the scheduler's existing rejection behavior. Failed peers keep their
+regions incomplete while independently ready peers activate.
+
 Operation cancellation or budget expiry after a read blocks import/context/resume
 callbacks. Input and successful response byte retention use document-scope memory
 permits across all rounds; the shared import byte limit is checked before callbacks.
@@ -1787,6 +1797,12 @@ and memory accounting. Original target arenas and authored unresolved references
 remain unchanged.
 
 Runtime diagnostics for selected owners carry their original URI/coordinates.
+The structural consumer delegates element/attribute and child-relationship
+diagnostic attribution through original retained handles. A foreign effective
+scope cannot supply the diagnostic URI. CEM locations use the authored builder
+frame rather than a whole-input tokenizer frame; imported owners can supply
+their retained event coordinates when no source line index is available. Full
+source-map stacks and already-attributed diagnostics remain intact.
 The engine projects source-pipeline diagnostics before merging runtime outcomes,
 so vendor diagnostics never use the input's line index. Native behavior emission
 uses the placement's own source frame for byte offset while preserving the full

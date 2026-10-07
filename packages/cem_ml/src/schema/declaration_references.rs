@@ -68,6 +68,15 @@ pub trait SchemaDeclarationHost: ReferenceResolutionHost {
     /// document. None denotes a declaration without schema alias bindings.
     /// Scope selection must not be inferred from the consuming schema's aliases.
     fn declaration_schema(&self, target: &SchemaDeclarationNode) -> Option<SchemaDeclarationNode>;
+    /// Attribute an already-authored structural diagnostic through its original
+    /// owner. The consuming placement's schema/scope must not supply its URI.
+    fn structural_diagnostic(
+        &self,
+        _source: &SchemaDeclarationNode,
+        diagnostic: Diagnostic,
+    ) -> Diagnostic {
+        diagnostic
+    }
     /// Explicit input lifecycle hook; declaration compilation never invokes it.
     /// Hosts without an expression consumer preserve the pending source slot.
     fn evaluate_input_expression(

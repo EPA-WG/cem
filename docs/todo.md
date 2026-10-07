@@ -1805,15 +1805,31 @@ only and adds no runtime behavior or public syntax.
       fetched; late replies cannot restore canceled/replaced generations; current
       pending dependencies block model behavior without inherited fallback; retries
       preserve lexical names, source owners and request/destination traversal caps.
-- [ ] Fixture: broaden resumable queued schema loading across wrapping controls,
+- [x] Fixture: broaden resumable queued schema loading across wrapping controls,
       following sibling switches, document preludes and reference-selected foreign
       subtrees. Include explicit public exports and multi-request batches with
       stable completion order under existing queue/overflow policies. Reuse the
       session's native controls, original-owner URI bases and generation checks.
+      Implemented on 2026-10-06 with eight bridge fixtures covering CEM/XML,
+      public exports, foreign owners, failed peers and block/spill/reject queues.
+      Verified with 336 focused native reference, scope, lifecycle and engine tests.
       Scenarios for later design verification: a foreign placement resolves relative
       URIs against its authored owner; public parts do not grant crossings; following
       switches stay enclosing; blocked controls are not fetched; peer failures never
       hide pending regions or overwrite original diagnostics.
+- [x] Fixture: preserve original owner URIs and authored coordinates for structural
+      errors in queued reference-selected foreign subtrees. Cover required and
+      unknown attributes and parent/child relationships across owners; never infer
+      owners from document-local source IDs or effective schema frames.
+      Include direct CEM-QL structural-consumer fixtures with a foreign effective
+      scope, imported event coordinates and already-attributed diagnostics.
+      Implemented on 2026-10-06 through the retained structural diagnostic hook,
+      with direct CEM-QL and queued CEM/XML foreign-owner fixtures. Original builder
+      positions and imported event coordinates supply reporting locations; source
+      stacks and existing explicit attribution remain intact.
+      Scenarios for later design verification: schema loading/retries do not stamp
+      the caller URI onto foreign errors; relationship errors belong to the child;
+      native source frames and existing explicit diagnostic attribution survive.
 - [ ] Specify typed prelude reference slots only if that source capability is
       requested. Current directive payloads are literal text; native reference and
       expression slots already belong to schema-element/host attribute forms. Keep
@@ -1859,6 +1875,11 @@ only and adds no runtime behavior or public syntax.
       schema-language declarations and namespace binding/context identities;
       do not treat context record IDs as AST node IDs or silently extract a URI
       from an arbitrary selected node. Preserve existing literal forms.
+      Decision point after queued schema-loading verification: choose whether
+      namespace selection admits only an explicit namespace binding/declaration
+      contract (recommended), or additionally admits schema declarations with an
+      explicitly defined namespace-URI contract. Specify singleton readiness and
+      source-position activation before implementation; keep enclosed syntax deferred.
       Scenarios for later design verification: wrong target kinds cannot establish
       a scope; original owners and source provenance survive consumption; namespace
       completion does not retroactively rename already expanded source QNames.

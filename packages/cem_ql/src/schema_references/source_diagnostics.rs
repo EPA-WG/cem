@@ -7,6 +7,51 @@ use cem_ml::{
 };
 
 impl CemQlSchemaDeclarationHost {
+    /// Structural validation already supplies original authored byte offsets and
+    /// source frames. Resolve the owning tree by retained arena identity, never
+    /// by a placement's effective scope or document-local source IDs.
+    pub(super) fn authored_structural_diagnostic(
+        &self,
+        source: &SchemaDeclarationNode,
+        mut diagnostic: Diagnostic,
+    ) -> Diagnostic {
+        if diagnostic.uri.is_some() {
+            return diagnostic;
+        }
+        let Some(tree) = self.source_tree(source) else {
+            return diagnostic;
+        };
+        // CEM tokenizer frames can cover the whole input. The authored AST
+        // builder frame is the node/attribute location; retain the full stack.
+        if let Some(frame) = diagnostic.source_map.as_ref().and_then(|stack| {
+            stack
+                .frames
+                .iter()
+                .rev()
+                .find(|frame| matches!(frame.transform, TransformKind::CemAstBuilder))
+        }) {
+            diagnostic.byte_offset = match &frame.span {
+                FrameSpan::Single(range) => Some(range.start),
+                FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+            };
+        }
+        diagnostic.uri = Some(tree.source_uri().into());
+        if let Some(coordinate) = diagnostic
+            .byte_offset
+            .and_then(|offset| tree.source_byte_coordinate(offset))
+        {
+            diagnostic.line = Some(coordinate.line);
+            diagnostic.column = Some(coordinate.column);
+        } else if let Some(range) = tree.source_node_range(source.node_id()) {
+            // Imported owners can retain event coordinates without retaining a
+            // source line index. Use only the actual matching authored location.
+            if diagnostic.byte_offset == Some(range.offset) && range.line > 0 && range.column > 0 {
+                diagnostic.line = Some(range.line);
+                diagnostic.column = Some(range.column);
+            }
+        }
+        diagnostic
+    }
     pub(super) fn source_diagnostics(
         &self,
         source: &SchemaDeclarationNode,
