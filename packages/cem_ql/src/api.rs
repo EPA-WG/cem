@@ -29,6 +29,7 @@ mod json_boundary;
 pub mod wasm;
 
 pub mod native_values;
+pub mod reference_transport;
 mod binding_selection;
 
 #[cfg(test)]

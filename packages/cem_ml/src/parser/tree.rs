@@ -40,6 +40,8 @@ pub struct CemTreeSemantics {
     pub names: BTreeMap<AstNodeId, ExpandedName>,
     pub omitted: BTreeSet<AstNodeId>,
     pub ranges: BTreeMap<AstNodeId, CemTreeRange>,
+    /// Explicitly absent source bytes must not borrow another source's line index.
+    pub unknown_source_lines: BTreeSet<AstNodeId>,
 }
 
 #[derive(Debug, Default)]
@@ -311,7 +313,8 @@ impl RetainedCemTree {
                 .copied()
                 .unwrap_or_else(|| source_range(source, &line_index));
             source_lines_known.push(
-                semantics.ranges.contains_key(&node_id) || !source_text.is_empty(),
+                !semantics.unknown_source_lines.contains(&node_id)
+                    && (semantics.ranges.contains_key(&node_id) || !source_text.is_empty()),
             );
             nodes.push(CemTreeNode {
                 base_uri: semantics.base_uris.get(&node_id).cloned(),

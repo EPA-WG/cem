@@ -339,7 +339,9 @@ mod tests {
             .find(|argument| argument.id == "output")
             .unwrap();
         assert_eq!(output.default_values, ["terminal"]);
-        assert_eq!(output.possible_values, ["terminal", "cem", "json"]);
+        assert_eq!(output.possible_values, ["terminal", "cem", "json", "cemv"]);
+        assert!(query.arguments.iter().any(|argument| argument.id == "reload_bundle"));
+        assert!(query.arguments.iter().any(|argument| argument.id == "export_reload_bundle"));
     }
 
     #[test]

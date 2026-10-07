@@ -749,7 +749,8 @@ and native evaluator implement the CSS side; CEM-QL and XPath provide their
 native item/XDM adapters through the same evaluator registry.
 
 `cem-ml query` executes exactly one explicitly identified query source over
-one lifecycle-loaded data input. Query source may be inline or file-backed, but
+one native data input, lifecycle-loaded or explicitly admitted from a verified
+reference reload bundle. Query source may be inline or file-backed, but
 its language is selected by schema/content identity rather than filename,
 source syntax, or trial parsing:
 
@@ -764,7 +765,9 @@ The canonical command is:
 ```text
 cem-ml query DATA (--query SOURCE | --query-file PATH-OR-URI) \
   --query-content-type TYPE [--query-schema URI] \
-  [--output terminal|cem|json] [--out FILE]
+  [--output terminal|cem|json|cemv] [--out FILE] \
+  [--reload-bundle [--reload-source-id SOURCE-ID]] \
+  [--export-reload-bundle FILE]
 ```
 
 `--query` and `--query-file` construct the same request. Exactly one is
@@ -776,6 +779,19 @@ context, resolver and safety policy, cancellation, and budgets. A registered
 language adapter receives that request and returns its language-native result;
 the CLI does not normalize the three result models into JSON or another common
 DTO.
+
+CEM-QL admits executable source bundles only through `--reload-bundle`. The
+primary manifest source ID is explicit (default 1), and verification supplies
+one decoded AST owner plus optional lexical capture without reparsing source or
+loading its URI. AST-only bundles admit inert inspection; capture-dependent
+validation requires a verified sidecar. Source-only `--export-reload-bundle`
+preserves authored expressions/capture, while `--output cemv` exports bounded
+materialized DAG values and rejects executable source references or unsupported
+graphs with attributed typed diagnostics. Binary output receives no text newline.
+WASM/worker clients follow the same explicit boundary; live sessions, contexts,
+grants and handles are never serialized. See the
+[consumer verification matrix](reference-consumer-verification.md) for remaining
+validation/lifecycle adapter work.
 
 CSS selector results eliminate duplicate native nodes and use lifecycle
 document order. CEM-QL and XPath preserve their language-defined sequence,

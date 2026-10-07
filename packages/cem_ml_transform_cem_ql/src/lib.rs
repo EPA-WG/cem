@@ -8,6 +8,11 @@
 pub mod schema_packages;
 pub mod schema_validation_session;
 
+pub use cem_ql::api::reference_transport::RetainedReferenceSource;
+pub use cem_ql::eval::portable::export_values as export_cem_ql_values;
+pub use cem_ql::eval::portable::export_values_with_control as export_cem_ql_values_with_control;
+pub use cem_ql::eval::QueryContextScope as CemQlQueryContextScope;
+
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

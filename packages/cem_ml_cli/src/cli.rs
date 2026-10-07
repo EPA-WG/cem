@@ -198,6 +198,7 @@ pub enum QueryOutput {
     Terminal,
     Cem,
     Json,
+    Cemv,
 }
 
 impl Default for ReportFormat {
@@ -927,6 +928,15 @@ pub struct QueryArgs {
     )]
     pub data: PathBuf,
 
+    #[arg(long, help = "Admit DATA as a verified executable reference reload bundle; never CEMV")]
+    pub reload_bundle: bool,
+
+    #[arg(long, requires = "reload_bundle", value_name = "SOURCE-ID", help = "Explicit primary source manifest ID (defaults to 1 when reloading)")]
+    pub reload_source_id: Option<u32>,
+
+    #[arg(long, value_name = "FILE", help = "Export the original native source and lexical capture as a debug reference reload bundle")]
+    pub export_reload_bundle: Option<PathBuf>,
+
     #[arg(
         long,
         value_name = "SOURCE",
@@ -964,7 +974,7 @@ pub struct QueryArgs {
         long,
         value_enum,
         default_value_t = QueryOutput::Terminal,
-        help = "Explicit result export boundary (terminal|cem|json)"
+        help = "Explicit result export boundary (terminal|cem|json|cemv); CEMV rejects executable source references"
     )]
     pub output: QueryOutput,
 

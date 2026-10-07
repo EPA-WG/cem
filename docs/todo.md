@@ -2729,24 +2729,90 @@ boundaries; it does not claim CLI/WASM reload adapter support.
 
 ### Next three integration items
 
-- [ ] Fixture and implementation: accept verified reload bundles through shared
+- [x] Fixture and implementation: accept verified reload bundles through shared
       query/validation source ingress, retaining the decoded owner and capture.
       Treat missing metadata as pending for capture-dependent consumers; preserve
       explicit readiness/retry and namespace/schema lifecycle coordination.
       Scenarios for later design verification: no source reparse or default
       substitution; fresh runtime inputs and grants remain caller-owned.
-- [ ] Fixture and implementation: expose the explicit reload/export boundaries
+- [x] Fixture and implementation: expose the explicit reload/export boundaries
       through CLI and low-level WASM/worker clients, retaining native handles
       and typed error/source attribution. Keep compatibility strings and current
       record projection admission explicit.
       Scenarios for later design verification: pending sessions/contexts are never
       serialized; CEMV cannot stand in for an executable source bundle.
-- [ ] Fixture and documentation: complete the source/query/validation/transport
+- [x] Fixture and documentation: complete the source/query/validation/transport
       consumer matrix across repeated runs, empty/absent lists, unsupported graphs
       and missing lexical inputs; audit remaining reference adoption blockers.
       Scenarios for later design verification: child-override syntax, XML
       attribute expression recognition, general datatypes and cem-element ID
       projection remain separately tracked and cannot be claimed complete.
+
+Implementation checkpoint (2026-10-06): `ReloadIngress` retains one verified
+native owner for shared query and embedding validation admission. AST-only
+inspection remains available, while `validation_request` returns the typed
+missing-capture dependency. Context and grant retries use that same owner.
+`decode_with_document` retains the allocation verified during bundle decoding.
+Per-source attribution preserves original URIs and leaves missing-byte line
+coordinates unknown.
+
+- [x] Fixture: `reload_ingress.rs` checks repeated shared queries, typed capture
+      readiness and validation retries under fresh contexts and explicit grants.
+      Scenarios for later design verification: neither request bytes nor source
+      URI trigger reparse; occurrence targets stay absent in the saved arena.
+- [x] Fixture: `reference_transport_api.rs` checks independent decoded owners,
+      fresh runtime bindings, CEM/XML slot boundaries, absent capture, source
+      attribution without borrowed coordinates and separate executable/CEMV admission.
+      Scenarios for later design verification: source capture and completed runtime
+      name views remain separate; ordinary XML attributes remain literal.
+- [x] Fixture: `reference_transport_cli.rs` and `reference-transport-wasm.mjs`
+      exercise explicit transport boundaries, binary byte integrity, typed export
+      failure attribution, result/source handle lifetime, disposal and separate workers.
+      Scenarios for later design verification: a result handle retains its source
+      after source-handle disposal; unsupported exports publish no partial success.
+- [x] Fixture: update the shared CLI command-schema query contract to expose
+      `cemv` and explicit reload/source-export flags alongside existing outputs.
+      Scenarios for later design verification: command metadata exposes admission
+      choices without enabling authority from run config or virtual request data.
+- [x] Documentation: publish the [consumer verification matrix](reference-consumer-verification.md)
+      with native evidence, public adapter limits and separately deferred decisions.
+      Scenarios for later design verification: syntax/query completion must not be
+      reported as completion of every consumer adapter or the datatype workstream.
+
+Verification: 52 focused native integration checks and three shared command-schema
+unit checks pass across ML, QL, CLI and shared query/validation ingress. Ten new
+native checks cover the integration boundaries. The Nx WASM build and both the
+reference transport and existing native-value worker fixtures pass, verifying
+real independent heaps, retention and disposal; source/result handles never cross
+the transport boundary. CLI offers
+`query --reload-bundle`, explicit `--reload-source-id`, source-only
+`--export-reload-bundle`, and guarded binary `--output cemv`. Compatibility query
+JSON remains a descriptor projection. The production binary codec and foreign
+AST-owner transport remain outside this debug single-arena bundle.
+
+### Next three reload consumer items
+
+- [ ] Fixture and implementation: accept later verified lexical metadata and
+      source bytes against the existing decoded owner. Validate the original
+      payload/source fingerprints before attachment; refresh only the inspection
+      view, keeping the arena and completed lexical identities unchanged.
+      Scenarios for later design verification: absent metadata becomes ready
+      through explicit retry without another arena decode, source reparse,
+      destination-default substitution or serialized runtime contexts.
+- [ ] Fixture and implementation: admit explicit reload inputs through engine
+      and CLI `validate`/`check`, using the prepared native ingress and existing
+      resumable schema/namespace lifecycle. Missing capture must keep governed
+      validation incomplete and remain independently inspectable.
+      Scenarios for later design verification: I/O releases CPU capacity;
+      namespace completion and selected schemas retain original owners; input
+      config and bundle data cannot supply replacement/crossing authority.
+- [ ] Fixture and implementation: connect low-level WASM retained source handles
+      to an explicit schema/namespace lifecycle consumer. Supply fresh host
+      contexts, policies and crossing grants; keep sessions local and preserve
+      typed completion/dependency outcomes alongside attributed diagnostics.
+      Scenarios for later design verification: pending differs from completed
+      empty resolution; repeated executions do not cache targets in the source;
+      source/result disposal cannot invalidate another retained execution.
 
 ## Reference adoption: dependency binding and readiness
 

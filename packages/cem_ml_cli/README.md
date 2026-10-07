@@ -59,6 +59,32 @@ or constructing a reference to an authored reference does not evaluate its sourc
 a consumer supplies the context and evaluation stage separately. No authored root
 or context ID is required.
 
+Executable source bundles use explicit query flags:
+
+```sh
+cem-ml query source.cem --content-type text/cem-ml \
+  --query-content-type application/vnd.cem.query-expression+cem-ql \
+  --query '#()' --output cemv --out empty.cemv \
+  --export-reload-bundle source.reload
+cem-ml query source.reload --reload-bundle --reload-source-id 1 \
+  --query-content-type application/vnd.cem.query-expression+cem-ql \
+  --query 'input.children.kind' --output json
+```
+
+Reload verifies the debug source bundle and retains the decoded owner/capture;
+it does not read the original source URI or parse source text again. The primary
+manifest source ID defaults explicitly to 1; another ID requires
+`--reload-source-id`. AST-only bundles support inert query inspection; embedding
+validation admission requires capture metadata. CLI `validate`/`check` bundle
+admission remains [tracked adapter work](../../docs/todo.md#next-three-reload-consumer-items).
+
+`--output cemv` exports materialized native values as binary bytes, without a text
+newline. Executable source references reject with an attributed typed diagnostic;
+use source-only `--export-reload-bundle` for later evaluation. CEMV cannot replace
+the executable bundle. The binary codec is debug-only. Existing textual/JSON
+exports keep their compatibility projections. Neither export stores runtime
+contexts, authority or pending sessions.
+
 `#input` constructs a native reference to the input node. CLI JSON reports its
 existing opaque native artifact descriptor; it does not transport the reference's
 target graph. Native Rust consumers retain original owners and ordered targets.

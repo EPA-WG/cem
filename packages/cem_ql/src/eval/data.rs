@@ -224,7 +224,7 @@ impl CemAstView {
 impl QueryItemView for CemAstView {
     fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
         let tree = self.owner.tree.as_ref()?;
-        Some(cem_ml::value::artifact::CemValueProvenance { source_uri: Some(tree.source_uri().into()), source_key: tree.source_key(self.node?), line_number: tree.source_line_number(self.node?) })
+        Some(cem_ml::value::artifact::CemValueProvenance { source_uri: tree.node_source_uri(self.node?).map(str::to_owned), source_key: tree.source_key(self.node?), line_number: tree.source_line_number(self.node?) })
     }
 
     fn as_any(&self) -> &dyn Any {

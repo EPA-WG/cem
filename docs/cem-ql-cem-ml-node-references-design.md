@@ -1474,8 +1474,16 @@ that dependency before capture-dependent evaluation; inspecting the decoded AST
 requires no capture. `ReloadSource::supply_bytes` verifies a later explicit byte
 handoff. Native fixtures cover source-position namespace/schema overrides, pending
 QName dependencies, producer forms, tampering, allocation mismatch and independent
-fresh-context resolution without target writeback. Automatic shared ingress and
-CLI/WASM bundle entry points remain follow-up work in the todo list.
+fresh-context resolution without target writeback. `ReloadIngress` now admits
+that verified owner through shared query and embedding validation contracts;
+validation admission requires lexical capture while inert inspection does not.
+`decode_with_document` retains the allocation verified during decoding.
+CLI query flags and low-level WASM source/result handles expose explicit bundle
+and materialized export boundaries. Result handles retain source capture for their
+lifetime. Typed export failures preserve source maps and original URI attribution.
+The [consumer verification matrix](reference-consumer-verification.md) records
+coverage and the remaining adapter work: late verified metadata attachment,
+engine/CLI validation admission and explicit WASM lifecycle consumers.
 
 ## Graph export and native transport (adopted 2026-10-06)
 

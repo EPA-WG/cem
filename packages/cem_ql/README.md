@@ -427,8 +427,23 @@ payload with a versioned passive lexical sidecar and verified source manifest.
 Capture attaches to the decoded allocation; `require_lexical` exposes a typed
 missing-metadata dependency for AST-only reload. Source bytes can be supplied
 later through `ReloadSource::supply_bytes`. Callers supply runtime contexts, policy
-and grants afresh. Shared ingress and CLI/WASM bundle adapters remain tracked in
-[todo.md](../../docs/todo.md#next-three-integration-items).
+and grants afresh. `api::reference_transport::RetainedReferenceSource` retains
+source/capture for explicit parsing, bundle reload/export and inert native queries
+under a caller's fresh `StandaloneExpressionContext`. Shared reload ingress and
+CLI/low-level WASM transport boundaries are implemented. See the
+[consumer matrix](../../docs/reference-consumer-verification.md) and remaining
+[adapter work](../../docs/todo.md#next-three-reload-consumer-items).
+
+WASM exports `parseReferenceSource`, `importReferenceReloadBundle`,
+`exportReferenceReloadBundle`, `inspectReferenceSource`, `queryReferenceSource`
+and `disposeReferenceSource`. Source handles and query result handles stay local;
+`exportNativeValueArtifact` exports guarded CEMV bytes, and
+`disposeNativeValueArtifact` releases results. Results retain the source capture
+after source-handle disposal. New failures throw JSON strings containing `code`,
+`kind`, `message`, and applicable `sourceMap`/`sourceUri`; existing compatibility
+exports keep their string errors. Worker clients transfer explicit bytes, not
+AST records, handles or live contexts. These entry points perform inert queries;
+schema/namespace lifecycle consumer registration remains separate.
 
 CEMV preserves materialized acyclic values, including constructed references.
 `eval::portable::export_values` and `export_values_with_control` now return typed,

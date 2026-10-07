@@ -1183,7 +1183,10 @@ implement this contract. Type tests use `expr is reference`; `same_node(a,b)`
 remains occurrence identity over the first item of each operand. Ordered target
 comparison uses sequence lengths and positional identities, with no new comparison
 operation. The debug binary/source/lexical reload bundle and typed native export
-guards are implemented at explicit Rust boundaries. CLI/WASM adapters and the
-remaining consumer verification matrix are tracked in
-[todo.md](../../../../../docs/todo.md#next-three-integration-items).
+guards, shared reload ingress and CLI/low-level WASM transport entry points are
+implemented. Source/result handles retain native owners and capture; contexts
+and authority stay with the consumer. The
+[consumer matrix](../../../../../docs/reference-consumer-verification.md) records
+coverage and the remaining
+[adapter work](../../../../../docs/todo.md#next-three-reload-consumer-items).
 Consumer element-to-ID behavior remains deferred.

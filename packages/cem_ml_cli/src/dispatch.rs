@@ -7430,7 +7430,7 @@ fn query_failure(
 pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
     let engine_context = context_for_dispatch(&args.context, s);
     let input_scope = input_scope_defaults(&args.context);
-    let input = match engine_input(
+    let mut input = match engine_input(
         &engine_context,
         &args.data,
         infer_input_format(&args.data),
@@ -7481,7 +7481,45 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
         }
     };
 
-    let response = match cem_ml::query::run_query(QueryRunRequest {
+    let reload_limits = cem_ml::ast::reload::ReloadLimits::default();
+    let retained_reload = if args.reload_bundle {
+        match cem_ml_transform_cem_ql::RetainedReferenceSource::reload(
+            &input.bytes,
+            args.reload_source_id.unwrap_or(1),
+            reload_limits,
+        ) {
+            Ok(owner) => {
+                input.uri = owner.ingress().source().source_uri().to_owned();
+                input.identity = Some(eng::FormatIdentity {
+                    content_type: Some("text/cem-ml".into()),
+                    ..Default::default()
+                });
+                Some(owner)
+            }
+            Err(error) => {
+                return query_failure(
+                    &engine_context,
+                    &args,
+                    vec![input.uri.clone()],
+                    vec![query_diagnostic(
+                        Some(&input.uri),
+                        "cem.reference.reload",
+                        error.to_string(),
+                    )],
+                    s,
+                )
+            }
+        }
+    } else {
+        None
+    };
+    let original_uri = input.uri.clone();
+    let original_bytes = args
+        .export_reload_bundle
+        .as_ref()
+        .map(|_| input.bytes.clone());
+
+    let request = QueryRunRequest {
         data: input,
         query: QuerySource {
             uri: query_uri.clone(),
@@ -7492,7 +7530,15 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
         context_item: None,
         bindings: Default::default(),
         limits: None,
-    }) {
+    };
+    let execution = match &retained_reload {
+        Some(owner) => cem_ml::query::run_query_with_source_owner(
+            request,
+            owner.ingress().query_source_owner(),
+        ),
+        None => cem_ml::query::run_query(request),
+    };
+    let response = match execution {
         Ok(response) => response,
         Err(QueryRunError::Contract(error)) => {
             return handle_cli_request_error(CliRequestError::Usage(error.to_string()), s)
@@ -7515,27 +7561,113 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
     cem_ml::validation::css_selector::register_css_selector_query_exporters(&mut exporters);
     register_cem_ql_query_exporters(&mut exporters);
     cem_ml::validation::xpath::register_xpath_query_exporters(&mut exporters);
-    let export_format = match args.output {
-        cli::QueryOutput::Terminal => QueryExportFormat::Terminal,
-        cli::QueryOutput::Cem => QueryExportFormat::Cem,
-        cli::QueryOutput::Json => QueryExportFormat::Json,
-    };
-    let output = match exporters.export(
-        export_format,
-        QueryExportRequest {
-            result: &result,
-            no_color: s.no_color,
-        },
-    ) {
-        Ok(output) => output,
-        Err(message) => {
-            diagnostics.push(query_diagnostic(
-                Some(&query_uri),
-                "cem.query.exporter_unavailable",
-                message,
-            ));
-            return query_failure(&engine_context, &args, query_inputs, diagnostics, s);
+    let output = if args.output == cli::QueryOutput::Cemv {
+        let Some(native) = result
+            .native_result
+            .as_any()
+            .downcast_ref::<cem_ml_transform_cem_ql::CemQlQueryResultArtifact>()
+        else {
+            return query_failure(
+                &engine_context,
+                &args,
+                query_inputs,
+                vec![query_diagnostic(
+                    Some(&query_uri),
+                    "cem.query.exporter_unavailable",
+                    "CEMV export requires native CEM-QL results",
+                )],
+                s,
+            );
+        };
+        match cem_ml_transform_cem_ql::export_cem_ql_values_with_control(
+            native.stream(),
+            &Default::default(),
+            cem_ml_transform_cem_ql::CemQlQueryContextScope(0),
+            &engine_context.operation_control,
+            cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        ) {
+            Ok(bytes) => cem_ml::query::QueryEncodedOutput {
+                content_type: "application/vnd.cem.value".into(),
+                bytes,
+            },
+            Err(error) => {
+                let mut diagnostic = query_diagnostic(
+                    Some(&original_uri),
+                    error.diagnostic_code(),
+                    error.to_string(),
+                );
+                diagnostic.details =
+                    Some(serde_json::json!({ "kind": format!("{:?}", error.kind) }));
+                diagnostic.source_map = error.source;
+                diagnostics.push(diagnostic);
+                return query_failure(&engine_context, &args, query_inputs, diagnostics, s);
+            }
         }
+    } else {
+        let export_format = match args.output {
+            cli::QueryOutput::Terminal => QueryExportFormat::Terminal,
+            cli::QueryOutput::Cem => QueryExportFormat::Cem,
+            cli::QueryOutput::Json => QueryExportFormat::Json,
+            cli::QueryOutput::Cemv => unreachable!("handled native export"),
+        };
+        match exporters.export(
+            export_format,
+            QueryExportRequest {
+                result: &result,
+                no_color: s.no_color,
+            },
+        ) {
+            Ok(output) => output,
+            Err(message) => {
+                diagnostics.push(query_diagnostic(
+                    Some(&query_uri),
+                    "cem.query.exporter_unavailable",
+                    message,
+                ));
+                return query_failure(&engine_context, &args, query_inputs, diagnostics, s);
+            }
+        }
+    };
+    // Export the source owner, never the evaluated result or its runtime context.
+    let bundle_output = if let Some(destination) = args.export_reload_bundle.as_ref() {
+        let export = if let Some(owner) = &retained_reload {
+            owner.export_bundle(reload_limits)
+        } else {
+            let capture = result
+                .input_ast_owner
+                .as_any()
+                .downcast_ref::<cem_ml_transform_cem_ql::CemQlNativeItemsOwner>()
+                .and_then(|owner| match owner.source_owner() {
+                    cem_ml::query::QuerySourceOwner::Cem {
+                        lexical_scopes: Some(capture),
+                        ..
+                    } => Some(capture.clone()),
+                    _ => None,
+                });
+            match capture {
+                Some(capture) => cem_ml_transform_cem_ql::RetainedReferenceSource::from_capture(
+                    capture,
+                    &original_uri,
+                    original_bytes.as_deref().unwrap_or_default(),
+                    reload_limits,
+                )
+                .and_then(|owner| owner.export_bundle(reload_limits)),
+                None => Err(cem_ml::ast::reload::ReloadError::InvalidMetadata),
+            }
+        };
+        match export {
+            Ok(bytes) => Some((destination, bytes)),
+            Err(error) => {
+                diagnostics.push(query_diagnostic(
+                    Some(&original_uri),
+                    "cem.reference.reload_export",
+                    error.to_string(),
+                ));
+                return query_failure(&engine_context, &args, query_inputs, diagnostics, s);
+            }
+        }
+    } else {
+        None
     };
     if let Err(error) = engine_context.ensure_active() {
         return handle_engine_error(error, s);
@@ -7552,6 +7684,18 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
     if let Err(error) = engine_context.ensure_active() {
         return handle_engine_error(error, s);
     }
+    if let Some((destination, bytes)) = bundle_output {
+        if let Err(error) = write_destination(
+            &engine_context,
+            destination,
+            "reference reload bundle destination",
+            ResolvePurpose::Output,
+            &bytes,
+        ) {
+            let _ = writeln!(s.stderr, "cem-ml: reference bundle write failure: {error}");
+            return Outcome::code(EXIT_IO);
+        }
+    }
     let write_result = if let Some(path) = args.out.as_deref() {
         write_destination(
             &engine_context,
@@ -7562,7 +7706,7 @@ pub fn run_query(args: cli::QueryArgs, s: &mut Streams<'_>) -> Outcome {
         )
     } else {
         s.stdout.write_all(&output.bytes).and_then(|()| {
-            if output.bytes.ends_with(b"\n") {
+            if args.output == cli::QueryOutput::Cemv || output.bytes.ends_with(b"\n") {
                 Ok(())
             } else {
                 s.stdout.write_all(b"\n")

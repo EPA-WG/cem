@@ -156,6 +156,13 @@ counts are bounded; every referenced source ID requires a manifest entry. AST-on
 equivalent capture-dependent evaluation without a verified lexical handoff.
 `require_lexical` returns a typed missing-metadata dependency;
 `ReloadSource::supply_bytes` verifies a later explicit source-byte handoff.
+`ast::reload::ReloadIngress` supplies `query_source_owner` for inert inspection
+and `validation_request` for embedding validation stages. The latter returns
+`MissingLexicalMetadata` before capture-dependent validation admission, and
+retains the same decoded arena for context/grant retries. `decode_with_document`
+returns the verified decoded owner with the envelope, avoiding a second decode.
+Primary source manifest ID is explicit; each node retains its mapped URI and
+unknown coordinates when its source bytes are absent.
 Runtime contexts, package/crossing grants and pending sessions are supplied afresh.
 CEMV's materialized value transport has a separate acyclic graph contract and
 does not preserve executable source references; see the design's

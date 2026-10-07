@@ -1010,8 +1010,12 @@ The [maintained design](docs/cem-ql-cem-ml-node-references-design.md#public-quer
 adopts `reference` as a node refinement, `.targets` for one-step access and
 `.targets_available` for optional-edge presence. Existing `same_node` remains occurrence
 identity; no additional target-list comparator is required. The native type/availability API, single-owner lexical reload bundle and attributed
-export guards are now implemented and verified. Shared ingress and public client
-adapters remain actionable follow-ups in the todo list.
+export guards, shared reload ingress and explicit CLI/low-level WASM transport
+entry points are now implemented and verified. The
+[consumer matrix](docs/reference-consumer-verification.md) identifies the next
+adapter work: later verified metadata attachment, engine/CLI validation admission
+and explicit WASM lifecycle consumers. These remain actionable with adjacent
+verification scenarios in the todo list.
 
 ### Scenarios for later design verification
 

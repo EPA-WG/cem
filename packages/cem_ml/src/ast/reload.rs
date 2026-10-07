@@ -11,10 +11,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, sync::Arc};
 
+mod ingress;
+pub use ingress::ReloadIngress;
+
 pub const RELOAD_VERSION: u16 = 1;
 pub const DEBUG_CEMB_CODEC: &str = "cem.debug.cemb";
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReloadLimits {
     pub max_bytes: usize,
     /// Arena nodes and entries in each debug binary dictionary/edge collection.
@@ -44,6 +48,19 @@ impl std::fmt::Display for ReloadError {
     }
 }
 impl std::error::Error for ReloadError {}
+impl ReloadError {
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Self::UnsupportedVersion => "UnsupportedVersion",
+            Self::FingerprintMismatch => "FingerprintMismatch",
+            Self::InvalidMetadata => "InvalidMetadata",
+            Self::InvalidSource => "InvalidSource",
+            Self::InvalidPayload(_) => "InvalidPayload",
+            Self::InvalidEnvelope(_) => "InvalidEnvelope",
+            Self::LimitExceeded => "LimitExceeded",
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReloadDependency {
     MissingLexicalMetadata,
@@ -189,6 +206,13 @@ impl ReferenceReloadBundle {
         self.encoded(limits)
     }
     pub fn decode(bytes: &[u8], limits: ReloadLimits) -> Result<Self, ReloadError> {
+        Self::decode_with_document(bytes, limits).map(|(bundle, _)| bundle)
+    }
+    /// Retain the owner verified during decoding rather than decoding its arena again.
+    pub fn decode_with_document(
+        bytes: &[u8],
+        limits: ReloadLimits,
+    ) -> Result<(Self, ReloadedReferenceDocument), ReloadError> {
         if bytes.len() > limits.max_bytes {
             return Err(ReloadError::LimitExceeded);
         }
@@ -198,8 +222,8 @@ impl ReferenceReloadBundle {
         if decoder.position() as usize != bytes.len() {
             return Err(ReloadError::InvalidEnvelope("trailing bytes".into()));
         }
-        result.reload(limits)?;
-        Ok(result)
+        let document = result.reload(limits)?;
+        Ok((result, document))
     }
     fn check_envelope(&self, limits: ReloadLimits) -> Result<(), ReloadError> {
         if self.version != RELOAD_VERSION
