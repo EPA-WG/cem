@@ -675,6 +675,12 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn input_source_tree(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Option<Arc<RetainedCemTree>> {
+        self.source_tree(source).cloned()
+    }
     fn input_expanded_name<'a>(
         &'a self,
         source: &'a SchemaDeclarationNode,

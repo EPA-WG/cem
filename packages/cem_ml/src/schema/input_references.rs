@@ -25,6 +25,13 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 
 /// Retained-node adaptation is independent of schema-declaration lookup.
 pub trait InputReferenceHost: ReferenceResolutionHost {
+    /// Original retained source for authored inspection/provenance only.
+    fn input_source_tree(
+        &self,
+        _source: &SchemaDeclarationNode,
+    ) -> Option<Arc<crate::parser::tree::RetainedCemTree>> {
+        None
+    }
     /// Completed invocation name, or None while this original name is pending.
     fn input_expanded_name<'a>(
         &'a self,
@@ -63,6 +70,12 @@ pub trait InputReferenceHost: ReferenceResolutionHost {
     }
 }
 impl<H: SchemaDeclarationHost> InputReferenceHost for H {
+    fn input_source_tree(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Option<Arc<crate::parser::tree::RetainedCemTree>> {
+        SchemaDeclarationHost::input_source_tree(self, source)
+    }
     fn input_expanded_name<'a>(
         &'a self,
         source: &'a SchemaDeclarationNode,
@@ -127,9 +140,20 @@ pub fn native_attribute_expression(
     })
 }
 
+/// Execution name metadata and optional original source tree. No arena is copied;
+/// a retained snapshot stays independent of later host invocation assignments.
+#[derive(Debug, Clone)]
+pub struct InputNodeView {
+    pub names: std::collections::BTreeMap<crate::parser::AstNodeId, crate::parser::ExpandedName>,
+    pub source_tree: Option<Arc<crate::parser::tree::RetainedCemTree>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct StructuralValidationNode {
     pub source: SchemaDeclarationNode,
+    /// None supports manually supplied original-name snapshots. Consumer-created
+    /// complete placements retain their invocation names and source provenance.
+    pub input_view: Option<InputNodeView>,
     /// Filled by the explicit behavior stage; structural-only validation does
     /// not ask the host to establish additional lexical schema context.
     pub declaring_schema: Option<SchemaDeclarationNode>,
@@ -473,6 +497,7 @@ where
                 let position = report.nodes.len();
                 report.nodes.push(StructuralValidationNode {
                     declaring_schema: None,
+                    input_view: None,
                     source: handle,
                     children: vec![],
                     children_complete: false,
@@ -509,6 +534,7 @@ where
                     let position = report.nodes.len();
                     report.nodes.push(StructuralValidationNode {
                         declaring_schema: None,
+                        input_view: None,
                         source: retained,
                         children: vec![],
                         children_complete: resolved.children_complete[index],
@@ -633,6 +659,7 @@ where
             }
             report.nodes.push(StructuralValidationNode {
                 declaring_schema: None,
+                input_view: None,
                 source: handle,
                 children: vec![],
                 children_complete,
@@ -650,6 +677,9 @@ where
     }
     let mut pending: Vec<_> = report.roots.iter().rev().map(|id| (*id, false)).collect();
     while let Some((index, allows_any)) = pending.pop() {
+        let view = input_node_view(&report.nodes[index].source, host);
+        report.complete &= view.is_some();
+        report.nodes[index].input_view = view;
         let current = &report.nodes[index];
         let Some(model_index) = node_models[index] else {
             continue;
@@ -665,8 +695,7 @@ where
             })
             .collect();
         let mut diagnostics = vec![];
-        let names = input_names(&current.source, host);
-        report.complete &= names.is_some();
+        let names = current.input_view.as_ref().map(|view| &view.names);
         let child_names_ready = current.children.iter().all(|child| {
             let child = &report.nodes[*child].source;
             !matches!(child.node(), CemAstNode::Element { .. })
@@ -682,7 +711,7 @@ where
                 allows_any,
                 (current.children_complete && child_names_ready).then_some(sequence.as_slice()),
                 models.control_attributes(&current.source),
-                names.as_ref(),
+                names,
                 &mut diagnostics,
             )
         };
@@ -733,12 +762,12 @@ where
     Ok(report)
 }
 
-/// Complete original element/attribute name metadata for shallow checks. A
-/// missing dependency defers required/field checks rather than looking absent.
-fn input_names<H: InputReferenceHost>(
+/// Snapshot invocation names and optional original provenance over retained
+/// handles. A missing name dependency keeps the consumer view incomplete.
+fn input_node_view<H: InputReferenceHost>(
     source: &SchemaDeclarationNode,
     host: &H,
-) -> Option<std::collections::BTreeMap<crate::parser::AstNodeId, crate::parser::ExpandedName>> {
+) -> Option<InputNodeView> {
     let mut names = std::collections::BTreeMap::new();
     if let CemAstNode::Element { attributes, .. } = source.node() {
         names.insert(source.node_id(), host.input_expanded_name(source)?.clone());
@@ -747,7 +776,13 @@ fn input_names<H: InputReferenceHost>(
             names.insert(*id, host.input_expanded_name(&attribute)?.clone());
         }
     }
-    Some(names)
+    if matches!(source.node(), CemAstNode::Attribute { .. }) {
+        names.insert(source.node_id(), host.input_expanded_name(source)?.clone());
+    }
+    Some(InputNodeView {
+        names,
+        source_tree: host.input_source_tree(source),
+    })
 }
 
 /// Shallow validation emits errors on the element or its authored attributes.

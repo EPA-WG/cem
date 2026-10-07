@@ -304,6 +304,12 @@ where
     ) -> Option<&'a ExpandedName> {
         SchemaDeclarationHost::input_expanded_name(self.host, source)
     }
+    fn input_source_tree(
+        &self,
+        source: &SchemaDeclarationNode,
+    ) -> Option<Arc<RetainedCemTree>> {
+        SchemaDeclarationHost::input_source_tree(self.host, source)
+    }
     fn source_reference(&self, source: SchemaDeclarationNode) -> Self::Node {
         self.host.source_reference(source)
     }

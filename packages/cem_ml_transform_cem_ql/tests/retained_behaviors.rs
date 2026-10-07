@@ -67,6 +67,7 @@ fn snapshot() -> (Arc<CemDocument>, Vec<StructuralValidationNode>) {
     let library = parse("{item @kind=page}");
     let node = |source, children| StructuralValidationNode {
         source,
+        input_view: None,
         children,
         declaring_schema: None,
         children_complete: true,

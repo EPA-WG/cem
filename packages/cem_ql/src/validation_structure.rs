@@ -5,10 +5,10 @@ use crate::eval::{
     QueryNodeIterator, QueryNodeTextIterator,
 };
 use cem_ml::{
-    parser::{document::CemDocument, AstNodeId, CemAstNode},
+    parser::{document::CemDocument, AstNodeId, CemAstNode, ExpandedName},
     schema::{
         declaration_references::SchemaDeclarationNode,
-        input_references::{RetainedValidationStructure, StructuralValidationNode},
+        input_references::{InputNodeView, RetainedValidationStructure, StructuralValidationNode},
     },
     source_map::SourceMapStack,
 };
@@ -47,6 +47,7 @@ impl RetainedValidationQueryTree {
             *root_slot = true;
         }
         for (index, node) in structure.nodes.iter().enumerate() {
+            validate_input_view(&node.source, node.input_view.as_ref())?;
             match node.source.node() {
                 CemAstNode::Element { attributes, .. } => {
                     if attributes.iter().any(|id| {
@@ -148,6 +149,20 @@ pub struct ValidationPlacementNode {
     attribute: Option<AstNodeId>,
 }
 impl ValidationPlacementNode {
+    fn authored(&self) -> Option<Item> {
+        authored_input_node(
+            &self.source_node(),
+            self.tree.nodes[self.placement].input_view.as_ref(),
+        )
+    }
+    fn expanded_name(&self) -> Option<&ExpandedName> {
+        let source = &self.tree.nodes[self.placement].source;
+        input_expanded_name(
+            self.node(),
+            self.attribute.unwrap_or(source.node_id()),
+            self.tree.nodes[self.placement].input_view.as_ref(),
+        )
+    }
     /// Snapshot owner used by consumers to reject selections from another stage.
     pub fn owner(&self) -> &Arc<RetainedValidationQueryTree> {
         &self.tree
@@ -194,6 +209,9 @@ fn string(value: &str) -> Vec<Item> {
     vec![Item::Atomic(AtomValue::String(value.into()))]
 }
 impl QueryItemView for ValidationPlacementNode {
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
+        self.authored()?.view()?.provenance()
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -254,6 +272,7 @@ impl QueryItemView for ValidationPlacementNode {
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         match name {
+            "source" => return self.authored().map(|node| vec![node]),
             "children" => return Some(self.child_items()),
             "attributes" => return Some(self.attribute_items()),
             "parent" => {
@@ -284,16 +303,12 @@ impl QueryItemView for ValidationPlacementNode {
             (CemAstNode::ProcessingInstruction { .. }, "kind") => {
                 Some(string("processing-instruction"))
             }
-            (
-                CemAstNode::Element { expanded_name, .. }
-                | CemAstNode::Attribute { expanded_name, .. },
-                "name" | "element",
-            ) => Some(string(&expanded_name.local_name)),
-            (
-                CemAstNode::Element { expanded_name, .. }
-                | CemAstNode::Attribute { expanded_name, .. },
-                "namespace",
-            ) => Some(string(&expanded_name.namespace_uri)),
+            (CemAstNode::Element { .. } | CemAstNode::Attribute { .. }, "name" | "element") => {
+                Some(string(&self.expanded_name()?.local_name))
+            }
+            (CemAstNode::Element { .. } | CemAstNode::Attribute { .. }, "namespace") => {
+                Some(string(&self.expanded_name()?.namespace_uri))
+            }
             (CemAstNode::Attribute { value, .. }, "value" | "values") => {
                 Some(value.as_deref().map(string).unwrap_or_default())
             }
@@ -312,6 +327,59 @@ impl QueryItemView for ValidationPlacementNode {
             _ => None,
         }
     }
+}
+pub(crate) fn authored_input_node(
+    source: &SchemaDeclarationNode,
+    view: Option<&InputNodeView>,
+) -> Option<Item> {
+    let tree = view?.source_tree.as_ref()?;
+    crate::eval::RetainedCemNode::new(tree.clone(), source.node_id()).map(|node| node.query_item())
+}
+pub(crate) fn input_expanded_name<'a>(
+    node: &'a CemAstNode,
+    id: AstNodeId,
+    view: Option<&'a InputNodeView>,
+) -> Option<&'a ExpandedName> {
+    if let Some(view) = view {
+        return view.names.get(&id);
+    }
+    match node {
+        CemAstNode::Element { expanded_name, .. } | CemAstNode::Attribute { expanded_name, .. } => {
+            Some(expanded_name)
+        }
+        _ => None,
+    }
+}
+pub(crate) fn validate_input_view(
+    source: &SchemaDeclarationNode,
+    view: Option<&InputNodeView>,
+) -> Result<(), String> {
+    let Some(view) = view else { return Ok(()) };
+    if view
+        .source_tree
+        .as_ref()
+        .is_some_and(|tree| !Arc::ptr_eq(tree.ast_owner(), source.document()))
+    {
+        return Err("Input view belongs to another original source owner".into());
+    }
+    let mut ids = vec![source.node_id()];
+    if let CemAstNode::Element { attributes, .. } = source.node() {
+        ids.extend(attributes);
+    }
+    for id in ids {
+        if let Some(
+            CemAstNode::Element { expanded_name, .. } | CemAstNode::Attribute { expanded_name, .. },
+        ) = source.document().get(id)
+        {
+            let Some(name) = view.names.get(&id) else {
+                return Err("Input view name is incomplete".into());
+            };
+            if name.local_name != expanded_name.local_name {
+                return Err("Input view changed an original local name".into());
+            }
+        }
+    }
+    Ok(())
 }
 fn text(node: &CemAstNode) -> Option<&str> {
     match node {

@@ -435,6 +435,7 @@ where
         let model = models.model(site.model);
         let mut access = NativeAttributeTargetAccess {
             nodes: vec![],
+            input_views: vec![],
             roots: vec![],
             parents: vec![],
             children: vec![],
@@ -446,6 +447,9 @@ where
                 access.complete = false;
                 continue;
             };
+            let view = input_node_view(&retained, tagged_host.inner);
+            access.complete &= view.is_some();
+            access.input_views.push(view);
             access.nodes.push(retained);
             access
                 .parents

@@ -59,6 +59,14 @@ impl SchemaDeclarationNode {
 }
 
 pub trait SchemaDeclarationHost: ReferenceResolutionHost {
+    /// Original retained tree for explicit source inspection, when available.
+    /// Returning it supplies provenance only, never relationship authority.
+    fn input_source_tree(
+        &self,
+        _source: &SchemaDeclarationNode,
+    ) -> Option<Arc<crate::parser::tree::RetainedCemTree>> {
+        None
+    }
     /// Effective input name at this consumer invocation. Hosts with lexical
     /// capture return None for pending names; the default supports fixed ASTs.
     /// Only name metadata changes, never the original source/value handle.

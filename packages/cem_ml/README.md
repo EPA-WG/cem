@@ -103,8 +103,11 @@ captured names. Shared structural validation uses the host's `input_expanded_nam
 hook for owning and selected attribute permissions/typing; pending names defer
 presence/field checks, retaining source values, diagnostics and traversal bounds.
 Pending schema QNames retain their original body/following form;
-completed namespace identity still determines core kind. Retained behavior name
-views remain a separate migration task, alongside completed-declaration publication and automatic opt-in lifecycle coordination.
+completed namespace identity still determines core kind. Retained placements and
+native attribute targets now snapshot `InputNodeView` names and optional original
+source provenance. Pending names keep dependent behavior incomplete; authored
+subtrees/references stay intact. Completed-declaration publication and automatic
+opt-in lifecycle coordination remain tracked tasks.
 A ready native query/admission view does not establish structural validation
 readiness.
 

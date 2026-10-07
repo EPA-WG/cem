@@ -779,9 +779,12 @@ QNames retain their original body/following producer form, without establishing
 core target kind. Owning and reference-selected input placements use completed
 names for attribute permissions and lexical typing without replacing original values
 or resetting native traversal limits. Pending names keep validation incomplete and
-defer shallow presence/field checks. Retained behavior name views,
-completed-declaration publication and automatic opt-in lifecycle coordination remain
-tracked tasks. Ready name metadata alone does not establish validation readiness.
+defer shallow presence/field checks. Retained behavior views snapshot these names
+and original source provenance on placements and authorized attribute target nodes.
+Their names survive invocation restoration; `source` retains authored inspection.
+Pending target-subtree names keep behavior incomplete without evaluating descendant
+references. Completed-declaration publication and automatic opt-in lifecycle
+coordination remain tracked tasks. Ready name metadata alone does not establish validation readiness.
 Namespace-aware expression contexts require every captured pending prefix to complete, including
 unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
 snapshots and declaration handles alongside ready per-execution URI overlays.

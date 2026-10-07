@@ -34,8 +34,8 @@ impl CemQlSchemaDeclarationHost {
     ///
     /// This establishes no runtime input, scope assignment, relationship grant or
     /// target-binding readiness. It neither evaluates slots nor installs lexical
-    /// contexts. Structural attribute lookup uses these names; retained behavior
-    /// name projections require their own handoff.
+    /// contexts. Structural and retained behavior consumers snapshot these names
+    /// while the invocation is active; snapshots retain original source owners.
     pub fn with_completed_namespace_names<R, F>(
         &mut self,
         completion: Arc<NamespaceNameCompletion>,

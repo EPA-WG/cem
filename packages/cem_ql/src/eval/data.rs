@@ -393,6 +393,9 @@ impl QueryItemView for CemAstView {
             (CemAstNode::Attribute { value, .. }, "value" | "values") => {
                 value.as_ref().map(string).unwrap_or_default()
             }
+            (CemAstNode::Attribute { value_nodes, .. }, "valueNodes") => {
+                value_nodes.iter().map(|id| self.item(*id)).collect()
+            }
             (CemAstNode::Text { .. }, "kind") => string("text"),
             (CemAstNode::Whitespace { .. }, "kind") => string("whitespace"),
             (CemAstNode::Comment { .. }, "kind") => string("comment"),

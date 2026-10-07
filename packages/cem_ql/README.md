@@ -221,8 +221,12 @@ context handoff. Structural attribute permissions and literal typing use the sam
 completion for owning and reference-selected placements. Missing names defer
 presence/field checks and native slots with pending names; original source/value
 handles and bounded
-reference traversal remain intact. Retained behavior names still read original
-AST names; that migration remains tracked. Ready names alone do not establish
+reference traversal remain intact. Retained validation/behavior and attribute-target
+views now retain this execution's completed names after invocation restoration or
+host disposal. Their host-backed `source` field exposes the authored native tree;
+attribute `valueNodes` retains original slots. Source handles/maps, placement/model
+boundaries and native target identity remain intact. Pending names within authorized
+attribute targets defer dependent behavior. Ready names alone do not establish
 validation readiness. See the [scope-property adoption audit](../../docs/cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06)
 for implemented contracts, fixture coverage and remaining work.
 

@@ -345,8 +345,12 @@ read completed names while values/diagnostics keep their original handles. Missi
 names defer shallow presence/field checks and leave validation incomplete; selected
 native attributes keep the enclosing reference traversal's work/depth limits and
 grants. Existing local-name permissions and lexical datatype behavior are unchanged.
-Retained behavior name projections still read original source names; their migration
-remains open. A completed query or admission view alone does not make validation ready.
+Retained validation/behavior views now retain execution name snapshots on placements
+and authorized native attribute targets. Names survive invocation restoration and
+host disposal; `source` exposes the unchanged original tree when the host supplies
+it. Pending names in the authorized target subtree keep the behavior stage incomplete,
+without evaluating authored descendant references. A completed query or admission
+view alone does not make validation ready.
 Selecting a pending namespace declaration still returns `TargetBindingNotReady`;
 completing its value for one execution does not publish that result for later target
 admission. Automatic namespace lifecycle coordination is not part of ordinary
@@ -430,8 +434,15 @@ After completion, a core alias can consume that original form, while a foreign a
 remains ordinary data. The generic/imported producer form boundary is unchanged.
 Fixtures are in [namespace/schema name handoff](../packages/cem_ql/tests/namespace_schema_names.rs)
 and [pending namespace capture](../packages/cem_ml/tests/pending_namespace_names.rs).
-Structural attribute-contract lookup and retained behavior name views still need
-separate migration to this execution-specific name contract.
+Structural attribute-contract lookup and retained validation/behavior views now
+share this execution-specific name contract. `InputNodeView` snapshots completed
+name metadata and optional original retained source provenance without copying an
+arena. Views preserve placement/model boundaries and original node identities;
+manual snapshots can explicitly retain their previous original-name path. Query
+construction rejects incomplete name metadata, changed local names and foreign
+source-tree owners. Fixtures are in
+[namespace behavior names](../packages/cem_ml_transform_cem_ql/tests/namespace_behavior_names.rs)
+and [retained validation views](../packages/cem_ql/tests/validation_structure.rs).
 
 Namespace target admission was adopted on 2026-10-06: consume only an explicit
 namespace binding/declaration, with exactly one completed selection and an
@@ -2152,10 +2163,13 @@ handles, duplicate ownership and malformed attribute edges invalidate access.
 Retained behavior attribute `.value` exposes the consumed native target sequence,
 and existing local-name attribute conveniences expose that same typed sequence.
 Literal conveniences retain their existing scalar behavior. The original source
-handle preserves the authored attribute and reference. Query axes stay inside the
+handle preserves the authored attribute and reference. A host-backed `source`
+field exposes that original native tree, including authored attribute `valueNodes`;
+ordinary consumed axes stay inside the
 captured selected subtree: selected roots have no original parent, and outside
 parents, siblings, document roots, reference contexts and saved targets are not
-exposed. Broader access requires explicitly granted consumer evaluation. Native
+exposed through the consumed view. Explicit source inspection uses authored axes;
+reference evaluation still applies its original scope and grants. Native
 query values retain original node identity, owner and scope when explicitly
 referenced again; they do not manufacture a source arena or copied record.
 

@@ -33,6 +33,7 @@ impl NativeAttributeQueryTree {
                 return Err("Invalid attribute access forest".into());
             }
             let node = access.node(index).ok_or("Invalid attribute access node")?;
+            crate::validation_structure::validate_input_view(node, access.input_view(index))?;
             original
                 .entry((Arc::as_ptr(node.document()) as usize, node.node_id()))
                 .or_insert(index);
@@ -80,6 +81,19 @@ pub struct NativeAttributeQueryNode {
     index: usize,
 }
 impl NativeAttributeQueryNode {
+    fn authored(&self) -> Option<Item> {
+        crate::validation_structure::authored_input_node(
+            self.source_node(),
+            self.tree.access.input_view(self.index),
+        )
+    }
+    fn expanded_name(&self) -> Option<&cem_ml::parser::ExpandedName> {
+        crate::validation_structure::input_expanded_name(
+            self.node(),
+            self.source_node().node_id(),
+            self.tree.access.input_view(self.index),
+        )
+    }
     pub fn source_node(&self) -> &SchemaDeclarationNode {
         self.tree.access.node(self.index).unwrap()
     }
@@ -120,6 +134,9 @@ fn scalar(value: &str) -> Vec<Item> {
     vec![Item::Atomic(AtomValue::String(value.into()))]
 }
 impl QueryItemView for NativeAttributeQueryNode {
+    fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
+        self.authored()?.view()?.provenance()
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -187,6 +204,7 @@ impl QueryItemView for NativeAttributeQueryNode {
     }
     fn field(&self, name: &str) -> Option<Vec<Item>> {
         match name {
+            "source" => return self.authored().map(|node| vec![node]),
             "children" => return Some(self.child_items()),
             "attributes" => return Some(self.attribute_items()),
             "parent" => {
@@ -213,16 +231,12 @@ impl QueryItemView for NativeAttributeQueryNode {
                 CemAstNode::ProcessingInstruction { .. } => "processing-instruction",
                 CemAstNode::Error { .. } => "error",
             })),
-            (
-                CemAstNode::Element { expanded_name, .. }
-                | CemAstNode::Attribute { expanded_name, .. },
-                "name" | "element",
-            ) => Some(scalar(&expanded_name.local_name)),
-            (
-                CemAstNode::Element { expanded_name, .. }
-                | CemAstNode::Attribute { expanded_name, .. },
-                "namespace",
-            ) => Some(scalar(&expanded_name.namespace_uri)),
+            (CemAstNode::Element { .. } | CemAstNode::Attribute { .. }, "name" | "element") => {
+                Some(scalar(&self.expanded_name()?.local_name))
+            }
+            (CemAstNode::Element { .. } | CemAstNode::Attribute { .. }, "namespace") => {
+                Some(scalar(&self.expanded_name()?.namespace_uri))
+            }
             (CemAstNode::Attribute { value_nodes, .. }, "valueNodes") => {
                 Some(self.owning_items(value_nodes))
             }

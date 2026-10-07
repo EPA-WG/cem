@@ -169,12 +169,17 @@ pub(crate) fn has_unconsumed_constraints(attribute: &document_model::AttributeMo
 #[derive(Debug, Clone)]
 pub struct NativeAttributeTargetAccess {
     pub(crate) nodes: Vec<SchemaDeclarationNode>,
+    pub(crate) input_views: Vec<Option<super::input_references::InputNodeView>>,
     pub(crate) roots: Vec<usize>,
     pub(crate) parents: Vec<Option<usize>>,
     pub(crate) children: Vec<Vec<usize>>,
     pub(crate) complete: bool,
 }
 impl NativeAttributeTargetAccess {
+    /// Execution name/provenance snapshot, independent of later host assignments.
+    pub fn input_view(&self, index: usize) -> Option<&super::input_references::InputNodeView> {
+        self.input_views.get(index)?.as_ref()
+    }
     pub fn is_complete(&self) -> bool {
         self.complete
     }

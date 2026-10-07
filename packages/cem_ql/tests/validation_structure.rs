@@ -53,6 +53,7 @@ fn snapshot() -> (Arc<CemDocument>, Vec<StructuralValidationNode>) {
         .unwrap();
     let node = |source, children| StructuralValidationNode {
         source,
+        input_view: None,
         children,
         declaring_schema: None,
         children_complete: true,
@@ -499,4 +500,74 @@ impl cem_ml::schema::input_references::InputReferenceHost for AttributeHost {
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode> {
         Some(node.clone())
     }
+}
+
+#[test]
+fn name_snapshots_reject_incomplete_metadata_changed_local_names_and_foreign_sources() {
+    use cem_ml::{
+        parser::{
+            tree::{CemTreeSemantics, RetainedCemTree},
+            ExpandedName,
+        },
+        schema::input_references::InputNodeView,
+    };
+    use std::collections::BTreeMap;
+    let (source, mut nodes) = snapshot();
+    nodes[2].input_view = Some(InputNodeView {
+        names: BTreeMap::new(),
+        source_tree: None,
+    });
+    assert!(RetainedValidationQueryTree::new(view(&source, &nodes))
+        .unwrap_err()
+        .contains("name is incomplete"));
+    let item_id = nodes[2].source.node_id();
+    let CemAstNode::Element { attributes, .. } = nodes[2].source.node() else {
+        panic!()
+    };
+    let attr_id = attributes[0];
+    let metadata = nodes[2].input_view.as_mut().unwrap();
+    metadata.names.insert(
+        item_id,
+        ExpandedName {
+            local_name: "changed".into(),
+            namespace_uri: "urn:execution".into(),
+            schema_id: None,
+        },
+    );
+    metadata.names.insert(
+        attr_id,
+        ExpandedName {
+            local_name: "kind".into(),
+            namespace_uri: "urn:execution".into(),
+            schema_id: None,
+        },
+    );
+    assert!(RetainedValidationQueryTree::new(view(&source, &nodes))
+        .unwrap_err()
+        .contains("local name"));
+    let metadata = nodes[2].input_view.as_mut().unwrap();
+    metadata.names.get_mut(&item_id).unwrap().local_name = "item".into();
+    metadata.source_tree = Some(
+        RetainedCemTree::from_shared(
+            source.clone(),
+            "other.cem",
+            "",
+            CemTreeSemantics::default(),
+            None,
+        )
+        .unwrap(),
+    );
+    assert!(RetainedValidationQueryTree::new(view(&source, &nodes))
+        .unwrap_err()
+        .contains("source owner"));
+    nodes[2].input_view.as_mut().unwrap().source_tree = None;
+    let tree = RetainedValidationQueryTree::new(view(&source, &nodes)).unwrap();
+    assert_eq!(
+        field(&tree.node(2).unwrap(), "namespace")[0].atom(),
+        Some(cem_ql::eval::AtomValue::String("urn:execution".into()))
+    );
+    assert_eq!(
+        field(&tree.node(3).unwrap(), "namespace")[0].atom(),
+        Some(cem_ql::eval::AtomValue::String("".into()))
+    );
 }

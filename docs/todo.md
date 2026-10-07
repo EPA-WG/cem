@@ -2091,31 +2091,36 @@ only and adds no runtime behavior or public syntax.
       value-form, traversal, target-kind, readiness, activation and lifetime contracts
       to their existing fixtures. Corrected stale implementation-status claims.
       Namespace activation is an explicit execution-host handoff, whereas schema
-      runtime validation restores invocation assignments. Query name completion
-      does not yet reach schema admission/control discovery or structural input
-      attribute-contract lookup; recorded that integration gap separately below.
+      runtime validation restores invocation assignments. The name-completion gap
+      in schema admission/control discovery and structural attributes was recorded
+      below; the following handoff work now closes it.
       Completed namespace declaration reuse and automatic coordination remain open.
       Verification: 92 existing native scope-preparation, runtime-region, namespace
       preparation/activation/handoff, region-behavior and query-ingress tests pass.
       Scenarios for later design verification: supported consumers share native
       reference contracts without rewriting ASTs or inventing context IDs;
       remaining deferred work is distinguishable from implemented behavior.
-- [ ] Fixture and implement execution-specific completed-name handoff into schema
+- [x] Fixture and implement execution-specific completed-name handoff into schema
       consumers. Route completed expanded names through original owner/node handles
       for target admission, schema control discovery, structural attribute-contract
       lookup and retained behavior views. Preserve fixed names, source inspection,
       selected-forest boundaries and consuming-model ownership; missing dependencies
       must keep the affected region incomplete. Keep original captured tables and
       AST records immutable and independent executions isolated.
-      Admission/control handoff implemented: `with_completed_namespace_names`
+      Admission/control and structural/behavior handoff implemented:
+      `with_completed_namespace_names`
       supplies one registered owner's selected completion only during the callback;
       `consuming_expanded_name` uses it for schema admission and established control
       discovery, while `captured_expanded_name` stays immutable. Nested same-owner
       invocation temporarily replaces the active forest; other owners retain theirs.
       Return/error/unwind restore previous completion. Structural attribute lookup
       now uses the shared input-name hook on owning/selected placements; pending
-      names defer shallow presence/field checks. Retained behavior name projections
-      remain the separate unchecked task below.
+      names defer shallow presence/field checks. Retained placements and authorized
+      attribute targets now snapshot invocation names and original source provenance;
+      behavior navigation stays coherent after restoration without rewriting capture.
+      Pending target-subtree names defer dependent behavior; source inspection keeps
+      authored axes/references. Completed-declaration publication/coordination remain
+      separate unchecked tasks below.
       Scenarios for later design verification: a namespace-completed schema target
       can be admitted without using its raw lexical prefix; completed core aliases
       identify controls while foreign aliases remain data; names outside a selected
@@ -2129,7 +2134,7 @@ only and adds no runtime behavior or public syntax.
       independent/nested executions and directed grants/traversal bounds.
       Verification: 102 focused native capture, name-handoff, scope preparation,
       runtime-region, namespace activation/handoff, behavior and query-ingress
-      tests pass. Retained behavior projection migration remains open below.
+      tests pass. Subsequent structural/behavior handoff is completed below.
       Scenarios for later design verification: callback name completion supplies
       no runtime inputs, crossing authority or declaration readiness; selected
       completions cannot rewrite fixed names or leak into later invocations.
@@ -2173,12 +2178,38 @@ only and adds no runtime behavior or public syntax.
       the existing engine retained-attribute fixture remains complete for ready input.
       Scenarios for later design verification: `@xmlns:prefix` is a ready declaration
       name while an unbound element/ordinary attribute stays unavailable.
-- [ ] Expose completed names through retained validation/behavior views after
+- [x] Expose completed names through retained validation/behavior views after
       structural handoff. Preserve original `source` inspection and consumed
       attribute values; keep placement identity and model ownership intact.
+      Completed: `InputNodeView` snapshots name metadata and optional original
+      retained-tree provenance on placements and bounded native attribute targets.
+      Query views use those names after restoration/host disposal; host-backed
+      `source` fields expose authored names and attribute `valueNodes`. Descendant
+      references stay native/unexecuted. Missing authorized target names keep
+      consumption/behavior incomplete. Original target identity and model domains
+      remain intact; manual snapshots retain their original-name compatibility path.
       Scenarios for later design verification: behavior navigation sees this
       execution's names; source metadata and authored descendant references remain
       unchanged when the same original node appears in multiple placements.
+- [x] Fixture: cover execution-specific retained behavior names in
+      `namespace_behavior_names`. Verify names after invocation restoration,
+      repeated source placements under different consuming models, native attribute
+      target navigation, authored `source` inspection, pending-name deferral and
+      unchanged descendant reference structure/grants/traversal limits.
+      Completed: three native integration fixtures cover saved independent views,
+      source metadata/slots, pending target-subtree names and repeated original
+      selections under outer/child models. Existing bounded traversal and consumer
+      fixtures remain green. Verification: 219 focused native tests pass.
+      Scenarios for later design verification: independent snapshots keep their
+      own namespace URIs; source metadata and native attribute values keep their
+      original owners even after the execution host is dropped.
+- [x] Fixture: reject incomplete/foreign retained name metadata before query
+      access in `validation_structure`, preserving the explicit original-name
+      compatibility path for manually assembled snapshots.
+      Completed: query construction rejects missing names, changed local names
+      and foreign original-tree provenance while preserving legacy raw snapshots.
+      Scenarios for later design verification: a snapshot cannot attach another
+      arena's source tree, omit a required name or change an authored local name.
 - [ ] Define per-execution publication and reuse of completed native namespace
       declaration results. Selecting a pending declaration currently remains
       `TargetBindingNotReady`, even after another consumer completed its value.
@@ -2196,6 +2227,15 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: waiting releases execution work;
       unrelated ready regions stay consumable; separate instances never share
       mutable namespace results, contexts or source targets.
+
+- [ ] Verify the complete schema/namespace reference consumer lifecycle after
+      namespace result publication and opt-in coordination are implemented. Audit
+      design/README coverage and add any missing end-to-end native fixtures; preserve
+      the separately deferred child-override syntax and cem-element ID/binding work.
+      Scenarios for later design verification: repeated template/source reuse gives
+      each execution independent contexts, namespace results and query/validation
+      names; pending retries release work and preserve owners, bounds and grants;
+      ordinary parsing/inspection never performs consumer reference evaluation.
 
 - [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs
