@@ -722,7 +722,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,
-        behaviorIdentity: 'cem-elements-popup-v2',
+        behaviorIdentity: 'cem-elements-popup-v3',
     },
     'action-control': {
         behavior: CEM_ACTION_CONTROL_CAPABILITY,
@@ -734,7 +734,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,
-        behaviorIdentity: 'cem-elements-composite-menu-v2',
+        behaviorIdentity: 'cem-elements-composite-menu-v3',
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,

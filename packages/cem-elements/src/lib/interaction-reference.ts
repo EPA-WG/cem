@@ -23,11 +23,13 @@ export function interactionControl(target?: Element): HTMLElement | undefined {
     if (control?.matches('button,a[href]')) return control;
     return undefined;
 }
-const errors = new WeakMap<HTMLElement, string>();
-export function reportInteractionReference(host: HTMLElement, code?: string): void {
-    if (!code) { errors.delete(host); return; }
-    if (errors.get(host) === code) return;
-    errors.set(host, code);
+const errors = new WeakMap<HTMLElement, Map<string, string>>();
+export function reportInteractionReference(host: HTMLElement, code?: string, channel = 'endpoint'): void {
+    let channels = errors.get(host);
+    if (!code) { channels?.delete(channel); return; }
+    if (channels?.get(channel) === code) return;
+    if (!channels) { channels = new Map(); errors.set(host, channels); }
+    channels.set(channel, code);
     host.dispatchEvent(new CustomEvent('cem-interaction-error', { bubbles: true, detail: { code, source: host } }));
 }
 const roots = new WeakMap<Node, { observer: MutationObserver; callbacks: Set<() => void> }>();
@@ -39,7 +41,8 @@ export function observeInteractionReferences(host: HTMLElement, callback: () => 
         const observer = new MutationObserver(() => { for (const update of callbacks) update(); });
         observer.observe(root, { subtree: true, childList: true, attributes: true,
             attributeFilter: ['id', 'part', 'slot', 'interaction-name', 'interaction-scope', 'trigger-for', 'parent-item',
-                'data-cem-node-ref-trigger-for', 'data-cem-node-ref-parent-item'] });
+                'data-cem-node-ref-trigger-for', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost',
+                'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary', 'hidden', 'disabled', 'inert', 'tabindex'] });
         group = { observer, callbacks }; roots.set(root, group);
     }
     group.callbacks.add(callback);

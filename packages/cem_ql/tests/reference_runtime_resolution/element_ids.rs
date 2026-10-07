@@ -121,6 +121,60 @@ fn interaction_references_use_an_explicit_projection_marker() {
     assert!(html.contains("data-cem-node-ref-command-target"));
 }
 #[test]
+fn focus_geometry_slots_are_single_placement_relationships() {
+    for name in ["focus-target", "return-focus", "anchor", "boundary"] {
+        let original = plan(&format!("{{surface @{name}={{#target}}}}{{$target}}"));
+        let html = render_plan_to_html(&project(&original, "first").unwrap());
+        assert!(html.contains(&format!("{name}=\"first-ref-1\"")), "{html}");
+        assert!(
+            html.contains(&format!("data-cem-node-ref-{name}")),
+            "{html}"
+        );
+        assert!(
+            render_plan_to_html(&project(&original, "second").unwrap()).contains("second-ref-1")
+        );
+        assert!(!render_plan_to_html(&original).contains("first-ref"));
+        for (value, placement, code) in [
+            (
+                "#(target, target)",
+                "{$target}",
+                "cem.element_reference.cardinality",
+            ),
+            ("#()", "{$target}", "cem.element_reference.cardinality"),
+            ("#target", "", "cem.element_reference.target_missing"),
+            (
+                "#target",
+                "{$target}{$target}",
+                "cem.element_reference.target_ambiguous",
+            ),
+            (
+                "#target.children.children",
+                "{$target}",
+                "cem.element_reference.target_kind",
+            ),
+        ] {
+            let original = plan(&format!("{{surface @{name}={{{value}}}}}{placement}"));
+            assert_eq!(
+                project(&original, "first").unwrap_err().code(),
+                code,
+                "{name}: {value}"
+            );
+        }
+        let reserved = plan(&format!(
+            "{{surface @data-cem-node-ref-{name}=bad}}{{$target}}"
+        ));
+        assert_eq!(
+            project(&reserved, "first").unwrap_err().code(),
+            "cem.element_reference.reserved"
+        );
+    }
+    let literal = plan("{surface @focus-target=auto @return-focus=none @anchor=invoker @boundary=viewport}{$target}");
+    let html = render_plan_to_html(&project(&literal, "first").unwrap());
+    assert!(html.contains("focus-target=\"auto\""));
+    assert!(html.contains("return-focus=\"none\""));
+    assert!(!html.contains("data-cem-node-ref-"));
+}
+#[test]
 fn traversal_is_bounded_and_cancelled_before_publication() {
     let original = plan("{button @commandfor={#target}}{$target}");
     let cancelled = OperationControl::default();

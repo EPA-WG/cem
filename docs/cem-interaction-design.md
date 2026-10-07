@@ -94,9 +94,11 @@ Proposal aliases are replaced: `title` → `label` for task naming; `target` →
 
 Native `@focus-target={#node}`, `@return-focus={#node}`, `@anchor={#node}` and
 `@boundary={#node}` are now specified with the roles in sections 8–9 and the
-reference-to-ID consumer contract. They remain an explicit implementation action
-before enabling export/provider handling. Each relationship resolves independently;
+reference-to-ID consumer contract. Native export and the shared popup/menu
+providers now consume these slots. Each relationship resolves independently;
 geometry never makes an element an invoker or a focus destination.
+Other native dialog/task/tooltip surface adapters and invocation-captured
+pointer/selection geometry retain their separate implementation scope.
 
 ### Slots and produced parts
 
@@ -406,7 +408,8 @@ Use stable names with source location and related declarations:
 - interaction-profile-conflict, interaction-command-incompatible, interaction-dual-route.
 - interaction-submenu-cycle, interaction-submenu-parent-ambiguous.
 - interaction-body-conflict, interaction-materialization-invalid.
-- interaction-focus-target-invalid, interaction-anchor-unavailable.
+- interaction-focus-target-invalid, interaction-return-focus-invalid,
+  interaction-anchor-unavailable.
 - interaction-context-rejected, interaction-open-failed.
 
 For unresolved reference links, apply the scope schema's mandatory, warning,

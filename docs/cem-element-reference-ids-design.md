@@ -28,7 +28,7 @@ fail target validation rather than forming an ID by concatenating text.
 | `commandfor`, `popovertarget`, `interestfor`, `form`, `list`, `aria-activedescendant`, `aria-details`, `aria-errormessage`, `for` outside `output` | Exactly one element |
 | `aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-owns` | Nonempty ordered element sequence; repetitions retained |
 | `headers`, `output`'s `for` | Nonempty element sequence exported as unique ID tokens in first-occurrence order |
-| `command-target`, `interaction`, `trigger-for`, `parent-item` | Exactly one element/provider; its owning interaction capability validates the semantic role |
+| `command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`, `return-focus`, `anchor`, `boundary` | Exactly one element/provider; its owning interaction capability validates the semantic role |
 
 The initial ARIA contract follows the [WAI-ARIA 1.2 Recommendation](https://www.w3.org/TR/wai-aria-1.2/),
 whose [details](https://www.w3.org/TR/wai-aria-1.2/#aria-details) and
@@ -132,7 +132,7 @@ unchanged. Projection uses a temporary native identity-to-placement map, then
 writes browser lexical values into a new output plan. Intermediate native trees
 are never serialized/reparsed or substituted with DOM/JSON records.
 
-## Focus and geometry slots specified for the next provider slice
+## Focus and geometry slots
 
 The accepted native forms are `@focus-target={#node}`, `@return-focus={#node}`,
 `@anchor={#node}` and `@boundary={#node}`. Each selects exactly one produced element
@@ -149,10 +149,28 @@ semantic fallback with diagnostics; unavailable geometry follows the declared
 anchor-lost/opening policy. Cross-instance targets require the future placement
 channel, even when a DOM ID happens to exist.
 
-These four slots are specified but not yet enabled by the native exporter or
-shared provider capabilities. Their implementation and role/readiness fixtures
-are explicit todo actions. This preserves the distinction between the accepted
-interaction design and currently shipped behavior.
+These slots are enabled in native export and the shared popup/composite-menu
+providers. Explicit entry focus is checked against the live semantic surface;
+invalid entry uses the eligible semantic fallback. Restoration on Escape or
+closing activation checks its destination again after hiding. Tab, outside
+dismissal, geometry loss and disconnect do not force restoration. `auto`/`none`
+and nearest-scope local-name conveniences remain available.
+
+Fitting resolves the anchor and boundary independently, intersects the latter
+with the visual viewport, resizes before shifting, and converts viewport
+coordinates for absolute containing blocks. Child menus inherit the nearest
+explicit parent boundary unless they declare their own. Resize/scroll and
+endpoint changes recheck geometry. Missing explicit geometry rejects opening;
+an established surface closes on loss unless `anchor-lost=freeze` retains its
+previous geometry. Owned inline styles and observers are released on cleanup.
+Pointer/selection anchors still require a future invocation geometry adapter;
+these providers diagnose unavailable explicit geometry rather than guessing it.
+
+The [granted placement design](cem-element-granted-placements-design.md)
+specifies future access to targets outside the producer forest; the current
+consumer continues to reject those placements. The
+[ARIA profile review](cem-element-aria-reference-profile.md) pins the existing
+1.2 Recommendation default and specifies a future experimental draft opt-in.
 
 ## ID ownership and publication
 

@@ -134,14 +134,25 @@ fn arity(tag: &str, name: &str) -> Option<bool> {
         | "command-target"
         | "interaction"
         | "trigger-for"
-        | "parent-item" => Some(false),
+        | "parent-item"
+        | "focus-target"
+        | "return-focus"
+        | "anchor"
+        | "boundary" => Some(false),
         _ => None,
     }
 }
 fn is_interaction(name: &str) -> bool {
     matches!(
         name,
-        "command-target" | "interaction" | "trigger-for" | "parent-item"
+        "command-target"
+            | "interaction"
+            | "trigger-for"
+            | "parent-item"
+            | "focus-target"
+            | "return-focus"
+            | "anchor"
+            | "boundary"
     )
 }
 

@@ -3500,9 +3500,18 @@ incomplete replacement. Runtime unit tests (588), Node Edge/SSR cases (54),
 XSLT stories (6), typecheck and lint pass. Experimental debug CEMB remains an
 explicit source transport boundary; contexts/grants are not hydration data.
 
-### Next consumer action
+### Focus/geometry consumer actions (2026-10-07)
 
-- [ ] Enable the specified native `focus-target`, `return-focus`, `anchor` and
+- [x] Add native focus/geometry slot fixtures covering single-target cardinality,
+      missing/ambiguous/non-element placements, reserved markers, stable instance
+      IDs and unchanged literal defaults before enabling those slots.
+- [x] Add shared-provider browser fixtures for focus containment and live return
+      eligibility, independent anchor/boundary geometry, endpoint loss/rebinding,
+      nested menu inheritance, absolute initial/resize/scroll compatibility and
+      disconnect cleanup.
+- [x] Add bounded geometry fixtures for viewport intersections, oversized panels
+      and offset containing blocks before changing shared fitting.
+- [x] Enable the specified native `focus-target`, `return-focus`, `anchor` and
       `boundary` slots in the shared ID exporter and provider lifecycle. Add native
       cardinality/placement fixtures and browser role/readiness/cleanup fixtures
       before implementation; retain literal defaults and nearest-scope conveniences.
@@ -3511,19 +3520,72 @@ explicit source transport boundary; contexts/grants are not hydration data.
       fitting boundaries supply independent geometry; incomplete/revoked endpoints
       cannot publish partial relationships or inherit another instance's context.
 
+Validation (2026-10-07): 328 native reference-consumer checks in 36 suites
+and both real WASM worker fixtures pass; runtime unit tests (589), retained Node
+SSR checks (54), Edge SSR browser checks (11), and focused surface/reference/XSLT
+browser stories (11) pass. Typecheck and lint pass with the two existing lint
+warnings. Shared popup/menu behavior identities advance to v3; authored ASTs and
+source contexts remain unchanged by ID export. Placement-channel and draft ARIA
+profile implementation remain explicit actions below.
+
 ### Further explicit boundaries
 
-- [ ] Design a granted placement channel before admitting typed targets produced
+- [x] Design a granted placement channel before admitting typed targets produced
       by another instance or outside the current producer forest. Define ownership,
       readiness, uniqueness, revocation and transactional publication; do not
       replace it with a document-wide CEM ID search.
       Scenarios for later design verification: another instance's matching ID
       grants no native relationship; revoked/ambiguous placements remain incomplete.
-- [ ] Review a versioned ARIA relationship profile before adopting draft
+      Adopted [placement contract](cem-element-granted-placements-design.md):
+      directed scope and placement grants, producer-owned IDs, revision-bound
+      admission snapshots, coordinated publication and immediate revocation cleanup.
+      Implementation is sequenced below; external placements remain unsupported.
+- [x] Review a versioned ARIA relationship profile before adopting draft
       list-valued `aria-details`/`aria-errormessage`. The initial consumer uses the
       WAI-ARIA 1.2 Recommendation's single-target contract.
       Scenarios for later design verification: changing profiles changes export
       cardinality explicitly and never rewrites the authored reference sequence.
+      Adopted [profile review](cem-element-aria-reference-profile.md): pin the
+      1.2 Recommendation default and require an explicit experimental profile for
+      the reviewed 2026-06-04 1.3 Working Draft. No draft profile is enabled yet.
+
+### Next consumer actions
+
+- [ ] Implement the bounded native placement-admission snapshot and export API
+      from the [placement design](cem-element-granted-placements-design.md).
+      Add native fixtures before implementation for both grant requirements,
+      unique placement selection, producer-owned ID reservations, request/destination
+      work bounds and stale/revoked revisions. Add real WASM worker/fallback cases.
+      Scenarios for later design verification: a matching foreign ID grants
+      nothing; local ambiguity stays ambiguous; an unready or revoked admission
+      returns no replacement plan and does not mutate another producer's AST.
+- [ ] Implement the host placement registry/coordinator and transactional browser
+      publication using native admission tokens. Add browser fixtures before
+      implementation for same-root readiness, ID reservation conflicts, nested
+      producer readiness, replacement races, revocation and disconnect cleanup.
+      Scenarios for later design verification: changed dependencies invalidate
+      preparation; coordinated producers publish all relationships together;
+      revocation clears dependent routes immediately without transferring context.
+- [ ] Extend placement admission to SSR and hydration with fresh host authority.
+      Add retained Node/Edge/browser fixtures before implementation for coordinated
+      SSR publication, profile/revision handoff, reconnect and stale resume hints.
+      Scenarios for later design verification: serialized placement descriptors
+      grant no authority; hydration enables routes only after live re-admission;
+      stable producer identity does not make an uncommitted revision ready.
+- [ ] Implement explicit versioned ARIA export profile selection after native and
+      worker/fallback/SSR profile fixtures, using the [reviewed contract](cem-element-aria-reference-profile.md).
+      Document a browser/assistive-technology compatibility matrix before enabling
+      the experimental draft profile; preserve the Recommendation default.
+      Scenarios for later design verification: one/many/empty/repeated targets
+      obey the selected profile; profile mismatch requires rerender; unknown
+      profiles fail preparation; authored reference order/identity remain intact.
+- [ ] Extend the accepted focus/geometry contract to native dialog/task/tooltip
+      surface adapters and invocation-captured pointer/selection geometry after
+      their semantic lifecycle is implemented. Add native/browser fixtures before
+      each adapter; reuse typed reference consumption and shared role checks.
+      Scenarios for later design verification: modal `none` preserves native
+      focus entry; pointer geometry supplies no return-focus destination; missing
+      invocation geometry rejects opening rather than borrowing another context.
 
 ### Scenarios for later design verification
 

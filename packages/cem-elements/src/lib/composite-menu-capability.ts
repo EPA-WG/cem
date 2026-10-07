@@ -1,7 +1,8 @@
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
+import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { compositeIndex } from './composite-navigation.js';
-import { showPopup, hidePopup, positionPopup } from './popup-controller.js';
+import { showPopup, hidePopup, positionPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
 // Direct composite parts and projected submenu slots are the declaration contract.
 const COMPOSITE = '[part~="composite"]';
@@ -23,6 +24,8 @@ interface State {
     parent?: HTMLElement;
     relationshipHidden?: { value: HTMLElement['hidden'] };
     releaseReferences?: () => void;
+    releaseGeometry?: () => void;
+    geometryReady?: boolean;
     buffer: string;
     typedAt: number;
     abort?: AbortController;
@@ -130,14 +133,23 @@ function close(host: HTMLElement, restore = false): void {
         hidePopup(panel);
     }
     setAttribute(trigger, 'aria-expanded', 'false');
-    if (restore && trigger.isConnected && !unavailable(trigger)) focus(host, trigger);
+    if (restore) restoreSurfaceFocus(panel ?? host, trigger);
 }
 function dismiss(host: HTMLElement): void { close(rootMenu(host) ?? host); }
+function boundaryOwner(host: HTMLElement): HTMLElement {
+    const visited = new Set<HTMLElement>();
+    while (!host.hasAttribute('boundary') && !visited.has(host)) {
+        visited.add(host); const parent = parentMenu(host); if (!parent) break; host = parent;
+    }
+    return host;
+}
 function position(host: HTMLElement): void {
     const trigger = stateFor(host).open;
     const panel = trigger && panelFor(trigger);
     if (!trigger || !panel || panel.hidden) return;
-    positionPopup(trigger, panel, column(host));
+    const ready = positionPopup(trigger, panel, column(host), panel, boundaryOwner(panel));
+    if (ready) stateFor(panel).geometryReady = true;
+    else if (!stateFor(panel).geometryReady || panel.getAttribute('anchor-lost') !== 'freeze') close(host);
 }
 function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
     if (!enabled(host) || unavailable(trigger)) return;
@@ -146,13 +158,14 @@ function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
     if (stateFor(host).open !== trigger) close(host);
     stateFor(host).open = trigger;
     stateFor(host).openPanel = panel;
-    showPopup(trigger, panel, column(host));
+    stateFor(panel).geometryReady = false;
+    if (!showPopup(trigger, panel, column(host), panel, boundaryOwner(panel))) { close(host); return; }
+    stateFor(panel).geometryReady = true;
     setAttribute(trigger, 'aria-expanded', 'true');
     synchronize(panel);
     position(host);
     const candidates = items(panel);
-    if (candidates.length) focus(panel, last ? candidates.at(-1) : candidates[0]);
-    else container(panel)?.focus();
+    focusSurface(panel, panel, (last ? candidates.at(-1) : candidates[0]) ?? container(panel) ?? undefined);
 }
 function synchronize(host: HTMLElement): void {
     const state = stateFor(host);
@@ -268,10 +281,14 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         host.ownerDocument.addEventListener('click', event => {
             if (!insideChain(host, event.target as Node)) dismiss(host);
         }, { ...options, capture: true });
-        view.addEventListener('resize', () => position(host), options);
-        view.addEventListener('scroll', () => position(host), { ...options, capture: true });
+        const reflow = () => { const parent = parentMenu(host); if (parent) position(parent); position(host); };
+        state.releaseGeometry = observePopupGeometry(host, reflow);
+        view.visualViewport?.addEventListener('resize', reflow, options);
+        view.visualViewport?.addEventListener('scroll', reflow, options);
+        view.addEventListener('resize', reflow, options);
+        view.addEventListener('scroll', reflow, { ...options, capture: true });
         state.observer = new MutationObserver(() => synchronize(host));
-        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden', 'direction', 'keyboard', 'dir', 'href', 'parent-item', 'data-cem-node-ref-parent-item'] });
+        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden', 'direction', 'keyboard', 'dir', 'href', 'parent-item', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'] });
     },
     rendered(host) { relationshipsChanged(host); },
     preserveRenderedAttribute(_host, _current, _desired, attribute) {
@@ -284,7 +301,8 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         state.abort?.abort();
         state.abort = undefined;
         state.observer?.disconnect();
-        state.releaseReferences?.(); state.releaseReferences = undefined; menus.delete(host);
+        state.releaseReferences?.(); state.releaseReferences = undefined;
+        state.releaseGeometry?.(); state.releaseGeometry = undefined; releasePopupGeometry(host); state.geometryReady = false; menus.delete(host);
         if (state.relationshipHidden) { host.hidden = state.relationshipHidden.value; state.relationshipHidden = undefined; }
         if (state.parent?.isConnected) synchronize(state.parent);
     },

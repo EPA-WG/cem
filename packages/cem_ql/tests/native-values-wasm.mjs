@@ -29,7 +29,7 @@ function verifyDirectInteger() {
     if (plan.nativeValueArtifactId) wasm.takeRenderValueArtifact(plan.nativeValueArtifactId);
 }
 function verifyElementReferenceIds() {
-    const source = `{cem:variable @name=target @select='data:read("<dialog><b>body</b></dialog>", "xml").root.children'}{button @commandfor={#target}}{cem-action @command-target={#target} @command=show-modal}{span @aria-controls={#(target, target)}}{$target}`;
+    const source = `{cem:variable @name=target @select='data:read("<dialog><b>body</b></dialog>", "xml").root.children'}{button @commandfor={#target}}{cem-action @command-target={#target} @command=show-modal @focus-target={#target} @return-focus={#target} @anchor={#target} @boundary={#target}}{span @aria-controls={#(target, target)}}{$target}`;
     const artifact = JSON.parse(wasm.compileTemplate(source, '[]'));
     assert.deepEqual(artifact.diagnostics, []);
     try {
@@ -41,6 +41,10 @@ function verifyElementReferenceIds() {
             assert.equal(value(result.nodes[0], 'commandfor'), id);
             assert.equal(value(result.nodes[1], 'command-target'), id);
             assert.equal(value(result.nodes[1], 'data-cem-node-ref-command-target'), '');
+            for (const name of ['focus-target', 'return-focus', 'anchor', 'boundary']) {
+                assert.equal(value(result.nodes[1], name), id);
+                assert.equal(value(result.nodes[1], `data-cem-node-ref-${name}`), '');
+            }
             assert.equal(value(result.nodes[2], 'aria-controls'), `${id} ${id}`);
             assert.equal(value(result.nodes[3], 'id'), id);
         }

@@ -1,8 +1,9 @@
 import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
+import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
-import { firstPopupControl, hidePopup, positionPopup, showPopup } from './popup-controller.js';
+import { hidePopup, positionPopup, showPopup, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
 
-interface State { abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
+interface State { abort?: AbortController; observer?: MutationObserver; trigger?: HTMLElement; panel?: HTMLElement; open: boolean; releaseReferences?: () => void; releaseGeometry?: () => void; geometryReady?: boolean; authoredBase?: boolean; generatedBase?: { node: HTMLElement; hidden: HTMLElement['hidden'] }; external?: { trigger: HTMLElement; attributes: Map<string, string | null> }; authoredDisabled?: boolean; authoredHasPopup?: string; }
 const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
 const popups = new Set<HTMLElement>();
@@ -51,6 +52,7 @@ function synchronize(host: HTMLElement): void {
     state.trigger = selectedTrigger(host);
     state.panel = host.querySelector<HTMLElement>(':scope > [part~="popup"]') ?? undefined;
     const { trigger, panel } = state;
+    if (previousPanel && previousPanel !== panel) releasePopupGeometry(previousPanel);
     if (!trigger || !panel) { if (panel) hidePopup(panel); state.open = false; return; }
     if (!panel.id) panel.id = `cem-popup-panel-${++sequence}`;
     if (!trigger.id) trigger.id = `cem-popup-trigger-${++sequence}`;
@@ -63,7 +65,12 @@ function synchronize(host: HTMLElement): void {
     state.open = host.getAttribute('open') !== 'false' && !host.hasAttribute('disabled') && !host.hidden;
     setAttribute(trigger, 'aria-expanded', String(state.open));
     if (state.open) {
-        if (!wasOpen || previousPanel !== panel || panel.hidden) showPopup(trigger, panel);
+        const ready = !wasOpen || previousPanel !== panel || panel.hidden ? showPopup(trigger, panel, false, host) :
+            host.hasAttribute('anchor') || host.hasAttribute('boundary') || getComputedStyle(panel).position !== 'absolute' ? positionPopup(trigger, panel, false, host) : true;
+        if (ready) state.geometryReady = true;
+        else if (!wasOpen || !state.geometryReady || host.getAttribute('anchor-lost') !== 'freeze') {
+            state.open = false; host.setAttribute('open', 'false'); hidePopup(panel); setAttribute(trigger, 'aria-expanded', 'false');
+        }
     } else hidePopup(panel);
 }
 function setOpen(host: HTMLElement, open: boolean, restore = false): void {
@@ -71,11 +78,11 @@ function setOpen(host: HTMLElement, open: boolean, restore = false): void {
     if (host.hasAttribute('disabled') && open) return;
     host.setAttribute('open', String(open));
     synchronize(host);
-    if (open && state.panel && state.trigger) {
-        positionPopup(state.trigger, state.panel);
-        firstPopupControl(state.panel)?.focus();
+    if (state.open && state.panel && state.trigger) {
+        positionPopup(state.trigger, state.panel, false, host);
+        focusSurface(host, state.panel);
     }
-    else if (restore) state.trigger?.focus();
+    else if (restore) restoreSurfaceFocus(host, state.trigger);
 }
 export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
     beforeRender(host, context) {
@@ -124,18 +131,27 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
             if (state.open && !host.contains(event.target as Node) && !state.trigger?.contains(event.target as Node)) setOpen(host, false);
         }, { ...options, capture: true });
         const view = host.ownerDocument.defaultView;
-        const position = () => { if (state.trigger && state.panel && state.open) positionPopup(state.trigger, state.panel); };
+        const position = () => {
+            if (!state.open) return;
+            synchronize(host);
+            if (state.open && state.trigger && state.panel && getComputedStyle(state.panel).position === 'absolute' &&
+                !host.hasAttribute('anchor') && !host.hasAttribute('boundary') &&
+                !positionPopup(state.trigger, state.panel, false, host) && host.getAttribute('anchor-lost') !== 'freeze') setOpen(host, false);
+        };
+        state.releaseGeometry = observePopupGeometry(host, position);
+        view.visualViewport?.addEventListener('resize', position, options);
+        view.visualViewport?.addEventListener('scroll', position, options);
         view.addEventListener('resize', position, options);
         // Absolute panels follow their containing block during scrolling. Re-clamping
         // their coordinates on every scroll would pin them to the viewport edge.
         view.addEventListener('scroll', () => {
-            if (state.panel && getComputedStyle(state.panel).position !== 'absolute') position();
+            if (host.hasAttribute('anchor') || host.hasAttribute('boundary') || state.panel && getComputedStyle(state.panel).position !== 'absolute') position();
         }, { ...options, capture: true });
         state.observer = new MutationObserver(records => {
             synchronize(host);
             if (records.some(record => record.attributeName === 'dir')) position();
         });
-        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'disabled', 'hidden', 'dir', 'trigger-for', 'data-cem-node-ref-trigger-for'] });
+        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'disabled', 'hidden', 'dir', 'trigger-for', 'data-cem-node-ref-trigger-for', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost', 'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary'] });
     },
     rendered(host) { synchronize(host); },
     preserveRenderedAttribute(_host, _current, _desired, attribute) {
@@ -145,6 +161,8 @@ export const CEM_POPUP_CAPABILITY: CemProducedElementBehavior = {
     disconnected(host) {
         const state = stateFor(host);
         state.abort?.abort(); state.abort = undefined; state.observer?.disconnect();
-        state.releaseReferences?.(); state.releaseReferences = undefined; popups.delete(host); releaseExternal(host);
+        state.releaseReferences?.(); state.releaseReferences = undefined;
+        state.releaseGeometry?.(); state.releaseGeometry = undefined;
+        if (state.panel) releasePopupGeometry(state.panel); state.geometryReady = false; popups.delete(host); releaseExternal(host);
     },
 };

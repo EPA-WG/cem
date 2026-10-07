@@ -9,8 +9,13 @@ Native CEM-ML node/reference values in relationship attributes use the shared
 [reference-to-ID consumer](../../docs/cem-element-reference-ids-design.md): preserve
 an explicit target ID or generate one from persisted instance identity and output
 placement. The producer must contain exactly one placement of each target.
-`command-target`, `interaction`, `trigger-for` and `parent-item` retain typed
-endpoint markers for their shared capabilities; literal local names remain scoped.
+`command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`,
+`return-focus`, `anchor` and `boundary` retain typed endpoint markers for their
+shared capabilities; literal local names remain scoped. Popup/menu providers
+check entry focus inside the surface, recheck return eligibility on restoring
+close reasons, and fit independent anchors/boundaries inside the visual viewport.
+Missing geometry rejects opening; established surfaces close on loss unless
+`anchor-lost="freeze"` preserves the previous geometry.
 
 For foreign authored reference chains, embedding hosts supply
 `elementReferenceInputs(instance, snapshot, signal)` in `CemElementRuntimeOptions`.

@@ -7,13 +7,18 @@ export function compositeIndex(count: number, active: number, action: 'next' | '
     return (active + (action === 'next' ? 1 : count - 1)) % count;
 }
 
-export function popupPosition(anchor: { left: number; right: number; top: number; bottom: number }, width: number, height: number, viewportWidth: number, viewportHeight: number, column: boolean, rtl: boolean): { left: number; top: number } {
+export interface PopupRect { left: number; right: number; top: number; bottom: number }
+export function popupBounds(viewport: PopupRect, boundary: PopupRect = viewport): PopupRect | undefined {
+    const result = { left: Math.max(viewport.left, boundary.left), top: Math.max(viewport.top, boundary.top), right: Math.min(viewport.right, boundary.right), bottom: Math.min(viewport.bottom, boundary.bottom) };
+    return result.right > result.left + 8 && result.bottom > result.top + 8 ? result : undefined;
+}
+export function popupPosition(anchor: PopupRect, width: number, height: number, viewportWidth: number, viewportHeight: number, column: boolean, rtl: boolean, bounds: PopupRect = { left: 0, top: 0, right: viewportWidth, bottom: viewportHeight }): { left: number; top: number } {
     let left = column ? (rtl ? anchor.left - width : anchor.right) : (rtl ? anchor.right - width : anchor.left);
     let top = column ? anchor.top : anchor.bottom;
-    if (column && (left + width > viewportWidth - 4 || left < 4)) left = rtl ? anchor.right : anchor.left - width;
-    if (!column && top + height > viewportHeight - 4) top = anchor.top - height;
-    left = Math.max(4, Math.min(left, viewportWidth - width - 4));
-    top = Math.max(4, Math.min(top, viewportHeight - height - 4));
+    if (column && (left + width > bounds.right - 4 || left < bounds.left + 4)) left = rtl ? anchor.right : anchor.left - width;
+    if (!column && top + height > bounds.bottom - 4) top = anchor.top - height;
+    left = Math.max(bounds.left + 4, Math.min(left, bounds.right - width - 4));
+    top = Math.max(bounds.top + 4, Math.min(top, bounds.bottom - height - 4));
     return { left, top };
 }
 
