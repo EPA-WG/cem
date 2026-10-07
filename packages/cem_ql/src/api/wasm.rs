@@ -426,20 +426,23 @@ fn plan_json_for_elements(
     limits: &cem_ml::value::artifact::CemValueArtifactLimits,
     instance: Option<&str>,
     execution: Option<crate::api::element_references::ElementReferenceExecution>,
+    profile: crate::render::AriaReferenceProfile,
 ) -> Value {
     let Some(instance) = instance else {
         return plan_json_with_limits(plan, limits);
     };
     let control = cem_ml::operation_control::OperationControl::default();
+    let options = crate::render::ElementReferenceExportOptions { aria_profile: profile };
     let projected = if let Some(execution) = execution {
-        execution.project_with_placements(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+        execution.project_with_options(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID, options)
     } else {
-        crate::render::project_element_reference_ids(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
-            .map(|plan| crate::render::ElementReferenceProjection { plan, placements: vec![] })
+        crate::render::project_element_reference_ids_with_options(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID, options)
+            .map(|plan| crate::render::ElementReferenceProjection { plan, placements: vec![], aria_profile: profile })
     };
     match projected {
         Ok(projected) => {
             let mut result = plan_json_with_limits(&projected.plan, limits);
+            result["ariaReferenceProfile"] = json!(projected.aria_profile.identity());
             result["elementPlacementUses"] = serde_json::to_value(projected.placements).expect("placement control metadata");
             result
         },

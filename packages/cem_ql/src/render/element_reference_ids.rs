@@ -17,6 +17,36 @@ use cem_ml::{
     },
 };
 
+/// Pinned consumer contracts; a browser never selects a profile implicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AriaReferenceProfile {
+    #[default]
+    Recommendation12,
+    Draft13,
+}
+impl AriaReferenceProfile {
+    pub fn identity(self) -> &'static str {
+        match self {
+            Self::Recommendation12 => "wai-aria-1.2-rec-20230606",
+            Self::Draft13 => "wai-aria-1.3-wd-20260604",
+        }
+    }
+}
+impl std::str::FromStr for AriaReferenceProfile {
+    type Err = &'static str;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "wai-aria-1.2-rec-20230606" => Ok(Self::Recommendation12),
+            "wai-aria-1.3-wd-20260604" => Ok(Self::Draft13),
+            _ => Err("Unknown ARIA reference export profile"),
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ElementReferenceExportOptions {
+    pub aria_profile: AriaReferenceProfile,
+}
+
 /// Host-owned control metadata. The target is an original retained native node;
 /// only the producer may reserve the supplied ID for its committed placement.
 #[derive(Debug, Clone)]
@@ -62,6 +92,7 @@ pub struct ElementPlacementUse {
 }
 #[derive(Debug, Clone)]
 pub struct ElementReferenceProjection {
+    pub aria_profile: AriaReferenceProfile,
     pub plan: RenderPlan,
     pub placements: Vec<ElementPlacementUse>,
 }
@@ -414,7 +445,24 @@ pub fn project_element_reference_ids(
     control: &OperationControl,
     scope: ExecutionScopeId,
 ) -> Result<RenderPlan, ElementReferenceProjectionError> {
-    project_element_reference_ids_with_host(
+    project_element_reference_ids_with_options(
+        plan,
+        instance_id,
+        limits,
+        control,
+        scope,
+        Default::default(),
+    )
+}
+pub fn project_element_reference_ids_with_options(
+    plan: &RenderPlan,
+    instance_id: &str,
+    limits: &CemValueArtifactLimits,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    options: ElementReferenceExportOptions,
+) -> Result<RenderPlan, ElementReferenceProjectionError> {
+    project_element_reference_ids_with_host_and_placements_with_options(
         plan,
         instance_id,
         limits,
@@ -423,7 +471,10 @@ pub fn project_element_reference_ids(
         &mut MaterializedHost {
             policy: ReferenceScopePolicy::schema_defaults().expect("embedded policy"),
         },
+        &ElementPlacementSnapshot::default(),
+        options,
     )
+    .map(|result| result.plan)
 }
 
 /// Lifecycle callers supply actual contexts, scope policies and directed grants
@@ -461,6 +512,29 @@ pub fn project_element_reference_ids_with_host_and_placements<
     scope: ExecutionScopeId,
     host: &mut H,
     snapshot: &ElementPlacementSnapshot,
+) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
+    project_element_reference_ids_with_host_and_placements_with_options(
+        plan,
+        instance_id,
+        limits,
+        control,
+        scope,
+        host,
+        snapshot,
+        Default::default(),
+    )
+}
+pub fn project_element_reference_ids_with_host_and_placements_with_options<
+    H: ReferenceResolutionHost<Node = Item>,
+>(
+    plan: &RenderPlan,
+    instance_id: &str,
+    limits: &CemValueArtifactLimits,
+    control: &OperationControl,
+    scope: ExecutionScopeId,
+    host: &mut H,
+    snapshot: &ElementPlacementSnapshot,
+    options: ElementReferenceExportOptions,
 ) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
     let source = SourceMapStack::default();
     if instance_id.is_empty() || instance_id.chars().any(char::is_whitespace) {
@@ -500,7 +574,12 @@ pub fn project_element_reference_ids_with_host_and_placements<
     let targets = resolve_slots(&relationships, host, &mut budget)?;
     for ((path, index, attribute), targets) in relationships.into_iter().zip(targets) {
         let tag = element_tag(&result.nodes, &path);
-        let multiple = arity(tag, &attribute.name).expect("collected relationship");
+        let multiple = arity(tag, &attribute.name).expect("collected relationship")
+            || (options.aria_profile == AriaReferenceProfile::Draft13
+                && matches!(
+                    attribute.name.as_str(),
+                    "aria-details" | "aria-errormessage"
+                ));
         let unique = attribute.name == "headers" || (tag == "output" && attribute.name == "for");
         if targets.is_empty() || (!multiple && targets.len() != 1) {
             return Err(error(
@@ -664,6 +743,7 @@ pub fn project_element_reference_ids_with_host_and_placements<
         .check_scope(scope)
         .map_err(|e| error("cem.element_reference.limit", e.to_string(), &source))?;
     Ok(ElementReferenceProjection {
+        aria_profile: options.aria_profile,
         plan: result,
         placements: used_placements,
     })

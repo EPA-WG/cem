@@ -54,11 +54,37 @@ needs fresh grants, even when its durable instance identity stays the same.
 
 `CemSsrPlacementCoordinator` provides the corresponding retained export-plan
 transaction without browser globals. Its `resumeHints` carries paths, reserved
-IDs, revisions, scope stamps and the Recommendation ARIA profile; it omits
+IDs, revisions, scope stamps and the exact selected ARIA profile; it omits
 admission tokens, grants and source captures. Hydration clears foreign routes
 before behavior activation and obtains fresh live host admission. Serialized
 hints cannot recreate authority. Native/worker metadata stays on the named control
 boundary and never transports DOM elements or AST records.
+
+Reference export defaults to pinned `wai-aria-1.2-rec-20230606`.
+`CemElementRuntimeOptions.ariaReferenceProfile` opts into experimental
+`wai-aria-1.3-wd-20260604`, allowing nonempty ordered native target sequences for
+`aria-details` and `aria-errormessage`. The exported constants
+`DEFAULT_ARIA_REFERENCE_PROFILE` and `EXPERIMENTAL_ARIA_REFERENCE_PROFILE` name
+these exact identifiers. Native export, worker/fallback processing, revision and
+cache identity, SSR plans and resume metadata retain the selection. SSR hosts
+use `new CemSsrPlacementCoordinator({ ariaReferenceProfile })`; hydration under
+a different profile rerenders. Unknown identifiers fail preparation. The
+[profile matrix](../../docs/cem-element-aria-reference-profile.md) records automated
+DOM evidence and the separate, unverified assistive-technology mappings.
+
+The shared `native-surface` capability connects one direct `part="surface"` native
+dialog or tooltip popover to an eager semantic lifecycle. It supports persistent
+nonmodal dialogs, native modal entry, popover visibility, cancelable close
+requests, context-key policies, typed focus/return/anchor/boundary relationships,
+and invocation-captured pointer/selection geometry. Centered tasks need no anchor.
+Existing owners can use `connectCemNativeSurface(owner, { host })`; its `open`
+accepts a `CemSurfaceInvocation`, optionally captured with
+`captureCemSurfaceInvocation(source, event, { selectionOwner })`. The context
+stays a retained `NativeCemValue`; geometry never becomes a focus destination.
+Tooltips preserve stable description tokens and input focus. Owners survive
+rerender, while disconnect cleans sessions and resources. Authors supply names
+on native owners. Component migration and lazy body preparation remain separate;
+see the [implemented adapter contract](../../docs/cem-interaction-design.md#implemented-shared-native-surface-adapter).
 
 Declarations may publish an exact Semantic Version for SSR adoption:
 

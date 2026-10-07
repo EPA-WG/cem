@@ -1,3 +1,4 @@
+import { resolveAriaReferenceProfile } from './aria-reference-profile.js';
 import { loadEdgeStylesheets, type EdgeStylesheetLoadOptions, type EdgeStylesheetOutput } from './edge-ssr-stylesheets.js';
 import { serializeDeclarationStylesheets } from './declaration-style-markup.js';
 import type {
@@ -690,6 +691,13 @@ function renderInputIdentityFailure(input: CemEdgeSsrRenderInput): string | unde
     }
     if (revision.scopePolicyStamp !== snapshot.scopePolicyStamp) {
         return 'render revision and snapshot scope-policy stamps differ';
+    }
+    try {
+        if (resolveAriaReferenceProfile(revision.ariaReferenceProfile) !== resolveAriaReferenceProfile(snapshot.ariaReferenceProfile)) {
+            return 'render revision and snapshot ARIA reference profiles differ';
+        }
+    } catch {
+        return 'the render request names an unknown ARIA reference profile';
     }
     if (revision.outputTarget !== snapshot.outputTarget) {
         return 'render revision and snapshot output targets differ';

@@ -262,21 +262,48 @@ serialized resume hints cannot confer this readiness or authority.
       hydration/reconnect stories pass; all 56 Node SSR and 12 Edge browser checks
       pass with the fixed Recommendation profile and authority-free resume hints.
 
-- [ ] Implement explicit versioned ARIA export profile selection after native and
+- [x] Implement explicit versioned ARIA export profile selection after native and
       worker/fallback/SSR profile fixtures, using the [reviewed contract](cem-element-aria-reference-profile.md).
       Document a browser/assistive-technology compatibility matrix before enabling
       the experimental draft profile; preserve the Recommendation default.
       Scenarios for later design verification: one/many/empty/repeated targets
       obey the selected profile; profile mismatch requires rerender; unknown
       profiles fail preparation; authored reference order/identity remain intact.
+      Fixture work: add native cardinality/identity cases, real WASM worker and
+      fallback export cases, processing identity checks, SSR profile handoff and
+      browser hydration mismatch coverage before implementing each layer.
+      Completed 2026-10-07: exact pinned default/experimental options propagate
+      through native export, workers, fallback, cache/revision identity and SSR;
+      unknown profiles reject and hydration mismatch rerenders. Native cardinality,
+      retained placement metadata, real-WASM heaps and focused browser/SSR checks
+      pass. The published matrix separates DOM evidence from pending manual AT work.
 
-- [ ] Extend the accepted focus/geometry contract to native dialog/task/tooltip
+- [x] Extend the accepted focus/geometry contract to native dialog/task/tooltip
       surface adapters and invocation-captured pointer/selection geometry after
       their semantic lifecycle is implemented. Add native/browser fixtures before
       each adapter; reuse typed reference consumption and shared role checks.
       Scenarios for later design verification: modal `none` preserves native
       focus entry; pointer geometry supplies no return-focus destination; missing
       invocation geometry rejects opening rather than borrowing another context.
+      Adopted implementation scope 2026-10-07: shared native-surface lifecycle
+      and reference adapters first; component migration remains separate.
+      Fixture work: add native dialog/tooltip reference slots, immutable pointer
+      and selection capture/logical fitting units, and browser plays for native modal/nonmodal/
+      popover ownership, typed focus/return/boundary endpoints, context rejection,
+      cancel versus forced close, missing geometry, tooltip interest and cleanup.
+      Fixture work: verify that a completed Tab/outside interaction cannot set a
+      later native close reason, changed overflow releases prior size constraints,
+      and changing a tooltip profile releases owned description bindings.
+      Completed 2026-10-07: eager `native-surface` shared capability/controller,
+      native modal/nonmodal/popover ownership and tooltip interest lifecycle use
+      the existing typed role adapters. Immutable invocation geometry and logical
+      fitting units, native role slots and five browser stories cover the scope;
+      both worker and fallback retain modal owners/focus across rerender. Further
+      convenience/body lifecycle delivery and component migration stay separate.
+      Verification: maintained native consumer gate 339 checks across 36 suites
+      plus real WASM workers/fallback; runtime units 600, focused browser 30,
+      Node SSR 58 and Edge browser 13. Build, typecheck and lint pass (two existing
+      lint warnings). Manual AT interoperability is not covered by these checks.
 
 ### Scenarios for later design verification
 
@@ -495,6 +522,40 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
             resource assertions and 30-second story deadline.
 
 ## Declarative UI Architecture Correction
+
+### Native-surface delivery follow-ups
+
+- [ ] Verify both pinned ARIA profiles in the documented browser/assistive-
+      technology matrix. Record accessibility relation exposure, ordered/repeated
+      details targets and error-message announcements with actual versioned
+      environments; keep untested combinations explicit and the draft opt-in.
+      Scenarios for later design verification: single-relation accessibility APIs
+      may expose only the first target; exported DOM sequences must stay intact.
+
+- [ ] Implement shared surface body preparation and `materialize` retain/dispose
+      lifecycle before using those conveniences in migrated task declarations.
+      Add fixtures first for native owner stability, preparation cancellation,
+      stale completion, retained drafts and disposal after closing/exit cleanup.
+      Scenarios for later design verification: invisible preparation does not
+      expand launchers; default-open does not replay; disposal does not lose
+      separately retained application draft state.
+
+- [ ] Implement shared nested menu-to-task focus relay and generated/slotted
+      launcher/close conveniences before claiming full interaction acceptance.
+      Add native/browser fixtures first for context capture before menu closure,
+      one task entry, stable launcher return, outside destination preservation
+      and canceled preparation. Reuse eager `native-surface` rather than adding
+      component/application-local behavior.
+      Scenarios for later design verification: invocation geometry survives
+      ancestor hiding without transferring context authority or replaying commands.
+
+- [ ] Inventory and migrate legacy dialog/tooltip component APIs to XHTML/CEM-ML
+      declarations using shared `native-surface`; keep frozen behavior modules
+      unchanged until each owner is migrated. Add colocated browser plays and
+      linked property playground/gallery cases before each cutover, including
+      names, forms, modal/nonmodal visibility, interest, reference roles and cleanup.
+      Scenarios for later design verification: literal local-name conveniences
+      remain scoped, while cross-producer targets require fresh placement grants.
 
 ### Remaining declarative UI migration
 

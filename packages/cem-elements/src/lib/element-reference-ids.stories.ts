@@ -2,9 +2,39 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
+import { DEFAULT_ARIA_REFERENCE_PROFILE, EXPERIMENTAL_ARIA_REFERENCE_PROFILE } from './aria-reference-profile.js';
 
 export default { title: 'CEM Elements/Element Reference IDs', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
+
+export const AriaProfilesWorkerAndFallback: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const root = required<HTMLElement>(canvasElement, 'section');
+        for (const fallback of [false, true]) for (const profile of [DEFAULT_ARIA_REFERENCE_PROFILE, EXPERIMENTAL_ARIA_REFERENCE_PROFILE]) {
+            const scope = createCemDeclarationScope({ document }), suffix = crypto.randomUUID();
+            const declarationTag = `cem-profile-declaration-${suffix}`, tag = `cem-profile-${suffix}`;
+            const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope, ariaReferenceProfile: profile,
+                ...(fallback ? { processingWorkerFactory: () => { throw new Error('forced fallback'); } } : {}) });
+            runtime.install(window);
+            const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag);
+            const template = document.createElement('template'); template.setAttribute('type', 'text/cem-ml');
+            const operand = profile === EXPERIMENTAL_ARIA_REFERENCE_PROFILE ? '#(target, target)' : '#target';
+            template.textContent = `{cem:variable @name=target @select='data:read("<p>Help</p>", "xml").root.children'}{input @aria-invalid=true @aria-details={${operand}} @aria-errormessage={${operand}}}{$target}`;
+            declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration);
+            const instance = document.createElement(tag); root.append(instance);
+            try {
+                await runtime.whenRenderSettled(instance);
+                const target = required<HTMLElement>(instance, 'p'), input = required<HTMLInputElement>(instance, 'input');
+                const expected = profile === EXPERIMENTAL_ARIA_REFERENCE_PROFILE ? `${target.id} ${target.id}` : target.id;
+                await expect(target.id).toBeTruthy();
+                await expect(input.getAttribute('aria-details')).toBe(expected);
+                await expect(input.getAttribute('aria-errormessage')).toBe(expected);
+                await expect(runtime.snapshotInstance(instance).ariaReferenceProfile).toBe(profile);
+            } finally { instance.remove(); declaration.remove(); scope.dispose(); }
+        }
+    },
+};
 
 function required<T extends Element>(parent: ParentNode, selector: string): T {
     const element = parent.querySelector<T>(selector);

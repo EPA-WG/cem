@@ -97,8 +97,54 @@ Native `@focus-target={#node}`, `@return-focus={#node}`, `@anchor={#node}` and
 reference-to-ID consumer contract. Native export and the shared popup/menu
 providers now consume these slots. Each relationship resolves independently;
 geometry never makes an element an invoker or a focus destination.
-Other native dialog/task/tooltip surface adapters and invocation-captured
-pointer/selection geometry retain their separate implementation scope.
+Shared native dialog/task/tooltip adapters now consume these slots and captured
+pointer/selection geometry through the eager lifecycle below. Component migration
+and deferred body preparation remain separate actionable work.
+
+### Implemented shared native-surface adapter
+
+Implemented 2026-10-07 for eager native owners. A declaration selects
+`capability="native-surface"` and produces exactly one direct `part="surface"`
+owner. Host code may instead call `connectCemNativeSurface(owner, { host })` for
+an existing native owner, defaulting the host to that owner. This is shared runtime
+behavior; component declarations contain no imperative implementation.
+
+Native dialogs default to persistent nonmodal `.show()`; `mode="modal"` uses
+`.showModal()`. A native popover with a dialog role, including `<dialog popover>`,
+uses popover visibility independently of `dialog.open`. A tooltip requires a
+noninteractive `role="tooltip"` popover. Authors name the exact native owner.
+Conflicting kind, mode, role, modal/popover or local-modal profiles reject opening.
+Built-in native commands are observed once; `--cem-show` and `--cem-hide` call
+the shared lifecycle. Cancelable CEM close requests bridge native dialog cancel;
+direct forced close and native automatic hide remain browser-owned.
+
+`open(invocation)` accepts transient `CemSurfaceInvocation` metadata: source,
+command, context key, retained `NativeCemValue` context, captured geometry and an
+optional return destination. Context remains a native capsule with no synthesized
+root ID. Same-key requests update the existing session without a new open outcome;
+different keys follow `context-change="reject|replace|request"`. Geometry is
+validated before native opening can move focus. `captureCemSurfaceInvocation`
+captures pointer coordinates, a keyboard source rectangle, and a noncollapsed
+selection confined to the supplied selection owner. Programmatic commands cannot
+reuse an earlier activation snapshot. Centered tasks do not require an invoker or
+anchor; other placement uses complete logical side/alignment choices, fallback,
+flip/shift/resize and an independently selected boundary.
+
+Focus entry and eligible, reason-aware restoration reuse the shared typed
+relationship adapters. Modal `focus-target="none"` preserves native entry;
+tooltips retain input focus. Tooltip interest uses explicit `trigger-for` or
+native `interestfor`, with pointer delays and immediate keyboard focus entry.
+Owned description tokens stay present while hidden and preserve unrelated tokens;
+rebinding and disconnect release them. Native visibility drives read-only
+`data-state`. Rerender preserves the native owner and active session; default-open
+initializes once. Disconnect closes native owners and releases listeners, geometry
+observers, timers, owned styles and transient metadata.
+
+This adapter covers eager ownership, reference roles and invocation geometry.
+Generated/slotted component conveniences, template materialization and async body
+preparation, nested menu-to-task focus relay, component API migration and manual
+browser/AT verification remain [actionable follow-ups](todo.md#native-surface-delivery-follow-ups).
+It does not yet deliver the complete acceptance matrix in section 13.
 
 ### Slots and produced parts
 

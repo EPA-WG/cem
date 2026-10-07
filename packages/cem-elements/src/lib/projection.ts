@@ -1,3 +1,4 @@
+import { ariaReferenceProfileKey, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { sameNativeCemValue, type NativeCemValue, type NativeCemAttributeBinding } from "./native-values.js";
 /**
  * Processing-layer projection boundary for `<cem-element>` (design §4.1/§4.2).
@@ -157,6 +158,7 @@ export function renderedPlanAttributeValue(element: Element, name: string): stri
 }
 
 export interface RenderPlan {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     producedTag: string;
     instanceId: string;
     templateArtifactId: string;
@@ -265,6 +267,7 @@ export interface GeneratedRenderPlanIdDiagnostic {
 }
 
 export interface RenderRevision {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     instanceId: string;
     dataRevision: string;
     templateArtifactId: string;
@@ -486,6 +489,7 @@ export type ProjectionPayloadNode =
       };
 
 export interface TemplateProjectionSnapshot {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     instanceId: string;
     producedTag: string;
     templateArtifactId: string;
@@ -575,6 +579,7 @@ export function renderPlanIdentity(plan: RenderPlan): RenderPlanIdentity {
         dataRevision: plan.dataRevision,
         templateArtifactId: plan.templateArtifactId,
         scopePolicyStamp: plan.scopePolicyStamp,
+        ...(plan.ariaReferenceProfile === undefined ? {} : { ariaReferenceProfile: plan.ariaReferenceProfile }),
         outputTarget: plan.outputTarget,
         ...(plan.renderAttempt === undefined ? {} : { renderAttempt: plan.renderAttempt }),
     };
@@ -967,6 +972,7 @@ function projectTemplateWith(
         ...(input.snapshot.renderAttempt === undefined ? {} : { renderAttempt: input.snapshot.renderAttempt }),
         outputTarget: input.snapshot.outputTarget,
         scopePolicyStamp: input.snapshot.scopePolicyStamp,
+        ...(input.snapshot.ariaReferenceProfile === undefined ? {} : { ariaReferenceProfile: input.snapshot.ariaReferenceProfile }),
         nodes,
     };
     return projectSlotsInRenderPlan(plan, input.snapshot.payload);
@@ -3509,7 +3515,7 @@ function stableJsonStringify(value: unknown): string {
 }
 
 function edgeRenderStateKey(revision: RenderRevision): string {
-    return ['edge-state', revision.scopePolicyStamp, revision.instanceId].join(':');
+    return ['edge-state', revision.scopePolicyStamp, revision.instanceId, ...ariaReferenceProfileKey(revision.ariaReferenceProfile)].join(':');
 }
 
 export function renderRevisionKey(revision: RenderRevision): string {
@@ -3520,6 +3526,7 @@ export function renderRevisionKey(revision: RenderRevision): string {
         revision.scopePolicyStamp,
         revision.outputTarget,
         revision.renderAttempt ?? 0,
+        ...ariaReferenceProfileKey(revision.ariaReferenceProfile),
     ].join(':');
 }
 
@@ -3531,6 +3538,7 @@ function patchTransactionId(plan: RenderPlan): string {
         plan.dataRevision,
         plan.scopePolicyStamp,
         plan.renderAttempt ?? 0,
+        ...ariaReferenceProfileKey(plan.ariaReferenceProfile),
     ].join(':');
 }
 

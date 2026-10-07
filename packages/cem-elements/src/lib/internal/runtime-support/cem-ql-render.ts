@@ -1,3 +1,4 @@
+import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
 import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
@@ -151,6 +152,7 @@ export interface CemMlTemplateCompileResult {
 }
 
 export interface CemQlRenderOptions {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Enable native relationship ID projection for this persisted producer identity. */
     elementReferenceInstanceId?: string;
     elementReferenceInputs?: CemElementReferenceInputs;
@@ -248,7 +250,7 @@ export class RetainedXsltComponent {
         const { artifactId } = this.ensureNative();
         return withNativeAttributes(options, bindings => withElementReferences(options, references => mapWasmRenderPlan(renderXsltComponentWithNativeValues(
             artifactId, JSON.stringify(data), JSON.stringify(options.documents ?? []), undefined, bindings,
-            JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references), options)));
+            JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references, options.ariaReferenceProfile), options)));
     }
 
     dispose(): void {
@@ -316,6 +318,7 @@ export interface CemMlTemplateModuleClosure {
 }
 
 export interface CemMlTemplateProcessingIdentity {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     producedTag: string;
     instanceId: string;
     templateArtifactId: string;
@@ -780,7 +783,7 @@ export async function renderRetainedCemMlTemplate(
     return withNativeAttributes(options, bindings => withElementReferences(options, references => mapWasmRenderPlan(renderTemplateWithNativeValues(
         artifactId, options.xpathCompanionId ?? 0, JSON.stringify(data ?? {}),
         JSON.stringify(options.documents ?? []), bindings,
-        JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references), options)));
+        JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId, references, options.ariaReferenceProfile), options)));
 }
 
 function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings: string) => T): T {
@@ -808,6 +811,8 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
 }
 
 function withElementReferences<T>(options: CemQlRenderOptions, render: (metadata?: string) => T): T {
+    resolveAriaReferenceProfile(options.ariaReferenceProfile);
+    if (options.ariaReferenceProfile !== undefined && !options.elementReferenceInstanceId) throw new TypeError('An explicit ARIA profile requires a producer instance');
     const input = options.elementReferenceInputs;
     if (!input) return render();
     if (!options.elementReferenceInstanceId) throw new TypeError('Reference lifecycle consumption needs a producer identity');
@@ -832,6 +837,9 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
     if (plan.referenceProjectionComplete === false) {
         throw new CemProcessingDiagnosticError((plan.diagnostics ?? []).map(mapDiagnostic),
             `${plan.referenceProjectionCode}: ${plan.referenceProjectionMessage}`);
+    }
+    if (options.elementReferenceInstanceId && resolveAriaReferenceProfile(plan.ariaReferenceProfile) !== resolveAriaReferenceProfile(options.ariaReferenceProfile)) {
+        throw new TypeError('Native ARIA reference export profile does not match its request');
     }
     const artifact = plan.nativeValueArtifactId == null ? undefined : {
         artifact: takeRenderValueArtifact(plan.nativeValueArtifactId).slice().buffer as ArrayBuffer,
@@ -887,7 +895,7 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
 export async function processCemMlTemplate(
     input: CemMlTemplateProcessingInput
 ): Promise<CemMlTemplateProcessingResult> {
-    if (input.elementReferenceInputs || input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativeValueLimits) {
+    if (input.identity.ariaReferenceProfile !== undefined || input.elementReferenceInputs || input.moduleClosure || input.nativeAttributes?.length || input.nativeSlices?.length || input.nativeValueLimits) {
         const retained = input.moduleClosure
             ? await retainCemMlTemplateModuleClosure(input.source, input.moduleClosure, Object.keys(input.data))
             : await retainCemMlTemplateSource(input.source, Object.keys(input.data));
@@ -914,6 +922,7 @@ export async function processCemMlTemplate(
     const renderPlan = projectSlotsInRenderPlan(
         {
             ...input.identity,
+            ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
             nodes: await resolveRenderPlanLinks(rendered.nodes, input.linkBaseUrl),
         },
         input.payload
@@ -948,6 +957,7 @@ export async function processRetainedCemMlTemplate(
 
     const renderOptions = {
         elementReferenceInstanceId: input.identity.instanceId,
+        ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
         elementReferenceInputs: input.elementReferenceInputs,
         nativeAttributes: input.nativeAttributes,
         nativeSlices: input.nativeSlices,
@@ -961,6 +971,7 @@ export async function processRetainedCemMlTemplate(
     const renderPlan = projectSlotsInRenderPlan(
         {
             ...input.identity,
+            ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
             nodes: await resolveRenderPlanLinks(rendered.nodes, input.linkBaseUrl),
         },
         input.payload
@@ -979,6 +990,7 @@ export async function processRetainedCemMlTemplate(
 }
 
 interface WasmRenderPlan {
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     elementPlacementUses?: (Omit<CemElementPlacementUse, 'renderNodeId'> & { path: number[] })[];
     referenceProjectionComplete?: boolean;
     referenceProjectionCode?: string;

@@ -16,6 +16,32 @@ use cem_ql::{
 };
 use std::collections::BTreeMap;
 
+#[test]
+fn export_result_retains_its_explicit_profile_with_placement_metadata() {
+    use cem_ql::render::{
+        project_element_reference_ids_with_host_and_placements_with_options, AriaReferenceProfile,
+        ElementReferenceExportOptions,
+    };
+    let (plan, target, mut host, request, destination) =
+        setup("{button @commandfor={#target}}", 100);
+    host.allow_scope_crossing(request, destination);
+    let result = project_element_reference_ids_with_host_and_placements_with_options(
+        &plan,
+        "consumer",
+        &Default::default(),
+        &OperationControl::default(),
+        ROOT_EXECUTION_SCOPE_ID,
+        &mut host.element_reference_host(request).unwrap(),
+        &snapshot(target),
+        ElementReferenceExportOptions {
+            aria_profile: AriaReferenceProfile::Draft13,
+        },
+    )
+    .unwrap();
+    assert_eq!(result.aria_profile, AriaReferenceProfile::Draft13);
+    assert_eq!(result.placements.len(), 1);
+}
+
 fn setup(
     body: &str,
     destination_work: usize,

@@ -5,9 +5,9 @@ use super::{
 };
 use crate::{
     render::{
-        project_element_reference_ids_with_host_and_placements, ElementPlacementAdmission,
-        ElementPlacementGrant, ElementPlacementSnapshot, ElementPlacementTransaction,
-        ElementReferenceProjection, ElementReferenceProjectionError, RenderPlan, TemplateData,
+        ElementPlacementAdmission, ElementPlacementGrant, ElementPlacementSnapshot,
+        ElementPlacementTransaction, ElementReferenceProjection, ElementReferenceProjectionError,
+        RenderPlan, TemplateData,
     },
     schema_references::{CemQlSchemaDeclarationHost, DeclarationScope},
 };
@@ -229,14 +229,25 @@ impl ElementReferenceExecution {
             .map(|result| result.plan)
     }
     pub fn project_with_placements(
-        mut self,
+        self,
         plan: &RenderPlan,
         instance: &str,
         limits: &CemValueArtifactLimits,
         control: &OperationControl,
         scope: ExecutionScopeId,
     ) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
-        project_element_reference_ids_with_host_and_placements(
+        self.project_with_options(plan, instance, limits, control, scope, Default::default())
+    }
+    pub fn project_with_options(
+        mut self,
+        plan: &RenderPlan,
+        instance: &str,
+        limits: &CemValueArtifactLimits,
+        control: &OperationControl,
+        scope: ExecutionScopeId,
+        options: crate::render::ElementReferenceExportOptions,
+    ) -> Result<ElementReferenceProjection, ElementReferenceProjectionError> {
+        crate::render::project_element_reference_ids_with_host_and_placements_with_options(
             plan,
             instance,
             limits,
@@ -247,6 +258,7 @@ impl ElementReferenceExecution {
                 .element_reference_host(self.requesting)
                 .expect("admitted requester"),
             &self.placements,
+            options,
         )
     }
 }

@@ -31,11 +31,17 @@ fail target validation rather than forming an ID by concatenating text.
 | `headers`, `output`'s `for` | Nonempty element sequence exported as unique ID tokens in first-occurrence order |
 | `command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`, `return-focus`, `anchor`, `boundary` | Exactly one element/provider; its owning interaction capability validates the semantic role |
 
-The initial ARIA contract follows the [WAI-ARIA 1.2 Recommendation](https://www.w3.org/TR/wai-aria-1.2/),
-whose [details](https://www.w3.org/TR/wai-aria-1.2/#aria-details) and
-[error-message](https://www.w3.org/TR/wai-aria-1.2/#aria-errormessage) relationships
-each designate one element. A future ARIA profile can adopt the draft list-valued
-forms explicitly. HTML's [output `for`](https://html.spec.whatwg.org/multipage/form-elements.html#attr-output-for)
+The table uses the pinned `wai-aria-1.2-rec-20230606` default, whose
+[details](https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/#aria-details) and
+[error-message](https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/#aria-errormessage)
+relationships each designate one element. Explicit experimental
+`wai-aria-1.3-wd-20260604` selection changes only these two properties to nonempty
+ordered sequences, retaining repetitions. Native export options, runtime
+configuration and SSR select the exact profile; worker processing, caches,
+revision identity and hydration retain it. Unknown profiles fail preparation;
+hydration mismatch requires a fresh render. The
+[profile contract and browser/AT evidence](cem-element-aria-reference-profile.md)
+describe selection and verification limits. HTML's [output `for`](https://html.spec.whatwg.org/multipage/form-elements.html#attr-output-for)
 is a token set, whereas [label `for`](https://html.spec.whatwg.org/multipage/forms.html#attr-label-for)
 designates one element. This consumer enforces target shape and placement;
 browser and provider semantics still govern the selected element's role.
@@ -165,14 +171,21 @@ explicit parent boundary unless they declare their own. Resize/scroll and
 endpoint changes recheck geometry. Missing explicit geometry rejects opening;
 an established surface closes on loss unless `anchor-lost=freeze` retains its
 previous geometry. Owned inline styles and observers are released on cleanup.
-Pointer/selection anchors still require a future invocation geometry adapter;
-these providers diagnose unavailable explicit geometry rather than guessing it.
+Existing popup/menu providers diagnose unavailable pointer/selection geometry.
+The shared `native-surface` adapter consumes immutable invocation snapshots for
+these anchors. Centered tasks need no anchor; a keyboard invocation captures its
+source rectangle for contextual placement. Geometry supplies no focus-return
+destination. Missing snapshots reject opening, and later programmatic commands
+cannot borrow a prior pointer/selection snapshot. Native dialog/task/tooltip
+adapters reuse the same typed focus and return slots, role checks and placement
+grants; their eager lifecycle is documented in the
+[interaction design](cem-interaction-design.md#implemented-shared-native-surface-adapter).
 
 The [granted placement design](cem-element-granted-placements-design.md)
 specifies the implemented opt-in access to targets outside the producer forest.
 Without its separate grant and readiness proof, those targets remain incomplete. The
 [ARIA profile review](cem-element-aria-reference-profile.md) pins the existing
-1.2 Recommendation default and specifies a future experimental draft opt-in.
+1.2 Recommendation default and the implemented explicit experimental draft opt-in.
 
 Foreign relationships also carry runtime-owned
 `data-cem-placement-ref-<property>` markers and a native admission-use report.

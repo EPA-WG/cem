@@ -102,11 +102,18 @@ pub fn render_xslt_component(
     documents_json: &str,
     initial_document_id: Option<u32>,
 ) -> String {
-    render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "", None, None)
+    render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "", None, None, None)
 }
 
 #[wasm_bindgen(js_name = "renderXsltComponentWithNativeValues")]
-pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>) -> String {
+pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>) -> String {
+    let profile = match aria_reference_profile.as_deref().map(str::parse).transpose() {
+        Ok(profile) => profile.unwrap_or_default(),
+        Err(message) => return error_json("cem.element_reference.profile", message),
+    };
+    if aria_reference_profile.is_some() && element_reference_instance_id.is_none() {
+        return error_json("cem.element_reference.profile", "An explicit ARIA profile requires a producer instance");
+    }
     if element_reference_inputs_json.is_some() && element_reference_instance_id.is_none() {
         return element_reference_inputs_error("Element reference inputs require a producer instance");
     }
@@ -173,7 +180,7 @@ pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, docume
         Ok(execution) => execution,
         Err(error) => return element_reference_inputs_error(error),
     };
-    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref(), execution).to_string()
+    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref(), execution, profile).to_string()
 }
 
 #[wasm_bindgen(js_name = "disposeXsltComponent")]

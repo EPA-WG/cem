@@ -1,3 +1,4 @@
+import { resolveAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { CemXPathFunctionLibraries, type CemXPathFunctionLibraryLease } from './xpath-function-library.js';
 import {
     RENDER_ENGINE_VERSION,
@@ -784,6 +785,7 @@ function assertRenderRevision(input: CemProcessingRenderDiffInput): void {
         || revision.dataRevision !== snapshot.dataRevision
         || revision.templateArtifactId !== snapshot.templateArtifactId
         || revision.templateArtifactId !== artifact.artifactId
+        || resolveAriaReferenceProfile(revision.ariaReferenceProfile) !== resolveAriaReferenceProfile(snapshot.ariaReferenceProfile)
         || revision.scopePolicyStamp !== snapshot.scopePolicyStamp
         || revision.outputTarget !== snapshot.outputTarget
         || revision.renderAttempt !== snapshot.renderAttempt

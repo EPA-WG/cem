@@ -22,8 +22,11 @@ export { DeclarationStyleOwnership } from './lib/declaration-style-ownership.js'
 export type { CemEdgeStylesheetBatch, CemEdgeStylesheetState, CemEdgeSsrRenderUpdateResult } from './lib/edge-ssr-host.js';
 
 export { getCemActionInvocation, type CemActionInvocation } from './lib/action-command-capability.js';
+export { connectCemNativeSurface, type CemNativeSurfaceController, type CemNativeSurfaceKind } from './lib/native-surface.js';
+export { captureCemSurfaceInvocation, type CemSurfaceInvocation, type CemInvocationGeometry, type CemInvocationInputKind } from './lib/surface-invocation.js';
 
 export type { CemElementReferenceInputs } from './lib/element-reference-inputs.js';
+export { DEFAULT_ARIA_REFERENCE_PROFILE, EXPERIMENTAL_ARIA_REFERENCE_PROFILE, resolveAriaReferenceProfile, type CemAriaReferenceProfile } from './lib/aria-reference-profile.js';
 export { CemElementPlacementCoordinator, type CemBrowserPlacementStage, type CemBrowserPlacementPublication, type CemBrowserPlacementRegistration,
     type CemPlacementLease, type CemPlacementTransaction } from './lib/element-placement-coordinator.js';
 export type { CemElementPlacementUse, CemElementPlacementSnapshot } from './lib/element-reference-inputs.js';

@@ -89,13 +89,20 @@ pub fn render_template_with_cem_documents(
     data_json: &str,
     bindings_json: &str,
 ) -> String {
-    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None, None)
+    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None, None, None)
 }
 
 #[wasm_bindgen(js_name = "renderTemplateWithNativeValues")]
 pub fn render_template_with_native_values(
-    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>,
+    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>, aria_reference_profile: Option<String>,
 ) -> String {
+    let profile = match aria_reference_profile.as_deref().map(str::parse).transpose() {
+        Ok(profile) => profile.unwrap_or_default(),
+        Err(message) => return error_json("cem.element_reference.profile", message),
+    };
+    if aria_reference_profile.is_some() && element_reference_instance_id.is_none() {
+        return error_json("cem.element_reference.profile", "An explicit ARIA profile requires a producer instance");
+    }
     if element_reference_inputs_json.is_some() && element_reference_instance_id.is_none() {
         return element_reference_inputs_error("Element reference inputs require a producer instance");
     }
@@ -154,6 +161,6 @@ pub fn render_template_with_native_values(
             Ok(execution) => execution,
             Err(error) => return element_reference_inputs_error(error),
         };
-        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution).to_string()
+        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile).to_string()
     })
 }

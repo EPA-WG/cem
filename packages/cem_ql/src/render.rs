@@ -36,6 +36,9 @@ pub use element_reference_ids::{
     project_element_reference_ids_with_host_and_placements, ElementPlacementAdmission,
     ElementPlacementGrant, ElementPlacementSnapshot, ElementPlacementTransaction, ElementPlacementUse,
     ElementReferenceProjection, ElementReferenceProjectionError,
+    project_element_reference_ids_with_options,
+    project_element_reference_ids_with_host_and_placements_with_options,
+    AriaReferenceProfile, ElementReferenceExportOptions,
 };
 mod whitespace;
 pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};

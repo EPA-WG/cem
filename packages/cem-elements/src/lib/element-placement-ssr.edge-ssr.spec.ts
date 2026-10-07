@@ -6,8 +6,25 @@ import { processRetainedCemMlTemplate, retainCemMlTemplateSource, disposeRetaine
 import { serializeRenderPlanToHtmlFixture } from './edge-ssr-host-fixture.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- retained native SSR ingress without browser globals.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
+import { EXPERIMENTAL_ARIA_REFERENCE_PROFILE } from './aria-reference-profile.js';
 function required<T>(value: T | undefined): T { if (value === undefined) throw new Error('Missing committed SSR fixture'); return value; }
 beforeAll(async () => { await wasm.default({ module_or_path: await readFile(new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url)) }); });
+it('exports the selected draft profile through native SSR plans and resume hints', async () => {
+    const source = `{cem:variable @name=target @select='data:read("<div/>", "xml").root.children'}{div @aria-details={#(target, target)}}{$target}`;
+    const artifact = await retainCemMlTemplateSource(source);
+    const coordinator = new CemSsrPlacementCoordinator({ ariaReferenceProfile: EXPERIMENTAL_ARIA_REFERENCE_PROFILE });
+    try {
+        const identity = { producedTag: 'profile', instanceId: 'profile', templateArtifactId: 'profile', dataRevision: '1', outputTarget: 'light-dom' as const, scopePolicyStamp: 'scope', ariaReferenceProfile: EXPERIMENTAL_ARIA_REFERENCE_PROFILE };
+        const result = await processRetainedCemMlTemplate(artifact.artifactId, { source, identity, data: {} });
+        expect(result.renderPlan.ariaReferenceProfile).toBe(EXPERIMENTAL_ARIA_REFERENCE_PROFILE);
+        expect(serializeRenderPlanToHtmlFixture(result.renderPlan)).toContain('aria-details="profile-ref-1 profile-ref-1"');
+        const transaction = coordinator.transaction(['profile'], { profile: '1' });
+        coordinator.publishGroup(transaction, [{ stage: coordinator.stage(result.renderPlan) }]);
+        expect(coordinator.resumeHints().profile).toBe(EXPERIMENTAL_ARIA_REFERENCE_PROFILE);
+        expect(() => coordinator.stage({ ...result.renderPlan, ariaReferenceProfile: undefined })).toThrow('profile');
+        await expect(processRetainedCemMlTemplate(artifact.artifactId, { source, identity: { ...identity, ariaReferenceProfile: undefined }, data: {} })).rejects.toThrow('cardinality');
+    } finally { coordinator.dispose(); disposeRetainedCemMlTemplate(artifact.artifactId); }
+});
 it('commits an SSR producer group with original native references and exports authority-free resume hints', async () => {
     expect(typeof document).toBe('undefined');
     const ownerSource = '{slice @name=destination}{$destination}', consumerSource = ELEMENT_REFERENCE_TEMPLATE.replace('{$destination}', '');

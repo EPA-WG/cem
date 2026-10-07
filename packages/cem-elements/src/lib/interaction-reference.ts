@@ -42,7 +42,8 @@ export function observeInteractionReferences(host: HTMLElement, callback: () => 
         observer.observe(root, { subtree: true, childList: true, attributes: true,
             attributeFilter: ['id', 'part', 'slot', 'interaction-name', 'interaction-scope', 'trigger-for', 'parent-item',
                 'data-cem-node-ref-trigger-for', 'data-cem-node-ref-parent-item', 'focus-target', 'return-focus', 'anchor', 'boundary', 'anchor-lost',
-                'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary', 'hidden', 'disabled', 'inert', 'tabindex'] });
+                'data-cem-node-ref-focus-target', 'data-cem-node-ref-return-focus', 'data-cem-node-ref-anchor', 'data-cem-node-ref-boundary', 'hidden', 'disabled', 'inert', 'tabindex',
+                'interestfor', 'kind', 'mode', 'presentation', 'placement', 'fallback', 'overflow', 'context-change', 'show-delay', 'hide-delay'] });
         group = { observer, callbacks }; roots.set(root, group);
     }
     group.callbacks.add(callback);

@@ -5,6 +5,7 @@ import { createCemDeclarationScope } from './declaration-scope.js';
 import { ELEMENT_REFERENCE_TEMPLATE, elementReferenceFixtureInputs } from './element-reference-lifecycle.fixtures.js';
 import { processRetainedCemMlTemplate, retainCemMlTemplateSource, disposeRetainedCemMlTemplate } from './internal/runtime-support/cem-ql-render.js';
 import { materializeRenderPlan, scopeRenderPlan } from './projection.js';
+import { DEFAULT_ARIA_REFERENCE_PROFILE, EXPERIMENTAL_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp } from './aria-reference-profile.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- SSR fixture uses the same native retained entry point as the client.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Edge SSR Reference IDs', tags: ['test'] } satisfies Meta;
@@ -14,6 +15,49 @@ function required<T extends Element>(parent: ParentNode, selector: string): T {
     if (!node) throw new Error(`Missing fixture ${selector}`);
     return node;
 }
+
+export const AriaProfileMismatchRerendersWorkerAndFallback: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+        const root = required<HTMLElement>(canvasElement, 'section');
+        for (const fallback of [false, true]) for (const profile of [DEFAULT_ARIA_REFERENCE_PROFILE, EXPERIMENTAL_ARIA_REFERENCE_PROFILE]) {
+            const serverProfile = profile === DEFAULT_ARIA_REFERENCE_PROFILE ? EXPERIMENTAL_ARIA_REFERENCE_PROFILE : DEFAULT_ARIA_REFERENCE_PROFILE;
+            const scope = createCemDeclarationScope({ document });
+            const tag = `cem-profile-resume-${crypto.randomUUID()}`, declarationTag = `declaration-${tag}`;
+            const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope, ariaReferenceProfile: profile,
+                ...(fallback ? { processingWorkerFactory: () => { throw new Error('forced fallback'); } } : {}) });
+            runtime.install(window);
+            const source = `{cem:variable @name=target @select='data:read("<p>Fresh</p>", "xml").root.children'}{input @aria-details={#target}}{$target}`;
+            const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag); declaration.setAttribute('version', '1.0.0');
+            const template = document.createElement('template'); template.setAttribute('type', 'text/cem-ml'); template.textContent = source;
+            declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+            const authored = document.createElement(tag), snapshot = runtime.snapshotInstance(authored);
+            const baseStamp = withoutAriaReferenceProfileStamp(snapshot.scopePolicyStamp);
+            const serverSnapshot = { ...snapshot, ariaReferenceProfile: serverProfile,
+                scopePolicyStamp: baseStamp + (serverProfile === EXPERIMENTAL_ARIA_REFERENCE_PROFILE ? `:aria-reference:${serverProfile}` : '') };
+            const artifact = await retainCemMlTemplateSource(source);
+            try {
+                const server = await processRetainedCemMlTemplate(artifact.artifactId, { source, data: {}, identity: {
+                    producedTag: tag, instanceId: snapshot.instanceId, templateArtifactId: snapshot.templateArtifactId,
+                    dataRevision: snapshot.dataRevision, outputTarget: snapshot.outputTarget, scopePolicyStamp: serverSnapshot.scopePolicyStamp,
+                    ariaReferenceProfile: serverProfile } });
+                const restored = document.createElement(tag), uid = `profile-${tag}`;
+                restored.setAttribute('data-cem-render-scope', uid);
+                const island = document.createElement('template'); island.setAttribute('data-cem-island', 'instance'); writeDataIslandHydrationData(island, serverSnapshot);
+                restored.append(island, document.createComment('cem-render-start'), materializeRenderPlan(scopeRenderPlan(server.renderPlan, uid).renderPlan, document), document.createComment('cem-render-end'));
+                required(restored, 'p').textContent = 'Stale server view';
+                root.append(restored); await runtime.whenRenderSettled(restored);
+                await expect(required(restored, 'p').textContent).toBe('Fresh');
+                await expect(runtime.diagnosticsFor(restored).some(d => d.code === 'cem-element.hydration_aria_profile_mismatch')).toBe(true);
+                await expect(runtime.snapshotInstance(restored).ariaReferenceProfile).toBe(profile);
+                await expect(runtime.snapshotInstance(restored).instanceId).toBe(snapshot.instanceId);
+                await expect(required(restored, 'input').getAttribute('aria-details')).toBe(required(restored, 'p').id);
+                restored.remove();
+            } finally { disposeRetainedCemMlTemplate(artifact.artifactId); declaration.remove(); root.replaceChildren(); scope.dispose(); }
+        }
+    },
+};
 export const NativeIdsHydrationReplacementAndReconnect: Story = {
     render: () => '<section></section>',
     play: async ({ canvasElement }) => {

@@ -56,6 +56,28 @@ function verifyElementReferenceIds() {
         } finally { wasm.disposeTemplate(ambiguous.artifactId); }
     } finally { wasm.disposeTemplate(artifact.artifactId); }
 }
+function verifyAriaProfiles() {
+    const recommendation = 'wai-aria-1.2-rec-20230606', draft = 'wai-aria-1.3-wd-20260604';
+    for (const attribute of ['aria-details', 'aria-errormessage']) for (const operand of ['#target', '#(target.children, target)', '#(target, target)', '#()']) {
+        const source = `{cem:variable @name=target @select='data:read("<div><b/></div>", "xml").root.children'}{div @${attribute}={${operand}}}{$target}`;
+        const artifact = JSON.parse(wasm.compileTemplate(source, '[]'));
+        try {
+            for (const profile of [undefined, recommendation, draft, 'unknown-profile']) {
+                const result = JSON.parse(wasm.renderTemplateWithNativeValues(artifact.artifactId, 0, '{}', '[]', '[]', limits, 'profile', undefined, profile));
+                const succeeds = profile !== 'unknown-profile' && operand !== '#()' && (profile === draft || operand === '#target');
+                if (succeeds) {
+                    assert.deepEqual(result.diagnostics, []);
+                    assert.equal(result.ariaReferenceProfile, profile ?? recommendation);
+                    const expected = operand === '#target' ? 'profile-ref-1' : operand === '#(target, target)' ? 'profile-ref-1 profile-ref-1' : 'profile-ref-1-0 profile-ref-1';
+                    assert.equal(result.nodes[0].attributes.find(a => a.name === attribute).value, expected);
+                } else {
+                    assert.deepEqual(result.nodes, []);
+                    assert.ok(result.diagnostics.some(d => d.code === (profile === 'unknown-profile' ? 'cem.element_reference.profile' : 'cem.element_reference.cardinality')));
+                }
+            }
+        } finally { wasm.disposeTemplate(artifact.artifactId); }
+    }
+}
 function verifyElementReferenceLifecycle() {
     const parse = (text, uri) => wasm.parseReferenceSource(new TextEncoder().encode(text), 'text/cem-ml', uri, '');
     const relation = parse('{#datadom.slices.destination}', 'memory:element-relation.cem');
@@ -190,6 +212,7 @@ if (isMainThread) {
         verifyDirectInteger();
         verifyDirectReferences();
         verifyElementReferenceIds();
+    verifyAriaProfiles();
         verifyElementReferenceLifecycle();
         verifyPlacementAdmissions();
         assert.equal(consume(restored), true);
@@ -200,6 +223,7 @@ if (isMainThread) {
     verifyDirectInteger();
     verifyDirectReferences();
     verifyElementReferenceIds();
+    verifyAriaProfiles();
         verifyElementReferenceLifecycle();
     verifyPlacementAdmissions();
     parentPort.postMessage(workerData.operation === 'produce' ? produce() : consume(workerData.artifact));

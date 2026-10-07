@@ -174,6 +174,26 @@ fn focus_geometry_slots_are_single_placement_relationships() {
     assert!(html.contains("return-focus=\"none\""));
     assert!(!html.contains("data-cem-node-ref-"));
 }
+
+#[test]
+fn native_dialog_and_tooltip_slots_export_independent_roles_without_inferring_invokers() {
+    for tag in ["dialog", "aside"] {
+        let original = plan(&format!("{{{tag} @focus-target={{#target.children}} @return-focus={{#target}} @boundary={{#target}} @anchor=pointer}}{{$target}}"));
+        let output = render_plan_to_html(&project(&original, "surface").unwrap());
+        assert!(
+            output.contains("focus-target=\"surface-ref-1-0\""),
+            "{output}"
+        );
+        assert!(
+            output.contains("return-focus=\"surface-ref-1\""),
+            "{output}"
+        );
+        assert!(output.contains("boundary=\"surface-ref-1\""), "{output}");
+        assert!(output.contains("anchor=\"pointer\""), "{output}");
+        assert!(!output.contains("data-cem-node-ref-anchor"));
+        assert!(!output.contains("commandfor"));
+    }
+}
 #[test]
 fn traversal_is_bounded_and_cancelled_before_publication() {
     let original = plan("{button @commandfor={#target}}{$target}");
@@ -337,6 +357,90 @@ fn lists_keep_order_repetitions_and_resolve_nested_constructed_references() {
             "{attribute}"
         );
     }
+}
+
+#[test]
+fn explicit_aria_profiles_preserve_order_identity_and_literal_attributes() {
+    use cem_ql::render::{
+        project_element_reference_ids_with_options, AriaReferenceProfile,
+        ElementReferenceExportOptions,
+    };
+    for attribute in ["aria-details", "aria-errormessage"] {
+        for (operand, draft_value) in [
+            ("#target", "instance-ref-1"),
+            (
+                "#(target.children, target)",
+                "instance-ref-1-0 instance-ref-1",
+            ),
+            ("#(target, target)", "instance-ref-1 instance-ref-1"),
+            ("#()", ""),
+        ] {
+            let original = plan(&format!("{{div @{attribute}={{{operand}}}}}{{$target}}"));
+            let before = render_plan_to_html(&original);
+            for profile in [
+                AriaReferenceProfile::Recommendation12,
+                AriaReferenceProfile::Draft13,
+            ] {
+                let result = project_element_reference_ids_with_options(
+                    &original,
+                    "instance",
+                    &Default::default(),
+                    &OperationControl::default(),
+                    ROOT_EXECUTION_SCOPE_ID,
+                    ElementReferenceExportOptions {
+                        aria_profile: profile,
+                    },
+                );
+                if draft_value.is_empty()
+                    || (profile == AriaReferenceProfile::Recommendation12 && operand != "#target")
+                {
+                    assert_eq!(
+                        result.unwrap_err().code(),
+                        "cem.element_reference.cardinality"
+                    );
+                } else {
+                    let html = render_plan_to_html(&result.unwrap());
+                    assert!(
+                        html.contains(&format!("{attribute}=\"{draft_value}\"")),
+                        "{html}"
+                    );
+                    assert_eq!(html.matches("id=\"instance-ref-1\"").count(), 1);
+                }
+                assert_eq!(render_plan_to_html(&original), before);
+            }
+        }
+        let original = plan(&format!("{{div @{attribute}='literal other'}}{{$target}}"));
+        for profile in [
+            AriaReferenceProfile::Recommendation12,
+            AriaReferenceProfile::Draft13,
+        ] {
+            let output = project_element_reference_ids_with_options(
+                &original,
+                "instance",
+                &Default::default(),
+                &OperationControl::default(),
+                ROOT_EXECUTION_SCOPE_ID,
+                ElementReferenceExportOptions {
+                    aria_profile: profile,
+                },
+            )
+            .unwrap();
+            assert!(
+                render_plan_to_html(&output).contains(&format!("{attribute}=\"literal other\""))
+            );
+        }
+    }
+    assert_eq!(
+        AriaReferenceProfile::default().identity(),
+        "wai-aria-1.2-rec-20230606"
+    );
+    assert!("wai-aria-1.3".parse::<AriaReferenceProfile>().is_err());
+    assert_eq!(
+        "wai-aria-1.3-wd-20260604"
+            .parse::<AriaReferenceProfile>()
+            .unwrap(),
+        AriaReferenceProfile::Draft13
+    );
 }
 #[test]
 fn constructed_child_identity_is_preserved_for_relationship_targets() {

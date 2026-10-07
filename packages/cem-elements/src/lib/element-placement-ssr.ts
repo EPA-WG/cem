@@ -1,3 +1,4 @@
+import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import { CemPlacementAuthority, type CemPlacementLease, type CemPlacementTransaction } from './element-placement-authority.js';
 import type { CemElementPlacementUse, CemElementReferenceInputs } from './element-reference-inputs.js';
 import { placementPlanElement, placementRoutes, withPlacementId, withoutPlacementRelationships } from './element-placement-plans.js';
@@ -6,11 +7,15 @@ export interface CemSsrPlacementStage { readonly plan: RenderPlan; current(): bo
 export interface CemSsrPlacementPublication { stage: CemSsrPlacementStage; inputs?: CemElementReferenceInputs; uses?: readonly CemElementPlacementUse[] }
 export interface CemPlacementResumeHints {
     kind: 'cem-placement-resume-hints-v1';
-    profile: 'wai-aria-1.2-rec-20230606';
+    profile: CemAriaReferenceProfile;
     producers: { producer: string; revision: string; scopePolicyStamp: string; placements: { path: readonly number[]; id: string }[] }[];
 }
 /** Retained native export plans remain private until the complete SSR group is ready. */
 export class CemSsrPlacementCoordinator {
+    readonly ariaReferenceProfile: CemAriaReferenceProfile;
+    constructor(options: { ariaReferenceProfile?: CemAriaReferenceProfile } = {}) {
+        this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
+    }
     private readonly authority = new CemPlacementAuthority<CemSsrPlacementCoordinator>();
     private readonly revisions = new Map<string, Readonly<Record<string, string>>>();
     private readonly committed = new Map<string, RenderPlan>();
@@ -20,6 +25,7 @@ export class CemSsrPlacementCoordinator {
         this.revisions.set(transaction.token, { ...revisions });
         return Object.freeze({ token: transaction.token, cancel: () => { transaction.cancel(); this.revisions.delete(transaction.token); } }); }
     stage(plan: RenderPlan, current: () => boolean = () => true): CemSsrPlacementStage {
+        if (resolveAriaReferenceProfile(plan.ariaReferenceProfile) !== this.ariaReferenceProfile) throw new TypeError('SSR placement ARIA profile mismatch');
         const stage = Object.freeze({ plan, current }); this.stages.set(stage, { plan }); return stage;
     }
     registerPrepared(transaction: CemPlacementTransaction, stage: CemSsrPlacementStage, path: readonly number[], source: CemElementReferenceInputs['sources'][number], select: string): CemPlacementLease {
@@ -59,7 +65,7 @@ export class CemSsrPlacementCoordinator {
     }
     plans(): ReadonlyMap<string, RenderPlan> { return new Map(this.committed); }
     resumeHints(): CemPlacementResumeHints {
-        return { kind: 'cem-placement-resume-hints-v1', profile: 'wai-aria-1.2-rec-20230606', producers: [...this.committed.values()].map(plan => ({
+        return { kind: 'cem-placement-resume-hints-v1', profile: this.ariaReferenceProfile, producers: [...this.committed.values()].map(plan => ({
             producer: plan.instanceId, revision: plan.dataRevision, scopePolicyStamp: plan.scopePolicyStamp,
             placements: [...this.placements.values()].filter(p => p.producer === plan.instanceId && p.revision === plan.dataRevision).map(p => ({ path: [...p.path], id: p.id })),
         })) };

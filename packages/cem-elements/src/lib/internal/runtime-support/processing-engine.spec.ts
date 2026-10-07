@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EXPERIMENTAL_ARIA_REFERENCE_PROFILE } from '../../aria-reference-profile.js';
 
 const libraryMocks = vi.hoisted(() => ({ acquire: vi.fn(), dispose: vi.fn() }));
 vi.mock('./xpath-function-library.js', () => ({
@@ -283,6 +284,16 @@ describe('Phase 3A retained processing engine', () => {
         expect(workerRender.frames.some(
             (frame) => frame.type === 'ops' && frame.ops.some((operation) => operation.op === 'replaceScope')
         )).toBe(true);
+        for (const engine of [workerEngine, fallbackEngine]) {
+            const draftSnapshot = { ...snapshot, ariaReferenceProfile: EXPERIMENTAL_ARIA_REFERENCE_PROFILE };
+            await expect(engine.renderDiff({ ...renderInput, snapshot: draftSnapshot })).rejects.toThrow('revision does not match');
+            const draft = await engine.renderDiff({ ...renderInput, snapshot: draftSnapshot,
+                revision: { ...renderInput.revision, ariaReferenceProfile: EXPERIMENTAL_ARIA_REFERENCE_PROFILE } });
+            expect(draft.nextRenderPlan.revision.ariaReferenceProfile).toBe(EXPERIMENTAL_ARIA_REFERENCE_PROFILE);
+            expect(draft.nextRenderPlan.renderPlanId).not.toBe(workerRender.nextRenderPlan.renderPlanId);
+            await expect(engine.renderDiff({ ...renderInput, snapshot: draftSnapshot,
+                revision: { ...renderInput.revision, ariaReferenceProfile: 'unknown' as never } })).rejects.toThrow('Unknown ARIA');
+        }
     });
 
     it('retains the prior plan and emits a targeted text patch on the next revision', async () => {

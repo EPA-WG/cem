@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EXPERIMENTAL_ARIA_REFERENCE_PROFILE } from './aria-reference-profile.js';
 
 import {
     exportDataIslandSnapshotForEdge,
@@ -23,6 +24,18 @@ import {
 } from './processing-boundary.fixtures.js';
 
 describe('non-browser SSR initial-render host fixture', () => {
+    it('retains the exact profile in SSR results and rejects incompatible or unknown request profiles', () => {
+        const exported = { ...exportCompleteSnapshot(), ariaReferenceProfile: EXPERIMENTAL_ARIA_REFERENCE_PROFILE };
+        const request = initialRequest(exported);
+        request.payload.revision.ariaReferenceProfile = EXPERIMENTAL_ARIA_REFERENCE_PROFILE;
+        const response = executeNonBrowserSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore());
+        expect(response.outcome).toBe('success');
+        if (response.outcome === 'success') expect(response.result.hydrationData.renderPlanIdentity.ariaReferenceProfile).toBe(EXPERIMENTAL_ARIA_REFERENCE_PROFILE);
+        request.payload.revision.ariaReferenceProfile = undefined;
+        expect(executeNonBrowserSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore()).outcome).toBe('failure');
+        request.payload.revision.ariaReferenceProfile = 'unknown' as never;
+        expect(executeNonBrowserSsrInitialRenderFixture(request, new InMemoryEdgeRenderStateStore()).outcome).toBe('failure');
+    });
     it.each(['retained-declaration-css', 'retained-instance-css'])(
         'rejects unsupported %s policy before creating SSR state', marker => {
             const snapshot = edgeSsrSnapshotFixture();

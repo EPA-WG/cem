@@ -1,8 +1,9 @@
 import { interactionReference as reference, nativeInteractionReference as nativeReference } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
+import { captureCemSurfaceInvocation, type CemSurfaceInvocation } from './surface-invocation.js';
 
 /** Transient browser invocation metadata; portable CEM context stays in its typed channel. */
-export interface CemActionInvocation {
+export interface CemActionInvocation extends CemSurfaceInvocation {
     readonly source: HTMLButtonElement;
     readonly command: string | null;
     readonly contextKey: string | null;
@@ -170,7 +171,8 @@ export const CEM_ACTION_COMMAND_CAPABILITY: CemProducedElementBehavior = {
                 return;
             }
             const result = resolve(host);
-            invocations.set(button, Object.freeze({ source: button, command: result.command ?? null, contextKey: result.contextKey ?? null }));
+            invocations.set(button, Object.freeze({ ...captureCemSurfaceInvocation(button, event), source: button,
+                command: result.command ?? null, contextKey: result.contextKey ?? null }));
         }, { capture: true, signal: abort.signal });
     },
     rendered(host) {

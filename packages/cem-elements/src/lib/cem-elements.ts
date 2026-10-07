@@ -1,3 +1,4 @@
+import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
 import { CemElementPlacementCoordinator, clearCemPlacementRelationships, hasCemPlacementRelationships } from './element-placement-coordinator.js';
 import { placementRoutes } from './element-placement-plans.js';
@@ -125,6 +126,7 @@ import {
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
 import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
+import { CEM_NATIVE_SURFACE_CAPABILITY } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
 import { CEM_ACTION_COMMAND_CAPABILITY } from './action-command-capability.js';
 import { CEM_COMPOSITE_MENU_CAPABILITY } from './composite-menu-capability.js';
@@ -344,6 +346,8 @@ export const SNAPSHOT_SCHEMA_VERSION = '0.2.0';
 export type SourceMapMode = 'dev' | 'prod';
 
 export interface DataIslandSnapshot {
+    /** Pinned DOM relationship export contract; the Recommendation is the default. */
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Snapshot schema version; see {@link SNAPSHOT_SCHEMA_VERSION}. Optional during the expand phase (BR-EV-5). */
     version?: string;
     instanceId: string;
@@ -401,6 +405,7 @@ export type ExportedDataIslandSnapshot = Pick<
     | 'outputTarget'
     | 'sourceMapMode'
     | 'scopePolicyStamp'
+    | 'ariaReferenceProfile'
     | 'privacyPolicyStamp'
 > &
     Partial<Pick<DataIslandSnapshot, Exclude<DataIslandSnapshotExportField, 'nativeAttributes' | 'nativeSlices'>>> & { nativeAttributes?: Record<string, unknown>; nativeSlices?: Record<string, unknown> };
@@ -549,6 +554,8 @@ export interface CemStorageStatusEnvelope {
 export type CemModuleUrlReferrer = string | Node;
 
 export interface CemElementRuntimeOptions {
+    /** Pinned DOM relationship export contract; the Recommendation is the default. */
+    ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Host-issued placement authority and synchronous publication checks. */
     placementCoordinator?: CemElementPlacementCoordinator;
     /** Explicit invocation-owned reference authority; never derived from document JSON. */
@@ -721,6 +728,10 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'native-surface': {
+        behavior: CEM_NATIVE_SURFACE_CAPABILITY,
+        behaviorIdentity: 'cem-elements-native-surface-v1',
+    },
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
         behaviorIdentity: 'cem-elements-form-control-v1',
@@ -735,7 +746,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'action-command': {
         behavior: CEM_ACTION_COMMAND_CAPABILITY,
-        behaviorIdentity: 'cem-elements-action-command-v2',
+        behaviorIdentity: 'cem-elements-action-command-v3',
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,
@@ -1602,6 +1613,7 @@ export function exportDataIslandSnapshotForEdge(
         dataRevision: snapshot.dataRevision,
         outputTarget: snapshot.outputTarget,
         scopePolicyStamp: snapshot.scopePolicyStamp,
+        ariaReferenceProfile: snapshot.ariaReferenceProfile,
         privacyPolicyStamp: policy.privacyPolicyStamp ?? snapshot.privacyPolicyStamp,
     };
     if (snapshot.version !== undefined) exported.version = snapshot.version;
@@ -1668,6 +1680,7 @@ export function createCemEdgeSsrBrowserRequestEnvelope(
 export class CemElementRuntime {
     readonly declarationTag: string;
     readonly scopePolicyStamp: string;
+    readonly ariaReferenceProfile: CemAriaReferenceProfile;
     readonly privacyPolicyStamp: string;
 
     private readonly logger?: Pick<Console, 'warn' | 'error'>;
@@ -1754,6 +1767,7 @@ export class CemElementRuntime {
     private moduleContextSequence = 0;
 
     constructor(options: CemElementRuntimeOptions = {}) {
+        this.ariaReferenceProfile = resolveAriaReferenceProfile(options.ariaReferenceProfile);
         this.declarationTag = options.declarationTag ?? DEFAULT_DECLARATION_TAG;
         this.declarationScopeOption = options.declarationScope;
         this.controlInputPolicy = resolveCemControlInputPolicy(options.controlInputBytes, options.declarationScope);
@@ -1766,6 +1780,7 @@ export class CemElementRuntime {
         if (options.nativeValueLimits || scopedNativeLimits) {
             this.scopePolicyStamp += `:native-values:${edgeContentAddress('template-artifact', this.nativeValueLimits).digest}`;
         }
+        if (this.ariaReferenceProfile !== DEFAULT_ARIA_REFERENCE_PROFILE) this.scopePolicyStamp += `:aria-reference:${this.ariaReferenceProfile}`;
         this.privacyPolicyStamp = options.privacyPolicyStamp ?? DEFAULT_PRIVACY_POLICY_STAMP;
         this.logger = options.logger;
         this.moduleUrlRootOption = options.moduleUrlRoot;
@@ -3005,6 +3020,7 @@ export class CemElementRuntime {
                     dataRevision: snapshot.dataRevision,
                     outputTarget: snapshot.outputTarget,
                     scopePolicyStamp: snapshot.scopePolicyStamp,
+                    ariaReferenceProfile: snapshot.ariaReferenceProfile,
                 },
                 renderNodeIdPrefix: compiled.producedTag,
             });
@@ -3469,6 +3485,7 @@ export class CemElementRuntime {
                 dataRevision: snapshot.dataRevision,
                 templateArtifactId: snapshot.templateArtifactId,
                 scopePolicyStamp: snapshot.scopePolicyStamp,
+                ariaReferenceProfile: snapshot.ariaReferenceProfile,
                 outputTarget: snapshot.outputTarget,
                 ...(snapshot.renderAttempt === undefined ? {} : { renderAttempt: snapshot.renderAttempt }),
             };
@@ -3622,6 +3639,7 @@ export class CemElementRuntime {
                 }
                 const revision = { instanceId: snapshot.instanceId, dataRevision: snapshot.dataRevision,
                     templateArtifactId: snapshot.templateArtifactId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                    ariaReferenceProfile: snapshot.ariaReferenceProfile,
                     outputTarget: snapshot.outputTarget, renderAttempt: (snapshot.renderAttempt ?? 0) + (full ? 1 : 0) };
                 let domPlan: RenderPlan | undefined;
                 if (!processing) {
@@ -4216,7 +4234,9 @@ export class CemElementRuntime {
             ]);
             return false;
         }
-        if (snapshot.scopePolicyStamp !== this.scopePolicyStamp) {
+        const profileMismatch = resolveAriaReferenceProfile(snapshot.ariaReferenceProfile) !== this.ariaReferenceProfile;
+        if (snapshot.scopePolicyStamp !== this.scopePolicyStamp
+            && !(profileMismatch && withoutAriaReferenceProfileStamp(snapshot.scopePolicyStamp) === withoutAriaReferenceProfileStamp(this.scopePolicyStamp))) {
             this.frozenSerializedInstances.add(instance);
             this.recordDiagnostics(instance, [
                 renderDiagnostic(
@@ -4245,6 +4265,15 @@ export class CemElementRuntime {
         this.hydrationSnapshots.set(instance, snapshot);
         this.instanceIds.set(instance, snapshot.instanceId);
         this.dataRevisions.set(instance, parseDataRevision(snapshot.dataRevision));
+        if (profileMismatch) {
+            clearCemPlacementRelationships(instance);
+            this.recordDiagnostics(instance, [renderDiagnostic(
+                'cem-element.hydration_aria_profile_mismatch',
+                'SSR ARIA reference profile differs from the runtime; rerendering from the understood data island',
+                instance.localName, 'warning',
+            )]);
+            return false;
+        }
 
         const browserDeclarationVersion = this.declarationForInstance(instance)?.declarationVersion;
         if (!snapshot.declarationVersion || !browserDeclarationVersion) {
@@ -6600,6 +6629,7 @@ export class CemElementRuntime {
             outputTarget: 'light-dom',
             sourceMapMode: 'dev',
             scopePolicyStamp: this.scopePolicyStamp,
+            ariaReferenceProfile: this.ariaReferenceProfile,
             privacyPolicyStamp: this.privacyPolicyStamp,
             hostAttributes: hostAttributes(instance),
             nativeAttributes: renderedNativeAttributeBindings(instance),
@@ -8559,6 +8589,7 @@ function readDataIslandHydrationData(island: HTMLTemplateElement): HydrationSnap
         renderAttempt: typeof hydration.renderAttempt === 'number' ? hydration.renderAttempt : undefined,
         outputTarget: 'light-dom',
         sourceMapMode: sourceMapMode === 'dev' || sourceMapMode === 'prod' ? sourceMapMode : undefined,
+        ariaReferenceProfile: hydration.ariaReferenceProfile as CemAriaReferenceProfile | undefined,
         scopePolicyStamp:
             typeof hydration.scopePolicyStamp === 'string' ? hydration.scopePolicyStamp : '',
         privacyPolicyStamp:
@@ -8906,6 +8937,7 @@ function isDataIslandSnapshot(value: unknown): value is DataIslandSnapshot {
         record.dataRevision.length > 0 &&
         record.outputTarget === 'light-dom' &&
         (record.sourceMapMode === undefined || isSourceMapMode(record.sourceMapMode)) &&
+        (record.ariaReferenceProfile === undefined || record.ariaReferenceProfile === DEFAULT_ARIA_REFERENCE_PROFILE || record.ariaReferenceProfile === 'wai-aria-1.3-wd-20260604') &&
         typeof record.scopePolicyStamp === 'string' &&
         record.scopePolicyStamp.length > 0 &&
         typeof record.privacyPolicyStamp === 'string' &&
@@ -10220,6 +10252,7 @@ export function writeDataIslandHydrationData(
         outputTarget: snapshot.outputTarget,
         sourceMapMode: snapshot.sourceMapMode,
         scopePolicyStamp: snapshot.scopePolicyStamp,
+        ariaReferenceProfile: snapshot.ariaReferenceProfile,
         privacyPolicyStamp: snapshot.privacyPolicyStamp,
         ...(snapshot.nativeSlices?.length ? { nativeSlices: exportNativeCemSlices(snapshot.nativeSlices) } : {}),
         ...(snapshot.nativeAttributes?.length ? { nativeAttributes: exportNativeCemAttributes(snapshot.nativeAttributes) } : {}),
