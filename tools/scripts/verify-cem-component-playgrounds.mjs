@@ -129,6 +129,10 @@ async function verifyActionGallery(page) {
     assert.equal(await page.locator('cem-demo-element[legend="Controlled selection"] [slot="demo"] > cem-action:not([selected]):not([selectable]) button').getAttribute('aria-pressed'), null);
     await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').click();
     await page.waitForFunction(() => document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(1) button')?.getAttribute('aria-pressed') === 'false');
+    await page.locator('cem-demo-element[legend="Controlled selection"]').evaluate(card => {
+        window.retainedLayoutChoice = { card, declaration: card.querySelector('[slot=demo] cem-element'),
+            instance: card.querySelector('[data-cem-anonymous-instance]'), group: card.querySelector('[aria-label="Layout choice"]') };
+    });
     await page.locator('cem-demo-element[legend="Controlled selection"] [slot=demo] cem-element').evaluate(async node => { await window.cemPlaygroundRuntime.whenRenderSettled(node); });
     await verifyThemeControls(page);
     assert.equal(await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').getAttribute('aria-pressed'), 'true');
@@ -184,6 +188,16 @@ async function verifyActionGallery(page) {
     assert.deepEqual(await scoped.locator('[popover]').evaluateAll(nodes => nodes.map(node => node.matches(':popover-open'))), [true, true]);
     await scoped.getByRole('button', { name: 'First details', exact: true }).click();
     await scoped.getByRole('button', { name: 'Second details', exact: true }).click();
+    await verifyThemeControls(page);
+    assert.equal(await page.locator('[role="group"][aria-label="Layout choice"] cem-action:nth-of-type(2) button').getAttribute('aria-pressed'), 'true',
+        'Native activation followed by theme projection must retain the anonymous choice slice');
+    assert(await page.evaluate(() => {
+        const retained = window.retainedLayoutChoice;
+        const card = document.querySelector('cem-demo-element[legend="Controlled selection"]');
+        return card === retained.card && card.querySelector('[slot=demo] cem-element') === retained.declaration
+            && card.querySelector('[data-cem-anonymous-instance]') === retained.instance
+            && card.querySelector('[aria-label="Layout choice"]') === retained.group;
+    }), 'Native activation and theme projection must retain the unrelated demo owners');
 }
 
 async function verifySelect(url) {

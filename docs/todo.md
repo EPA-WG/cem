@@ -319,7 +319,23 @@ The [accepted interaction design](cem-interaction-design.md) takes precedence ov
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#interaction-design-implementation-cem-action).
 
-- [ ] Follow-up fixture: preserve unrelated anonymous demo slice state when native popup/modal activation is followed by a theme-switch rerender. The original gallery passes that check; the combined native-surface sequence currently resets the layout-choice demo.
+- [x] Follow-up fixture: preserve unrelated anonymous demo slice state when native
+      popup/modal activation is followed by a theme-switch rerender. The earlier
+      combined sequence reset the layout-choice demo; retain the full sequence
+      as a regression check.
+      Fixture work: extend the source/installed action-gallery check across the
+      full native surface sequence and add a focused worker/fallback runtime
+      story asserting retained demo/declaration/instance identity and slice state.
+      Scenarios for later design verification: native visibility/focus changes
+      do not replace unrelated anonymous owners; theme projection preserves an
+      edited slice without replaying its authored default.
+      Completed 2026-10-07: the current runtime passes the extended action gallery
+      from source and isolated package archives without a runtime change. The
+      colocated theme-switch story verifies worker/fallback slice state and exact
+      demo/declaration/instance/group identity after popover and modal commands,
+      then Dark/Native/Light rerenders. All 30 focused theme-switch/action/native-
+      surface browser plays, source/installed action checks, typecheck and lint
+      pass; the lint warnings are existing baseline warnings.
 
 ## Autocomplete and suggestions design for CEM inputs
 
