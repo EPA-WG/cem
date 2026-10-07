@@ -402,7 +402,18 @@ owner. Fixed source names stay fixed, descendant references remain authored,
 navigation stays inside the selected forest, and the explicit `source` field
 provides unchanged authored inspection. Native `#` operands retain this execution
 view and consumers can recover its original source handle. No AST is rewritten.
-Bounded namespace selection and lifecycle activation remain separate todo items.
+`CemQlSchemaDeclarationHost::attach_captured_namespaces` retains that immutable
+original metadata only for a registered owner. Its explicit
+`prepare_namespace_scope` consumer resolves chains through the shared graph walker,
+applying request and destination limits, source diagnostic policy and directed
+scope grants. It requires exactly one original namespace declaration and a ready
+destination context. Empty default bindings are ready resets; schema/data targets
+cannot supply a URI. Missing metadata and pending declaration bindings remain
+inspectable readiness issues, separate from invalid target admission and graph
+failures. Repeated calls use current runtime inputs without source writeback or
+cached selections. Preparation does not evaluate a selected pending declaration's
+own value slots or activate a namespace scope. Completion handoff and lifecycle
+activation remain separate todo items.
 The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
@@ -1644,7 +1655,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
-| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, explicit namespace declaration admission and independent pending-QName completion/query views are implemented. Bounded namespace selection, lifecycle activation and enclosed child override syntax remain tracked separately. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Completion handoff, lifecycle activation and enclosed child override syntax remain tracked separately. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
 Attribute collection references select zero or more named attribute declarations

@@ -91,7 +91,9 @@ explicit admitted results and requires the selected source forest's dependencies
 to be complete. It retains scalar name metadata and original owners, preserving
 fixed names and authored reference descendants. CEM-QL's `NamespaceQueryTree`
 exposes an independent native name view with explicit authored `source` access;
-reference evaluation, bounded selection and lifecycle activation remain consumer work.
+The explicit CEM-QL declaration host provides bounded namespace selection through
+`attach_captured_namespaces` and `prepare_namespace_scope`. Pending property-value
+consumption, completion handoff and lifecycle activation remain consumer work.
 
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed

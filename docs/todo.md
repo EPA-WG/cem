@@ -1932,21 +1932,35 @@ only and adds no runtime behavior or public syntax.
       retained source metadata and rejected owner mismatches.
       Scenarios for later design verification: selected roots cannot navigate to
       incomplete siblings; reference descendants remain authored native nodes.
-- [ ] Fixture: add bounded CEM-QL namespace selection over original declaration
-      handles after adopting the completion boundary. Reuse request/destination
+- [x] Fixture: add bounded CEM-QL namespace selection over original declaration
+      handles in `namespace_scope_preparation` after adopting the completion boundary.
+      Reuse request/destination
       limits, directed grants, singleton admission and pending/unresolved outcomes;
       consume original captured binding metadata without schema URI extraction.
+      Implemented: `attach_captured_namespaces` and `prepare_namespace_scope`
+      retain original owners and expose metadata/binding/context readiness apart
+      from graph failures and singleton target admission. XML namespace attributes
+      keep original handles and decoded binding values. Selected pending declaration
+      value consumption remains part of namespace-property lifecycle activation.
       Scenarios for later design verification: zero/multiple targets do not activate;
       denied crossings retain source diagnostics; missing runtime input stays pending;
       independent consumers can select different namespace declarations from one source.
 - [ ] Fixture: integrate ready namespace completion views into explicit lexical
-      handoff and shared native query ingress. Retain original occurrence snapshots
+      handoff. Retain original occurrence snapshots
       and selected-subtree boundaries; supply completed prefix bindings only to the
       execution that resolved their original declarations. Preserve source metadata
       and fixed completed names without replacing the original registered arena.
       Scenarios for later design verification: unavailable namespace dependencies
       block executable name views; retries never borrow later bindings; independent
       executions sharing one source can expose different completed namespaces.
+- [ ] Fixture: integrate explicit ready namespace completion views into shared
+      native query ingress. Keep authored source inspection available, require the
+      matching original source owner and preserve selected-subtree boundaries.
+      Supply completion at the consumer lifecycle stage without inventing grants
+      or evaluating declarations during ordinary loading/inspection.
+      Scenarios for later design verification: the same source supports independent
+      executions; missing dependencies cannot expose guessed expanded names; native
+      references and source metadata retain their original owner through ingress.
 - [ ] Define and implement native reference consumption by specialized schema and
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;

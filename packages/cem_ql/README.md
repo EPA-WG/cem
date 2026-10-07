@@ -166,6 +166,14 @@ remain authored. Native `#` values retain the execution view, while
 `retained_cem_node` recovers the unchanged original handle. Evaluation, crossing
 grants and lifecycle activation remain explicit consumer stages.
 
+The shared declaration host also provides `attach_captured_namespaces` and
+`prepare_namespace_scope`. This explicit namespace consumer follows reference
+chains under request/destination bounds and directed grants, then admits exactly
+one original namespace declaration with a ready destination context. Missing
+metadata, pending bindings and incomplete inputs remain inspectable; namespace
+preparation does not extract URIs from schema/data nodes, evaluate a selected
+pending declaration's own value slots, activate a scope or rewrite source targets.
+
 ### Native values in templates
 
 CEM-QL accepts optional `$` prefixes on expression references in queries and

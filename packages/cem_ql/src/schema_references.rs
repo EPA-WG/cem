@@ -43,6 +43,8 @@ use std::{
 mod source_diagnostics;
 mod lexical_handoff;
 mod scope_preparation;
+mod namespace_preparation;
+pub use namespace_preparation::{NamespaceScopePreparation, NamespaceScopePreparationIssue};
 mod uri_loads;
 mod uri_loader;
 pub use uri_loader::{SchemaUriLoadedScope, SchemaUriLoadTicket};
@@ -101,6 +103,9 @@ pub struct CemQlSchemaDeclarationHost {
     captured_names: BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::parser::ExpandedName>>,
     captured_schema_forms:
         BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::schema::machine::SchemaElementForm>>,
+    // Original completed/pending namespace declarations remain immutable; their
+    // consumer selection and activation are separate lifecycle stages.
+    captured_namespaces: BTreeMap<usize, Arc<cem_ml::schema::machine::LexicallyScopedDocument>>,
     // Explicit loader snapshots; keys keep original controls and authored URIs distinct.
     schema_uri_loads:
         BTreeMap<(usize, AstNodeId, String), ReferenceLinkEvaluation<SchemaDeclarationNode>>,
@@ -129,6 +134,7 @@ impl CemQlSchemaDeclarationHost {
             next_schema_uri_generation: 0,
             captured_names: BTreeMap::new(),
             captured_schema_forms: BTreeMap::new(),
+            captured_namespaces: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()
                 .expect("embedded reference policy"),
         }
