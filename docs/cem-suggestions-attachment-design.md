@@ -4,7 +4,9 @@ Status: adopted design, 2026-10-07, under the user's instruction to continue
 with recommended options. This completes the attachment/slots/capability item in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 The public names below are selected contracts, not implemented exports.
-Keyboard/event policy and static/async source lifecycle remain subsequent items.
+Keyboard/event/history and selection policy are adopted in the
+[interaction design](cem-suggestions-interaction-design.md).
+Static/async source lifecycle remains a subsequent item.
 
 Add a non-form-associated `cem-suggestions` declaration requesting the shared
 `suggestions` capability. It binds one existing field provider, produces one
@@ -63,6 +65,7 @@ This new endpoint accepts neither CSS selectors nor bare ID/URL strings.
 | `filter` | `contains` default, `prefix`, `external` or `none`; ownership and matching below. |
 | `filter-by` | Local modes only: `label` default, `value`, or both tokens; match either key independently. |
 | `label` | Nonempty plain-text listbox name, default declaration text `Suggestions`; does not rename the editor. A custom declaration may instead supply a valid native naming relationship. |
+| `require-selection`, `selection-message` | Opt-in commit-provenance validity and its field-owned message, as defined in the interaction design; omitted requirement keeps free text. |
 | `placement`, `fallback`, `boundary`, `overflow` | Shared logical fitting inputs, with the defaults and admitted boundaries in the popup-service profile. |
 
 Unknown filter modes/tokens diagnose an inactive attachment rather than choosing
@@ -73,8 +76,10 @@ this component does not reuse that attribute to choose its filtering policy.
 No writable `open`, mirrored `value`, submitted `name`, generated trigger,
 focus-target or return-focus API is added to this host. Its manual presentation,
 actual-editor anchor and retained focus are requirements of the first profile.
-Constrained selection and opening thresholds belong to the next interaction
-item; no attribute for them is promised here.
+The [interaction policy](cem-suggestions-interaction-design.md#preview-commit-and-opening)
+opens ready eligible results on fresh focus/edit or an admitted arrow request,
+without a minimum character threshold. Constrained selection uses the planned
+inputs above; none of these selected APIs is implemented by this document.
 
 ## Slots, parts and presentation ownership
 
@@ -249,7 +254,8 @@ handles remain distinct from the current produced row placement.
 
 These elements belong to the explicitly versioned consumer view schema;
 source edges preserve their original schemas/scopes. Active and committed flags
-describe distinct session states; they do not prescribe `aria-selected` policy.
+describe distinct session states. The [interaction policy](cem-suggestions-interaction-design.md#preview-commit-and-opening)
+assigns `aria-selected` to the active preview, independently of committed identity.
 Custom label templates receive the corresponding native row/group, not a
 JavaScript object or the live editor. Queries use native children/attributes
 and explicit source edges, without object-shaped shorthand. No context root ID
@@ -288,8 +294,8 @@ Existing incompatible role/autocomplete/active-descendant owners conflict;
 unrelated controls tokens remain intact. The lease tracks only its own tokens
 and writes, releasing them without restoring older values over new authored
 state. Group labels name their own groups. The host itself has no combobox/menu
-role. Option state belongs to the session, not authored `selected` flags; exact
-preview/selection presentation is part of the next interaction item.
+role. Option state belongs to the session, not authored `selected` flags;
+the interaction design specifies preview/selection presentation.
 
 Prepare sources, filtering, label templates and native row mappings in a bounded
 consumer lifecycle stage with the original bindings and scope policies. Apply
@@ -303,9 +309,9 @@ immediately. Dismissal/rebinding invalidates old opening generations.
 Opening/navigation/dismissal never own a value write. Only the suggestions
 session requests a synchronous field-provider commit after checking current
 source and placement eligibility; the field updates value/submission/validity
-before events, then the popup closes once. Keyboard/pointer/IME arbitration,
-event/undo reconciliation, constrained validity and loading/status announcements
-remain the following checklist items.
+and closes the popup before value-event observers. Keyboard/pointer/IME
+arbitration, event/history reconciliation and constrained validity follow the
+interaction design. Loading/status announcements remain the next data item.
 
 ## Alternatives and delivery
 

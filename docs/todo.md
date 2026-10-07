@@ -400,13 +400,22 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       not transfer a row ID to another source; conflicting endpoints/claims do
       not select a mounting-order winner; external/none modes expose list/none.
 
-- [ ] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
+- [x] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
+      Completed 2026-10-07 in the [interaction/selection design](cem-suggestions-interaction-design.md).
+      Adopt manual preview and explicit stored-value commit; focus/edit opening
+      has no character threshold, unavailable rows are skipped, and close never
+      clears or accepts text. Define cancellable replacement beforeinput,
+      synchronous field-owner notifications with reentrancy/revision guards,
+      public bubbling change reconciliation distinct from raw capture traces,
+      native history without an undo-entry promise, shared IME/held-press routing
+      and opt-in commit-provenance validity through a leased field contributor.
       Preserve [value/form handoff](cem-suggestions-composition-design.md#commit-through-the-existing-form-owner).
       Apply the [attachment state and accessibility handoff](cem-suggestions-attachment-design.md#accessibility-and-lifecycle-handoff).
       Set preview/aria-selected behavior explicitly, without copying source
       selected flags; retain one commit/close route and guard stale query revisions.
       Scenarios for later design verification: event observers see one coherent
-      native/host/submitted value; commit followed by blur has no duplicate change;
+      native/host/submitted value; commit followed by blur has no duplicate public
+      bubbling change while raw ancestor capture is reported separately;
       a later real edit still changes normally; option replacement has an explicit
       tested undo/redo policy; Enter without a commit preserves form behavior.
       Follow [close routing](cem-suggestions-popup-design.md#focus-and-close-routing):
@@ -418,9 +427,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Define duplicate-value policy, source replacement/invalid-revision recovery,
       external result/query-revision association, request cancellation and native
       query/loader bindings; no options URL, record normalizer or second filter.
+      Define committed-proof lifetime separately from filtered result pages:
+      retain proof through display filtering, distinguish authoritative source
+      invalidation/revocation, and never infer it by value equality. Integrate
+      settled IME queries and generation guards with loading/status feedback.
       Scenarios for later design verification: a late result from a dismissed
       opening generation cannot reopen the popup; refresh preserves the field's
       value and focus; source readiness never overwrites field-owned `busy`.
+      A committed candidate absent from a filtered page is not invalidated merely
+      by absence; authoritative revocation releases proof without rewriting text.
 
 - [ ] Implement the shared editor-provider boundary, synchronous user-commit
       transaction and reset/restore/rebinding notifications in cem-elements,
@@ -438,10 +453,22 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       transient native view, label-template input frames and source-to-row mappings.
       Keep source identity distinct from DOM relationship targets; exclude live
       capability views/leases from durable resume authority.
+      Implement the [interaction provider contract](cem-suggestions-interaction-design.md#provider-commit-and-event-contract):
+      cancellable replacement beforeinput, coherent synchronous notifications,
+      reentrancy guards and revision-aware native change checkpoints. Add shared
+      composition/terminal-press and handled Enter/Escape routing to the field's
+      implicit-submit path; ordinary editing remains native. Add leased validity
+      contributors and commit-provenance tracking before require-selection.
+      Deliver one row-activation/dismissal state machine and verify a shared
+      focus-preserving adapter per supported pointer type/browser before claiming
+      touch/pen support; preserve scrolling, never refocus after stale blur.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are
       released without patching another producer's owned output.
+      Beforeinput veto leaves text untouched; superseding callbacks do not emit
+      stale change; author custom/native/selection validity compose without one
+      claim clearing another; IME terminal keys do not submit or select.
 
 - [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
       Include [composition acceptance scenarios](cem-suggestions-composition-design.md#delivery-and-verification):
@@ -459,6 +486,18 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       adjacent text nodes/comments/ASCII versus non-ASCII whitespace, mixed-family
       rejection, label-only templates, Unicode filter agreement, external/none
       autocomplete semantics and full-row filtering without identity transfer.
+      Add [interaction acceptance cases](cem-suggestions-interaction-design.md#alternatives-and-verification):
+      no auto-first/blur/Tab commit, clamped/disabled navigation, exact preview
+      ARIA, Enter veto/no-selection/held repeats, nested Escape and native caret
+      editing. Exercise native final IME keys/input ordering and captured deferred
+      submit ownership, rather than treating synthetic keys as IME evidence.
+      Verify pointer mouse/touch/pen focus, pan/scroll/cancel, stale and accessibility
+      activation; no panel-wide cancellation or refocus-after-blur workaround.
+      Trace raw capture and public bubbling input/change separately through commit,
+      blur, later edits, reentrancy and equal-string setter/reset/restore causes.
+      Check optional/required empty values, initial/restored constrained text,
+      equal-value distinct sources, custom/native/selection error precedence and
+      native undo/redo/caret results with coherent field/submission state.
 
 - [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
@@ -481,6 +520,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       the first profile accepts label templates only. Scenarios for later design
       verification: an adopted listbox has one visibility/semantic owner, valid
       row mappings and fresh foreign placement authority, without menu behavior.
+
+- [ ] Assess an explicit field-owned undoable replacement adapter before
+      promising an option commit is one native undo entry. Keep the first
+      profile's [native history policy](cem-suggestions-interaction-design.md#undo-and-redo)
+      and report supported-browser results; do not add a component-local history
+      stack, deprecated editing command or replacement input as a workaround.
+      Scenarios for later design verification: immediate undo after commit,
+      later native typing then undo/redo, caret/selection restoration and
+      submission/validity coherence; restored strings never infer source identity.
 
 - [ ] Design non-key platform close-request support for manual suggestions
       surfaces before claiming Back/dismiss-gesture integration. Evaluate native

@@ -157,6 +157,10 @@ non-form `cem-suggestions` provider with the shared `suggestions` capability,
 an editor slot or explicit `editor-for`, and label templates inside owned rows.
 These are planned contracts; they do not broaden implemented button endpoints
 or add suggestions to the current native-surface kinds.
+The [adopted suggestions interaction policy](cem-suggestions-interaction-design.md)
+uses manual preview, explicit stored-value commits through the field provider,
+shared IME/key arbitration and optional field-owned selection validity. These
+contracts and their browser fixtures remain pending runtime implementation.
 
 ### Slots and produced parts
 

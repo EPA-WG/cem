@@ -12,7 +12,9 @@ Retain the editor's focus and the [single field/form owner](cem-suggestions-comp
 The public dropdown component and its trigger-oriented capability are not the
 attachment mechanism. Public attachment syntax is now adopted in the
 [attachment/capability design](cem-suggestions-attachment-design.md);
-full keyboard/data policies remain subsequent design items.
+keyboard, pointer and selection policy is adopted in the
+[interaction design](cem-suggestions-interaction-design.md).
+The data lifecycle remains a subsequent item.
 
 ## Comparison against the current runtime
 
@@ -163,10 +165,10 @@ refocus-after-blur workaround. Scrollbar/touch scrolling is not an option commit
 
 | Cause | First-profile routing |
 | --- | --- |
-| Escape with this session open and its editor focused | The shared input interaction route dismisses once without value changes or refocusing. It consumes the handled key's default and propagation so the same Escape does not also close an ancestor. IME and canceled-event rules belong to the next interaction item. |
+| Escape with this session open/pending and its editor focused | The shared input route dismisses once without value changes or refocusing. It consumes the handled press's default and propagation, including held repeats, so it cannot also close an ancestor. Apply the interaction design's cancellation and IME ownership rules. |
 | Tab/Shift+Tab or genuine focus leaving the session | Dismiss without an implicit commit; preserve destination focus and native change timing. |
 | Outside pointer interaction | Shared pointer-sequence policy uses the editor/listbox region; cancel/drag/scroll cases cannot be reduced to two competing pointerdown/click listeners. It never steals outside focus. |
-| Accepted option commit | Form-owner commit succeeds first, then the session requests one hide. No generic popup listener commits or submits. |
+| Accepted option commit | Form-owner value/provenance update succeeds, then the session reconciles one hide before value-event observers. No generic popup listener commits or submits. |
 | Disable/readonly, anchor loss, invalidated placement, disconnect or reset/restore | Close and release session claims; retain field-owned value/default behavior. |
 | External native hide or ancestor surface closes | Observe and reconcile actual visibility once; do not reopen or synthesize another invocation. |
 

@@ -8,8 +8,9 @@ It builds on the [source audit](cem-autocomplete-source-audit.md) and the curren
 Popup reuse is adopted in the [popup-service design](cem-suggestions-popup-design.md).
 Public names, slots and filtering ownership are adopted in the
 [attachment/capability design](cem-suggestions-attachment-design.md).
-The full interaction matrix and data lifecycle remain subsequent design items;
-this composition document introduces no additional public names.
+Keyboard, pointer, event/history and constrained-selection policies are adopted
+in the [interaction design](cem-suggestions-interaction-design.md).
+The source data lifecycle remains a subsequent item.
 
 Attach a shared suggestions session to the existing field's editor provider.
 Keep that field as the sole form and value owner, and its actual native input
@@ -104,11 +105,11 @@ be reconstructed from strings or array positions.
 Provider lifecycle notifications must identify mutation causes; comparing old
 and new strings alone cannot distinguish a commit, reset or equal-value setter.
 
-Free text remains the initial composition mode: suggestion membership is not
-an additional validity requirement. A later constrained-selection mode must
-be opt-in and compose with the same form owner. Its validity and close rules
-remain on the interaction checklist rather than being inherited from the
-frozen product.
+Free text remains the default: suggestions add no validity requirement.
+The adopted [opt-in constrained mode](cem-suggestions-interaction-design.md#free-text-and-constrained-selection)
+requires explicit commit provenance through a leased field-validity contributor.
+Invalid edits remain visible; close never clears text. Its provider boundary
+is pending implementation, rather than inherited from the frozen product.
 
 ## Commit through the existing form owner
 
@@ -129,29 +130,38 @@ The operation must:
    such as line breaks stripped by a text input, rather than losing data.
    Native constraint invalidity is distinct: a representable value may be
    committed and leave the field invalid, just as ordinary editing can.
-3. Update the native value, field-owned live slice, submission value and native
-   validity together before reporting success. Preserve the authored host
-   `value`/reset default. The field owner manages its render revision so a
+   For a new commit, dispatch the interaction contract's cancellable synthetic
+   `beforeinput` and recheck revisions after its listeners. An exact repeat of
+   the unchanged committed source is a no-op; another source with an equal
+   value may establish new provenance.
+3. Update the native value, field-owned live slice, submission value and committed
+   source provenance together; compute effective native/contributed validity
+   before reporting success. Preserve the authored host `value`/reset default.
+   The field owner manages its render revision so a
    queued older render cannot restore the previous value. Generic native value
    patching rules do not change merely because suggestions are attached.
-4. Record the committed option in the session, remove the active preview and
-   close its presentation without moving input focus. A value replacement may
-   put the caret at the end; preview, refresh and unrelated renders may not
+4. Remove the active preview and close the presentation without moving input
+   focus. A value replacement may put the caret at the end; preview, refresh
+   and unrelated renders may not
    change the user's selection.
 5. Emit the defined user-commit events from the actual input after the state is
-   coherent. The baseline is one bubbling/composed `input`, then one bubbling
-   `change`, with no duplicate pair from the host or controller. Event objects
-   remain synthetic; they are notifications of the runtime commit and must
-   not be passed off as trusted native typing.
+   coherent: a bubbling/composed replacement `InputEvent`, then one bubbling
+   `change`, with no duplicate pair from the host or controller. Objects remain
+   synthetic. A superseding edit/disconnect during a callback cancels the old
+   transaction's remaining notification rather than rolling newer state back.
 
-A user may type before committing. Manually dispatching `change` does not by
-itself prove that a later browser blur cannot produce another change. The
-shared editor lifecycle must define and verify edit-session reconciliation
-without suppressing legitimate later edits or the field's ordinary change
-timing. The full event/keyboard item and browser fixtures carry this requirement.
+A user may type before committing. Manually dispatching `change` does not reset
+the browser's change state. The [revision checkpoint contract](cem-suggestions-interaction-design.md#change-timing-and-observation-limits)
+requires narrow reconciliation of an acknowledged commit's later native change,
+while forwarding genuine later edits. Its guarantee concerns public bubbling
+notifications; ancestor capture observers may still see a platform change.
+Native browser fixtures must verify that distinction before implementation
+claims the event contract.
 
-When Enter actually commits, cancel its native submission route in the same
-event turn. With no operable commit, retain ordinary Enter behavior. The
+When Enter requests a current eligible commit, cancel its native submission
+route in the same event turn, including when the request is vetoed or becomes
+stale. With no eligible active option, retain ordinary Enter behavior apart
+from IME-owned presses. The
 current form-control capability deliberately waits for canceled key events
 before implicit submission; suggestions must coordinate with it instead of
 submitting or clicking a form button independently. Opening, navigation,
@@ -201,9 +211,10 @@ Keep the existing input node, accessible label, help/error relationships,
 selection and form name/owner through popup changes, suggestion refresh and
 theme rerenders. Native typing remains the source of text edits; observe its
 original events without re-emitting them. IME, caret shortcuts and text undo
-retain native behavior. The interaction design must separately verify that a
-runtime option replacement integrates acceptably with undo/redo; it cannot
-claim native typing equivalence from a programmatic value assignment.
+retain native behavior under the [shared interaction arbitration](cem-suggestions-interaction-design.md#ime-and-implicit-submission).
+The [history policy](cem-suggestions-interaction-design.md#undo-and-redo) keeps
+native commands without promising a programmatic replacement is an undo entry;
+native fixtures must record results and field/submission coherence.
 
 Disabled hosts/fieldsets and native readonly state suppress opening and commit.
 Transitioning to those states ends the suggestion session without clearing the
@@ -245,8 +256,8 @@ only after the new editor is admitted.
 ## Delivery and verification
 
 The checklist promotes this composition contract and the selected popup service.
-The attachment/shared capability API is now adopted. Remaining design items
-define keyboard/event/constrained-selection behavior and static/async data.
+The attachment/shared capability and interaction policies are now adopted.
+The remaining core design item defines static/async data and status feedback.
 Implementation must add the editor-provider commit boundary and lifecycle
 notifications in cem-elements before authoring component attachment conveniences.
 
