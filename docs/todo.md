@@ -2617,7 +2617,7 @@ remain unchanged. General datatypes, child-override syntax and cem-element ID
 projection remain separate workstreams.
 
 - [x] Adopt the public `reference` node refinement, one-step `.targets` access
-      and `.targets_available` presence field. Keep occurrence `is` separate
+      and `.targets_available` presence field. Keep occurrence `same_node` separate
       from positional target comparison; add no new target-list comparator.
 - [x] Adopt a verified, versioned binary/source/lexical reload bundle, fresh
       allocation capture, incomplete missing-metadata outcomes and explicit
@@ -2629,11 +2629,11 @@ projection remain separate workstreams.
 
 ### 1. Public query reference type and edge availability
 
-- [ ] Fixture: verify `reference` type annotations/tests and compatibility with
+- [x] Fixture: verify `reference` type annotations/tests and compatibility with
       `node` parameters across source, unary, output and portable views. Cover
       empty/absent lists, order, repeated edges, nested reference targets,
       occurrence aliases and distinct constructions over identical targets.
-- [ ] Implement the `reference` node-kind refinement in compiler/runtime and
+- [x] Implement the `reference` node-kind refinement in compiler/runtime and
       `.targets_available` across native reference views. Keep `.targets`
       one-step and inert; preserve `dom:reference` and legacy `.target` behavior.
       Document the executable API after these fixtures pass.
@@ -2643,25 +2643,28 @@ Scenarios for later design verification:
 - Absent stored targets report false; an available empty operand/edge list
   reports true. Neither state evaluates an expression or claims consumer success.
 - Aliases compare as one occurrence; fresh constructions remain distinct.
-  Positional comparisons preserve order and duplicates and do not use `is`
+  Positional comparisons preserve order and duplicates and do not use `same_node`
   on an entire sequence as a sequence-equality operation.
 - Accessing source references neither loads URLs nor searches IDs; native
   targets retain original parent/owner identity and have no structural role.
 
 ### 2. Verified lexical reload bundle
 
-- [ ] Fixture: reload source under namespace/schema overrides with completed
+- [x] Fixture: reload source under namespace/schema overrides with completed
       names, pending binding/QName dependencies, initial defaults and
       wrapping/following forms. Verify a fresh owner's reconstructed capture,
       source text/URI access and evaluation under two fresh runtime contexts.
-- [ ] Fixture: reject mismatched fingerprints, versions, kinds and dependency
+- [x] Fixture: reject mismatched fingerprints, versions, kinds and dependency
       handles. Distinguish missing lexical metadata from invalid metadata;
       neither can borrow destination defaults or reuse old allocation captures.
-- [ ] Implement versioned bundle/source manifest and passive lexical sidecar
+      Include declared collection-count limits before binary decoder allocation.
+- [x] Implement versioned bundle/source manifest and passive lexical sidecar
       encoding/validation, then reconstruct capture over the decoded allocation.
       Preserve existing AST-only reload/inspection. Verify external declaration
-      owners explicitly; no live contexts, grants, runtime caches or package
-      registrations travel as lexical metadata. Identify the debug CEMB codec
+      owners explicitly. The current bundle supports one captured allocation;
+      foreign AST declaration handles have no admission path. No live contexts,
+      grants, runtime caches or package registrations travel as lexical metadata.
+      Identify the debug CEMB codec
       honestly rather than promising stable production compatibility.
 
 Scenarios for later design verification:
@@ -2678,14 +2681,14 @@ Scenarios for later design verification:
 
 ### 3. Enforce native export preservation boundaries
 
-- [ ] Fixture: export source references with absent, empty and nonempty stored
+- [x] Fixture: export source references with absent, empty and nonempty stored
       targets through CEMV; require an attributed unsupported-source outcome
       rather than discarded expression/capture or absent-to-empty conversion.
-- [ ] Fixture: preserve materialized acyclic references, ordered/repeated edges
+- [x] Fixture: preserve materialized acyclic references, ordered/repeated edges
       and occurrence parents through CEMV; reject self/cyclic target graphs and
       cross-edge cycles without successful partial output. Keep CEMB self/cycle
       round trips and CEM/XML source-only exports covered independently.
-- [ ] Implement source-reference admission guards and typed unsupported-export
+- [x] Implement source-reference admission guards and typed unsupported-export
       classification at CEMV/public export boundaries, preserving existing
       error messages and distinct invalid-input, limit and cancellation outcomes.
       Explicit materialized-result export must retain supported provenance;
@@ -2709,6 +2712,41 @@ Design verification (2026-10-06): 40 existing native checks pass across ML
 `constructor_references` and `reference_runtime_resolution`. These confirm the
 existing source/graph/constructor boundaries; they do not verify the planned
 reference refinement, availability field, lexical bundle or source-export guard.
+
+Implementation checkpoint (2026-10-06): all three native work items are now
+implemented with new fixtures. Query identity uses the existing `same_node(a,b)`
+helper; `expr is reference` is a type test. Binary reload is an explicit debug
+codec boundary, and AST-only handoff exposes a typed missing-capture dependency.
+It does not automatically select a runtime context or create host authority.
+Public ingress/client adapters remain separate follow-ups below.
+
+Verification: 137 focused native checks pass: 68 QL integration checks, 31 ML
+integration checks plus nine AST codec unit checks, and 29 transform/query bridge
+checks. Twelve new checks cover query typing/availability, dynamic reference
+parameters, fresh-context lexical reload, malformed bundle rejection and export
+classification. Formatting and diff checks pass. This verifies the explicit Rust
+boundaries; it does not claim CLI/WASM reload adapter support.
+
+### Next three integration items
+
+- [ ] Fixture and implementation: accept verified reload bundles through shared
+      query/validation source ingress, retaining the decoded owner and capture.
+      Treat missing metadata as pending for capture-dependent consumers; preserve
+      explicit readiness/retry and namespace/schema lifecycle coordination.
+      Scenarios for later design verification: no source reparse or default
+      substitution; fresh runtime inputs and grants remain caller-owned.
+- [ ] Fixture and implementation: expose the explicit reload/export boundaries
+      through CLI and low-level WASM/worker clients, retaining native handles
+      and typed error/source attribution. Keep compatibility strings and current
+      record projection admission explicit.
+      Scenarios for later design verification: pending sessions/contexts are never
+      serialized; CEMV cannot stand in for an executable source bundle.
+- [ ] Fixture and documentation: complete the source/query/validation/transport
+      consumer matrix across repeated runs, empty/absent lists, unsupported graphs
+      and missing lexical inputs; audit remaining reference adoption blockers.
+      Scenarios for later design verification: child-override syntax, XML
+      attribute expression recognition, general datatypes and cem-element ID
+      projection remain separately tracked and cannot be claimed complete.
 
 ## Reference adoption: dependency binding and readiness
 

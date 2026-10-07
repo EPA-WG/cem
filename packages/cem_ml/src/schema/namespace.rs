@@ -18,11 +18,12 @@
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 pub type NamespaceBindingId = u32;
 pub type NsContextId = u32;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NamespaceBinding {
     pub binding_id: NamespaceBindingId,
     /// Prefix name; `""` is the default (blank) binding.
@@ -46,7 +47,7 @@ pub struct ResolvedQName {
 /// Scope-chain namespace context. The schema machine pushes a new
 /// `NsContext` at every `OpenScope`, inheriting the parent's bindings,
 /// and pops it on `CloseScope`.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NsContext {
     pub scope_id: u32,
     /// Local bindings declared at this scope, in declaration order.
@@ -63,6 +64,15 @@ pub struct NsContext {
 }
 
 impl NsContext {
+    pub(crate) fn retained_bindings(&self) -> impl Iterator<Item = &NamespaceBinding> {
+        self.bindings.iter().chain(self.active.values()).chain(self.inherited_overrides.values().filter_map(Option::as_ref))
+    }
+
+    pub(crate) fn valid_snapshot(&self) -> bool {
+        self.next_binding_id != 0
+            && self.retained_bindings().all(|b| b.binding_id > 0 && b.binding_id < self.next_binding_id)
+            && self.active.iter().all(|(prefix, binding)| prefix == &binding.name)
+    }
     pub fn new(scope_id: u32) -> Self {
         Self {
             scope_id,

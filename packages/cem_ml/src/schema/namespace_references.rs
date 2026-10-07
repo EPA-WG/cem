@@ -4,6 +4,7 @@ use super::{
     namespace::NamespaceBinding,
 };
 use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
 mod completion;
 mod property;
@@ -16,19 +17,19 @@ pub use property::{
 };
 
 /// Original declaration dependency, not a stored evaluation or runtime context.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PendingNamespaceValue {
     /// Evaluate the declaration attribute's original native value slots.
     Native,
     /// An existing literal default-prefix alias selected this earlier binding.
     Alias(crate::parser::AstNodeId),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingNamespaceDeclaration {
     pub prefix: String,
     pub value: PendingNamespaceValue,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingNamespaceName {
     pub declaration: crate::parser::AstNodeId,
     pub local_name: String,

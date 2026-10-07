@@ -14,7 +14,7 @@ use crate::source_map::SourceMapStack;
 
 pub type AstNodeId = u32;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExpandedName {
     pub namespace_uri: String,
     pub local_name: String,

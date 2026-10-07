@@ -30,6 +30,12 @@ pub fn item_matches_type(item: &Item, ty: &Type) -> bool {
         | (Item::Lambda(_), Type::Lambda { .. }) => true,
         (Item::Native(view), Type::Record(_)) => view.kind() == QueryItemViewKind::Record,
         (Item::Native(view), Type::Array(_)) => view.kind() == QueryItemViewKind::Array,
+        (Item::Native(view), Type::Node(NodeKind::Reference)) => {
+            view.kind() == QueryItemViewKind::Node
+                && view.field("kind").is_some_and(|values| {
+                    values.first().and_then(Item::atom) == Some(AtomValue::String("reference".into()))
+                })
+        }
         (Item::Native(view), Type::Node(NodeKind::Node | NodeKind::Element(_))) => {
             view.kind() == QueryItemViewKind::Node
         }

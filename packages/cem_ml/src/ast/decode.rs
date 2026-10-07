@@ -18,11 +18,13 @@ pub enum DecodeError {
     IntegrityMismatch { expected: u64, actual: u64 },
     InvalidUtf8,
     InvalidReference(AstNodeId),
+    CountLimitExceeded,
 }
 
 impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DecodeError::CountLimitExceeded => f.write_str("binary AST collection count limit exceeded"),
             DecodeError::InvalidReference(id) => write!(f, "invalid reference node or context ID: {id}"),
             DecodeError::BadMagic => f.write_str("invalid magic"),
             DecodeError::BadVersion(v) => write!(f, "unsupported version: {v}"),
@@ -49,6 +51,10 @@ impl DebugBinaryDecoder {
     }
 
     pub fn decode(&self, bytes: &[u8]) -> Result<CemDocument, DecodeError> {
+        self.decode_bounded(bytes, usize::MAX)
+    }
+
+    pub fn decode_bounded(&self, bytes: &[u8], max_entries: usize) -> Result<CemDocument, DecodeError> {
         // Verify integrity hash first.
         if bytes.len() < 8 {
             return Err(DecodeError::UnexpectedEof);
@@ -63,7 +69,7 @@ impl DebugBinaryDecoder {
             });
         }
 
-        let mut r = Reader::new(&bytes[..hash_offset]);
+        let mut r = Reader::new(&bytes[..hash_offset], max_entries);
         let mut magic = [0u8; 4];
         r.read_into(&mut magic)?;
         if magic != MAGIC {
@@ -180,15 +186,16 @@ fn validate_value_ownership(nodes: &[CemAstNode]) -> Result<(), DecodeError> {
 struct Reader<'a> {
     bytes: &'a [u8],
     cursor: usize,
+    max_entries: usize,
 }
 
 impl<'a> Reader<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, cursor: 0 }
+    fn new(bytes: &'a [u8], max_entries: usize) -> Self {
+        Self { bytes, cursor: 0, max_entries }
     }
 
     fn ensure(&self, need: usize) -> Result<(), DecodeError> {
-        if self.cursor + need > self.bytes.len() {
+        if need > self.bytes.len().saturating_sub(self.cursor) {
             Err(DecodeError::UnexpectedEof)
         } else {
             Ok(())
@@ -221,6 +228,14 @@ impl<'a> Reader<'a> {
         Ok(u32::from_le_bytes(b))
     }
 
+    fn read_count(&mut self) -> Result<u32, DecodeError> {
+        let count = self.read_u32()?;
+        if count as usize > self.max_entries { return Err(DecodeError::CountLimitExceeded); }
+        // Every encoded collection entry occupies at least one byte.
+        self.ensure(count as usize)?;
+        Ok(count)
+    }
+
     fn read_u64(&mut self) -> Result<u64, DecodeError> {
         let mut b = [0u8; 8];
         self.read_into(&mut b)?;
@@ -236,7 +251,7 @@ impl<'a> Reader<'a> {
 }
 
 fn read_strings(r: &mut Reader<'_>) -> Result<Vec<String>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         let len = r.read_u32()?;
@@ -247,7 +262,7 @@ fn read_strings(r: &mut Reader<'_>) -> Result<Vec<String>, DecodeError> {
 }
 
 fn read_source_ids(r: &mut Reader<'_>) -> Result<Vec<SourceId>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         out.push(SourceId(r.read_u32()?));
@@ -256,7 +271,7 @@ fn read_source_ids(r: &mut Reader<'_>) -> Result<Vec<SourceId>, DecodeError> {
 }
 
 fn read_transforms(r: &mut Reader<'_>) -> Result<Vec<(u16, u32)>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         out.push((r.read_u16()?, r.read_u32()?));
@@ -270,12 +285,12 @@ fn read_source_map_frames(
     transforms: &[(u16, u32)],
     strings: &[String],
 ) -> Result<Vec<SourceMapFrame>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         let source_id_dict = r.read_u32()?;
         let span_kind = r.read_u8()?;
-        let range_count = r.read_u32()?;
+        let range_count = r.read_count()?;
         let mut ranges = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
             let start = r.read_u64()?;
@@ -360,7 +375,7 @@ fn read_nodes(
     frames: &[SourceMapFrame],
     version: u16,
 ) -> Result<Vec<CemAstNode>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         let tag = r.read_u8()?;
@@ -403,7 +418,7 @@ fn read_nodes(
                 let expression = read_string(r, strings)?;
                 let context = r.read_u32()?;
                 let targets = if r.read_u8()? != 0 {
-                    let count = r.read_u32()?;
+                    let count = r.read_count()?;
                     let mut targets = Vec::new();
                     for _ in 0..count { targets.push(r.read_u32()?); }
                     Some(targets)
@@ -495,7 +510,7 @@ fn read_source_map(
     r: &mut Reader<'_>,
     frames: &[SourceMapFrame],
 ) -> Result<SourceMapStack, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut stack = SourceMapStack::default();
     for _ in 0..count {
         let idx = r.read_u32()? as usize;
@@ -508,17 +523,17 @@ type AttrMap = HashMap<AstNodeId, Vec<AstNodeId>>;
 type ChildMap = HashMap<AstNodeId, Vec<AstNodeId>>;
 
 fn read_edges(r: &mut Reader<'_>) -> Result<(AttrMap, ChildMap), DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut attrs: AttrMap = HashMap::new();
     let mut children: ChildMap = HashMap::new();
     for _ in 0..count {
         let parent = r.read_u32()?;
-        let attr_count = r.read_u32()?;
+        let attr_count = r.read_count()?;
         let mut attr_ids = Vec::with_capacity(attr_count as usize);
         for _ in 0..attr_count {
             attr_ids.push(r.read_u32()?);
         }
-        let child_count = r.read_u32()?;
+        let child_count = r.read_count()?;
         let mut child_ids = Vec::with_capacity(child_count as usize);
         for _ in 0..child_count {
             child_ids.push(r.read_u32()?);
@@ -571,7 +586,7 @@ fn read_id_table(
     r: &mut Reader<'_>,
     strings: &[String],
 ) -> Result<HashMap<String, AstNodeId>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = HashMap::with_capacity(count as usize);
     for _ in 0..count {
         let name = read_string(r, strings)?;
@@ -586,7 +601,7 @@ fn read_unresolved_slots(
     strings: &[String],
     frames: &[SourceMapFrame],
 ) -> Result<Vec<NameSlot>, DecodeError> {
-    let count = r.read_u32()?;
+    let count = r.read_count()?;
     let mut out = Vec::with_capacity(count as usize);
     for _ in 0..count {
         let owner_scope = r.read_u32()?;
@@ -608,7 +623,7 @@ fn read_chunk_metadata(r: &mut Reader<'_>) -> Result<(), DecodeError> {
     if has_parent != 0 {
         let _ = r.read_u32()?;
     }
-    let dict_count = r.read_u32()?;
+    let dict_count = r.read_count()?;
     for _ in 0..dict_count {
         let _ = r.read_u32()?;
     }

@@ -31,9 +31,10 @@ use crate::parser::AstNodeId;
 use crate::source::ByteRange;
 use crate::source_map::SourceMapStack;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 /// What kind of schema source is bound on a scope.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SchemaSource {
     /// Top-of-file default schema for the document scope. No `src` or
     /// `select` resolved yet.
@@ -47,7 +48,7 @@ pub enum SchemaSource {
     InlineRef(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InlineSchemaDeclaration {
     pub name: String,
     pub body_byte_range: ByteRange,
@@ -61,7 +62,7 @@ pub struct InlineSchemaDeclaration {
     pub source_map: SourceMapStack,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemaScopeFrame {
     pub scope_id: u32,
     pub active: SchemaSource,

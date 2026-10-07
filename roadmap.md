@@ -1008,9 +1008,10 @@ Implementation is tracked in
 
 The [maintained design](docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
 adopts `reference` as a node refinement, `.targets` for one-step access and
-`.targets_available` for optional-edge presence. Existing `is` remains occurrence
-identity; no additional target-list comparator is required. These design checkmarks
-do not mark the type/readiness API, reload bundle or export guards implemented.
+`.targets_available` for optional-edge presence. Existing `same_node` remains occurrence
+identity; no additional target-list comparator is required. The native type/availability API, single-owner lexical reload bundle and attributed
+export guards are now implemented and verified. Shared ingress and public client
+adapters remain actionable follow-ups in the todo list.
 
 ### Scenarios for later design verification
 

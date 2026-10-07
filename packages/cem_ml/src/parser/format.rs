@@ -12,7 +12,7 @@ use crate::schema::ir::{SchemaVersionConstraint, SchemaVersionMatchRule, SemVer}
 
 /// Tier A canonical document-format identity recorded on the document
 /// root scope after successful resolution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DocumentFormatIdentity {
     pub format_id: String,
     pub content_type: String,

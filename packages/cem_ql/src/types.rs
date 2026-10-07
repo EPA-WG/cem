@@ -96,6 +96,7 @@ pub enum NodeKind {
     Comment,
     ProcessingInstruction,
     DocumentNode,
+    Reference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -946,7 +947,7 @@ impl TypeChecker {
                 if !matches!(item, Type::Any | Type::Empty | Type::Node(_) | Type::SchemaElement(_)) {
                     self.emit(TYPE_ERROR, format!("reference construction requires AST nodes, got `{operand_ty:?}`"), range);
                 }
-                Type::Node(NodeKind::Node)
+                Type::Node(NodeKind::Reference)
             }
             UnaryOp::Not => {
                 self.expect_subtype(&operand_ty, &boolean_type(), operand.range());
@@ -1385,6 +1386,7 @@ fn builtin_type(key: &QNameKey) -> Option<Type> {
         ("duration", true) => Some(Type::atom(AtomType::Duration)),
         ("anyURI", true) => Some(Type::atom(AtomType::AnyUri)),
         ("node", true) => Some(Type::Node(NodeKind::Node)),
+        ("reference", true) if unprefixed => Some(Type::Node(NodeKind::Reference)),
         ("text", true) => Some(Type::Node(NodeKind::Text)),
         ("comment", true) => Some(Type::Node(NodeKind::Comment)),
         ("processing-instruction", true) => Some(Type::Node(NodeKind::ProcessingInstruction)),

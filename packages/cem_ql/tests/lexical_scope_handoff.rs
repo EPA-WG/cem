@@ -75,6 +75,62 @@ fn source(captured: &LexicallyScopedDocument, node: u32) -> SchemaDeclarationNod
 }
 
 #[test]
+fn verified_reload_handoff_evaluates_original_lexical_meaning_with_fresh_contexts() {
+    use cem_ml::ast::reload::{ReferenceReloadBundle, ReloadLimits, ReloadSource};
+    let text = "@ns v = urn:original\n{#library} {target} {target}";
+    let (original, _) = captured(text);
+    let bundle = ReferenceReloadBundle::export(
+        &original,
+        vec![
+            ReloadSource::new(SourceId(0), "scope.cem", text.as_bytes(), true),
+            ReloadSource::new(SourceId(1), "scope.cem", text.as_bytes(), true),
+        ],
+        ReloadLimits::default(),
+    )
+    .unwrap();
+    let reloaded = bundle.reload(ReloadLimits::default()).unwrap();
+    let restored = reloaded.require_lexical().unwrap();
+    let tree = RetainedCemTree::from_shared(
+        reloaded.document.clone(),
+        "scope.cem",
+        reloaded.source_text(SourceId(1)).unwrap().unwrap(),
+        CemTreeSemantics::default(),
+        None,
+    )
+    .unwrap();
+    let targets = elements(&tree, "target");
+    let reference = restored.occurrences().next().unwrap();
+    for target in targets {
+        let mut host = CemQlSchemaDeclarationHost::new();
+        host.register_scope(tree.clone(), None, policy());
+        host.attach_captured_lexical_scopes(restored, |_, snapshot, _| {
+            assert_eq!(
+                snapshot.namespaces.binding("v").unwrap().namespace_uri,
+                "urn:original"
+            );
+            (Some(context(&tree, target)), policy())
+        })
+        .unwrap();
+        let input = host.source_reference(source(restored, reference));
+        let outcome = resolve_reference(input, &mut host, policy().limits).unwrap();
+        assert!(outcome.is_complete(), "{outcome:?}");
+        let selected = host.declaration_node(&outcome.nodes[0]).unwrap();
+        assert_eq!(selected.node_id(), target);
+        assert!(Arc::ptr_eq(selected.document(), &reloaded.document));
+        assert!(matches!(
+            reloaded.document.get(reference),
+            Some(CemAstNode::Reference { targets: None, .. })
+        ));
+        assert_eq!(
+            cem_ml::ast::DebugBinaryEncoder::new()
+                .encode(&reloaded.document)
+                .bytes,
+            bundle.payload
+        );
+    }
+}
+
+#[test]
 fn saved_bindings_prepare_distinct_lifecycle_contexts_and_pending_selectors_without_evaluation() {
     let (captured, tree) = captured("@ns v = urn:first\n{outer @target={#library} | {#library} {target}}\n@ns v = urn:second\n{inner @cem:schema-select='missing()' | {#library} {target}}");
     let targets = elements(&tree, "target");

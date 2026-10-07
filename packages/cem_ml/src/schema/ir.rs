@@ -34,7 +34,7 @@ pub const CEM_CORE_SCHEMA_ID: SchemaId = 1;
 /// Numeric SemVer triple with optional prerelease/build tails. Implements
 /// `Display` as the canonical SemVer 2.0 string; ordering across
 /// prereleases follows the SemVer precedence rules.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct SemVer {
     pub major: u64,
     pub minor: u64,

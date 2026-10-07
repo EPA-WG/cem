@@ -1375,8 +1375,8 @@ containing reference syntax. Unary `#` constructs this type, including when its
 operand is another reference. Source, constructed, output-occurrence and portable
 reference views must implement the same kind contract. Existing `node` parameters
 continue to accept references; the legacy `dom:reference` preservation convenience
-remains compatible. The type refinement still requires compiler/runtime work;
-current unary construction is typed as generic `node`.
+remains compatible. The compiler and runtime now support this refinement; unary construction carries
+it through static inference and retained IR. Type tests use `expr is reference`.
 
 Adopt `.targets` as explicit **one-step edge access**, preserving target order,
 duplicates and reference-node targets. Access does not compile or evaluate a
@@ -1391,12 +1391,13 @@ outcome can establish those facts for its current context. A consumer does not
 publish execution results into the source node merely to make field access work.
 On absent metadata, `.targets` continues to return an empty selection; callers
 that need to distinguish the states must inspect `.targets_available` first.
-The availability field still requires implementation across native views.
+The availability field is implemented on source, constructed, output and portable
+native views.
 
-Reference occurrence identity and target identity remain distinct. Existing `is`
+Reference occurrence identity and target identity remain distinct. Existing `same_node(a, b)`
 compares node identities, not target lists or reference expressions. A reference
 and an alias to that occurrence compare alike; two fresh `#` constructions over
-the same operands are distinct occurrences. Existing `is` takes the first item
+the same operands are distinct occurrences. `same_node` takes the first item
 of each operand, so it must not be presented as ordered sequence comparison.
 No additional target-comparison operation is adopted. Callers comparing two
 available target lists use equal lengths and positional node-identity comparisons
@@ -1456,8 +1457,25 @@ substitute destination namespace/schema defaults, reinterpret pending prefixes
 or claim equivalent complete evaluation. Malformed/mismatched metadata is an
 invalid handoff, distinct from absent metadata. Supplying valid metadata and
 runtime inputs permits an explicit retry against the same decoded owner.
-The bundle serializer, validator and capture reconstruction remain implementation
-work; existing reload fixtures verify AST graphs and fresh contexts only.
+The native `ast::reload::ReferenceReloadBundle` implements this handoff for one
+CEM AST allocation, using a version 1 MessagePack envelope, the explicitly named
+`cem.debug.cemb` codec and SHA-256 payload/source fingerprints. Metadata validates
+against that payload before capture reconstruction; source-authored policies remain
+in the AST, while live effective policies stay with the host. The source manifest
+must cover every source-map ID, including builder frames; omitted mappings fail
+rather than borrowing the primary source. Envelope bytes and binary collection
+counts are bounded. External AST declaration-owner transport remains unsupported:
+a bare local handle cannot claim a foreign owner. Passive binding provenance can
+refer to explicitly supplied manifest sources.
+
+`ReloadedReferenceDocument::require_lexical` returns the typed
+`MissingLexicalMetadata` dependency for AST-only handoff. The consumer must honor
+that dependency before capture-dependent evaluation; inspecting the decoded AST
+requires no capture. `ReloadSource::supply_bytes` verifies a later explicit byte
+handoff. Native fixtures cover source-position namespace/schema overrides, pending
+QName dependencies, producer forms, tampering, allocation mismatch and independent
+fresh-context resolution without target writeback. Automatic shared ingress and
+CLI/WASM bundle entry points remain follow-up work in the todo list.
 
 ## Graph export and native transport (adopted 2026-10-06)
 
@@ -1481,7 +1499,9 @@ implemented. An explicit consumer may instead export a materialized result under
 the value-graph contract, retaining its occurrence/provenance where supported
 without claiming to preserve executable source. Empty constructed references are
 valid; absent source targets must not silently become available empty targets.
-Current encoding still needs this rejection guard and attributed diagnostics.
+Native CEMV encoding now enforces this guard, including when the source reference
+is reached from a larger graph. Callers requesting a materialized result must
+project a graph whose included nodes do not retain executable source references.
 
 Unsupported graph/source export is a failed capability outcome attributed to the
 requesting export and available source occurrence. Distinguish it from malformed
@@ -1489,7 +1509,10 @@ input and budget/cancellation failures. Report which transport cannot preserve
 the requested graph or source state; do not retry through records, text, implicit
 expansion or a synthetic single-owner arena. Existing string errors such as
 `Cyclic native CEM value graph` remain compatible; typed export classification
-and regression coverage are implementation work. Native multi-owner graph wire
+and regression coverage are implemented by `portable::export_values` and
+`export_values_with_control`. Unsupported source/graph failures carry occurrence
+source maps when available; compatibility control APIs retain attributed failure
+codes. Failed query streams cannot export partial items as successful output. Native multi-owner graph wire
 transport would need a new explicit versioned owner/edge contract; this adoption
 does not add one to CEMV or CEMB.
 

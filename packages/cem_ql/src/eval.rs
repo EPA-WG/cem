@@ -1048,6 +1048,15 @@ impl<'a> EvalCtx<'a> {
         else {
             return self.unsupported(lambda, "call target is not a lambda");
         };
+        for ((_, ty), arg) in params.iter().zip(&args) {
+            let mut item_type = ty;
+            while let Type::Stream(inner) = item_type { item_type = inner; }
+            if matches!(item_type, Type::Node(crate::types::NodeKind::Reference))
+                && !arg.items.iter().all(|item| types_runtime::item_matches_type(item, item_type))
+            {
+                return self.type_error(lambda, "reference parameter requires native reference nodes");
+            }
+        }
         if let Err(err) = self.enter_call(lambda) {
             return err;
         }

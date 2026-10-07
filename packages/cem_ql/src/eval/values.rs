@@ -58,6 +58,7 @@ impl QueryItemView for ReferenceView {
         match name {
             "kind" => Some(vec![Item::Atomic(AtomValue::String("reference".into()))]),
             "targets" => Some(self.0.values().to_vec()),
+            "targets_available" => Some(vec![Item::Atomic(AtomValue::Boolean(true))]),
             "id" => Some(vec![Item::Atomic(AtomValue::String(self.identity()))]),
             _ => None,
         }

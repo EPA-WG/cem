@@ -1178,11 +1178,12 @@ do not cause evaluation during parsing or automatically activate a consumer.
 The [public query contract](../../../../../docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
 adopts `reference` as a refinement of `node`, `.targets` as inert one-step edge
 access, and `.targets_available` to distinguish absent edges from an available
-empty list. `.targets` already exists; the refinement and availability field
-still require compiler/runtime implementation before this package can claim
-executable support. Node `is` remains occurrence identity; ordered target
-comparison uses sequence lengths and positional identities, with no new
-comparison operation. The binary/source/lexical reload bundle and native export
-guards are also specified but not yet implemented. Their fixtures and work are in
-[todo.md](../../../../../docs/todo.md#reference-query-and-transport-contract-implementation).
+empty list. Compiler/IR/runtime and source/constructed/output/portable views
+implement this contract. Type tests use `expr is reference`; `same_node(a,b)`
+remains occurrence identity over the first item of each operand. Ordered target
+comparison uses sequence lengths and positional identities, with no new comparison
+operation. The debug binary/source/lexical reload bundle and typed native export
+guards are implemented at explicit Rust boundaries. CLI/WASM adapters and the
+remaining consumer verification matrix are tracked in
+[todo.md](../../../../../docs/todo.md#next-three-integration-items).
 Consumer element-to-ID behavior remains deferred.

@@ -411,28 +411,35 @@ prefixed names and registered pipeline functions keep their existing dispatch.
 This also applies to unary-reference values without evaluating authored reference
 expressions. The adopted public contract uses `.targets` for one-step edge access,
 preserving order, duplicates and reference-node targets. `.target` remains the
-legacy HTML ID helper and does not resolve native references. Existing `is`
+legacy HTML ID helper and does not resolve native references. Existing `same_node(a, b)`
 compares occurrence identity (the first item of each operand), not target lists.
 Compare available target lists by length and positional node identity when needed.
 
 The [adopted query/transport design](../../docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
-also specifies a `reference` refinement of `node` and boolean `.targets_available`
-field; these two additions are **planned, not implemented**. The field will
-distinguish absent stored targets from an available empty list without asserting
-consumer readiness or executing source. Current construction uses generic `node`;
-native Rust callers can distinguish optional source targets before accessing them.
-Implementation and fixtures are tracked in
-[todo.md](../../docs/todo.md#reference-query-and-transport-contract-implementation).
+also defines the implemented `reference` refinement of `node` and boolean
+`.targets_available` field. Use `r is reference` for a type test; unary construction
+carries the refinement through compiler/IR/runtime. Available empty lists report
+true; absent stored source targets report false. Neither field access executes a
+source expression or claims that a consumer's current resolution is complete.
 
-CEMV transports bounded materialized acyclic values, including constructed
-references. CEMB preserves supported single-arena cyclic AST graphs and source
-expressions; its current codec is a debug format. CEMV reference records do not
-preserve source expressions or absent-target metadata. The adopted boundary
-requires explicit rejection of retained source references until a source envelope
-is supported; the current encoder still needs this guard. CEMV is therefore not
-an equivalent source-reference export. The planned verified lexical reload bundle
-reconstructs capture over a fresh owner; it never transports live contexts,
-grants or pending sessions. See the design's
+`cem_ml::ast::reload::ReferenceReloadBundle` exports/reloads a bounded debug CEMB
+payload with a versioned passive lexical sidecar and verified source manifest.
+Capture attaches to the decoded allocation; `require_lexical` exposes a typed
+missing-metadata dependency for AST-only reload. Source bytes can be supplied
+later through `ReloadSource::supply_bytes`. Callers supply runtime contexts, policy
+and grants afresh. Shared ingress and CLI/WASM bundle adapters remain tracked in
+[todo.md](../../docs/todo.md#next-three-integration-items).
+
+CEMV preserves materialized acyclic values, including constructed references.
+`eval::portable::export_values` and `export_values_with_control` now return typed,
+attributed outcomes for unsupported executable source references and graphs,
+invalid values, limits and cancellation. Source references reject even with a
+stored empty/nonempty target list, including when reached through another native
+node. Empty constructed references remain valid. Failed query streams cannot
+export partial items successfully. Existing string/control encoding APIs remain
+available with the same guards; control failures carry source maps and explicit
+unsupported-source/graph codes. CEMB separately preserves supported single-arena
+cycles. No transport persists live contexts or resumable pending sessions. See the
 [preservation matrix](../../docs/cem-ql-cem-ml-node-references-design.md#graph-export-and-native-transport-adopted-2026-10-06).
 
 `data:node_key(node)` and `data:line_number(node)` read source metadata from

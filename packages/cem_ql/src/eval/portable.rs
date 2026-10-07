@@ -1,25 +1,16 @@
 //! CEM-QL adapters for the shared portable native CEM value graph.
 use super::*;
 use cem_ml::value::artifact::{CemValueArtifactLimits, CemValueGraph, CemValueRecord};
+mod export;
+pub use export::{export_values, export_values_with_control, NativeExportFailure, NativeExportFailureKind};
 
 /// Export under the caller's node capability scope and execution control.
 pub fn encode_values_with_control(
     values: &ItemStream, limits: &CemValueArtifactLimits, query_scope: QueryContextScope,
     control: &OperationControl, scope: ExecutionScopeId,
 ) -> Result<Vec<u8>, cem_ml::operation_control::ControlError> {
-    let mut budget = value_control::ValueControl::new(control, scope, query_scope, *limits)?;
-    let limits = budget.limits;
-    let mut failure = None;
-    let graph = encode_graph(values, &limits, true, query_scope, &mut || {
-        budget.charge(0, 0).map_err(|error| { let message = error.to_string(); failure = Some(error); message })
-    });
-    if let Some(error) = failure { return Err(error); }
-    let (graph, _) = graph.map_err(|_| budget.failure("cem.value.artifact"))?;
-    budget.charge(graph.accounted_bytes(), 0)?;
-    let bytes = graph.encode_with_check(&limits, &mut || control.check_scope(scope).map_err(|e| e.to_string())).map_err(|_| budget.failure("cem.value.artifact"))?;
-    budget.charge(bytes.len(), 0)?;
-    control.check_scope(scope)?;
-    Ok(bytes)
+    export_values_with_control(values, limits, query_scope, control, scope)
+        .map_err(|error| error.into_control(control, scope))
 }
 
 pub fn decode_values_with_control(
@@ -39,8 +30,7 @@ pub fn encode_values(
     values: &ItemStream,
     limits: &CemValueArtifactLimits,
 ) -> Result<Vec<u8>, String> {
-    encode_values_with_control(values, limits, QueryContextScope(0), &OperationControl::default(), ROOT_EXECUTION_SCOPE_ID)
-        .map_err(|error| error.to_string())
+    export_values(values, limits).map_err(|error| error.to_string())
 }
 
 pub fn decode_values(bytes: &[u8], limits: &CemValueArtifactLimits) -> Result<ItemStream, String> {
@@ -65,6 +55,13 @@ pub(super) fn encode_graph(
     scope: QueryContextScope,
     check: &mut impl FnMut() -> Result<(), String>,
 ) -> Result<(CemValueGraph, BTreeMap<(String, String), u32>), String> {
+    encode_graph_checked(values, limits, include_parents, scope, check).map_err(|error| error.to_string())
+}
+
+fn encode_graph_checked(
+    values: &ItemStream, limits: &CemValueArtifactLimits, include_parents: bool,
+    scope: QueryContextScope, check: &mut impl FnMut() -> Result<(), String>,
+) -> Result<(CemValueGraph, BTreeMap<(String, String), u32>), NativeExportFailure> {
     struct Encoder<'a> {
         items: Vec<Item>,
         ids: BTreeMap<(String, String), u32>,
@@ -134,6 +131,13 @@ pub(super) fn encode_graph(
         } else {
             let view = view.expect("native node");
             let kind = lexical_field(view, "kind");
+            if kind == "reference" && view.field("expression").is_some() {
+                return Err(NativeExportFailure {
+                    kind: NativeExportFailureKind::UnsupportedSourceReference,
+                    message: "CEMV cannot preserve executable source reference".into(),
+                    source: item.source_map(), control: None,
+                });
+            }
             let source_parent = if kind == "reference" && view.downcast_ref::<values::ReferenceView>().is_some() {
                 None
             } else {
@@ -301,6 +305,9 @@ impl QueryItemView for GraphView {
                 return Some(record.values.iter().map(|&id| self.item(id)).collect())
             }
             "targets" => return Some(record.targets.iter().map(|&id| self.item(id)).collect()),
+            "targets_available" if record.kind == "reference" => {
+                return Some(vec![Item::Atomic(AtomValue::Boolean(true))]);
+            }
             _ => return None,
         };
         Some(vec![Item::Atomic(AtomValue::String(value))])

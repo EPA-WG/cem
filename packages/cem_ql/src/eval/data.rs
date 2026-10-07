@@ -370,6 +370,8 @@ impl QueryItemView for CemAstView {
         Some(match (node, name) {
             (CemAstNode::Reference { .. }, "kind") => string("reference"),
             (CemAstNode::Reference { expression, .. }, "expression") => string(expression),
+            (CemAstNode::Reference { targets, .. }, "targets_available") =>
+                vec![Item::Atomic(AtomValue::Boolean(targets.is_some()))],
             (CemAstNode::Reference { context, .. }, "context") => vec![self.item(*context)],
             (CemAstNode::Reference { targets, .. }, "targets") => {
                 targets.as_ref()?.iter().map(|id| self.item(*id)).collect()

@@ -206,6 +206,9 @@ impl QueryItemView for OutputView {
             ("targets", RenderPlanNode::Reference { reference, .. }) => {
                 Some(reference.values().to_vec())
             }
+            ("targets_available", RenderPlanNode::Reference { .. }) => {
+                Some(vec![Item::Atomic(AtomValue::Boolean(true))])
+            }
             (
                 "value",
                 RenderPlanNode::Text { text: value, .. }

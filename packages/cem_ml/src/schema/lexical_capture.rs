@@ -14,6 +14,10 @@ use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
+use serde::{Deserialize, Serialize};
+#[path = "lexical_capture/reload.rs"]
+pub(crate) mod reload;
+pub use reload::LexicalReloadMetadata;
 
 #[path = "lexical_capture/namespace_capture.rs"]
 mod namespace_capture;
@@ -22,7 +26,7 @@ use namespace_capture::NamespaceDeclarationCapture;
 /// Original source form, distinct even when both elements have no child nodes.
 /// Importers retain this event metadata; it cannot be inferred from a generic
 /// producer's default `has_explicit_boundary` flag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SchemaElementForm {
     Wrapping,
     Following,
@@ -199,7 +203,7 @@ impl LexicallyScopedDocument {
 
 /// Owned lexical metadata only. No AST allocation, evaluator environment,
 /// resolved target list or reference relationship boundary is captured.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LexicalScopeSnapshot {
     pub namespaces: NsContext,
     pub schema: SchemaScopeFrame,

@@ -78,6 +78,72 @@ fn representations(targets: Vec<Item>) -> Vec<ItemStream> {
 }
 
 #[test]
+fn public_reference_type_and_target_availability_cover_native_views() {
+    for values in representations(vec![source(), source()]) {
+        for query in [
+            "values is reference",
+            "values.targets_available",
+            "values is node",
+        ] {
+            assert_eq!(
+                ok(query, values.clone()).items[0].atom(),
+                Some(AtomValue::Boolean(true)),
+                "{query}"
+            );
+        }
+        assert_eq!(
+            ok("seq:first(values.targets) is reference", values).items[0].atom(),
+            Some(AtomValue::Boolean(false))
+        );
+    }
+    for query in [
+        "(#()).targets_available",
+        "(#()) is reference",
+        "(##()).targets is reference",
+    ] {
+        assert_eq!(
+            ok(query, ItemStream::empty()).items[0].atom(),
+            Some(AtomValue::Boolean(true)),
+            "{query}"
+        );
+    }
+    let result = ok(
+        "declare function accept(value as reference) { value } accept(#()) is reference",
+        ItemStream::empty(),
+    );
+    assert_eq!(result.items[0].atom(), Some(AtomValue::Boolean(true)));
+}
+
+#[test]
+fn reference_identity_is_separate_from_ordered_edges() {
+    let values = ItemStream::once(source());
+    for (query, expected) in [
+        ("let r = #values; same_node(r, r)", true),
+        ("same_node(#values, #values)", false),
+    ] {
+        assert_eq!(
+            ok(query, values.clone()).items[0].atom(),
+            Some(AtomValue::Boolean(expected))
+        );
+    }
+}
+
+#[test]
+fn dynamic_reference_parameters_reject_other_native_kinds_and_scalars() {
+    let query = "declare function accept(value as reference) { value } accept(values)";
+    assert!(run(query, ItemStream::once(source())).error.is_some());
+    assert!(run(
+        query,
+        ItemStream::once(Item::Atomic(AtomValue::String("#item".into())))
+    )
+    .error
+    .is_some());
+    assert!(ok(query, ItemStream::once(reference(vec![])))
+        .error
+        .is_none());
+}
+
+#[test]
 fn cloning_references_preserves_kind_aliases_and_detached_ownership() {
     let name = source();
     for values in representations(vec![name.clone(), name]) {

@@ -348,7 +348,7 @@ impl IrLowerer {
             Expression::UnaryOp { op, operand, range } => {
                 let operand = self.lower_expr(operand);
                 let ty = if matches!(op, crate::parser::UnaryOp::Reference) {
-                    Type::Node(crate::types::NodeKind::Node)
+                    Type::Node(crate::types::NodeKind::Reference)
                 } else if matches!(op, crate::parser::UnaryOp::Not) {
                     Type::atom(AtomType::Boolean)
                 } else {
@@ -1327,6 +1327,7 @@ fn builtin_type(key: &QNameKey) -> Option<Type> {
         ("duration", true) => Some(Type::atom(AtomType::Duration)),
         ("anyURI", true) => Some(Type::atom(AtomType::AnyUri)),
         ("node", true) => Some(Type::Node(NodeKind::Node)),
+        ("reference", true) if unprefixed => Some(Type::Node(NodeKind::Reference)),
         ("text", true) => Some(Type::Node(NodeKind::Text)),
         ("comment", true) => Some(Type::Node(NodeKind::Comment)),
         ("processing-instruction", true) => Some(Type::Node(NodeKind::ProcessingInstruction)),
