@@ -298,6 +298,12 @@ impl<F> SchemaDeclarationHost for RuntimeHost<'_, F>
 where
     F: for<'a> FnMut(SchemaHostRuntimeContextRequest<'a>) -> Option<StandaloneExpressionContext>,
 {
+    fn input_expanded_name<'a>(
+        &'a self,
+        source: &'a SchemaDeclarationNode,
+    ) -> Option<&'a ExpandedName> {
+        SchemaDeclarationHost::input_expanded_name(self.host, source)
+    }
     fn source_reference(&self, source: SchemaDeclarationNode) -> Self::Node {
         self.host.source_reference(source)
     }

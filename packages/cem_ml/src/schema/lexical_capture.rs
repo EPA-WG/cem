@@ -251,10 +251,19 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 _ => None,
             };
             if let Some(NormalizedEvent::Name { name, .. }) = event {
-                attribute_names.lock().unwrap().push_back(capture_name(
-                    machine.current_ns_context(),
-                    &name.lexical_name,
-                ));
+                // Namespace headers are intrinsic attributes, as in the
+                // completed-name view; ordinary prefixed names still require
+                // their original lexical binding. Never apply this to elements.
+                let captured = if let Some(local) = name.lexical_name.strip_prefix("xmlns:") {
+                    Some(ExpandedName {
+                        namespace_uri: "http://www.w3.org/2000/xmlns/".into(),
+                        local_name: local.into(),
+                        schema_id: None,
+                    })
+                } else {
+                    capture_name(machine.current_ns_context(), &name.lexical_name)
+                };
+                attribute_names.lock().unwrap().push_back(captured);
             }
             if event.is_none() {
                 *diagnostics.lock().unwrap() = machine.diagnostics().to_vec();

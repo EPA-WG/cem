@@ -1327,6 +1327,30 @@ pub(crate) fn validate_element_shallow_with_controls<'a>(
     controls: Option<&std::collections::HashSet<AstNodeId>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<&'a ElementModel> {
+    validate_element_shallow_with_names(
+        document,
+        model,
+        node_id,
+        parent_allows_any_child,
+        child_sequence,
+        controls,
+        None,
+        diagnostics,
+    )
+}
+
+/// Names are invocation metadata indexed by original AST addresses. Values and
+/// diagnostic coordinates continue to come from the original arena.
+pub(crate) fn validate_element_shallow_with_names<'a>(
+    document: &CemDocument,
+    model: &'a SchemaDocumentModel,
+    node_id: AstNodeId,
+    parent_allows_any_child: bool,
+    child_sequence: Option<&[String]>,
+    controls: Option<&std::collections::HashSet<AstNodeId>>,
+    names: Option<&BTreeMap<AstNodeId, crate::parser::ExpandedName>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<&'a ElementModel> {
     let Some(node) = document.get(node_id) else {
         return None;
     };
@@ -1337,6 +1361,11 @@ pub(crate) fn validate_element_shallow_with_controls<'a>(
     } = node
     else {
         return None;
+    };
+    let expanded_name = if let Some(names) = names {
+        names.get(&node_id)?
+    } else {
+        expanded_name
     };
     let local = expanded_name.local_name.as_str();
     if should_skip_structural_name(local) {
@@ -1365,6 +1394,12 @@ pub(crate) fn validate_element_shallow_with_controls<'a>(
         };
         let Some((attr_prefix, attr_local, attr_value)) = attribute_parts(attr) else {
             continue;
+        };
+        let (attr_prefix, attr_local) = if let Some(names) = names {
+            let name = names.get(attr_id)?;
+            (name.namespace_uri.as_str(), name.local_name.as_str())
+        } else {
+            (attr_prefix, attr_local)
         };
         seen_attributes.insert(attr_local.to_owned());
         if controls.is_some_and(|controls| controls.contains(attr_id)) {

@@ -2113,7 +2113,9 @@ only and adds no runtime behavior or public syntax.
       discovery, while `captured_expanded_name` stays immutable. Nested same-owner
       invocation temporarily replaces the active forest; other owners retain theirs.
       Return/error/unwind restore previous completion. Structural attribute lookup
-      and retained behavior projections remain the separate unchecked tasks below.
+      now uses the shared input-name hook on owning/selected placements; pending
+      names defer shallow presence/field checks. Retained behavior name projections
+      remain the separate unchecked task below.
       Scenarios for later design verification: a namespace-completed schema target
       can be admitted without using its raw lexical prefix; completed core aliases
       identify controls while foreign aliases remain data; names outside a selected
@@ -2127,7 +2129,7 @@ only and adds no runtime behavior or public syntax.
       independent/nested executions and directed grants/traversal bounds.
       Verification: 102 focused native capture, name-handoff, scope preparation,
       runtime-region, namespace activation/handoff, behavior and query-ingress
-      tests pass. Structural/behavior projection migration remains open below.
+      tests pass. Retained behavior projection migration remains open below.
       Scenarios for later design verification: callback name completion supplies
       no runtime inputs, crossing authority or declaration readiness; selected
       completions cannot rewrite fixed names or leak into later invocations.
@@ -2137,13 +2139,40 @@ only and adds no runtime behavior or public syntax.
       names remain ordinary data.
       Scenarios for later design verification: an empty explicit body stays wrapping;
       a no-body control stays following after its original binding completes.
-- [ ] Route completed names through structural input attribute-contract lookup
+- [x] Route completed names through structural input attribute-contract lookup
       after admission/control handoff. Cover original owning and reference-selected
       placements, unavailable names, consuming-model boundaries and bounded native
       attributes without rewriting ASTs or changing lexical datatype behavior.
+      Completed: `input_expanded_name` carries invocation metadata into owning and
+      reference-selected native attribute eligibility and shallow literal typing.
+      Original values/diagnostic owners and local-name conveniences stay intact.
+      Missing element/attribute names defer presence/field checks and keep validation
+      incomplete. Runtime child hosts forward names and restore original contexts;
+      selected attributes share their enclosing reference's grants and work budget.
       Scenarios for later design verification: the same raw prefix can complete to
       an allowed or foreign URI in separate executions; unavailable names cannot
       masquerade as complete validation or use another completion's forest.
+- [x] Fixture: cover completed structural attribute names in `namespace_schema_names`.
+      Test literal typing, native attribute selection on owning and referenced
+      placements, incomplete/outside names, child consuming models and unchanged
+      directed grants/work limits. Preserve original source handles and diagnostics.
+      Completed: six native fixtures cover literal typing, native slot readiness,
+      excluded forests, selected owner reuse, bounded crossings, child model contracts,
+      runtime body context restoration and deferred presence checks.
+      Verification: 255 focused native capture, namespace, declaration, input validation,
+      runtime schema, behavior and query-ingress tests pass.
+      Scenarios for later design verification: pending names do not evaluate native
+      slots or invent unknown/missing-attribute violations; independent invocations
+      can admit or reject the same authored attribute through different namespace URIs.
+- [x] Fixture: retain intrinsic CEM namespace-declaration header names in
+      `lexical_scope_capture`. Match the completed-name view's XMLNS namespace
+      without requiring an authored `xmlns` binding or resolving unrelated unbound
+      prefixes. Preserve literal header readiness in engine input validation.
+      Completed: original CEM capture recognizes reserved namespace attributes as
+      XMLNS names. Ordinary prefixed attributes/elements still require a binding;
+      the existing engine retained-attribute fixture remains complete for ready input.
+      Scenarios for later design verification: `@xmlns:prefix` is a ready declaration
+      name while an unbound element/ordinary attribute stays unavailable.
 - [ ] Expose completed names through retained validation/behavior views after
       structural handoff. Preserve original `source` inspection and consumed
       attribute values; keep placement identity and model ownership intact.

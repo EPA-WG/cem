@@ -233,12 +233,13 @@ where
                             role: Role::Structural(Some(position), child_model),
                         })
                         .collect();
-                    if let CemAstNode::Element {
-                        expanded_name,
-                        attributes,
-                        ..
-                    } = retained.node()
-                    {
+                    if let CemAstNode::Element { attributes, .. } = retained.node() {
+                        let Some(expanded_name) =
+                            host.inner.input_expanded_name(&retained).cloned()
+                        else {
+                            blocked_positions.insert(position);
+                            return Ok(Some(nodes));
+                        };
                         let Some(element) = model.elements.get(&expanded_name.local_name) else {
                             return Ok(Some(nodes));
                         };
@@ -254,12 +255,12 @@ where
                             else {
                                 continue;
                             };
-                            let CemAstNode::Attribute {
-                                expanded_name: name,
-                                value_nodes,
-                                ..
-                            } = attribute.node()
+                            let CemAstNode::Attribute { value_nodes, .. } = attribute.node() else {
+                                continue;
+                            };
+                            let Some(name) = host.inner.input_expanded_name(&attribute).cloned()
                             else {
+                                blocked_positions.insert(position);
                                 continue;
                             };
                             if value_nodes.is_empty() {

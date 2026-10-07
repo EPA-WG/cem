@@ -772,13 +772,16 @@ forests can activate original enclosing dependencies before child bodies, keepin
 fixed names and child restoration intact. Results feed shared query ingress
 without selector re-evaluation or budget resets. The explicit
 `with_completed_namespace_names` invocation supplies completed selected names to
-schema admission and control discovery; its original captured-name getter remains
-unchanged, and return/error/unwind restore earlier completion. Pending schema
+schema admission, control discovery and structural attribute lookup; its original
+captured-name getter remains unchanged, and return/error/unwind restore earlier
+completion. Pending schema
 QNames retain their original body/following producer form, without establishing
-core target kind. Completed structural/behavior name handoff, completed-declaration
-publication and automatic opt-in lifecycle coordination remain tracked tasks.
-Ready query/admission names alone do not supply structural validation with
-execution-specific names.
+core target kind. Owning and reference-selected input placements use completed
+names for attribute permissions and lexical typing without replacing original values
+or resetting native traversal limits. Pending names keep validation incomplete and
+defer shallow presence/field checks. Retained behavior name views,
+completed-declaration publication and automatic opt-in lifecycle coordination remain
+tracked tasks. Ready name metadata alone does not establish validation readiness.
 Namespace-aware expression contexts require every captured pending prefix to complete, including
 unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
 snapshots and declaration handles alongside ready per-execution URI overlays.

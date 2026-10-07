@@ -330,3 +330,45 @@ fn captured_names_keep_source_position_bindings_and_original_owner() {
         }
     }
 }
+
+#[test]
+fn intrinsic_namespace_attribute_names_do_not_require_an_xmlns_binding() {
+    let text = "{item @xmlns:v=urn:inner @missing:flag=yes | {v:child}} {xmlns:item}";
+    let normalizer = CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
+        SourceId(1),
+        text.as_bytes().to_vec(),
+    )));
+    let captured =
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).build_with_lexical_scopes();
+    let owner = captured.document();
+    for node in &owner.nodes {
+        match node {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.namespace_uri == "xmlns" => {
+                let name = captured
+                    .expanded_name(owner, *node_id)
+                    .expect("intrinsic namespace declaration name");
+                assert_eq!(name.namespace_uri, "http://www.w3.org/2000/xmlns/");
+                assert_eq!(name.local_name, "v");
+            }
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.namespace_uri == "xmlns" => {
+                assert!(captured.expanded_name(owner, *node_id).is_none());
+            }
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "flag" => {
+                assert!(captured.expanded_name(owner, *node_id).is_none());
+            }
+            _ => {}
+        }
+    }
+}

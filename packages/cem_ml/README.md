@@ -99,10 +99,12 @@ completion and original occurrence lexical handoff. Its returned completion can
 enter shared native query ingress without reevaluation or source mutation.
 `with_completed_namespace_names` supplies selected completion to schema admission
 and control discovery for one explicit invocation, without replacing original
-captured names. Pending schema QNames retain their original body/following form;
-completed namespace identity still determines core kind. Structural attribute
-lookup and retained behavior name views remain separate migration tasks, alongside
-completed-declaration publication and automatic opt-in lifecycle coordination.
+captured names. Shared structural validation uses the host's `input_expanded_name`
+hook for owning and selected attribute permissions/typing; pending names defer
+presence/field checks, retaining source values, diagnostics and traversal bounds.
+Pending schema QNames retain their original body/following form;
+completed namespace identity still determines core kind. Retained behavior name
+views remain a separate migration task, alongside completed-declaration publication and automatic opt-in lifecycle coordination.
 A ready native query/admission view does not establish structural validation
 readiness.
 

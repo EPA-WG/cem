@@ -1,4 +1,4 @@
-//! Invocation-scoped completed names for schema admission and control discovery.
+//! Invocation-scoped completed names for schema admission and structural consumers.
 use super::{CemQlSchemaDeclarationHost, LexicalScopeHandoffError};
 use cem_ml::{
     parser::ExpandedName,
@@ -34,7 +34,8 @@ impl CemQlSchemaDeclarationHost {
     ///
     /// This establishes no runtime input, scope assignment, relationship grant or
     /// target-binding readiness. It neither evaluates slots nor installs lexical
-    /// contexts. Structural validation/behavior names require their own handoff.
+    /// contexts. Structural attribute lookup uses these names; retained behavior
+    /// name projections require their own handoff.
     pub fn with_completed_namespace_names<R, F>(
         &mut self,
         completion: Arc<NamespaceNameCompletion>,

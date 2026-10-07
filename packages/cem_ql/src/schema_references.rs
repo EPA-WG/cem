@@ -675,6 +675,24 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn input_expanded_name<'a>(
+        &'a self,
+        source: &'a SchemaDeclarationNode,
+    ) -> Option<&'a cem_ml::parser::ExpandedName> {
+        if self
+            .captured_names
+            .contains_key(&(Arc::as_ptr(source.document()) as usize))
+        {
+            self.consuming_expanded_name(source)
+        } else {
+            // Fixed native trees without a lexical capture retain their API.
+            match source.node() {
+                CemAstNode::Element { expanded_name, .. }
+                | CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name),
+                _ => None,
+            }
+        }
+    }
     fn structural_diagnostic(
         &self,
         source: &SchemaDeclarationNode,

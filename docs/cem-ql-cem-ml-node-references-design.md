@@ -339,9 +339,14 @@ request/destination limits, fixed names and restoration of enclosing contracts.
 
 The audit's admission/control name gap is now addressed by the explicit
 `with_completed_namespace_names(completion, callback)` stage described below.
-Structural attribute-contract lookup and retained behavior name projections still
-read original source names; their migration remains open. A completed query or
-schema-admission name view must not be mistaken for completed structural validation.
+Structural attribute-contract lookup now uses the same invocation completion on
+owning and reference-selected placements. Literal typing and native slot eligibility
+read completed names while values/diagnostics keep their original handles. Missing
+names defer shallow presence/field checks and leave validation incomplete; selected
+native attributes keep the enclosing reference traversal's work/depth limits and
+grants. Existing local-name permissions and lexical datatype behavior are unchanged.
+Retained behavior name projections still read original source names; their migration
+remains open. A completed query or admission view alone does not make validation ready.
 Selecting a pending namespace declaration still returns `TargetBindingNotReady`;
 completing its value for one execution does not publish that result for later target
 admission. Automatic namespace lifecycle coordination is not part of ordinary
@@ -405,8 +410,11 @@ completion's original owner and idempotently attaches its unchanged name/form
 capture. It exposes that owner's selected-forest completion during the callback
 through `consuming_expanded_name`; all other nodes retain their original captured
 names, including missing pending names. Schema target admission, host-control
-preparation and runtime control discovery now use this effective lookup. The
-public `captured_expanded_name` getter stays original. Fixed completed names and
+preparation, runtime control discovery and structural input attribute lookup now
+use this effective lookup. `SchemaDeclarationHost::input_expanded_name` carries
+that lookup into shared structural validation; fixed hosts without lexical capture
+retain their original AST-name path. The public `captured_expanded_name` getter
+stays original. Fixed completed names and
 source maps stay fixed, and completion never expands the selected owning forest.
 A nested invocation for the same owner temporarily replaces its active completion;
 other owners retain theirs. Return, errors and unwinding restore the previous

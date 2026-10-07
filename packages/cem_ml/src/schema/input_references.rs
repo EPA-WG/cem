@@ -25,6 +25,17 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 
 /// Retained-node adaptation is independent of schema-declaration lookup.
 pub trait InputReferenceHost: ReferenceResolutionHost {
+    /// Completed invocation name, or None while this original name is pending.
+    fn input_expanded_name<'a>(
+        &'a self,
+        source: &'a SchemaDeclarationNode,
+    ) -> Option<&'a crate::parser::ExpandedName> {
+        match source.node() {
+            CemAstNode::Element { expanded_name, .. }
+            | CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name),
+            _ => None,
+        }
+    }
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node;
     fn retained_node(&self, node: &Self::Node) -> Option<SchemaDeclarationNode>;
     /// Attach original-owner URI/coordinates to an authored structural error.
@@ -52,6 +63,12 @@ pub trait InputReferenceHost: ReferenceResolutionHost {
     }
 }
 impl<H: SchemaDeclarationHost> InputReferenceHost for H {
+    fn input_expanded_name<'a>(
+        &'a self,
+        source: &'a SchemaDeclarationNode,
+    ) -> Option<&'a crate::parser::ExpandedName> {
+        SchemaDeclarationHost::input_expanded_name(self, source)
+    }
     fn source_node(&self, source: SchemaDeclarationNode) -> Self::Node {
         self.source_reference(source)
     }
@@ -553,13 +570,12 @@ where
             report.complete &= children_complete;
             report.diagnostics.extend(models.blockers(&handle));
             let mut attribute_values = vec![];
-            if let CemAstNode::Element {
-                expanded_name,
-                attributes,
-                ..
-            } = handle.node()
-            {
-                if let Some(element) = model.element(&expanded_name.local_name) {
+            if let CemAstNode::Element { attributes, .. } = handle.node() {
+                if let Some((expanded_name, element)) =
+                    host.input_expanded_name(&handle).and_then(|name| {
+                        model.element(&name.local_name).map(|element| (name.clone(), element))
+                    })
+                {
                     for id in attributes {
                         if models
                             .control_attributes(&handle)
@@ -572,17 +588,16 @@ where
                         else {
                             continue;
                         };
-                        let CemAstNode::Attribute {
-                            expanded_name: name,
-                            value_nodes,
-                            ..
-                        } = attribute.node()
-                        else {
+                        let CemAstNode::Attribute { value_nodes, .. } = attribute.node() else {
                             continue;
                         };
                         if value_nodes.is_empty() {
                             continue;
                         }
+                        let Some(name) = host.input_expanded_name(&attribute).cloned() else {
+                            report.complete = false;
+                            continue;
+                        };
                         let eligible = element
                             .allows_attribute(&name.namespace_uri, &name.local_name)
                             && model
@@ -650,16 +665,24 @@ where
             })
             .collect();
         let mut diagnostics = vec![];
-        let element = if model.is_empty() {
+        let names = input_names(&current.source, host);
+        report.complete &= names.is_some();
+        let child_names_ready = current.children.iter().all(|child| {
+            let child = &report.nodes[*child].source;
+            !matches!(child.node(), CemAstNode::Element { .. })
+                || host.input_expanded_name(child).is_some()
+        });
+        let element = if model.is_empty() || names.is_none() {
             None
         } else {
-            document_model::validate_element_shallow_with_controls(
+            document_model::validate_element_shallow_with_names(
                 current.source.document(),
                 model,
                 current.source.node_id(),
                 allows_any,
-                current.children_complete.then_some(sequence.as_slice()),
+                (current.children_complete && child_names_ready).then_some(sequence.as_slice()),
                 models.control_attributes(&current.source),
+                names.as_ref(),
                 &mut diagnostics,
             )
         };
@@ -670,7 +693,15 @@ where
                 host.structural_diagnostic(&source, diagnostic)
             }));
         for child in &current.children {
-            if node_models[*child].is_none() {
+            if node_models[*child].is_none()
+                || names.is_none()
+                || (matches!(
+                    report.nodes[*child].source.node(),
+                    CemAstNode::Element { .. }
+                ) && host
+                    .input_expanded_name(&report.nodes[*child].source)
+                    .is_none())
+            {
                 continue;
             }
             document_model::validate_child_relationship(
@@ -700,6 +731,23 @@ where
         .iter()
         .any(|d| d.severity.is_hard_violation());
     Ok(report)
+}
+
+/// Complete original element/attribute name metadata for shallow checks. A
+/// missing dependency defers required/field checks rather than looking absent.
+fn input_names<H: InputReferenceHost>(
+    source: &SchemaDeclarationNode,
+    host: &H,
+) -> Option<std::collections::BTreeMap<crate::parser::AstNodeId, crate::parser::ExpandedName>> {
+    let mut names = std::collections::BTreeMap::new();
+    if let CemAstNode::Element { attributes, .. } = source.node() {
+        names.insert(source.node_id(), host.input_expanded_name(source)?.clone());
+        for id in attributes {
+            let attribute = SchemaDeclarationNode::new(source.document().clone(), *id)?;
+            names.insert(*id, host.input_expanded_name(&attribute)?.clone());
+        }
+    }
+    Some(names)
 }
 
 /// Shallow validation emits errors on the element or its authored attributes.

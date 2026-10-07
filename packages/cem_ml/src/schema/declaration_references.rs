@@ -59,6 +59,19 @@ impl SchemaDeclarationNode {
 }
 
 pub trait SchemaDeclarationHost: ReferenceResolutionHost {
+    /// Effective input name at this consumer invocation. Hosts with lexical
+    /// capture return None for pending names; the default supports fixed ASTs.
+    /// Only name metadata changes, never the original source/value handle.
+    fn input_expanded_name<'a>(
+        &'a self,
+        source: &'a SchemaDeclarationNode,
+    ) -> Option<&'a crate::parser::ExpandedName> {
+        match source.node() {
+            CemAstNode::Element { expanded_name, .. }
+            | CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name),
+            _ => None,
+        }
+    }
     /// Adapt retained source to the host's typed runtime representation.
     fn source_reference(&self, source: SchemaDeclarationNode) -> Self::Node;
     /// Borrow an arena declaration through its original owner; never synthesize
