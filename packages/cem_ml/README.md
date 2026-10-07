@@ -97,8 +97,10 @@ consumption is available through `prepare_namespace_property`; the explicit
 `activate_namespace_properties` consumer connects ready reports to selected-name
 completion and original occurrence lexical handoff. Its returned completion can
 enter shared native query ingress without reevaluation or source mutation.
-Completed-declaration publication and automatic opt-in lifecycle coordination
-remain separately tracked work.
+Completed-name handoff into schema consumers, completed-declaration publication
+and automatic opt-in lifecycle coordination remain separately tracked work.
+A ready native query-name view does not establish schema admission or validation
+readiness; those consumers still use original captured/source names.
 
 `namespace_references::decode_native_namespace_property` accepts the original
 captured native namespace attribute and returns its destination prefix and owning

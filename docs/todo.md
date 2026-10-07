@@ -1367,8 +1367,9 @@ only and adds no runtime behavior or public syntax.
       Completed (2026-10-06): namespace bindings retain URI/context identities;
       `SchemaSource::Select` retains selector text; lexical capture and explicit
       subtree/following-sibling handoff are implemented. None of these executes
-      native property selection. The older stack design's schema-selector
-      innermost-match wording needs reconciliation with consumer cardinality.
+      native property selection. The subsequent cardinality decision and native
+      consumers below complete that implementation; see the follow-up audit for
+      current coverage and remaining integrations.
       Scenarios for later design verification: distinguish lexical shadowing
       from a selector's ordered target sequence; retained QNames and earlier
       bindings remain unchanged by later consumer completion.
@@ -1378,7 +1379,8 @@ only and adds no runtime behavior or public syntax.
       require exactly one completed target after bounded reference-chain
       resolution. An arbitrary query sequence is not ranked by lexical depth.
       This reconciles the older stack-design innermost-match wording; native
-      selector evaluation remains unimplemented until target contracts are chosen.
+      selector evaluation was implemented in the subsequent preparation/runtime
+      tasks after target contracts were adopted.
       Scenarios for later design verification: nested same-name declarations
       retain lexical shadowing; deliberate zero/multiple target selections cannot
       establish an active schema; pending resolution cannot establish a scope.
@@ -1999,11 +2001,18 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: the same source supports independent
       executions; missing dependencies cannot expose guessed expanded names; native
       references and source metadata retain their original owner through ingress.
-- [ ] Define and implement native reference consumption by specialized schema and
+- [x] Define and implement native reference consumption by specialized schema and
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;
       preserve established literal selectors and source-position binding semantics.
       The exact enclosed child override syntax remains deferred in the roadmap.
+      Implemented for established forms: schema controls support literal/native
+      selectors, URI loader handoff, singleton target admission, exact compilation
+      and retained runtime regions; native namespace attributes support bounded
+      value consumption, singleton binding admission, explicit completion/activation
+      and shared query ingress. Completed-name handoff into schema consumers,
+      completed-declaration publication and automatic namespace coordination remain
+      separately tracked below; this does not claim those integrations are complete.
       Scenarios for later design verification: pending scope selection cannot
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
@@ -2021,9 +2030,9 @@ only and adds no runtime behavior or public syntax.
       diagnostics and singleton failures. Ready results can supply name completion
       under the original declaration ID; selection results are never cached or
       written to source. Literal/default-alias forms remain unchanged and selected
-      expression-looking nodes are not implicitly executed. Lifecycle activation
-      and publication/consumption of pending selected namespace declarations remain
-      separate work.
+      expression-looking nodes are not implicitly executed. Ready-result activation
+      is implemented below; publication/consumption of pending selected namespace
+      declarations remains separate work.
       Scenarios for later design verification: pending declaration selectors use
       pre-declaration bindings; invalid cardinality and denied crossings cannot
       supply a URI; repeated consumers never write source targets or share results.
@@ -2073,14 +2082,36 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: unavailable bindings block only
       their governed execution; retries reuse original dependencies; granting a
       crossing does not implicitly complete or activate a namespace property.
-- [ ] Audit schema and namespace scope-property reference adoption after
+- [x] Audit schema and namespace scope-property reference adoption after
       lifecycle integration. Verify coherent original-owner, readiness, bounds,
       grants and diagnostic contracts across native values and existing literal
       conveniences; update the design coverage and remaining action items.
       Keep enclosed child-override syntax deferred in the roadmap.
+      Completed: the reference design's scope-property audit now maps original-owner,
+      value-form, traversal, target-kind, readiness, activation and lifetime contracts
+      to their existing fixtures. Corrected stale implementation-status claims.
+      Namespace activation is an explicit execution-host handoff, whereas schema
+      runtime validation restores invocation assignments. Query name completion
+      does not yet reach schema admission/control discovery or structural input
+      attribute-contract lookup; recorded that integration gap separately below.
+      Completed namespace declaration reuse and automatic coordination remain open.
+      Verification: 92 existing native scope-preparation, runtime-region, namespace
+      preparation/activation/handoff, region-behavior and query-ingress tests pass.
       Scenarios for later design verification: supported consumers share native
       reference contracts without rewriting ASTs or inventing context IDs;
       remaining deferred work is distinguishable from implemented behavior.
+- [ ] Fixture and implement execution-specific completed-name handoff into schema
+      consumers. Route completed expanded names through original owner/node handles
+      for target admission, schema control discovery, structural attribute-contract
+      lookup and retained behavior views. Preserve fixed names, source inspection,
+      selected-forest boundaries and consuming-model ownership; missing dependencies
+      must keep the affected region incomplete. Keep original captured tables and
+      AST records immutable and independent executions isolated.
+      Scenarios for later design verification: a namespace-completed schema target
+      can be admitted without using its raw lexical prefix; completed core aliases
+      identify controls while foreign aliases remain data; names outside a selected
+      completion cannot borrow its bindings; repeated source reuse keeps distinct
+      execution names and original source maps.
 - [ ] Define per-execution publication and reuse of completed native namespace
       declaration results. Selecting a pending declaration currently remains
       `TargetBindingNotReady`, even after another consumer completed its value.
@@ -2098,7 +2129,6 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: waiting releases execution work;
       unrelated ready regions stay consumable; separate instances never share
       mutable namespace results, contexts or source targets.
-
 
 - [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs

@@ -770,8 +770,11 @@ before callbacks or mutation. Context callbacks receive completion metadata for
 native view bindings; missing runtime contexts remain pending. Selector-only
 forests can activate original enclosing dependencies before child bodies, keeping
 fixed names and child restoration intact. Results feed shared query ingress
-without selector re-evaluation or budget resets. Completed-declaration publication
-and automatic opt-in lifecycle coordination remain separately tracked tasks.
+without selector re-evaluation or budget resets. Completed-name handoff into schema
+admission/control/validation consumers,
+completed-declaration publication and automatic opt-in lifecycle coordination
+remain separately tracked tasks. A ready query-name view alone does not supply
+those consumers with execution-specific names.
 Namespace-aware expression contexts require every captured pending prefix to complete, including
 unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
 snapshots and declaration handles alongside ready per-execution URI overlays.

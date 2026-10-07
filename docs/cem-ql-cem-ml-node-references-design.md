@@ -296,21 +296,67 @@ Consequences for this design:
 - Preserve the established no-retroactive-rebinding principle for resolved contextual bindings. AST mutation and reference updates after finalization remain outside scope.
 
 Parser-side lexical capture and explicit consumer scope handoff preserve these
-associations alongside the specialized records. Native reference consumption by
-the schema/namespace scope properties themselves still requires per-property
-target-kind, cardinality and readiness contracts, tracked in
-[todo.md](todo.md#ast-node-reference-implementation). No replacement of every
-frame or binding table is mandated.
+associations alongside the specialized records. The established schema controls
+and native namespace attributes now have distinct target-kind, cardinality,
+readiness and explicit activation contracts described below. Remaining cross-consumer
+integration is tracked in [todo.md](todo.md#ast-node-reference-implementation).
+No replacement of every frame or binding table is mandated.
 
 ### Scope-property consumption audit (2026-10-06)
 
-Existing namespace records retain URI bindings, while `SchemaSource::Select`
-retains an expression. Lexical capture and caller-completed scope handoff retain
-these associations. Host-attribute schema selection now uses the bounded
-preparation and region APIs below, including discovery during retained input
-validation. Schema runtime region installation is implemented below; namespace
-property selection/activation remains subsequent work. The deferred enclosed child
-override syntax remains separate.
+The follow-up implementation audit covers established schema controls and native
+namespace attributes. Both consume original handles through the shared bounded
+reference resolver. Target admission and lifecycle work remain specialized:
+
+| Contract | Schema scope consumer | Namespace scope consumer |
+| --- | --- | --- |
+| Original owner and saved bindings | Captured names/forms and original selector handles; entered runtime regions supply current inputs without changing capture. | Original property/value handles and declaration dependencies; selectors retain their pre-declaration snapshots. |
+| Authored value forms | Literal selectors, native `#` values and general expressions; URI sources use the explicit loader stage. | Native `#` values and general expressions; completed literal declarations, default aliases and resets retain their existing binding semantics. |
+| Reference chains and permissions | Shared request/destination limits, ordered selections, directed grants and original diagnostic policy. | The same resolver contracts; target admission does not start another traversal. |
+| Final target | One schema-language declaration, or one named core wrapper containing exactly one direct declaration. | One original namespace declaration with completed binding metadata; the property retains its own destination prefix. |
+| Readiness | Successful singleton selection, ready target context, complete exact-declaration compilation and no hard compile diagnostics. | Successful singleton selection, ready target context and completed binding; empty default URI is a ready reset. |
+| Explicit activation | Entered body/following/prelude regions install invocation-local consuming models, contexts and effective policies; original assignments restore afterward. | Ready property reports complete a selected forest and attach caller-supplied lexical contexts; the returned completion feeds native views/shared query ingress. |
+| Incomplete/invalid outcomes | Explicit override keeps its governed region incomplete without inherited-schema fallback; diagnostics remain attributed. | Missing/invalid reports or selected dependencies reject before activation callbacks/mutation; a missing callback context remains pending. |
+| Consumer lifetime | Runtime inputs are supplied for each validation invocation; native behavior dispatch follows the consuming model. | Completion belongs to the explicit execution; lexical handoff installs occurrence contexts in the supplied host and rejects duplicate assignments. |
+
+The two activation APIs have different lifetimes. Schema runtime
+validation restores invocation assignments; namespace lexical handoff installs
+occurrence contexts in the caller's execution host and rejects repeated assignments.
+Neither makes a source AST mutable or gives a scope/context an authored ID.
+Schema selection and exact-declaration compilation also retain their separate
+bounded operation contracts; namespace admission performs no compilation. The
+shared resolver contract does not imply an aggregate budget across separate
+property consumption or compilation operations.
+
+Coverage is retained in [schema scope preparation fixtures](../packages/cem_ql/tests/schema_scope_preparation.rs),
+[schema runtime region fixtures](../packages/cem_ql/tests/schema_host_runtime_binding.rs),
+[namespace property preparation fixtures](../packages/cem_ql/tests/namespace_property_preparation.rs),
+[namespace activation fixtures](../packages/cem_ql/tests/namespace_property_activation.rs),
+[retained region behavior fixtures](../packages/cem_ml_transform_cem_ql/tests/schema_region_behaviors.rs)
+and [completed namespace query ingress fixtures](../packages/cem_ml_transform_cem_ql/tests/namespace_query_ingress.rs).
+They cover original owners, pending retries, singleton admission, directed crossings,
+request/destination limits, fixed names and restoration of enclosing contracts.
+
+Three integration gaps remain explicit. First, query views expose completed names,
+but schema target admission/control discovery still use the host's immutable
+`captured_expanded_name` table. Structural attribute-contract lookup also reads
+names directly from the original AST. A schema declaration or control whose QName
+depends on a native namespace therefore has no completed consumer-name handoff yet.
+The next slice must supply execution-specific names to those consumers through
+original handles and selected-forest boundaries, preserving fixed names and source
+inspection. Query-view readiness must not be mistaken for schema-admission or
+validation readiness. Second, selecting a pending namespace declaration still
+returns `TargetBindingNotReady`; completing its value for one execution does not
+publish that result for later target admission. Third, automatic namespace lifecycle
+coordination is not part of ordinary loading/query preparation or the schema URI
+validation session. Explicit host orchestration supplies the supported stages today.
+All three have actionable items and adjacent verification scenarios in
+[todo.md](todo.md#ast-node-reference-implementation).
+
+The exact enclosed child override syntax remains deferred in
+[the roadmap](../roadmap.md#deferred-cem-reference-syntax-decision). Existing
+schema body/following controls and native namespace attributes do not decide it;
+`cem-element` ID generation and binding remain separately deferred consumer work.
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
 now distinguish lexical lookup from consumer cardinality. Adopted on 2026-10-06:
@@ -320,7 +366,7 @@ lexical name shadowing remains applicable; it does not rank an arbitrary query
 sequence. Zero/multiple completed targets and pending resolution cannot establish
 an effective schema scope. Schema-host preparation implements native selector
 evaluation and supplies ready consuming models to retained region validation;
-runtime scope installation remains lifecycle integration work.
+explicit runtime scope installation is implemented for entered regions.
 
 Target shape was adopted on 2026-10-06: accept a schema-language declaration
 with expanded name `{https://cem.dev/ns/schema/1}schema` directly, or a core
@@ -485,8 +531,9 @@ local policy overrides, and can bind the matching native `NamespaceQueryTree`.
 Missing inputs remain pending even with a ready parent. Existing relationship
 boundaries and directed grants are preserved. Completed names do not replace the
 host's original captured-name metadata, and unselected occurrences remain free
-for their own handoff. Lifecycle activation remains a todo item; this API performs
-neither reference evaluation nor scope activation.
+for their own handoff. `activate_namespace_properties` composes this handoff with
+ready-result completion; this lower-level API performs neither reference evaluation
+nor property-result completion.
 The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
@@ -517,9 +564,10 @@ valid singleton admission, available declaration context, complete model depende
 and no hard compilation diagnostics. Pending native datatype dependencies and
 invalid regex facets therefore cannot establish readiness. Repeating preparation
 uses current inputs with unchanged captured names; it does not save targets on
-source references. Recognizing scope-property syntax, assigning governed regions,
-installing effective policies remain separate lifecycle wiring tasks in `todo.md`.
-The explicit region validator below blocks inherited validation for caller-declared
+source references. This preparation method does not recognize scope-property
+syntax, assign governed regions or install effective policies. The implemented
+host-control/runtime-region stages below provide those explicit lifecycle operations.
+The explicit region validator blocks inherited validation for caller-declared
 incomplete regions.
 
 `validate_structural_input_roots_references` and the CEM-QL host's
@@ -558,7 +606,8 @@ singleton/admission outcomes have host-attributed override diagnostics. Unrelate
 regions outside the requested forest do not supply diagnostics. Callers repeat
 preparation when lifecycle inputs change. This API does not recognize authored
 scope-property syntax, install runtime contexts/policies or run child-specific
-behavior hooks; those lifecycle integration tasks remain in `todo.md`.
+behavior hooks; the runtime-host region and consuming-model behavior APIs below
+provide those stages.
 
 `decode_schema_host_control` now recognizes the established `schema-src` and
 `schema-select` host attributes using captured expanded names: canonical

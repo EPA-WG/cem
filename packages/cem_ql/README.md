@@ -205,6 +205,14 @@ reset bounds, grant crossings or publish results on the source. Independent
 executions retain separate views. Completed pending declarations selected by later
 references still require a separately designed publication stage.
 
+Completed namespace views currently reach native query ingress and explicit lexical
+context handoff. Schema target admission/control discovery still consult the
+immutable `captured_expanded_name` table, while structural attribute-contract
+lookup reads original AST names. Routing execution-specific completed names into
+those consumers is separately tracked; a ready query view does not establish
+schema/validation readiness. See the [scope-property adoption audit](../../docs/cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06)
+for implemented contracts, fixture coverage and remaining work.
+
 ### Native values in templates
 
 CEM-QL accepts optional `$` prefixes on expression references in queries and
