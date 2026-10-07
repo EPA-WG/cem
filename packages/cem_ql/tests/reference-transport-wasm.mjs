@@ -69,6 +69,58 @@ function lifecycle() {
     fail(() => wasm.runReferenceValidationSession(session), 'cem.reference.validation');
 }
 
+function resources() {
+    const input = wasm.parseReferenceSource(encode('{host @schema-src=child.cem | {leaf}}'), 'text/cem-ml', 'https://vendor.test/main.cem', '');
+    const schema = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=host @children=leaf}}}'), 'text/cem-ml', 'memory:base.cem', '');
+    const parent = wasm.beginReferenceValidationSession(input, schema);
+    wasm.setReferenceValidationContext(parent, 0, true, '[]');
+    const run = wasm.startReferenceResourceExecution(parent);
+    const request = JSON.parse(wasm.advanceReferenceResourceExecution(run));
+    assert.equal(request.state, 'awaitResources');
+    assert.equal(request.result[0].uri, 'https://vendor.test/child.cem');
+    const id = request.result[0].id;
+    fail(() => wasm.advanceReferenceResourceExecution(run), 'cem.reference.validation');
+    fail(() => wasm.completeReferenceResource(run, id + 1, encode('{schema}'), 'text/cem-ml', 'https://vendor.test/child.cem'), 'cem.reference.validation');
+    const bytes = encode('@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=leaf}}}');
+    const loaded = JSON.parse(wasm.completeReferenceResource(run, id, bytes, 'text/cem-ml', 'https://vendor.test/child.cem'));
+    assert.equal(JSON.parse(wasm.inspectReferenceSource(loaded.sourceId)).lexicalReady, true);
+    fail(() => wasm.completeReferenceResource(run, id, bytes, 'text/cem-ml', 'https://vendor.test/child.cem'), 'cem.reference.validation');
+    wasm.setReferenceResourceContext(run, loaded.sourceIndex, true, '[]');
+    wasm.allowReferenceResourceCrossing(run, 0, loaded.sourceIndex);
+    wasm.disposeReferenceSource(loaded.sourceId);
+    wasm.disposeReferenceSource(input);
+    wasm.disposeReferenceSource(schema);
+    wasm.disposeReferenceValidationSession(parent);
+    const result = JSON.parse(wasm.advanceReferenceResourceExecution(run));
+    assert.equal(result.state, 'finished');
+    assert.equal(result.result.complete, true, JSON.stringify(result));
+    wasm.disposeReferenceResourceExecution(run);
+    fail(() => wasm.advanceReferenceResourceExecution(run), 'cem.reference.validation');
+}
+function snapshots() {
+    const source = wasm.parseReferenceSource(encode('@ns public = urn:vendor\n{item @xmlns:p={#namespace} | {p:item} {#later}}'), 'text/cem-ml', 'memory:names.cem', '');
+    const schema = wasm.parseReferenceSource(encode('{schema}'), 'text/cem-ml', 'memory:schema.cem', '');
+    const session = wasm.beginReferenceValidationSession(source, schema);
+    const pending = wasm.prepareReferenceQuerySnapshot(session);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(pending)).complete, false);
+    const namespace = wasm.queryReferenceSource(source, 'seq:where(input.children, fn(node) => node.kind == "element" && node.name == "@ns")', 'memory:bindings.cemql');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name:'namespace', valueId:namespace}]));
+    const ready = wasm.prepareReferenceQuerySnapshot(session);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(ready)).complete, true);
+    const values = wasm.queryReferenceQuerySnapshot(ready, 'input.children.namespace', 'memory:completed.cemql');
+    const artifact = wasm.exportNativeValueArtifact(values, '');
+    assert.ok(new TextDecoder().decode(artifact).includes('urn:vendor'));
+    wasm.disposeReferenceQuerySnapshot(ready);
+    assert.ok(wasm.exportNativeValueArtifact(values, '').length);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(pending)).complete, false);
+    fail(() => wasm.queryReferenceQuerySnapshot(ready, 'input', 'memory:stale.cemql'), 'cem.reference.validation');
+    for (const id of [namespace, values]) wasm.disposeNativeValueArtifact(id);
+    wasm.disposeReferenceQuerySnapshot(pending); wasm.disposeReferenceValidationSession(session);
+    wasm.disposeReferenceSource(source); wasm.disposeReferenceSource(schema);
+}
+resources();
+snapshots();
+
 lifecycle();
 
 if (isMainThread) {

@@ -355,38 +355,13 @@ pub fn set_reference_validation_context(
     ready: bool,
     bindings_json: &str,
 ) -> Result<(), JsValue> {
-    if bindings_json.len() > 128 * 1024 {
-        return Err(validation_error("Binding metadata limit exceeded"));
-    }
-    let bindings: Vec<ValidationBinding> =
-        serde_json::from_str(bindings_json).map_err(validation_error)?;
-    if !ready && !bindings.is_empty() {
-        return Err(validation_error("Pending context cannot carry bindings"));
-    }
-    let mut context = crate::api::StandaloneExpressionContext::default();
-    for binding in bindings {
-        if context.bindings.contains_key(&binding.name) {
-            return Err(validation_error("Duplicate context binding"));
-        }
-        let values = INPUTS
-            .with(|inputs| {
-                inputs
-                    .borrow()
-                    .get(&binding.value_id)
-                    .map(|input| input.values.clone())
-            })
-            .ok_or_else(|| validation_error("Unknown native result handle"))?;
-        context = context.with_binding(
-            binding.name,
-            crate::api::StandaloneExpressionBinding::any(values),
-        );
-    }
+    let context = validation_context(ready, bindings_json)?;
     VALIDATIONS.with(|sessions| {
         sessions
             .borrow_mut()
             .get_mut(&session_id)
             .ok_or_else(|| validation_error("Unknown validation session"))?
-            .set_context(source_index as usize, ready.then_some(context))
+            .set_context(source_index as usize, context)
             .map_err(validation_error)
     })
 }
@@ -443,3 +418,38 @@ pub fn run_reference_validation(session_id: u32) -> Result<String, JsValue> {
 pub fn dispose_reference_validation(session_id: u32) -> bool {
     VALIDATIONS.with(|sessions| sessions.borrow_mut().remove(&session_id).is_some())
 }
+
+fn validation_context(
+    ready: bool,
+    bindings_json: &str,
+) -> Result<Option<crate::api::StandaloneExpressionContext>, JsValue> {
+    if bindings_json.len() > 128 * 1024 {
+        return Err(validation_error("Binding metadata limit exceeded"));
+    }
+    let bindings: Vec<ValidationBinding> =
+        serde_json::from_str(bindings_json).map_err(validation_error)?;
+    if !ready && !bindings.is_empty() {
+        return Err(validation_error("Pending context cannot carry bindings"));
+    }
+    let mut context = crate::api::StandaloneExpressionContext::default();
+    for binding in bindings {
+        if context.bindings.contains_key(&binding.name) {
+            return Err(validation_error("Duplicate context binding"));
+        }
+        let values = INPUTS
+            .with(|inputs| {
+                inputs
+                    .borrow()
+                    .get(&binding.value_id)
+                    .map(|input| input.values.clone())
+            })
+            .ok_or_else(|| validation_error("Unknown native result handle"))?;
+        context = context.with_binding(
+            binding.name,
+            crate::api::StandaloneExpressionBinding::any(values),
+        );
+    }
+    Ok(ready.then_some(context))
+}
+
+mod lifecycle;

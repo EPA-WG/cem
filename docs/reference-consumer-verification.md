@@ -1,6 +1,6 @@
 # Reference consumer verification
 
-This matrix records the implemented reference boundaries as of 2026-10-06.
+This matrix records the implemented reference boundaries as of 2026-10-07.
 Loading retains authored references; a consumer supplies the evaluation stage,
 runtime inputs, effective policies and crossing grants. Query field access and
 transport never claim that an authored reference has been evaluated.
@@ -46,11 +46,53 @@ attributed diagnostics. Neither bindings nor grants are serialized into bundles.
 `reference_lifecycle_api.rs` and `reference-transport-wasm.mjs` verify pending/empty,
 foreign target denial/grant, bounded nested references and independent disposal.
 
-The initial WASM session has one explicit context per registered owner. Queued
-URI transport and retained completed-name query views are the next adapter work,
-followed by a conformance/verification-target audit in
-[todo.md](todo.md#next-three-reference-lifecycle-adapter-items). These extensions
-do not change the completed syntax, retained-node or bounded-consumer contracts.
+## Host-driven resource and snapshot adapters (2026-10-07)
+
+The native resumable coordinator now lives in
+`cem_ql::schema_references::validation_session`; the engine bridge re-exports its
+existing API. Engine I/O scheduling and CPU release remain unchanged. The local
+`ReferenceResourceExecution` freezes requesting inputs, yields original attributed
+URI requests, stages each correlated completion through the same importer once,
+and resumes only after the full batch settles. URL resolution/public-part
+interpretation remains in the ML loader, separately from CEM-QL reference evaluation. The completing host receives a
+retained source over that exact imported owner. Loaded contexts and directed
+crossings require separate host calls; neither bytes nor bindings establish them.
+Unknown/repeated completion, context or authority replacement, cancellation and
+bounds prevent activation. Resource counts and byte charges persist across rounds;
+the selected consumers still apply request/destination traversal bounds.
+
+`ReferenceValidationSession::query_snapshot` prepares namespace names independently
+of schema validation readiness. `ReferenceQuerySnapshot` queries the same native
+`NamespaceQueryTree` over selected ready roots. Pending regions remain excluded,
+including an entirely empty ready forest. The immutable view retains the original
+arena, authored descendants and its completed names. Later context replacement,
+source/session disposal or disposal of another snapshot cannot change its results.
+Result nodes keep their completed view alive after snapshot disposal.
+
+Evidence: `reference_resource_session.rs` checks native staging, multiple-resource
+correlation, separate contexts/grants, failed transport, cancellation, stale parent
+inputs and bounded work. Its declaration reuse case binds nodes queried from the
+returned loaded source, proving that execution uses the same imported owner.
+`reference_query_snapshot.rs` checks pending/empty and selected forests, independent
+completed namespaces, authored reference children and retained result lifetime.
+`reference-transport-wasm.mjs` runs resource and snapshot examples in two heaps.
+
+Run `yarn nx run cem_ql:test:reference-consumers`. This maintained target builds
+WASM, runs the listed native source/query/lifecycle/transport suites in ML, QL,
+the engine bridge and CLI, then runs both reference-transport and native-value
+worker fixtures. CI invokes this target explicitly. The final local run passes
+284 native checks in 34 suites, including eight new adapter cases, plus both
+worker fixtures. Ordinary XML attributes remain
+literal; the XML expression-element/CDATA path uses the native reference consumer.
+
+The convenience adapter currently supplies one context per registered owner;
+individual occurrence overrides and snapshots of the resource execution itself
+are follow-ups, rather than prerequisites for source/query reference semantics.
+It has no URL public-part export callback: those requests fail with an attributed
+`cem.schema.public_part_unavailable` outcome. The native loader's explicit public
+exports hook remains available to embedding hosts; no implicit ID scan is added.
+These adapter extensions are actionable with adjacent scenarios in
+[todo.md](todo.md#next-three-reference-host-adapter-follow-ups).
 
 ## Separately deferred work
 

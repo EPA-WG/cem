@@ -45,6 +45,14 @@ retain their deferred actions and scenarios. Public query/reload/transport
 contracts were adopted on 2026-10-06; their implementation follows the
 [three work items below](#reference-query-and-transport-contract-implementation).
 
+Implementation checkpoint (2026-10-07): CLI/native source reload admission,
+atomic metadata attachment, local WASM validation/resource staging and immutable
+completed-name query snapshots now extend the supported consumers. The maintained
+`cem_ql:test:reference-consumers` target covers the native matrix and both worker
+fixtures and is wired into CI. Convenience host adapter extensions remain
+[three explicit follow-ups](#next-three-reference-host-adapter-follow-ups), without
+reopening the completed source/query contracts or merging deferred consumers.
+
 ### 1. Audit current work and define schema contracts
 
 - [x] Fixture: verify schema-owned standard reference traversal limits and
@@ -2838,21 +2846,29 @@ registered owner; URI transport and completed-name query views remain below.
 
 ### Next three reference lifecycle adapter items
 
-- [ ] Fixture and implementation: expose queued schema URI requests and explicit
+- [x] Add `reference_resource_session.rs` fixtures for resource correlation,
+      staged native import, frozen contexts, separate grants, cancellation and bounds;
+      extend the worker fixture with retained schema URI execution.
+- [x] Add `reference_query_snapshot.rs` fixtures for completed namespace views,
+      selected ready forests and independent snapshot/result retention; extend workers.
+- [x] Add a maintained Nx reference-consumer verification target covering the native
+      conformance fixtures and both low-level worker fixtures, and audit the matrix.
+
+- [x] Fixture and implementation: expose queued schema URI requests and explicit
       host resource completions through the low-level WASM validation session,
       reusing the native resumable coordinator. Keep resources and scopes local;
       host admission and directed grants remain separate from resource payloads.
       Scenarios for later design verification: unavailable transport stays pending;
       context replacement, cancellation and repeated completion cannot activate
       a stale schema or reset request/destination work accounting.
-- [ ] Fixture and implementation: retain namespace-completed execution snapshots
+- [x] Fixture and implementation: retain namespace-completed execution snapshots
       behind local WASM handles and connect them to shared native query ingress.
       Preserve selected ready forests, authored descendant references and the
       original source view; expose completion/dependencies with each execution.
       Scenarios for later design verification: pending and empty forests differ;
       concurrent executions share the arena but retain different completed names;
       disposal of one snapshot cannot affect another query or validation session.
-- [ ] Fixture/audit: close the reference consumer conformance matrix across CEM,
+- [x] Fixture/audit: close the reference consumer conformance matrix across CEM,
       XML, CLI and low-level WASM; wire the transport/lifecycle worker fixtures
       into the maintained verification target and document readiness/authority
       boundaries with executable samples. Add specific fixture actions for any
@@ -2860,6 +2876,45 @@ registered owner; URI transport and completed-name query views remain below.
       Scenarios for later design verification: scope defaults and direct references
       use the same consumer rules; ordinary XML attributes remain literal; datatype
       execution, cem-element ID projection and deferred child syntax stay separate.
+
+Verification (2026-10-07): `yarn nx run cem_ql:test:reference-consumers`
+passes 284 native checks across 34 suites, including eight new resource/snapshot
+cases, and both WASM worker fixtures after the Nx WASM build. The original engine
+coordinator API remains available through a compatibility re-export. Native
+fixtures prove one imported owner is shared by returned source queries and schema
+declaration reuse; repeated completion, missing destination inputs, context
+replacement, cancellation and policy bounds cannot activate stale selections.
+Snapshot fixtures preserve empty/selected forests, original reference children,
+different completed names and independent result retention. The consumer matrix,
+README examples and CI target document the implemented readiness/authority seams.
+
+### Next three reference host adapter follow-ups
+
+The core retained-node, bounded-consumer and query/transport contracts are
+implemented. These extend the convenience host adapters; XML authoring, enclosed
+child override syntax, general datatypes and cem-element ID projection retain
+their separately deferred action items.
+
+- [ ] Fixture and implementation: expose explicit per-occurrence context overrides
+      in the native/local WASM session, keyed by retained owner and original node
+      handle. Keep the owner context as the supplied default; preserve captured
+      lexical bindings and invalidate pending resource executions after replacement.
+      Scenarios for later design verification: two occurrences in one owner use
+      independent runtime inputs without authored context IDs; explicitly pending
+      overrides cannot borrow a neighboring occurrence's context.
+- [ ] Fixture and implementation: connect a host-supplied public export contract
+      to local schema URI completion, selecting original imported declarations
+      before activation. Keep the URL part convention in the loader and keep
+      crossing authority separate; do not introduce document-wide ID lookup.
+      Scenarios for later design verification: missing or ambiguous exports remain
+      incomplete with original provenance; public exposure alone cannot authorize
+      a cross-scope reference or replace a package.
+- [ ] Fixture and implementation: retain completed-name query snapshots directly
+      from a resource validation execution, including loaded native owners and its
+      selected ready forest, using the existing shared native query view.
+      Scenarios for later design verification: no second resource import or
+      reference evaluation is needed to query a saved completion; resumed contexts
+      cannot change earlier snapshots; result lifetime is independent of execution.
 
 ## Reference adoption: dependency binding and readiness
 

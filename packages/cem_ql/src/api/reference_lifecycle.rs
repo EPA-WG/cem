@@ -14,7 +14,15 @@ use cem_ml::{
     },
     source_map::SourceMapStack,
 };
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
+pub mod query_snapshot;
+pub mod resources;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum ReferenceConsumerDependencyKind {
@@ -69,10 +77,11 @@ struct SourceInputs {
 /// Source indices are local host handles (input=0, consuming schema=1), never
 /// authored IDs. Each run builds fresh scopes over the retained owners. Context
 /// readiness, destination policy and directed grants are explicit host choices.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ReferenceValidationSession {
     sources: Vec<SourceInputs>,
     crossings: BTreeSet<(usize, usize)>,
+    revision: Arc<AtomicU64>,
 }
 impl ReferenceValidationSession {
     pub fn new(source: RetainedReferenceSource, schema: RetainedReferenceSource) -> Self {
@@ -92,6 +101,7 @@ impl ReferenceValidationSession {
                 },
             ],
             crossings: BTreeSet::new(),
+            revision: Arc::new(AtomicU64::new(0)),
         }
     }
     pub fn add_source(&mut self, source: RetainedReferenceSource) -> usize {
@@ -105,6 +115,7 @@ impl ReferenceValidationSession {
             return index;
         }
         let index = self.sources.len();
+        self.revision.fetch_add(1, Ordering::Relaxed);
         self.sources.push(SourceInputs {
             source,
             context: None,
@@ -122,6 +133,7 @@ impl ReferenceValidationSession {
             .get_mut(source)
             .ok_or("Unknown session source")?
             .context = context;
+        self.revision.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
     pub fn set_policy(
@@ -136,6 +148,7 @@ impl ReferenceValidationSession {
             .get_mut(source)
             .ok_or("Unknown session source")?
             .policy = Some(policy);
+        self.revision.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
     /// Override only bounds; retain the consuming schema's unresolved policy.
@@ -151,6 +164,7 @@ impl ReferenceValidationSession {
             .get_mut(source)
             .ok_or("Unknown session source")?
             .limits = Some(limits);
+        self.revision.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
     pub fn allow_crossing(&mut self, from: usize, to: usize) -> Result<(), String> {
@@ -158,6 +172,7 @@ impl ReferenceValidationSession {
             return Err("Unknown session source".into());
         }
         self.crossings.insert((from, to));
+        self.revision.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
     fn context_for(&self, source: &SchemaDeclarationNode) -> Option<StandaloneExpressionContext> {
@@ -242,7 +257,18 @@ impl ReferenceValidationSession {
             }
         }
     }
-    pub fn run(&self) -> Result<ReferenceConsumerReport, String> {
+    fn prepare(
+        &self,
+    ) -> Result<
+        (
+            ReferenceConsumerReport,
+            Option<(
+                Arc<cem_ml::schema::document_model::SchemaDocumentModel>,
+                ReferenceScopePolicy,
+            )>,
+        ),
+        String,
+    > {
         let mut report = ReferenceConsumerReport::pending();
         for inputs in &self.sources {
             let tree = inputs.source.ingress().source();
@@ -283,7 +309,7 @@ impl ReferenceValidationSession {
             }
         }
         if !report.dependencies.is_empty() {
-            return Ok(report);
+            return Ok((report, None));
         }
         let defaults = ReferenceScopePolicy::schema_defaults().map_err(|e| format!("{e:?}"))?;
         let schema = &self.sources[1].source;
@@ -318,7 +344,7 @@ impl ReferenceValidationSession {
             .map_err(|e| format!("{e:?}"))?;
         Self::namespace_dependencies(&mut report, &namespace, schema);
         let Some(model) = model else {
-            return Ok(report);
+            return Ok((report, None));
         };
         let model = model.map_err(|e| format!("{e:?}"))?;
         report.diagnostics.extend(model.compile_diagnostics.clone());
@@ -340,7 +366,7 @@ impl ReferenceValidationSession {
                 .diagnostics
                 .iter()
                 .any(|d| d.severity.is_hard_violation());
-            return Ok(report);
+            return Ok((report, None));
         }
         let mut policy = self.sources[0]
             .policy
@@ -349,6 +375,14 @@ impl ReferenceValidationSession {
         if let Some(limits) = self.sources[0].limits {
             policy.limits = limits;
         }
+        Ok((report, Some((Arc::new(model), policy))))
+    }
+    pub fn run(&self) -> Result<ReferenceConsumerReport, String> {
+        let (mut report, prepared) = self.prepare()?;
+        let Some((model, policy)) = prepared else {
+            return Ok(report);
+        };
+        let schema = &self.sources[1].source;
         // Separate fresh compilation and consumption hosts keep invocation-local
         // completed namespace names and scope publications from escaping.
         let mut host = self.host(&policy)?;
@@ -380,6 +414,16 @@ impl ReferenceValidationSession {
             .map_err(|e| format!("{e:?}"))?;
         Self::namespace_dependencies(&mut report, &namespace, input);
         let validation = validation.map_err(|e| format!("{e:?}"))?;
+        Ok(self.validation_report(report, &namespace, &host, validation))
+    }
+    fn validation_report(
+        &self,
+        mut report: ReferenceConsumerReport,
+        namespace: &NamespaceLifecycleSnapshot,
+        host: &CemQlSchemaDeclarationHost,
+        validation: crate::schema_references::SchemaHostRuntimeValidation,
+    ) -> ReferenceConsumerReport {
+        let input = &self.sources[0].source;
         for inputs in &validation.inputs {
             if !inputs.is_ready() {
                 let source = inputs.region().contract.host();
@@ -448,7 +492,7 @@ impl ReferenceValidationSession {
             .diagnostics
             .iter()
             .any(|d| d.severity.is_hard_violation());
-        Ok(report)
+        report
     }
 }
 fn roots(source: &RetainedReferenceSource) -> Vec<AstNodeId> {
@@ -471,5 +515,15 @@ fn node_source_map(node: &CemAstNode) -> &SourceMapStack {
         | CemAstNode::RawText { source, .. }
         | CemAstNode::Error { source, .. }
         | CemAstNode::Reference { source, .. } => source,
+    }
+}
+
+impl Clone for ReferenceValidationSession {
+    fn clone(&self) -> Self {
+        Self {
+            sources: self.sources.clone(),
+            crossings: self.crossings.clone(),
+            revision: Arc::new(AtomicU64::new(0)),
+        }
     }
 }

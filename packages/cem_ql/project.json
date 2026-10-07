@@ -337,6 +337,36 @@
             ],
             "outputs": ["{workspaceRoot}/dist/artifacts/cem_ql"]
         },
+        "test:reference-consumers": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "dependsOn": [
+                "build:wasm"
+            ],
+            "options": {
+                "commands": [
+                    "cargo test --locked --package cem-ml --test node_references --test reference_schema_contracts --test reference_expression_sources --test reference_resolution --test reference_traversal_policy --test reference_unresolved_policy --test schema_declaration_references --test native_namespace_properties --test pending_namespace_names --test reference_reload_bundle --test resumable_input_validation --target-dir dist/target/cem_ml_cli",
+                    "cargo test --locked --package cem-ql --test node_references --test constructor_references --test public_reference_contract --test reference_resolution --test reference_runtime_resolution --test schema_declaration_references --test lexical_scope_handoff --test namespace_name_views --test namespace_lifecycle --test reference_transport_api --test reference_export_contract --test reference_reload_attachment --test reference_lifecycle_api --test reference_resource_session --test reference_query_snapshot --test native_value_control --target-dir dist/target/cem_ml_cli",
+                    "cargo test --locked --package cem-ml-transform-cem-ql --test reload_ingress --test reload_engine_validation --test resumable_schema_validation --test namespace_query_ingress --test reference_query_bridge --target-dir dist/target/cem_ml_cli",
+                    "cargo test --locked --package cem-ml-cli --test reference_transport_cli --test reload_validation_cli --target-dir dist/target/cem_ml_cli",
+                    "node packages/cem_ql/tests/reference-transport-wasm.mjs",
+                    "node packages/cem_ql/tests/native-values-wasm.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "default",
+                "^default",
+                "{workspaceRoot}/packages/cem_ml/tests/**/*",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/**/*",
+                "{workspaceRoot}/packages/cem_ml_cli/src/**/*",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/**/*",
+                "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml",
+                "{workspaceRoot}/tools/scripts/build-cem-ql-wasm.mjs"
+            ],
+            "outputs": []
+        },
         "test:transport-protocol": {
             "cache": true,
             "executor": "nx:run-commands",

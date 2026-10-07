@@ -77,6 +77,9 @@ jobs:
           yarn nx affected -t lint test test:unit build typecheck e2e-ci
           --exclude=cem_ml_cli_native_brew_arm64,cem_ml_cli_native_windows_amd64
 
+      - name: Verify reference consumer contracts
+        run: yarn nx run cem_ql:test:reference-consumers
+
       - name: Verify Phase 8 portable native contracts
         run: yarn nx run @epa-wg/cem-theme:verify:phase8
 

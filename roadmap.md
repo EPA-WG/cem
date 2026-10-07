@@ -1013,9 +1013,13 @@ identity; no additional target-list comparator is required. The native type/avai
 export guards, shared reload ingress and explicit CLI/low-level WASM transport
 entry points are now implemented and verified. The
 [consumer matrix](docs/reference-consumer-verification.md) identifies the next
-adapter work: later verified metadata attachment, engine/CLI validation admission
-and explicit WASM lifecycle consumers. These remain actionable with adjacent
-verification scenarios in the todo list.
+supported adapters: later verified metadata attachment, engine/CLI validation
+admission, local WASM resource completion and immutable completed-name query
+snapshots. The maintained Nx conformance target covers these adapters and both
+worker fixtures. Per-occurrence inputs, explicit URL public exports and resource
+execution query snapshots remain adapter extensions with actionable items and
+adjacent verification scenarios in the todo list. Deferred child syntax, XML
+attribute authoring and cem-element consumption retain their own decisions.
 
 ### Scenarios for later design verification
 

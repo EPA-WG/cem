@@ -453,9 +453,50 @@ preserving the schema's unresolved-link policy. Run/dispose through
 `attachReferenceReloadBundle` refreshes only its source handle's passive view;
 prepare a new session to consume attached metadata. Sessions retain owners after
 source/result handles are disposed. Source/capture and contexts stay local; only
-explicit bundle/CEMV bytes cross heaps. URI resource completion and completed-name
-query snapshots remain [adapter work](../../docs/todo.md#next-three-reference-lifecycle-adapter-items).
-See the [consumer matrix](../../docs/reference-consumer-verification.md).
+explicit bundle/CEMV bytes cross heaps.
+
+`startReferenceResourceExecution(session)` freezes requesting contexts, policies
+and authority and returns a local execution handle. `advanceReferenceResourceExecution`
+returns control JSON `{state: "awaitResources", result: requests}` or
+`{state: "finished", result: report}`. Each request carries a local correlation
+ID, fragment-free URI, content type hint, requested public part and source map.
+The host performs I/O outside WASM and completes the whole pending batch with
+`completeReferenceResource(execution, requestId, bytes, contentType, finalUri)`
+or `failReferenceResource(execution, requestId, reason)`. Successful completion
+returns `{sourceId, sourceIndex}` over the coordinator's original imported owner;
+failed import/transport returns `null` and leaves validation incomplete. No
+filename-based MIME inference or automatic URL/ID lookup is performed.
+
+After all resources settle, prepare loaded sources through
+`setReferenceResourceContext(execution, sourceIndex, ready, bindings)` and grant
+specific relationships through `allowReferenceResourceCrossing(execution, from, to)`.
+These calls are separate from resource bytes. Resume with `advanceReferenceResourceExecution`;
+nested entered controls can yield another batch. Request counts and retained-byte
+charges survive rounds, while reference traversal keeps effective request and
+destination bounds. Parent context/policy/authority changes reject late completion
+and require a new execution. Cancellation and disposal use
+`cancelReferenceResourceExecution` / `disposeReferenceResourceExecution`.
+Disposing transport sources or the parent handle leaves frozen inputs retained.
+The convenience adapter currently has one context per owner and no public-part
+export adapter; URL parts report `cem.schema.public_part_unavailable` rather than
+scanning IDs. Embedders can use the shared native coordinator's explicit exports hook.
+
+`prepareReferenceQuerySnapshot(session)` creates an immutable local namespace
+execution view. `inspectReferenceQuerySnapshot` returns its readiness report;
+`queryReferenceQuerySnapshot(snapshot, expression, queryUri)` returns a native
+result handle. Its `input` is the selected ready root sequence. Pending roots are
+excluded; an empty ready sequence never falls back to the original document.
+Readiness covers namespace preparation, independently of full schema validation.
+Authored descendant references remain inert. Snapshots over one arena can retain
+different completed names and survive later parent changes. Results retain native
+views after `disposeReferenceQuerySnapshot`; `.source` exposes authored nodes.
+Original `queryReferenceSource` continues to inspect the original names.
+
+The resource and snapshot examples in
+[`tests/reference-transport-wasm.mjs`](tests/reference-transport-wasm.mjs) execute
+in both the main heap and an independent worker. Run all maintained reference
+consumer contracts with `yarn nx run cem_ql:test:reference-consumers` (also wired
+into CI). See the [consumer matrix](../../docs/reference-consumer-verification.md).
 
 WASM exports `parseReferenceSource`, `importReferenceReloadBundle`,
 `exportReferenceReloadBundle`, `inspectReferenceSource`, `queryReferenceSource`

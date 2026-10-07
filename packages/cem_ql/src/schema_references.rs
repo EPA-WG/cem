@@ -58,6 +58,7 @@ pub use namespace_activation::{NamespacePropertyActivation, NamespacePropertyAct
 pub use namespace_property::{NamespacePropertyPreparation, NamespacePropertyPreparationIssue};
 pub use namespace_handoff::NamespaceLexicalScopeHandoffError;
 pub use namespace_preparation::{NamespaceScopePreparation, NamespaceScopePreparationIssue};
+pub mod validation_session;
 mod uri_loads;
 mod uri_loader;
 pub use uri_loader::{SchemaUriLoadedScope, SchemaUriLoadTicket};
@@ -465,7 +466,7 @@ impl CemQlSchemaDeclarationHost {
             evaluator,
         )
     }
-    fn source_scope(&self, source: &SchemaDeclarationNode) -> Option<DeclarationScope> {
+    pub(crate) fn source_scope(&self, source: &SchemaDeclarationNode) -> Option<DeclarationScope> {
         self.source_scope_with_assignments(source, &self.node_scopes)
     }
     fn source_scope_with_assignments(
