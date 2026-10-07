@@ -147,6 +147,8 @@ export interface CemMlTemplateCompileResult {
 }
 
 export interface CemQlRenderOptions {
+    /** Enable native relationship ID projection for this persisted producer identity. */
+    elementReferenceInstanceId?: string;
     nativeAttributes?: readonly NativeCemAttributeBinding[];
     nativeSlices?: readonly NativeCemSliceBinding[];
     nativeValueLimits?: CemValueArtifactLimits;
@@ -241,7 +243,7 @@ export class RetainedXsltComponent {
         const { artifactId } = this.ensureNative();
         return withNativeAttributes(options, bindings => mapWasmRenderPlan(renderXsltComponentWithNativeValues(
             artifactId, JSON.stringify(data), JSON.stringify(options.documents ?? []), undefined, bindings,
-            JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS)), options));
+            JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId), options));
     }
 
     dispose(): void {
@@ -771,7 +773,7 @@ export async function renderRetainedCemMlTemplate(
     return withNativeAttributes(options, bindings => mapWasmRenderPlan(renderTemplateWithNativeValues(
         artifactId, options.xpathCompanionId ?? 0, JSON.stringify(data ?? {}),
         JSON.stringify(options.documents ?? []), bindings,
-        JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS)), options));
+        JSON.stringify(options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS), options.elementReferenceInstanceId), options));
 }
 
 function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings: string) => T): T {
@@ -800,6 +802,10 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
 
 function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQlRenderResult {
     const plan = JSON.parse(planJson) as WasmRenderPlan;
+    if (plan.referenceProjectionComplete === false) {
+        throw new CemProcessingDiagnosticError((plan.diagnostics ?? []).map(mapDiagnostic),
+            `${plan.referenceProjectionCode}: ${plan.referenceProjectionMessage}`);
+    }
     const artifact = plan.nativeValueArtifactId == null ? undefined : {
         artifact: takeRenderValueArtifact(plan.nativeValueArtifactId).slice().buffer as ArrayBuffer,
         contentHash: plan.nativeValueContentHash!,
@@ -905,6 +911,7 @@ export async function processRetainedCemMlTemplate(
     }
 
     const renderOptions = {
+        elementReferenceInstanceId: input.identity.instanceId,
         nativeAttributes: input.nativeAttributes,
         nativeSlices: input.nativeSlices,
         nativeValueLimits: input.nativeValueLimits,
@@ -934,6 +941,9 @@ export async function processRetainedCemMlTemplate(
 }
 
 interface WasmRenderPlan {
+    referenceProjectionComplete?: boolean;
+    referenceProjectionCode?: string;
+    referenceProjectionMessage?: string;
     nativeValueArtifactId?: number | null;
     nativeValueContentHash?: string;
     nodes?: WasmRenderNode[];

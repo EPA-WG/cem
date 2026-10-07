@@ -17,6 +17,7 @@ transport never claim that an authored reference has been evaluated.
 | Materialized CEMV export | Empty, nested and repeated constructed references survive DAG transport. Executable source references reject in absent/empty/nonempty target states. Cycles, failed streams, limits and cancellation have distinct attributed outcomes; parent backlinks are excluded from cycle checks. | `cem_ql/tests/reference_export_contract.rs`, `cem_ql/tests/native_value_control.rs` |
 | CLI query / transport | Explicit bundle admission and primary source ID; original source/capture export; binary CEMV output without a text newline. Export failures retain kind and source map in the report and emit no partial successful bytes. Existing JSON descriptors and textual projections remain explicit compatibility exports. | `cem_ml_cli/tests/reference_transport_cli.rs`, `cem_ml_cli/tests/query_cli.rs` |
 | Low-level WASM / worker transport | Source and result handles stay local. Result handles retain the source capture after the source handle is disposed. Workers transfer bundle or CEMV bytes explicitly. Guards report code, kind, original source URI and source map; disposal rejects stale handles. | `cem_ql/tests/reference-transport-wasm.mjs` |
+| cem-element DOM relationships | Native attribute targets map to unique produced placements, preserving explicit IDs or generating instance/placement IDs. All slots share bounded traversal; authored source chains require explicit original contexts/grants. Typed action endpoints and existing local names coexist. | `cem_ql/tests/reference_runtime_resolution/element_ids.rs`, `cem_ql/tests/native-values-wasm.mjs`, `cem-elements/src/lib/element-reference-ids.stories.ts` |
 
 ## Reload lifecycle adoption (2026-10-07)
 
@@ -80,7 +81,7 @@ completed namespaces, authored reference children and retained result lifetime.
 Run `yarn nx run cem_ql:test:reference-consumers`. This maintained target builds
 WASM, runs the listed native source/query/lifecycle/transport suites in ML, QL,
 the engine bridge and CLI, then runs both reference-transport and native-value
-worker fixtures. CI invokes this target explicitly. The final local run passes
+worker fixtures. CI invokes this target explicitly. The adapter checkpoint passed
 284 native checks in 34 suites, including eight new adapter cases, plus both
 worker fixtures. Explicitly marked XML attribute slots and the XML
 expression-element/CDATA path use the same native reference consumer; unlisted
@@ -128,8 +129,15 @@ native cases verify unprepared/prepared/replaced/denied admission, independent
 pending roots, actual compiled declarations, borrowed declaration owners, bounded
 name scans and invocation restoration. Both WASM heaps exercise all four admission
 states and retain independent saved query views.
-The maintained target passes 312 native checks in 36 suites and both real WASM
-worker fixtures (2026-10-07). Actionable follow-ups retain their scenarios in
+The maintained target passes 324 native checks in 36 suites and both real WASM
+worker fixtures after element consumer adoption (2026-10-07). Its 12 new native
+cases cover preserved/generated IDs, original source attributes/owners, explicit
+source lifecycle contexts/grants, repeated slots sharing destination work,
+cardinality, mixed values, nested chains, missing/ambiguous placements, conflicts
+and cancellation. The dedicated browser story checks native command activation,
+typed action endpoints, per-instance IDs, stable rerender and local-name
+compatibility in worker and fallback modes. The runtime unit target passes 588
+tests; typecheck and lint pass. Actionable follow-ups retain their scenarios in
 [todo.md](todo.md#next-three-reference-follow-ups).
 
 ## Separately deferred work
@@ -140,9 +148,11 @@ element-local metadata; ordinary attributes remain literal. Opening block
 directives use literal payloads, with native typed prelude payloads conditional
 on a separate request. General datatype compilation, executable native attribute
 `@type`, conversion and
-equality remain the separate datatype workstream. cem-element reference-to-ID
-projection and interaction conveniences remain deferred until the ML reference
-contract is complete; their actionable items and scenarios remain in
+equality remain the separate datatype workstream. The
+[cem-element reference-to-ID mode](cem-element-reference-ids-design.md) now
+implements the first native consumer contract. Browser/worker lifecycle handoff
+for foreign authored source chains, additional provider endpoints, and dedicated
+SSR/hydration fixtures remain actionable with their scenarios in
 [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 The debug CEMB codec is not a stable production binary format. External AST-owner

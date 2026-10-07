@@ -89,12 +89,12 @@ pub fn render_template_with_cem_documents(
     data_json: &str,
     bindings_json: &str,
 ) -> String {
-    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "")
+    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None)
 }
 
 #[wasm_bindgen(js_name = "renderTemplateWithNativeValues")]
 pub fn render_template_with_native_values(
-    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str,
+    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>,
 ) -> String {
     let limits = match values::limits(limits_json) { Ok(limits) => limits, Err(error) => return error_json("cem.value.limits", error) };
     let mut data = match parse_template_data(data_json) {
@@ -147,6 +147,6 @@ pub fn render_template_with_native_values(
             );
         };
         data.data_readers = artifact.data_readers().clone();
-        plan_json_with_limits(&render_compiled_template(artifact.artifact(), &data), &limits).to_string()
+        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref()).to_string()
     })
 }

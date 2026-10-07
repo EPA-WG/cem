@@ -28,6 +28,30 @@ function verifyDirectInteger() {
     assert.equal(plan.nodes[0].children.map(node => node.text).join(''), '922337203685477580812346|true');
     if (plan.nativeValueArtifactId) wasm.takeRenderValueArtifact(plan.nativeValueArtifactId);
 }
+function verifyElementReferenceIds() {
+    const source = `{cem:variable @name=target @select='data:read("<dialog><b>body</b></dialog>", "xml").root.children'}{button @commandfor={#target}}{cem-action @command-target={#target} @command=show-modal}{span @aria-controls={#(target, target)}}{$target}`;
+    const artifact = JSON.parse(wasm.compileTemplate(source, '[]'));
+    assert.deepEqual(artifact.diagnostics, []);
+    try {
+        for (const instance of ['instance-a', 'instance-b', 'instance-a']) {
+            const result = JSON.parse(wasm.renderTemplateWithNativeValues(artifact.artifactId, 0, '{}', '[]', '[]', limits, instance));
+            assert.deepEqual(result.diagnostics, []);
+            const id = `${instance}-ref-3`;
+            const value = (node, name) => node.attributes.find(a => a.name === name)?.value;
+            assert.equal(value(result.nodes[0], 'commandfor'), id);
+            assert.equal(value(result.nodes[1], 'command-target'), id);
+            assert.equal(value(result.nodes[1], 'data-cem-node-ref-command-target'), '');
+            assert.equal(value(result.nodes[2], 'aria-controls'), `${id} ${id}`);
+            assert.equal(value(result.nodes[3], 'id'), id);
+        }
+        const ambiguous = JSON.parse(wasm.compileTemplate(source + '{$target}', '[]'));
+        try {
+            const rejected = JSON.parse(wasm.renderTemplateWithNativeValues(ambiguous.artifactId, 0, '{}', '[]', '[]', limits, 'instance'));
+            assert.deepEqual(rejected.nodes, []);
+            assert.ok(rejected.diagnostics.some(d => d.code === 'cem.element_reference.target_ambiguous'));
+        } finally { wasm.disposeTemplate(ambiguous.artifactId); }
+    } finally { wasm.disposeTemplate(artifact.artifactId); }
+}
 function produce() {
     const plan = JSON.parse(wasm.renderTemplateSource(source, '{}'));
     assert.deepEqual(plan.diagnostics, []);
@@ -94,6 +118,7 @@ if (isMainThread) {
         await ready();
         verifyDirectInteger();
         verifyDirectReferences();
+        verifyElementReferenceIds();
         assert.equal(consume(restored), true);
         console.log('Native CEM values: separate workers, saved pipeline, fallback and disposal passed.');
     } finally { await rm(directory, { recursive: true, force: true }); }
@@ -101,5 +126,6 @@ if (isMainThread) {
     await ready();
     verifyDirectInteger();
     verifyDirectReferences();
+    verifyElementReferenceIds();
     parentPort.postMessage(workerData.operation === 'produce' ? produce() : consume(workerData.artifact));
 }

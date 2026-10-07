@@ -1023,8 +1023,12 @@ admission, local WASM resource completion and immutable completed-name query
 snapshots. The maintained Nx conformance target covers these adapters and both
 worker fixtures. Per-occurrence inputs, explicit URL public exports and resource
 execution query snapshots remain adapter extensions with actionable items and
-adjacent verification scenarios in the todo list. Deferred child syntax, XML
-attribute authoring and cem-element consumption retain their own decisions.
+adjacent verification scenarios in the todo list. Host-bound child overrides and
+explicit XML attribute opt-in are adopted. The
+[cem-element native ID consumer](docs/cem-element-reference-ids-design.md) now
+implements relationships within a single producer; its explicit foreign-source
+browser lifecycle channel, further provider endpoints and SSR/hydration evidence
+remain actionable in [the consumer list](docs/todo.md#deferred-cem-element-reference-consumption).
 
 ### Scenarios for later design verification
 

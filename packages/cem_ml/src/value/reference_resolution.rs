@@ -200,6 +200,24 @@ where
     )
 }
 
+/// Public consumer entry over a retained owning container. The consumer supplies
+/// its diagnostic origin and chooses only the owning value slots to traverse.
+/// All slots share request and destination work accounting; containment never
+/// adds reference depth. The callback must not evaluate or mutate references.
+pub fn resolve_owned_reference_structure<H, C>(
+    root: H::Node,
+    host: &mut H,
+    limits: ReferenceTraversalLimits,
+    origin: ReferenceOccurrence,
+    children: C,
+) -> Result<ReferenceStructureResolution<H::Node>, ReferenceResolutionError>
+where
+    H: ReferenceResolutionHost,
+    C: FnMut(&H, &H::Node) -> Option<Vec<H::Node>>,
+{
+    resolve_consumer_structure(root, host, limits, Some(origin), children)
+}
+
 /// Internal consumer entry over an original owning container, such as a native
 /// attribute with several authored value nodes. The origin is diagnostic metadata,
 /// not a synthetic reference node. Containment costs work, never reference depth.

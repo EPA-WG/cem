@@ -7,8 +7,8 @@
 **Reference revision adopted 2026-10-04:** the
 [CEM AST reference contract](cem-ql-cem-ml-node-references-design.md) governs
 scope defaults, explicit scope crossings, runtime evaluation, and unresolved
-links. The `cem-element` reference mode and concrete interaction attribute API
-are deferred until that reference design is complete, with action items and
+links. The `cem-element` reference mode and typed interaction attribute API are adopted in
+[the consumer design](cem-element-reference-ids-design.md), with action items and
 verification scenarios in
 [todo.md](todo.md#deferred-cem-element-reference-consumption). This revision
 supersedes the former CEM-specific bare `#id` browser-tree lookup contract;
@@ -43,15 +43,15 @@ Examples are HTML API illustrations, not executable fixtures or CEM-ML conversio
 | Attribute | Applies to | Meaning |
 | --- | --- | --- |
 | `trigger` | Popup/dialog/menu | Literal plain-text generated button label |
-| `trigger-for` | Popup/dialog/menu | External invoker/control relationship; reference input API deferred |
-| `interaction-scope` | Participating container | Explicit interaction boundary; relationship to implied scope defaults deferred |
-| `interaction-name` | Surface/descriptor | Local convenience name; compatibility and resolution API deferred |
+| `trigger-for` | Popup/dialog/menu | External invoker/control relationship; native element reference |
+| `interaction-scope` | Participating container | Existing local-name compatibility boundary; typed scope crossings use lifecycle grants |
+| `interaction-name` | Surface/descriptor | Local convenience name within the nearest compatibility boundary |
 | `surface-id` | Surface provider | Explicit ID on the produced native owner, for native external invokers |
-| `command-target` | CEM action/descriptor | Element/provider reference; concrete typed input and local-name convenience API deferred |
+| `command-target` | CEM action/descriptor | Native element/provider reference; existing @local-name compatibility |
 | `command` | CEM action/descriptor | Native built-in or namespaced custom command |
-| `interaction` | CEM action | Shared descriptor reference; concrete input API deferred |
+| `interaction` | CEM action | Native descriptor reference; existing @local-name compatibility |
 | `context-key` | CEM action/descriptor | Opaque item key captured at invocation; declaratively bindable |
-| `parent-item` | Independent submenu | Explicit parent control/provider relationship; reference syntax deferred |
+| `parent-item` | Independent submenu | Explicit native parent control/provider reference |
 
 Do not use `action` as a trigger alias. Do not overload native link `target`, form `name`, or stylesheet `scope`. Values are references/plain data, not selectors or a new expression language. Rich invocation context uses native CEM data bindings.
 
@@ -117,11 +117,15 @@ document parts at the resource/consumer boundary. It is not a CEM-specific
 browser-tree lookup or a CEM-QL string lookup. Native HTML ID relationships
 continue to follow their native contract.
 
-The consumer follow-up specifies template reference detection, the element-to-ID
-resolution mode, concrete cross-scope inputs, and compatibility with local-name
-conveniences. It must decide how the existing `@name`, `interaction-name`, and
-`interaction-scope` forms fit implicit scope defaults. This revision does not
-choose replacement spellings or a new registry/root-marking requirement.
+The [adopted consumer mode](cem-element-reference-ids-design.md) detects native
+node/reference values in relationship attributes, such as
+`@command-target={#provider}` and `@interaction={#descriptor}`. It maps original
+element identities to produced placements and preserves or generates their DOM
+IDs. Runtime projection markers distinguish these consumed typed values from
+existing `@name`, `interaction-name` and `interaction-scope` compatibility inputs.
+Typed references need no authored root marker. Foreign original scopes require
+explicit lifecycle grants; targets outside the current producer forest remain
+incomplete until an external placement channel is designed.
 
 | Combination | Resolution |
 | --- | --- |
@@ -216,10 +220,12 @@ CEM interaction references designate the appropriate element/provider;
 built-ins ultimately address the actual native owner, while custom CEM
 commands target the stable provider endpoint. `cem-element` owns detecting
 references in templates and the mode resolving element references to produced
-IDs, preserving explicit IDs or generating them when needed. Specification
-and implementation of that mode remain deferred in
-[todo.md](todo.md#deferred-cem-element-reference-consumption). CEM-ML does not
-choose the native owner or perform ID extraction.
+IDs, preserving explicit IDs or generating them when needed. The
+[adopted mode](cem-element-reference-ids-design.md) is implemented in shared native
+projection; the action capability consumes typed command-target and interaction
+endpoints. Foreign-source browser lifecycle wiring and other provider capabilities
+remain tracked in [todo.md](todo.md#deferred-cem-element-reference-consumption).
+CEM-ML does not choose the native owner or perform ID extraction.
 
 Generated triggers choose a native route when it preserves full policy,
 otherwise a shared adapter. Generated close controls use native request-close
@@ -399,7 +405,7 @@ Do not silently change semantic kind, overwrite authored roles, or bind the firs
 All seven conveniences remain accepted: semantic inference; inherited submenu
 context; invocation/focus-return capture; close affordance; template-retained
 body; leaf dismissal; local names. The concrete reference input API and
-local-name compatibility are deferred as described above.
+local-name compatibility follow the adopted consumer mode above.
 
 | Area | Required evidence |
 | --- | --- |
@@ -423,11 +429,11 @@ Deferred: async service completion, loading/error visual slots, global shortcut/
 ## 14. Accepted decisions
 
 Public names and contracts are accepted subject to the 2026-10-04 reference
-revision and its deferred consumer API. Accepted defaults include persistent
+revision and the 2026-10-07 adopted consumer API. Accepted defaults include persistent
 nonmodal dialog, inherited scope relationships with explicit scope crossings,
 body-template retention with disposal only when requested, and recursive
 command menus without popup hosts. Bare CEM `#id` browser-tree lookup is
-superseded; local-name input compatibility and the reference-to-ID mode remain
+superseded; typed inputs and local-name compatibility follow the adopted consumer mode; additional provider capabilities remain
 actionable follow-ups.
 
 Future implementation must follow these names and contracts. Changes to the accepted design must be explicit document revisions rather than implementation-local deviations. Design acceptance remains distinct from implementing these APIs or changing currently shipped behavior. Standards sources define native behavior; CEM defaults and extra relationships are design decisions. Browser support must be checked against the supported version matrix before implementation, especially invoker commands, interest invokers, dialog closedby, and CSS anchors.

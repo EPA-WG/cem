@@ -727,7 +727,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'action-command': {
         behavior: CEM_ACTION_COMMAND_CAPABILITY,
-        behaviorIdentity: 'cem-elements-action-command-v1',
+        behaviorIdentity: 'cem-elements-action-command-v2',
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,

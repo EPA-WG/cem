@@ -383,3 +383,6 @@ fn reloaded_cyclic_graph_exposes_native_target_handles_without_expanding_childre
         payload
     );
 }
+
+#[path = "reference_runtime_resolution/element_ids.rs"]
+mod element_ids;

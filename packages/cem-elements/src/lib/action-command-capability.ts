@@ -23,7 +23,14 @@ function attribute(element: Element, name: string, value: string | null): void {
 function control(host: HTMLElement): HTMLButtonElement | null {
     return host.querySelector<HTMLButtonElement>(':scope > button[part~="control"]');
 }
-function reference(source: Element, value: string): Resolution {
+function nativeReference(source: Element, id: string): Resolution {
+    const root = source.getRootNode() as Document | ShadowRoot;
+    const candidates = [...root.querySelectorAll('[id]')].filter(node => node.id === id);
+    if (candidates.length > 1) return { code: 'interaction-name-duplicate' };
+    return candidates.length === 1 ? { target: candidates[0] } : { code: 'interaction-reference-missing' };
+}
+function reference(source: Element, value: string, name?: string): Resolution {
+    if (name && source.hasAttribute(`data-cem-node-ref-${name}`)) return nativeReference(source, value);
     let candidates: Element[];
     if (value.startsWith('@')) {
         if (!/^[\w.-]+$/.test(value.slice(1))) return { code: 'interaction-reference-missing' };
@@ -41,7 +48,7 @@ function reference(source: Element, value: string): Resolution {
 function resolve(host: HTMLElement): Resolution {
     let descriptor: Element | undefined;
     if (host.hasAttribute('interaction')) {
-        const result = reference(host, host.getAttribute('interaction') ?? '');
+        const result = reference(host, host.getAttribute('interaction') ?? '', 'interaction');
         if (result.code) return result;
         descriptor = result.target;
         if (descriptor?.localName !== 'cem-interaction' || descriptor.hasAttribute('interaction')) {
@@ -53,11 +60,11 @@ function resolve(host: HTMLElement): Resolution {
     const contextKey = host.getAttribute('context-key') ?? descriptor?.getAttribute('context-key') ?? null;
     if (targetName !== undefined && targetName !== null) {
         if (host.hasAttribute('commandfor') || host.hasAttribute('popovertarget')) return { code: 'interaction-dual-route' };
-        const result = reference(host.hasAttribute('command-target') ? host : (descriptor ?? host), targetName);
+        const result = reference(host.hasAttribute('command-target') ? host : (descriptor ?? host), targetName, 'command-target');
         if (result.code) return result;
         if (result.target?.localName === 'cem-interaction') return { code: 'interaction-reference-conflict' };
         if (descriptor && host.hasAttribute('command-target')) {
-            const inherited = reference(descriptor, descriptor.getAttribute('command-target') ?? '');
+            const inherited = reference(descriptor, descriptor.getAttribute('command-target') ?? '', 'command-target');
             if (inherited.code || inherited.target !== result.target) return { code: 'interaction-reference-conflict' };
         }
         if (!command || (!nativeCommands.has(command) && !command.startsWith('--'))) {
@@ -79,7 +86,7 @@ function resolve(host: HTMLElement): Resolution {
     }
     const nativeTarget = host.getAttribute('commandfor') ?? host.getAttribute('popovertarget');
     if (nativeTarget !== null) {
-        const result = reference(host, `#${nativeTarget}`);
+        const result = nativeReference(host, nativeTarget);
         if (result.code) return result;
         return { ...result, command: host.hasAttribute('commandfor') ? command : undefined, contextKey };
     }
@@ -155,7 +162,7 @@ function observe(host: HTMLElement, root: Document | ShadowRoot): void {
         const update = () => { for (const member of hosts) synchronize(member); };
         const observer = new MutationObserver(update);
         observer.observe(root, { childList: true, subtree: true, attributes: true,
-            attributeFilter: ['id', 'interaction-scope', 'interaction-name', 'command-target', 'interaction', 'command', 'commandfor', 'popovertarget', 'popover', 'context-key', 'open', 'type', 'part', 'expanded', 'aria-expanded'] });
+            attributeFilter: ['id', 'data-cem-node-ref-command-target', 'data-cem-node-ref-interaction', 'interaction-scope', 'interaction-name', 'command-target', 'interaction', 'command', 'commandfor', 'popovertarget', 'popover', 'context-key', 'open', 'type', 'part', 'expanded', 'aria-expanded'] });
         root.addEventListener('toggle', update, { capture: true, signal: abort.signal });
         root.addEventListener('close', update, { capture: true, signal: abort.signal });
         group = { hosts, observer, abort };

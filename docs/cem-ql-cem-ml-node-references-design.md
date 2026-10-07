@@ -398,7 +398,8 @@ and [the roadmap](../roadmap.md#deferred-cem-reference-query-and-transport-contr
 
 The original child-override deferral is superseded by the 2026-10-07
 [host-bound syntax adoption](#implicit-scope-references-and-defaults);
-`cem-element` ID generation and binding remain separately deferred consumer work.
+`cem-element` ID generation and binding follow the separately owned
+[adopted consumer mode](cem-element-reference-ids-design.md).
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
 now distinguish lexical lookup from consumer cardinality. Adopted on 2026-10-06:
@@ -1375,10 +1376,15 @@ through the [retained CEM AST import boundary](cem-data-import-principle.md),
 and instance state follows the
 [durable lifecycle](cem-element-lifecycle-principle.md).
 
-Specific `cem-element` treatment is deferred until the CEM-ML reference design
-is complete. Its intended template reference detection and element-to-ID mode,
-interaction API, explicit scope crossings, and local-name compatibility are
-action items in [todo.md](todo.md#deferred-cem-element-reference-consumption).
+The [cem-element consumer mode](cem-element-reference-ids-design.md), adopted
+2026-10-07, detects native relationship values at final DOM export. It maps
+original targets to unique produced placements, preserves explicit IDs, and
+uses persisted instance identity when generating IDs. Typed interaction inputs
+and existing local-name conveniences use separate runtime projection metadata.
+Source-reference evaluation uses an explicitly supplied lifecycle host with
+original scopes, contexts and directed grants. Browser wiring for foreign-source
+chains and additional provider adoption remain actionable in
+[todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 ## Public query reference access (adopted 2026-10-06)
 
@@ -1558,7 +1564,10 @@ without requiring runtime contexts or synthetic context IDs in source exports.
   records, runtime outcome handling, and schema traversal limits and policy
   declarations are actionable work in
   [todo.md](todo.md#ast-node-reference-implementation).
-- `cem-element` consumer modes and attribute API remain deferred in
+- `cem-element` ID projection and typed interaction inputs are adopted in
+  [the consumer design](cem-element-reference-ids-design.md). Shared native
+  rendering and action endpoints implement the bounded first contract; further
+  lifecycle/provider adoption is in
   [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 Scenarios for later design verification are preserved next to those action

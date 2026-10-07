@@ -40,6 +40,8 @@ use std::{
     },
 };
 
+mod element_references;
+pub use element_references::CemQlElementReferenceHost;
 mod source_diagnostics;
 mod lexical_handoff;
 mod scope_preparation;

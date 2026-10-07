@@ -129,7 +129,24 @@ and reserve the `instanceID` binding name for the runtime. Authors importing or
 cloning serialized instances must preserve document-wide uniqueness themselves;
 restoring the same snapshot twice does not allocate a fresh identity.
 
-The binding creates no DOM attribute or CSS custom property. When needed, author
+Native template references in relationship attributes, such as
+`@commandfor={#target}` or `@command-target={#provider}`, can designate an element
+inserted into the same render forest. Shared native projection preserves its ID
+or generates one from the persisted instance identity and produced placement.
+Forward targets work; repeated placements, missing targets and incomplete chains
+return diagnostics without publishing a replacement plan. The action capability
+accepts projected typed `command-target`/`interaction` endpoints alongside its
+existing scoped `@local-name` conveniences. Plain native ID strings stay unchanged.
+See the [consumer contract](../../docs/cem-element-reference-ids-design.md).
+
+`CemQlRenderOptions.elementReferenceInstanceId` explicitly enables this consumer
+for low-level retained CEM-ML/XSLT render calls. The shared cem-element processing
+path supplies `identity.instanceId` automatically. Generic CEM-QL rendering keeps
+its existing projection. Authored foreign-source chains require an explicit
+native lifecycle host; the browser convenience mode does not manufacture their
+contexts or crossing grants. Targets outside the producer forest remain unsupported.
+
+The `instanceID` binding creates no DOM attribute or CSS custom property. When needed, author
 a complete URL-valued property and matching target explicitly:
 
 ````cem-ml

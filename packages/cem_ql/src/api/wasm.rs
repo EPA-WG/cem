@@ -414,6 +414,37 @@ fn parse_template_data(input: &str) -> Result<TemplateData, String> {
     Ok(data)
 }
 
+fn plan_json_for_elements(
+    plan: &RenderPlan,
+    limits: &cem_ml::value::artifact::CemValueArtifactLimits,
+    instance: Option<&str>,
+) -> Value {
+    let Some(instance) = instance else {
+        return plan_json_with_limits(plan, limits);
+    };
+    let control = cem_ml::operation_control::OperationControl::default();
+    match crate::render::project_element_reference_ids(
+        plan,
+        instance,
+        limits,
+        &control,
+        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+    ) {
+        Ok(plan) => plan_json_with_limits(&plan, limits),
+        Err(error) => {
+            values::clear_output();
+            json!({
+                "nodes": [],
+                "hostAttributeUpdates": [],
+                "referenceProjectionComplete": false,
+                "referenceProjectionCode": error.code(),
+                "referenceProjectionMessage": error.to_string(),
+                "diagnostics": diagnostics_json(&error.diagnostics)
+            })
+        }
+    }
+}
+
 fn plan_json(plan: &RenderPlan) -> Value {
     plan_json_with_limits(plan, &cem_ml::value::artifact::CemValueArtifactLimits::default())
 }

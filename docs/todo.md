@@ -56,6 +56,13 @@ host-bound overrides, XML native slot opt-in and bounded literal block preludes.
 namespace preparation, XML reload/worker conformance and cem-element consumer
 design; they preserve the completed source/query contracts and original scenarios.
 
+Consumer checkpoint (2026-10-07): the first cem-element ID mode and typed action
+endpoints are adopted and implemented. Native embedding hosts can supply original
+source contexts/policies/grants; the browser/worker path consumes materialized
+reference edges in one producer forest. The next consumer actions cover explicit
+foreign-source browser lifecycle handoff, further provider capabilities and
+SSR/hydration evidence; their verification scenarios remain adjacent below.
+
 ### 1. Audit current work and define schema contracts
 
 - [x] Fixture: verify schema-owned standard reference traversal limits and
@@ -3008,7 +3015,7 @@ selectors and activation under request/destination work caps. Six added native
 cases and both WASM heaps cover preparation, replacement, crossing grants,
 independent roots, original owners and invocation restoration.
 
-- [ ] Design the deferred cem-element reference-to-ID consumption mode now that
+- [x] Design the deferred cem-element reference-to-ID consumption mode now that
       the CEM-ML reference syntax is settled. Detect native template references,
       resolve element targets at transformation time, preserve explicit IDs and
       generate scoped IDs only when the consumer needs them. Define evaluation
@@ -3016,7 +3023,7 @@ independent roots, original owners and invocation restoration.
       Scenarios for later design verification: two instances share one template
       with distinct datadom inputs and IDs; cross-scope relationships are explicit;
       source references remain typed and unchanged by DOM projection.
-- [ ] Design the cem-element interaction attribute API for typed node references
+- [x] Design the cem-element interaction attribute API for typed node references
       and explicit cross-scope relationships, including compatibility with existing
       local-name convenience attributes. Adopt it with the reference-to-ID mode
       before implementing the shared transformation path.
@@ -3024,9 +3031,12 @@ independent roots, original owners and invocation restoration.
       documented scope; explicit native relationships preserve target identity;
       unsupported crossings and incomplete targets cannot fabricate valid DOM IDs.
 
-After that consumer design is adopted, the third follow-up is its existing
-[shared transformation implementation item](#deferred-cem-element-reference-consumption).
-Its verification scenarios remain beside the canonical action items below.
+The third follow-up, [shared transformation implementation](#deferred-cem-element-reference-consumption),
+is complete for the adopted bounded consumer mode. The maintained
+[consumer design](cem-element-reference-ids-design.md) records the supported
+relationship attributes, unique produced placements, explicit source lifecycle
+adapter, ID ownership and local-name compatibility. Remaining browser lifecycle,
+provider and SSR/hydration actions retain their scenarios in that canonical list.
 
 ## Reference adoption: dependency binding and readiness
 
@@ -3384,11 +3394,14 @@ workstream; no new constant syntax is adopted by the reference work.
 
 ## Deferred cem-element reference consumption
 
-Deferred on 2026-10-04 until the CEM-ML reference design is complete. The adopted
-[consumer responsibilities](cem-ql-cem-ml-node-references-design.md#consumer-responsibilities-and-examples)
-establish ownership; adoption does not choose or implement the consumer mode.
+Initially deferred on 2026-10-04 until the CEM-ML reference design was complete.
+The [consumer mode](cem-element-reference-ids-design.md) is adopted and implemented
+on 2026-10-07 for native relationships within one produced forest. Generic
+CEM-QL export remains separate. Explicit source lifecycle evaluation is available
+through the native embedding adapter; the browser convenience path consumes
+materialized reference edges and does not invent foreign-source contexts or grants.
 
-- [ ] Specify `cem-element` treatment of references: detect reference nodes in
+- [x] Specify `cem-element` treatment of references: detect reference nodes in
       templates and provide a transformation mode that resolves element
       references to the produced elements' IDs, preserving explicit IDs and
       generating IDs when needed. Decide the interaction attribute API,
@@ -3397,12 +3410,79 @@ establish ownership; adoption does not choose or implement the consumer mode.
       context and timing; ID generation and extraction remain consumer-owned.
       The two design actions in [the reference follow-ups](#next-three-reference-follow-ups)
       track this contract's mode and interaction API separately.
-- [ ] After that consumer contract is specified, implement and verify the
+      Scenarios for later design verification: original owners stay intact; no
+      context-root ID is required; source scope crossings remain explicitly granted.
+- [x] After that consumer contract is specified, implement and verify the
       reference-to-ID mode in the shared `cem-elements` transformation path.
       Add actionable fixture items before creating fixtures.
       Scenarios for later design verification: explicit IDs survive projection;
       generated IDs and datadom inputs are independent between instances, with
       explicit relationship crossings and unchanged authored references.
+- [x] Fixture: verify native element-reference ID projection before DOM export:
+      explicit/generated IDs, repeated instances, nested reference chains, original
+      owners, missing/multiple/non-element targets, ambiguous placements, pending
+      source references, directed crossing denial/grants and bounded traversal.
+      Include per-attribute cardinality, HTML token-set projection and work shared
+      across multiple attributes entering one constrained destination scope.
+      Verify literal XML relationship attributes copied from a native source stay
+      lexical, including their authored IDs; text nodes are not implicit targets.
+      Scenarios for later design verification: no incomplete result fabricates an
+      ID; target descendants remain authored; warning/ignored links retain their
+      disposition while the bounded mode withholds an incomplete replacement plan.
+- [x] Fixture: verify the same reference-to-ID render entry point in independent
+      WASM heaps and the shared cem-elements processing path; cover native
+      relationship attributes, interaction projection markers and legacy local names.
+      Scenarios for later design verification: worker and fallback share the native
+      algorithm; stable instance identity survives rerender without source mutation.
+
+Verification (2026-10-07): the maintained `cem_ql:test:reference-consumers`
+target passes 324 native checks in 36 suites and both real WASM worker fixtures,
+including 12 new native element-ID consumer cases. `cem-elements:test:unit`
+passes 588 tests; typecheck and lint pass. The dedicated browser story checks
+native command activation, generated IDs, typed action endpoints, unchanged
+rerender identity and local-name compatibility in worker and fallback modes.
+All six existing XSLT lifecycle browser cases also pass under the shared mode.
+
+### Next three consumer actions
+
+- [ ] Wire explicit foreign-source lifecycle inputs into the browser/worker
+      processing boundary, using original retained owners and lexical capture,
+      per-instance runtime contexts, effective policies and directed grants.
+      Reuse the native adapter; do not evaluate authored references in JavaScript
+      or treat imported ownership as crossing authority. Add native and two-heap
+      fixture actions before implementation.
+      Scenarios for later design verification: two instances evaluate one source
+      reference against distinct datadom inputs; context replacement/disposal
+      invalidates pending work; missing grants remain incomplete without IDs.
+- [ ] Adopt typed projected endpoints in the remaining shared interaction
+      capabilities, beginning with `trigger-for` and `parent-item`; specify native
+      focus/anchor slots before enabling them. Validate each provider's semantic
+      role, observe marker changes, retain nearest-scope local-name compatibility,
+      and add explicit browser fixture actions before implementation.
+      Scenarios for later design verification: typed endpoints retain selected
+      identity across provider rerender; recursive submenu relationships respect
+      explicit scope crossings; invalid roles cannot silently select another node.
+- [ ] Add dedicated SSR/Edge/hydration and incomplete-publication fixtures for the
+      adopted ID mode. Exercise the existing shared native entry point with
+      persisted instance identities, restored generated/authored IDs and
+      replacement/disposal/reconnect; add fixture checkitems before creating them.
+      Scenarios for later design verification: unchanged placements retain IDs
+      through hydration; failed replacements preserve prior live relationships;
+      separate restored instances retain the documented uniqueness obligation.
+
+### Further explicit boundaries
+
+- [ ] Design a granted placement channel before admitting typed targets produced
+      by another instance or outside the current producer forest. Define ownership,
+      readiness, uniqueness, revocation and transactional publication; do not
+      replace it with a document-wide CEM ID search.
+      Scenarios for later design verification: another instance's matching ID
+      grants no native relationship; revoked/ambiguous placements remain incomplete.
+- [ ] Review a versioned ARIA relationship profile before adopting draft
+      list-valued `aria-details`/`aria-errormessage`. The initial consumer uses the
+      WAI-ARIA 1.2 Recommendation's single-target contract.
+      Scenarios for later design verification: changing profiles changes export
+      cardinality explicitly and never rewrites the authored reference sequence.
 
 ### Scenarios for later design verification
 
