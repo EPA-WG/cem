@@ -15,7 +15,7 @@ use cem_ml::{
     source_map::SourceMapStack,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -71,6 +71,7 @@ impl ReferenceConsumerReport {
 struct SourceInputs {
     source: RetainedReferenceSource,
     context: Option<StandaloneExpressionContext>,
+    occurrence_contexts: BTreeMap<AstNodeId, Option<StandaloneExpressionContext>>,
     policy: Option<ReferenceScopePolicy>,
     limits: Option<cem_ml::schema::reference_traversal::ReferenceTraversalLimits>,
 }
@@ -90,12 +91,14 @@ impl ReferenceValidationSession {
                 SourceInputs {
                     source,
                     context: None,
+                    occurrence_contexts: BTreeMap::new(),
                     policy: None,
                     limits: None,
                 },
                 SourceInputs {
                     source: schema,
                     context: None,
+                    occurrence_contexts: BTreeMap::new(),
                     policy: None,
                     limits: None,
                 },
@@ -119,6 +122,7 @@ impl ReferenceValidationSession {
         self.sources.push(SourceInputs {
             source,
             context: None,
+            occurrence_contexts: BTreeMap::new(),
             policy: None,
             limits: None,
         });
@@ -175,13 +179,79 @@ impl ReferenceValidationSession {
         self.revision.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
+    /// Override the runtime input for an original occurrence and its owning
+    /// descendants. Explicit None shadows ready defaults; clearing inherits again.
+    pub fn set_occurrence_context(
+        &mut self,
+        source: usize,
+        node: AstNodeId,
+        context: Option<StandaloneExpressionContext>,
+    ) -> Result<(), String> {
+        let inputs = self
+            .sources
+            .get_mut(source)
+            .ok_or("Unknown session source")?;
+        if inputs.source.ingress().source().ast().get(node).is_none() {
+            return Err("Unknown original node handle".into());
+        }
+        inputs.occurrence_contexts.insert(node, context);
+        self.revision.fetch_add(1, Ordering::Relaxed);
+        Ok(())
+    }
+    pub fn set_occurrence_value_context(
+        &mut self,
+        source: usize,
+        value: &crate::eval::Item,
+        context: Option<StandaloneExpressionContext>,
+    ) -> Result<(), String> {
+        let node = self.occurrence_value_node(source, value)?;
+        self.set_occurrence_context(source, node, context)
+    }
+    pub fn clear_occurrence_value_context(
+        &mut self,
+        source: usize,
+        value: &crate::eval::Item,
+    ) -> Result<(), String> {
+        let node = self.occurrence_value_node(source, value)?;
+        self.clear_occurrence_context(source, node)
+    }
+    fn occurrence_value_node(
+        &self,
+        source: usize,
+        value: &crate::eval::Item,
+    ) -> Result<AstNodeId, String> {
+        let inputs = self.sources.get(source).ok_or("Unknown session source")?;
+        let node = crate::eval::retained_cem_node(value)
+            .ok_or("An original native source occurrence is required")?;
+        if !Arc::ptr_eq(
+            inputs.source.ingress().source().ast_owner(),
+            node.owner().ast_owner(),
+        ) {
+            return Err("Occurrence belongs to another source owner".into());
+        }
+        Ok(node.node_id())
+    }
+    pub fn clear_occurrence_context(
+        &mut self,
+        source: usize,
+        node: AstNodeId,
+    ) -> Result<(), String> {
+        let inputs = self
+            .sources
+            .get_mut(source)
+            .ok_or("Unknown session source")?;
+        if inputs.source.ingress().source().ast().get(node).is_none() {
+            return Err("Unknown original node handle".into());
+        }
+        inputs.occurrence_contexts.remove(&node);
+        self.revision.fetch_add(1, Ordering::Relaxed);
+        Ok(())
+    }
     fn context_for(&self, source: &SchemaDeclarationNode) -> Option<StandaloneExpressionContext> {
         self.sources
             .iter()
-            .find(|s| {
-                std::sync::Arc::ptr_eq(s.source.ingress().source().ast_owner(), source.document())
-            })
-            .and_then(|s| s.context.clone())
+            .find(|s| Arc::ptr_eq(s.source.ingress().source().ast_owner(), source.document()))
+            .and_then(|s| s.context_for(source.node_id()))
     }
     fn host(
         &self,
@@ -202,15 +272,15 @@ impl ReferenceValidationSession {
             }
             let scope = host.register_scope(
                 inputs.source.ingress().source().clone(),
-                inputs.context.clone(),
+                inputs.context_for(0),
                 policy,
             );
             scopes.push(scope);
             if let Ok(capture) = inputs.source.require_lexical() {
                 host.attach_captured_namespaces(capture.clone())
                     .map_err(|e| format!("{e:?}"))?;
-                host.attach_captured_lexical_scopes_with_policy_overrides(capture, |_, _, _| {
-                    (inputs.context.clone(), Default::default())
+                host.attach_captured_lexical_scopes_with_policy_overrides(capture, |node, _, _| {
+                    (inputs.context_for(node.node_id()), Default::default())
                 })
                 .map_err(|e| format!("{e:?}"))?;
             }
@@ -525,5 +595,19 @@ impl Clone for ReferenceValidationSession {
             crossings: self.crossings.clone(),
             revision: Arc::new(AtomicU64::new(0)),
         }
+    }
+}
+
+impl SourceInputs {
+    fn context_for(&self, node: AstNodeId) -> Option<StandaloneExpressionContext> {
+        let tree = self.source.ingress().source();
+        let mut current = Some(node);
+        while let Some(node) = current {
+            if let Some(context) = self.occurrence_contexts.get(&node) {
+                return context.clone();
+            }
+            current = tree.source_parent(node);
+        }
+        self.context.clone()
     }
 }

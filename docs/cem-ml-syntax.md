@@ -202,6 +202,39 @@ XML convention:
 
 For template-aware attribute values, literal braces escape as `{{` and `}}`.
 
+### Native attribute expression slots
+
+An unquoted CEM-ML attribute `{...}` is an owning native expression slot;
+`{#nodes}` retains a Reference node, and `{nodes}` retains a general expression.
+Quoted brace-looking values remain authored strings. Template-aware AVT handling
+is an explicit consumer capability and does not change this AST distinction.
+
+XML opts into native slots with the core namespace control
+`expression-attributes`, listing the exact authored attribute QNames on that
+same element:
+
+```xml
+<item xmlns:c="https://cem.dev/ns/core/1"
+      c:expression-attributes="target c:schema-select"
+      target="{#nodes}" c:schema-select="{#schema}" literal="{#nodes}"/>
+```
+
+Only listed attributes become native slots; unlisted strings stay literal. The
+marker follows its expanded namespace name, so aliases are supported and a
+foreign prefix named `cem` cannot opt in. It is element-local and has no inherited
+default. Missing/duplicate targets, selecting the marker itself, malformed or
+empty slots, and `xmlns`/`xmlns:*`/`xml:*` targets fail at import. XML namespace
+and reserved XML attributes retain standard literal semantics. The marker remains
+source metadata and is excluded from application attribute validation.
+
+The import boundary decodes entities once and retains scalar-aligned original
+source frames, owning value edges and lexical bindings after the complete header.
+No query or reference is evaluated during import. Validation and other consumers
+use the same native slots as CEM-ML, with their supplied contexts, bounds and
+directed grants. Unresolved native values require consumer resolution before
+ordinary markup export.
+
+
 ### Content Runs
 
 The `|` token starts the content plane explicitly. Its Unicode equivalent is
@@ -603,10 +636,24 @@ effective schema policy while callers define relationship boundaries and their
 permitted crossings. Distinct lexical snapshots may share one relationship
 boundary; their runtime evaluation inputs and compiled artifacts remain separate.
 
-The exact enclosed scope-reference syntax for child overrides is deferred in
-[roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The current
-schema and namespace forms remain in use; the reference design does not select
-a new delimiter or replacement syntax.
+Enclosed child overrides use the existing host-bound properties (adopted
+2026-10-07). The containing node supplies the implicit scope root; the property
+name supplies the relationship. No new delimiter or authored context ID is needed.
+
+```cem
+@ns cem = https://cem.dev/ns/core/1
+{section @cem:schema-select={#schema} @xmlns:p={#namespace} |
+  {p:item}
+}
+```
+
+The selected schema governs the host's existing schema region; the namespace
+binding governs the host header/body under existing namespace rules. Both end
+with that host and restore enclosing defaults. A wrapping
+`{cem:schema @select={#schema} | ...}` remains an alternative schema enclosure.
+A no-body schema switch retains its enclosing context and governs following
+siblings. Native slots retain source occurrences; consumers require ready targets
+and explicit crossing authority before using them.
 
 ### Form Matrix
 
@@ -625,13 +672,19 @@ sibling-position schema switch at the same point in the event stream. Use
 `{cem:schema ...}` when the schema switch itself needs source identity, a query
 form, wrapping content, or parity with XML examples.
 
-Implementation note (2026-10-06): native runtime activation supports retained
-**document-level** directive payloads with the existing literal `src`/`select`
-header. The tokenizer currently retains `@schema` inside block content as text;
-block parsing is deferred until recognition and literal-text compatibility are
-specified in
-[the implementation list](todo.md). Native reference slots use the existing
-schema-element or host attribute forms until prelude slot syntax is specified.
+Block preludes (adopted 2026-10-07) recognize `@schema`, `@ns` and `@default`
+on their own physical lines (LF, CRLF or CR), preceded only by spaces/tabs, before the first
+substantive body item. Whitespace and block comments preserve the opening
+prelude; text, nodes, expressions, rich content and processing instructions end
+it. Each nested body has its own prelude, and bindings restore when it closes.
+Same-line controls, unknown directive names, directive-looking text after body
+content and `\@schema` remain literal text, including the authored backslash.
+`//` inside a body remains text, preserving URL compatibility. `@doc` is a
+document directive. Existing document directives retain their behavior.
+
+Directive payloads remain literal `src`/`select` headers. For native reference or
+general expression slots, use host or schema-element attributes. Typed prelude
+payloads are a separately conditional follow-up in [todo.md](todo.md).
 
 ### Inline Declaration
 

@@ -171,7 +171,8 @@ fn independent_completion_ingress_exposes_names_and_original_authored_source() {
         assert!(Arc::ptr_eq(completion, &names));
         assert_eq!(owner.stream().items.len(), 2);
         let projected = &result[6];
-        identities.push(projected.identity());
+        // Retain both native views until their execution identities are compared.
+        identities.push(projected.clone());
         let original = retained_cem_node(projected).unwrap();
         assert!(Arc::ptr_eq(original.owner(), &input.tree));
         assert_eq!(original.node_id(), root);
@@ -179,7 +180,7 @@ fn independent_completion_ingress_exposes_names_and_original_authored_source() {
         assert_eq!(projected.source_map(), raw.source_map());
         assert!(!projected.source_map().unwrap().frames.is_empty());
     }
-    assert_ne!(identities[0], identities[1]);
+    assert_ne!(identities[0].identity(), identities[1].identity());
     assert!(input
         .captured
         .expanded_name(input.tree.ast_owner(), root)
@@ -552,7 +553,8 @@ fn prepared_properties_activate_saved_dependencies_and_shared_query_ingress() {
             "(input.namespace, input.source.namespace, input)",
         );
         assert_eq!(&items(&response)[..5], strings(&expected));
-        identities.push(items(&response)[10].identity());
+        // Compare live execution views. Dropped views may reuse their addresses.
+        identities.push(items(&response)[10].clone());
         let owner = response
             .result
             .input_ast_owner
@@ -613,7 +615,7 @@ fn prepared_properties_activate_saved_dependencies_and_shared_query_ingress() {
         }
         assert!(items(&response)[10].source_map().is_some());
     }
-    assert_ne!(identities[0], identities[1]);
+    assert_ne!(identities[0].identity(), identities[1].identity());
     assert!(properties.iter().all(|id| input
         .captured
         .namespace_binding(input.tree.ast_owner(), *id)

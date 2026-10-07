@@ -49,9 +49,12 @@ Implementation checkpoint (2026-10-07): CLI/native source reload admission,
 atomic metadata attachment, local WASM validation/resource staging and immutable
 completed-name query snapshots now extend the supported consumers. The maintained
 `cem_ql:test:reference-consumers` target covers the native matrix and both worker
-fixtures and is wired into CI. Convenience host adapter extensions remain
-[three explicit follow-ups](#next-three-reference-host-adapter-follow-ups), without
-reopening the completed source/query contracts or merging deferred consumers.
+fixtures and is wired into CI. The six-item syntax/adapter adoption now closes
+occurrence inputs, explicit public exports, saved resource query views, enclosed
+host-bound overrides, XML native slot opt-in and bounded literal block preludes.
+[Next three follow-ups](#next-three-reference-follow-ups) cover loaded-owner
+namespace preparation, XML reload/worker conformance and cem-element consumer
+design; they preserve the completed source/query contracts and original scenarios.
 
 ### 1. Audit current work and define schema contracts
 
@@ -1044,10 +1047,17 @@ only and adds no runtime behavior or public syntax.
 - [x] Adopt CEM-ML unquoted brace expressions first; preserve XML attribute
       literals until an explicit XML expression contract is designed.
       Scenarios for later design verification: quoted lookalikes stay literal.
-- [ ] Design XML attribute expression recognition and compatibility before
-      enabling native value construction for XML attributes.
+- [x] Add `reference_syntax_adoption.rs` fixtures for explicit XML attribute slots,
+      literal compatibility, alias ownership, entity source frames and invalid marker
+      targets; verify bounded block preludes, LF/CRLF/CR line endings and nested
+      restoration.
+- [x] Design and implement explicit XML native attribute slots using element-local
+      core `expression-attributes` metadata naming original attribute QNames.
+      Preserve unlisted brace strings, standard namespace/XML attributes and
+      entity-aware source frames. Invalid targets and malformed slots fail import.
+      Adoption and native parser/consumer evidence: 2026-10-07.
       Scenarios for later design verification: quoted XML `{#nodes}` remains
-      literal unless the eventual explicit contract chooses expression intent.
+      literal unless that attribute is explicitly listed by the adopted marker.
 - [x] Fixture: AST/DOM projection validators accept native attribute values,
       reject malformed reference target IDs and support binary versions 1 and 2.
       Scenarios for later design verification: explicit exports retain node kinds;
@@ -1714,26 +1724,29 @@ only and adds no runtime behavior or public syntax.
       names and local policy provenance, and restore enclosing/following regions.
       Cover ready and pending literal selectors/native query results, nested
       restoration, original owners and explicit caller contexts. Keep the enclosed
-      child-reference syntax decision deferred. Completed literal document controls
+      child-reference syntax decision deferred at this stage (adopted 2026-10-07).
+      Completed literal document controls
       on 2026-10-06 using original text payload occurrences and shared following
       stages. Verified with 246 focused native reference, schema, lexical-capture
-      and retained behavior tests, including four new fixtures. Source capture remains passive; block parsing is deferred as recorded below.
+      and retained behavior tests, including four new fixtures. Source capture remains
+      passive; bounded block parsing was subsequently adopted on 2026-10-07.
       Scenarios for later design verification: control forms share the same reference
       consumer contracts without introducing a second AST projection; pending
       overrides cannot borrow inherited or previously active models/contexts; lexical
       names and active traversal budgets survive boundary changes.
 - [x] Decide block-directive recognition before changing source parsing. The syntax
-      guide describes `@schema` block-prelude shorthand, but the tokenizer currently
-      retains it inside block content as ordinary text. Adopted on 2026-10-06:
+      guide described `@schema` block-prelude shorthand, but the tokenizer then
+      retained it inside block content as ordinary text. Adopted on 2026-10-06:
       defer block parsing and retain its current text behavior until line-position
       recognition, literal-text escaping and compatibility are specified.
       Scenarios for later design verification: block content is not silently
       reclassified; nested directives end with the containing scope; existing host
       and schema-element controls remain available without a new delimiter.
-- [ ] Specify block-directive recognition and literal-text compatibility before
-      enabling the documented block-prelude shorthand. Cover line positions,
-      escaped directive-looking text, comments, nested restoration and existing
-      content behavior. Keep host/schema-element controls available meanwhile.
+- [x] Specify and implement bounded opening block preludes for own-line literal
+      `@schema`, `@ns` and `@default`; whitespace/block comments preserve the prelude,
+      substantive body items end it. Unknown, same-line, escaped and later directive
+      lookalikes stay text. Keep host/schema-element native slots available.
+      Adoption and original-source restoration fixtures: 2026-10-07.
       Scenarios for later design verification: defaults do not reclassify literal
       content; blocked bodies do not execute directives; source provenance remains
       original and earlier namespace bindings are not renamed.
@@ -1855,7 +1868,7 @@ only and adds no runtime behavior or public syntax.
 - [ ] Specify typed prelude reference slots only if that source capability is
       requested. Current directive payloads are literal text; native reference and
       expression slots already belong to schema-element/host attribute forms. Keep
-      this separate from the deferred enclosed child-reference syntax decision.
+      this separate from the adopted enclosed host-bound child syntax.
       Scenarios for later design verification: a literal query constructor is not an
       authored AST reference slot; consumers retain original source occurrences and
       do not manufacture attributes or reparse a second CEM tree.
@@ -1901,7 +1914,7 @@ only and adds no runtime behavior or public syntax.
       bindings/declarations; schema declarations are not namespace targets. Require
       one completed target with original-owner binding metadata and an available
       URI before activation. Preserve empty default-namespace resets and the
-      destination's own prefix designation. Keep enclosed syntax deferred.
+      destination's own prefix designation. Enclosed host-bound syntax was adopted on 2026-10-07.
       Scenarios for later design verification: wrong target kinds cannot establish
       a scope; original owners and source provenance survive consumption; namespace
       completion does not retroactively rename already expanded source QNames.
@@ -2025,7 +2038,7 @@ only and adds no runtime behavior or public syntax.
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;
       preserve established literal selectors and source-position binding semantics.
-      The exact enclosed child override syntax remains deferred in the roadmap.
+      The original enclosed syntax deferral is closed by the 2026-10-07 host-bound adoption.
       Implemented for established forms: schema controls support literal/native
       selectors, URI loader handoff, singleton target admission, exact compilation
       and retained runtime regions; native namespace attributes support bounded
@@ -2106,7 +2119,7 @@ only and adds no runtime behavior or public syntax.
       lifecycle integration. Verify coherent original-owner, readiness, bounds,
       grants and diagnostic contracts across native values and existing literal
       conveniences; update the design coverage and remaining action items.
-      Keep enclosed child-override syntax deferred in the roadmap.
+      Enclosed host-bound syntax was adopted on 2026-10-07 in the roadmap.
       Completed: the reference design's scope-property audit now maps original-owner,
       value-form, traversal, target-kind, readiness, activation and lifetime contracts
       to their existing fixtures. Corrected stale implementation-status claims.
@@ -2586,9 +2599,8 @@ The 2026-10-06 contracts now close those design decisions and retain their
 
 The [enclosed child override syntax](../roadmap.md#deferred-cem-reference-syntax-decision)
 and [public query/transport contracts](../roadmap.md#deferred-cem-reference-query-and-transport-contracts)
-remain deferred. Stages above implement the accepted contract using existing
-forms and internal interfaces; if a specific step requires one of those
-decisions, resolve it explicitly before that step rather than guessing.
+are now adopted. Their completed checkpoints retain verification scenarios.
+Native typed prelude payloads remain conditional future work.
 The [cem-element reference mode](#deferred-cem-element-reference-consumption),
 interaction attribute API, and ID generation/extraction remain subsequent
 consumer work.
@@ -2888,33 +2900,76 @@ Snapshot fixtures preserve empty/selected forests, original reference children,
 different completed names and independent result retention. The consumer matrix,
 README examples and CI target document the implemented readiness/authority seams.
 
-### Next three reference host adapter follow-ups
+### Reference host adapters and syntax completion
 
-The core retained-node, bounded-consumer and query/transport contracts are
-implemented. These extend the convenience host adapters; XML authoring, enclosed
-child override syntax, general datatypes and cem-element ID projection retain
-their separately deferred action items.
+- [x] Add `reference_host_adapters.rs` fixtures for occurrence context inheritance,
+      explicit pending overrides, public-export ownership/cardinality and saved
+      resource query snapshots; extend the local worker fixture for these APIs.
+      Include shared XML schema consumption and combined enclosed schema/namespace
+      overrides with enclosing-default restoration. Repair the existing completed-name
+      identity fixtures by retaining both original query results during comparison,
+      avoiding allocator reuse after releasing the first view.
 
-- [ ] Fixture and implementation: expose explicit per-occurrence context overrides
+The core retained-node, bounded-consumer and query/transport contracts and these
+three convenience host adapters are implemented. On 2026-10-07, the syntax guide
+also adopts existing host-bound enclosed overrides, explicit XML attribute intent
+and bounded literal block preludes. General datatypes, native typed prelude
+payloads (conditional on a request) and cem-element ID projection remain separate.
+
+- [x] Fixture and implementation: expose explicit per-occurrence context overrides
       in the native/local WASM session, keyed by retained owner and original node
       handle. Keep the owner context as the supplied default; preserve captured
       lexical bindings and invalidate pending resource executions after replacement.
       Scenarios for later design verification: two occurrences in one owner use
       independent runtime inputs without authored context IDs; explicitly pending
       overrides cannot borrow a neighboring occurrence's context.
-- [ ] Fixture and implementation: connect a host-supplied public export contract
+- [x] Fixture and implementation: connect a host-supplied public export contract
       to local schema URI completion, selecting original imported declarations
       before activation. Keep the URL part convention in the loader and keep
       crossing authority separate; do not introduce document-wide ID lookup.
       Scenarios for later design verification: missing or ambiguous exports remain
       incomplete with original provenance; public exposure alone cannot authorize
       a cross-scope reference or replace a package.
-- [ ] Fixture and implementation: retain completed-name query snapshots directly
+- [x] Fixture and implementation: retain completed-name query snapshots directly
       from a resource validation execution, including loaded native owners and its
       selected ready forest, using the existing shared native query view.
       Scenarios for later design verification: no second resource import or
       reference evaluation is needed to query a saved completion; resumed contexts
       cannot change earlier snapshots; result lifetime is independent of execution.
+
+
+Verification (2026-10-07): the maintained `cem_ql:test:reference-consumers` target
+passes 301 native checks in 36 suites and both real WASM worker fixtures. Eight
+syntax cases and nine host adapter cases cover the six-item adoption; additional
+parser/import/lexical/runtime regression suites pass. The two existing bridge
+identity comparisons now retain both live views until comparison, removing
+allocator-dependent outcomes. Native typed prelude payloads remain conditional
+future work, with their scenarios preserved above.
+
+### Next three reference follow-ups
+
+- [ ] Fixture and implementation: prepare loaded-owner namespace lifecycles in the
+      local resource adapter after explicit destination inputs are supplied, and
+      retain the resulting name completion for loaded query snapshots. Use the
+      shared lifecycle, effective policy/bounds and original capture; avoid query
+      preparation that silently performs evaluation.
+      Scenarios for later design verification: pending loaded names remain excluded;
+      an explicit resume completes only its own owner; earlier snapshots stay
+      immutable and crossing authority remains separately required.
+- [ ] Fixture: verify explicitly marked XML attribute slots through CEMB reload,
+      native query snapshots and two-worker transport, including entity-expanded
+      diagnostics, original-owner identity and inert descendant references.
+      Scenarios for later design verification: marker intent survives reload without
+      reparse; unlisted strings remain literal and transport creates no contexts
+      or crossing grants.
+- [ ] Design the deferred cem-element reference-to-ID consumption mode now that
+      the CEM-ML reference syntax is settled. Detect native template references,
+      resolve element targets at transformation time, preserve explicit IDs and
+      generate scoped IDs only when the consumer needs them; define compatibility
+      with existing local-name convenience attributes before implementation.
+      Scenarios for later design verification: two instances share one template
+      with distinct datadom inputs and IDs; cross-scope relationships are explicit;
+      source references remain typed and unchanged by DOM projection.
 
 ## Reference adoption: dependency binding and readiness
 
@@ -2994,7 +3049,7 @@ remains guarded until that compiler is ready.
       braces distinct from braces belonging to opaque query source.
 - [x] Align tree-sitter's opaque query-span scanner, generated parser/build integration,
       lexical EBNF and TextMate reference highlighting under those fixtures. Preserve
-      the existing CEM/XML attribute boundary and deferred child override spelling.
+      the existing CEM/XML attribute boundary and adopted host-bound child override spelling.
       Scenarios for later design verification: all canonical fixture projections remain
       compatible; the generated parser binds the scanner, and native build/cache
       inputs include it.

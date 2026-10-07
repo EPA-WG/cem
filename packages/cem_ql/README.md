@@ -435,7 +435,7 @@ reload admission and CLI `validate`/`check --reload-bundle` are implemented.
 
 `api::reference_lifecycle::ReferenceValidationSession` is an explicit native
 schema/namespace validation consumer. It retains input and schema source owners,
-with one caller-supplied context per owner, schema-derived policy (or explicit
+with caller-supplied owner defaults and occurrence overrides, schema-derived policy (or explicit
 host overrides), and directed crossings. `run` constructs fresh scopes, compiles
 the retained schema and consumes the input without caching source targets. Its
 report distinguishes readiness, failure, dependencies and attributed diagnostics.
@@ -477,9 +477,30 @@ destination bounds. Parent context/policy/authority changes reject late completi
 and require a new execution. Cancellation and disposal use
 `cancelReferenceResourceExecution` / `disposeReferenceResourceExecution`.
 Disposing transport sources or the parent handle leaves frozen inputs retained.
-The convenience adapter currently has one context per owner and no public-part
-export adapter; URL parts report `cem.schema.public_part_unavailable` rather than
-scanning IDs. Embedders can use the shared native coordinator's explicit exports hook.
+`setReferenceValidationOccurrenceContext(session, sourceIndex, valueId, index,
+ready, bindings)` overrides an original source occurrence and its owning subtree.
+The nearest override wins; pending shadows a ready default.
+`clearReferenceValidationOccurrenceContext(session, sourceIndex, valueId, index)`
+restores inheritance. Native methods also accept an original AST node ID together
+with its explicit registered source. Foreign/constructed handles are rejected.
+`setReferenceResourceOccurrenceContext` provides the corresponding loaded-owner
+operation after the complete resource batch settles;
+`clearReferenceResourceOccurrenceContext` restores its owner/ancestor default.
+
+`completeReferenceResourceWithExports(execution, requestId, bytes, contentType,
+finalUri, exports)` supplies an explicit embedding-host public export contract:
+control JSON `[{"part":"leaf","select":"..."}]`. Selectors run over the original
+imported native document; they must select one valid original schema declaration.
+Missing, foreign or ambiguous exports stay incomplete. This separate host API
+creates no directed crossing or package replacement authority; no ID scan is used.
+
+`prepareReferenceResourceQuerySnapshot(execution, sourceIndex)` retains saved
+names from that resource execution, without a second import or reference evaluation.
+Index 0 uses the latest input namespace snapshot; loaded indices retain the
+captured ready name forest from import. Pending imported names remain excluded;
+this method does not itself run a loaded-owner namespace lifecycle. Original
+schema/additional registered owners without a saved completion are rejected.
+Saved views and results survive parent/execution disposal and later input changes.
 
 `prepareReferenceQuerySnapshot(session)` creates an immutable local namespace
 execution view. `inspectReferenceQuerySnapshot` returns its readiness report;
@@ -1204,3 +1225,10 @@ expressions and descendant references. Query access does not expand those links,
 follow outside parents/contexts/targets, copy source arenas or generate DOM IDs.
 The standalone ML reference-slot API remains restricted to one authored reference;
 placement validation supplies the general-expression/composite consumer.
+
+
+Explicit XML native attribute slots use core `expression-attributes` metadata;
+unlisted XML brace strings stay literal. Existing host-bound child schema and
+namespace overrides and opening literal block preludes are documented in
+[the CEM-ML syntax guide](../../docs/cem-ml-syntax.md). Runtime inputs, directed
+grants and consumption remain separate from source syntax and import.

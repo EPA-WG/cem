@@ -13,6 +13,28 @@ pub struct ReferenceQuerySnapshot {
     report: ReferenceConsumerReport,
 }
 impl ReferenceQuerySnapshot {
+    pub(super) fn from_lifecycle(
+        source: RetainedReferenceSource,
+        names: &NamespaceLifecycleSnapshot,
+    ) -> Result<Self, String> {
+        let mut report = ReferenceConsumerReport::pending();
+        ReferenceValidationSession::namespace_dependencies(&mut report, names, &source);
+        report.complete = names.is_complete();
+        report.placements = names.ready_roots.len();
+        Self::from_completion(source, names.completion.clone(), report)
+    }
+    pub(super) fn from_completion(
+        source: RetainedReferenceSource,
+        completion: Arc<cem_ml::schema::namespace_references::NamespaceNameCompletion>,
+        report: ReferenceConsumerReport,
+    ) -> Result<Self, String> {
+        let view = NamespaceQueryTree::new(source.ingress().source().clone(), completion)?;
+        Ok(Self {
+            source,
+            view: Some(view),
+            report,
+        })
+    }
     pub fn report(&self) -> &ReferenceConsumerReport {
         &self.report
     }

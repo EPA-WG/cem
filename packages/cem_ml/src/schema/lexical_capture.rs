@@ -57,8 +57,12 @@ impl LexicallyScopedDocument {
         schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
         namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
     ) -> Self {
-        occurrences
-            .retain(|node, _| matches!(document.get(*node), Some(CemAstNode::Reference { .. })));
+        occurrences.retain(|node, _| {
+            matches!(document.get(*node), Some(CemAstNode::Reference { .. }))
+                || matches!(document.get(*node),
+                    Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == "$"
+                )
+        });
         let names = document
             .nodes
             .iter()

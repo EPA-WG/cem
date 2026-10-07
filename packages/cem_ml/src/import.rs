@@ -20,6 +20,7 @@ use std::sync::Arc;
 pub mod documents;
 mod css;
 mod expression_sources;
+mod xml_attribute_expressions;
 mod lexical_scopes;
 pub use lexical_scopes::{
     import_bytes_with_lexical_scopes, import_xml_ast_with_lexical_scopes,
@@ -151,7 +152,9 @@ fn import_xml_ast_tracked(
                     event.local_name.as_deref().unwrap_or(""),
                     source.clone(),
                 );
-                for attr in &event.attributes {
+                let selected = xml_attribute_expressions::selected(event)?;
+                let mut native_values = Vec::new();
+                for (attribute_index, attr) in event.attributes.iter().enumerate() {
                     let aid = b.ast.nodes.len() as AstNodeId;
                     b.attribute(
                         id,
@@ -175,8 +178,14 @@ fn import_xml_ast_tracked(
                             .insert(aid, xml_attribute_value(&attr.value)?);
                     }
                     attribute_nodes[index].push(aid);
+                    if selected.contains(&attribute_index) {
+                        let value_id = xml_attribute_expressions::append(
+                            &mut b, aid, id, attr, &mut semantics,
+                        )?;
+                        native_values.push((aid, value_id));
+                    }
                 }
-                if let Some(capture) = capture.as_mut() { capture.open(event, id, &attribute_nodes[index]); }
+                if let Some(capture) = capture.as_mut() { capture.open(event, id, &attribute_nodes[index], &native_values); }
                 if event.kind == StartElement {
                     stack.push(id);
                 }

@@ -1401,6 +1401,9 @@ pub(crate) fn validate_element_shallow_with_names<'a>(
         } else {
             (attr_prefix, attr_local)
         };
+        if attr_prefix == "https://cem.dev/ns/core/1" && attr_local == "expression-attributes" {
+            continue;
+        }
         seen_attributes.insert(attr_local.to_owned());
         if controls.is_some_and(|controls| controls.contains(attr_id)) {
             continue;

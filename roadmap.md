@@ -960,14 +960,19 @@ then extend the same cache contract to other supported languages and formats.
 
 ## Deferred CEM reference syntax decision
 
-Deferred on 2026-10-04 under the adopted
+Adopted on 2026-10-07 under the
 [implicit scope reference contract](docs/cem-ql-cem-ml-node-references-design.md#implicit-scope-references-and-defaults).
+The heading is retained for existing links.
 
-- [ ] Define the exact enclosed scope-reference syntax for a child override,
-      aligned with the current schema and namespace forms. Preserve implicit
-      scope roots and matching properties, inherited defaults, and overrides
-      bounded by their child scope. This syntax decision is deferred and does
-      not block the other reference design decisions.
+- [x] Define the exact enclosed scope-reference syntax for a child override.
+      Use existing host-bound native schema/namespace properties, such as
+      `{section @cem:schema-select={#schema} @xmlns:p={#namespace} | ...}`,
+      or the existing wrapping schema element. Preserve implicit scope roots and
+      properties, inherited defaults and host-bounded restoration. No generic
+      enclosure or new root marker is introduced. Normative recognition and XML
+      opt-in compatibility are in [the syntax guide](docs/cem-ml-syntax.md).
+      Verification: native combined schema/namespace child override and restored
+      siblings, plus block-prelude and explicit XML slot fixtures.
 
 ### Scenarios for later design verification
 

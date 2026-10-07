@@ -176,3 +176,191 @@ pub fn query_snapshot(id: u32, expression: &str, query_uri: &str) -> Result<u32,
 pub fn dispose_snapshot(id: u32) -> bool {
     SNAPSHOTS.with(|snapshots| snapshots.borrow_mut().remove(&id).is_some())
 }
+fn occurrence(value_id: u32, index: u32) -> Result<crate::eval::Item, JsValue> {
+    INPUTS
+        .with(|inputs| {
+            inputs
+                .borrow()
+                .get(&value_id)
+                .and_then(|v| v.values.items.get(index as usize))
+                .cloned()
+        })
+        .ok_or_else(|| validation_error("Unknown occurrence result handle or index"))
+}
+#[wasm_bindgen(js_name = "setReferenceValidationOccurrenceContext")]
+pub fn occurrence_context(
+    session: u32,
+    source: u32,
+    value_id: u32,
+    index: u32,
+    ready: bool,
+    bindings: &str,
+) -> Result<(), JsValue> {
+    let value = occurrence(value_id, index)?;
+    let context = validation_context(ready, bindings)?;
+    VALIDATIONS.with(|sessions| {
+        sessions
+            .borrow_mut()
+            .get_mut(&session)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .set_occurrence_value_context(source as usize, &value, context)
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "clearReferenceValidationOccurrenceContext")]
+pub fn clear_occurrence_context(
+    session: u32,
+    source: u32,
+    value_id: u32,
+    index: u32,
+) -> Result<(), JsValue> {
+    let value = occurrence(value_id, index)?;
+    VALIDATIONS.with(|sessions| {
+        sessions
+            .borrow_mut()
+            .get_mut(&session)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .clear_occurrence_value_context(source as usize, &value)
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "setReferenceResourceOccurrenceContext")]
+pub fn resource_occurrence_context(
+    id: u32,
+    source: u32,
+    value_id: u32,
+    index: u32,
+    ready: bool,
+    bindings: &str,
+) -> Result<(), JsValue> {
+    let value = occurrence(value_id, index)?;
+    let context = validation_context(ready, bindings)?;
+    EXECUTIONS.with(|runs| {
+        runs.borrow_mut()
+            .get_mut(&id)
+            .ok_or_else(|| validation_error("Unknown resource execution"))?
+            .set_loaded_occurrence_value_context(source as usize, &value, context)
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "clearReferenceResourceOccurrenceContext")]
+pub fn clear_resource_occurrence_context(
+    id: u32,
+    source: u32,
+    value_id: u32,
+    index: u32,
+) -> Result<(), JsValue> {
+    let value = occurrence(value_id, index)?;
+    EXECUTIONS.with(|runs| {
+        runs.borrow_mut()
+            .get_mut(&id)
+            .ok_or_else(|| validation_error("Unknown resource execution"))?
+            .clear_loaded_occurrence_value_context(source as usize, &value)
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "prepareReferenceResourceQuerySnapshot")]
+pub fn resource_snapshot(id: u32, source: u32) -> Result<u32, JsValue> {
+    let snapshot = EXECUTIONS.with(|runs| {
+        runs.borrow()
+            .get(&id)
+            .ok_or_else(|| validation_error("Unknown resource execution"))?
+            .query_snapshot(source as usize)
+            .map_err(validation_error)
+    })?;
+    let id = next_id().map_err(validation_error)?;
+    SNAPSHOTS.with(|snapshots| snapshots.borrow_mut().insert(id, Arc::new(snapshot)));
+    Ok(id)
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PublicExport {
+    part: String,
+    select: String,
+}
+/// Host-owned explicit export selectors, evaluated only over the imported native
+/// owner. They interpret no URL and create no crossing or package authority.
+#[wasm_bindgen(js_name = "completeReferenceResourceWithExports")]
+pub fn complete_with_exports(
+    id: u32,
+    request: u32,
+    bytes: &[u8],
+    content_type: &str,
+    uri: &str,
+    exports_json: &str,
+) -> Result<String, JsValue> {
+    if exports_json.len() > 128 * 1024
+        || bytes.len() > cem_ml::ast::reload::ReloadLimits::default().max_bytes
+    {
+        return Err(validation_error(
+            "Resource or export metadata limit exceeded",
+        ));
+    }
+    let exports: Vec<PublicExport> =
+        serde_json::from_str(exports_json).map_err(validation_error)?;
+    let mut parts = BTreeMap::new();
+    for export in exports {
+        if export.part.is_empty()
+            || export.select.trim().is_empty()
+            || parts.insert(export.part, export.select).is_some()
+        {
+            return Err(validation_error(
+                "Empty or duplicate public export contract",
+            ));
+        }
+    }
+    let loaded = EXECUTIONS.with(|runs| {
+        runs.borrow_mut()
+            .get_mut(&id)
+            .ok_or_else(|| validation_error("Unknown resource execution"))?
+            .complete_with_exports(
+                request.into(),
+                Ok(cem_ml::resolver::ResolvedRead {
+                    uri: uri.into(),
+                    content_type: (!content_type.is_empty()).then(|| content_type.into()),
+                    bytes: bytes.into(),
+                }),
+                |imported, part| {
+                    let expression = parts
+                        .get(part)
+                        .ok_or("Requested part is not publicly exposed")?;
+                    let context = crate::api::StandaloneExpressionContext::default().with_input(
+                        crate::eval::ItemStream::once(crate::eval::imported_cem_tree(
+                            imported.tree.clone(),
+                        )),
+                        crate::types::Type::Node(crate::types::NodeKind::Node),
+                    );
+                    let values = crate::api::evaluate_expression(expression, &context)
+                        .map_err(|e| e.message)?
+                        .result;
+                    if let Some(error) = values.error {
+                        return Err(format!("Public export selector: {error:?}"));
+                    }
+                    values
+                        .items
+                        .iter()
+                        .map(|item| {
+                            let node = crate::eval::retained_cem_node(item)
+                                .ok_or("Export must select original native nodes")?;
+                            if !Arc::ptr_eq(node.owner().ast_owner(), imported.tree.ast_owner()) {
+                                return Err("Export selected a foreign source owner".into());
+                            }
+                            cem_ml::schema::declaration_references::SchemaDeclarationNode::new(
+                                imported.tree.ast_owner().clone(),
+                                node.node_id(),
+                            )
+                            .ok_or("Unknown original export node".into())
+                        })
+                        .collect()
+                },
+            )
+            .map_err(validation_error)
+    })?;
+    match loaded {
+        Some(loaded) => Ok(
+            json!({"sourceIndex":loaded.index,"sourceId":retain_source(loaded.source)?})
+                .to_string(),
+        ),
+        None => Ok("null".into()),
+    }
+}

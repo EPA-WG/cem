@@ -118,6 +118,56 @@ function snapshots() {
     wasm.disposeReferenceQuerySnapshot(pending); wasm.disposeReferenceValidationSession(session);
     wasm.disposeReferenceSource(source); wasm.disposeReferenceSource(schema);
 }
+function hostAdapters() {
+    const source = wasm.parseReferenceSource(encode('{one | {#items}}{two | {#items}}'), 'text/cem-ml', 'memory:occurrences.cem', '');
+    const schema = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=one @children=item}{element @name=two @children=item}{element @name=item}}}'), 'text/cem-ml', 'memory:schema.cem', '');
+    const session = wasm.beginReferenceValidationSession(source, schema);
+    const empty = wasm.queryReferenceSource(source, '()', 'memory:context.cemql');
+    const occurrence = wasm.queryReferenceSource(source, 'input.children', 'memory:occurrences.cemql');
+    const library = wasm.parseReferenceSource(encode('{item}'), 'text/cem-ml', 'memory:library.cem', '');
+    const destination = wasm.registerReferenceValidationSource(session, library);
+    const targets = wasm.queryReferenceSource(library, 'input.children', 'memory:targets.cemql');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name:'items',valueId:empty}]));
+    wasm.setReferenceValidationContext(session, destination, true, '[]');
+    wasm.allowReferenceValidationCrossing(session,0,destination);
+    wasm.setReferenceValidationOccurrenceContext(session,0,occurrence,0,true,JSON.stringify([{name:'items',valueId:targets}]));
+    assert.equal(JSON.parse(wasm.runReferenceValidationSession(session)).complete,true);
+    wasm.setReferenceValidationOccurrenceContext(session,0,occurrence,1,false,'[]');
+    assert.equal(JSON.parse(wasm.runReferenceValidationSession(session)).complete,false);
+    wasm.clearReferenceValidationOccurrenceContext(session,0,occurrence,1);
+    assert.equal(JSON.parse(wasm.runReferenceValidationSession(session)).complete,true);
+    fail(() => wasm.setReferenceValidationOccurrenceContext(session,0,targets,0,true,'[]'),'cem.reference.validation');
+    for(const id of [empty,occurrence,targets]) wasm.disposeNativeValueArtifact(id);
+    wasm.disposeReferenceValidationSession(session);
+    for(const id of [source,schema,library]) wasm.disposeReferenceSource(id);
+
+    const input = wasm.parseReferenceSource(encode('{host @schema-src=child.cem#leaf | {leaf}}'), 'text/cem-ml', 'https://vendor.test/main.cem', '');
+    const base = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=host @children=leaf}}}'), 'text/cem-ml', 'memory:base.cem', '');
+    const parent = wasm.beginReferenceValidationSession(input,base);
+    wasm.setReferenceValidationContext(parent,0,true,'[]');
+    const run = wasm.startReferenceResourceExecution(parent);
+    const request = JSON.parse(wasm.advanceReferenceResourceExecution(run)).result[0];
+    const bytes = encode('@ns s = https://cem.dev/ns/schema/1\n{s:schema | {elements | {element @name=leaf}}}');
+    fail(() => wasm.completeReferenceResourceWithExports(run,request.id,bytes,'text/cem-ml','https://vendor.test/child.cem',JSON.stringify([{part:'leaf',select:'input.children',grant:true}])),'cem.reference.validation');
+    const loaded = JSON.parse(wasm.completeReferenceResourceWithExports(run,request.id,bytes,'text/cem-ml','https://vendor.test/child.cem',JSON.stringify([{part:'leaf',select:'seq:where(input.children, fn(node) => node.kind == "element" && node.name == "schema")'}])));
+    wasm.setReferenceResourceContext(run,loaded.sourceIndex,true,'[]');
+    const snapshot = wasm.prepareReferenceResourceQuerySnapshot(run,loaded.sourceIndex);
+    const nodes = wasm.queryReferenceQuerySnapshot(snapshot,'seq:where(input, fn(node) => node.kind == "element" && node.name == "schema")','memory:loaded.cemql');
+    wasm.setReferenceResourceOccurrenceContext(run,loaded.sourceIndex,nodes,0,false,'[]');
+    wasm.clearReferenceResourceOccurrenceContext(run,loaded.sourceIndex,nodes,0);
+    wasm.allowReferenceResourceCrossing(run,0,loaded.sourceIndex);
+    assert.equal(JSON.parse(wasm.advanceReferenceResourceExecution(run)).result.complete,true);
+    const saved = wasm.prepareReferenceResourceQuerySnapshot(run,0);
+    wasm.disposeReferenceResourceExecution(run);
+    wasm.disposeReferenceValidationSession(parent);
+    for(const id of [loaded.sourceId,input,base]) wasm.disposeReferenceSource(id);
+    const names = wasm.queryReferenceQuerySnapshot(snapshot,'input.children.name','memory:saved.cemql');
+    assert.ok(wasm.exportNativeValueArtifact(names,'').length);
+    assert.equal(JSON.parse(wasm.inspectReferenceQuerySnapshot(saved)).complete,true);
+    for(const id of [nodes,names]) wasm.disposeNativeValueArtifact(id);
+    for(const id of [snapshot,saved]) wasm.disposeReferenceQuerySnapshot(id);
+}
+hostAdapters();
 resources();
 snapshots();
 

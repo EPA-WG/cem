@@ -17,7 +17,8 @@ pub struct ScopedXmlCemImport {
 }
 
 /// Import once and retain source-position bindings for standalone native XML
-/// references. Attribute values remain literals. Schema selection/evaluation,
+/// references and explicitly marked attribute slots. Other attributes remain
+/// literals. Schema selection/evaluation,
 /// readiness and crossing grants remain explicit consumer lifecycle stages.
 pub fn import_xml_ast_with_lexical_scopes(
     document: &xml::XmlDocumentAst,

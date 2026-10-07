@@ -140,6 +140,29 @@ impl<I: SchemaValidationSessionInputs> CemQlInputValidationSession<I> {
         &mut self,
         completion: InputValidationResourceCompletion,
     ) -> Result<Option<SchemaUriLoadedScope>, Vec<Diagnostic>> {
+        self.stage_resource_impl(
+            completion,
+            None::<fn(&ScopedCemImport, &str) -> Result<Vec<SchemaDeclarationNode>, String>>,
+        )
+    }
+    pub fn stage_resource_with_exports<F>(
+        &mut self,
+        completion: InputValidationResourceCompletion,
+        exports: F,
+    ) -> Result<Option<SchemaUriLoadedScope>, Vec<Diagnostic>>
+    where
+        F: FnOnce(&ScopedCemImport, &str) -> Result<Vec<SchemaDeclarationNode>, String>,
+    {
+        self.stage_resource_impl(completion, Some(exports))
+    }
+    fn stage_resource_impl<F>(
+        &mut self,
+        completion: InputValidationResourceCompletion,
+        exports: Option<F>,
+    ) -> Result<Option<SchemaUriLoadedScope>, Vec<Diagnostic>>
+    where
+        F: FnOnce(&ScopedCemImport, &str) -> Result<Vec<SchemaDeclarationNode>, String>,
+    {
         self.check_active()?;
         let Some((control, ticket, inherited)) = self.tickets.remove(&completion.id) else {
             return Err(vec![
@@ -153,7 +176,10 @@ impl<I: SchemaValidationSessionInputs> CemQlInputValidationSession<I> {
             completion.result,
             policy,
             |resource| inputs.borrow_mut().loaded_context(resource),
-            |imported, part| inputs.borrow_mut().public_exports(imported, part),
+            |imported, part| match exports {
+                Some(exports) => exports(imported, part),
+                None => inputs.borrow_mut().public_exports(imported, part),
+            },
         ) {
             Ok(loaded) => {
                 self.inputs

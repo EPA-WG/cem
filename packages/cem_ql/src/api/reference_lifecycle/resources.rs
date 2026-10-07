@@ -41,9 +41,10 @@ pub struct ReferenceLoadedSource {
 }
 #[derive(Debug)]
 struct LoadedInputs {
-    source: RetainedReferenceSource,
-    scopes: Vec<DeclarationScope>,
-    context: Option<StandaloneExpressionContext>,
+    inputs: SourceInputs,
+    scopes: Vec<(AstNodeId, DeclarationScope)>,
+    names: Arc<NamespaceNameCompletion>,
+    name_issues: Vec<(AstNodeId, String)>,
 }
 #[derive(Debug, Default)]
 struct State {
@@ -64,8 +65,13 @@ impl Inputs {
                 .unwrap()
                 .loaded
                 .iter()
-                .find(|s| Arc::ptr_eq(s.source.ingress().source().ast_owner(), node.document()))
-                .and_then(|s| s.context.clone())
+                .find(|s| {
+                    Arc::ptr_eq(
+                        s.inputs.source.ingress().source().ast_owner(),
+                        node.document(),
+                    )
+                })
+                .and_then(|s| s.inputs.context_for(node.node_id()))
         })
     }
 }
@@ -273,7 +279,11 @@ impl ReferenceResourceExecution {
                         namespace,
                         &self.config.sources[0].source,
                     );
-                    report = self.config.validation_report(
+                    let mut reporting = self.config.clone();
+                    reporting
+                        .sources
+                        .extend(state.loaded.iter().map(|loaded| loaded.inputs.clone()));
+                    report = reporting.validation_report(
                         report,
                         namespace,
                         coordinator.host(),
@@ -301,6 +311,19 @@ impl ReferenceResourceExecution {
         id: u64,
         response: Result<ResolvedRead, Diagnostic>,
     ) -> Result<Option<ReferenceLoadedSource>, String> {
+        self.complete_with_exports(id, response, |_, _| {
+            Err("No explicit public parts adapter was supplied".into())
+        })
+    }
+    pub fn complete_with_exports<F>(
+        &mut self,
+        id: u64,
+        response: Result<ResolvedRead, Diagnostic>,
+        exports: F,
+    ) -> Result<Option<ReferenceLoadedSource>, String>
+    where
+        F: FnOnce(&ScopedCemImport, &str) -> Result<Vec<SchemaDeclarationNode>, String>,
+    {
         self.check()?;
         if !self.pending.contains(&id) {
             return Err("Unknown or repeated resource completion".into());
@@ -322,10 +345,13 @@ impl ReferenceResourceExecution {
             None
         };
         let coordinator = self.coordinator.as_mut().ok_or("No resource coordinator")?;
-        let result = coordinator.stage_resource(InputValidationResourceCompletion {
-            id,
-            result: response,
-        });
+        let result = coordinator.stage_resource_with_exports(
+            InputValidationResourceCompletion {
+                id,
+                result: response,
+            },
+            exports,
+        );
         self.pending.remove(&id);
         self.check()?;
         let Some(loaded) = result.map_err(|d| format!("{d:?}"))? else {
@@ -351,12 +377,37 @@ impl ReferenceResourceExecution {
                 |_, _, _| (None, Default::default()),
             )
             .map_err(|e| format!("{e:?}"))?;
+        let mut ready_roots = vec![];
+        let mut name_issues = vec![];
+        for node in roots(&source) {
+            match NamespaceNameCompletion::new(
+                source.require_lexical().unwrap().clone(),
+                &[node],
+                Default::default(),
+            ) {
+                Ok(_) => ready_roots.push(node),
+                Err(error) => name_issues.push((node, format!("{error:?}"))),
+            }
+        }
+        let names = Arc::new(
+            NamespaceNameCompletion::new(
+                source.require_lexical().unwrap().clone(),
+                &ready_roots,
+                Default::default(),
+            )
+            .map_err(|e| format!("{e:?}"))?,
+        );
         state.loaded.push(LoadedInputs {
-            source: source.clone(),
-            scopes: std::iter::once(loaded.scope)
-                .chain(scopes.into_iter().map(|(_, s)| s))
-                .collect(),
-            context: None,
+            inputs: SourceInputs {
+                source: source.clone(),
+                context: None,
+                occurrence_contexts: Default::default(),
+                policy: None,
+                limits: None,
+            },
+            scopes: std::iter::once((0, loaded.scope)).chain(scopes).collect(),
+            names,
+            name_issues,
         });
         if let Some(permit) = permit {
             self.permits.push(permit);
@@ -381,15 +432,165 @@ impl ReferenceResourceExecution {
                     .ok_or("Only loaded contexts may change")?,
             )
             .ok_or("Unknown loaded source")?;
-        for scope in &loaded.scopes {
+        loaded.inputs.context = context;
+        for (node, scope) in &loaded.scopes {
             self.coordinator
                 .as_mut()
                 .unwrap()
                 .host_mut()
-                .set_context(*scope, context.clone());
+                .set_context(*scope, loaded.inputs.context_for(*node));
         }
-        loaded.context = context;
         Ok(())
+    }
+    pub fn set_loaded_occurrence_value_context(
+        &mut self,
+        index: usize,
+        value: &crate::eval::Item,
+        context: Option<StandaloneExpressionContext>,
+    ) -> Result<(), String> {
+        let node = self.loaded_occurrence_node(index, value)?;
+        self.set_loaded_occurrence_context(index, node, context)
+    }
+    pub fn clear_loaded_occurrence_value_context(
+        &mut self,
+        index: usize,
+        value: &crate::eval::Item,
+    ) -> Result<(), String> {
+        let node = self.loaded_occurrence_node(index, value)?;
+        self.clear_loaded_occurrence_context(index, node)
+    }
+    fn loaded_occurrence_node(
+        &self,
+        index: usize,
+        value: &crate::eval::Item,
+    ) -> Result<AstNodeId, String> {
+        let node = crate::eval::retained_cem_node(value)
+            .ok_or("An original native source occurrence is required")?;
+        let state = self.state.lock().unwrap();
+        let loaded = state
+            .loaded
+            .get(
+                index
+                    .checked_sub(self.config.sources.len())
+                    .ok_or("Only loaded contexts may change")?,
+            )
+            .ok_or("Unknown loaded source")?;
+        if !Arc::ptr_eq(
+            loaded.inputs.source.ingress().source().ast_owner(),
+            node.owner().ast_owner(),
+        ) {
+            return Err("Occurrence belongs to another source owner".into());
+        }
+        Ok(node.node_id())
+    }
+    pub fn set_loaded_occurrence_context(
+        &mut self,
+        index: usize,
+        node: AstNodeId,
+        context: Option<StandaloneExpressionContext>,
+    ) -> Result<(), String> {
+        self.update_loaded_occurrence_context(index, node, Some(context))
+    }
+    pub fn clear_loaded_occurrence_context(
+        &mut self,
+        index: usize,
+        node: AstNodeId,
+    ) -> Result<(), String> {
+        self.update_loaded_occurrence_context(index, node, None)
+    }
+    fn update_loaded_occurrence_context(
+        &mut self,
+        index: usize,
+        node: AstNodeId,
+        context: Option<Option<StandaloneExpressionContext>>,
+    ) -> Result<(), String> {
+        self.check()?;
+        if !self.pending.is_empty() {
+            return Err("Complete the resource batch before preparing contexts".into());
+        }
+        let mut state = self.state.lock().unwrap();
+        let loaded = state
+            .loaded
+            .get_mut(
+                index
+                    .checked_sub(self.config.sources.len())
+                    .ok_or("Only loaded contexts may change")?,
+            )
+            .ok_or("Unknown loaded source")?;
+        if loaded
+            .inputs
+            .source
+            .ingress()
+            .source()
+            .ast()
+            .get(node)
+            .is_none()
+        {
+            return Err("Unknown original node handle".into());
+        }
+        if let Some(context) = context {
+            loaded.inputs.occurrence_contexts.insert(node, context);
+        } else {
+            loaded.inputs.occurrence_contexts.remove(&node);
+        }
+        for (node, scope) in &loaded.scopes {
+            self.coordinator
+                .as_mut()
+                .unwrap()
+                .host_mut()
+                .set_context(*scope, loaded.inputs.context_for(*node));
+        }
+        Ok(())
+    }
+    /// Query a saved completion without import, selection or expression evaluation.
+    /// Index 0 is the latest input namespace snapshot; loaded indices retain the
+    /// captured ready name forest from import. Pending imported names stay excluded.
+    pub fn query_snapshot(
+        &self,
+        index: usize,
+    ) -> Result<super::query_snapshot::ReferenceQuerySnapshot, String> {
+        let state = self.state.lock().unwrap();
+        if index == 0 {
+            return super::query_snapshot::ReferenceQuerySnapshot::from_lifecycle(
+                self.config.sources[0].source.clone(),
+                state
+                    .namespace
+                    .as_ref()
+                    .ok_or("Advance execution before requesting a saved completion")?,
+            );
+        }
+        let loaded = state
+            .loaded
+            .get(
+                index
+                    .checked_sub(self.config.sources.len())
+                    .ok_or("No saved completion for this source")?,
+            )
+            .ok_or("Unknown loaded source")?;
+        let mut report = ReferenceConsumerReport::pending();
+        report.complete = loaded.name_issues.is_empty();
+        report.placements = loaded.names.roots().len();
+        for (node, reason) in &loaded.name_issues {
+            report.dependencies.push(ReferenceConsumerDependency {
+                kind: ReferenceConsumerDependencyKind::NamespaceNotReady,
+                reason: reason.clone(),
+                source_uri: loaded.inputs.source.ingress().source().source_uri().into(),
+                node_id: Some(*node),
+                source_map: loaded
+                    .inputs
+                    .source
+                    .ingress()
+                    .source()
+                    .ast()
+                    .get(*node)
+                    .map(|n| node_source_map(n).clone()),
+            });
+        }
+        super::query_snapshot::ReferenceQuerySnapshot::from_completion(
+            loaded.inputs.source.clone(),
+            loaded.names.clone(),
+            report,
+        )
     }
     pub fn allow_crossing(&mut self, from: usize, to: usize) -> Result<(), String> {
         self.check()?;
@@ -416,7 +617,7 @@ impl ReferenceResourceExecution {
                 state
                     .loaded
                     .get(index - self.config.sources.len())
-                    .map(|s| s.scopes[0])
+                    .map(|s| s.scopes[0].1)
                     .ok_or("Unknown loaded scope".into())
             }
         };

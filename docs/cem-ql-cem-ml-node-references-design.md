@@ -1,7 +1,7 @@
 # CEM-QL / CEM-ML AST node references design
 
 Status: accepted design, promoted on 2026-10-03 and revised by user adoption on 2026-10-04. Adopted rules are normative; deferred details are recorded in roadmap and todo action items. Implementation is separate and is not claimed by this document.
-Date: 2026-10-04.
+Date: 2026-10-04; syntax and host adapter adoption revised 2026-10-07.
 
 
 ## Adoption summary
@@ -16,7 +16,7 @@ The following rules govern implementation of the accepted portion:
 - Existing AST identity and graph serialization distinguish reference occurrences and preserve ordered target edges. No global ID service or persistent identity across reparses is required.
 - `#` accepts node-valued results and performs no implicit string lookup or expression execution. Referencing an attribute node is distinct from interpreting its scalar value.
 - Consumer-specific interpretation and AST-change evaluation/update mechanics remain outside scope.
-- Scope properties provide implicit references: syntax implies the scope root and matching property, with inherited defaults and enclosed child overrides. The exact child override syntax is deferred.
+- Scope properties provide implicit references: syntax implies the scope root and matching property, with inherited defaults and enclosed child overrides. Child overrides use existing host-bound native schema/namespace properties or the wrapping schema element (adopted 2026-10-07).
 - The runtime supplies the evaluation context and its available root at the applicable document lifecycle stage. No authored root ID or mandatory stored context ID is required.
 - Evaluation results need not be persisted on the authored reference. A transformation CLI or `cem-element` can supply `datadom` when execution reaches the consumer stage.
 - Reference-chain resolution occurs during consumer evaluation. The suggested default is deep resolution bounded by effective scope policy, a traversal limit, and cycle detection; unresolved links follow mandatory, warning, or ignore rules from the applicable scope schema.
@@ -396,9 +396,8 @@ work, local policy and incomplete-input retry. Active follow-ups and deferred
 contracts retain their scenarios in [todo.md](todo.md#ast-node-reference-implementation)
 and [the roadmap](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
-The exact enclosed child override syntax remains deferred in
-[the roadmap](../roadmap.md#deferred-cem-reference-syntax-decision). Existing
-schema body/following controls and native namespace attributes do not decide it;
+The original child-override deferral is superseded by the 2026-10-07
+[host-bound syntax adoption](#implicit-scope-references-and-defaults);
 `cem-element` ID generation and binding remain separately deferred consumer work.
 
 The [stack-design source-attribute and identifier-resolution tables](cem-ml-stack-design.md#131-document-side-schema-scoping)
@@ -612,7 +611,7 @@ host's original captured-name metadata, and unselected occurrences remain free
 for their own handoff. `activate_namespace_properties` composes this handoff with
 ready-result completion; this lower-level API performs neither reference evaluation
 nor property-result completion.
-The exact enclosed child override syntax remains deferred.
+The 2026-10-07 host-bound syntax adoption below closes the child-override decision.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
 admitted declaration without rediscovering a schema elsewhere in its arena.
@@ -920,7 +919,7 @@ and targets. No targets are written into authored references. Unentered prior
 controls are not scanned to infer omitted source dependencies. URI loader-result
 consumption and the native byte-loader bridge now use the same readiness stage;
 opt-in resumable native engine dispatch and readiness retries are implemented
-below. Enclosed child override syntax remains deferred.
+below. Enclosed child overrides now use the adopted existing host-bound forms.
 
 Literal document-prelude activation (2026-10-06) retains original
 `SchemaElementForm::Prelude` metadata and the directive's text payload. The shared
@@ -1015,8 +1014,8 @@ an outstanding generation as well as its prior result.
 The explicit bridge is usable by native callers and external resource queues.
 Opt-in resumable native engine dispatch, readiness retries and session-lifetime
 retention are now implemented through the shared stage contract described below.
-Block-prelude parsing and enclosed child override syntax remain deferred
-independently.
+The 2026-10-07 syntax adoption implements bounded block-prelude recognition
+and closes the enclosed child override decision independently.
 
 ### Implicit scope references and defaults
 
@@ -1038,11 +1037,25 @@ compilation environment and effective schema policy without introducing a new
 crossing grant requirement. Policies and traversal budgets still constrain the
 consumed reference path; lexical changes cannot reset request accounting.
 
-The exact enclosed child override syntax is deferred to
-[roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision). The accepted
-default and override semantics do not depend on choosing a new delimiter,
-root marker, or context identifier. Existing schema and namespace forms remain
-in use until that syntax decision is specified.
+Adopted on 2026-10-07: an enclosed child override uses the existing containing
+host and native property slots, for example
+`{section @cem:schema-select={#schema} @xmlns:p={#namespace} | ...}` with the
+core `cem` namespace declared. The root and matching property are implied by
+that syntax. A wrapping `{cem:schema @select={#schema} | ...}` supplies the
+existing schema enclosure alternative. Both retain ordinary source-position,
+readiness, policy and restoration rules; neither creates crossing authority.
+The [syntax guide](cem-ml-syntax.md#schema-scoping-a) is normative for recognition.
+The [roadmap checkpoint](../roadmap.md#deferred-cem-reference-syntax-decision)
+is closed with its verification scenarios retained.
+
+XML native attribute slots require element-local core `expression-attributes`
+metadata naming exact authored QNames. Standard namespace declarations and
+`xml:*` attributes remain literal. Import retains the same native slot kinds and
+lexical ownership with entity-aware source frames. Ordinary XML brace strings
+remain literal; consumers do not infer intent from their values. The metadata
+is excluded from application attribute validation. Block preludes recognize
+known literal directives on their own opening lines; native typed prelude
+payloads remain conditional future work. See the syntax guide for full bounds.
 
 ### Four different pieces of information
 
@@ -1533,8 +1546,9 @@ without requiring runtime contexts or synthetic context IDs in source exports.
 
 ## Deferred details and implementation work
 
-- Enclosed child override syntax is deferred in
-  [roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision).
+- Enclosed child override syntax is adopted in the syntax guide; its
+  [roadmap checkpoint](../roadmap.md#deferred-cem-reference-syntax-decision)
+  is closed. Native typed prelude payloads remain conditional future work.
 - Public query access, lexical reload and graph/transport contracts are adopted
   above. Their implementation and fixtures are tracked in
   [todo.md](todo.md#reference-query-and-transport-contract-implementation), with
@@ -1855,7 +1869,8 @@ closure, lexical attachment and context preparation invoke no native capability;
 only explicit consumer resolution executes it. Repeated consumption executes
 again while retaining source/artifact ownership. Balanced host slots with invalid
 query syntax remain pending without runtime inputs, then report source-attributed
-query errors when consumed. XML attributes continue to retain literal values.
+query errors when consumed. XML attributes remain literal except for explicit
+core `expression-attributes` slots, adopted on 2026-10-07.
 
 `build_with_lexical_scopes()` now builds one fragment with a
 `LexicallyScopedDocument` sidecar. It associates snapshots with the original
@@ -2044,7 +2059,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
-| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Explicit publication, lexical handoff, opt-in lifecycle coordination and resumable schema URI integration are implemented. Enclosed child override syntax remains deferred. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Explicit publication, lexical handoff, opt-in lifecycle coordination and resumable schema URI integration are implemented. Enclosed child overrides now use the adopted existing host-bound forms. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
 Attribute collection references select zero or more named attribute declarations
@@ -2297,7 +2312,8 @@ The typed markup writer requires consumer resolution of native values.
 
 The adopted first slice supports CEM-ML unquoted brace expressions. XML attribute
 expression recognition is deferred as an actionable compatibility design item;
-XML literals remain unchanged. This does not choose enclosed child-scope syntax
+XML literals remain unchanged unless explicitly marked under the 2026-10-07
+XML slot contract. This earlier stage did not choose enclosed child-scope syntax
 or cem-element ID binding behavior.
 
 Schema attribute consumers require an explicit `node` type for native values.
@@ -2725,3 +2741,35 @@ Remaining expression-slot, lexical default/shadowing and tree-sitter parity work
 still tracked in [todo.md](todo.md#reference-adoption-dependency-binding-and-readiness).
 XML attribute expression recognition, child override syntax and cem-element ID
 consumption remain on their existing deferred tracks.
+
+
+## Host adapter and syntax closure (2026-10-07)
+
+Native/local WASM validation sessions support runtime inputs keyed by original
+owner and source occurrence. Owner defaults apply unless a nearest owning
+ancestor has an explicit override. Pending overrides shadow ready defaults;
+clearing restores inheritance. Authored contexts need no IDs. Mutating a parent
+session invalidates its pending resource executions, while saved query views
+remain immutable. Loaded occurrence inputs are supplied separately after the
+resource batch settles.
+
+`ReferenceResourceExecution::complete_with_exports` accepts an explicit host
+public export callback selecting original imported declarations. The ML loader
+validates ownership, kind and cardinality before activation. Local WASM exposes
+host-only `[{part, select}]` export selectors evaluated over that original native
+owner; control JSON cannot carry grants. Exposure does not grant crossings or
+package replacement authority. URL fragments remain loader public parts; no
+implicit flattened ID scan or CEM-QL URL protocol is introduced.
+
+Resource executions expose saved query snapshots without importing resources or
+repeating reference selection. The input snapshot is the latest completed-name
+view retained from validation; loaded snapshots currently retain their captured
+ready name forest from import. Pending imported names stay excluded until an
+explicit loaded-owner namespace lifecycle integration is implemented; preparing
+a snapshot does not perform that integration. Values retain their original owner
+and completed view independently of session/snapshot disposal.
+
+The existing host/schema enclosure, explicit XML attribute opt-in, and bounded
+literal block preludes are adopted and verified. Typed prelude payloads and
+cem-element ID projection remain separate. Actionable follow-ups retain adjacent
+scenarios in [todo.md](todo.md#reference-host-adapters-and-syntax-completion).

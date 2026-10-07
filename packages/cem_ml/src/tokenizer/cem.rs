@@ -344,7 +344,7 @@ impl CemTokenizer {
         // sigil. Directives terminate at newline in canonical form.
         let body_start = self.cursor;
         while let Some(c) = self.peek() {
-            if c == '\n' {
+            if matches!(c, '\n' | '\r') {
                 break;
             }
             self.cursor += 1;
@@ -600,10 +600,19 @@ impl CemTokenizer {
             let range = self.range_from(start, self.cursor);
             self.emit(SchemaTokenKind::Trivia("|".into()), range);
         }
+        // Controls are confined to the opening prelude of this body.
+        let mut prelude = true;
         // Content loop until `}` or EOF.
         loop {
             // Eagerly flush whitespace/trivia between content tokens.
             self.flush_whitespace_trivia();
+            if prelude && self.is_block_prelude_directive() {
+                self.scan_directive();
+                continue;
+            }
+            if !matches!((self.peek(), self.peek_at(1)), (Some('/'), Some('*'))) {
+                prelude = false;
+            }
             match self.peek() {
                 None => {
                     self.parser_fact(
@@ -694,6 +703,30 @@ impl CemTokenizer {
                 _ => self.scan_content_text(),
             }
         }
+    }
+
+    fn is_block_prelude_directive(&self) -> bool {
+        if self.peek() != Some('@') {
+            return false;
+        }
+        // A directive starts its own physical line. A same-line body opener
+        // or comment is substantive prefix text and cannot opt into a control.
+        let start = self.scalars[..self.cursor]
+            .iter()
+            .rposition(|(c, _)| matches!(c, '\n' | '\r'))
+            .map_or(0, |index| index + 1);
+        if !self.scalars[start..self.cursor]
+            .iter()
+            .all(|(c, _)| matches!(c, ' ' | '\t'))
+        {
+            return false;
+        }
+        let name: String = self.scalars[self.cursor + 1..]
+            .iter()
+            .take_while(|(c, _)| !c.is_whitespace() && *c != '}')
+            .map(|(c, _)| *c)
+            .collect();
+        matches!(name.as_str(), "ns" | "default" | "schema")
     }
 
     fn scan_content_text(&mut self) {

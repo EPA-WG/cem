@@ -8,7 +8,7 @@ transport never claim that an authored reference has been evaluated.
 | Consumer / boundary | Verified behavior | Native evidence |
 | --- | --- | --- |
 | CEM source loading | Standalone and attribute slots retain expression, occurrence identity, source maps and captured namespace/schema bindings; targets remain absent. | `cem_ml/tests/node_references.rs`, `cem_ql/tests/lexical_scope_handoff.rs` |
-| XML source loading / reload | Explicit CEM expression elements retain native references. Ordinary XML attribute strings remain literal, including `{#input}`. | `cem_ql/tests/reference_transport_api.rs`, `cem_ml/tests/pending_namespace_names.rs` |
+| XML source loading / reload | Explicit CEM expression elements and core `expression-attributes` slots retain native references/general expressions with original entity-aware frames. Unlisted XML strings remain literal, including `{#input}`. | `cem_ql/tests/reference_transport_api.rs`, `cem_ml/tests/reference_syntax_adoption.rs`, `cem_ql/tests/reference_host_adapters.rs` |
 | Native QL / shared query ingress | `#` accepts nodes, ordered repetitions, empty sequences and other references. Repeated executions share the decoded arena; query request bytes are not reparsed. Original owners and descendant references remain intact. | `cem_ql/tests/constructor_references.rs`, `cem_ml_transform_cem_ql/tests/reload_ingress.rs` |
 | Public target access | `reference` is a node refinement. `.targets_available` distinguishes absent metadata from available empty targets; `.targets` accesses one edge list without evaluation. `same_node` compares occurrences. | `cem_ql/tests/public_reference_contract.rs`, `cem_ql/tests/constructor_references.rs` |
 | Schema declaration reuse / input validation | Consumers resolve original declarations or input placements. Reload ingress supplies the same decoded owner and capture. Missing capture is a typed dependency; missing runtime context and absent crossing grants prevent completion. A later explicit context/grant retry leaves source targets unchanged. | `cem_ml_transform_cem_ql/tests/reload_ingress.rs`, `cem_ql/tests/lexical_scope_handoff.rs`, `cem_ml_transform_cem_ql/tests/retained_behaviors.rs` |
@@ -82,24 +82,45 @@ WASM, runs the listed native source/query/lifecycle/transport suites in ML, QL,
 the engine bridge and CLI, then runs both reference-transport and native-value
 worker fixtures. CI invokes this target explicitly. The final local run passes
 284 native checks in 34 suites, including eight new adapter cases, plus both
-worker fixtures. Ordinary XML attributes remain
-literal; the XML expression-element/CDATA path uses the native reference consumer.
+worker fixtures. Explicitly marked XML attribute slots and the XML
+expression-element/CDATA path use the same native reference consumer; unlisted
+XML attribute values stay literal.
 
-The convenience adapter currently supplies one context per registered owner;
-individual occurrence overrides and snapshots of the resource execution itself
-are follow-ups, rather than prerequisites for source/query reference semantics.
-It has no URL public-part export callback: those requests fail with an attributed
-`cem.schema.public_part_unavailable` outcome. The native loader's explicit public
-exports hook remains available to embedding hosts; no implicit ID scan is added.
-These adapter extensions are actionable with adjacent scenarios in
-[todo.md](todo.md#next-three-reference-host-adapter-follow-ups).
+The convenience adapters now supply per-occurrence runtime inputs over original
+owner/node handles. Nearest owning overrides apply to descendants, explicitly
+pending overrides shadow defaults, and clearing restores inheritance. Replacing
+parent configuration invalidates outstanding resource execution; independent
+saved query views remain usable.
+
+Host `complete_with_exports` callbacks or local WASM public export selectors
+select original declarations before activation. Empty, ambiguous and foreign-owner
+exports remain incomplete. Exposure and context bindings create no crossing or
+replacement authority. URL parts stay loader conventions, without ID scans.
+
+`ReferenceResourceExecution::query_snapshot` saves the input's latest namespace
+completion or a loaded owner's captured ready name forest. It does not import,
+resolve or evaluate again. Pending imported names remain excluded; loaded-owner
+namespace lifecycle completion is an explicit follow-up. Snapshots and values
+retain owners independently of execution disposal.
+
+Evidence: `reference_host_adapters.rs` verifies occurrence inheritance and stale
+completion, public export admission, separate grants, query lifetime, XML native
+attribute consumption, combined enclosed schema/namespace overrides and parsed
+block-prelude runtime restoration. `reference_syntax_adoption.rs` checks XML alias
+ownership, element-local intent, entity frames, malformed/reserved targets,
+quote/comment-aware slot boundaries and bounded nested preludes. The local WASM
+worker fixture exercises the same adapter APIs in two heaps. Actionable follow-ups
+retain their scenarios in
+[todo.md](todo.md#next-three-reference-follow-ups).
 
 ## Separately deferred work
 
-The exact enclosed child scope override syntax remains in
-[roadmap.md](../roadmap.md). XML attribute expression recognition requires its
-own authoring/admission decision; ordinary attributes remain literal. General
-datatype compilation, executable native attribute `@type`, conversion and
+Enclosed child overrides now use existing host-bound native schema/namespace
+properties or wrapping schema elements. XML native attributes require explicit
+element-local metadata; ordinary attributes remain literal. Opening block
+directives use literal payloads, with native typed prelude payloads conditional
+on a separate request. General datatype compilation, executable native attribute
+`@type`, conversion and
 equality remain the separate datatype workstream. cem-element reference-to-ID
 projection and interaction conveniences remain deferred until the ML reference
 contract is complete; their actionable items and scenarios remain in

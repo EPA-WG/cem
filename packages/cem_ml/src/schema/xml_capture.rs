@@ -35,7 +35,13 @@ impl XmlLexicalCapture {
             namespace_bindings: BTreeMap::new(),
         }
     }
-    pub(crate) fn open(&mut self, event: &XmlEventAst, node: AstNodeId, attributes: &[AstNodeId]) {
+    pub(crate) fn open(
+        &mut self,
+        event: &XmlEventAst,
+        node: AstNodeId,
+        attributes: &[AstNodeId],
+        native_values: &[(AstNodeId, AstNodeId)],
+    ) {
         if event.namespace_uri.as_deref() == Some("https://cem.dev/ns/core/1")
             && event.local_name.as_deref() == Some("schema")
         {
@@ -79,6 +85,12 @@ impl XmlLexicalCapture {
         });
         for (attr, node) in event.attributes.iter().zip(attributes) {
             self.machine.commit_pending_annotation();
+            if native_values.iter().any(|(attribute, _)| attribute == node)
+                || (attr.namespace_uri.as_deref() == Some("https://cem.dev/ns/core/1")
+                    && attr.local_name == "expression-attributes")
+            {
+                continue;
+            }
             let value = attr
                 .entity_decoded_value
                 .clone()
@@ -123,6 +135,10 @@ impl XmlLexicalCapture {
                     range,
                 );
             }
+        }
+        for (_, value) in native_values {
+            self.occurrences
+                .insert(*value, self.machine.lexical_snapshot());
         }
         if event.namespace_uri.as_deref() == Some(CEM_NS)
             && event.local_name.as_deref() == Some("expr")
