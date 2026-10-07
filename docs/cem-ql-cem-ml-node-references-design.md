@@ -363,11 +363,38 @@ Later bounded selections can admit the published declaration without evaluating
 its value again. Each request still applies its own grants and request/destination
 limits; unpublished declarations remain `TargetBindingNotReady`. Results stay
 on the execution host, never on the source or another independent execution.
-Automatic namespace lifecycle coordination is not part of ordinary
-loading/query preparation or the schema URI validation session. Explicit host
-orchestration supplies the supported stages today.
-Remaining integrations have actionable items and adjacent verification scenarios in
-[todo.md](todo.md#ast-node-reference-implementation).
+The opt-in `with_namespace_lifecycle(captured, roots, limits, prepare, consume)`
+coordinator now stages captured declaration dependencies, supplies selectors with
+ready pre-declaration lexical snapshots, publishes completed values and retries
+pending declaration selections within one cumulative work allowance. Query and
+validation consumers receive matching original-owner completed names and temporary
+occurrence contexts. Explicit original occurrence inputs/local policy remain
+authoritative; missing inputs produce incomplete regions for explicit caller retry,
+while independent ready roots remain consumable. Authorized selected declarations
+outside the query forest can supply dependencies without entering its query axes.
+Scopes, invocation name views and publications restore on return, errors and unwind;
+retained outputs preserve their execution names and original source handles.
+
+Structural validation treats original namespace attributes with captured completed
+bindings or current published consumer results as scope metadata. They do not
+require an application node-valued data contract or a second value evaluation.
+Unconsumed native properties and ordinary lookalikes keep their existing contracts.
+Passive prefix diagnostics use original-owner lexical metadata to distinguish
+completed/pending declarations from genuinely unbound names, without evaluating
+any reference or using execution-completed names as source facts.
+
+`CemQlInputValidationSession` exposes this coordinator through explicit
+`namespace_lifecycle_enabled`/`namespace_context`/`namespace_inspected` hooks. Each
+CPU round validates ready roots using its matching namespace snapshot. Missing
+namespace inputs finish incomplete; ready URI controls retain the existing typed
+I/O suspension path and operation resource accounting. Loaded foreign-owner
+namespace preparation stays explicit in the host's `prepare_loaded` hook.
+Ordinary parsing, loading, inspection and query preparation stay passive. End-to-end
+fixtures cover repeated source reuse, shared query ingress, completed core controls
+versus foreign lookalikes, original-source inspection, denied grants, cumulative
+work, local policy and incomplete-input retry. Active follow-ups and deferred
+contracts retain their scenarios in [todo.md](todo.md#ast-node-reference-implementation)
+and [the roadmap](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 
 The exact enclosed child override syntax remains deferred in
 [the roadmap](../roadmap.md#deferred-cem-reference-syntax-decision). Existing
@@ -1846,7 +1873,7 @@ input is rewritten. The existing sites are:
 | Direct references in `{field-contracts}` | Zero or more `{field-contract}` declarations with nonempty `@name` and `@target`; ordered applications | Explicit schema compilation after element and behavior assembly; implemented. |
 | Element `@base` with `{uses}` aliases | One named element model from the declaring lexical alias/registry contract | The schema-owned `element-base` datatype preserves literal QName/wildcard lookup and admits an explicit native reference selecting exactly one named element declaration. |
 | Attribute `@type` and diagnostic strings; behavior/function strings; constraint and field-contract target strings | Existing datatype, diagnostic, function and local-name contracts | Compile-time dependency checks and final input validation remain compatible; these strings are not implicit native reference constructors. |
-| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Completion handoff, lifecycle activation and enclosed child override syntax remain tracked separately. |
+| Specialized schema and namespace scope properties | Existing schema/namespace identity and runtime scope contracts | Lexical capture, schema region handoff, bounded namespace selection, explicit declaration admission and independent pending-QName completion/query views are implemented. Explicit publication, lexical handoff, opt-in lifecycle coordination and resumable schema URI integration are implemented. Enclosed child override syntax remains deferred. |
 | Native references in structural validation-input child positions | Ordered zero/many retained structural child nodes; parent and selected-subtree rules use the consuming schema | Explicit native structural validation API, QL host stage, per-placement behavior checks and typed node function candidates are implemented. The optional engine stage retains CEM/XML parser owners and JSON/YAML/CSV lifecycle owners; other specialized validators retain their existing paths. |
 
 Attribute collection references select zero or more named attribute declarations

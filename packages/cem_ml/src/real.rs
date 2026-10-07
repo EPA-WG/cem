@@ -2269,6 +2269,7 @@ where
     };
     let resource_reader = context.map(|_| &rule_resource_reader as &RuleResourceReader<'_>);
     let rule_diags = registry.run(&RuleContext {
+        lexical_scopes: lexical_scopes.as_deref(),
         document: &document,
         schema_uri,
         content_type,

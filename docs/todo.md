@@ -33,6 +33,16 @@ query/transport contracts and `cem-element` ID projection remain separate decisi
 or later consumer work. Their actionable items and verification scenarios remain
 below or in the roadmap; the implementation is not universal consumer support.
 
+Implementation checkpoint (2026-10-06): specialized schema/namespace selection,
+completed namespace publication and opt-in lifecycle coordination now join the
+implemented core reference paths. Missing namespace inputs return incomplete
+snapshots for explicit caller retry; query/schema consumers share execution names,
+while URI waits remain resumable. The adopted supported-consumer milestone is
+verified with 282 focused native integration checks, including 17 new lifecycle
+checks, plus 14 prefix-related unit checks. Native datatype/function composition remains a separate workstream;
+XML attribute expressions, child-override syntax, public query/transport contracts
+and cem-element consumption retain their deferred actions and scenarios.
+
 ### 1. Audit current work and define schema contracts
 
 - [x] Fixture: verify schema-owned standard reference traversal limits and
@@ -2011,8 +2021,8 @@ only and adds no runtime behavior or public syntax.
       and retained runtime regions; native namespace attributes support bounded
       value consumption, singleton binding admission, explicit completion/activation
       and shared query ingress. Completed-name handoff into schema consumers,
-      completed-declaration publication and automatic namespace coordination remain
-      separately tracked below; this does not claim those integrations are complete.
+      completed-declaration publication and opt-in namespace coordination were
+      separately tracked; the following completed lifecycle work now closes them.
       Scenarios for later design verification: pending scope selection cannot
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
@@ -2094,7 +2104,8 @@ only and adds no runtime behavior or public syntax.
       runtime validation restores invocation assignments. The name-completion gap
       in schema admission/control discovery and structural attributes was recorded
       below; the following handoff work now closes it.
-      Completed namespace declaration reuse and automatic coordination remain open.
+      Completed namespace declaration reuse and opt-in coordination were recorded
+      as remaining work; both are now closed by the following lifecycle actions.
       Verification: 92 existing native scope-preparation, runtime-region, namespace
       preparation/activation/handoff, region-behavior and query-ingress tests pass.
       Scenarios for later design verification: supported consumers share native
@@ -2235,26 +2246,70 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: a completed declaration can be
       reused only in the execution that supplied its result; an incomplete target
       never borrows inherited/later URIs or another execution's completion.
-- [ ] Decide the opt-in namespace coordinator's unavailable runtime-input
-      contract before implementation: return an incomplete snapshot for explicit
-      caller retry (recommended, consistent with current pending contexts), or
-      introduce typed host-input suspension/completion alongside URI resource waits.
+- [x] Decide the opt-in namespace coordinator's unavailable runtime-input
+      contract before implementation. Adopted: return an incomplete snapshot for
+      explicit caller retry with new runtime inputs, retaining current pending
+      context semantics. Do not add a host-input suspension API; existing URI
+      resource waits remain separately resumable.
       Scenarios for later design verification: missing input never inherits an
       unrelated context; retries preserve source owners and rerun under a fresh
       input snapshot without holding an execution slot while waiting.
-- [ ] Wire the explicit namespace preparation/activation stages into an opt-in
+- [x] Fixture: coordinate captured namespace dependencies at an explicit invocation;
+      cover pre-declaration contexts, publication reuse, incomplete caller inputs,
+      independent ready regions, repeated executions and retries, scope/grant and
+      work bounds, source invariance and restoration on errors/unwind.
+      Scenarios for later design verification: callbacks never receive guessed
+      bindings; pending selectors do not borrow enclosing runtime inputs; explicit
+      original scopes and local policy overrides remain authoritative.
+- [x] Fixture: exercise coordinated namespace names through shared query ingress
+      and schema-region validation, including repeated template reuse, pending to
+      ready retry, original-owner diagnostics and authored descendant references.
+      Scenarios for later design verification: queries and validation consume the
+      same execution completion; parse/inspection never trigger coordination;
+      foreign namespace lookalikes never activate core schema controls.
+- [x] Fixture: opt in to namespace coordination from the resumable schema URI
+      validation session. Verify ready completed core controls load on I/O workers,
+      missing namespace contexts finish incomplete without reads, and resumes use
+      fresh namespace snapshots while retaining original owners and URI budgets.
+      Scenarios for later design verification: existing non-opt-in sessions keep
+      their behavior; namespace input absence does not create a resource request.
+- [x] Wire the explicit namespace preparation/activation stages into an opt-in
       document lifecycle coordinator after completed-declaration publication is
       specified. Use caller-provided runtime inputs and original lexical dependencies
       to stage selectors, retry pending regions and hand matching ready views to
       validation/query consumers. Preserve ordinary parse/load/inspect behavior.
+      Completed: `with_namespace_lifecycle` stages dependencies using captured
+      pre-declaration snapshots, publishes ready values, bounds metadata/selection
+      work across retries and restores invocation scopes, names and publications.
+      The resumable validation session exposes explicit opt-in context/inspection
+      hooks and validates independent ready roots under matching names.
       Scenarios for later design verification: waiting releases execution work;
       unrelated ready regions stay consumable; separate instances never share
       mutable namespace results, contexts or source targets.
 
-- [ ] Verify the complete schema/namespace reference consumer lifecycle after
+- [x] Fixture: passive prefix diagnostics distinguish original captured ready or
+      pending namespace bindings from genuinely unbound attributes. Pass retained
+      lexical metadata to the engine rule context without consumer evaluation;
+      reject foreign capture owners and preserve legacy contexts without metadata.
+      Scenarios for later design verification: pending binding is declared rather
+      than unbound; ready completions do not rewrite authored diagnostic sources.
+- [x] Fixture: structural schema validation recognizes original namespace
+      attributes already consumed by the namespace lifecycle as scope controls,
+      without requiring an application node-valued data attribute contract.
+      Pending/unpublished native properties and ordinary attribute lookalikes
+      remain subject to existing readiness/contracts; retain authored query views.
+      Scenarios for later design verification: a ready scope property is not
+      evaluated twice as ordinary data; original source values stay inspectable.
+- [x] Verify the complete schema/namespace reference consumer lifecycle after
       namespace result publication and opt-in coordination are implemented. Audit
       design/README coverage and add any missing end-to-end native fixtures; preserve
       the separately deferred child-override syntax and cem-element ID/binding work.
+      Completed: maintained design and both adapter READMEs describe the explicit
+      coordinator and incomplete retry contract. New end-to-end coverage verifies
+      shared query ingress, core/foreign control names and queued URI resumption.
+      Fixed passive prefix facts and intrinsic consumed-namespace field handling
+      exposed by these fixtures. All 282 focused ML/QL/bridge integration checks
+      and 14 prefix-related unit checks pass.
       Scenarios for later design verification: repeated template/source reuse gives
       each execution independent contexts, namespace results and query/validation
       names; pending retries release work and preserve owners, bounds and grants;

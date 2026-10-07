@@ -171,6 +171,18 @@ contexts, denied crossings and failed reads leave validation incomplete without 
 inherited-model fallback. Resource correlation, cancellation, import byte limits
 and retained payload memory accounting span all rounds.
 
+For namespace references, explicitly opt in with
+`SchemaValidationSessionInputs::namespace_lifecycle_enabled`. Supply original
+pre-declaration inputs/local policy through `namespace_context`; use
+`namespace_inspected` to retain the matching original-owner completion for shared
+query ingress or later context preparation. Each CPU invocation coordinates native
+namespace dependencies, then validates only its ready roots under those completed
+names. Missing namespace inputs finish incomplete for caller retry and issue no
+host-input wait request. Ready schema URI controls still use the existing I/O
+suspension path; loaded-owner preparation, grants and request correlation retain
+their existing contracts. Other owners' namespace stages remain explicit in
+`prepare_loaded`. Sessions without this opt-in retain their previous behavior.
+
 Return `None` from `start_resumable` for the existing synchronous path. Portable
 synchronous engines continue calling `validate`. Registration, parsing and query
 preparation remain passive. Native CEM/XML fixtures cover queued nested loads and

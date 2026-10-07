@@ -43,6 +43,8 @@ enum Mode {
     NoGrant,
     ReadFailure,
     Hint,
+    Namespace,
+    NamespaceNoContext,
 }
 #[derive(Debug, Default)]
 struct Seen {
@@ -50,6 +52,7 @@ struct Seen {
     snapshots: Vec<Vec<String>>,
     owners: Vec<Arc<cem_ml::parser::document::CemDocument>>,
     policies: Vec<usize>,
+    namespace_snapshots: Vec<bool>,
 }
 #[derive(Debug)]
 struct Stage {
@@ -80,10 +83,12 @@ impl InputValidationStage for Stage {
             .unwrap()
             .owners
             .push(request.source.ast_owner().clone());
+        let source = request.source.clone();
         Some(Box::new(CemQlInputValidationSession::new(
             request,
             host,
             Inputs {
+                source,
                 mode: self.mode,
                 origin,
                 seen: self.seen.clone(),
@@ -93,11 +98,37 @@ impl InputValidationStage for Stage {
 }
 #[derive(Debug)]
 struct Inputs {
+    source: Arc<cem_ml::parser::tree::RetainedCemTree>,
     mode: Mode,
     origin: DeclarationScope,
     seen: Arc<Mutex<Seen>>,
 }
 impl SchemaValidationSessionInputs for Inputs {
+    fn namespace_lifecycle_enabled(&self) -> bool {
+        matches!(self.mode, Mode::Namespace | Mode::NamespaceNoContext)
+    }
+    fn namespace_context(
+        &mut self,
+        _: &SchemaDeclarationNode,
+        _: &cem_ml::schema::namespace_references::NamespaceLexicalSnapshot,
+        _: DeclarationScope,
+        _: &Arc<cem_ml::schema::namespace_references::NamespaceNameCompletion>,
+    ) -> (Option<StandaloneExpressionContext>, cem_ml::schema::reference_policy::ReferenceScopePolicyOverrides) {
+        let context = (!matches!(self.mode, Mode::NamespaceNoContext)).then(|| {
+            let id = self.source.ast().nodes.iter().find_map(|node| match node {
+                CemAstNode::Element {node_id, expanded_name, ..} if expanded_name.local_name == "@ns" => Some(*node_id),
+                _ => None,
+            }).unwrap();
+            StandaloneExpressionContext::default().with_binding("namespace", StandaloneExpressionBinding::any(ItemStream::once(
+                RetainedCemNode::new(self.source.clone(), id).unwrap().query_item()
+            )))
+        });
+        (context, Default::default())
+    }
+    fn namespace_inspected(&mut self, snapshot: &cem_ql::schema_references::NamespaceLifecycleSnapshot) {
+        self.seen.lock().unwrap().namespace_snapshots.push(snapshot.is_complete());
+        assert!(Arc::ptr_eq(snapshot.completion.captured().document(), self.source.ast_owner()));
+    }
     fn runtime_context(
         &mut self,
         _: SchemaHostRuntimeContextRequest<'_>,
@@ -293,6 +324,8 @@ fn run_format(mode: Mode, xml: bool) -> (cem_ml::engine::ValidateResponse, Arc<M
                 uri: "https://vendor.test/main.cem".into(),
                 bytes: if xml {
                     b"<host schema-src='outer.cem'><child schema-src='inner.cem'><leaf/></child></host>".to_vec()
+                } else if matches!(mode, Mode::Namespace | Mode::NamespaceNoContext) {
+                    b"@ns public = https://cem.dev/ns/core/1\n{host @xmlns:c={#namespace} @c:schema-src=outer.cem | {child @c:schema-src=inner.cem | {leaf}}}".to_vec()
                 } else {
                     b"{host @schema-src=outer.cem | {child @schema-src=inner.cem | {leaf}}}".to_vec()
                 },
@@ -370,4 +403,22 @@ fn missing_destination_context_or_grant_blocks_descendant_loading_without_fallba
                 .any(|d| d.code == "cem.resolver.io"));
         }
     }
+}
+
+#[test]
+fn namespace_coordinator_is_opt_in_and_preserves_resumable_uri_loading() {
+    let (response, seen) = run_format(Mode::Namespace, false);
+    assert!(response.report.report_ast.validation.unwrap().complete, "{:?}", response.report.diagnostics);
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.reads, ["https://vendor.test/outer.cem", "https://vendor.test/inner.cem"]);
+    assert_eq!(seen.namespace_snapshots, [true, true, true]);
+    assert!(response.report.diagnostics.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
+}
+#[test]
+fn missing_namespace_runtime_inputs_finish_incomplete_without_uri_work() {
+    let (response, seen) = run_format(Mode::NamespaceNoContext, false);
+    assert!(!response.report.report_ast.validation.unwrap().complete);
+    let seen = seen.lock().unwrap();
+    assert!(seen.reads.is_empty());
+    assert_eq!(seen.namespace_snapshots, [false]);
 }

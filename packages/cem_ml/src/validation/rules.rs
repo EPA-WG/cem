@@ -1085,7 +1085,7 @@ impl SemanticRule for UnboundPrefixRule {
         const KNOWN_PREFIXES: &[&str] = &["cem", "html", "svg", "xml", "xmlns", "aria", "xlink"];
         let mut out = Vec::new();
         for node in ctx.document.iter() {
-            let CemAstNode::Attribute { expanded_name, .. } = node else {
+            let CemAstNode::Attribute { node_id, expanded_name, .. } = node else {
                 continue;
             };
             let prefix = &expanded_name.namespace_uri;
@@ -1096,6 +1096,18 @@ impl SemanticRule for UnboundPrefixRule {
                 continue;
             }
             if prefix == "with" && is_template_family_language_document(ctx) {
+                continue;
+            }
+            // Captured pending declarations are declared, even before their
+            // consumer supplies a URI. Only this original owner can suppress a
+            // lexical unbound fact; completed execution views never enter here.
+            if ctx.lexical_scopes
+                .filter(|captured| std::ptr::eq(ctx.document, captured.document().as_ref()))
+                .is_some_and(|captured| {
+                    captured.expanded_name(captured.document(), *node_id).is_some()
+                        || captured.pending_namespace_name(captured.document(), *node_id).is_some()
+                })
+            {
                 continue;
             }
             let fact = semantic_fact_at(
@@ -2889,6 +2901,7 @@ fn validate_schema_package_example_source_bytes(
         }
     }
     diagnostics.extend(RuleRegistry::with_tier_a_rules().run(&RuleContext {
+        lexical_scopes: None,
         document: &document,
         schema_uri: Some(schema_uri),
         content_type: Some(content_type),
@@ -3597,6 +3610,7 @@ mod tests {
         let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
         let rule = UnboundPrefixRule::default().with_cem_ml_semantic_diagnostic_catalog(catalog);
         rule.run(&RuleContext {
+            lexical_scopes: None,
             document: &doc,
             schema_uri: None,
             content_type: None,
@@ -3627,6 +3641,7 @@ mod tests {
         let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
         let registry = RuleRegistry::with_tier_a_rules();
         registry.run(&RuleContext {
+            lexical_scopes: None,
             document: &doc,
             schema_uri,
             content_type,
@@ -3653,6 +3668,7 @@ mod tests {
         );
         run_schema_document_model_rule_with_model(
             &RuleContext {
+                lexical_scopes: None,
                 document: &doc,
                 schema_uri: Some(CEM_SCHEMA_PACKAGE_URI),
                 content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),

@@ -610,6 +610,7 @@ fn incomplete_models_are_inspectable_but_never_ready_for_final_validation() {
         use cem_ml::validation::{rules::SchemaDocumentModelRule, RuleContext, SemanticRule};
         let document = parse("{unknown}");
         let rule_diagnostics = SchemaDocumentModelRule.run(&RuleContext {
+            lexical_scopes: None,
             document: &document,
             schema_uri: Some(CEM_ML_SCHEMA_URI),
             content_type: Some("application/cem"),

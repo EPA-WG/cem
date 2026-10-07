@@ -15,7 +15,8 @@ use cem_ml::{
             },
             InputValidationOutcome,
         },
-        reference_policy::ReferenceScopePolicy,
+        namespace_references::{NamespaceLexicalSnapshot, NamespaceNameCompletion},
+        reference_policy::{ReferenceScopePolicy, ReferenceScopePolicyOverrides},
         scope_controls::{SchemaHostControl, SchemaHostSource},
         uri_loading::SchemaUriResource,
     },
@@ -23,8 +24,9 @@ use cem_ml::{
 use cem_ql::{
     api::StandaloneExpressionContext,
     schema_references::{
-        CemQlSchemaDeclarationHost, SchemaHostRuntimeContextRequest, SchemaHostRuntimeValidation,
-        SchemaUriLoadTicket, SchemaUriLoadedScope,
+        CemQlSchemaDeclarationHost, DeclarationScope, NamespaceLifecycleSnapshot,
+        SchemaHostRuntimeContextRequest, SchemaHostRuntimeValidation, SchemaUriLoadTicket,
+        SchemaUriLoadedScope,
     },
 };
 use std::{
@@ -37,6 +39,28 @@ use std::{
 /// loaded owner must explicitly attach any local lexical contexts and directed
 /// grants before the next validation invocation. No default crossing is granted.
 pub trait SchemaValidationSessionInputs: Debug + Send {
+    /// Explicitly opt in; existing sessions retain their previous behavior.
+    fn namespace_lifecycle_enabled(&self) -> bool {
+        false
+    }
+    /// Runtime inputs for an original occurrence after its captured namespace
+    /// dependencies are ready. None finishes that region incomplete; the caller
+    /// can supply new inputs in another execution rather than awaiting host data.
+    fn namespace_context(
+        &mut self,
+        _source: &SchemaDeclarationNode,
+        _snapshot: &NamespaceLexicalSnapshot,
+        _enclosing: DeclarationScope,
+        _completion: &Arc<NamespaceNameCompletion>,
+    ) -> (
+        Option<StandaloneExpressionContext>,
+        ReferenceScopePolicyOverrides,
+    ) {
+        (None, ReferenceScopePolicyOverrides::default())
+    }
+    /// Ready names remain original-owner execution views. The runtime may retain
+    /// this completion for shared query ingress or subsequent context preparation.
+    fn namespace_inspected(&mut self, _snapshot: &NamespaceLifecycleSnapshot) {}
     fn runtime_context(
         &mut self,
         request: SchemaHostRuntimeContextRequest<'_>,
@@ -170,19 +194,60 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
         else {
             return Err(vec![self.error("Input source is not a retained document")]);
         };
-        let inputs = &mut self.inputs;
-        let report = self
-            .host
-            .validate_input_runtime_host_regions_with_behavior_evaluator(
-                &self.request.model.schema_uri,
-                self.request.source.clone(),
-                root_children,
-                &self.request.model,
-                self.request.policy.limits,
-                |request| inputs.runtime_context(request),
-                self.request.behavior_evaluator.as_deref(),
-            )
-            .map_err(|error| vec![self.error(error.to_string())])?;
+        let mut namespace_complete = true;
+        let mut namespace_diagnostics = vec![];
+        let report = if self.inputs.namespace_lifecycle_enabled() {
+            let captured = self.request.lexical_scopes.clone().ok_or_else(|| {
+                vec![self.error("Namespace lifecycle requires original lexical capture")]
+            })?;
+            let inputs = std::cell::RefCell::new(&mut self.inputs);
+            let request = &self.request;
+            let (snapshot, validation) = self
+                .host
+                .with_namespace_lifecycle(
+                    captured,
+                    root_children,
+                    request.policy.limits,
+                    |source, snapshot, enclosing, completion| {
+                        inputs
+                            .borrow_mut()
+                            .namespace_context(source, snapshot, enclosing, completion)
+                    },
+                    |host, snapshot| {
+                        inputs.borrow_mut().namespace_inspected(snapshot);
+                        host.validate_input_runtime_host_regions_with_behavior_evaluator(
+                            &request.model.schema_uri,
+                            request.source.clone(),
+                            &snapshot.ready_roots,
+                            &request.model,
+                            request.policy.limits,
+                            |context| inputs.borrow_mut().runtime_context(context),
+                            request.behavior_evaluator.as_deref(),
+                        )
+                    },
+                )
+                .map_err(|error| vec![self.error(format!("Namespace lifecycle: {error:?}"))])?;
+            namespace_complete = snapshot.is_complete();
+            for property in &snapshot.properties {
+                if let Some(preparation) = &property.preparation {
+                    namespace_diagnostics.extend(preparation.selection.diagnostics.iter().cloned());
+                }
+            }
+            validation
+        } else {
+            let inputs = &mut self.inputs;
+            self.host
+                .validate_input_runtime_host_regions_with_behavior_evaluator(
+                    &self.request.model.schema_uri,
+                    self.request.source.clone(),
+                    root_children,
+                    &self.request.model,
+                    self.request.policy.limits,
+                    |request| inputs.runtime_context(request),
+                    self.request.behavior_evaluator.as_deref(),
+                )
+        }
+        .map_err(|error| vec![self.error(error.to_string())])?;
         self.check_active()?;
         self.inputs.inspected(&report);
         let mut requests = vec![];
@@ -253,13 +318,20 @@ impl<I: SchemaValidationSessionInputs> InputValidationSession for CemQlInputVali
             return Ok(InputValidationProgress::AwaitResources(requests));
         }
         let mut diagnostics = report.validation.diagnostics;
+        for diagnostic in namespace_diagnostics {
+            if !diagnostics.contains(&diagnostic) {
+                diagnostics.push(diagnostic);
+            }
+        }
         for diagnostic in &self.diagnostics {
             if !diagnostics.contains(diagnostic) {
                 diagnostics.push(diagnostic.clone());
             }
         }
         Ok(InputValidationProgress::Finished(InputValidationOutcome {
-            complete: report.validation.complete && self.diagnostics.is_empty(),
+            complete: namespace_complete
+                && report.validation.complete
+                && self.diagnostics.is_empty(),
             diagnostics,
         }))
     }

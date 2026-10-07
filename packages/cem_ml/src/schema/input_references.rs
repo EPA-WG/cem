@@ -25,6 +25,9 @@ pub const INVALID_STRUCTURAL_TARGET: &str = "cem.schema_validation.invalid_refer
 
 /// Retained-node adaptation is independent of schema-declaration lookup.
 pub trait InputReferenceHost: ReferenceResolutionHost {
+    fn input_consumed_namespace_attribute(&self, _source: &SchemaDeclarationNode) -> bool {
+        false
+    }
     /// Original retained source for authored inspection/provenance only.
     fn input_source_tree(
         &self,
@@ -70,6 +73,9 @@ pub trait InputReferenceHost: ReferenceResolutionHost {
     }
 }
 impl<H: SchemaDeclarationHost> InputReferenceHost for H {
+    fn input_consumed_namespace_attribute(&self, source: &SchemaDeclarationNode) -> bool {
+        SchemaDeclarationHost::input_consumed_namespace_attribute(self, source)
+    }
     fn input_source_tree(
         &self,
         source: &SchemaDeclarationNode,
@@ -614,6 +620,9 @@ where
                         else {
                             continue;
                         };
+                        if host.input_consumed_namespace_attribute(&attribute) {
+                            continue;
+                        }
                         let CemAstNode::Attribute { value_nodes, .. } = attribute.node() else {
                             continue;
                         };
@@ -701,6 +710,18 @@ where
             !matches!(child.node(), CemAstNode::Element { .. })
                 || host.input_expanded_name(child).is_some()
         });
+        let mut controls = models.control_attributes(&current.source).cloned().unwrap_or_default();
+        if let CemAstNode::Element { attributes, .. } = current.source.node() {
+            for id in attributes {
+                if let Some(attribute) =
+                    SchemaDeclarationNode::new(current.source.document().clone(), *id)
+                {
+                    if host.input_consumed_namespace_attribute(&attribute) {
+                        controls.insert(*id);
+                    }
+                }
+            }
+        }
         let element = if model.is_empty() || names.is_none() {
             None
         } else {
@@ -710,7 +731,7 @@ where
                 current.source.node_id(),
                 allows_any,
                 (current.children_complete && child_names_ready).then_some(sequence.as_slice()),
-                models.control_attributes(&current.source),
+                Some(&controls),
                 names,
                 &mut diagnostics,
             )

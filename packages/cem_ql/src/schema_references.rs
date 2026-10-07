@@ -47,6 +47,10 @@ mod namespace_preparation;
 mod namespace_handoff;
 mod namespace_property;
 mod namespace_activation;
+mod namespace_lifecycle;
+pub use namespace_lifecycle::{
+    NamespaceLifecycleError, NamespaceLifecycleIssue, NamespaceLifecycleSnapshot,
+};
 mod namespace_publication;
 pub use namespace_publication::NamespacePublicationError;
 mod namespace_schema_names;
@@ -684,6 +688,17 @@ impl ReferenceResolutionHost for CemQlSchemaDeclarationHost {
     }
 }
 impl SchemaDeclarationHost for CemQlSchemaDeclarationHost {
+    fn input_consumed_namespace_attribute(&self, source: &SchemaDeclarationNode) -> bool {
+        if !matches!(source.node(), CemAstNode::Attribute { .. }) {
+            return false;
+        }
+        let key = Arc::as_ptr(source.document()) as usize;
+        self.captured_namespaces.get(&key).is_some_and(|captured| {
+            captured.namespace_binding(source.document(), source.node_id()).is_some()
+                || self.namespace_publications.get(&(key, source.node_id()))
+                    .is_some_and(|proof| proof.matches(self))
+        })
+    }
     fn input_source_tree(
         &self,
         source: &SchemaDeclarationNode,

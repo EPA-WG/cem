@@ -214,7 +214,25 @@ unavailable, including dependencies inherited through reused publications.
 Unrelated occurrence handoffs do not alter those inputs. Later consumers still
 apply their own grants and request/destination bounds without reevaluating the
 published declaration's value. Independent hosts do not borrow each other's
-results. Opt-in automatic namespace lifecycle coordination remains future work.
+results. `with_namespace_lifecycle(captured, roots, limits, prepare, consume)` coordinates
+those stages at an explicit invocation. It prepares original selectors only after
+their captured pre-declaration bindings are ready, publishes ready values, retries
+pending declaration dependencies under a cumulative work cap and supplies one
+matching completion and temporary occurrence scopes to `consume`. Existing
+explicit occurrence inputs remain authoritative. Missing inputs return an
+incomplete snapshot for caller retry; disjoint ready roots remain consumable.
+Dependencies outside a selected query forest supply bindings without entering
+its axes. Scope assignments, invocation names and publications restore on return,
+error or unwind; retained query/validation output remains inspectable.
+
+Use `snapshot.ready_roots` for partial consumption or require
+`snapshot.is_complete()` before consuming the whole selection. Original namespace
+attributes with completed parser bindings or current published consumer results
+are scope controls during structural validation, rather than application data
+attributes needing another node contract. Unconsumed native properties and
+ordinary lookalikes retain their existing contracts. The native validation session
+adapter offers an explicit opt-in hook; ordinary parse/load/query preparation
+never invokes this coordinator.
 
 `with_completed_namespace_names(completion, callback)` exposes a registered
 original owner's selected-forest name completion to schema target admission and
@@ -1034,8 +1052,9 @@ query preparation or `cem_ml::query::run_query_with_source_owner`. It binds the
 matching completion's selected roots through `NamespaceQueryTree`, preserving
 root order, empty forests, native source handles and authored `source` inspection.
 It exposes ready name metadata without evaluating captured expressions or
-preparing their lexical contexts. Automatic namespace lifecycle activation
-remains separate work.
+preparing their lexical contexts. Supply a completion from the explicit
+`with_namespace_lifecycle` invocation when dependency coordination is required;
+query ingress itself stays passive.
 
 `assign_following_scope(tree, boundary, scope)` records a caller-completed
 sibling-position switch using the original retained boundary node. Earlier

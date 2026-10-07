@@ -133,6 +133,9 @@ pub type RuleResourceReader<'a> =
     dyn Fn(&str, Option<&str>, Option<&str>) -> Result<RuleResourceRead, String> + 'a;
 
 pub struct RuleContext<'a> {
+    /// Original-owner passive lexical metadata, including pending declarations.
+    /// This does not supply runtime namespace completion or execute references.
+    pub lexical_scopes: Option<&'a crate::schema::machine::LexicallyScopedDocument>,
     pub document: &'a CemDocument,
     pub schema_uri: Option<&'a str>,
     pub content_type: Option<&'a str>,
@@ -268,6 +271,7 @@ pub fn run(input: &str) -> ValidationReport {
 
     let registry = RuleRegistry::with_tier_a_rules();
     let rule_diags = registry.run(&RuleContext {
+        lexical_scopes: None,
         document: &document,
         schema_uri: None,
         content_type: None,

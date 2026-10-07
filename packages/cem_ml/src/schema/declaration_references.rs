@@ -59,6 +59,11 @@ impl SchemaDeclarationNode {
 }
 
 pub trait SchemaDeclarationHost: ReferenceResolutionHost {
+    /// True only for an original namespace attribute whose own consumer has
+    /// completed its binding. It is scope metadata, not an application data field.
+    fn input_consumed_namespace_attribute(&self, _source: &SchemaDeclarationNode) -> bool {
+        false
+    }
     /// Original retained tree for explicit source inspection, when available.
     /// Returning it supplies provenance only, never relationship authority.
     fn input_source_tree(

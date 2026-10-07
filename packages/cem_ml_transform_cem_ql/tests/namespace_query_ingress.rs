@@ -830,3 +830,102 @@ fn property_activation_retries_keep_readiness_crossings_and_budgets_before_query
         .namespace_binding(input.tree.ast_owner(), declaration(&input))
         .is_none());
 }
+
+#[test]
+fn coordinated_ingress_retains_independent_names_and_authored_reference_children() {
+    use cem_ql::{
+        api::{StandaloneExpressionBinding, StandaloneExpressionContext},
+        eval::{ItemStream, RetainedCemNode},
+        schema_references::CemQlSchemaDeclarationHost,
+    };
+    let input = import("@ns public = urn:first\n@ns public = urn:second\n{host @xmlns:v={#library} | {v:item @v:flag=yes | {#related}}}");
+    let declarations: Vec<_> = input
+        .tree
+        .ast()
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Element {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "@ns" => Some(*node_id),
+            _ => None,
+        })
+        .collect();
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let policy = cem_ml::schema::reference_policy::ReferenceScopePolicy::schema_defaults().unwrap();
+    host.register_scope(
+        input.tree.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy.clone(),
+    );
+    let mut retained = vec![];
+    for (target, uri) in [
+        (declarations[0], "urn:first"),
+        (declarations[1], "urn:second"),
+    ] {
+        let context = StandaloneExpressionContext::default()
+            .with_binding(
+                "library",
+                StandaloneExpressionBinding::any(ItemStream::once(
+                    RetainedCemNode::new(input.tree.clone(), target)
+                        .unwrap()
+                        .query_item(),
+                )),
+            )
+            .with_binding(
+                "related",
+                StandaloneExpressionBinding::any(ItemStream::empty()),
+            );
+        let (snapshot, response) = host.with_namespace_lifecycle(input.captured.clone(), &[element(&input, "item")], policy.limits,
+            |_, _, _, _| (Some(context.clone()), Default::default()),
+            |_, snapshot| {
+                assert!(snapshot.is_complete());
+                run(&input, snapshot.completion.clone(), "(input.namespace, input.attributes.namespace, input.children.kind, input.source.namespace)")
+            }).unwrap();
+        assert_eq!(
+            items(&response),
+            strings(&[uri, uri, "whitespace", "reference", "v"])
+        );
+        retained.push((snapshot, response));
+    }
+    assert_eq!(items(&retained[0].1)[0], strings(&["urn:first"])[0]);
+    assert_eq!(items(&retained[1].1)[0], strings(&["urn:second"])[0]);
+    assert!(input
+        .captured
+        .expanded_name(input.tree.ast_owner(), element(&input, "item"))
+        .is_none());
+    assert!(input.tree.ast().nodes.iter().all(|node| !matches!(
+        node,
+        CemAstNode::Reference {
+            targets: Some(_),
+            ..
+        }
+    )));
+}
+
+#[test]
+fn coordinated_pending_ingress_exposes_only_independent_ready_regions() {
+    use cem_ql::{api::StandaloneExpressionContext, schema_references::CemQlSchemaDeclarationHost};
+    let input = import("@ns public = urn:ready\n{host @xmlns:v={#library} | {v:item}} {outside}");
+    let mut host = CemQlSchemaDeclarationHost::new();
+    let policy = cem_ml::schema::reference_policy::ReferenceScopePolicy::schema_defaults().unwrap();
+    host.register_scope(
+        input.tree.clone(),
+        Some(StandaloneExpressionContext::default()),
+        policy.clone(),
+    );
+    let (snapshot, response) = host
+        .with_namespace_lifecycle(
+            input.captured.clone(),
+            &[element(&input, "item"), element(&input, "outside")],
+            policy.limits,
+            |_, _, _, _| (None, Default::default()),
+            |_, snapshot| run(&input, snapshot.completion.clone(), "input.name"),
+        )
+        .unwrap();
+    assert!(!snapshot.is_complete());
+    assert_eq!(items(&response), strings(&["outside"]));
+    assert!(!snapshot.completion.contains(element(&input, "item")));
+}

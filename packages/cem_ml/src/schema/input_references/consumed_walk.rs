@@ -255,6 +255,9 @@ where
                             else {
                                 continue;
                             };
+                            if host.inner.input_consumed_namespace_attribute(&attribute) {
+                                continue;
+                            }
                             let CemAstNode::Attribute { value_nodes, .. } = attribute.node() else {
                                 continue;
                             };

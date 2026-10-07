@@ -298,6 +298,9 @@ impl<F> SchemaDeclarationHost for RuntimeHost<'_, F>
 where
     F: for<'a> FnMut(SchemaHostRuntimeContextRequest<'a>) -> Option<StandaloneExpressionContext>,
 {
+    fn input_consumed_namespace_attribute(&self, source: &SchemaDeclarationNode) -> bool {
+        SchemaDeclarationHost::input_consumed_namespace_attribute(self.host, source)
+    }
     fn input_expanded_name<'a>(
         &'a self,
         source: &'a SchemaDeclarationNode,
