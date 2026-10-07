@@ -45,6 +45,8 @@ mod lexical_handoff;
 mod scope_preparation;
 mod namespace_preparation;
 mod namespace_handoff;
+mod namespace_property;
+pub use namespace_property::{NamespacePropertyPreparation, NamespacePropertyPreparationIssue};
 pub use namespace_handoff::NamespaceLexicalScopeHandoffError;
 pub use namespace_preparation::{NamespaceScopePreparation, NamespaceScopePreparationIssue};
 mod uri_loads;

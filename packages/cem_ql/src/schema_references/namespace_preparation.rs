@@ -71,43 +71,52 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<NamespaceScopePreparation, ReferenceResolutionError> {
         let selection = resolve_reference(self.source_reference(reference), self, limits)?;
+        Ok(self.admit_namespace_selection(selection))
+    }
+
+    /// Apply the same namespace admission/readiness contract to an already-bounded
+    /// property selection. This does not start a second traversal or reset budgets.
+    pub(super) fn admit_namespace_selection(
+        &self,
+        selection: ReferenceResolution<CemQlSchemaReferenceNode>,
+    ) -> NamespaceScopePreparation {
         let mut prepared = NamespaceScopePreparation {
             selection,
             target: None,
             issue: None,
         };
         if !prepared.selection.is_complete() || prepared.selection.failed {
-            return Ok(prepared);
+            return prepared;
         }
         if prepared.selection.nodes.len() != 1 {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetCount(
                 prepared.selection.nodes.len(),
             ));
-            return Ok(prepared);
+            return prepared;
         }
         let Some(source) = self.declaration_node(&prepared.selection.nodes[0]) else {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetHasNoSourceHandle);
-            return Ok(prepared);
+            return prepared;
         };
         let Some(captured) = self
             .captured_namespaces
             .get(&(Arc::as_ptr(source.document()) as usize))
         else {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetMetadataNotReady);
-            return Ok(prepared);
+            return prepared;
         };
         if captured
             .pending_namespace_declaration(source.document(), source.node_id())
             .is_some()
         {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetBindingNotReady);
-            return Ok(prepared);
+            return prepared;
         }
         let target = match admit_namespace_scope_target(source, captured) {
             Ok(target) => target,
             Err(issue) => {
                 prepared.issue = Some(NamespaceScopePreparationIssue::TargetAdmission(issue));
-                return Ok(prepared);
+                return prepared;
             }
         };
         // Match the existing declaration-consumer readiness contract even when
@@ -120,6 +129,6 @@ impl CemQlSchemaDeclarationHost {
             prepared.issue = Some(NamespaceScopePreparationIssue::TargetContextNotReady);
         }
         prepared.target = Some(target);
-        Ok(prepared)
+        prepared
     }
 }

@@ -414,6 +414,28 @@ failures. Repeated calls use current runtime inputs without source writeback or
 cached selections. Preparation does not evaluate a selected pending declaration's
 own value slots or activate a namespace scope. Lifecycle activation remains a
 separate todo item.
+
+`decode_native_namespace_property` recognizes an original captured native
+namespace attribute and retains its destination prefix and single original
+owning value slot. Literal declarations/default aliases, ordinary attributes and
+XML expression-looking literals keep their existing contracts. The explicit
+`prepare_namespace_property` stage consumes that value: reference constructors
+and their chains use the shared graph walker; a general expression uses the
+existing lifecycle expression hook under that same traversal. Occurrence scopes
+provide its original pre-declaration inputs. Request/destination budgets, directed
+grants and source diagnostic policy remain active without restarting selection
+for target admission. General-expression scalar results retain attributed invalid
+node-target diagnostics. Selected expression-looking nodes are not implicitly
+executed. Exactly one ready original namespace declaration is required; empty
+default URIs are ready resets. Missing metadata/contexts, unfinished selected
+bindings, invalid property forms and cardinality failures remain inspectable.
+Ready results can supply `NamespaceNameCompletion` using the original property's
+declaration ID; the target's prefix does not replace the property's destination
+prefix. Independent calls evaluate current inputs without caching selections,
+writing source targets or changing captured bindings. Publication, namespace
+activation and consumption of a selected pending declaration's own value remain
+separate lifecycle work.
+
 `NamespaceNameCompletion::binding_namespace_uri` reads an original declaration's
 completed literal or supplied native URI, following retained default aliases.
 It checks original allocation identity and reports a missing native result with

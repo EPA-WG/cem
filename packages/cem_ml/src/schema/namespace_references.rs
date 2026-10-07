@@ -6,9 +6,13 @@ use super::{
 use std::sync::Arc;
 
 mod completion;
+mod property;
 pub use completion::{
     CompletedNamespaceBinding, NamespaceLexicalSnapshot, NamespaceNameCompletion,
     NamespaceNameCompletionError,
+};
+pub use property::{
+    decode_native_namespace_property, NativeNamespaceProperty, NativeNamespacePropertyError,
 };
 
 /// Original declaration dependency, not a stored evaluation or runtime context.

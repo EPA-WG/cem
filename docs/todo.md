@@ -2007,10 +2007,23 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: pending scope selection cannot
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
-- [ ] Fixture: consume original native namespace-property value slots at an
-      explicit lifecycle stage. Reuse bounded graph traversal and original
+- [x] Fixture: consume original native namespace-property value slots at an
+      explicit lifecycle stage in `native_namespace_properties` and
+      `namespace_property_preparation`. Reuse bounded graph traversal and original
       occurrence contexts, require one ready namespace declaration target, and
       retain pending/invalid outcomes before producing completion metadata.
+      Implemented: `decode_native_namespace_property` retains the original
+      declaration, destination prefix and owning reference/general-expression
+      slot; `prepare_namespace_property` evaluates that slot through one bounded
+      traversal and the existing lifecycle expression hook. Namespace admission
+      reuses the same selection without resetting bounds. Reports preserve
+      property/metadata issues, missing inputs, pending target bindings, source
+      diagnostics and singleton failures. Ready results can supply name completion
+      under the original declaration ID; selection results are never cached or
+      written to source. Literal/default-alias forms remain unchanged and selected
+      expression-looking nodes are not implicitly executed. Lifecycle activation
+      and publication/consumption of pending selected namespace declarations remain
+      separate work.
       Scenarios for later design verification: pending declaration selectors use
       pre-declaration bindings; invalid cardinality and denied crossings cannot
       supply a URI; repeated consumers never write source targets or share results.
@@ -2030,6 +2043,14 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: unavailable bindings block only
       their governed execution; retries reuse original dependencies; granting a
       crossing does not implicitly complete or activate a namespace property.
+- [ ] Audit schema and namespace scope-property reference adoption after
+      lifecycle integration. Verify coherent original-owner, readiness, bounds,
+      grants and diagnostic contracts across native values and existing literal
+      conveniences; update the design coverage and remaining action items.
+      Keep enclosed child-override syntax deferred in the roadmap.
+      Scenarios for later design verification: supported consumers share native
+      reference contracts without rewriting ASTs or inventing context IDs;
+      remaining deferred work is distinguishable from implemented behavior.
 
 - [x] Decide the authority source for command/WASM replacement grants before
       exposing them. The native CLI has explicit caller arguments; run configs

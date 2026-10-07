@@ -755,8 +755,15 @@ selected-forest metadata only when the forest's namespace dependencies are ready
 the CEM-QL native view exposes completed names per execution and explicit authored
 source inspection. The explicit CEM-QL namespace preparation stage applies shared
 request/destination bounds and directed grants before singleton declaration
-admission; incomplete bindings cannot activate a namespace. Namespace-aware
-expression contexts require every captured pending prefix to complete, including
+admission; incomplete bindings cannot activate a namespace. Native namespace
+property consumption uses original declaration/value-slot metadata:
+`decode_native_namespace_property` retains the destination prefix and original
+expression handle, while `prepare_namespace_property` consumes reference chains
+or general expressions through one bounded traversal with existing lifecycle
+hooks. Singleton admission does not restart budgets; scalar general-expression
+results retain attributed invalid-target diagnostics. Missing inputs/bindings
+stay pending, and no source targets or captured bindings are rewritten.
+Namespace-aware expression contexts require every captured pending prefix to complete, including
 unused prefixes. `NamespaceNameCompletion::lexical_snapshot` retains original
 snapshots and declaration handles alongside ready per-execution URI overlays.
 The explicit QL completion handoff preflights all selected occurrences before

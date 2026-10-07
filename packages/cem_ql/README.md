@@ -174,6 +174,21 @@ metadata, pending bindings and incomplete inputs remain inspectable; namespace
 preparation does not extract URIs from schema/data nodes, evaluate a selected
 pending declaration's own value slots, activate a scope or rewrite source targets.
 
+`prepare_namespace_property(declaration, limits)` consumes an original captured
+native namespace attribute's owning value slot. Its report retains the original
+`NativeNamespaceProperty` (destination prefix and value handle), bounded
+`NamespaceScopePreparation` and separate property/metadata readiness issues.
+Original reference constructors use the shared resolver; a general expression
+uses the existing lifecycle expression hook in that same traversal. Only that
+authored slot is executable; selected expression-looking nodes remain targets.
+Occurrence contexts supply pre-declaration inputs, and request/destination limits,
+directed grants and source diagnostics remain active. Ready singleton results can
+be passed to `NamespaceNameCompletion` under the original declaration ID. The
+selected target's prefix does not replace the property's prefix. Empty default
+URIs are ready resets. Calls neither cache results nor write source targets,
+complete captured bindings, activate a scope or consume a selected pending
+declaration's own slots.
+
 ### Native values in templates
 
 CEM-QL accepts optional `$` prefixes on expression references in queries and
