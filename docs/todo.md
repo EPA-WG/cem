@@ -1953,6 +1953,21 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: unavailable namespace dependencies
       block executable name views; retries never borrow later bindings; independent
       executions sharing one source can expose different completed namespaces.
+- [ ] Decide captured-expression namespace readiness for completion handoff.
+      A selected forest may have no dependent QName but its expression occurrences
+      can retain pending prefix bindings. Require every captured pending binding
+      before constructing a namespace-aware context (recommended), or preserve
+      unused pending bindings and check them only on namespace-sensitive access.
+      Scenarios for later design verification: pending declaration selectors can
+      run in their original pre-declaration context; unused prefix dependencies
+      cannot be mistaken for completed namespaces or borrow inherited/later URIs.
+- [x] Fixture: add immutable declaration binding lookup to namespace completion
+      metadata in `pending_namespace_names`. Resolve original pending aliases,
+      expose completed literal/native URI values and retain individual pending
+      outcomes without constructing expression contexts or changing source records.
+      Scenarios for later design verification: a pending binding outside the selected
+      forest can be a captured dependency; literal resets remain ready; arbitrary
+      nodes and foreign owners cannot masquerade as binding declarations.
 - [ ] Fixture: integrate explicit ready namespace completion views into shared
       native query ingress. Keep authored source inspection available, require the
       matching original source owner and preserve selected-subtree boundaries.

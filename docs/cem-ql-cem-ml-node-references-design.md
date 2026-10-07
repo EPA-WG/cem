@@ -414,6 +414,15 @@ failures. Repeated calls use current runtime inputs without source writeback or
 cached selections. Preparation does not evaluate a selected pending declaration's
 own value slots or activate a namespace scope. Completion handoff and lifecycle
 activation remain separate todo items.
+`NamespaceNameCompletion::binding_namespace_uri` reads an original declaration's
+completed literal or supplied native URI, following retained default aliases.
+It checks original allocation identity and reports a missing native result with
+both the requested declaration and pending dependency handles. Binding metadata
+outside the selected forest can supply an inherited dependency without exposing
+those nodes through query axes. A ready selected-name view can therefore still
+report an unused captured binding as pending. Whether such unused bindings block
+namespace-aware expression-context handoff is an open decision in `todo.md`;
+the lookup constructs no context and selects neither readiness policy.
 The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact

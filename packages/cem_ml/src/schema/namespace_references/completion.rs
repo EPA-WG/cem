@@ -2,7 +2,7 @@
 use super::{NamespaceScopeTarget, PendingNamespaceValue};
 use crate::{
     parser::{AstNodeId, CemAstNode, ExpandedName},
-    schema::machine::LexicallyScopedDocument,
+    schema::{declaration_references::SchemaDeclarationNode, machine::LexicallyScopedDocument},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -10,6 +10,7 @@ use std::{
 };
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamespaceNameCompletionError {
+    OwnerMismatch,
     InvalidRoot(AstNodeId),
     OverlappingRoots(AstNodeId),
     InvalidDeclaration(AstNodeId),
@@ -105,30 +106,7 @@ impl NamespaceNameCompletion {
                 }
                 return Err(NamespaceNameCompletionError::UnboundName(*id));
             };
-            let mut declaration = name.declaration;
-            let mut visited = BTreeSet::new();
-            let uri = loop {
-                if !visited.insert(declaration) {
-                    return Err(NamespaceNameCompletionError::InvalidDeclaration(
-                        declaration,
-                    ));
-                }
-                if let Some(target) = targets.get(&declaration) {
-                    break target.namespace_uri();
-                }
-                match captured
-                    .pending_namespace_declaration(captured.document(), declaration)
-                    .map(|decl| &decl.value)
-                {
-                    Some(PendingNamespaceValue::Alias(alias)) => declaration = *alias,
-                    _ => {
-                        return Err(NamespaceNameCompletionError::Pending {
-                            node: *id,
-                            declaration,
-                        })
-                    }
-                }
-            };
+            let uri = binding_uri(&captured, &targets, name.declaration, *id)?;
             names.insert(
                 *id,
                 ExpandedName {
@@ -160,5 +138,58 @@ impl NamespaceNameCompletion {
     }
     pub fn targets(&self) -> &BTreeMap<AstNodeId, NamespaceScopeTarget> {
         &self.targets
+    }
+    /// Read an original binding dependency without creating an expression
+    /// context. Declarations outside the selected forest can supply inherited
+    /// bindings; this metadata lookup does not expose their nodes through axes.
+    /// Ready names do not imply that every unused binding dependency is ready.
+    pub fn binding_namespace_uri(
+        &self,
+        declaration: &SchemaDeclarationNode,
+    ) -> Result<&str, NamespaceNameCompletionError> {
+        if !Arc::ptr_eq(declaration.document(), self.captured.document()) {
+            return Err(NamespaceNameCompletionError::OwnerMismatch);
+        }
+        binding_uri(
+            &self.captured,
+            &self.targets,
+            declaration.node_id(),
+            declaration.node_id(),
+        )
+    }
+}
+
+fn binding_uri<'a>(
+    captured: &'a LexicallyScopedDocument,
+    targets: &'a BTreeMap<AstNodeId, NamespaceScopeTarget>,
+    mut declaration: AstNodeId,
+    node: AstNodeId,
+) -> Result<&'a str, NamespaceNameCompletionError> {
+    let mut visited = BTreeSet::new();
+    loop {
+        if !visited.insert(declaration) {
+            return Err(NamespaceNameCompletionError::InvalidDeclaration(
+                declaration,
+            ));
+        }
+        if let Some(binding) = captured.namespace_binding(captured.document(), declaration) {
+            return Ok(&binding.namespace_uri);
+        }
+        let Some(pending) =
+            captured.pending_namespace_declaration(captured.document(), declaration)
+        else {
+            return Err(NamespaceNameCompletionError::InvalidDeclaration(
+                declaration,
+            ));
+        };
+        match pending.value {
+            PendingNamespaceValue::Alias(alias) => declaration = alias,
+            PendingNamespaceValue::Native => {
+                return targets
+                    .get(&declaration)
+                    .map(NamespaceScopeTarget::namespace_uri)
+                    .ok_or(NamespaceNameCompletionError::Pending { node, declaration })
+            }
+        }
     }
 }

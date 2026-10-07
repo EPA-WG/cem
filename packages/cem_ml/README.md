@@ -95,6 +95,12 @@ The explicit CEM-QL declaration host provides bounded namespace selection throug
 `attach_captured_namespaces` and `prepare_namespace_scope`. Pending property-value
 consumption, completion handoff and lifecycle activation remain consumer work.
 
+`NamespaceNameCompletion::binding_namespace_uri` accepts an original declaration
+handle and returns its completed URI or pending dependency. It follows captured
+default aliases, preserves empty literal resets and rejects foreign owners and
+ordinary nodes. An inherited declaration can be outside the selected query forest;
+reading its metadata does not expose it through axes or create an expression context.
+
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
 compiler's `SchemaPackageCompilationRequest.lexical_scopes` share the same original

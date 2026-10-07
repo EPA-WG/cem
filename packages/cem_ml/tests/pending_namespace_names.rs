@@ -254,6 +254,96 @@ fn pending_default_aliases_and_child_restoration_use_original_declaration_identi
             uri
         );
     }
+    let default_alias = elements(&source, "@default")[0];
+    let alias = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), default_alias).unwrap();
+    assert_eq!(
+        completed.binding_namespace_uri(&alias).unwrap(),
+        "urn:chosen"
+    );
+    let unrelated = NamespaceNameCompletion::new(
+        source.captured.clone(),
+        &[elements(&source, "outside")[0]],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    assert!(matches!(
+        unrelated.binding_namespace_uri(&alias),
+        Err(NamespaceNameCompletionError::Pending { node, declaration: id })
+            if node == default_alias && id == declaration
+    ));
+}
+
+#[test]
+fn binding_lookup_distinguishes_pending_dependencies_from_ready_selected_names() {
+    let source = import("@ns v = urn:outer\n{host @xmlns:v={#library} | {#later}}\n@ns v = urn:later\n@default \"\"\n{plain}");
+    let declaration = declarations(&source)[0];
+    let pending = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), declaration).unwrap();
+    let plain = elements(&source, "plain")[0];
+    let names =
+        NamespaceNameCompletion::new(source.captured.clone(), &[plain], BTreeMap::new()).unwrap();
+    assert!(!names.contains(declaration));
+    assert!(
+        matches!(names.binding_namespace_uri(&pending), Err(NamespaceNameCompletionError::Pending { node, declaration: id }) if node == declaration && id == declaration)
+    );
+    for (id, uri) in elements(&source, "@ns")
+        .into_iter()
+        .zip(["urn:outer", "urn:later"])
+    {
+        let literal = SchemaDeclarationNode::new(source.tree.ast_owner().clone(), id).unwrap();
+        assert_eq!(names.binding_namespace_uri(&literal).unwrap(), uri);
+    }
+    let reset = SchemaDeclarationNode::new(
+        source.tree.ast_owner().clone(),
+        elements(&source, "@default")[0],
+    )
+    .unwrap();
+    assert_eq!(names.binding_namespace_uri(&reset).unwrap(), "");
+    let chosen = NamespaceNameCompletion::new(
+        source.captured.clone(),
+        &[plain],
+        BTreeMap::from([(declaration, completion("urn:chosen"))]),
+    )
+    .unwrap();
+    assert_eq!(
+        chosen.binding_namespace_uri(&pending).unwrap(),
+        "urn:chosen"
+    );
+    assert!(source
+        .captured
+        .namespace_binding(source.tree.ast_owner(), declaration)
+        .is_none());
+}
+
+#[test]
+fn binding_lookup_checks_original_owner_and_does_not_extract_namespace_from_nodes() {
+    let source = import("@ns v = urn:chosen\n{v:item}");
+    let names = NamespaceNameCompletion::new(
+        source.captured.clone(),
+        &[elements(&source, "item")[0]],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let item = SchemaDeclarationNode::new(
+        source.tree.ast_owner().clone(),
+        elements(&source, "item")[0],
+    )
+    .unwrap();
+    assert_eq!(
+        names.binding_namespace_uri(&item),
+        Err(NamespaceNameCompletionError::InvalidDeclaration(
+            item.node_id()
+        ))
+    );
+    let foreign = import("@ns v = urn:chosen\n{v:item}");
+    let declaration = SchemaDeclarationNode::new(
+        foreign.tree.ast_owner().clone(),
+        elements(&foreign, "@ns")[0],
+    )
+    .unwrap();
+    assert_eq!(
+        names.binding_namespace_uri(&declaration),
+        Err(NamespaceNameCompletionError::OwnerMismatch)
+    );
 }
 #[test]
 fn completion_rejects_bad_roots_wrong_declarations_and_unbound_names() {
