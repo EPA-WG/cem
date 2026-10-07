@@ -47,6 +47,7 @@ mod namespace_preparation;
 mod namespace_handoff;
 mod namespace_property;
 mod namespace_activation;
+mod namespace_schema_names;
 pub use namespace_activation::{NamespacePropertyActivation, NamespacePropertyActivationError};
 pub use namespace_property::{NamespacePropertyPreparation, NamespacePropertyPreparationIssue};
 pub use namespace_handoff::NamespaceLexicalScopeHandoffError;
@@ -107,6 +108,9 @@ pub struct CemQlSchemaDeclarationHost {
     fallback_policy: ReferenceScopePolicy,
     // Immutable scalar name metadata, keyed by a registered original owner.
     captured_names: BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::parser::ExpandedName>>,
+    // Explicit invocation-only completed names, separate from immutable capture.
+    namespace_name_completions:
+        BTreeMap<usize, Arc<cem_ml::schema::namespace_references::NamespaceNameCompletion>>,
     captured_schema_forms:
         BTreeMap<usize, BTreeMap<AstNodeId, cem_ml::schema::machine::SchemaElementForm>>,
     // Original completed/pending namespace declarations remain immutable; their
@@ -139,6 +143,7 @@ impl CemQlSchemaDeclarationHost {
             schema_uri_generations: BTreeMap::new(),
             next_schema_uri_generation: 0,
             captured_names: BTreeMap::new(),
+            namespace_name_completions: BTreeMap::new(),
             captured_schema_forms: BTreeMap::new(),
             captured_namespaces: BTreeMap::new(),
             fallback_policy: ReferenceScopePolicy::schema_defaults()

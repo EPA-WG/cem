@@ -310,7 +310,7 @@ reference resolver. Target admission and lifecycle work remain specialized:
 
 | Contract | Schema scope consumer | Namespace scope consumer |
 | --- | --- | --- |
-| Original owner and saved bindings | Captured names/forms and original selector handles; entered runtime regions supply current inputs without changing capture. | Original property/value handles and declaration dependencies; selectors retain their pre-declaration snapshots. |
+| Original owner and saved bindings | Original names/forms and selector handles; explicit invocation completion supplies selected names without changing capture. | Original property/value handles and declaration dependencies; selectors retain their pre-declaration snapshots. |
 | Authored value forms | Literal selectors, native `#` values and general expressions; URI sources use the explicit loader stage. | Native `#` values and general expressions; completed literal declarations, default aliases and resets retain their existing binding semantics. |
 | Reference chains and permissions | Shared request/destination limits, ordered selections, directed grants and original diagnostic policy. | The same resolver contracts; target admission does not start another traversal. |
 | Final target | One schema-language declaration, or one named core wrapper containing exactly one direct declaration. | One original namespace declaration with completed binding metadata; the property retains its own destination prefix. |
@@ -337,20 +337,17 @@ and [completed namespace query ingress fixtures](../packages/cem_ml_transform_ce
 They cover original owners, pending retries, singleton admission, directed crossings,
 request/destination limits, fixed names and restoration of enclosing contracts.
 
-Three integration gaps remain explicit. First, query views expose completed names,
-but schema target admission/control discovery still use the host's immutable
-`captured_expanded_name` table. Structural attribute-contract lookup also reads
-names directly from the original AST. A schema declaration or control whose QName
-depends on a native namespace therefore has no completed consumer-name handoff yet.
-The next slice must supply execution-specific names to those consumers through
-original handles and selected-forest boundaries, preserving fixed names and source
-inspection. Query-view readiness must not be mistaken for schema-admission or
-validation readiness. Second, selecting a pending namespace declaration still
-returns `TargetBindingNotReady`; completing its value for one execution does not
-publish that result for later target admission. Third, automatic namespace lifecycle
-coordination is not part of ordinary loading/query preparation or the schema URI
-validation session. Explicit host orchestration supplies the supported stages today.
-All three have actionable items and adjacent verification scenarios in
+The audit's admission/control name gap is now addressed by the explicit
+`with_completed_namespace_names(completion, callback)` stage described below.
+Structural attribute-contract lookup and retained behavior name projections still
+read original source names; their migration remains open. A completed query or
+schema-admission name view must not be mistaken for completed structural validation.
+Selecting a pending namespace declaration still returns `TargetBindingNotReady`;
+completing its value for one execution does not publish that result for later target
+admission. Automatic namespace lifecycle coordination is not part of ordinary
+loading/query preparation or the schema URI validation session. Explicit host
+orchestration supplies the supported stages today.
+Remaining integrations have actionable items and adjacent verification scenarios in
 [todo.md](todo.md#ast-node-reference-implementation).
 
 The exact enclosed child override syntax remains deferred in
@@ -402,6 +399,31 @@ neither path rewrites the original AST or establishes schema readiness.
 only for an already-registered original owner. Repeat attachment is idempotent;
 foreign owners are rejected. Captured lexical-scope handoff also installs names
 once preflight succeeds. This does not rewrite the registered tree's query view.
+
+`with_completed_namespace_names(completion, callback)` checks registration of the
+completion's original owner and idempotently attaches its unchanged name/form
+capture. It exposes that owner's selected-forest completion during the callback
+through `consuming_expanded_name`; all other nodes retain their original captured
+names, including missing pending names. Schema target admission, host-control
+preparation and runtime control discovery now use this effective lookup. The
+public `captured_expanded_name` getter stays original. Fixed completed names and
+source maps stay fixed, and completion never expands the selected owning forest.
+A nested invocation for the same owner temporarily replaces its active completion;
+other owners retain theirs. Return, errors and unwinding restore the previous
+completion without modifying original capture or source ASTs. The callback can
+return an owned preparation/report after this metadata scope ends.
+
+This handoff supplies names only. Matching native query contexts, input readiness,
+directed grants and traversal/compilation bounds remain explicit consumer inputs.
+Unavailable declaration contexts or denied crossings remain incomplete even with
+ready names. Pending schema QNames now retain their original CEM producer's
+wrapping/following form in lexical capture; form alone does not establish core kind.
+After completion, a core alias can consume that original form, while a foreign alias
+remains ordinary data. The generic/imported producer form boundary is unchanged.
+Fixtures are in [namespace/schema name handoff](../packages/cem_ql/tests/namespace_schema_names.rs)
+and [pending namespace capture](../packages/cem_ml/tests/pending_namespace_names.rs).
+Structural attribute-contract lookup and retained behavior name views still need
+separate migration to this execution-specific name contract.
 
 Namespace target admission was adopted on 2026-10-06: consume only an explicit
 namespace binding/declaration, with exactly one completed selection and an
@@ -552,7 +574,8 @@ The decision, implementation tasks and verification scenarios are recorded in
 `CemQlSchemaDeclarationHost::prepare_schema_scope` now provides an explicit
 consumer preparation stage for one retained native reference. It resolves the
 selection under the existing request/destination bounds and directed grants,
-requires one completed target, admits it using captured names, then compiles its
+requires one completed target, admits it using this invocation's effective names,
+then compiles its
 exact declaration. An unavailable selected-declaration context remains pending
 even when the requesting context completed selection. Selection and compilation
 retain their existing bounded operation contracts; this adds no aggregate budget
@@ -563,7 +586,8 @@ model for inspection. Its `is_ready()` requires complete successful selection,
 valid singleton admission, available declaration context, complete model dependencies
 and no hard compilation diagnostics. Pending native datatype dependencies and
 invalid regex facets therefore cannot establish readiness. Repeating preparation
-uses current inputs with unchanged captured names; it does not save targets on
+uses current inputs and explicit name completion with unchanged captured names;
+it does not save targets on
 source references. This preparation method does not recognize scope-property
 syntax, assign governed regions or install effective policies. The implemented
 host-control/runtime-region stages below provide those explicit lifecycle operations.

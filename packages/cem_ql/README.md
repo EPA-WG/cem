@@ -205,12 +205,22 @@ reset bounds, grant crossings or publish results on the source. Independent
 executions retain separate views. Completed pending declarations selected by later
 references still require a separately designed publication stage.
 
-Completed namespace views currently reach native query ingress and explicit lexical
-context handoff. Schema target admission/control discovery still consult the
-immutable `captured_expanded_name` table, while structural attribute-contract
-lookup reads original AST names. Routing execution-specific completed names into
-those consumers is separately tracked; a ready query view does not establish
-schema/validation readiness. See the [scope-property adoption audit](../../docs/cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06)
+`with_completed_namespace_names(completion, callback)` exposes a registered
+original owner's selected-forest name completion to schema target admission and
+control discovery during that callback. `consuming_expanded_name` supplies the
+effective name; `captured_expanded_name` remains original. Names outside the forest
+keep original capture readiness. Nested same-owner invocations temporarily replace
+completion; other owners retain theirs. Return, errors and unwind restore earlier
+completion. This provides no runtime context, crossing grant or target-binding
+readiness, and does not rewrite source/capture or reset reference budgets. Pending
+schema QNames retain their original producer form; completed namespaces still
+identify core controls versus foreign data.
+
+Completed namespace views also reach native query ingress and explicit lexical
+context handoff. Structural attribute-contract lookup and retained behavior names
+still read original AST names; those migrations are separately tracked. Ready
+query/admission names do not establish completed structural validation. See the
+[scope-property adoption audit](../../docs/cem-ql-cem-ml-node-references-design.md#scope-property-consumption-audit-2026-10-06)
 for implemented contracts, fixture coverage and remaining work.
 
 ### Native values in templates

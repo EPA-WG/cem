@@ -2107,11 +2107,49 @@ only and adds no runtime behavior or public syntax.
       selected-forest boundaries and consuming-model ownership; missing dependencies
       must keep the affected region incomplete. Keep original captured tables and
       AST records immutable and independent executions isolated.
+      Admission/control handoff implemented: `with_completed_namespace_names`
+      supplies one registered owner's selected completion only during the callback;
+      `consuming_expanded_name` uses it for schema admission and established control
+      discovery, while `captured_expanded_name` stays immutable. Nested same-owner
+      invocation temporarily replaces the active forest; other owners retain theirs.
+      Return/error/unwind restore previous completion. Structural attribute lookup
+      and retained behavior projections remain the separate unchecked tasks below.
       Scenarios for later design verification: a namespace-completed schema target
       can be admitted without using its raw lexical prefix; completed core aliases
       identify controls while foreign aliases remain data; names outside a selected
       completion cannot borrow its bindings; repeated source reuse keeps distinct
       execution names and original source maps.
+- [x] Fixture: add invocation-scoped completed-name admission and control discovery
+      in `namespace_schema_names`. Supply ready completion over a registered original
+      owner, preserve the captured-name getter, and restore completion on return,
+      error and unwind. Exercise schema target kinds, pending/outside names, core
+      versus foreign control aliases, wrapper/following forms, owner mismatch,
+      independent/nested executions and directed grants/traversal bounds.
+      Verification: 102 focused native capture, name-handoff, scope preparation,
+      runtime-region, namespace activation/handoff, behavior and query-ingress
+      tests pass. Structural/behavior projection migration remains open below.
+      Scenarios for later design verification: callback name completion supplies
+      no runtime inputs, crossing authority or declaration readiness; selected
+      completions cannot rewrite fixed names or leak into later invocations.
+- [x] Fixture: retain original schema body/following producer form while its QName
+      is pending in `pending_namespace_names`. Do not infer target kind from a
+      lexical prefix; completed core names can later consume the form while foreign
+      names remain ordinary data.
+      Scenarios for later design verification: an empty explicit body stays wrapping;
+      a no-body control stays following after its original binding completes.
+- [ ] Route completed names through structural input attribute-contract lookup
+      after admission/control handoff. Cover original owning and reference-selected
+      placements, unavailable names, consuming-model boundaries and bounded native
+      attributes without rewriting ASTs or changing lexical datatype behavior.
+      Scenarios for later design verification: the same raw prefix can complete to
+      an allowed or foreign URI in separate executions; unavailable names cannot
+      masquerade as complete validation or use another completion's forest.
+- [ ] Expose completed names through retained validation/behavior views after
+      structural handoff. Preserve original `source` inspection and consumed
+      attribute values; keep placement identity and model ownership intact.
+      Scenarios for later design verification: behavior navigation sees this
+      execution's names; source metadata and authored descendant references remain
+      unchanged when the same original node appears in multiple placements.
 - [ ] Define per-execution publication and reuse of completed native namespace
       declaration results. Selecting a pending declaration currently remains
       `TargetBindingNotReady`, even after another consumer completed its value.

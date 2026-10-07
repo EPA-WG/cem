@@ -43,7 +43,7 @@ impl std::fmt::Display for SchemaHostPreparationError {
 impl std::error::Error for SchemaHostPreparationError {}
 
 impl CemQlSchemaDeclarationHost {
-    /// Decode an original host using attached namespace metadata. Literal
+    /// Decode an original host using this invocation's effective name metadata. Literal
     /// selectors are implicit consumer reference occurrences on the original value;
     /// native references and expression slots retain their own original handle.
     /// Selection, chains, admission and compilation share the established bounds,
@@ -56,7 +56,7 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<Option<PreparedSchemaHostControl>, SchemaHostPreparationError> {
         let Some(control) =
-            decode_schema_host_control(host, |source| self.captured_expanded_name(source).cloned())
+            decode_schema_host_control(host, |source| self.consuming_expanded_name(source).cloned())
                 .map_err(SchemaHostPreparationError::Control)?
         else {
             return Ok(None);

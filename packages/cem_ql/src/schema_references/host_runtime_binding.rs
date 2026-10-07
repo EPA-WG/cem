@@ -120,7 +120,7 @@ where
     ) -> Result<Option<DiscoveredInputSchemaRegion>, ReferenceResolutionError> {
         let contract = validate_schema_scope_controls(
             source.clone(),
-            |source| self.host.captured_expanded_name(source).cloned(),
+            |source| self.host.consuming_expanded_name(source).cloned(),
             self.host.captured_schema_element_form(&source),
         );
         if !contract.has_override() {
@@ -325,8 +325,8 @@ impl<F> SchemaPreparationHost for RuntimeHost<'_, F>
 where
     F: for<'a> FnMut(SchemaHostRuntimeContextRequest<'a>) -> Option<StandaloneExpressionContext>,
 {
-    fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
-        self.host.captured_expanded_name(source)
+    fn consuming_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
+        self.host.consuming_expanded_name(source)
     }
     fn schema_uri_load(
         &self,

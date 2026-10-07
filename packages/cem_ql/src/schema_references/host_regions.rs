@@ -50,7 +50,7 @@ impl CemQlSchemaDeclarationHost {
         limits: ReferenceTraversalLimits,
     ) -> Result<SchemaHostRegionPreparation, ReferenceResolutionError> {
         let contract = validate_schema_host_controls(host, |source| {
-            self.captured_expanded_name(source).cloned()
+            self.consuming_expanded_name(source).cloned()
         });
         let preparation = contract
             .control()

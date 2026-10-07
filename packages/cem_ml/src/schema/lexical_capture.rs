@@ -118,6 +118,8 @@ impl LexicallyScopedDocument {
         self.names.get(&node)
     }
 
+    /// Original producer form; a pending schema QName can retain this metadata
+    /// before its namespace is known. Form alone does not establish core kind.
     pub fn schema_element_form(
         &self,
         owner: &Arc<CemDocument>,
@@ -307,7 +309,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         });
         names.retain(|node, _| !pending_namespace_names.contains_key(node));
         occurrence_pending_bindings.retain(|node, _| occurrences.contains_key(node));
-        let schema_element_forms = names
+        let mut schema_element_forms: BTreeMap<_, _> = names
             .iter()
             .filter_map(|(id, name)| {
                 if name.local_name == "@schema" {
@@ -321,35 +323,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 {
                     return None;
                 }
-                let Some(CemAstNode::Element {
-                    children,
-                    has_explicit_boundary,
-                    ..
-                }) = document.get(*id)
-                else {
-                    return None;
-                };
-                let body = *has_explicit_boundary
-                    || children.iter().any(|child| {
-                        !matches!(
-                            document.get(*child),
-                            Some(
-                                CemAstNode::Whitespace { .. }
-                                    | CemAstNode::Comment { .. }
-                                    | CemAstNode::ProcessingInstruction { .. }
-                            )
-                        )
-                    });
-                Some((
-                    *id,
-                    if body {
-                        SchemaElementForm::Wrapping
-                    } else {
-                        SchemaElementForm::Following
-                    },
-                ))
+                captured_cem_schema_form(&document, *id).map(|form| (*id, form))
             })
             .collect();
+        // Pending QName identity does not discard the original producer form.
+        // Later consumers still check the completed namespace for core kind.
+        for (id, name) in &pending_namespace_names {
+            if name.local_name == "schema" {
+                if let Some(form) = captured_cem_schema_form(&document, *id) {
+                    schema_element_forms.insert(*id, form);
+                }
+            }
+        }
         let mut namespace_bindings = namespace_capture.lock().unwrap().take_bindings();
         namespace_bindings.retain(|node, _| {
             matches!(
@@ -457,5 +442,34 @@ fn capture_name(namespaces: &NsContext, lexical: &str) -> Option<ExpandedName> {
         namespace_uri,
         local_name: resolved.local_name,
         schema_id: None,
+    })
+}
+
+// Called only for the original CEM builder observation above. Generic/imported
+// producer defaults cannot manufacture a wrapping/following source distinction.
+fn captured_cem_schema_form(document: &CemDocument, node: AstNodeId) -> Option<SchemaElementForm> {
+    let CemAstNode::Element {
+        children,
+        has_explicit_boundary,
+        ..
+    } = document.get(node)?
+    else {
+        return None;
+    };
+    let body = *has_explicit_boundary
+        || children.iter().any(|child| {
+            !matches!(
+                document.get(*child),
+                Some(
+                    CemAstNode::Whitespace { .. }
+                        | CemAstNode::Comment { .. }
+                        | CemAstNode::ProcessingInstruction { .. }
+                )
+            )
+        });
+    Some(if body {
+        SchemaElementForm::Wrapping
+    } else {
+        SchemaElementForm::Following
     })
 }

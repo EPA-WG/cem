@@ -104,7 +104,8 @@ impl CemQlSchemaDeclarationHost {
 
     /// Original parser/importer distinction between wrapping and following
     /// schema elements, including empty bodies. Generic AST defaults do not
-    /// establish this lifecycle boundary.
+    /// establish this lifecycle boundary. Pending QNames retain their producer
+    /// form, while effective names still determine whether this is a core control.
     pub fn captured_schema_element_form(
         &self,
         source: &SchemaDeclarationNode,
@@ -142,7 +143,7 @@ impl CemQlSchemaDeclarationHost {
 pub(super) trait SchemaPreparationHost:
     SchemaDeclarationHost<Node = CemQlSchemaReferenceNode>
 {
-    fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName>;
+    fn consuming_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName>;
     fn schema_uri_load(
         &self,
         control: &SchemaHostControl,
@@ -159,8 +160,8 @@ impl SchemaPreparationHost for CemQlSchemaDeclarationHost {
     ) -> Option<ReferenceLinkEvaluation<SchemaDeclarationNode>> {
         self.schema_uri_load_for_control(control)
     }
-    fn captured_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
-        self.captured_expanded_name(source)
+    fn consuming_expanded_name(&self, source: &SchemaDeclarationNode) -> Option<&ExpandedName> {
+        self.consuming_expanded_name(source)
     }
     fn target_context_is_ready(
         &mut self,
@@ -209,7 +210,7 @@ pub(super) fn prepare_schema_scope_selection<H: SchemaPreparationHost>(
         return Ok(prepared);
     };
     let target = match admit_schema_scope_target(source, |node| {
-        host.captured_expanded_name(node).cloned()
+        host.consuming_expanded_name(node).cloned()
     }) {
         Ok(target) => target,
         Err(issue) => {

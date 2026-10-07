@@ -510,3 +510,31 @@ fn general_expression_waits_for_every_original_pending_prefix() {
     assert_eq!(snapshot.namespace_uri("w"), Some("urn:two"));
     assert_eq!(snapshot.completed_bindings().len(), 2);
 }
+
+#[test]
+fn pending_schema_qnames_keep_original_producer_forms_without_claiming_core_kind() {
+    use cem_ml::schema::machine::SchemaElementForm;
+    let input = import("{host @xmlns:c={#library} | {c:schema @select=library |} {c:schema @select=library} {c:data @select=library}}");
+    let schemas = elements(&input, "schema");
+    assert_eq!(schemas.len(), 2);
+    assert_eq!(
+        input
+            .captured
+            .schema_element_form(input.tree.ast_owner(), schemas[0]),
+        Some(SchemaElementForm::Wrapping)
+    );
+    assert_eq!(
+        input
+            .captured
+            .schema_element_form(input.tree.ast_owner(), schemas[1]),
+        Some(SchemaElementForm::Following)
+    );
+    assert!(schemas.iter().all(|id| input
+        .captured
+        .expanded_name(input.tree.ast_owner(), *id)
+        .is_none()));
+    assert!(input
+        .captured
+        .schema_element_form(input.tree.ast_owner(), elements(&input, "data")[0])
+        .is_none());
+}
