@@ -2792,27 +2792,74 @@ AST-owner transport remain outside this debug single-arena bundle.
 
 ### Next three reload consumer items
 
-- [ ] Fixture and implementation: accept later verified lexical metadata and
+- [x] Add `reference_reload_attachment.rs` fixtures for atomic late attachment,
+      retained arena identity and preservation of previous views.
+- [x] Add `reload_engine_validation.rs` and `reload_validation_cli.rs` fixtures
+      for explicit native admission, missing capture and resumable stage handoff;
+      extend `resumable_schema_validation.rs` for reload URI/namespace coordination.
+- [x] Add `reference_lifecycle_api.rs` and extend the WASM worker fixture for
+      explicit schema/namespace execution, fresh contexts, grants and disposal.
+
+- [x] Fixture and implementation: accept later verified lexical metadata and
       source bytes against the existing decoded owner. Validate the original
       payload/source fingerprints before attachment; refresh only the inspection
       view, keeping the arena and completed lexical identities unchanged.
       Scenarios for later design verification: absent metadata becomes ready
       through explicit retry without another arena decode, source reparse,
       destination-default substitution or serialized runtime contexts.
-- [ ] Fixture and implementation: admit explicit reload inputs through engine
+- [x] Fixture and implementation: admit explicit reload inputs through engine
       and CLI `validate`/`check`, using the prepared native ingress and existing
       resumable schema/namespace lifecycle. Missing capture must keep governed
       validation incomplete and remain independently inspectable.
       Scenarios for later design verification: I/O releases CPU capacity;
       namespace completion and selected schemas retain original owners; input
       config and bundle data cannot supply replacement/crossing authority.
-- [ ] Fixture and implementation: connect low-level WASM retained source handles
+- [x] Fixture and implementation: connect low-level WASM retained source handles
       to an explicit schema/namespace lifecycle consumer. Supply fresh host
       contexts, policies and crossing grants; keep sessions local and preserve
       typed completion/dependency outcomes alongside attributed diagnostics.
       Scenarios for later design verification: pending differs from completed
       empty resolution; repeated executions do not cache targets in the source;
       source/result disposal cannot invalidate another retained execution.
+
+Verification (2026-10-07): 74 focused native checks and three shared command-schema
+unit checks pass, including 11 new attachment/admission/session cases. Engine reload ingress retains the exact
+owner through the existing resumable namespace/schema URI coordinator; adjacent
+scheduler fixtures verify CPU release during I/O. CLI `validate` and `check`
+require `--reload-bundle` (source ID defaults to 1), report missing capture or
+consumer readiness independently of violations, and bypass byte parsing. The
+low-level WASM session uses native result handles for context bindings, explicit
+directed crossing calls and optional policy bounds. Sessions retain their source
+view after source/result disposal; late attachment requires an explicit new
+session view. Native schema compilation and namespace completion use the existing
+consumers, with no source target writeback. The Nx WASM build and both worker
+fixtures pass. The initial WASM session API supplies one explicit context per
+registered owner; URI transport and completed-name query views remain below.
+
+### Next three reference lifecycle adapter items
+
+- [ ] Fixture and implementation: expose queued schema URI requests and explicit
+      host resource completions through the low-level WASM validation session,
+      reusing the native resumable coordinator. Keep resources and scopes local;
+      host admission and directed grants remain separate from resource payloads.
+      Scenarios for later design verification: unavailable transport stays pending;
+      context replacement, cancellation and repeated completion cannot activate
+      a stale schema or reset request/destination work accounting.
+- [ ] Fixture and implementation: retain namespace-completed execution snapshots
+      behind local WASM handles and connect them to shared native query ingress.
+      Preserve selected ready forests, authored descendant references and the
+      original source view; expose completion/dependencies with each execution.
+      Scenarios for later design verification: pending and empty forests differ;
+      concurrent executions share the arena but retain different completed names;
+      disposal of one snapshot cannot affect another query or validation session.
+- [ ] Fixture/audit: close the reference consumer conformance matrix across CEM,
+      XML, CLI and low-level WASM; wire the transport/lifecycle worker fixtures
+      into the maintained verification target and document readiness/authority
+      boundaries with executable samples. Add specific fixture actions for any
+      uncovered core contract before changing implementation.
+      Scenarios for later design verification: scope defaults and direct references
+      use the same consumer rules; ordinary XML attributes remain literal; datatype
+      execution, cem-element ID projection and deferred child syntax stay separate.
 
 ## Reference adoption: dependency binding and readiness
 

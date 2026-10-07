@@ -34,6 +34,43 @@ function consume(bundle) {
     return saved;
 }
 
+function lifecycle() {
+    const source = wasm.parseReferenceSource(encode('{#(#items)}'), 'text/cem-ml', 'memory:lifecycle.cem', '');
+    const schema = wasm.parseReferenceSource(encode('{schema | {elements | {element @name=item}}}'), 'text/cem-ml', 'memory:schema.cem', '');
+    const session = wasm.beginReferenceValidationSession(source, schema);
+    const other = wasm.beginReferenceValidationSession(source, schema);
+    const run = () => JSON.parse(wasm.runReferenceValidationSession(session));
+    assert.equal(run().complete, false);
+    const empty = wasm.queryReferenceSource(source, '()', 'memory:context.cemql');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name: 'items', valueId: empty}]));
+    wasm.disposeNativeValueArtifact(empty);
+    assert.equal(run().complete, true);
+    assert.equal(JSON.parse(wasm.runReferenceValidationSession(other)).complete, false);
+    const library = wasm.parseReferenceSource(encode('{item}'), 'text/cem-ml', 'memory:library.cem', '');
+    const destination = wasm.registerReferenceValidationSource(session, library);
+    wasm.setReferenceValidationContext(session, destination, true, '[]');
+    const targets = wasm.queryReferenceSource(library, 'input.children', 'memory:context.cemql');
+    wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name: 'items', valueId: targets}]));
+    wasm.disposeNativeValueArtifact(targets);
+    fail(() => wasm.setReferenceValidationContext(session, 0, true, JSON.stringify([{name: 'items', valueId: targets, grants: true}])), 'cem.reference.validation');
+    assert.equal(run().complete, false);
+    assert.ok(run().dependencies.some(dependency => dependency.kind === 'ScopeDenied'));
+    wasm.allowReferenceValidationCrossing(session, 0, destination);
+    assert.equal(run().complete, true);
+    wasm.setReferenceValidationPolicyBounds(session, 0, 128, 1);
+    assert.equal(run().complete, false);
+    assert.ok(run().dependencies.some(dependency => dependency.kind === 'WorkLimit'));
+    wasm.setReferenceValidationPolicyBounds(session, 0, 128, 100000);
+    for (const handle of [source, schema, library]) wasm.disposeReferenceSource(handle);
+    assert.equal(run().complete, true);
+    assert.equal(wasm.disposeReferenceValidationSession(other), true);
+    assert.equal(run().complete, true);
+    assert.equal(wasm.disposeReferenceValidationSession(session), true);
+    fail(() => wasm.runReferenceValidationSession(session), 'cem.reference.validation');
+}
+
+lifecycle();
+
 if (isMainThread) {
     const source = wasm.parseReferenceSource(encode('{div}{#input}'), 'text/cem-ml', 'memory:original.cem', '');
     const bytes = wasm.exportReferenceReloadBundle(source, '');

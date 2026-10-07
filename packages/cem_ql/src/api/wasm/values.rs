@@ -294,3 +294,152 @@ pub fn export_native_value(id: u32, limits_json: &str) -> Result<Vec<u8>, JsValu
         })
     })
 }
+
+thread_local! {
+    static VALIDATIONS: RefCell<BTreeMap<u32, crate::api::reference_lifecycle::ReferenceValidationSession>> = const { RefCell::new(BTreeMap::new()) };
+}
+fn validation_error(message: impl ToString) -> JsValue {
+    transport_error(
+        "cem.reference.validation",
+        "LifecycleFailure",
+        message,
+        None,
+    )
+}
+#[wasm_bindgen(js_name = "attachReferenceReloadBundle")]
+pub fn attach_reference_bundle(id: u32, bytes: &[u8], limits_json: &str) -> Result<(), JsValue> {
+    let limits = reload_limits(limits_json)?;
+    SOURCES.with(|sources| {
+        let mut sources = sources.borrow_mut();
+        sources
+            .get_mut(&id)
+            .ok_or_else(|| validation_error("Unknown reference source handle"))?
+            .attach_bundle(bytes, limits)
+            .map_err(|e| transport_error("cem.reference.reload_attach", e.kind_name(), &e, None))
+    })
+}
+#[wasm_bindgen(js_name = "beginReferenceValidationSession")]
+pub fn begin_reference_validation(source_id: u32, schema_id: u32) -> Result<u32, JsValue> {
+    let session = crate::api::reference_lifecycle::ReferenceValidationSession::new(
+        retained_source(source_id)?,
+        retained_source(schema_id)?,
+    );
+    let id = next_id().map_err(validation_error)?;
+    VALIDATIONS.with(|sessions| sessions.borrow_mut().insert(id, session));
+    Ok(id)
+}
+#[wasm_bindgen(js_name = "registerReferenceValidationSource")]
+pub fn register_reference_validation_source(
+    session_id: u32,
+    source_id: u32,
+) -> Result<u32, JsValue> {
+    let source = retained_source(source_id)?;
+    VALIDATIONS.with(|sessions| {
+        let mut sessions = sessions.borrow_mut();
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| validation_error("Unknown validation session"))?;
+        u32::try_from(session.add_source(source)).map_err(validation_error)
+    })
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ValidationBinding {
+    name: String,
+    value_id: u32,
+}
+#[wasm_bindgen(js_name = "setReferenceValidationContext")]
+pub fn set_reference_validation_context(
+    session_id: u32,
+    source_index: u32,
+    ready: bool,
+    bindings_json: &str,
+) -> Result<(), JsValue> {
+    if bindings_json.len() > 128 * 1024 {
+        return Err(validation_error("Binding metadata limit exceeded"));
+    }
+    let bindings: Vec<ValidationBinding> =
+        serde_json::from_str(bindings_json).map_err(validation_error)?;
+    if !ready && !bindings.is_empty() {
+        return Err(validation_error("Pending context cannot carry bindings"));
+    }
+    let mut context = crate::api::StandaloneExpressionContext::default();
+    for binding in bindings {
+        if context.bindings.contains_key(&binding.name) {
+            return Err(validation_error("Duplicate context binding"));
+        }
+        let values = INPUTS
+            .with(|inputs| {
+                inputs
+                    .borrow()
+                    .get(&binding.value_id)
+                    .map(|input| input.values.clone())
+            })
+            .ok_or_else(|| validation_error("Unknown native result handle"))?;
+        context = context.with_binding(
+            binding.name,
+            crate::api::StandaloneExpressionBinding::any(values),
+        );
+    }
+    VALIDATIONS.with(|sessions| {
+        sessions
+            .borrow_mut()
+            .get_mut(&session_id)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .set_context(source_index as usize, ready.then_some(context))
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "setReferenceValidationPolicyBounds")]
+pub fn set_reference_validation_policy(
+    session_id: u32,
+    source_index: u32,
+    max_depth: u32,
+    max_work: u32,
+) -> Result<(), JsValue> {
+    let limits = cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+        max_depth: max_depth as usize,
+        max_work: max_work as usize,
+    };
+    VALIDATIONS.with(|sessions| {
+        sessions
+            .borrow_mut()
+            .get_mut(&session_id)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .set_limits(source_index as usize, limits)
+            .map_err(validation_error)
+    })
+}
+// Directed authority is a separate host call; binding JSON and bundles cannot grant it.
+#[wasm_bindgen(js_name = "allowReferenceValidationCrossing")]
+pub fn allow_reference_validation_crossing(
+    session_id: u32,
+    from: u32,
+    to: u32,
+) -> Result<(), JsValue> {
+    VALIDATIONS.with(|sessions| {
+        sessions
+            .borrow_mut()
+            .get_mut(&session_id)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .allow_crossing(from as usize, to as usize)
+            .map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "runReferenceValidationSession")]
+pub fn run_reference_validation(session_id: u32) -> Result<String, JsValue> {
+    VALIDATIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let report = sessions
+            .get(&session_id)
+            .ok_or_else(|| validation_error("Unknown validation session"))?
+            .run()
+            .map_err(validation_error)?;
+        // Explicit control report only; no AST records or resolved target arrays.
+        serde_json::to_string(&report).map_err(validation_error)
+    })
+}
+#[wasm_bindgen(js_name = "disposeReferenceValidationSession")]
+pub fn dispose_reference_validation(session_id: u32) -> bool {
+    VALIDATIONS.with(|sessions| sessions.borrow_mut().remove(&session_id).is_some())
+}

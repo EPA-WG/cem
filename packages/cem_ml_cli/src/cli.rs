@@ -588,6 +588,12 @@ pub struct ValidateArgs {
     )]
     pub from_format: Option<InputFormat>,
 
+    #[arg(long, help = "Admit an explicit retained reference reload bundle")]
+    pub reload_bundle: bool,
+
+    #[arg(long, requires = "reload_bundle", value_name = "SOURCE-ID", help = "Primary source manifest ID (defaults to 1)")]
+    pub reload_source_id: Option<u32>,
+
     #[arg(long, value_enum, default_value_t = FailLevel::Validate)]
     pub fail_level: FailLevel,
 
@@ -613,6 +619,12 @@ pub struct CheckArgs {
         help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
     )]
     pub from_format: Option<InputFormat>,
+
+    #[arg(long, help = "Admit an explicit retained reference reload bundle")]
+    pub reload_bundle: bool,
+
+    #[arg(long, requires = "reload_bundle", value_name = "SOURCE-ID", help = "Primary source manifest ID (defaults to 1)")]
+    pub reload_source_id: Option<u32>,
 
     #[arg(long, value_enum, default_value_t = FailLevel::Validate)]
     pub fail_level: FailLevel,

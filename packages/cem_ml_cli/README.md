@@ -75,8 +75,14 @@ Reload verifies the debug source bundle and retains the decoded owner/capture;
 it does not read the original source URI or parse source text again. The primary
 manifest source ID defaults explicitly to 1; another ID requires
 `--reload-source-id`. AST-only bundles support inert query inspection; embedding
-validation admission requires capture metadata. CLI `validate`/`check` bundle
-admission remains [tracked adapter work](../../docs/todo.md#next-three-reload-consumer-items).
+validation admission requires capture metadata. `validate` and `check` now accept
+`--reload-bundle` and the same optional `--reload-source-id`. Missing capture or a
+needed runtime consumer keeps validation incomplete, independently of diagnostic
+severity, and produces a nonzero validation exit. Requests bypass source parsing;
+original source URIs stay attached to diagnostics. Embedding hosts can register
+prepared owners in `EngineContext.reload_validation_sources` and provide the
+existing synchronous/resumable stage with explicit contexts and grants. The CLI
+flag admits a source owner; it does not infer evaluation inputs or authority.
 
 `--output cemv` exports materialized native values as binary bytes, without a text
 newline. Executable source references reject with an attributed typed diagnostic;

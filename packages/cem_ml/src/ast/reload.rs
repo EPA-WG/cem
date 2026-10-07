@@ -213,6 +213,11 @@ impl ReferenceReloadBundle {
         bytes: &[u8],
         limits: ReloadLimits,
     ) -> Result<(Self, ReloadedReferenceDocument), ReloadError> {
+        let result = Self::read_envelope(bytes, limits)?;
+        let document = result.reload(limits)?;
+        Ok((result, document))
+    }
+    fn read_envelope(bytes: &[u8], limits: ReloadLimits) -> Result<Self, ReloadError> {
         if bytes.len() > limits.max_bytes {
             return Err(ReloadError::LimitExceeded);
         }
@@ -222,8 +227,77 @@ impl ReferenceReloadBundle {
         if decoder.position() as usize != bytes.len() {
             return Err(ReloadError::InvalidEnvelope("trailing bytes".into()));
         }
-        let document = result.reload(limits)?;
-        Ok((result, document))
+        result.check_envelope(limits)?;
+        Ok(result)
+    }
+    /// Attach passive inputs to an owner already verified with `previous`.
+    /// Payload admission never decodes an arena, reparses source or changes a
+    /// completed capture. Omitted inputs preserve previously verified inputs.
+    pub fn attach_to(
+        bytes: &[u8],
+        previous: &Self,
+        retained: &ReloadedReferenceDocument,
+        limits: ReloadLimits,
+    ) -> Result<(Self, ReloadedReferenceDocument), ReloadError> {
+        let mut candidate = Self::read_envelope(bytes, limits)?;
+        if candidate.payload_fingerprint != previous.payload_fingerprint
+            || candidate.payload != previous.payload
+        {
+            return Err(ReloadError::FingerprintMismatch);
+        }
+        if candidate.codec != previous.codec || candidate.codec_version != previous.codec_version {
+            return Err(ReloadError::UnsupportedVersion);
+        }
+        if candidate.sources.len() != retained.sources.len() {
+            return Err(ReloadError::InvalidSource);
+        }
+        let existing_sources: BTreeMap<_, _> =
+            retained.sources.iter().map(|s| (s.source_id.0, s)).collect();
+        for source in &mut candidate.sources {
+            let existing = existing_sources
+                .get(&source.source_id.0)
+                .ok_or(ReloadError::InvalidSource)?;
+            if source.uri != existing.uri
+                || source.fingerprint != existing.fingerprint
+                || source.byte_length != existing.byte_length
+            {
+                return Err(ReloadError::InvalidSource);
+            }
+            if source.bytes.is_none() {
+                source.bytes = existing.bytes.clone();
+            }
+        }
+        if let (Some(old), Some(new)) = (&previous.lexical, &candidate.lexical) {
+            let encode = |metadata: &LexicalReloadMetadata| {
+                rmp_serde::to_vec_named(metadata)
+                    .map_err(|e| ReloadError::InvalidEnvelope(e.to_string()))
+            };
+            if encode(old)? != encode(new)? {
+                return Err(ReloadError::InvalidMetadata);
+            }
+        }
+        if candidate.lexical.is_none() {
+            candidate.lexical = previous.lexical.clone();
+        }
+        candidate.check_envelope(limits)?;
+        candidate.encoded(limits)?;
+        candidate.validate_document(&retained.document, limits)?;
+        let lexical = match &retained.lexical {
+            Some(capture) if Arc::ptr_eq(capture.document(), &retained.document) => {
+                Some(capture.clone())
+            }
+            Some(_) => return Err(ReloadError::InvalidMetadata),
+            None => candidate
+                .lexical
+                .as_ref()
+                .map(|metadata| Arc::new(metadata.restore(retained.document.clone()))),
+        };
+        let document = ReloadedReferenceDocument {
+            document: retained.document.clone(),
+            lexical,
+            sources: candidate.sources.clone(),
+        };
+        Ok((candidate, document))
     }
     fn check_envelope(&self, limits: ReloadLimits) -> Result<(), ReloadError> {
         if self.version != RELOAD_VERSION

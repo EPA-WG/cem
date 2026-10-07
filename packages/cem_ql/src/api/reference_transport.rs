@@ -85,6 +85,15 @@ impl RetainedReferenceSource {
     pub fn export_bundle(&self, limits: ReloadLimits) -> Result<Vec<u8>, ReloadError> {
         self.bundle.encode(limits)
     }
+    /// Atomic passive attachment. Existing query/session clones keep their view.
+    pub fn attach_bundle(&mut self, bytes: &[u8], limits: ReloadLimits) -> Result<(), ReloadError> {
+        let (bundle, reloaded) =
+            ReferenceReloadBundle::attach_to(bytes, &self.bundle, self.ingress.reloaded(), limits)?;
+        let ingress = ReloadIngress::new(Arc::new(reloaded), self.ingress.primary_source())?;
+        self.ingress = ingress;
+        self.bundle = Arc::new(bundle);
+        Ok(())
+    }
     /// Runtime bindings/capabilities belong to this execution, not the saved source.
     /// Authored source references stay inert until an explicit lifecycle consumer.
     pub fn evaluate(

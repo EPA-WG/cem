@@ -429,10 +429,33 @@ missing-metadata dependency for AST-only reload. Source bytes can be supplied
 later through `ReloadSource::supply_bytes`. Callers supply runtime contexts, policy
 and grants afresh. `api::reference_transport::RetainedReferenceSource` retains
 source/capture for explicit parsing, bundle reload/export and inert native queries
-under a caller's fresh `StandaloneExpressionContext`. Shared reload ingress and
-CLI/low-level WASM transport boundaries are implemented. See the
-[consumer matrix](../../docs/reference-consumer-verification.md) and remaining
-[adapter work](../../docs/todo.md#next-three-reload-consumer-items).
+under a caller's fresh `StandaloneExpressionContext`. `attach_bundle` atomically
+attaches missing verified metadata/bytes to the same arena; existing result/session clones keep their previous view. Shared engine
+reload admission and CLI `validate`/`check --reload-bundle` are implemented.
+
+`api::reference_lifecycle::ReferenceValidationSession` is an explicit native
+schema/namespace validation consumer. It retains input and schema source owners,
+with one caller-supplied context per owner, schema-derived policy (or explicit
+host overrides), and directed crossings. `run` constructs fresh scopes, compiles
+the retained schema and consumes the input without caching source targets. Its
+report distinguishes readiness, failure, dependencies and attributed diagnostics.
+
+Low-level WASM exposes `beginReferenceValidationSession(source, schema)`;
+source indices 0 and 1 name the input and consuming schema. Register additional
+owners with `registerReferenceValidationSource`. Set an explicitly ready or pending
+context through `setReferenceValidationContext(session, index, ready, bindings)`;
+bindings are control JSON `[{"name":"items","valueId":nativeResultHandle}]` over
+retained native values, not AST records. Empty bindings with `ready=true` differ
+from a pending context. `allowReferenceValidationCrossing` supplies directed host
+authority separately. `setReferenceValidationPolicyBounds` overrides bounds while
+preserving the schema's unresolved-link policy. Run/dispose through
+`runReferenceValidationSession` / `disposeReferenceValidationSession`.
+`attachReferenceReloadBundle` refreshes only its source handle's passive view;
+prepare a new session to consume attached metadata. Sessions retain owners after
+source/result handles are disposed. Source/capture and contexts stay local; only
+explicit bundle/CEMV bytes cross heaps. URI resource completion and completed-name
+query snapshots remain [adapter work](../../docs/todo.md#next-three-reference-lifecycle-adapter-items).
+See the [consumer matrix](../../docs/reference-consumer-verification.md).
 
 WASM exports `parseReferenceSource`, `importReferenceReloadBundle`,
 `exportReferenceReloadBundle`, `inspectReferenceSource`, `queryReferenceSource`

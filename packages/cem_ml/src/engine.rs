@@ -171,6 +171,9 @@ pub struct EngineContext {
     /// Registration never evaluates parse/load or ordinary query requests.
     pub input_validation_stage:
         Option<Arc<dyn crate::schema::input_validation::InputValidationStage>>,
+    /// Explicit host admission only. Keys identify requests, not resource grants.
+    /// Config/virtual request projections cannot construct native source owners.
+    pub reload_validation_sources: BTreeMap<String, crate::ast::reload::ReloadIngress>,
     pub convert_request_handlers: Vec<Arc<dyn ConvertRequestHandler>>,
 }
 
@@ -203,6 +206,7 @@ impl Default for EngineContext {
             operation_control: OperationControl::default(),
             schema_behavior_evaluator: None,
             input_validation_stage: None,
+            reload_validation_sources: BTreeMap::new(),
             convert_request_handlers: Vec::new(),
         }
     }

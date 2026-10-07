@@ -163,7 +163,7 @@ pub(crate) fn run_data(
     )
 }
 
-fn run_prepared(
+pub(crate) fn run_prepared(
     stage: &dyn InputValidationStage,
     source: Result<(Arc<RetainedCemTree>, Option<Arc<LexicallyScopedDocument>>), Vec<Diagnostic>>,
     uri: &str,

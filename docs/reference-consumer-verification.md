@@ -18,26 +18,39 @@ transport never claim that an authored reference has been evaluated.
 | CLI query / transport | Explicit bundle admission and primary source ID; original source/capture export; binary CEMV output without a text newline. Export failures retain kind and source map in the report and emit no partial successful bytes. Existing JSON descriptors and textual projections remain explicit compatibility exports. | `cem_ml_cli/tests/reference_transport_cli.rs`, `cem_ml_cli/tests/query_cli.rs` |
 | Low-level WASM / worker transport | Source and result handles stay local. Result handles retain the source capture after the source handle is disposed. Workers transfer bundle or CEMV bytes explicitly. Guards report code, kind, original source URI and source map; disposal rejects stale handles. | `cem_ql/tests/reference-transport-wasm.mjs` |
 
-## Remaining integration gaps
+## Reload lifecycle adoption (2026-10-07)
 
-The native syntax, query access, bounded resolution and supported source/value
-transport boundaries are implemented. The following adapter work remains
-actionable in [todo.md](todo.md#next-three-reload-consumer-items):
+Late `RetainedReferenceSource::attach_bundle` verifies the payload and complete
+source identities before atomically filling missing lexical capture/source bytes.
+It retains the arena and existing capture identities; older query/session clones
+retain their previous view. A retry explicitly prepares a new view/session.
+`reference_reload_attachment.rs` and `reference_lifecycle_api.rs` cover attachment,
+failed replacement and retained execution independence.
 
-1. Attach a later verified lexical sidecar or source bytes to an already decoded
-   owner, refreshing only its inspection view. Today missing metadata is exposed
-   correctly, and context/grant retries retain the owner; client reload otherwise
-   constructs a fresh owner when metadata arrives in another bundle.
-2. Connect explicit reload admission to high-level engine and CLI `validate` /
-   `check` requests, including their resumable schema/namespace lifecycle. The
-   current native `ReloadIngress::validation_request` supports embedding stages;
-   the CLI bundle flag is currently on `query`.
-3. Expose retained source handles to an explicit WASM lifecycle consumer with
-   fresh runtime inputs and grants. The current WASM query API performs inert
-   native queries; it does not supply a schema/namespace validation session.
+Engine `EngineContext.reload_validation_sources` admits prepared owners through
+host code. CLI `validate`/`check --reload-bundle` provides explicit admission and
+optional `--reload-source-id`; configs and request JSON cannot construct native
+owners or grants. The existing native resumable stage receives the exact owner
+and capture, coordinating namespace completion and schema URI reads with CPU
+release during I/O. Without the needed capture/consumer, governed validation
+stays incomplete and avoids inherited-schema fallback. Evidence:
+`reload_engine_validation.rs`, `reload_validation_cli.rs`,
+`resumable_schema_validation.rs` and `resumable_input_validation.rs`.
 
-These gaps do not authorize source reparse, destination-default substitution,
-serialized live contexts or automatic URL/ID lookup.
+`api::reference_lifecycle::ReferenceValidationSession` connects retained input and
+schema sources to native schema compilation, namespace completion and structural
+validation. Low-level WASM exposes local sessions, fresh context bindings from
+native result handles, policy bounds and directed host grants. Each run uses fresh
+scopes; its control report contains completion, failure, typed dependencies and
+attributed diagnostics. Neither bindings nor grants are serialized into bundles.
+`reference_lifecycle_api.rs` and `reference-transport-wasm.mjs` verify pending/empty,
+foreign target denial/grant, bounded nested references and independent disposal.
+
+The initial WASM session has one explicit context per registered owner. Queued
+URI transport and retained completed-name query views are the next adapter work,
+followed by a conformance/verification-target audit in
+[todo.md](todo.md#next-three-reference-lifecycle-adapter-items). These extensions
+do not change the completed syntax, retained-node or bounded-consumer contracts.
 
 ## Separately deferred work
 

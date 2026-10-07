@@ -30,6 +30,7 @@ pub mod wasm;
 
 pub mod native_values;
 pub mod reference_transport;
+pub mod reference_lifecycle;
 mod binding_selection;
 
 #[cfg(test)]

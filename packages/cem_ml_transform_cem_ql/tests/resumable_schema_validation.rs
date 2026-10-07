@@ -286,6 +286,13 @@ impl ResourceResolver for Reader {
     }
 }
 fn run_format(mode: Mode, xml: bool) -> (cem_ml::engine::ValidateResponse, Arc<Mutex<Seen>>) {
+    run_format_reload(mode, xml, false)
+}
+fn run_format_reload(
+    mode: Mode,
+    xml: bool,
+    reload: bool,
+) -> (cem_ml::engine::ValidateResponse, Arc<Mutex<Seen>>) {
     let seen = Arc::new(Mutex::new(Seen::default()));
     let mut context = EngineContext::default();
     context.schema = Some(CEM_ML_SCHEMA_URI.into());
@@ -318,11 +325,38 @@ fn run_format(mode: Mode, xml: bool) -> (cem_ml::engine::ValidateResponse, Arc<M
             xml,
         },
     );
+    let text = if matches!(mode, Mode::Namespace | Mode::NamespaceNoContext) {
+        b"@ns public = https://cem.dev/ns/core/1\n{host @xmlns:c={#namespace} @c:schema-src=outer.cem | {child @c:schema-src=inner.cem | {leaf}}}".as_slice()
+    } else {
+        b"{host @schema-src=outer.cem | {child @schema-src=inner.cem | {leaf}}}".as_slice()
+    };
+    let admitted_owner = reload.then(|| {
+        let limits = cem_ml::ast::reload::ReloadLimits::default();
+        let source = cem_ml_transform_cem_ql::RetainedReferenceSource::parse(
+            text,
+            "text/cem-ml",
+            "https://vendor.test/main.cem",
+            limits,
+        )
+        .unwrap();
+        let source = cem_ml_transform_cem_ql::RetainedReferenceSource::reload(
+            &source.export_bundle(limits).unwrap(),
+            1,
+            limits,
+        )
+        .unwrap();
+        let owner = source.ingress().source().ast_owner().clone();
+        context.reload_validation_sources.insert(
+            "https://vendor.test/main.cem".into(),
+            source.ingress().clone(),
+        );
+        owner
+    });
     let response = RealCemMlEngine
         .validate(ValidateRequest {
             inputs: vec![EngineInput {
                 uri: "https://vendor.test/main.cem".into(),
-                bytes: if xml {
+                bytes: if reload { vec![0xff] } else if xml {
                     b"<host schema-src='outer.cem'><child schema-src='inner.cem'><leaf/></child></host>".to_vec()
                 } else if matches!(mode, Mode::Namespace | Mode::NamespaceNoContext) {
                     b"@ns public = https://cem.dev/ns/core/1\n{host @xmlns:c={#namespace} @c:schema-src=outer.cem | {child @c:schema-src=inner.cem | {leaf}}}".to_vec()
@@ -338,6 +372,9 @@ fn run_format(mode: Mode, xml: bool) -> (cem_ml::engine::ValidateResponse, Arc<M
             context,
         })
         .unwrap();
+    if let Some(owner) = admitted_owner {
+        assert!(Arc::ptr_eq(&seen.lock().unwrap().owners[0], &owner));
+    }
     (response, seen)
 }
 #[test]
@@ -421,4 +458,35 @@ fn missing_namespace_runtime_inputs_finish_incomplete_without_uri_work() {
     let seen = seen.lock().unwrap();
     assert!(seen.reads.is_empty());
     assert_eq!(seen.namespace_snapshots, [false]);
+}
+
+#[test]
+fn reload_admission_keeps_the_resumable_namespace_and_schema_uri_coordinator() {
+    for mode in [Mode::Ready, Mode::Namespace] {
+        let (response, seen) = run_format_reload(mode, false, true);
+        assert!(
+            response.report.validation_complete(),
+            "{:?}",
+            response.report.diagnostics
+        );
+        assert!(
+            !response
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.severity.is_hard_violation()),
+            "{:?}",
+            response.report.diagnostics
+        );
+        let seen = seen.lock().unwrap();
+        assert_eq!(
+            seen.reads,
+            [
+                "https://vendor.test/outer.cem",
+                "https://vendor.test/inner.cem"
+            ]
+        );
+        assert_eq!(seen.snapshots.len(), 3);
+        assert!(seen.owners.len() >= 3);
+    }
 }

@@ -10234,7 +10234,18 @@ fn run_scheduled_validation_load(
     let mut scope_diagnostics =
         root_scope_metadata_diagnostics(&input.uri, &input.root_scope, "input");
     input_diags.append(&mut scope_diagnostics);
-    let mut loaded = validate_input_through_lifecycle(input, context);
+    let mut loaded = if context.reload_validation_sources.contains_key(&input.uri) {
+        // Verified native admission is independent of lifecycle byte loading.
+        LoadedInput {
+            bytes: vec![],
+            from_format: InputFormat::Cem,
+            ast_stream: None,
+            diagnostics: vec![],
+            adapter_id: Some("cem-ml"),
+        }
+    } else {
+        validate_input_through_lifecycle(input, context)
+    };
     input_diags.append(&mut loaded.diagnostics);
     let source_bytes_for_projection = loaded.bytes.clone();
     ScheduledValidationDocument {
@@ -10274,8 +10285,7 @@ fn run_scheduled_validation_document(
         && matches!(
             loaded.ast_stream.as_ref(),
             None | Some(LoadedInputAstStream::XmlDocument(_))
-        )
-    {
+        ) {
         let identity = effective_input_identity(input, context);
         let model = crate::schema::document_model::load_document_model_for_identity(
             identity.schema.as_deref(),
@@ -10318,7 +10328,92 @@ fn run_scheduled_validation_document(
     } else {
         None
     };
-    if let Some((stage, model)) = data_runtime {
+    if let Some(ingress) = context.reload_validation_sources.get(&input.uri) {
+        let identity = effective_input_identity(input, context);
+        let model = crate::schema::document_model::load_document_model_for_identity(
+            identity.schema.as_deref(),
+            identity.content_type.as_deref(),
+            Some(&context.schema_registry),
+            Some(&context.schema_document_models),
+        );
+        match ingress.reloaded().require_lexical() {
+            Err(_) => {
+                complete = false;
+                runtime_diagnostics.push(Diagnostic {
+                    uri: Some(ingress.source().source_uri().into()),
+                    code: "cem.reference.missing_lexical_metadata".into(),
+                    severity: Severity::Warning,
+                    message: "Reload validation is pending verified lexical metadata".into(),
+                    ..Default::default()
+                });
+            }
+            Ok(capture) => {
+                runtime_diagnostics.extend(
+                    ingress
+                        .source()
+                        .ast()
+                        .diagnostics
+                        .iter()
+                        .chain(capture.diagnostics())
+                        .cloned()
+                        .map(|mut d| {
+                            d.uri
+                                .get_or_insert_with(|| ingress.source().source_uri().into());
+                            d
+                        }),
+                );
+                if let Some(model) = model.filter(|m| m.is_ready_for_validation()) {
+                    if let Some(stage) = context.input_validation_stage.as_deref() {
+                        if let Some(execution) = &mut execution {
+                            execution.retained_input_bytes = input.bytes.len();
+                        }
+                        let outcome = crate::schema::input_validation::run_prepared(
+                            stage,
+                            Ok((ingress.source().clone(), Some(capture.clone()))),
+                            ingress.source().source_uri(),
+                            &input.root_scope,
+                            &model,
+                            context.schema_behavior_evaluator.as_ref(),
+                            execution.clone(),
+                        );
+                        complete = outcome.complete;
+                        pending = outcome.pending;
+                        runtime_diagnostics.extend(outcome.diagnostics);
+                    } else {
+                        let needs_lifecycle = crate::schema::document_model::has_consumable_references(ingress.source().ast(), &model)
+                            || capture.occurrences().next().is_some()
+                            || ingress.source().ast().nodes.iter().enumerate().any(|(index, node)| {
+                                let id = index as crate::parser::AstNodeId;
+                                capture.pending_namespace_name(capture.document(), id).is_some()
+                                    || capture.pending_namespace_declaration(capture.document(), id).is_some()
+                                    || (matches!(node, crate::parser::CemAstNode::Element { .. })
+                                        && crate::schema::scope_controls::validate_schema_scope_controls(
+                                            crate::schema::declaration_references::SchemaDeclarationNode::new(capture.document().clone(), id).unwrap(),
+                                            |source| capture.expanded_name(source.document(), source.node_id()).cloned(),
+                                            capture.schema_element_form(capture.document(), id),
+                                        ).has_override())
+                            });
+                        complete = !needs_lifecycle;
+                        if needs_lifecycle {
+                            runtime_diagnostics.push(Diagnostic {
+                                uri: Some(ingress.source().source_uri().into()),
+                                code: "cem.reference.lifecycle_required".into(),
+                                severity: Severity::Warning,
+                                message: "Reload validation awaits an explicit lifecycle consumer"
+                                    .into(),
+                                ..Default::default()
+                            });
+                        } else {
+                            runtime_diagnostics.extend(crate::schema::document_model::validate_document_model_with_behavior_evaluator(
+                                ingress.source().ast(), &model, context.schema_behavior_evaluator.as_deref()).into_iter().map(|mut d| { d.uri.get_or_insert_with(|| ingress.source().source_uri().into()); d }));
+                        }
+                    }
+                } else {
+                    complete = false;
+                }
+            }
+        }
+    } else if let Some((stage, model)) = data_runtime {
         let source_uri = input_uri(input, context);
         if let Some(document) = loaded.ast_stream.take() {
             context.ensure_active()?;
@@ -10345,13 +10440,14 @@ fn run_scheduled_validation_document(
             Some(LoadedInputAstStream::XmlDocument(document)) => Some(document),
             None => {
                 let identity = effective_input_identity(input, context);
-                let (document, diagnostics) = crate::validation::xml::xml_document_ast_from_source_bytes(
-                    crate::validation::xml::XmlSourceValidationRequest {
-                        bytes: &loaded.bytes,
-                        source_uri: &source_uri,
-                        content_type: identity.content_type.as_deref(),
-                    },
-                );
+                let (document, diagnostics) =
+                    crate::validation::xml::xml_document_ast_from_source_bytes(
+                        crate::validation::xml::XmlSourceValidationRequest {
+                            bytes: &loaded.bytes,
+                            source_uri: &source_uri,
+                            content_type: identity.content_type.as_deref(),
+                        },
+                    );
                 input_diags.extend(diagnostics);
                 document
             }
@@ -10507,7 +10603,6 @@ fn run_scheduled_validation_document(
         }),
     })
 }
-
 
 #[cfg(not(target_arch = "wasm32"))]
 fn native_scheduler_error(error: crate::scheduler::ScheduleError) -> EngineError {

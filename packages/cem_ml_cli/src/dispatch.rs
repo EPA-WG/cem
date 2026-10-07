@@ -6424,6 +6424,40 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     }
 }
 
+// Authority comes from the explicit CLI flag, never from the bundle/config.
+fn admit_reload_validation_inputs(
+    context: &mut eng::EngineContext,
+    inputs: &mut [eng::EngineInput],
+    source_id: Option<u32>,
+) -> Result<(), CliRequestError> {
+    for input in inputs {
+        let source = cem_ml_transform_cem_ql::RetainedReferenceSource::reload(
+            &input.bytes,
+            source_id.unwrap_or(1),
+            cem_ml::ast::reload::ReloadLimits::default(),
+        )
+        .map_err(|error| {
+            CliRequestError::Usage(format!(
+                "reload {}: {} ({})",
+                input.uri,
+                error,
+                error.kind_name()
+            ))
+        })?;
+        // Request identity remains the registry key. Diagnostics retain original
+        // source URIs through the native owner, even when byte text is absent.
+        input
+            .identity
+            .get_or_insert_with(Default::default)
+            .content_type = Some("text/cem-ml".into());
+        input.from_format = Some(eng::InputFormat::Cem);
+        context
+            .reload_validation_sources
+            .insert(input.uri.clone(), source.ingress().clone());
+    }
+    Ok(())
+}
+
 pub fn run_validate<E: CemMlEngine + ?Sized>(
     engine: &E,
     args: cli::ValidateArgs,
@@ -6457,8 +6491,8 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
-    let inputs = match collect_configured_inputs(
+    let mut engine_context = context_with_config_for_dispatch(&args.context, &config, s);
+    let mut inputs = match collect_configured_inputs(
         &engine_context,
         &args.inputs,
         args.from_format,
@@ -6474,7 +6508,17 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
+    if args.reload_bundle {
+        if let Err(error) =
+            admit_reload_validation_inputs(&mut engine_context, &mut inputs, args.reload_source_id)
+        {
+            return handle_cli_request_error(error, s);
+        }
+    }
+    if let Some(report) = (!args.reload_bundle)
+        .then(|| direct_source_validation_report(&inputs, args.fail_level, &args.context))
+        .flatten()
+    {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -6493,7 +6537,11 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
         }
         return Outcome::ok();
     }
-    let embedding_diags = collect_embedding_diagnostics(&inputs);
+    let embedding_diags = if args.reload_bundle {
+        vec![]
+    } else {
+        collect_embedding_diagnostics(&inputs)
+    };
     let req = eng::ValidateRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -6559,8 +6607,8 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         }
         Err(err) => return handle_cli_request_error(err, s),
     };
-    let engine_context = context_with_config_for_dispatch(&args.context, &config, s);
-    let inputs = match collect_configured_inputs(
+    let mut engine_context = context_with_config_for_dispatch(&args.context, &config, s);
+    let mut inputs = match collect_configured_inputs(
         &engine_context,
         &args.inputs,
         args.from_format,
@@ -6576,7 +6624,17 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
+    if args.reload_bundle {
+        if let Err(error) =
+            admit_reload_validation_inputs(&mut engine_context, &mut inputs, args.reload_source_id)
+        {
+            return handle_cli_request_error(error, s);
+        }
+    }
+    if let Some(report) = (!args.reload_bundle)
+        .then(|| direct_source_validation_report(&inputs, args.fail_level, &args.context))
+        .flatten()
+    {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -6598,7 +6656,11 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         }
         return Outcome::ok();
     }
-    let embedding_diags = collect_embedding_diagnostics(&inputs);
+    let embedding_diags = if args.reload_bundle {
+        vec![]
+    } else {
+        collect_embedding_diagnostics(&inputs)
+    };
     let req = eng::CheckRequest {
         inputs,
         projection: to_engine_validate_projection(args.format),
@@ -6635,7 +6697,6 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
         Err(e) => handle_engine_error(e, s),
     }
 }
-
 pub fn run_inspect<E: CemMlEngine + ?Sized>(
     engine: &E,
     args: cli::InspectArgs,
