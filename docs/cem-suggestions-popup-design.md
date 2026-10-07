@@ -10,8 +10,9 @@ suggestions profile. Its presentation is one native `popover="manual"` listbox,
 with shared dismissal covering both the existing editor and that listbox.
 Retain the editor's focus and the [single field/form owner](cem-suggestions-composition-design.md).
 The public dropdown component and its trigger-oriented capability are not the
-attachment mechanism. Public attachment syntax and full keyboard/data policies
-remain subsequent design items.
+attachment mechanism. Public attachment syntax is now adopted in the
+[attachment/capability design](cem-suggestions-attachment-design.md);
+full keyboard/data policies remain subsequent design items.
 
 ## Comparison against the current runtime
 
@@ -191,7 +192,8 @@ migration. Extract neutral geometry/visibility/dismissal services with regressio
 cases for current dropdown and native dialog/tooltip behavior, then add the
 suggestions delegate. Do not change the old dropdown defaults, menu focus
 contracts or public surface kind names to make the new profile appear ready.
-The attachment API design must identify its provider/surface roles explicitly.
+The adopted attachment API identifies provider/surface roles explicitly;
+its native endpoint, provider lease and source/row view require implementation.
 
 Implementation needs an exclusive per-surface registry, isolated geometry
 leases, the editor-provider claim/commit boundary, manual-region dismissal,

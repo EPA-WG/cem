@@ -377,7 +377,16 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       nested Escape closes only suggestions; refits preserve input identity and
       selection; independent surface leases do not overwrite one another.
 
-- [ ] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
+- [x] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
+      Completed 2026-10-07: [adopted attachment/capability design](cem-suggestions-attachment-design.md).
+      Select non-form `cem-suggestions` with shared `suggestions` capability,
+      exclusive editor slot or typed/local `editor-for`, native options input or
+      inert options template, and row/group label templates inside owned shells.
+      Local contains/prefix matching, external query-dependent filtering and an
+      unfiltered mode have explicit ownership and truthful autocomplete semantics.
+      Native adapters distinguish explicit empty values, text fallback and labels;
+      sources remain native nodes, separate from their produced row placements.
+      This closes API design only; none of these new exports is implemented.
       Apply the [manual listbox surface and service boundary](cem-suggestions-popup-design.md#shared-service-boundary).
       Identify editor/provider/surface roles explicitly; require one visibility
       controller and one semantic owner without a generated dropdown button.
@@ -387,10 +396,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       upstream-filtering or computed-label value fallback.
       Scenarios for later design verification: grouped filtering hides empty
       groups without changing retained option identity; clearing or replacing
-      suggestions removes stale active-descendant relationships.
+      suggestions removes stale active-descendant relationships; filtering does
+      not transfer a row ID to another source; conflicting endpoints/claims do
+      not select a mounting-order winner; external/none modes expose list/none.
 
 - [ ] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
       Preserve [value/form handoff](cem-suggestions-composition-design.md#commit-through-the-existing-form-owner).
+      Apply the [attachment state and accessibility handoff](cem-suggestions-attachment-design.md#accessibility-and-lifecycle-handoff).
+      Set preview/aria-selected behavior explicitly, without copying source
+      selected flags; retain one commit/close route and guard stale query revisions.
       Scenarios for later design verification: event observers see one coherent
       native/host/submitted value; commit followed by blur has no duplicate change;
       a later real edit still changes normally; option replacement has an explicit
@@ -400,6 +414,10 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       focus-leave and scrolling must not compete with outside dismissal.
 
 - [ ] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
+      Apply the [retained source adapters and filtering boundary](cem-suggestions-attachment-design.md#retained-source-adapters).
+      Define duplicate-value policy, source replacement/invalid-revision recovery,
+      external result/query-revision association, request cancellation and native
+      query/loader bindings; no options URL, record normalizer or second filter.
       Scenarios for later design verification: a late result from a dismissed
       opening generation cannot reopen the popup; refresh preserves the field's
       value and focus; source readiness never overwrites field-owned `busy`.
@@ -414,6 +432,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       manual-listbox delegate and isolated per-surface leases, and preserve current
       dropdown/dialog/tooltip behavior with regression fixtures. Admit no source-
       or component-local popup controller or broadened button endpoint shortcut.
+      Deliver native `editor-for` consumption/markers, coordinated editor claim
+      leases and placement admissions in both directions, native options bindings,
+      source/text/filter adapters with pinned Unicode folding, the reserved
+      transient native view, label-template input frames and source-to-row mappings.
+      Keep source identity distinct from DOM relationship targets; exclude live
+      capability views/leases from durable resume authority.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are
@@ -429,6 +453,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       nested Escape/modal containment/ancestor teardown, RTL/vertical and viewport/
       container fitting, lost anchor/boundary closure, observer/style cleanup,
       stale callbacks and unchanged dropdown/dialog/tooltip profiles.
+      Add [attachment acceptance cases](cem-suggestions-attachment-design.md):
+      slot/external binding on both fields, conflicting editor/source inputs and
+      competing claims, native option label/text differences and empty values,
+      adjacent text nodes/comments/ASCII versus non-ASCII whitespace, mixed-family
+      rejection, label-only templates, Unicode filter agreement, external/none
+      autocomplete semantics and full-row filtering without identity transfer.
 
 - [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
@@ -447,6 +477,10 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Scenarios for later design verification: the numeric source example commits
       `1` rather than `One`; native browser routes remain singular; a future
       multiline profile preserves newline/caret/undo and accessible feedback.
+      Separately design full suggestion surface-provider adoption if needed;
+      the first profile accepts label templates only. Scenarios for later design
+      verification: an adopted listbox has one visibility/semantic owner, valid
+      row mappings and fresh foreign placement authority, without menu behavior.
 
 - [ ] Design non-key platform close-request support for manual suggestions
       surfaces before claiming Back/dismiss-gesture integration. Evaluate native

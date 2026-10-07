@@ -6,8 +6,10 @@ completes the composition item in the [active checklist](todo.md#autocomplete-an
 It builds on the [source audit](cem-autocomplete-source-audit.md) and the current
 [field contract](../packages/cem-components/docs/field-controls-contract.md).
 Popup reuse is adopted in the [popup-service design](cem-suggestions-popup-design.md).
-Public attachment syntax and the full interaction matrix remain subsequent
-design items; no new attribute or component name is introduced here.
+Public names, slots and filtering ownership are adopted in the
+[attachment/capability design](cem-suggestions-attachment-design.md).
+The full interaction matrix and data lifecycle remain subsequent design items;
+this composition document introduces no additional public names.
 
 Attach a shared suggestions session to the existing field's editor provider.
 Keep that field as the sole form and value owner, and its actual native input
@@ -243,8 +245,8 @@ only after the new editor is admitted.
 ## Delivery and verification
 
 The checklist promotes this composition contract and the selected popup service.
-Remaining design items define declarative attachment/shared capability,
-keyboard/event/constrained-selection behavior and static/async data.
+The attachment/shared capability API is now adopted. Remaining design items
+define keyboard/event/constrained-selection behavior and static/async data.
 Implementation must add the editor-provider commit boundary and lifecycle
 notifications in cem-elements before authoring component attachment conveniences.
 

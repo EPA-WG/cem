@@ -6,7 +6,9 @@ composition design should preserve. It handed attachment syntax, filtering
 ownership and value semantics to design tasks on that checklist.
 The subsequent [adopted composition design](cem-suggestions-composition-design.md)
 now settles editor/form ownership and first-profile value/type boundaries;
-runtime delivery and the remaining interaction designs are still pending.
+the [adopted attachment design](cem-suggestions-attachment-design.md) settles
+public slots, native adapters and filtering ownership. Runtime delivery,
+keyboard/event policy and data lifecycle remain pending.
 
 The published component is a thin wrapper around `cem-input` and `cem-menu`.
 Its seven examples establish useful author intent, but the inspected declarations

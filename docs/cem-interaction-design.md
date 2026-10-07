@@ -152,6 +152,11 @@ dismissal policy with retained input focus. This is a planned semantic delegate,
 not another implemented native surface kind. It requires neutral service
 extraction and its own fixtures; dialog/tooltip kinds, dropdown trigger rules
 and the existing generic popup mode defaults do not change.
+The [adopted attachment API](cem-suggestions-attachment-design.md) selects a
+non-form `cem-suggestions` provider with the shared `suggestions` capability,
+an editor slot or explicit `editor-for`, and label templates inside owned rows.
+These are planned contracts; they do not broaden implemented button endpoints
+or add suggestions to the current native-surface kinds.
 
 ### Slots and produced parts
 
@@ -193,8 +198,8 @@ element identities to produced placements and preserves or generates their DOM
 IDs. Runtime projection markers distinguish these consumed typed values from
 existing `@name`, `interaction-name` and `interaction-scope` compatibility inputs.
 Typed references need no authored root marker. Foreign original scopes require
-explicit lifecycle grants; targets outside the current producer forest remain
-incomplete until an external placement channel is designed.
+explicit lifecycle grants; targets outside the current producer forest also
+require the implemented [host placement channel](cem-element-granted-placements-design.md).
 
 | Combination | Resolution |
 | --- | --- |

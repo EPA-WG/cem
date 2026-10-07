@@ -75,6 +75,18 @@ inputs use CEM-ML `#` construction. Native HTML ID strings retain browser meanin
 No CEM-QL URL handler, CEM-wide ID registry, or implicit flattened CEM lookup is
 introduced. URL fragments remain loader/public-export conventions.
 
+### Planned suggestions endpoint
+
+The [adopted suggestions attachment API](cem-suggestions-attachment-design.md)
+adds `editor-for` as exactly one native element/provider relationship. Its
+consumer must require a verified editor provider, retaining the existing
+scope/placement grants, marker distinction and cleanup rules. This property is
+not yet in the implemented allowlist; the attachment implementation action in
+[todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs) includes it.
+The capability's native `options` input carries retained data nodes and is never
+projected to DOM IDs. Source candidates are also distinct from the produced
+option rows targeted by active-descendant relationships.
+
 ## Evaluation, scopes and incomplete links
 
 The default browser consumer follows already-materialized reference edges in the
