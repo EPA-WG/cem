@@ -40,8 +40,10 @@ snapshots for explicit caller retry; query/schema consumers share execution name
 while URI waits remain resumable. The adopted supported-consumer milestone is
 verified with 282 focused native integration checks, including 17 new lifecycle
 checks, plus 14 prefix-related unit checks. Native datatype/function composition remains a separate workstream;
-XML attribute expressions, child-override syntax, public query/transport contracts
-and cem-element consumption retain their deferred actions and scenarios.
+XML attribute expressions, child-override syntax and cem-element consumption
+retain their deferred actions and scenarios. Public query/reload/transport
+contracts were adopted on 2026-10-06; their implementation follows the
+[three work items below](#reference-query-and-transport-contract-implementation).
 
 ### 1. Audit current work and define schema contracts
 
@@ -2443,8 +2445,10 @@ check native target handles after reload and fresh-context evaluation without
 payload writeback. All 43 focused tests pass: 22 ML reference/source/inspection,
 nine AST codec unit tests and 12 QL construction/runtime tests. The supported
 boundaries are documented in the design.
-Native output-value graph and pending-outcome transport remain deferred in the
-roadmap; this closure adopts no new transport or public query access syntax.
+At the 2026-10-05 checkpoint, native output graph and pending-outcome transport
+were deferred; that closure adopted no new transport or public query syntax.
+The 2026-10-06 contracts now close those design decisions and retain their
+[implementation work below](#reference-query-and-transport-contract-implementation).
 
 ### 7. Verify and document completion
 
@@ -2603,6 +2607,108 @@ implementation verification. They do not claim executable test coverage.
   separately by the schema's cardinality rule.
 - Schema constructs are declared once and referenced by composition and
   validation consumers without copying them into the source tree.
+
+## Reference query and transport contract implementation
+
+The [adopted contracts](cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
+close the three roadmap design decisions on 2026-10-06. Implement these three
+work items in order; source/runtime ownership and existing consumer lifecycle
+remain unchanged. General datatypes, child-override syntax and cem-element ID
+projection remain separate workstreams.
+
+- [x] Adopt the public `reference` node refinement, one-step `.targets` access
+      and `.targets_available` presence field. Keep occurrence `is` separate
+      from positional target comparison; add no new target-list comparator.
+- [x] Adopt a verified, versioned binary/source/lexical reload bundle, fresh
+      allocation capture, incomplete missing-metadata outcomes and explicit
+      runtime context/authority handoff.
+- [x] Adopt CEMB cyclic single-arena graph preservation, CEMV materialized DAG
+      transport, explicit source-reference/unsupported graph export failures,
+      and local pending sessions. Promote the contracts into maintained design
+      and API/schema-package documentation.
+
+### 1. Public query reference type and edge availability
+
+- [ ] Fixture: verify `reference` type annotations/tests and compatibility with
+      `node` parameters across source, unary, output and portable views. Cover
+      empty/absent lists, order, repeated edges, nested reference targets,
+      occurrence aliases and distinct constructions over identical targets.
+- [ ] Implement the `reference` node-kind refinement in compiler/runtime and
+      `.targets_available` across native reference views. Keep `.targets`
+      one-step and inert; preserve `dom:reference` and legacy `.target` behavior.
+      Document the executable API after these fixtures pass.
+
+Scenarios for later design verification:
+
+- Absent stored targets report false; an available empty operand/edge list
+  reports true. Neither state evaluates an expression or claims consumer success.
+- Aliases compare as one occurrence; fresh constructions remain distinct.
+  Positional comparisons preserve order and duplicates and do not use `is`
+  on an entire sequence as a sequence-equality operation.
+- Accessing source references neither loads URLs nor searches IDs; native
+  targets retain original parent/owner identity and have no structural role.
+
+### 2. Verified lexical reload bundle
+
+- [ ] Fixture: reload source under namespace/schema overrides with completed
+      names, pending binding/QName dependencies, initial defaults and
+      wrapping/following forms. Verify a fresh owner's reconstructed capture,
+      source text/URI access and evaluation under two fresh runtime contexts.
+- [ ] Fixture: reject mismatched fingerprints, versions, kinds and dependency
+      handles. Distinguish missing lexical metadata from invalid metadata;
+      neither can borrow destination defaults or reuse old allocation captures.
+- [ ] Implement versioned bundle/source manifest and passive lexical sidecar
+      encoding/validation, then reconstruct capture over the decoded allocation.
+      Preserve existing AST-only reload/inspection. Verify external declaration
+      owners explicitly; no live contexts, grants, runtime caches or package
+      registrations travel as lexical metadata. Identify the debug CEMB codec
+      honestly rather than promising stable production compatibility.
+
+Scenarios for later design verification:
+
+- Native references retain authored lexical meaning after reload and receive
+  contexts, effective runtime policy and crossing/replacement grants afresh.
+- Missing source bytes disable source-text access; retained expressions can
+  still evaluate when valid lexical and runtime inputs are available.
+- Missing metadata leaves capture-dependent evaluation incomplete and retryable;
+  invalid metadata fails the handoff. Equal text, numeric IDs or coordinates
+  cannot attach an old capture to the new allocation.
+- Sidecar package provenance never creates authority or triggers an implicit
+  URI read; unchanged completed names and pending declaration identities survive.
+
+### 3. Enforce native export preservation boundaries
+
+- [ ] Fixture: export source references with absent, empty and nonempty stored
+      targets through CEMV; require an attributed unsupported-source outcome
+      rather than discarded expression/capture or absent-to-empty conversion.
+- [ ] Fixture: preserve materialized acyclic references, ordered/repeated edges
+      and occurrence parents through CEMV; reject self/cyclic target graphs and
+      cross-edge cycles without successful partial output. Keep CEMB self/cycle
+      round trips and CEM/XML source-only exports covered independently.
+- [ ] Implement source-reference admission guards and typed unsupported-export
+      classification at CEMV/public export boundaries, preserving existing
+      error messages and distinct invalid-input, limit and cancellation outcomes.
+      Explicit materialized-result export must retain supported provenance;
+      never silently fall back to records, expansion or a synthetic AST owner.
+
+Scenarios for later design verification:
+
+- Empty constructed references round-trip; an unevaluated source reference
+  cannot masquerade as one. Even stored targets do not erase source semantics.
+- Cycles remain native/CEMB graph edges; CEMV rejects them. Parent backlinks
+  alone are allowed, and transport-local identity preserves aliases/duplicates
+  without claiming equality to the original runtime allocation.
+- Explicit text/markup/JSON exports apply their own bounded projection rules;
+  they neither evaluate retained source nor resume transported pending sessions.
+- Source and verified lexical export permit fresh-context evaluation without
+  authored context IDs or persisted live environments. Informational resolution
+  reports do not carry grants or resumable execution state.
+
+Design verification (2026-10-06): 40 existing native checks pass across ML
+`node_references`/`native_value_contract` and QL `node_references`,
+`constructor_references` and `reference_runtime_resolution`. These confirm the
+existing source/graph/constructor boundaries; they do not verify the planned
+reference refinement, availability field, lexical bundle or source-export guard.
 
 ## Reference adoption: dependency binding and readiness
 

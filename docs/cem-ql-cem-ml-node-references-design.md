@@ -1367,12 +1367,147 @@ is complete. Its intended template reference detection and element-to-ID mode,
 interaction API, explicit scope crossings, and local-name compatibility are
 action items in [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
+## Public query reference access (adopted 2026-10-06)
+
+The public CEM-QL type `reference` is a refinement of `node`, identified by the
+native node kind `reference`. It is neither a record nor a datatype for strings
+containing reference syntax. Unary `#` constructs this type, including when its
+operand is another reference. Source, constructed, output-occurrence and portable
+reference views must implement the same kind contract. Existing `node` parameters
+continue to accept references; the legacy `dom:reference` preservation convenience
+remains compatible. The type refinement still requires compiler/runtime work;
+current unary construction is typed as generic `node`.
+
+Adopt `.targets` as explicit **one-step edge access**, preserving target order,
+duplicates and reference-node targets. Access does not compile or evaluate a
+source expression, flatten a reference chain, load a URL or search IDs. Targets
+keep their original owners and parents. They are not structural children.
+Adopt the boolean native field `.targets_available` to distinguish an available
+target list, including an empty list, from absent target metadata. Constructed
+references always have an available operand list. Retained source references
+reflect the presence of their optional stored target list. This field is not an
+execution-readiness or validity claim: only a consumer's explicit resolution
+outcome can establish those facts for its current context. A consumer does not
+publish execution results into the source node merely to make field access work.
+On absent metadata, `.targets` continues to return an empty selection; callers
+that need to distinguish the states must inspect `.targets_available` first.
+The availability field still requires implementation across native views.
+
+Reference occurrence identity and target identity remain distinct. Existing `is`
+compares node identities, not target lists or reference expressions. A reference
+and an alias to that occurrence compare alike; two fresh `#` constructions over
+the same operands are distinct occurrences. Existing `is` takes the first item
+of each operand, so it must not be presented as ordered sequence comparison.
+No additional target-comparison operation is adopted. Callers comparing two
+available target lists use equal lengths and positional node-identity comparisons
+with ordinary sequence operations; repeated edges and order matter. They choose
+explicit consumer resolution first if they intend to compare deeply resolved
+results. Equality of serialized IDs, lexical expressions or node text does not
+establish node identity. Reloaded owners receive fresh execution identities.
+
+The existing `.target` pipeline helper remains a legacy HTML relationship/ID
+convenience, separate from this native edge API. It is not an alias for `.targets`
+or a consumer resolver. This adoption adds no ID or URL semantics to references.
+
+## Binary reload and lexical handoff (adopted 2026-10-06)
+
+Adopt a versioned, explicit reload bundle that pairs an AST payload with passive
+lexical metadata and a source manifest. The bundle is an export/import boundary,
+not an in-process replacement for retained native owners. CEMB remains the AST
+payload: its existing source-map frames, containing-node handles, expression
+source, owning value edges and optional reference edges do not encode captured
+lexical scopes. The currently available CEMB implementation is a debug codec,
+not a compatibility-stable production format. The bundle must identify its codec
+and supported version; it cannot promise production compatibility for debug bytes.
+
+The source manifest maps payload source IDs to original URIs and content
+fingerprints. Include source bytes when source-text/coordinate access is required,
+or supply them through an explicit verified caller handoff. Missing bytes disable
+that access rather than reconstructing text from the AST. Retained expression
+source can still be used when all required lexical and runtime inputs are ready.
+Metadata is tied to the exact payload fingerprint and owner-local node handles;
+source coordinates, equal source text or equal authored IDs alone cannot bind it
+to another payload.
+
+The lexical sidecar must preserve occurrence namespace/schema snapshots,
+completed expanded names, namespace declaration identities, pending binding and
+QName dependencies, and wrapping/following/prelude schema forms. Preserve the
+initial lexical defaults, source-authored local policy overrides and their
+provenance, and declaration/package provenance needed to interpret those
+snapshots. Referenced lexical declaration owners require their own verified
+payload entries; binding and node labels are local to their bundle entry, never
+authored context IDs. Serialize declarative facts and dependency handles, not
+live schema machines, evaluator closures, compiled host registrations, execution
+name completions, selected runtime models or cached resolution/publication results.
+
+Reload validates the payload, sidecar versions, fingerprints, node kinds,
+dependency handles and source mappings before constructing capture over the
+**decoded allocation**. It explicitly rebinds local handles to that allocation;
+an old `LexicallyScopedDocument` cannot attach by matching its numeric node IDs.
+Captured lexical meaning is fixed, while package readiness and effective runtime
+policy are supplied for the new execution. Contexts, host capabilities and
+cross-scope/package replacement grants must be supplied afresh; sidecar content
+never grants authority. Source URIs do not authorize an implicit resource load.
+
+AST-only reload remains supported for inspection and graph access. Without a
+valid lexical handoff, evaluation that requires captured bindings returns an
+incomplete outcome with an explicit missing-metadata dependency. It must not
+substitute destination namespace/schema defaults, reinterpret pending prefixes
+or claim equivalent complete evaluation. Malformed/mismatched metadata is an
+invalid handoff, distinct from absent metadata. Supplying valid metadata and
+runtime inputs permits an explicit retry against the same decoded owner.
+The bundle serializer, validator and capture reconstruction remain implementation
+work; existing reload fixtures verify AST graphs and fresh contexts only.
+
+## Graph export and native transport (adopted 2026-10-06)
+
+Choose transport by its declared preservation contract. None of these boundaries
+implicitly invokes source-expression evaluation or changes the original arena.
+
+| Boundary | Adopted preservation and unsupported outcome |
+| --- | --- |
+| In-process native query/consumer handoff | Retain original owners, reference occurrences and non-owning edges, including multiple owners and cycles. Navigation and consumer resolution retain their existing limits and scope grants. |
+| CEMB AST payload | Preserve one arena's owning structure, reference expressions/provenance and optional ordered edges, including self-reference and cycles. Reject invalid handles. Cross-owner edges require a separately supported bundle representation; they cannot be flattened into this payload. |
+| Lexical reload bundle | Attach verified passive metadata to supported AST payloads; reconstruct capture over fresh owners. This is not transport of a live evaluation or cross-owner runtime graph. |
+| Current CEMV native value artifact | Preserve a bounded materialized acyclic value graph, its reference occurrences, target order/duplicates, output parents and supported provenance/contracts. Parent backlinks are excluded from cycle checks. Decoder identities are local to the decoded graph, not original runtime identities. Reject cycles through children, attributes, values or targets. |
+| CEM/XML authored-source export | Preserve expression syntax and exported source provenance; reimport creates fresh unevaluated occurrences. Optional target edges and execution outcomes are omitted by this explicitly source-only contract. |
+| Explicit markup/text/JSON consumer export | Project or expand available native values only under that consumer's declared limits and format rules. Reject unsupported values, cycles or unavailable required results without returning partial output as success. No general source-reference evaluation is implied. |
+
+CEMV's current reference records carry neither expression/lexical capture nor
+optional-target presence. Therefore a retained **source** reference, including
+one with a stored target list, cannot be exported as an equivalent reference
+through bare CEMV. Adopt explicit rejection until a versioned source envelope is
+implemented. An explicit consumer may instead export a materialized result under
+the value-graph contract, retaining its occurrence/provenance where supported
+without claiming to preserve executable source. Empty constructed references are
+valid; absent source targets must not silently become available empty targets.
+Current encoding still needs this rejection guard and attributed diagnostics.
+
+Unsupported graph/source export is a failed capability outcome attributed to the
+requesting export and available source occurrence. Distinguish it from malformed
+input and budget/cancellation failures. Report which transport cannot preserve
+the requested graph or source state; do not retry through records, text, implicit
+expansion or a synthetic single-owner arena. Existing string errors such as
+`Cyclic native CEM value graph` remain compatible; typed export classification
+and regression coverage are implementation work. Native multi-owner graph wire
+transport would need a new explicit versioned owner/edge contract; this adoption
+does not add one to CEMV or CEMB.
+
+Live pending consumer outcomes are not resumable transport artifacts. Export
+source plus lexical metadata for later evaluation with fresh inputs, or export
+an explicitly requested informational resolution report; a report cannot resume
+execution, carry grants or make a pending source reference resolved. Consumer
+sessions remain local. This resolves the pending-outcome transport boundary
+without requiring runtime contexts or synthetic context IDs in source exports.
+
 ## Deferred details and implementation work
 
 - Enclosed child override syntax is deferred in
   [roadmap.md](../roadmap.md#deferred-cem-reference-syntax-decision).
-- Public query reference type, target-access and target-sequence comparison
-  syntax, and graph/transport contracts are deferred in
+- Public query access, lexical reload and graph/transport contracts are adopted
+  above. Their implementation and fixtures are tracked in
+  [todo.md](todo.md#reference-query-and-transport-contract-implementation), with
+  the design checkpoint in
   [roadmap.md](../roadmap.md#deferred-cem-reference-query-and-transport-contracts).
 - Concrete expression/lexical representation, linkage to existing specialized
   records, runtime outcome handling, and schema traversal limits and policy
@@ -1392,13 +1527,18 @@ construction, adopted precedence and CEM-ML/XML surfaces, implicit scope
 defaults and enclosed override semantics, source-position lexical resolution,
 runtime-supplied lifecycle evaluation without mandatory context IDs or source
 target lists, any-node target eligibility, non-owning cyclic graph edges,
-ordered targets, graph identity, bounded consumer chain resolution, and
-scope-schema-controlled diagnostics. URL fragment access belongs to the
+ordered targets, graph identity, bounded consumer chain resolution,
+scope-schema-controlled diagnostics, and the adopted public query/reload/export
+contracts above. URL fragment access belongs to the
 external resource/consumer contract.
 
 Consumer behavior and reference updates after AST mutation remain outside scope. This design does not define changes to CEMT lookup, cem-element, browser wiring, or reactivity.
 
 ## Initial implementation choices (2026-10-04)
+
+The following checkpoint records the implementation and deferred decisions at
+that date. The adopted 2026-10-06 query/reload/transport contracts above supersede
+its deferrals; they do not imply that the newly specified APIs are implemented.
 
 The initial parser representation retains `CemAstNode::Reference` with its
 expression source, containing AST node handle, source maps, and optional

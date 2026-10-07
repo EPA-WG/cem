@@ -1171,8 +1171,18 @@ and timing from the caller, independently of the authored source occurrence.
 The declared chain-resolution contract requires effective scope-schema policy,
 cycle detection, and a depth/work bound separate from lexical scope depth.
 Mandatory, warning, and ignored unresolved links differ from resolved-empty
-results, whose acceptability follows cardinality. These declarations do not
-claim that shared chain traversal is implemented; concrete policy declarations
-and limits remain action items in [todo.md](../../../../../docs/todo.md#ast-node-reference-implementation).
-Public query reference type/access spelling and consumer element-to-ID behavior
-remain deferred.
+results, whose acceptability follows cardinality. Shared bounded chain traversal
+and supported lifecycle consumers are implemented; these schema declarations
+do not cause evaluation during parsing or automatically activate a consumer.
+
+The [public query contract](../../../../../docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
+adopts `reference` as a refinement of `node`, `.targets` as inert one-step edge
+access, and `.targets_available` to distinguish absent edges from an available
+empty list. `.targets` already exists; the refinement and availability field
+still require compiler/runtime implementation before this package can claim
+executable support. Node `is` remains occurrence identity; ordered target
+comparison uses sequence lengths and positional identities, with no new
+comparison operation. The binary/source/lexical reload bundle and native export
+guards are also specified but not yet implemented. Their fixtures and work are in
+[todo.md](../../../../../docs/todo.md#reference-query-and-transport-contract-implementation).
+Consumer element-to-ID behavior remains deferred.

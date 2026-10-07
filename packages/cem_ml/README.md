@@ -145,6 +145,19 @@ capture, completion and source references are not evaluated or rewritten during
 ingress. Existing `run_query` retains its ordinary loading path, and namespace
 property activation remains an explicit consumer task.
 
+Binary AST reload currently preserves source expressions, source-map frames and
+supported single-arena reference graphs through the debug CEMB codec. Captured
+lexical metadata is a separate, allocation-bound input. The
+[adopted reload contract](../../docs/cem-ql-cem-ml-node-references-design.md#binary-reload-and-lexical-handoff-adopted-2026-10-06)
+requires a versioned source manifest/passive lexical sidecar tied to the exact
+payload, with capture reconstructed over the decoded owner. This bundle remains
+implementation work. AST-only reload supports inspection; it cannot claim
+equivalent capture-dependent evaluation without a verified lexical handoff.
+Runtime contexts, package/crossing grants and pending sessions are supplied afresh.
+CEMV's materialized value transport has a separate acyclic graph contract and
+does not preserve executable source references; see the design's
+[transport matrix](../../docs/cem-ql-cem-ml-node-references-design.md#graph-export-and-native-transport-adopted-2026-10-06).
+
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
 compiler's `SchemaPackageCompilationRequest.lexical_scopes` share the same original

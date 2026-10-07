@@ -980,26 +980,37 @@ Deferred on 2026-10-04 under the adopted
 
 Follow-ups to the
 [adopted reference design](docs/cem-ql-cem-ml-node-references-design.md#deferred-details-and-implementation-work).
-These details remain separate from the adopted scope and lifecycle principles.
+Design decisions adopted on 2026-10-06; the heading remains stable for existing
+links. These contracts preserve the adopted scope and lifecycle principles.
+Implementation is tracked in
+[docs/todo.md](docs/todo.md#reference-query-and-transport-contract-implementation).
 
-- [ ] Specify the public query reference type and target-access surface, and
+- [x] Specify the public query reference type and target-access surface, and
       decide whether target-sequence comparison needs an additional public
       operation. Preserve reference occurrence identity separately from target
       identity, node-valued operands, and ordered duplicate-preserving targets.
-- [ ] Specify compatibility between cyclic CEM AST graphs and native output
+- [x] Specify compatibility between cyclic CEM AST graphs and native output
       value artifacts, including which transports preserve reference edges,
       which consumer exports expand them, and how unsupported graphs are
       reported. Define any pending runtime-outcome transport explicitly;
       exporting source expressions for later evaluation does not require
       serializing a live context. Keep the current CEMB/native artifact
-      distinction visible until this contract is settled.
-- [ ] Specify the binary reload handoff for source URI/text and captured lexical
+      distinction visible. Adopt CEMV materialized DAG transport, explicit source
+      reference/cycle rejection, source-only exports and local pending sessions.
+- [x] Specify the binary reload handoff for source URI/text and captured lexical
       snapshots. CEMB persists AST expression/provenance and arena-local edges;
       the caller supplies runtime contexts and grants after reload. Define which
       lexical metadata is externally required before claiming source-position
-      bindings survive transport, without persisting live environments.
-- [ ] Promote these query/transport decisions into schema/API documentation
+      bindings survive transport, without persisting live environments. Adopt a
+      verified versioned source/lexical sidecar and fresh decoded-owner capture.
+- [x] Promote these query/transport decisions into schema/API documentation
       and actionable fixture work in `docs/todo.md` before implementing them.
+
+The [maintained design](docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
+adopts `reference` as a node refinement, `.targets` for one-step access and
+`.targets_available` for optional-edge presence. Existing `is` remains occurrence
+identity; no additional target-list comparator is required. These design checkmarks
+do not mark the type/readiness API, reload bundle or export guards implemented.
 
 ### Scenarios for later design verification
 

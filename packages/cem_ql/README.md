@@ -409,7 +409,31 @@ or parenthesized expression has an inferred node type. Their result type remains
 dynamic, and missing fields return an empty selection. Explicit method calls,
 prefixed names and registered pipeline functions keep their existing dispatch.
 This also applies to unary-reference values without evaluating authored reference
-expressions; public reference type/access contracts remain deferred.
+expressions. The adopted public contract uses `.targets` for one-step edge access,
+preserving order, duplicates and reference-node targets. `.target` remains the
+legacy HTML ID helper and does not resolve native references. Existing `is`
+compares occurrence identity (the first item of each operand), not target lists.
+Compare available target lists by length and positional node identity when needed.
+
+The [adopted query/transport design](../../docs/cem-ql-cem-ml-node-references-design.md#public-query-reference-access-adopted-2026-10-06)
+also specifies a `reference` refinement of `node` and boolean `.targets_available`
+field; these two additions are **planned, not implemented**. The field will
+distinguish absent stored targets from an available empty list without asserting
+consumer readiness or executing source. Current construction uses generic `node`;
+native Rust callers can distinguish optional source targets before accessing them.
+Implementation and fixtures are tracked in
+[todo.md](../../docs/todo.md#reference-query-and-transport-contract-implementation).
+
+CEMV transports bounded materialized acyclic values, including constructed
+references. CEMB preserves supported single-arena cyclic AST graphs and source
+expressions; its current codec is a debug format. CEMV reference records do not
+preserve source expressions or absent-target metadata. The adopted boundary
+requires explicit rejection of retained source references until a source envelope
+is supported; the current encoder still needs this guard. CEMV is therefore not
+an equivalent source-reference export. The planned verified lexical reload bundle
+reconstructs capture over a fresh owner; it never transports live contexts,
+grants or pending sessions. See the design's
+[preservation matrix](../../docs/cem-ql-cem-ml-node-references-design.md#graph-export-and-native-transport-adopted-2026-10-06).
 
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
