@@ -3398,8 +3398,9 @@ Initially deferred on 2026-10-04 until the CEM-ML reference design was complete.
 The [consumer mode](cem-element-reference-ids-design.md) is adopted and implemented
 on 2026-10-07 for native relationships within one produced forest. Generic
 CEM-QL export remains separate. Explicit source lifecycle evaluation is available
-through the native embedding adapter; the browser convenience path consumes
-materialized reference edges and does not invent foreign-source contexts or grants.
+through the native embedding adapter and explicit browser/worker host inputs.
+Each invocation supplies original capture, context readiness, effective policies
+and directed grants; document ownership and producer placement create no authority.
 
 - [x] Specify `cem-element` treatment of references: detect reference nodes in
       templates and provide a transformation mode that resolves element
@@ -3443,9 +3444,28 @@ native command activation, generated IDs, typed action endpoints, unchanged
 rerender identity and local-name compatibility in worker and fallback modes.
 All six existing XSLT lifecycle browser cases also pass under the shared mode.
 
-### Next three consumer actions
+### Completed consumer actions (2026-10-07)
 
-- [ ] Wire explicit foreign-source lifecycle inputs into the browser/worker
+- [x] Fixture: verify the native element lifecycle handoff with retained captures,
+      separate requesting/destination policies and directed grants, missing contexts,
+      two instance inputs and unchanged original source references.
+      Scenarios for later design verification: preparing a source supplies no grant;
+      source owners and authored target metadata remain unchanged after consumption.
+- [x] Fixture: exercise explicit source bundles and lifecycle inputs in independent
+      WASM heaps and browser worker/fallback renders, including replacement and
+      disposal of pending invocations without partial publication.
+      Scenarios for later design verification: authority is host supplied per render;
+      stale work cannot commit IDs or inherit another instance's context.
+- [x] Fixture: verify typed `trigger-for` and `parent-item` endpoint roles, nearest
+      local-name compatibility, rerender/rebinding and cleanup in shared providers.
+      Scenarios for later design verification: missing/conflicting endpoints diagnose
+      the relationship rather than silently falling back to another target.
+- [x] Fixture: verify the native ID mode through SSR/Edge projection and restored
+      browser hydration, including unchanged IDs, failed replacement and reconnect.
+      Scenarios for later design verification: an incomplete update leaves the last
+      committed relationships intact, including authored and generated target IDs.
+
+- [x] Wire explicit foreign-source lifecycle inputs into the browser/worker
       processing boundary, using original retained owners and lexical capture,
       per-instance runtime contexts, effective policies and directed grants.
       Reuse the native adapter; do not evaluate authored references in JavaScript
@@ -3454,7 +3474,7 @@ All six existing XSLT lifecycle browser cases also pass under the shared mode.
       Scenarios for later design verification: two instances evaluate one source
       reference against distinct datadom inputs; context replacement/disposal
       invalidates pending work; missing grants remain incomplete without IDs.
-- [ ] Adopt typed projected endpoints in the remaining shared interaction
+- [x] Adopt typed projected endpoints in the remaining shared interaction
       capabilities, beginning with `trigger-for` and `parent-item`; specify native
       focus/anchor slots before enabling them. Validate each provider's semantic
       role, observe marker changes, retain nearest-scope local-name compatibility,
@@ -3462,13 +3482,34 @@ All six existing XSLT lifecycle browser cases also pass under the shared mode.
       Scenarios for later design verification: typed endpoints retain selected
       identity across provider rerender; recursive submenu relationships respect
       explicit scope crossings; invalid roles cannot silently select another node.
-- [ ] Add dedicated SSR/Edge/hydration and incomplete-publication fixtures for the
+- [x] Add dedicated SSR/Edge/hydration and incomplete-publication fixtures for the
       adopted ID mode. Exercise the existing shared native entry point with
       persisted instance identities, restored generated/authored IDs and
       replacement/disposal/reconnect; add fixture checkitems before creating them.
       Scenarios for later design verification: unchanged placements retain IDs
       through hydration; failed replacements preserve prior live relationships;
       separate restored instances retain the documented uniqueness obligation.
+
+Verification (2026-10-07): 327 maintained native checks in 36 suites and both
+independent WASM worker fixtures pass. Worker/fallback browser fixtures cover
+explicit host inputs, context/grant replacement, aborted pending preparation,
+stale results, disposal and reconnect; popup/submenu fixtures cover rebinding,
+role rejection, competing panels, cycles, local names and ARIA cleanup. Native
+Node SSR/Edge and restored browser hydration cover authored/generated IDs and
+incomplete replacement. Runtime unit tests (588), Node Edge/SSR cases (54),
+XSLT stories (6), typecheck and lint pass. Experimental debug CEMB remains an
+explicit source transport boundary; contexts/grants are not hydration data.
+
+### Next consumer action
+
+- [ ] Enable the specified native `focus-target`, `return-focus`, `anchor` and
+      `boundary` slots in the shared ID exporter and provider lifecycle. Add native
+      cardinality/placement fixtures and browser role/readiness/cleanup fixtures
+      before implementation; retain literal defaults and nearest-scope conveniences.
+      Scenarios for later design verification: focus remains inside its semantic
+      surface; return focus honors close reason and live eligibility; anchors and
+      fitting boundaries supply independent geometry; incomplete/revoked endpoints
+      cannot publish partial relationships or inherit another instance's context.
 
 ### Further explicit boundaries
 

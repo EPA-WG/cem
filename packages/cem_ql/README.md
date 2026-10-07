@@ -1261,3 +1261,23 @@ unlisted XML brace strings stay literal. Existing host-bound child schema and
 namespace overrides and opening literal block preludes are documented in
 [the CEM-ML syntax guide](../../docs/cem-ml-syntax.md). Runtime inputs, directed
 grants and consumption remain separate from source syntax and import.
+
+## Native element relationship lifecycle
+
+`api::element_references::ElementReferenceExecution::prepare` stages passive source
+selections into native template slices over original retained owners/capture. It
+requires an explicit requesting source, per-source readiness/policies and directed
+grants, and supplies fresh invocation contexts. `.project` applies the existing
+bounded relationship-to-ID consumer to one produced forest without changing source
+references. All slots share the request/destination budget.
+
+`renderTemplateWithNativeValues` and `renderXsltComponentWithNativeValues` accept
+optional producer instance identity and lifecycle metadata as their final two
+arguments. Metadata names heap-local retained source handles; it contains no AST
+records or context IDs. Supplying metadata requires an instance identity. Host
+browser/worker callers import explicitly selected debug CEMB bundles and dispose
+local handles after the invocation. Pending or invalid consumption returns
+`referenceProjectionComplete: false` with no replacement nodes; warning/ignore
+policies retain their actual diagnostics and never create a successful relationship.
+See the [consumer design](../../docs/cem-element-reference-ids-design.md) and
+[verification matrix](../../docs/reference-consumer-verification.md).

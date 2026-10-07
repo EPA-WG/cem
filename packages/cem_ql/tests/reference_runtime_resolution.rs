@@ -386,3 +386,6 @@ fn reloaded_cyclic_graph_exposes_native_target_handles_without_expanding_childre
 
 #[path = "reference_runtime_resolution/element_ids.rs"]
 mod element_ids;
+
+#[path = "reference_runtime_resolution/element_lifecycle.rs"]
+mod element_lifecycle;

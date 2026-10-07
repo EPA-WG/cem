@@ -49,9 +49,16 @@ The consumer emits runtime-owned `data-cem-node-ref-command-target` and
 corresponding interaction-property markers beside lexical IDs. These distinguish
 consumed typed inputs from existing `@local-name` strings. They are projection
 metadata, not an authoring syntax, context ID, selector language, or crossing
-grant. Templates cannot author them. The action capability consumes the markers
-for `command-target` and `interaction`; other provider capabilities must adopt
-these typed endpoints as their interaction work is delivered.
+grant. Templates cannot author them. The action capability consumes the markers for `command-target` and `interaction`;
+the popup and composite-menu capabilities consume `trigger-for` and `parent-item`.
+These shared providers observe endpoint/marker changes and release their claimed
+ARIA attributes on rebinding or disconnect. A popup endpoint must be a native
+button/link or a provider with a direct native control. It replaces the generated
+default base; an explicitly authored base plus an external trigger, or an endpoint
+inside the popup itself, is a conflict.
+A submenu endpoint must be an actual control of one connected composite-menu
+provider. Each control has at most one submenu; cycles and conflicting panels
+disable execution. Invalid explicit endpoints never select an intrinsic fallback.
 
 The existing `interaction-name`, `interaction-scope`, and `@local-name` inputs
 remain on their explicit compatibility path. They never become AST references,
@@ -85,12 +92,37 @@ work accounting. Owning slot containment adds no reference depth. The source's e
 schema controls unresolved-link diagnostics. Pending, warning or ignored
 incomplete chains cannot become successful ID relationships.
 
-The browser/worker convenience mode does not supply foreign-source lifecycle
-contexts or grants. Such references return an attributed incomplete diagnostic
-and publish no replacement plan. Embedding hosts can prepare them through the
-native adapter; wiring that explicit lifecycle channel into the browser remains
-an actionable follow-up. Relationships to elements produced by another instance
-also require a separately designed placement/authority channel; the first
+Browser/worker hosts can now supply `CemElementRuntimeOptions.elementReferenceInputs`
+for each render. The callback receives the instance, captured snapshot and lifecycle abort signal and can
+return an asynchronous `CemElementReferenceInputs` value. This separate host
+channel carries explicit source bundles, source selections, context readiness,
+requesting source, effective policy overrides and directed grants.
+`refreshElementReferences(instance)` invalidates pending work and requests a new
+invocation after the host replaces context/readiness/authority. Neither
+snapshot JSON nor authored documents create this authority. Selections are passive
+native queries over original retained source owners and stage declared native
+slices atomically. They all use the input frame before staging; selection order
+creates no override dependency. Ready sources explicitly receive the completed
+invocation frame, including `datadom.slices`; unready contexts stay pending.
+
+`api::element_references::ElementReferenceExecution` supplies the native handoff.
+It requires original lexical capture and builds a fresh lifecycle host per
+invocation. The browser transport uses the existing explicit **debug CEMB reload**
+boundary, then disposes local source handles after consumption. CEMB remains an
+experimental codec, not a promised stable production format. Policy overrides
+choose nonzero depth/work bounds and standard unresolved dispositions; the native
+API also accepts complete schema-owned policies. Preparing bindings, importing an
+owner or setting readiness grants no crossing. All relationship slots still share
+request and destination accounting.
+
+Worker protocol v15 carries these host inputs; main-thread fallback and Node SSR
+use the same retained native ingress. Replacement/disposal aborts pending
+invocations and releases the publication queue before late callbacks complete. Missing contexts/grants and warning/ignored
+incomplete links publish no replacement plan and preserve the last committed
+relationships. Existing hydration snapshots carry produced IDs and persisted
+instance identity; contexts/grants must be supplied afresh by the host and are
+never serialized into the island. Relationships to elements produced by another
+instance still require a separately designed placement/authority channel; the
 consumer rejects targets outside its own forest.
 
 Resolution follows reference chains, not targets' owning descendants. Metadata
@@ -99,6 +131,28 @@ value budgets. Original AST nodes, source maps and authored target lists stay
 unchanged. Projection uses a temporary native identity-to-placement map, then
 writes browser lexical values into a new output plan. Intermediate native trees
 are never serialized/reparsed or substituted with DOM/JSON records.
+
+## Focus and geometry slots specified for the next provider slice
+
+The accepted native forms are `@focus-target={#node}`, `@return-focus={#node}`,
+`@anchor={#node}` and `@boundary={#node}`. Each selects exactly one produced element
+through the same bounded lifecycle/placement contract. Literal `auto`/`none`,
+`invoker`/`pointer`/`selection` and `viewport` retain their existing meanings.
+
+A focus target must be connected, visible, enabled and focusable within the
+semantic surface. A return target must be connected and eligible when the closing
+reason permits restoration; it need not be inside the surface. An anchor supplies
+geometry rather than activation or focus ownership. A boundary supplies the
+fitting rectangle, intersected with the visual viewport. Selecting one never
+changes the other relationships. Missing focus targets use the accepted safe
+semantic fallback with diagnostics; unavailable geometry follows the declared
+anchor-lost/opening policy. Cross-instance targets require the future placement
+channel, even when a DOM ID happens to exist.
+
+These four slots are specified but not yet enabled by the native exporter or
+shared provider capabilities. Their implementation and role/readiness fixtures
+are explicit todo actions. This preserves the distinction between the accepted
+interaction design and currently shipped behavior.
 
 ## ID ownership and publication
 

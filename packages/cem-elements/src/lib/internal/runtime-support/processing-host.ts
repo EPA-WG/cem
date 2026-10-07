@@ -1,3 +1,4 @@
+import type { CemElementReferenceInputs } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
 import type { CemXPathFunctionLibrarySource } from './xpath-function-library.js';
@@ -16,7 +17,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v14' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v15' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -206,6 +207,7 @@ export type CemProcessingValueInput = { scopePolicyStamp: string; limits: CemVal
 export type CemProcessingValueResult = { value: NativeCemValue } | { text: string | null };
 
 export interface CemProcessingRenderDiffInput {
+    elementReferenceInputs?: CemElementReferenceInputs;
     /** Native payload CSS is installed separately on the consuming host. */
     payloadStylesInstalled?: boolean;
     nativeAttributes?: readonly NativeCemAttributeBinding[];

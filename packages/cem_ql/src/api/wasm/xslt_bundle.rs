@@ -102,11 +102,14 @@ pub fn render_xslt_component(
     documents_json: &str,
     initial_document_id: Option<u32>,
 ) -> String {
-    render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "", None)
+    render_xslt_component_with_native_values(id, data_json, documents_json, initial_document_id, "[]", "", None, None)
 }
 
 #[wasm_bindgen(js_name = "renderXsltComponentWithNativeValues")]
-pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>) -> String {
+pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, documents_json: &str, initial_document_id: Option<u32>, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>) -> String {
+    if element_reference_inputs_json.is_some() && element_reference_instance_id.is_none() {
+        return element_reference_inputs_error("Element reference inputs require a producer instance");
+    }
     let limits = match values::limits(limits_json) { Ok(limits) => limits, Err(error) => return error_json("cem.value.limits", error) };
     let Some(component) = COMPONENTS.with(|host| host.borrow().entries.get(&id).cloned()) else {
         return error_json(
@@ -166,7 +169,11 @@ pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, docume
         }
     }
     if let Err(error) = values::bind(&mut data, native_bindings_json) { return error_json("cem.value.binding", error); }
-    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref()).to_string()
+    let execution = match values::prepare_element_references(&mut data, element_reference_inputs_json.as_deref()) {
+        Ok(execution) => execution,
+        Err(error) => return element_reference_inputs_error(error),
+    };
+    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref(), execution).to_string()
 }
 
 #[wasm_bindgen(js_name = "disposeXsltComponent")]

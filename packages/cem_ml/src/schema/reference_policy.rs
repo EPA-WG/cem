@@ -279,6 +279,18 @@ fn standard_policies() -> Result<&'static StandardPolicies, ReferencePolicyError
 }
 
 impl ReferenceUnresolvedPolicy {
+    /// Explicit host policy using the schema-owned standard diagnostic definitions.
+    pub fn standard(disposition: UnresolvedDisposition) -> Result<Self, ReferencePolicyError> {
+        let diagnostic = match disposition {
+            UnresolvedDisposition::Mandatory => Some(standard_policies()?.mandatory.clone()),
+            UnresolvedDisposition::Warning => Some(standard_policies()?.warning.clone()),
+            _ => None,
+        };
+        Ok(Self {
+            disposition,
+            diagnostic,
+        })
+    }
     pub fn schema_defaults() -> Result<Self, ReferencePolicyError> {
         Ok(standard_policies()?.default.clone())
     }

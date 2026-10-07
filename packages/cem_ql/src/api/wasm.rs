@@ -414,22 +414,29 @@ fn parse_template_data(input: &str) -> Result<TemplateData, String> {
     Ok(data)
 }
 
+fn element_reference_inputs_error(message: impl ToString) -> String {
+    values::clear_output();
+    json!({ "nodes": [], "hostAttributeUpdates": [], "referenceProjectionComplete": false,
+        "referenceProjectionCode": "cem.element_reference.inputs", "referenceProjectionMessage": message.to_string(),
+        "diagnostics": [{ "code": "cem.element_reference.inputs", "severity": "error", "message": message.to_string() }] }).to_string()
+}
+
 fn plan_json_for_elements(
     plan: &RenderPlan,
     limits: &cem_ml::value::artifact::CemValueArtifactLimits,
     instance: Option<&str>,
+    execution: Option<crate::api::element_references::ElementReferenceExecution>,
 ) -> Value {
     let Some(instance) = instance else {
         return plan_json_with_limits(plan, limits);
     };
     let control = cem_ml::operation_control::OperationControl::default();
-    match crate::render::project_element_reference_ids(
-        plan,
-        instance,
-        limits,
-        &control,
-        cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
-    ) {
+    let projected = if let Some(execution) = execution {
+        execution.project(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+    } else {
+        crate::render::project_element_reference_ids(plan, instance, limits, &control, cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID)
+    };
+    match projected {
         Ok(plan) => plan_json_with_limits(&plan, limits),
         Err(error) => {
             values::clear_output();

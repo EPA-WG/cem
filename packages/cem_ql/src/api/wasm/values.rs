@@ -453,3 +453,6 @@ fn validation_context(
 }
 
 mod lifecycle;
+
+mod element_references;
+pub(super) use element_references::prepare as prepare_element_references;

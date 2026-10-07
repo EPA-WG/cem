@@ -1,3 +1,4 @@
+import { interactionReference as reference, nativeInteractionReference as nativeReference } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 
 /** Transient browser invocation metadata; portable CEM context stays in its typed channel. */
@@ -22,28 +23,6 @@ function attribute(element: Element, name: string, value: string | null): void {
 }
 function control(host: HTMLElement): HTMLButtonElement | null {
     return host.querySelector<HTMLButtonElement>(':scope > button[part~="control"]');
-}
-function nativeReference(source: Element, id: string): Resolution {
-    const root = source.getRootNode() as Document | ShadowRoot;
-    const candidates = [...root.querySelectorAll('[id]')].filter(node => node.id === id);
-    if (candidates.length > 1) return { code: 'interaction-name-duplicate' };
-    return candidates.length === 1 ? { target: candidates[0] } : { code: 'interaction-reference-missing' };
-}
-function reference(source: Element, value: string, name?: string): Resolution {
-    if (name && source.hasAttribute(`data-cem-node-ref-${name}`)) return nativeReference(source, value);
-    let candidates: Element[];
-    if (value.startsWith('@')) {
-        if (!/^[\w.-]+$/.test(value.slice(1))) return { code: 'interaction-reference-missing' };
-        const scope = source.closest('[interaction-scope]');
-        if (!scope) return { code: 'interaction-reference-missing' };
-        candidates = [...scope.querySelectorAll('[interaction-name]')].filter(node =>
-            node.getAttribute('interaction-name') === value.slice(1) && node.closest('[interaction-scope]') === scope);
-    } else if (value.startsWith('#') && value.length > 1) {
-        const root = source.getRootNode() as Document | ShadowRoot;
-        candidates = [...root.querySelectorAll('[id]')].filter(node => node.id === value.slice(1));
-    } else return { code: 'interaction-reference-missing' };
-    if (candidates.length > 1) return { code: 'interaction-name-duplicate' };
-    return candidates.length === 1 ? { target: candidates[0] } : { code: 'interaction-reference-missing' };
 }
 function resolve(host: HTMLElement): Resolution {
     let descriptor: Element | undefined;

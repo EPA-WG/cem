@@ -89,13 +89,16 @@ pub fn render_template_with_cem_documents(
     data_json: &str,
     bindings_json: &str,
 ) -> String {
-    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None)
+    render_template_with_native_values(artifact_id, companion_id, data_json, bindings_json, "[]", "", None, None)
 }
 
 #[wasm_bindgen(js_name = "renderTemplateWithNativeValues")]
 pub fn render_template_with_native_values(
-    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>,
+    artifact_id: u32, companion_id: u32, data_json: &str, bindings_json: &str, native_bindings_json: &str, limits_json: &str, element_reference_instance_id: Option<String>, element_reference_inputs_json: Option<String>,
 ) -> String {
+    if element_reference_inputs_json.is_some() && element_reference_instance_id.is_none() {
+        return element_reference_inputs_error("Element reference inputs require a producer instance");
+    }
     let limits = match values::limits(limits_json) { Ok(limits) => limits, Err(error) => return error_json("cem.value.limits", error) };
     let mut data = match parse_template_data(data_json) {
         Ok(data) => data,
@@ -147,6 +150,10 @@ pub fn render_template_with_native_values(
             );
         };
         data.data_readers = artifact.data_readers().clone();
-        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref()).to_string()
+        let execution = match values::prepare_element_references(&mut data, element_reference_inputs_json.as_deref()) {
+            Ok(execution) => execution,
+            Err(error) => return element_reference_inputs_error(error),
+        };
+        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution).to_string()
     })
 }

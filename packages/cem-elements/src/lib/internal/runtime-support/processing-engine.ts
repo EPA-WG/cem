@@ -302,6 +302,7 @@ export class CemProcessingEngine {
                 if (!document) throw new Error('CEM document is not retained by this processing host');
                 return { slice, documentId: document.id };
             }),
+            elementReferenceInputs: input.elementReferenceInputs,
             nativeAttributes: input.nativeAttributes,
             nativeSlices: input.nativeSlices,
             nativeValueLimits: input.nativeValueLimits,

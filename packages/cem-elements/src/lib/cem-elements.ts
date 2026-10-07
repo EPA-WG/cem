@@ -1,3 +1,4 @@
+import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import { exportNativeCemSlices, importNativeCemSlices, sameNativeCemValue, type NativeCemValue, type NativeCemSliceBinding, exportNativeCemAttributes, importNativeCemAttributes, type NativeCemAttributeBinding, type CemValueArtifactLimits } from "./native-values.js";
 import { renderedNativeAttributeBindings, restoreNativeAttributeBindings } from "./projection.js";
 import { identifyXPathFunctionLibrary, XPATH_LIBRARY_MAX_SOURCE_BYTES, type CemXPathFunctionLibrarySource } from './internal/runtime-support/xpath-function-library.js';
@@ -545,6 +546,8 @@ export interface CemStorageStatusEnvelope {
 export type CemModuleUrlReferrer = string | Node;
 
 export interface CemElementRuntimeOptions {
+    /** Explicit invocation-owned reference authority; never derived from document JSON. */
+    elementReferenceInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot, signal: AbortSignal) => CemElementReferenceInputs | undefined | Promise<CemElementReferenceInputs | undefined>;
     declarationTag?: string;
     /**
      * Explicit logical declaration scope. When omitted, declarations use the
@@ -719,7 +722,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,
-        behaviorIdentity: 'cem-elements-popup-v1',
+        behaviorIdentity: 'cem-elements-popup-v2',
     },
     'action-control': {
         behavior: CEM_ACTION_CONTROL_CAPABILITY,
@@ -731,7 +734,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'composite-menu': {
         behavior: CEM_COMPOSITE_MENU_CAPABILITY,
-        behaviorIdentity: 'cem-elements-composite-menu-v1',
+        behaviorIdentity: 'cem-elements-composite-menu-v2',
     },
     'choice-select': {
         behavior: CEM_CHOICE_SELECT_CAPABILITY,
@@ -1727,6 +1730,8 @@ export class CemElementRuntime {
     >();
     private readonly moduleUrlRootOption?: CemElementRuntimeOptions['moduleUrlRoot'];
     private readonly xpathLibrarySources = new WeakMap<CemDeclarationScope, Map<string, Promise<CemXPathFunctionLibrarySource>>>();
+    private readonly referenceInputControllers = new WeakMap<HTMLElement, AbortController>();
+    private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
     private readonly resolveScopedModuleUrlOption?: CemElementRuntimeOptions['resolveScopedModuleUrl'];
     private readonly resolveModuleUrlOption?: CemElementRuntimeOptions['resolveModuleUrl'];
@@ -1758,6 +1763,7 @@ export class CemElementRuntime {
         this.logger = options.logger;
         this.moduleUrlRootOption = options.moduleUrlRoot;
         this.loadSrcDocumentOption = options.loadSrcDocument;
+        this.elementReferenceInputsOption = options.elementReferenceInputs;
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
         this.resolveResourceUrlOption = options.resolveResourceUrl;
@@ -2422,6 +2428,14 @@ export class CemElementRuntime {
         return this.declarationForInstance(instance)?.declarationVersion ?? null;
     }
 
+    /** Refresh host-owned reference readiness/authority without changing authored attributes. */
+    refreshElementReferences(instance: HTMLElement): boolean {
+        const compiled = this.declarationForInstance(instance);
+        if (!this.elementReferenceInputsOption || !compiled || compiled.declarationScope.disposed || !instance.isConnected || !this.initializedInstances.has(instance)) return false;
+        this.renderInstance(instance, compiled);
+        return true;
+    }
+
     /** Update serializable instance slices from an opt-in browser behavior adapter. */
     setInstanceSlices(
         instance: HTMLElement,
@@ -2630,6 +2644,7 @@ export class CemElementRuntime {
     private disconnectProducedInstance(instance: HTMLElement): void {
         this.declarationForInstance(instance)?.behavior?.disconnected?.(instance, this.behaviorContext(instance));
         this.moduleInstanceContexts.delete(instance);
+        this.referenceInputControllers.get(instance)?.abort();
         this.publicationControllers.get(instance)?.abort();
         this.stylesheetConnections.get(instance)?.release();
         this.stylesheetConnections.delete(instance);
@@ -2955,7 +2970,10 @@ export class CemElementRuntime {
             const source = compiled.cemMlSource ?? '';
             const data = wasmTemplateData(snapshot, compiled.declaredAttributes);
             const moduleClosure = await this.preflightDeclarationModules(compiled, Object.keys(data));
+            const elementReferenceInputs = await this.prepareElementReferenceInputs(instance, snapshot, token);
+            if (this.renderTokens.get(instance) !== token || !instance.isConnected) return;
             const result = await processCemMlTemplate({
+                elementReferenceInputs,
                 linkBaseUrl: compiled.linkBaseUrl ?? undefined,
                 source,
                 data,
@@ -3664,13 +3682,42 @@ export class CemElementRuntime {
             .result.catch(() => undefined);
     }
 
+    private async prepareElementReferenceInputs(instance: HTMLElement, snapshot: DataIslandSnapshot, token: number): Promise<CemElementReferenceInputs | undefined> {
+        if (!this.elementReferenceInputsOption) return undefined;
+        if (this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Reference invocation was superseded or disposed');
+        const controller = new AbortController();
+        this.referenceInputControllers.get(instance)?.abort();
+        this.referenceInputControllers.set(instance, controller);
+        const compiled = this.declarationForInstance(instance);
+        const releaseScope = compiled ? onCemDeclarationScopeDispose(compiled.declarationScope, () => controller.abort()) : () => undefined;
+        let abort: () => void = () => undefined;
+        const disposed = new Promise<never>((_, reject) => {
+            abort = () => reject(new Error('Reference invocation was superseded or disposed'));
+            controller.signal.addEventListener('abort', abort, { once: true });
+            if (controller.signal.aborted) abort();
+        });
+        try {
+            const prepare = Promise.resolve().then(() => {
+                if (controller.signal.aborted) throw new Error('Reference invocation was superseded or disposed');
+                return this.elementReferenceInputsOption?.(instance, snapshot, controller.signal);
+            });
+            return await Promise.race([prepare, disposed]);
+        } finally {
+            controller.signal.removeEventListener('abort', abort);
+            releaseScope();
+            if (this.referenceInputControllers.get(instance) === controller) this.referenceInputControllers.delete(instance);
+        }
+    }
+
     private async submitProcessingRender(
         instance: HTMLElement,
         host: CemProcessingHost,
         token: number,
         input: CemProcessingRenderDiffInput,
     ): Promise<CemProcessingRenderDiffResult> {
-        const job = host.renderDiff(input);
+        const references = await this.prepareElementReferenceInputs(instance, input.snapshot, token);
+        if (this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Reference invocation was superseded or disposed');
+        const job = host.renderDiff({ ...input, ...(references ? { elementReferenceInputs: references } : {}) });
         const active = { host, jobId: job.jobId, token };
         this.processingRenderJobs.set(instance, active);
         try {
@@ -3868,6 +3915,7 @@ export class CemElementRuntime {
     }
 
     private nextRenderToken(instance: HTMLElement): number {
+        this.referenceInputControllers.get(instance)?.abort();
         this.publicationControllers.get(instance)?.abort();
         const token = (this.renderTokens.get(instance) ?? 0) + 1;
         this.renderTokens.set(instance, token);

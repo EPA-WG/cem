@@ -52,6 +52,43 @@ function verifyElementReferenceIds() {
         } finally { wasm.disposeTemplate(ambiguous.artifactId); }
     } finally { wasm.disposeTemplate(artifact.artifactId); }
 }
+function verifyElementReferenceLifecycle() {
+    const parse = (text, uri) => wasm.parseReferenceSource(new TextEncoder().encode(text), 'text/cem-ml', uri, '');
+    const relation = parse('{#datadom.slices.destination}', 'memory:element-relation.cem');
+    const target = parse('{dialog | Native target}', 'memory:element-target.cem');
+    const artifact = JSON.parse(wasm.compileTemplate('{slice @name=relation}{slice @name=destination}{button @commandfor={#relation} @aria-controls={#relation}}{$destination}', '[]'));
+    const input = { requesting: 0, sources: [{ sourceId: relation, context: true }, { sourceId: target, context: true }],
+        bindings: [{ source: 0, name: 'relation', select: 'input.children' }, { source: 1, name: 'destination', select: 'input.children' }], grants: [[0, 1]] };
+    const render = (metadata, instance = 'lifecycle') => JSON.parse(wasm.renderTemplateWithNativeValues(artifact.artifactId, 0, '{}', '[]', '[]', limits, instance, JSON.stringify(metadata)));
+    try {
+        for (const bad of [ { ...input, grants: [] }, { ...input, sources: [{ sourceId: relation, context: false }, input.sources[1]] },
+            { ...input, sources: [input.sources[0], { sourceId: target, context: true, maxWork: 1 }] } ]) {
+            const result = render(bad);
+            assert.equal(result.referenceProjectionComplete, false);
+            assert.deepEqual(result.nodes, []);
+        }
+        for (const instance of ['first', 'second', 'first']) {
+            const result = render(input, instance);
+            assert.deepEqual(result.diagnostics, []);
+            assert.equal(result.nodes[0].attributes.find(a => a.name === 'commandfor').value, `${instance}-ref-1`);
+            assert.equal(result.nodes[1].attributes.find(a => a.name === 'id').value, `${instance}-ref-1`);
+        }
+        const noInstance = JSON.parse(wasm.renderTemplateWithNativeValues(artifact.artifactId, 0, '{}', '[]', '[]', limits, undefined, JSON.stringify(input)));
+        assert.equal(noInstance.referenceProjectionComplete, false);
+        assert.equal(noInstance.referenceProjectionCode, 'cem.element_reference.inputs');
+        for (const unresolved of ['warning', 'ignore']) {
+            const result = render({ ...input, grants: [], sources: [{ sourceId: relation, context: true, unresolved }, { sourceId: target, context: true, unresolved }] });
+            assert.equal(result.referenceProjectionComplete, false);
+            assert.deepEqual(result.nodes, []);
+            assert.ok(result.diagnostics.every(d => d.severity !== 'error'));
+            if (unresolved === 'warning') assert.ok(result.diagnostics.some(d => d.severity === 'warning'));
+        }
+        assert.equal(JSON.parse(wasm.inspectReferenceSource(relation)).lexicalReady, true);
+        // Source handles are heap local, disposable and never grant authority.
+        wasm.disposeReferenceSource(target);
+        assert.equal(render(input).referenceProjectionComplete, false);
+    } finally { wasm.disposeReferenceSource(relation); wasm.disposeReferenceSource(target); wasm.disposeTemplate(artifact.artifactId); }
+}
 function produce() {
     const plan = JSON.parse(wasm.renderTemplateSource(source, '{}'));
     assert.deepEqual(plan.diagnostics, []);
@@ -119,6 +156,7 @@ if (isMainThread) {
         verifyDirectInteger();
         verifyDirectReferences();
         verifyElementReferenceIds();
+        verifyElementReferenceLifecycle();
         assert.equal(consume(restored), true);
         console.log('Native CEM values: separate workers, saved pipeline, fallback and disposal passed.');
     } finally { await rm(directory, { recursive: true, force: true }); }
@@ -127,5 +165,6 @@ if (isMainThread) {
     verifyDirectInteger();
     verifyDirectReferences();
     verifyElementReferenceIds();
+        verifyElementReferenceLifecycle();
     parentPort.postMessage(workerData.operation === 'produce' ? produce() : consume(workerData.artifact));
 }

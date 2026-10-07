@@ -57,6 +57,14 @@ Do not use `action` as a trigger alias. Do not overload native link `target`, fo
 
 Native `commandfor`, `popovertarget`, `popovertargetaction`, `interestfor`, and `form` preserve browser syntax and are forwarded unchanged to the actual control. A native built-in command targeting a custom host is not automatically redirected to a descendant owner: use `command-target` for CEM resolution or target an actual native owner.
 
+Typed `trigger-for` and `parent-item` now use the shared native
+[reference-to-ID consumer](cem-element-reference-ids-design.md). The popup
+capability admits a button/link or provider control and replaces its generated
+default base; an authored base plus an external trigger conflicts. The composite
+capability validates the actual parent menu control, rejects competing panels and
+cycles, and cleans up relationship attributes on rebinding/disconnect. Native
+markers distinguish these endpoints from nearest-scope `@local-name` inputs.
+
 ### Surface properties
 
 | Attribute | Values | Rule/default |
@@ -69,20 +77,26 @@ Native `commandfor`, `popovertarget`, `popovertargetaction`, `interestfor`, and 
 | `label` | Plain text | Accessible name; native naming/heading precedence below |
 | `default-open` | Presence boolean | Initial-open request once, not ongoing writable state |
 | `presentation` | `inline`, `local`, `top-layer` | Derived from semantic/native owner |
-| `anchor` | `invoker`, `pointer`, `selection`, explicit node reference (syntax deferred) | Relationship-derived; centered task has no required anchor |
+| `anchor` | `invoker`, `pointer`, `selection`, native `{#node}` reference | Relationship-derived; centered task has no required anchor |
 | `placement` | Logical side + alignment, or `center` | Grammar in section 9 |
-| `boundary` | `viewport`, explicit node reference (syntax deferred) | Viewport; child menus inherit explicit parent boundary |
+| `boundary` | `viewport`, native `{#node}` reference | Viewport; child menus inherit explicit parent boundary |
 | `fallback` | Comma-separated placements | Ordered opposite-side profile default |
 | `overflow` | Tokens `flip shift resize`, or `hide` | Default flip shift resize; hide cannot mix with others |
 | `anchor-lost` | `close`, `freeze` | Attached transient: close; persistent task: freeze |
-| `focus-target` | `auto`, `none`, explicit node reference (syntax deferred) | Semantic default; explicit target inside surface |
-| `return-focus` | `auto`, `none`, explicit node reference (syntax deferred) | Reason-aware auto restoration |
+| `focus-target` | `auto`, `none`, native `{#node}` reference | Semantic default; explicit target inside surface |
+| `return-focus` | `auto`, `none`, native `{#node}` reference | Reason-aware auto restoration |
 | `materialize` | `eager`, `retain`, `dispose` | Eager children: eager; designated template: retain |
 | `context-change` | `reject`, `replace`, `request` | Reject different item in open task by default |
 | `close-label` | Plain text | Optional generated named close control |
 | `dismiss` | `chain`, `self`, `none` | Menu leaf policy; transient leaves default chain |
 
 Proposal aliases are replaced: `title` → `label` for task naming; `target` → `command-target`; local `name` → `interaction-name`; `lazy-retain` → `materialize="retain"`; `--show` → `--cem-show`. HTML `title` retains advisory tooltip meaning. Native popover modes and dialog `closedby` remain supported browser configuration on their native owners.
+
+Native `@focus-target={#node}`, `@return-focus={#node}`, `@anchor={#node}` and
+`@boundary={#node}` are now specified with the roles in sections 8–9 and the
+reference-to-ID consumer contract. They remain an explicit implementation action
+before enabling export/provider handling. Each relationship resolves independently;
+geometry never makes an element an invoker or a focus destination.
 
 ### Slots and produced parts
 
@@ -299,7 +313,8 @@ CEM owners forward authored native autofocus, closedby, role, naming, and popove
 
 Root with local trigger defaults to popup presentation; without trigger/popup declaration it is persistent. An explicit compatible presentation overrides this default. Persistent horizontal command roots expose menubar semantics; vertical roots and popup children expose menu semantics with their declared orientation. A direct nested menu forms a submenu: its trigger belongs to parent navigation, its body owns child navigation. It needs a local trigger or explicit parent-item. Arbitrary descendant menus inside unrelated task content do not become submenus.
 
-An independent child uses parent-item="#export-control". Parent control's menu must be unambiguous. Each item owns at most one submenu; cycles/multiple parents are invalid. The logical declaration supplies the relationship, not a second activation route. Keep descendants of a popup inside a modal dialog within that dialog's interactive DOM subtree.
+An independent child uses the native CEM-ML `@parent-item={#control}` relationship;
+`parent-item="#export-control"` remains an explicit browser compatibility form. Parent control's menu must be unambiguous. Each item owns at most one submenu; cycles/multiple parents are invalid. The logical declaration supplies the relationship, not a second activation route. Keep descendants of a popup inside a modal dialog within that dialog's interactive DOM subtree.
 
 Child defaults inherit boundary, direction, and hover timing. show-delay/hide-delay affect pointer interest only; keyboard activation has no delay. Touch activation remains explicit, not synthetic hover. Parent orientation supplies attachment. Opening closes sibling branches and descendants. Keyboard opening enters first enabled item, or last for explicit reverse-entry. Click opening enters first enabled item; hover opening never steals keyboard focus. Pointer/focus interests are tracked separately; a delayed pointer branch switch cannot invalidate a keyboard-active branch without an explicit transition. Pending timers cancel on dismissal; pointer travel across the trigger/panel gap preserves the branch.
 

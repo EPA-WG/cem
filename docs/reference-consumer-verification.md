@@ -17,7 +17,7 @@ transport never claim that an authored reference has been evaluated.
 | Materialized CEMV export | Empty, nested and repeated constructed references survive DAG transport. Executable source references reject in absent/empty/nonempty target states. Cycles, failed streams, limits and cancellation have distinct attributed outcomes; parent backlinks are excluded from cycle checks. | `cem_ql/tests/reference_export_contract.rs`, `cem_ql/tests/native_value_control.rs` |
 | CLI query / transport | Explicit bundle admission and primary source ID; original source/capture export; binary CEMV output without a text newline. Export failures retain kind and source map in the report and emit no partial successful bytes. Existing JSON descriptors and textual projections remain explicit compatibility exports. | `cem_ml_cli/tests/reference_transport_cli.rs`, `cem_ml_cli/tests/query_cli.rs` |
 | Low-level WASM / worker transport | Source and result handles stay local. Result handles retain the source capture after the source handle is disposed. Workers transfer bundle or CEMV bytes explicitly. Guards report code, kind, original source URI and source map; disposal rejects stale handles. | `cem_ql/tests/reference-transport-wasm.mjs` |
-| cem-element DOM relationships | Native attribute targets map to unique produced placements, preserving explicit IDs or generating instance/placement IDs. All slots share bounded traversal; authored source chains require explicit original contexts/grants. Typed action endpoints and existing local names coexist. | `cem_ql/tests/reference_runtime_resolution/element_ids.rs`, `cem_ql/tests/native-values-wasm.mjs`, `cem-elements/src/lib/element-reference-ids.stories.ts` |
+| cem-element DOM relationships | Native attribute targets map to unique produced placements, preserving explicit IDs or generating instance/placement IDs. All slots share bounded traversal; authored source chains require explicit original contexts/grants. Explicit invocation source captures/contexts/grants work in worker/fallback; typed action, popup and submenu endpoints coexist with local names. SSR/Edge/hydration preserves IDs and rejects incomplete publication. | `cem_ql/tests/reference_runtime_resolution/{element_ids,element_lifecycle}.rs`, `cem_ql/tests/native-values-wasm.mjs`, `cem-elements/src/lib/element-reference-{ids,lifecycle}.stories.ts`, `cem-elements/src/lib/element-reference-ids.edge-ssr.{spec,stories}.ts` |
 
 ## Reload lifecycle adoption (2026-10-07)
 
@@ -140,6 +140,16 @@ compatibility in worker and fallback modes. The runtime unit target passes 588
 tests; typecheck and lint pass. Actionable follow-ups retain their scenarios in
 [todo.md](todo.md#next-three-reference-follow-ups).
 
+The next consumer checkpoint passes 327 native checks in 36 suites, both real
+WASM worker fixtures, 588 runtime unit tests, 54 Node Edge/SSR cases and dedicated
+browser worker/fallback, provider and hydration stories. Shared source-owner tests
+use different `datadom` inputs without authored target mutation. WASM tests verify
+missing context/grants, destination accounting across slots, warning/ignore
+incompleteness and stale handle disposal. Browser tests cover failed replacement,
+async disposal, stable reconnect, popup rebinding/local names, competing submenu
+panels/cycles and restored authored/generated IDs. Typecheck and lint pass (the two
+existing non-null assertion warnings remain).
+
 ## Separately deferred work
 
 Enclosed child overrides now use existing host-bound native schema/namespace
@@ -150,9 +160,9 @@ on a separate request. General datatype compilation, executable native attribute
 `@type`, conversion and
 equality remain the separate datatype workstream. The
 [cem-element reference-to-ID mode](cem-element-reference-ids-design.md) now
-implements the first native consumer contract. Browser/worker lifecycle handoff
-for foreign authored source chains, additional provider endpoints, and dedicated
-SSR/hydration fixtures remain actionable with their scenarios in
+implements the first native consumer contract. Browser/worker foreign-source lifecycle handoff, popup/submenu endpoints and
+dedicated native SSR/Edge/hydration fixtures are implemented. Focus/geometry slots,
+granted cross-instance placements and a future ARIA profile remain actionable in
 [todo.md](todo.md#deferred-cem-element-reference-consumption).
 
 The debug CEMB codec is not a stable production binary format. External AST-owner

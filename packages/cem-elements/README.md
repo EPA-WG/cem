@@ -5,6 +5,31 @@ Copyright (c) 2026 Sasha Firsov <https://github.com/sashafirsov>
 `@epa-wg/cem-elements` provides the `<cem-element>` browser substrate for declarative light-DOM custom elements. It is
 the Phase 3.1 runtime gate before the project moves into Edge/SSR support and later `@epa-wg/custom-element` adoption.
 
+Native CEM-ML node/reference values in relationship attributes use the shared
+[reference-to-ID consumer](../../docs/cem-element-reference-ids-design.md): preserve
+an explicit target ID or generate one from persisted instance identity and output
+placement. The producer must contain exactly one placement of each target.
+`command-target`, `interaction`, `trigger-for` and `parent-item` retain typed
+endpoint markers for their shared capabilities; literal local names remain scoped.
+
+For foreign authored reference chains, embedding hosts supply
+`elementReferenceInputs(instance, snapshot, signal)` in `CemElementRuntimeOptions`.
+The exported `CemElementReferenceInputs` type separates source bundles/selections,
+context readiness, policy overrides and directed grants from authored documents
+and snapshot data. Sources explicitly use experimental debug CEMB reload bundles
+with original lexical capture. Passive native selections populate declared slices;
+ready sources receive that invocation's completed frame. The runtime obtains fresh
+inputs on each render and prevents superseded/disposed work from publishing.
+After replacing readiness/context/grants, hosts call
+`runtime.refreshElementReferences(instance)` to invalidate pending publication and
+request a fresh invocation without changing authored attributes.
+The signal aborts on replacement/disconnect; ignored late callback results cannot
+hold the publication queue or supply authority to a later render.
+Incomplete updates preserve prior DOM relationships. Contexts and grants are not
+saved in hydration snapshots. Worker protocol v15, fallback and retained Node SSR
+use the same native adapter; stable production source transport and cross-instance
+placement remain separate boundaries.
+
 Declarations may publish an exact Semantic Version for SSR adoption:
 
 ```html

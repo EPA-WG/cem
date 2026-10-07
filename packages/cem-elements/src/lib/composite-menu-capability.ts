@@ -1,3 +1,4 @@
+import { interactionReference, interactionControl, reportInteractionReference, observeInteractionReferences } from './interaction-reference.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { compositeIndex } from './composite-navigation.js';
 import { showPopup, hidePopup, positionPopup } from './popup-controller.js';
@@ -5,11 +6,23 @@ import { showPopup, hidePopup, positionPopup } from './popup-controller.js';
 // Direct composite parts and projected submenu slots are the declaration contract.
 const COMPOSITE = '[part~="composite"]';
 const originals = new WeakMap<HTMLElement, { role: string | null; tabindex: string | null; disabled: string | null }>();
+const relationshipAttributes = new WeakMap<HTMLElement, Map<string, string | null>>();
+function releaseRelationship(control: HTMLElement): void {
+    const attributes = relationshipAttributes.get(control);
+    if (!attributes) return;
+    for (const [name, value] of attributes) setAttribute(control, name, value);
+    relationshipAttributes.delete(control);
+}
 const states = new WeakMap<HTMLElement, State>();
 let sequence = 0;
+const menus = new Set<HTMLElement>();
 interface State {
     active?: HTMLElement;
     open?: HTMLElement;
+    openPanel?: HTMLElement;
+    parent?: HTMLElement;
+    relationshipHidden?: { value: HTMLElement['hidden'] };
+    releaseReferences?: () => void;
     buffer: string;
     typedAt: number;
     abort?: AbortController;
@@ -23,17 +36,47 @@ function stateFor(host: HTMLElement): State {
 }
 function container(host: HTMLElement): HTMLElement | null { return host.querySelector<HTMLElement>(`:scope > ${COMPOSITE}`); }
 function owner(panel: HTMLElement): HTMLElement | null {
-    return panel.matches('[slot="submenu"]') ? panel.parentElement : null;
+    const nested = panel.matches('[slot="submenu"]') ? panel.parentElement : null;
+    if (!panel.hasAttribute('parent-item')) return nested;
+    const selected = interactionReference(panel, panel.getAttribute('parent-item') ?? '', 'parent-item');
+    const control = interactionControl(selected.target);
+    const parent = control?.closest(COMPOSITE)?.parentElement;
+    const code = selected.code ?? (!control || !parent || !menus.has(parent) || !controls(parent).includes(control)
+        || (nested && !nested.contains(control)) ? 'interaction-reference-conflict' : undefined);
+    if (code) reportInteractionReference(panel, code);
+    return code ? null : control ?? null;
 }
-function parentMenu(host: HTMLElement): HTMLElement | null {
-    return owner(host)?.closest(COMPOSITE)?.parentElement ?? null;
+function parentMenu(host: HTMLElement): HTMLElement | null { return owner(host)?.closest(COMPOSITE)?.parentElement ?? null; }
+function rootMenu(host: HTMLElement): HTMLElement | null {
+    const visited = new Set<HTMLElement>();
+    while (true) {
+        if (visited.has(host)) { reportInteractionReference(host, 'interaction-reference-conflict'); return null; }
+        visited.add(host);
+        const parent = parentMenu(host);
+        if (!parent) return host.hasAttribute('parent-item') && !owner(host) ? null : host;
+        host = parent;
+    }
 }
-function rootMenu(host: HTMLElement): HTMLElement {
-    let parent: HTMLElement | null;
-    while ((parent = parentMenu(host))) host = parent;
-    return host;
+function enabled(host: HTMLElement): boolean { return rootMenu(host)?.getAttribute('keyboard') === 'menu'; }
+function insideChain(host: HTMLElement, node: Node | null): boolean {
+    if (!node) return false;
+    const root = rootMenu(host);
+    return (root ?? host).contains(node) || !!root && [...menus].some(menu => rootMenu(menu) === root && menu.contains(node));
 }
-function enabled(host: HTMLElement): boolean { return rootMenu(host).getAttribute('keyboard') === 'menu'; }
+function relationshipsChanged(host: HTMLElement): void {
+    const state = stateFor(host);
+    const parent = parentMenu(host) ?? undefined;
+    if (state.parent && state.parent !== parent && stateFor(state.parent).openPanel === host) close(state.parent, true);
+    state.parent = parent;
+    const trigger = owner(host);
+    if (rootMenu(host) && (!parent || trigger && panelFor(trigger) === host)) reportInteractionReference(host);
+    if (!parent && !host.hasAttribute('parent-item') && !host.matches('[slot="submenu"]') && state.relationshipHidden) {
+        host.hidden = state.relationshipHidden.value;
+        state.relationshipHidden = undefined;
+    }
+    synchronize(host);
+    if (parent) synchronize(parent);
+}
 function column(host: HTMLElement): boolean {
     return (host.getAttribute('direction') ?? (owner(host) ? 'column' : 'row')) === 'column';
 }
@@ -51,7 +94,19 @@ function unavailable(control: HTMLElement): boolean {
 }
 function items(host: HTMLElement): HTMLElement[] { return controls(host).filter(control => !unavailable(control)); }
 function panelFor(control: HTMLElement): HTMLElement | null {
-    return control.parentElement?.querySelector<HTMLElement>(`:scope > [slot="submenu"]`) ?? null;
+    const nested = control.parentElement?.querySelector<HTMLElement>(`:scope > [slot="submenu"]`) ?? null;
+    const panels = new Set<HTMLElement>(nested && (!nested.hasAttribute('parent-item') || owner(nested) === control && rootMenu(nested)) ? [nested] : []);
+    for (const panel of menus) if (panel.hasAttribute('parent-item') && owner(panel) === control && rootMenu(panel)) panels.add(panel);
+    if (panels.size > 1) {
+        for (const panel of panels) { claimPanel(panel); reportInteractionReference(panel, 'interaction-reference-conflict'); hidePopup(panel); }
+        return null;
+    }
+    const panel = [...panels][0];
+    if (panel) claimPanel(panel);
+    return panel ?? null;
+}
+function claimPanel(panel: HTMLElement): void {
+    stateFor(panel).relationshipHidden ??= { value: panel.hidden };
 }
 function setAttribute(node: Element, name: string, value: string | null): void {
     if (value === null) { if (node.hasAttribute(name)) node.removeAttribute(name); }
@@ -68,7 +123,8 @@ function close(host: HTMLElement, restore = false): void {
     const trigger = state.open;
     state.open = undefined;
     if (!trigger) return;
-    const panel = panelFor(trigger);
+    const panel = state.openPanel ?? panelFor(trigger);
+    state.openPanel = undefined;
     if (panel) {
         close(panel);
         hidePopup(panel);
@@ -76,7 +132,7 @@ function close(host: HTMLElement, restore = false): void {
     setAttribute(trigger, 'aria-expanded', 'false');
     if (restore && trigger.isConnected && !unavailable(trigger)) focus(host, trigger);
 }
-function dismiss(host: HTMLElement): void { close(rootMenu(host)); }
+function dismiss(host: HTMLElement): void { close(rootMenu(host) ?? host); }
 function position(host: HTMLElement): void {
     const trigger = stateFor(host).open;
     const panel = trigger && panelFor(trigger);
@@ -89,6 +145,7 @@ function open(host: HTMLElement, trigger: HTMLElement, last = false): void {
     if (!panel) return;
     if (stateFor(host).open !== trigger) close(host);
     stateFor(host).open = trigger;
+    stateFor(host).openPanel = panel;
     showPopup(trigger, panel, column(host));
     setAttribute(trigger, 'aria-expanded', 'true');
     synchronize(panel);
@@ -120,7 +177,8 @@ function synchronize(host: HTMLElement): void {
             const disabled = unavailable(control);
             setAttribute(control, 'tabindex', menuMode ? (control === state.active && !disabled ? '0' : '-1') : (disabled ? '-1' : originals.get(control)?.tabindex ?? null));
             const panel = panelFor(control);
-            if (!panel) continue;
+            if (!panel) { releaseRelationship(control); continue; }
+            if (!relationshipAttributes.has(control)) relationshipAttributes.set(control, new Map(['aria-haspopup', 'aria-controls', 'aria-expanded'].map(name => [name, control.getAttribute(name)])));
             if (!control.id) control.id = `cem-composite-trigger-${++sequence}`;
             if (!panel.id) panel.id = `cem-composite-panel-${++sequence}`;
             setAttribute(control, 'aria-haspopup', 'menu');
@@ -181,6 +239,8 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
         if (state.abort) return;
         const abort = new AbortController();
         state.abort = abort;
+        menus.add(host);
+        state.releaseReferences = observeInteractionReferences(host, () => relationshipsChanged(host));
         const options = { signal: abort.signal };
         host.addEventListener('keydown', event => handleKey(host, event), options);
         host.addEventListener('click', event => {
@@ -200,28 +260,32 @@ export const CEM_COMPOSITE_MENU_CAPABILITY: CemProducedElementBehavior = {
             if (items(host).includes(control)) { state.active = control; synchronize(host); }
         }, options);
         host.addEventListener('focusout', () => queueMicrotask(() => {
-            if (!rootMenu(host).contains(host.ownerDocument.activeElement)) dismiss(host);
+            if (!insideChain(host, host.ownerDocument.activeElement)) dismiss(host);
         }), options);
         host.ownerDocument.addEventListener('pointerdown', event => {
-            if (!rootMenu(host).contains(event.target as Node)) dismiss(host);
+            if (!insideChain(host, event.target as Node)) dismiss(host);
         }, { ...options, capture: true });
         host.ownerDocument.addEventListener('click', event => {
-            if (!rootMenu(host).contains(event.target as Node)) dismiss(host);
+            if (!insideChain(host, event.target as Node)) dismiss(host);
         }, { ...options, capture: true });
         view.addEventListener('resize', () => position(host), options);
         view.addEventListener('scroll', () => position(host), { ...options, capture: true });
         state.observer = new MutationObserver(() => synchronize(host));
-        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden', 'direction', 'keyboard', 'dir', 'href'] });
+        state.observer.observe(host, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'hidden', 'direction', 'keyboard', 'dir', 'href', 'parent-item', 'data-cem-node-ref-parent-item'] });
     },
-    rendered(host) { synchronize(host); const parent = parentMenu(host); if (parent) synchronize(parent); },
+    rendered(host) { relationshipsChanged(host); },
     preserveRenderedAttribute(_host, _current, _desired, attribute) {
         return (_current.matches(COMPOSITE) || controls(_host).includes(_current as HTMLElement)) && ['role', 'tabindex', 'aria-orientation', 'aria-haspopup', 'aria-controls', 'aria-expanded', 'aria-labelledby', 'aria-disabled', 'id'].includes(attribute.name);
     },
     disconnected(host) {
         close(host);
+        controls(host).forEach(releaseRelationship);
         const state = stateFor(host);
         state.abort?.abort();
         state.abort = undefined;
         state.observer?.disconnect();
+        state.releaseReferences?.(); state.releaseReferences = undefined; menus.delete(host);
+        if (state.relationshipHidden) { host.hidden = state.relationshipHidden.value; state.relationshipHidden = undefined; }
+        if (state.parent?.isConnected) synchronize(state.parent);
     },
 };
