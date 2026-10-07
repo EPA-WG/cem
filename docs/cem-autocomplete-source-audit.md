@@ -2,8 +2,11 @@
 
 Completed 2026-10-07 for the [autocomplete and suggestions checklist](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 This audit inventories the pinned source and recommends what the subsequent
-composition design should preserve. Attachment syntax, filtering ownership and
-value handoff remain design tasks on that checklist.
+composition design should preserve. It handed attachment syntax, filtering
+ownership and value semantics to design tasks on that checklist.
+The subsequent [adopted composition design](cem-suggestions-composition-design.md)
+now settles editor/form ownership and first-profile value/type boundaries;
+runtime delivery and the remaining interaction designs are still pending.
 
 The published component is a thin wrapper around `cem-input` and `cem-menu`.
 Its seven examples establish useful author intent, but the inspected declarations

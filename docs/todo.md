@@ -350,14 +350,23 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       frozen standalone product are separate evidence. Explicit option values
       are a compatibility case to verify, not a demonstrated source example.
 
-- [ ] Design reusable suggestions composition that attaches to existing `cem-field`, `cem-text-field` and applicable CEM input controls through their actual native input; preserve one form owner, naming, value/input/change events, validation, disabled/readonly behavior and normal editing. Decide textarea applicability explicitly.
-      Use the [source audit](cem-autocomplete-source-audit.md#value-filtering-and-compatibility-boundaries)
-      to specify stored-value/display-label handoff and applicable input types.
-      Scenarios for later design verification: numeric stored values with word
-      labels remain input-compatible; an edit to empty survives refresh and
-      rerender; one named field contributes one form value.
+- [x] Design reusable suggestions composition that attaches to existing `cem-field`, `cem-text-field` and applicable CEM input controls through their actual native input; preserve one form owner, naming, value/input/change events, validation, disabled/readonly behavior and normal editing. Decide textarea applicability explicitly.
+      Completed 2026-10-07: [adopted composition design](cem-suggestions-composition-design.md).
+      Attach through the field's shared editor provider, retain one form/value
+      owner, and commit stored values with labels in the suggestion presentation.
+      The first custom-listbox profile admits native text inputs without `list`;
+      additional native profiles and label/submission conversion are separate
+      extensions. Textarea is explicitly excluded from this whole-value profile.
+      This closes composition design only; no runtime attachment is implemented.
+      Rationale: the [source audit](cem-autocomplete-source-audit.md#value-filtering-and-compatibility-boundaries)
+      separates stored-value/display-label intent from the frozen product.
+      Scenarios for later design verification: the additional numeric profile
+      keeps stored values with word labels input-compatible; an edit to empty
+      survives refresh and rerender; one named field contributes one form value.
 
 - [ ] Evaluate reuse of `cem-dropdown` for autocomplete/suggestions: compare direct dropdown composition with reuse of its shared popup capability/controller for visibility, placement, collision handling and dismissal. Keep focus on the editable input, use combobox/listbox semantics rather than menu semantics, and avoid duplicate triggers, focus restoration handlers or form controls; record the selected composition and tradeoffs before implementation.
+      Follow the [composition ownership contract](cem-suggestions-composition-design.md#composition-and-ownership);
+      verify editor support rather than inheriting button-trigger or menu focus rules.
 
 - [ ] Specify declarative attachment/slots and the shared cem-elements capability for filtering, active suggestion, commit/cancel and popup lifecycle. Reuse dropdown popup geometry/dismissal without menu roles: editable combobox + listbox/options, input focus retained with aria-activedescendant and explicit controls/expanded relationships.
       Record filtering ownership and compatibility for legacy `data` values and
@@ -369,15 +378,48 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       suggestions removes stale active-descendant relationships.
 
 - [ ] Define ArrowUp/Down, Enter commit, Escape cancel/dismiss, Tab, pointer selection, IME composition, native text editing, empty/no-match and hidden/disabled suggestion behavior; distinguish display label from committed value and define free-text versus constrained selection.
+      Preserve [value/form handoff](cem-suggestions-composition-design.md#commit-through-the-existing-form-owner).
+      Scenarios for later design verification: event observers see one coherent
+      native/host/submitted value; commit followed by blur has no duplicate change;
+      a later real edit still changes normally; option replacement has an explicit
+      tested undo/redo policy; Enter without a commit preserves form behavior.
 
 - [ ] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
 
+- [ ] Implement the shared editor-provider boundary, synchronous user-commit
+      transaction and reset/restore/rebinding notifications in cem-elements,
+      then the suggestions capability and declarative field composition after
+      the remaining design items settle. Inventory and add applicable native
+      metadata/constraint forwarding on both field declarations before promising
+      the legacy surface. Add focused fixture actions before implementation.
+      Scenarios for later design verification: submission and validity update
+      before commit observers; stale render work cannot restore an older edit;
+      the authored reset default survives commits; listeners and ARIA claims are
+      released without patching another producer's owned output.
+
 - [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
+      Include [composition acceptance scenarios](cem-suggestions-composition-design.md#delivery-and-verification):
+      one submission owner, supported text editors, unsupported type/list/role
+      conflicts, independent sessions over a shared native source, disable/readonly
+      during an open session and fresh editor/placement admission after resume.
 
 - [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
       add explicit native option values and label/text edge cases, and distinguish
       example-intent coverage from the existing static material parity markers.
+      Report first-profile coverage honestly: numeric suggestions remain pending
+      the additional native profile; bare numeric field editing is not autocomplete
+      selection evidence.
+
+- [ ] Design additional native suggestion profiles for search/email/tel/url and
+      number inputs, evaluating `list`/datalist integration without duplicate
+      popups or loss of native roles/constraints. Separately assess an explicit
+      field-owner label/submission conversion contract and a multiline/token
+      completion profile if those extensions are needed; no implicit type or
+      value-contract conversion is admitted by the first text-input profile.
+      Scenarios for later design verification: the numeric source example commits
+      `1` rather than `One`; native browser routes remain singular; a future
+      multiline profile preserves newline/caret/undo and accessible feedback.
 
 ## Respect action states in cem-icon-button
 
