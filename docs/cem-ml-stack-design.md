@@ -749,7 +749,11 @@ Namespace-resolution implementation contracts are in
 Native reference target admission accepts only original namespace declarations
 with completed binding metadata. Pending namespace declarations retain their own
 binding identity until dependent QName completion; already-completed names remain
-fixed. Completion-view and activation tasks are tracked in
+fixed. Original pending declarations, dependent names and occurrence prefix maps
+are retained by builder identity. `NamespaceNameCompletion` constructs immutable
+selected-forest metadata only when the forest's namespace dependencies are ready;
+the CEM-QL native view exposes completed names per execution and explicit authored
+source inspection. Bounded namespace selection and activation tasks are tracked in
 [`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
 enclosed child-override syntax.
 

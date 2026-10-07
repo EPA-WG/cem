@@ -17,6 +17,7 @@ pub mod eval;
 pub mod ir;
 pub mod lexer;
 pub mod native;
+pub mod namespace_names;
 pub mod parser;
 pub mod render;
 pub mod retained_template;

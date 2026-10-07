@@ -35,6 +35,14 @@ pub(super) fn source_metadata(item: &Item, name: &str) -> Result<Option<AtomValu
         .and_then(|v| v.downcast_ref::<crate::xpath::functions::XPathQueryItem>())
     {
         view.xpath_item().native_node().cloned().ok_or(())?
+    } else if let Some(view) = item
+        .view()
+        .and_then(|v| v.downcast_ref::<crate::namespace_names::NamespaceQueryNode>())
+    {
+        // Source metadata can use the retained original handle without replacing
+        // completed-view navigation or names with an authored XPath projection.
+        let source = view.source_node();
+        XPathNativeNode::cem_node(source.owner().clone(), source.node_id()).map_err(|_| ())?
     } else {
         xpath_node(item).ok_or(())?.map_err(|_| ())?
     };
@@ -97,6 +105,9 @@ impl RetainedCemNode {
 /// Extract an imported original-source handle. This does not coerce XPath or
 /// arbitrary host projections into source arenas or grant target access.
 pub fn retained_cem_node(item: &Item) -> Option<RetainedCemNode> {
+    if let Some(view) = item.view()?.downcast_ref::<crate::namespace_names::NamespaceQueryNode>() {
+        return Some(view.source_node());
+    }
     let view = item.view()?.downcast_ref::<CemAstView>()?;
     RetainedCemNode::new(view.owner.tree.clone()?, view.node?)
 }
@@ -152,8 +163,8 @@ pub(crate) fn xpath_node(item: &Item) -> Option<Result<XPathNativeNode, String>>
 }
 
 pub(crate) fn source_node(item: &Item) -> Option<(Arc<RetainedCemTree>, AstNodeId)> {
-    let view = item.view()?.downcast_ref::<CemAstView>()?;
-    Some((view.owner.tree.clone()?, view.node?))
+    let node = retained_cem_node(item)?;
+    Some((node.owner().clone(), node.node_id()))
 }
 
 /// Whole-document source owner for inert structural inspection. In particular,

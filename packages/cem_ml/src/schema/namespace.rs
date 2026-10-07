@@ -141,6 +141,11 @@ impl NsContext {
     pub fn binding(&self, prefix: &str) -> Option<&NamespaceBinding> {
         self.active.get(prefix)
     }
+    /// A native declaration shadows an inherited URI before its consumer runs.
+    /// Its original AST association is retained by lexical capture separately.
+    pub(crate) fn defer_binding(&mut self, prefix: &str) {
+        self.active.remove(prefix);
+    }
 
     pub fn local_bindings(&self) -> &[NamespaceBinding] {
         &self.bindings

@@ -6,6 +6,7 @@ use crate::{
     schema::{
         declaration_references::SchemaDeclarationNode,
         namespace::{NamespaceBinding, NsContext},
+        namespace_references::{PendingNamespaceDeclaration, PendingNamespaceName},
         scoping::SchemaScopeFrame,
     },
 };
@@ -38,6 +39,9 @@ pub struct LexicallyScopedDocument {
     names: BTreeMap<AstNodeId, ExpandedName>,
     schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
+    pending_namespace_declarations: BTreeMap<AstNodeId, PendingNamespaceDeclaration>,
+    pending_namespace_names: BTreeMap<AstNodeId, PendingNamespaceName>,
+    pending_namespace_bindings: BTreeMap<AstNodeId, BTreeMap<String, AstNodeId>>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -74,6 +78,9 @@ impl LexicallyScopedDocument {
             names,
             schema_element_forms,
             namespace_bindings,
+            pending_namespace_declarations: BTreeMap::new(),
+            pending_namespace_names: BTreeMap::new(),
+            pending_namespace_bindings: BTreeMap::new(),
             diagnostics,
         }
     }
@@ -133,6 +140,35 @@ impl LexicallyScopedDocument {
             .then(|| self.namespace_bindings.get(&node))
             .flatten()
     }
+    pub fn pending_namespace_declaration(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<&PendingNamespaceDeclaration> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.pending_namespace_declarations.get(&node))
+            .flatten()
+    }
+    pub fn pending_namespace_name(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<&PendingNamespaceName> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.pending_namespace_names.get(&node))
+            .flatten()
+    }
+    /// Pending bindings effective at an original expression occurrence. Complete
+    /// namespace snapshots never substitute an inherited URI for these prefixes.
+    pub fn pending_namespace_bindings(
+        &self,
+        owner: &Arc<CemDocument>,
+        occurrence: AstNodeId,
+    ) -> Option<&BTreeMap<String, AstNodeId>> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.pending_namespace_bindings.get(&occurrence))
+            .flatten()
+    }
 
     /// Original named declaration visible at this occurrence. Lookup requires
     /// this captured owner; no source-coordinate matching or evaluation occurs.
@@ -186,6 +222,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     /// Runtime contexts, policies, readiness and grants remain caller supplied.
     pub fn build_with_lexical_scopes(self) -> LexicallyScopedDocument {
         let pending = Mutex::new(None);
+        let pending_bindings = Mutex::new(None);
         let diagnostics = Mutex::new(Vec::new());
         let opening_name = Mutex::new(None);
         let attribute_names = Mutex::new(VecDeque::new());
@@ -203,6 +240,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 _ => false,
             };
             *pending.lock().unwrap() = expression.then(|| machine.lexical_snapshot());
+            *pending_bindings.lock().unwrap() =
+                expression.then(|| namespace_capture.lock().unwrap().pending_bindings());
             *opening_name.lock().unwrap() = match event {
                 Some(NormalizedEvent::OpenScope { name, .. }) => {
                     capture_name(machine.current_ns_context(), &name.lexical_name)
@@ -222,6 +261,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         events.builder_node = Some(builder_node.clone());
         events.namespace_capture = Some(namespace_capture.clone());
         let mut occurrences = BTreeMap::new();
+        let mut occurrence_pending_bindings = BTreeMap::new();
         let mut names = BTreeMap::new();
         let document = CemAstBuilder::new(events).build_with_node_observer(|node, attribute| {
             *builder_node.lock().unwrap() = node;
@@ -237,6 +277,10 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 }
                 if let Some(snapshot) = pending.lock().unwrap().take() {
                     occurrences.insert(node, snapshot);
+                    occurrence_pending_bindings.insert(
+                        node,
+                        pending_bindings.lock().unwrap().take().unwrap_or_default(),
+                    );
                 }
             }
         });
@@ -253,6 +297,16 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. })
             )
         });
+        let (pending_namespace_declarations, mut pending_namespace_names) =
+            namespace_capture.lock().unwrap().take_pending();
+        pending_namespace_names.retain(|node, _| {
+            matches!(
+                document.get(*node),
+                Some(CemAstNode::Element { .. } | CemAstNode::Attribute { .. })
+            )
+        });
+        names.retain(|node, _| !pending_namespace_names.contains_key(node));
+        occurrence_pending_bindings.retain(|node, _| occurrences.contains_key(node));
         let schema_element_forms = names
             .iter()
             .filter_map(|(id, name)| {
@@ -309,6 +363,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             names,
             schema_element_forms,
             namespace_bindings,
+            pending_namespace_declarations,
+            pending_namespace_names,
+            pending_namespace_bindings: occurrence_pending_bindings,
             diagnostics: diagnostics.into_inner().unwrap(),
         }
     }

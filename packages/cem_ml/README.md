@@ -80,7 +80,18 @@ rebinding and child restoration. `namespace_references::admit_namespace_scope_ta
 accepts those declarations without interpreting schema/data nodes as namespace
 sources. Empty default URIs are ready resets. Given root bindings do not create
 source declarations. Admission leaves evaluation, singleton checks, crossing grants
-and pending QName completion/activation to explicit consumers tracked in `docs/todo.md`.
+and activation to explicit consumers tracked in `docs/todo.md`.
+
+Native namespace attributes retain pending declaration IDs rather than inheriting
+an earlier URI. Owner-checked `pending_namespace_declaration`,
+`pending_namespace_name` and `pending_namespace_bindings` accessors expose original
+declarations, dependent QNames and expression-prefix associations. Existing default
+aliases retain their earlier pending declaration. `NamespaceNameCompletion` accepts
+explicit admitted results and requires the selected source forest's dependencies
+to be complete. It retains scalar name metadata and original owners, preserving
+fixed names and authored reference descendants. CEM-QL's `NamespaceQueryTree`
+exposes an independent native name view with explicit authored `source` access;
+reference evaluation, bounded selection and lifecycle activation remain consumer work.
 
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed

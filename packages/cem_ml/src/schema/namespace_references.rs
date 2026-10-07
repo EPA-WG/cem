@@ -5,6 +5,28 @@ use super::{
 };
 use std::sync::Arc;
 
+mod completion;
+pub use completion::{NamespaceNameCompletion, NamespaceNameCompletionError};
+
+/// Original declaration dependency, not a stored evaluation or runtime context.
+#[derive(Debug, Clone)]
+pub enum PendingNamespaceValue {
+    /// Evaluate the declaration attribute's original native value slots.
+    Native,
+    /// An existing literal default-prefix alias selected this earlier binding.
+    Alias(crate::parser::AstNodeId),
+}
+#[derive(Debug, Clone)]
+pub struct PendingNamespaceDeclaration {
+    pub prefix: String,
+    pub value: PendingNamespaceValue,
+}
+#[derive(Debug, Clone)]
+pub struct PendingNamespaceName {
+    pub declaration: crate::parser::AstNodeId,
+    pub local_name: String,
+}
+
 /// Original source declaration plus its completed parser binding. A binding ID
 /// identifies a namespace record in its lexical context, never an AST node.
 /// The consuming property supplies its own destination prefix and lifecycle.

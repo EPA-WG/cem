@@ -1916,15 +1916,22 @@ only and adds no runtime behavior or public syntax.
       Current captured-name handoff does not yet change the registered query tree.
       Scenarios for later design verification: authored source inspection stays
       available; completion in one execution cannot alter another query's names.
-- [ ] Fixture: capture pending namespace declaration/use associations and implement
+- [x] Fixture: capture pending namespace declaration/use associations and implement
       independent completion views over one original owner, then expose them through
-      the adopted native query view. Specify its readiness boundary before execution:
-      require completed namespace dependencies in the selected query subtree
-      (recommended, consistent with retained validation query readiness), or allow
-      partial views with namespace-sensitive operations reporting pending names.
+      the adopted native query view. Adopted on 2026-10-06: require completed
+      namespace dependencies in the selected query subtree before executable
+      resolved-name view construction. Authored source inspection stays available.
+      Cover inherited masks, default aliases of pending declarations, literal resets,
+      independent executions, original-owner checks and selected-subtree boundaries.
       Scenarios for later design verification: no source arena or completed name is
       rewritten; independent executions can resolve one pending declaration differently;
       QName lookup never substitutes a later alias; missing completion remains pending.
+- [x] Fixture: exercise per-execution namespace query views in
+      `namespace_name_views`: completed field/axis navigation, unchanged authored
+      source inspection, independent execution identities, native `#` operands,
+      retained source metadata and rejected owner mismatches.
+      Scenarios for later design verification: selected roots cannot navigate to
+      incomplete siblings; reference descendants remain authored native nodes.
 - [ ] Fixture: add bounded CEM-QL namespace selection over original declaration
       handles after adopting the completion boundary. Reuse request/destination
       limits, directed grants, singleton admission and pending/unresolved outcomes;
@@ -1932,6 +1939,14 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: zero/multiple targets do not activate;
       denied crossings retain source diagnostics; missing runtime input stays pending;
       independent consumers can select different namespace declarations from one source.
+- [ ] Fixture: integrate ready namespace completion views into explicit lexical
+      handoff and shared native query ingress. Retain original occurrence snapshots
+      and selected-subtree boundaries; supply completed prefix bindings only to the
+      execution that resolved their original declarations. Preserve source metadata
+      and fixed completed names without replacing the original registered arena.
+      Scenarios for later design verification: unavailable namespace dependencies
+      block executable name views; retries never borrow later bindings; independent
+      executions sharing one source can expose different completed namespaces.
 - [ ] Define and implement native reference consumption by specialized schema and
       namespace scope properties after their target-kind, cardinality and readiness
       contracts are specified. Reuse existing capture/handoff and bounded outcomes;

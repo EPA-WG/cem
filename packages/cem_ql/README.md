@@ -156,6 +156,16 @@ instructions. JSON/YAML/CSV use the `cem:generic-data` namespace with
 (`string`, `number`, `boolean`, `null`). CSV uses its first row as headings
 and retains string-valued fields. This is not a JSON AST handoff.
 
+`namespace_names::NamespaceQueryTree` accepts a ready
+`cem_ml::schema::namespace_references::NamespaceNameCompletion` for the same
+original source owner. It exposes completed names per execution through native
+fields and axes; `source` explicitly returns authored inspection. All namespace
+dependencies in the selected forest must be ready before construction. Parent
+and related-node navigation stay inside that forest, and reference descendants
+remain authored. Native `#` values retain the execution view, while
+`retained_cem_node` recovers the unchanged original handle. Evaluation, crossing
+grants and lifecycle activation remain explicit consumer stages.
+
 ### Native values in templates
 
 CEM-QL accepts optional `$` prefixes on expression references in queries and
