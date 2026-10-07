@@ -960,8 +960,15 @@ runtime inputs and `ReferenceScopePolicyOverrides`; `None` context stays pending
 Contexts can retain the matching `NamespaceQueryTree`, preserving completed native
 navigation and authored `source` access independently for each execution. The
 handoff keeps original captured-name metadata, local policy provenance and directed
-grants, and performs no reference evaluation or scope activation. Shared query
-ingress and automatic namespace lifecycle activation remain separate work.
+grants, and performs no reference evaluation or scope activation.
+
+The shared native bridge accepts `QuerySourceOwner::NamespaceCompleted` through
+query preparation or `cem_ml::query::run_query_with_source_owner`. It binds the
+matching completion's selected roots through `NamespaceQueryTree`, preserving
+root order, empty forests, native source handles and authored `source` inspection.
+It exposes ready name metadata without evaluating captured expressions or
+preparing their lexical contexts. Automatic namespace lifecycle activation
+remains separate work.
 
 `assign_following_scope(tree, boundary, scope)` records a caller-completed
 sibling-position switch using the original retained boundary node. Earlier

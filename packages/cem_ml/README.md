@@ -111,6 +111,16 @@ including pending default aliases; no namespace record IDs are manufactured.
 The explicit QL completion handoff uses these snapshots before constructing
 runtime contexts, leaving the source owner and original snapshots unchanged.
 
+Shared query preparation accepts `query::QuerySourceOwner::NamespaceCompleted`
+with the original retained tree and an explicit consumer's name completion.
+`query::run_query_with_source_owner(request, owner)` uses the shared query stages
+without loading or reparsing input bytes; the request supplies input identity,
+scope, query and limits. CEM-QL admission checks matching AST allocation identity
+and projects only selected roots. Original source inspection remains available;
+capture, completion and source references are not evaluated or rewritten during
+ingress. Existing `run_query` retains its ordinary loading path, and namespace
+property activation remains an explicit consumer task.
+
 `EngineContext.schema_package_sources` captures these bindings alongside each
 valid package source tree. Its `get_lexical_scopes(uri)` accessor and the installed
 compiler's `SchemaPackageCompilationRequest.lexical_scopes` share the same original

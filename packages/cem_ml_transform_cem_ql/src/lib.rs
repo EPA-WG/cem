@@ -5888,6 +5888,13 @@ impl CemQlNativeItemsOwner {
                 }
                 ItemStream::once(cem_ql::eval::imported_cem_tree(source.clone()))
             }
+            cem_ml::query::QuerySourceOwner::NamespaceCompleted { source, completion } => {
+                let view = cem_ql::namespace_names::NamespaceQueryTree::new(
+                    source.clone(),
+                    completion.clone(),
+                )?;
+                ItemStream::from_items(view.roots())
+            }
         };
         let source_map = stream
             .items
@@ -5926,7 +5933,8 @@ impl CemQlNativeItemsOwner {
     pub fn lifecycle_owner(&self) -> Option<&Arc<LoadedInputAstStream>> {
         match &self.owner {
             cem_ml::query::QuerySourceOwner::Lifecycle(owner) => Some(owner),
-            cem_ml::query::QuerySourceOwner::Cem { .. } => None,
+            cem_ml::query::QuerySourceOwner::Cem { .. }
+            | cem_ml::query::QuerySourceOwner::NamespaceCompleted { .. } => None,
         }
     }
 }
@@ -6028,7 +6036,7 @@ impl QueryEvaluatorAdapter for CemQlQueryEvaluator {
                 vec![cem_ql_query_diagnostic(
                     query.source_uri(),
                     "cem.ql.query_input_unsupported",
-                    "CEM-QL query evaluator requires a lifecycle-owned native item stream",
+                    "CEM-QL query evaluator requires its package-owned native item stream",
                 )]
             })?;
         if !request.bindings.is_empty() {

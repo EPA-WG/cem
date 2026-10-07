@@ -762,8 +762,13 @@ snapshots and declaration handles alongside ready per-execution URI overlays.
 The explicit QL completion handoff preflights all selected occurrences before
 callbacks or mutation, preserves local policy provenance and relationship
 boundaries, and leaves missing runtime inputs pending. A property's own selector
-can still use its earlier pre-declaration context. Shared query ingress and
-activation tasks are tracked in
+can still use its earlier pre-declaration context. Shared query ingress accepts
+`QuerySourceOwner::NamespaceCompleted` over the matching original source owner.
+`run_query_with_source_owner` preserves shared query controls without loading or
+reparsing input bytes, and the native QL adapter projects only selected roots,
+including an empty forest. Completed-name projection does not evaluate captured
+expressions or prepare their contexts; lexical handoff remains explicit.
+Activation tasks are tracked in
 [`todo.md`](todo.md#ast-node-reference-implementation), separately from the deferred
 enclosed child-override syntax.
 

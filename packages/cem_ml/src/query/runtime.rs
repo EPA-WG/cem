@@ -164,6 +164,12 @@ pub enum QuerySourceOwner {
         source: Arc<crate::parser::tree::RetainedCemTree>,
         lexical_scopes: Option<Arc<crate::schema::machine::LexicallyScopedDocument>>,
     },
+    /// Explicit consumer completion over the original arena. Ordinary input
+    /// loading never creates this variant or evaluates namespace declarations.
+    NamespaceCompleted {
+        source: Arc<crate::parser::tree::RetainedCemTree>,
+        completion: Arc<crate::schema::namespace_references::NamespaceNameCompletion>,
+    },
 }
 
 pub struct QueryPreparationRequest<'a> {
@@ -379,6 +385,26 @@ pub fn query_execution_limits(
 }
 
 pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunError> {
+    run_query_impl(request, None)
+}
+
+/// Execute using an already-retained native owner supplied by a consumer stage.
+/// The request supplies input identity, scope/limits and query source; input bytes
+/// are not loaded or parsed again. The language adapter checks owner admission.
+/// Completion metadata does not supply runtime inputs, grant crossings, evaluate
+/// source declarations or activate namespace scopes. Ordinary `run_query` keeps
+/// its existing loading/capture path.
+pub fn run_query_with_source_owner(
+    request: QueryRunRequest,
+    source_owner: QuerySourceOwner,
+) -> Result<QueryRunResponse, QueryRunError> {
+    run_query_impl(request, Some(source_owner))
+}
+
+fn run_query_impl(
+    request: QueryRunRequest,
+    supplied_owner: Option<QuerySourceOwner>,
+) -> Result<QueryRunResponse, QueryRunError> {
     let language =
         select_query_language(&request.query.identity).map_err(QueryRunError::Contract)?;
     let inputs = [request.data.uri.clone(), request.query.uri.clone()];
@@ -407,50 +433,56 @@ pub fn run_query(request: QueryRunRequest) -> Result<QueryRunResponse, QueryRunE
     let scope_policy = query_scope_policy(&request.context);
     let safety_policy_stamp = query_safety_policy_stamp(limits);
 
-    let mut loaded = crate::real::load_document_input(&request.data, &request.context);
-    let mut diagnostics = loaded.diagnostics;
-    if has_hard_violation(&diagnostics) {
-        return Err(execution_failure(language, inputs, diagnostics));
-    }
-    let source_owner = if let Some(owner) = loaded.ast_stream.take() {
-        QuerySourceOwner::Lifecycle(Arc::new(owner))
-    } else if language == QueryLanguage::CemQl
-        && loaded.from_format == crate::engine::InputFormat::Cem
-        && matches!(loaded.adapter_id, None | Some("cem-ml"))
-    {
-        // Parse the source once through the normal CEM schema-machine/builder
-        // stream. Query ingress does not consume source references or behaviors.
-        let parsed = crate::real::prepare_cem_query_input(
-            &loaded.bytes, &request.data.root_scope, &request.context, &request.data.uri,
-        );
-        diagnostics.extend(parsed.diagnostics);
+    let mut diagnostics = Vec::new();
+    let source_owner = if let Some(owner) = supplied_owner {
+        owner
+    } else {
+        let mut loaded = crate::real::load_document_input(&request.data, &request.context);
+        diagnostics = loaded.diagnostics;
         if has_hard_violation(&diagnostics) {
             return Err(execution_failure(language, inputs, diagnostics));
         }
-        let text = String::from_utf8_lossy(&loaded.bytes);
-        let source = match crate::parser::tree::RetainedCemTree::from_shared(
-            parsed.document,
-            &request.data.uri,
-            &text,
-            crate::parser::tree::CemTreeSemantics::default(),
-            None,
-        ) {
-            Ok(source) => source,
-            Err(message) => {
-                diagnostics.push(fatal_diagnostic(
-                    &request.data.uri, "cem.query.input_model_unsupported", message,
-                ));
+        let source_owner = if let Some(owner) = loaded.ast_stream.take() {
+            QuerySourceOwner::Lifecycle(Arc::new(owner))
+        } else if language == QueryLanguage::CemQl
+            && loaded.from_format == crate::engine::InputFormat::Cem
+            && matches!(loaded.adapter_id, None | Some("cem-ml"))
+        {
+            // Parse the source once through the normal CEM schema-machine/builder
+            // stream. Query ingress does not consume source references or behaviors.
+            let parsed = crate::real::prepare_cem_query_input(
+                &loaded.bytes, &request.data.root_scope, &request.context, &request.data.uri,
+            );
+            diagnostics.extend(parsed.diagnostics);
+            if has_hard_violation(&diagnostics) {
                 return Err(execution_failure(language, inputs, diagnostics));
             }
+            let text = String::from_utf8_lossy(&loaded.bytes);
+            let source = match crate::parser::tree::RetainedCemTree::from_shared(
+                parsed.document,
+                &request.data.uri,
+                &text,
+                crate::parser::tree::CemTreeSemantics::default(),
+                None,
+            ) {
+                Ok(source) => source,
+                Err(message) => {
+                    diagnostics.push(fatal_diagnostic(
+                        &request.data.uri, "cem.query.input_model_unsupported", message,
+                    ));
+                    return Err(execution_failure(language, inputs, diagnostics));
+                }
+            };
+            QuerySourceOwner::Cem { source, lexical_scopes: parsed.lexical_scopes }
+        } else {
+            diagnostics.push(fatal_diagnostic(
+                &request.data.uri,
+                "cem.query.input_model_unsupported",
+                "data input did not produce a supported native source owner",
+            ));
+            return Err(execution_failure(language, inputs, diagnostics));
         };
-        QuerySourceOwner::Cem { source, lexical_scopes: parsed.lexical_scopes }
-    } else {
-        diagnostics.push(fatal_diagnostic(
-            &request.data.uri,
-            "cem.query.input_model_unsupported",
-            "data input did not produce a supported native source owner",
-        ));
-        return Err(execution_failure(language, inputs, diagnostics));
+        source_owner
     };
 
     let Some(runtime) = request.context.query_runtime_registry.adapter(language) else {

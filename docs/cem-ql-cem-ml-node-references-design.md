@@ -439,8 +439,8 @@ local policy overrides, and can bind the matching native `NamespaceQueryTree`.
 Missing inputs remain pending even with a ready parent. Existing relationship
 boundaries and directed grants are preserved. Completed names do not replace the
 host's original captured-name metadata, and unselected occurrences remain free
-for their own handoff. Shared query ingress and lifecycle activation remain todo
-items; this API performs neither reference evaluation nor scope activation.
+for their own handoff. Lifecycle activation remains a todo item; this API performs
+neither reference evaluation nor scope activation.
 The exact enclosed child override syntax remains deferred.
 
 `schema::scope_references::compile_schema_scope_target` now compiles the exact
@@ -1262,6 +1262,22 @@ later explicit consumer; query preparation neither compiles authored reference
 expressions nor supplies their runtime contexts. The native fixture attaches the
 saved namespace bindings after ingress and consumes three references against the
 correct original targets without source cloning or target writeback.
+
+Explicit shared ingress also accepts `QuerySourceOwner::NamespaceCompleted` with
+the original retained tree and a consumer-supplied `NamespaceNameCompletion`.
+`run_query_with_source_owner` runs the shared preparation/evaluation stages using
+the request's identity, scope, query and limits without loading or reparsing input
+bytes. The adapter rejects completion from another AST allocation before compiling
+the query and supplies the selected native roots in their original selection order.
+An empty forest stays empty. Completed names and reference target views retain
+per-execution identity; authored `source` access and source metadata recover the
+original tree. Owning axes do not borrow enclosing/sibling names outside the
+selected forest. Fixed captured names remain fixed across independent completions.
+Selected-name readiness admits this projection for query and inspection; executing
+authored captured expressions still requires explicit lexical handoff and every
+captured pending prefix. Ingress does not evaluate namespace declarations, create
+crossing grants or activate scopes. Ordinary loading/CLI ingress keeps its existing
+capture path, and XPath/CSS adapters keep their lifecycle-only admission.
 
 `CemQlNativeItemsOwner::source_owner()` exposes this distinction, and its
 `lifecycle_owner()` accessor is now optional. Existing external imports retain

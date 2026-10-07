@@ -46,6 +46,24 @@ source-owner variant. Query adapters read `QueryPreparationRequest.source_owner`
 instead of the former mandatory lifecycle field. CSS selector/XPath admission
 retains its existing lifecycle contract; this change adds CEM input for CEM-QL.
 
+An explicit consumer can pass `QuerySourceOwner::NamespaceCompleted { source,
+completion }` to shared preparation, or to
+`cem_ml::query::run_query_with_source_owner(request, owner)`. The retained-owner
+runner uses the request's declared identity, scope, query and limits without
+loading or reparsing its input bytes. The CEM-QL adapter checks original AST
+allocation identity, then binds the completion's selected native roots as `input`.
+Root order and an empty forest are preserved; there is no whole-document fallback.
+Native axes stay in that forest, completed names stay execution-specific, and the
+explicit `source` field retains authored names and original metadata. Unary `#`
+preserves these native execution views and their original source owners.
+
+`source_owner()` retains the supplied completion and source tree. This ingress
+does not resolve namespace declaration values, create grants or activate scopes.
+It exposes ready selected names for query/inspection; evaluating authored captured
+expressions still requires their separate lexical handoff and all pending prefix
+bindings. Ordinary `run_query` keeps its original loading/capture behavior. CSS
+selector and XPath adapters retain their lifecycle-only admission contract.
+
 The adapter supports CEM-native templates, standalone CEM-QL expression
 templates, and the [strict typed XSLT 3.0 profile](../../docs/xslt-runtime-lowering.md). It is infrastructure for
 hosts and embedders, not an application UI or an alternate query-language

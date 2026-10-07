@@ -1980,11 +1980,22 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: a pending binding outside the selected
       forest can be a captured dependency; literal resets remain ready; arbitrary
       nodes and foreign owners cannot masquerade as binding declarations.
-- [ ] Fixture: integrate explicit ready namespace completion views into shared
-      native query ingress. Keep authored source inspection available, require the
+- [x] Fixture: integrate explicit ready namespace completion views into shared
+      native query ingress in `namespace_query_ingress`. Keep authored source
+      inspection available, require the
       matching original source owner and preserve selected-subtree boundaries.
       Supply completion at the consumer lifecycle stage without inventing grants
       or evaluating declarations during ordinary loading/inspection.
+      Implemented: `QuerySourceOwner::NamespaceCompleted` carries the matching
+      original retained tree and completion through shared preparation;
+      `run_query_with_source_owner` retains shared query controls without loading
+      or reparsing input bytes. The QL adapter projects selected roots in order,
+      preserving empty forests, native reference targets and authored source
+      access. Independent completions keep fixed names and original metadata;
+      owner mismatch rejects before query compilation. Captured-expression
+      execution still requires its separate lexical handoff. XPath/CSS retain
+      their existing lifecycle admission, cancellation and result budgets remain
+      active, and ordinary `run_query` preserves loading/capture behavior.
       Scenarios for later design verification: the same source supports independent
       executions; missing dependencies cannot expose guessed expanded names; native
       references and source metadata retain their original owner through ingress.
@@ -1996,6 +2007,20 @@ only and adds no runtime behavior or public syntax.
       Scenarios for later design verification: pending scope selection cannot
       silently adopt a later binding; invalid property targets cannot establish a
       scope; completed child overrides restore enclosing defaults on exit.
+- [ ] Fixture: consume original native namespace-property value slots at an
+      explicit lifecycle stage. Reuse bounded graph traversal and original
+      occurrence contexts, require one ready namespace declaration target, and
+      retain pending/invalid outcomes before producing completion metadata.
+      Scenarios for later design verification: pending declaration selectors use
+      pre-declaration bindings; invalid cardinality and denied crossings cannot
+      supply a URI; repeated consumers never write source targets or share results.
+- [ ] Integrate prepared namespace-property results with lifecycle activation
+      and selected-name completion. Preserve source-position dependencies, fixed
+      completed QNames, child shadowing/restoration and pending governed regions;
+      reuse explicit lexical handoff and native query ingress for execution.
+      Scenarios for later design verification: earlier and later declarations do
+      not rebind each other's saved uses; missing runtime input stays pending;
+      child exit restores enclosing defaults without moving original source nodes.
 - [ ] Fixture: verify namespace-property lifecycle activation through shared
       native query ingress and lexical completion handoff after those integrations.
       Cover independently completed executions, pending retries, pre-declaration
