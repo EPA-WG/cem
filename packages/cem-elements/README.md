@@ -328,6 +328,19 @@ replacement does not promise an undo entry. The full suggestions declaration,
 source/render composition and acceptance matrix are still pending in
 [the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 
+The provider also exposes a separate `lease.datalist` claim. A trusted host
+stages scalar options, registers the native datalist, grants `list` from the
+editor producer and `editor-for` from the datalist producer, then calls
+`CemSuggestionsPlacementCoordinator.prepareDatalist`. Pass that opaque admission
+to `lease.datalist.set({ revision, current, placements })`. It retains the original
+input and writes only `list`; authored relationships (including empty or later
+same-ID writes) remain authoritative. Grant loss, option/type changes, competing
+leases, revision changes and disconnect clear the claim and expire its admission.
+The producer owns option cleanup; source lifecycle transitions must refresh the
+coordinator. This is shared infrastructure: declarative native-profile selection
+and its WASM/worker source transport remain pending in the
+[native profile design](../../docs/cem-suggestions-native-profiles-design.md).
+
 The package-private native capability-session transport retains executable sources
 through CEMB and exports explicit presentation values through CEMV. Prepared
 sessions retain original owners, lexical capture, grants and source revisions

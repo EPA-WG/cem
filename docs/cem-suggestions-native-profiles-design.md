@@ -3,7 +3,7 @@
 Adopted design direction, 2026-10-08, under the instruction to continue with
 recommended options. This completes the additional-profile design task in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs). Delivery
-remains pending. Existing `cem-suggestions` runtime behavior remains the text-only
+continues through the checklist below. Existing `cem-suggestions` runtime behavior remains the text-only
 custom listbox described in the [composition design](cem-suggestions-composition-design.md).
 
 ## Selection and native semantics
@@ -77,12 +77,22 @@ browser query freshness and popup update behavior before admission.
 ## Provider claims and publication
 
 Extend the field-provider lease with a dedicated datalist claim; do not broaden
-the existing text-listbox ARIA claim. The proposed shape is
-`lease.datalist.set({revision, current, datalist})`, with clear/release and
+the existing text-listbox ARIA claim. The delivered provider shape is
+`lease.datalist.set({revision, current, placements})`, with clear/release and
 preservation of later author changes. The claim requires an exact connected
 native datalist in the input's tree, a unique consumer-owned ID, the current
 provider revision and host-issued placement authority for the `list`
-relationship. Local authorization uses the existing explicit runtime policy;
+relationship. `CemSuggestionsPlacementCoordinator.prepareDatalist` issues the
+opaque placement admission after both `editor-for` and `list` grants exist and
+the connected scalar options are staged. It captures option identities/values,
+the original input, input type and provider revision. Copied or serialized
+admissions cannot authorize a claim. Claim clearance, publication replacement,
+provider disconnection and grant loss expire old admissions; activation needs a
+fresh admission. Even an author writing the same `list` string takes ownership.
+The host checks source readiness through the placement's `current` callback and
+refreshes the coordinator on source lifecycle transitions. The producer remains
+responsible for replacing/removing its datalist/options; the provider owns only
+the input relationship. Local authorization uses the existing explicit runtime policy;
 foreign producers require directed grants. An ID or matching DOM adjacency
 cannot establish ownership or cross-scope authority.
 
@@ -140,8 +150,10 @@ The native Rust source projection is delivered as
 view namespace, cached original sources, attributed omission diagnostics and
 strict empty control-object parsing. The view exposes scalar option attributes
 and original source links, with no selection state or implicit portable export.
-WASM/worker exposure, provider claims, declaration integration and browser/device
-acceptance remain pending; no additional browser profile is enabled yet.
+Provider datalist claims and opaque placement admissions are delivered with
+shared browser lifecycle fixtures. WASM/worker exposure, declaration integration
+and browser/device acceptance remain pending; no additional declarative browser
+profile is enabled yet.
 
 Implementation actions and adjacent scenarios are retained in [todo.md](todo.md).
 Deliver native AST/source cases before shared provider claims and declaration

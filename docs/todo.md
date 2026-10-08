@@ -1073,13 +1073,25 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       41 focused Rust checks, the WASM build and native session bridge checks pass.
       Browser/provider wiring remains in the following implementation items.
 
-- [ ] Add provider-owned datalist claims and native `list` placement admission:
+- [x] Add provider-owned datalist claims and native `list` placement admission:
       retain the original input, enforce exact current grants/unique target IDs,
       preserve authored relationships and newer author writes, and stage options
       before claiming the relationship. Fixture action: shared provider cases for
       conflicts, competing profiles, source readiness/replacement, revision loss,
       disposal and resume. Scenarios for later design verification: only one route
       owns the editor; revoked or serialized IDs cannot reestablish authority.
+  - [x] Add shared browser fixtures for directed datalist grants, staged option
+        replacement, same-ID author writes, exclusive profiles, revision loss,
+        disconnect/resume and supported native input types.
+      Delivered 2026-10-08: `lease.datalist` writes only the original input's
+      `list`, using an opaque `prepareDatalist` admission with both directed
+      grants and exact staged option identities. Revocation, competing claims,
+      source/type/revision changes and disconnect expire authority; newer author
+      writes, including the same ID, survive release. Source producers own option
+      cleanup and refresh the coordinator on readiness changes. Four new browser
+      cases and the existing provider/listbox suites pass (25 checks), alongside
+      607 unit tests, type checking and lint (two existing warnings). Declarative
+      profile wiring and publication transport remain the next item.
 
 - [ ] Integrate explicit profile selection into the declarative attachment,
       accepting text/search/tel/url/single-email/number under the native profile;

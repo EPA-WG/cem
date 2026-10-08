@@ -1,5 +1,6 @@
 import type { CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 import { createCemEditorAttributeClaim, type CemEditorAttributeClaim } from './editor-attributes.js';
+import { createCemEditorDatalistClaim, type CemEditorDatalistClaim } from './editor-datalist.js';
 
 type Control = HTMLInputElement | HTMLTextAreaElement;
 export type CemEditorChangeCause = 'input' | 'programmatic' | 'reset' | 'restore' | 'authored' | 'commit' | 'rebind' | 'availability' | 'composition-start' | 'composition-end' | 'claims' | 'attribute-claims';
@@ -16,6 +17,7 @@ export interface CemEditorLease {
     readonly current: boolean;
     readonly valid: boolean;
     readonly attributes: CemEditorAttributeClaim;
+    readonly datalist: CemEditorDatalistClaim;
     handlePress(event: KeyboardEvent): boolean;
     commit(value: string, request: CemEditorCommit): boolean;
     release(): void;
@@ -46,7 +48,7 @@ interface FormControlState {
     handledPresses: Map<string, object>;
     listeners: Set<(update: CemEditorUpdate) => void>;
     leases: Set<object>;
-    attributeClaims: Map<object, CemEditorAttributeClaim>;
+    attributeClaims: Map<object, CemEditorAttributeClaim | CemEditorDatalistClaim>;
     validityClaims: Map<object, string>;
     generation: number;
     checkpoint?: { control: Control; revision: number; value: string };
@@ -301,13 +303,18 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
                     valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
                 };
+            const datalist = admitted ? createCemEditorDatalistClaim(admitted, () => valid() && editable(instance, state) && !instance.hasAttribute('list'),
+                () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
+                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
+                };
             state.attributeClaims.set(token, attributes);
+            state.attributeClaims.set(datalist, datalist);
             const lease: CemEditorLease = {
                 get current() { return current(); },
                 get valid() { return valid(); },
-                attributes,
+                attributes, datalist,
                 handlePress(event) {
-                    if (!valid() || event.defaultPrevented || event.target !== controlFor(instance)
+                    if (!valid() || datalist.valid || event.defaultPrevented || event.target !== controlFor(instance)
                         || !['Enter', 'Escape'].includes(event.key) || state.provider.compositionOwned(event)) return false;
                     state.handledPresses.set(event.code || event.key, token);
                     event.preventDefault();
@@ -316,7 +323,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 },
                 commit(value, request) {
                     const control = controlFor(instance);
-                    const current = () => valid() && editable(instance, state) && !state.composing
+                    const current = () => valid() && !datalist.valid && editable(instance, state) && !state.composing
                         && control === controlFor(instance) && state.revision === request.revision
                         && state.authoredValue === instance.getAttribute('value') && (request.current?.() ?? true);
                     if (!control || !current() || control instanceof HTMLInputElement && control.type === 'file') return false;
@@ -345,7 +352,7 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 release() {
                     if (released) return;
                     released = true; state.leases.delete(token);
-                    attributes.dispose(); state.attributeClaims.delete(token); editorLeases.delete(lease);
+                    attributes.dispose(); datalist.dispose(); state.attributeClaims.delete(token); state.attributeClaims.delete(datalist); editorLeases.delete(lease);
                     for (const [press, claim] of state.handledPresses) if (claim === token) state.handledPresses.delete(press);
                     synchronize(instance, state); publish(instance, state, 'claims');
                 },
