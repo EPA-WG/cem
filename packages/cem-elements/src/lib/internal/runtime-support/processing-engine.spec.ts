@@ -50,7 +50,7 @@ vi.mock('./cem-ql-render.js', () => {
     releaseRetainedNativeSession: vi.fn(),
     exportRetainedNativeSessionView: vi.fn((_id, input) => ({ status: 'view', handle: input.handle, values: [] })),
     renderRetainedNativeSessionLabel: vi.fn(async (_id, input) => ({ status: 'rendered', handle: input.handle, nodes: [], diagnostics: [] })),
-    processRetainedSuggestionsPublication: vi.fn(async (_id, input) => input.action === 'publish-suggestions'
+    processRetainedSuggestionsPublication: vi.fn(async (_id, input) => (input.action === 'publish-suggestions' || input.action === 'publish-datalist')
         ? { status: 'published', handle: input.handle, publication: input.publication }
         : input.action === 'release-suggestions' ? { status: 'released', handle: input.handle }
         : input.action === 'suggestions-rows' ? { status: 'rows', handle: input.handle, rows: [] }
@@ -1088,15 +1088,16 @@ it.each(['render-suggestions-frame', 'suggestions-rows'] as const)('revokes in-f
     engine.dispose();
 });
 
-it('fences normal component renders against live publication loss and applies owner bounds', async () => {
+it.each(['suggestions-v1', 'native-datalist-v1'] as const)('fences %s component renders against live publication loss and applies owner bounds', async adapter => {
     const engine = new CemProcessingEngine();
     const native = await import('./cem-ql-render.js');
     const handle = { sessionKey: 'component-publication', instanceId: 'producer', scopePolicyStamp: 'source', sourceRevision: 'one' };
     const limits = { maxBytes: 1024, maxValues: 100, maxDepth: 20 };
     await engine.nativeSession({ action: 'prepare', handle, sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [], bindings: [], grants: [] },
-        data: {}, select: '()', limits, adapter: 'suggestions-v1' });
+        data: {}, select: '()', limits, adapter });
     const publication = 'component-view';
-    await engine.nativeSession({ action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } });
+    await engine.nativeSession(adapter === 'native-datalist-v1' ? { action: 'publish-datalist', handle, publication, controls: {} }
+        : { action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } });
     const snapshot = snapshotFixture('1', 'component-template', 'cem-component');
     const compiled = await engine.compile({ language: 'cem-ml', producedTag: 'cem-component', templateArtifactId: snapshot.templateArtifactId,
         registrationIdentity: 'component', source: createCemProcessingTextSource('{span | {$label}}'), sourceRef: { kind: 'inline', value: 'component' },

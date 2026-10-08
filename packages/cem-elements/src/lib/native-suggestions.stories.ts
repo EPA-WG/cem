@@ -261,3 +261,52 @@ export const PublicationOwnerLossRequiresFreshLeases: Story = {
             await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
     },
 };
+
+export const NativeDatalistPublicationsStayOnTheirOriginalOwner: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+        for (const fallback of [false, true]) {
+            const scope = createCemDeclarationScope({ document });
+            const host = cemProcessingHostForScope(scope, { workerScriptUrl, ...(fallback ? { workerFactory: () => { throw new Error('fallback fixture'); } } : {}) });
+            const input = { ...request('{option @value=1 @label=One}{option @value=1 @label=Duplicate}{option @value="" @label=Empty}'), adapter: 'native-datalist-v1' as const };
+            const session = await CemNativeCapabilitySession.prepare(host, input, () => true);
+            try {
+                expect(session.suggestions?.identity).toBe('cem-native-datalist-v1'); expect(session.suggestions?.rows).toBe(2);
+                expect(session.suggestions?.diagnostics[0].code).toBe('cem.suggestions.datalist_empty_value');
+                expect(session.suggestions?.diagnostics[0].sourceMapRef).toBeDefined();
+                await expect(session.publishSuggestions({ query: '', queryRevision: 1 }, () => true)).rejects.toThrow('profile');
+                await expect(session.publishDatalist({ query: '' } as unknown as Record<string, never>, () => true)).rejects.toThrow();
+                const publication = await session.publishDatalist({}, () => true);
+                const binding = publication.bind({ instanceId: 'native', scopePolicyStamp: 'native', revision: '1', current: () => true });
+                try {
+                    expect(() => JSON.stringify(binding)).toThrow('cannot be serialized');
+                    await expect(binding.rows()).rejects.toThrow('no row selection proof');
+                    const frame = await binding.render('{datalist | {cem:for-each @select=suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', {});
+                    expect(frame.diagnostics).toEqual([]); expect(JSON.stringify(frame.nodes)).toContain('One');
+                    expect(JSON.stringify(frame.nodes)).not.toContain('Empty');
+                    const suffix = crypto.randomUUID(), tag = `native-datalist-frame-${suffix}`, declarationTag = `native-datalist-declaration-${suffix}`;
+                    const runtime = new CemElementRuntime({ declarationTag, ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback fixture'); } } : {}),
+                        nativeSuggestionsInputs(instance, snapshot) { return [publication.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                            revision: snapshot.dataRevision, current: () => instance.isConnected })]; } });
+                    runtime.install(window);
+                    const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag);
+                    const template = document.createElement('template'); template.type = 'text/cem-ml';
+                    template.textContent = '{datalist | {cem:for-each @select=datadom.slices.suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}';
+                    declaration.append(template); canvasElement.append(declaration); runtime.registerDeclaration(declaration);
+                    await runtime.whenDeclarationSettled(declaration);
+                    const instance = document.createElement(tag); canvasElement.append(instance);
+                    try {
+                        await runtime.whenRenderSettled(instance); expect(runtime.diagnosticsFor(instance)).toEqual([]);
+                        expect(instance.querySelector('datalist')?.options.length).toBe(2);
+                        expect(runtime.renderedSuggestionsFor(instance)?.rows).toHaveLength(0);
+                    } finally { instance.remove(); declaration.remove(); }
+                    const pending = binding.render('{span | {$suggestions.children.name}}', {});
+                    const rejected = expect(pending).rejects.toThrow();
+                    await publication.release(); await rejected;
+                    expect(binding.valid).toBe(false); expect(session.valid).toBe(true);
+                } finally { binding.release(); await publication.release(); }
+            } finally { await session.release(); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
+        }
+    },
+};

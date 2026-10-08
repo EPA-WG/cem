@@ -1093,7 +1093,13 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       607 unit tests, type checking and lint (two existing warnings). Declarative
       profile wiring and publication transport remain the next item.
 
-- [ ] Integrate explicit profile selection into the declarative attachment,
+- [x] Add native datalist publication fixtures at the Rust/WASM/worker boundary
+      and shared/production browser fixtures for profile transitions, native
+      values, readiness, original field identity, disposal and unsupported controls.
+      Record browser selection attempts and the outstanding physical-device/AT
+      acceptance matrix without treating DOM association as selection evidence.
+
+- [x] Integrate explicit profile selection into the declarative attachment,
       accepting text/search/tel/url/single-email/number under the native profile;
       keep custom listbox as the omitted default. Expose the native projection
       through WASM/worker session transport with source retention, attributed
@@ -1105,6 +1111,18 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       unsupported configuration recovery and profile changes. Scenarios for later
       design verification: browser edits do not become native-row proof; no
       custom popup, key interception or implicit type conversion is installed.
+      Delivered 2026-10-08: explicit local `native-datalist` and default/explicit
+      `listbox` select separate declaration branches. Native options render from
+      immutable Rust publications through the original worker/fallback owner;
+      strict empty controls, attributed diagnostics and native source retention
+      survive that route, while row-proof APIs reject the native profile. Local
+      attachment reuses host policy and exact instance-specific directed grants,
+      fences late work, clears old options on source withdrawal and preserves
+      native editing through resets, conflicts and profile changes. Both-field,
+      concurrent-ID, six-type, worker/fallback and source-recovery fixtures pass:
+      42 focused Rust, the WASM bridge, 36 browser and 608 unit checks, typecheck,
+      lint (two existing warnings), the declarative architecture gate, clean
+      package verification and the 53-component catalog build.
 
 - [ ] Record supported-browser native datalist selection, accessibility and device
       evidence before claiming additional-profile acceptance. Fixture action:
@@ -1113,6 +1131,13 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       physical IME and mobile keyboard/AT runs. Scenarios for later design
       verification: a connected list alone is not selection evidence; unsupported
       native UI preserves ordinary editing without a custom popup fallback.
+      Progress 2026-10-08: recorded the automated matrix and reproducible native
+      picker attempt in `packages/cem-components/docs/suggestions-acceptance.md`.
+      Linux HeadlessChrome 148 Arrow Down/Enter stepped the numeric input to `0`;
+      it did not establish selecting One as `1`. Native value/constraint and
+      email/URL sanitization tests pass. This item remains open for actual
+      headful native picker selection/filtering, physical IME/mobile keyboard and
+      screen-reader evidence on supported browser/device combinations.
 
 - [ ] Design field-owned label/submission conversion, multiline/email-multiple
       token completion and full surface-provider adoption only when requested.

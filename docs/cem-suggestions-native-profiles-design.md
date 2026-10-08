@@ -3,18 +3,19 @@
 Adopted design direction, 2026-10-08, under the instruction to continue with
 recommended options. This completes the additional-profile design task in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs). Delivery
-continues through the checklist below. Existing `cem-suggestions` runtime behavior remains the text-only
-custom listbox described in the [composition design](cem-suggestions-composition-design.md).
+continues through the checklist below. The default remains the text-only custom listbox described in the
+[composition design](cem-suggestions-composition-design.md); the explicit local
+native-datalist profile is now implemented.
 
 ## Selection and native semantics
 
-Introduce explicit `profile="native-datalist"` on the suggestions attachment.
+Use explicit `profile="native-datalist"` on the suggestions attachment.
 The omitted profile continues to select the existing custom text listbox; its
 explicit spelling will be `profile="listbox"`. An unknown profile suspends
 attachment with a diagnostic. Never select another profile merely because the
 field changes its input type or acquires an authored `list` attribute.
 
-| Effective native editor | Planned native-datalist admission |
+| Effective native editor | Native-datalist admission |
 | --- | --- |
 | text, search, tel, url | One original provider-owned input; native editing and constraints remain field-owned. |
 | email without multiple | Single-address suggestions; native sanitization and type validity remain authoritative. |
@@ -151,9 +152,13 @@ view namespace, cached original sources, attributed omission diagnostics and
 strict empty control-object parsing. The view exposes scalar option attributes
 and original source links, with no selection state or implicit portable export.
 Provider datalist claims and opaque placement admissions are delivered with
-shared browser lifecycle fixtures. WASM/worker exposure, declaration integration
-and browser/device acceptance remain pending; no additional declarative browser
-profile is enabled yet.
+shared browser lifecycle fixtures. The local declaration now selects the native
+profile explicitly and renders scalar options from an immutable native publication
+on its original WASM/worker owner (including fallback). The adapter parses only
+empty controls, preserves source diagnostics and rejects listbox row-proof APIs.
+Readiness changes withdraw the relationship and rendered options; configuration
+recovery and profile changes acquire fresh claims. Browser/device acceptance is
+tracked separately in the [acceptance record](../packages/cem-components/docs/suggestions-acceptance.md).
 
 Implementation actions and adjacent scenarios are retained in [todo.md](todo.md).
 Deliver native AST/source cases before shared provider claims and declaration

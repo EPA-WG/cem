@@ -208,7 +208,7 @@ native `suggestion`/`group` parameters in their original namespace context.
 The field owns value, name, constraints, visible label, help and form submission.
 The attachment owns listbox/row IDs, group names, preview and status feedback.
 
-The local text-input profile supports `filter="contains|prefix|none"`,
+The omitted profile, or explicit `profile="listbox"`, supports `filter="contains|prefix|none"`,
 `filter-by="label|value|label value"` (omit with `none`), `require-selection`,
 `selection-message`, `options-state="ready|pending|failed"`, `options-error`,
 listbox `label`, and the five `*-message` feedback attributes shown in its
@@ -221,8 +221,14 @@ device IME, screen-reader interoperability and the broader composition matrix
 remain in the [acceptance evidence and release record](./suggestions-acceptance.md).
 The gallery maps [all seven audited source intents](../../../docs/cem-autocomplete-source-audit.md#adopted-gallery-coverage),
 including native text fallback and explicit value/label edge cases. Its numeric
-examples demonstrate ordinary editing only; numeric suggestion selection remains
-deferred to an additional native profile.
+examples demonstrate ordinary editing only. The property playground includes
+an explicit `profile="native-datalist"` example. This profile accepts text,
+search, tel, url, single-email and number inputs, retains their native roles and
+constraints, and consumes complete ungrouped local sources. It rejects custom
+filtering, selection proof, label templates and email `multiple`. The browser
+owns filtering and the picker; no custom popup or synthetic commit is installed.
+Actual numeric picker selection and device/AT acceptance remain pending in the
+acceptance record; typed numeric values are not picker-selection evidence.
 
 
 `cem-field` and `cem-text-field` use canonical XHTML declarations and the shared

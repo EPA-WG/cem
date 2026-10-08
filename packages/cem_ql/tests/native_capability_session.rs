@@ -335,3 +335,29 @@ fn datalist_source_projection_retains_granted_scopes_and_independent_contexts() 
     bounded.policy.limits.max_work = 1;
     assert!(prepare(vec![relation, bounded], &[(0, 1)], TemplateData::default()).is_err());
 }
+
+#[test]
+fn datalist_publications_retain_native_roots_without_row_proof() {
+    let session = NativeCapabilitySession::prepare(
+        vec![source("{option @value=1 @label=One}{option @value=1 @label=Duplicate}{option @value=\"\" @label=Empty}")],
+        0, &[], &[], TemplateData::default(), "input.children", true, Default::default(),
+    ).unwrap();
+    session.publish_datalist("native", "{}").unwrap();
+    assert!(session.publish_datalist("native", "{}").is_err());
+    assert!(session.publish_datalist("query", r#"{"query":"x"}"#).is_err());
+    assert!(session.suggestion_row_controls("native").is_err());
+    assert!(session.suggestions_publication("native").is_err());
+    let template = compile_template(
+        "{datalist | {cem:for-each @select=suggestions.children @as=row | {option @value={row.dom:attribute(\"value\").value} @label={row.dom:attribute(\"label\").value}}}}",
+        &CompileTemplateOptions { host_bindings: vec!["suggestions".into()], ..Default::default() },
+    );
+    assert!(template.diagnostics.is_empty(), "{:?}", template.diagnostics);
+    let plan = session.render_suggestions_frame("native", &template, TemplateData::default()).unwrap();
+    let html = render_plan_to_html(&plan);
+    assert!(html.contains("value=\"1\"")); assert!(html.contains("label=\"One\""));
+    assert!(!html.contains("Empty"));
+    assert!(session.release_suggestions("native"));
+    assert!(session.publication_root("native").is_err());
+    assert!(session.publish_datalist("native", "{}").is_err());
+    session.publish_datalist("fresh", "{}").unwrap();
+}

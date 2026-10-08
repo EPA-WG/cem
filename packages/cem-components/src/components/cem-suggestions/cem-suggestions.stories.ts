@@ -293,3 +293,98 @@ export const UnsupportedEditorsAndInputConflictsSuspendThenRecover = meta.story(
         }
     },
 });
+
+export const NativeDatalistKeepsOriginalFieldsAndValues = meta.story({
+    render: () => ['cem-field', 'cem-text-field'].map(tag => `<form><cem-suggestions profile="native-datalist"><template><${tag} slot="editor" type="number" name="choice" label="Number" min="0" max="3" step="1"></${tag}><template slot="options"><option value="1" label="One"></option><option value="2" label="Two"></option><option value="" label="Empty"></option></template></template></cem-suggestions></form>`).join(''),
+    play: async ({ canvasElement }) => {
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-suggestions')) {
+            await whenCemRendered(host);
+            const field = host.querySelector<HTMLElement>('[slot=editor]') as HTMLElement; await whenCemRendered(field);
+            const input = field.querySelector('input') as HTMLInputElement, form = host.closest('form') as HTMLFormElement;
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+            expect(input.type).toBe('number'); expect(input).toHaveAccessibleName('Number');
+            expect(input.list?.options[0].value).toBe('1'); expect(input.list?.options[0].label).toBe('One');
+            const ids = [...canvasElement.querySelectorAll('datalist[id]')].map(node => node.id);
+            expect(new Set(ids).size).toBe(ids.length);
+            expect(host.querySelector('[part=surface]')).toBeNull(); expect(input.hasAttribute('role')).toBe(false);
+            expect(input.hasAttribute('aria-expanded')).toBe(false); expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+            input.focus(); await userEvent.type(input, '1');
+            await waitFor(() => expect(new FormData(form).get('choice')).toBe('1'));
+            expect(field.querySelector('input')).toBe(input); expect(document.activeElement).toBe(input);
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+            host.setAttribute('options-state', 'pending'); await whenCemRendered(host);
+            await waitFor(() => expect(input.hasAttribute('list')).toBe(false));
+            expect(input.value).toBe('1');
+            host.setAttribute('options-state', 'ready'); await whenCemRendered(host);
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+            host.setAttribute('filter', 'none'); await whenCemRendered(host);
+            await waitFor(() => expect(input.hasAttribute('list')).toBe(false));
+            host.removeAttribute('filter'); await whenCemRendered(host);
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+            for (const name of ['require-selection', 'selection-message', 'filter-by', 'options-query-revision']) {
+                host.setAttribute(name, ''); await whenCemRendered(host); await waitFor(() => expect(input.hasAttribute('list')).toBe(false));
+                host.removeAttribute(name); await whenCemRendered(host); await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+            }
+            form.reset(); await waitFor(() => expect(input.value).toBe(''));
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(2));
+        }
+    },
+});
+
+export const NativeProfileChangesReleaseThePreviousRoute = meta.story({
+    render: () => `<cem-suggestions profile="native-datalist"><template><cem-text-field slot="editor" label="Choice"></cem-text-field><template slot="options"><option value="a" label="Alpha"></option></template></template></cem-suggestions>`,
+    play: async ({ canvasElement }) => {
+        const host = canvasElement.querySelector<HTMLElement>('cem-suggestions') as HTMLElement;
+        await whenCemRendered(host); const field = host.querySelector<HTMLElement>('[slot=editor]') as HTMLElement; await whenCemRendered(field);
+        const input = field.querySelector('input') as HTMLInputElement;
+        await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(1));
+        host.setAttribute('profile', 'listbox'); await whenCemRendered(host);
+        await waitFor(() => expect(input.getAttribute('role')).toBe('combobox'));
+        expect(input.hasAttribute('list')).toBe(false); expect(host.querySelector('datalist')).toBeNull();
+        host.setAttribute('profile', 'native-datalist'); await whenCemRendered(host);
+        await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(1));
+        expect(input.hasAttribute('role')).toBe(false); expect(host.querySelector('[part=surface]')).toBeNull();
+        host.setAttribute('profile', 'unknown'); await whenCemRendered(host);
+        await waitFor(() => expect(input.hasAttribute('list')).toBe(false)); expect(input.hasAttribute('role')).toBe(false);
+        host.setAttribute('profile', 'native-datalist'); await whenCemRendered(host);
+        await waitFor(() => expect(input.list?.options.length, JSON.stringify(storybookCemRuntime().diagnosticsFor(host))).toBe(1));
+        expect(field.querySelector('input')).toBe(input);
+    },
+});
+
+export const NativeDatalistBrowserEditingEvidence = meta.story({
+    render: () => ['number', 'email', 'url'].map(type => `<form aria-label="${type}"><cem-suggestions profile="native-datalist"><template><cem-field slot="editor" type="${type}" name="value" label="${type}" min="0" max="3" step="1"></cem-field><template slot="options"><option value="${type === 'number' ? '1' : type === 'email' ? 'alice@example.com' : 'https://example.com/'}" label="${type === 'number' ? 'One' : 'Example'}"></option></template></template></cem-suggestions></form>`).join(''),
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return; // Native input attempt is browser-runner-only, not device/AT acceptance.
+        const { userEvent: nativeUserEvent } = await import('vitest/browser');
+        for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-suggestions')) {
+            await whenCemRendered(host); const field = host.querySelector<HTMLElement>('[slot=editor]') as HTMLElement & { value: string };
+            await whenCemRendered(field); const input = field.querySelector('input') as HTMLInputElement, form = host.closest('form') as HTMLFormElement;
+            await waitFor(() => expect(input.list?.options.length, JSON.stringify({type: input.type, diagnostics: storybookCemRuntime().diagnosticsFor(host), attributes: [...host.attributes].map(a => [a.name, a.value])})).toBe(1));
+            const submissions: Event[] = [], events: { type: string; trusted: boolean; value: string }[] = [];
+            const submit = (event: Event) => { event.preventDefault(); submissions.push(event); };
+            const record = (event: Event) => events.push({ type: event.type, trusted: event.isTrusted, value: input.value });
+            form.addEventListener('submit', submit); input.addEventListener('input', record); input.addEventListener('change', record);
+            try {
+                if (input.type === 'number') {
+                    await nativeUserEvent.click(input); await nativeUserEvent.keyboard('[ArrowDown][Enter]');
+                    console.info('Native datalist numeric picker attempt', JSON.stringify({ browser: navigator.userAgent, value: input.value, events }));
+                    // A stepped/typed value alone is not proof that the browser chose an option.
+                    expect(input.type).toBe('number'); expect(input.value).not.toBe('One');
+                    await nativeUserEvent.keyboard('{Control>}a{/Control}1');
+                    await waitFor(() => expect(new FormData(form).get('value')).toBe('1'));
+                    expect(events.filter(event => event.type === 'input').every(event => event.trusted)).toBe(true);
+                    field.value = '1.5'; expect(input.validity.stepMismatch).toBe(true);
+                    field.value = '8'; expect(input.validity.rangeOverflow).toBe(true);
+                    expect(new FormData(form).get('value')).toBe('8');
+                } else {
+                    field.value = input.type === 'email' ? '  alice@example.com  ' : '  https://example.com/  ';
+                    expect(input.value).toBe(input.type === 'email' ? 'alice@example.com' : 'https://example.com/');
+                    expect(new FormData(form).get('value')).toBe(input.value);
+                    field.value = 'invalid'; expect(input.validity.typeMismatch).toBe(true);
+                }
+                expect(host.querySelector('[part=surface]')).toBeNull(); expect(input.hasAttribute('aria-activedescendant')).toBe(false);
+            } finally { form.removeEventListener('submit', submit); input.removeEventListener('input', record); input.removeEventListener('change', record); }
+        }
+    },
+});

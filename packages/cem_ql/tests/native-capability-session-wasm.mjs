@@ -69,3 +69,24 @@ try {
     assert.ok(JSON.stringify(group.nodes).includes('Group'));
 } finally { wasm.disposeTemplate(suggestionLabel.artifactId); wasm.disposeTemplate(groupLabel.artifactId); wasm.disposeNativeCapabilitySession(suggestions); }
 console.log('native capability and suggestions session WASM checks passed');
+
+// Native datalist publications retain their source owner, with no query or row proof.
+const nativeSource = source('{option @value=1 @label=One}{option @value=1 @label=Duplicate}{option @value="" @label=Empty}');
+const nativeSession = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: nativeSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', limits);
+wasm.disposeReferenceSource(nativeSource);
+const nativeTemplate = JSON.parse(wasm.compileTemplate('{datalist | {cem:for-each @select=suggestions.children @as=row | {option @value={row.dom:attribute("value").value} @label={row.dom:attribute("label").value}}}}', '["suggestions"]'));
+try {
+    const prepared = JSON.parse(wasm.prepareNativeDatalist(nativeSession));
+    assert.equal(prepared.identity, 'cem-native-datalist-v1'); assert.equal(prepared.rows, 2);
+    assert.equal(prepared.diagnostics[0].code, 'cem.suggestions.datalist_empty_value');
+    assert.ok(prepared.diagnostics[0].sourceMap.frames.length);
+    for (const controls of ['{"query":"x"}', '{"active":0}', '[]', 'null']) assert.throws(() => wasm.publishNativeDatalist(nativeSession, 'bad', controls));
+    wasm.publishNativeDatalist(nativeSession, 'native', '{}');
+    const rendered = JSON.parse(wasm.renderNativeSuggestionsFrame(nativeSession, 'native', nativeTemplate.artifactId, '{}'));
+    assert.deepEqual(rendered.diagnostics, []); assert.equal(rendered.nodes[0].children.length, 2);
+    assert.ok(JSON.stringify(rendered).includes('One')); assert.ok(!JSON.stringify(rendered).includes('Empty'));
+    assert.throws(() => wasm.nativeSuggestionRowControls(nativeSession, 'native'));
+    wasm.releaseNativeSuggestions(nativeSession, 'native');
+    assert.throws(() => wasm.renderNativeSuggestionsFrame(nativeSession, 'native', nativeTemplate.artifactId, '{}'));
+    assert.throws(() => wasm.publishNativeDatalist(nativeSession, 'native', '{}'));
+} finally { wasm.disposeTemplate(nativeTemplate.artifactId); wasm.disposeNativeCapabilitySession(nativeSession); }

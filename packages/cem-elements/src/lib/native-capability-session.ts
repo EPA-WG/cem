@@ -25,7 +25,9 @@ export interface CemNativeSessionView {
     values: readonly NativeCemValue[];
 }
 /** Scalar control only. Sources, content and row identity stay in the native owner. */
+export type CemNativePublicationConfig = CemNativeSuggestionsConfig | { profile: 'native-datalist'; query?: never; queryRevision?: never; filter?: never };
 export interface CemNativeSuggestionsConfig {
+    profile?: never;
     query: string;
     queryRevision: number;
     filter?: 'contains' | 'prefix' | 'external' | 'none';
@@ -98,10 +100,19 @@ export class CemNativeCapabilitySession {
     }
     /** Host-owned publication; consumers route to this session's original processing owner. */
     async publishSuggestions(config: CemNativeSuggestionsConfig, current: () => boolean): Promise<CemNativeSuggestionsPublication> {
+        return this.publish(config, current);
+    }
+    async publishDatalist(controls: Record<string, never>, current: () => boolean): Promise<CemNativeSuggestionsPublication> {
+        if (this.suggestions?.identity !== 'cem-native-datalist-v1') throw new Error('Native datalist adapter is required');
+        return this.publish({ profile: 'native-datalist' }, current, structuredClone(controls));
+    }
+    private async publish(config: CemNativePublicationConfig, current: () => boolean, controls?: Record<string, never>): Promise<CemNativeSuggestionsPublication> {
         if (!this.suggestions || !current()) throw new Error('Native suggestions publication is unavailable');
         const publication = crypto.randomUUID(), captured = Object.freeze({ ...config });
         try {
-            const result = await this.run({ action: 'publish-suggestions', handle: this.handle, publication, suggestions: captured });
+            const result = await this.run(captured.profile === 'native-datalist'
+                ? { action: 'publish-datalist', handle: this.handle, publication, controls: controls ?? {} }
+                : { action: 'publish-suggestions', handle: this.handle, publication, suggestions: captured });
             if (result.status !== 'published' || !current()) throw new Error('Native suggestions publication was superseded');
             const admitted = createCemNativeSuggestionsPublication(captured, () => this.valid && current(),
                 input => this.run({ ...input, handle: this.handle }),

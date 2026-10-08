@@ -337,8 +337,11 @@ input and writes only `list`; authored relationships (including empty or later
 same-ID writes) remain authoritative. Grant loss, option/type changes, competing
 leases, revision changes and disconnect clear the claim and expire its admission.
 The producer owns option cleanup; source lifecycle transitions must refresh the
-coordinator. This is shared infrastructure: declarative native-profile selection
-and its WASM/worker source transport remain pending in the
+coordinator. The local declarative `profile="native-datalist"` path now uses this claim and a
+separate retained `native-datalist-v1` worker/fallback adapter. Its immutable
+`publishDatalist({})` publications share the native component-frame route,
+retain attributed source diagnostics, reject query controls and expose no
+row-selection proof. The default remains the custom listbox. See the
 [native profile design](../../docs/cem-suggestions-native-profiles-design.md).
 
 The package-private native capability-session transport retains executable sources

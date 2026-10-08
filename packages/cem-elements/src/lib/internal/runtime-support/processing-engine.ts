@@ -97,7 +97,7 @@ export class CemProcessingEngine {
     private readonly xpathLibraries = new CemXPathFunctionLibraries();
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
-    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1';
+    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1' | 'native-datalist-v1';
         publications: Map<string, { ready: boolean }>; publicationKeys: Set<string>; publicationKeyBytes: number }>();
     private readonly nativeSessionOperations = new Map<string, { handle: CemProcessingNativeSessionInput['handle'] }>();
     private readonly nativeSessionKeys = new Set<string>();
@@ -134,7 +134,7 @@ export class CemProcessingEngine {
             return { status: 'released', handle };
         }
         if (input.action === 'prepare') {
-            if (input.adapter !== undefined && input.adapter !== 'suggestions-v1') throw new TypeError('Unknown native source adapter');
+            if (input.adapter !== undefined && input.adapter !== 'suggestions-v1' && input.adapter !== 'native-datalist-v1') throw new TypeError('Unknown native source adapter');
             if (this.nativeSessions.size + this.nativeSessionOperations.size >= this.maxNativeSessionEntries) throw new RangeError('Native session capacity exceeded');
             if (this.nativeSessionKeys.has(key)) throw new Error('Native session identity was already issued; prepare a fresh session');
             if (this.nativeSessionKeys.size >= 100_000) throw new RangeError('Native session identity limit exceeded');
@@ -153,8 +153,10 @@ export class CemProcessingEngine {
             return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
         if (!retained) throw new Error('Native capability session is not retained; reacquire source authority');
-        if (input.action === 'publish-suggestions' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame' || input.action === 'suggestions-rows') {
-            if (retained.adapter !== 'suggestions-v1') throw new Error('A native publication requires the suggestions adapter');
+        if (input.action === 'publish-suggestions' || input.action === 'publish-datalist' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame' || input.action === 'suggestions-rows') {
+            if (!retained.adapter) throw new Error('A native publication requires the suggestions adapter');
+            if (input.action === 'publish-datalist' && retained.adapter !== 'native-datalist-v1'
+                || input.action === 'publish-suggestions' && retained.adapter !== 'suggestions-v1') throw new Error('Native publication profile differs from its source adapter');
             if (typeof input.publication !== 'string' || !input.publication || input.publication.length > 1024) throw new TypeError('Invalid native publication identity');
             if (input.action === 'publish-suggestions' && (!Number.isSafeInteger(input.suggestions.queryRevision) || input.suggestions.queryRevision < 0)) throw new TypeError('Invalid native suggestions query revision');
             if (input.action === 'render-suggestions-frame') {
@@ -164,7 +166,7 @@ export class CemProcessingEngine {
                     || new TextEncoder().encode(JSON.stringify(input.data)).byteLength > retained.limits.maxBytes) throw new RangeError('Native consumer frame byte limit exceeded');
             }
             let publication = retained.publications.get(input.publication);
-            if (input.action === 'publish-suggestions') {
+            if (input.action === 'publish-suggestions' || input.action === 'publish-datalist') {
                 if (retained.publicationKeys.has(input.publication)) throw new Error('Native publication identity was already issued');
                 const keyBytes = new TextEncoder().encode(input.publication).byteLength;
                 if (retained.publications.size >= retained.limits.maxValues || retained.publicationKeys.size >= Math.min(retained.limits.maxValues, 100_000)
@@ -177,10 +179,10 @@ export class CemProcessingEngine {
                 const result = await processRetainedSuggestionsPublication(retained.id, input);
                 if (this.disposed || this.nativeSessions.get(key) !== retained
                     || input.action !== 'release-suggestions' && retained.publications.get(input.publication) !== publication) throw new Error('Native publication result was superseded or released');
-                if (input.action === 'publish-suggestions' && publication) publication.ready = true;
+                if ((input.action === 'publish-suggestions' || input.action === 'publish-datalist') && publication) publication.ready = true;
                 return result;
             } catch (error) {
-                if (input.action === 'publish-suggestions') {
+                if (input.action === 'publish-suggestions' || input.action === 'publish-datalist') {
                     if (retained.publications.get(input.publication) === publication) retained.publications.delete(input.publication);
                     await processRetainedSuggestionsPublication(retained.id, { action: 'release-suggestions', handle, publication: input.publication }).catch(() => undefined);
                 }
@@ -392,7 +394,7 @@ export class CemProcessingEngine {
         const publication = live && owner?.publications.get(live.publication);
         const checkLive = () => {
             if (!live) return;
-            if (!owner || owner.adapter !== 'suggestions-v1' || !publication?.ready
+            if (!owner || !owner.adapter || !publication?.ready
                 || this.nativeSessions.get(live.handle.sessionKey) !== owner || owner.publications.get(live.publication) !== publication
                 || owner.handle.instanceId !== live.handle.instanceId || owner.handle.scopePolicyStamp !== live.handle.scopePolicyStamp
                 || owner.handle.sourceRevision !== live.handle.sourceRevision) {

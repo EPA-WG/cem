@@ -1,6 +1,7 @@
 <cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-suggestions" capability="suggestions" uid-seed="cem-components/cem-suggestions">
   <template id="cem-suggestions" type="text/cem-ml">
     {module |
+      {attribute @name=profile | listbox}
       {attribute @name=label | Suggestions}
       {attribute @name=pending-message | Loading suggestions.}
       {attribute @name=failure-message | Suggestions are unavailable.}
@@ -55,6 +56,15 @@
         {slot @name=options}
         {slot @name=option}
         {slot @name=group-label}
+        {cem:choose |
+          {cem:when @test='profile == "native-datalist"' |
+            {datalist @part=datalist |
+              {cem:for-each @select="datadom.slices.suggestions.children" @as=entry |
+                {option @value={entry.dom:attribute("value").value} @label={entry.dom:attribute("label").value}}
+              }
+            }
+          }
+          {cem:otherwise |
         {div @part=surface @role=listbox @popover=manual @aria-label="{$label}" |
           {cem:for-each @select="datadom.slices.suggestions.children" @as=entry |
             {cem:choose |
@@ -67,6 +77,8 @@
               }
               {cem:otherwise | {call @template=suggestion-row @with:row="{$entry}"}}
             }
+          }
+        }
           }
         }
         {div @part=status @role=status @aria-live=polite @aria-atomic=true

@@ -71,7 +71,8 @@ await installCemComponentPrimitives(runtime);
 {form | {cem-suggestions @label="{$datadom.slices.label}" @filter="{$datadom.slices.filter}" @filter-by={if datadom.slices.filter == "none" {null} else {datadom.slices.filterBy}} @options-state="{$datadom.slices.sourceState}" @require-selection={if datadom.slices.selection == "required" {true} else {null}} @selection-message="{$datadom.slices.selectionMessage}" @options-error="{$datadom.slices.optionsError}" @pending-message="{$datadom.slices.pendingMessage}" @failure-message="{$datadom.slices.failureMessage}" @empty-message="{$datadom.slices.emptyMessage}" @single-message="{$datadom.slices.singleMessage}" @multiple-message="{$datadom.slices.multipleMessage}" |
 {template | {cem-field @slot=editor @name=letter @label=Letter @disabled={if datadom.slices.fieldState == "disabled" {true} else {null}} @readonly={if datadom.slices.fieldState == "readonly" {true} else {null}} @invalid={if datadom.slices.fieldState == "invalid" {true} else {null}} | {span @slot=help | Type to filter; use Arrow keys and Enter to commit.}} {template @slot=options | {option @value=a @label=Alpha | Alpha}{option @value=b @label=Beta | Beta}}}}
 {cem-action @type=reset | Reset}}
-</template></cem-element><table><caption>First local profile</caption><tr><th>Input</th><th>Behavior</th></tr>
+</template></cem-element><table><caption>Local suggestion profiles</caption><tr><th>Input</th><th>Behavior</th></tr>
+<tr><td data-gallery-attribute="profile">profile</td><td>listbox (default): custom text-input list. native-datalist: browser-owned choices for text/search/tel/url/single-email/number; omit filtering, selection-proof and label-template controls.</td></tr>
 <tr><td data-gallery-attribute="label">label</td><td>Listbox accessible name; default Suggestions. The projected field owns its visible label and help.</td></tr>
 <tr><td>filter / filter-by</td><td>contains (default), prefix, none. label (default), value, or label value; omit filter-by with none.</td></tr>
 <tr><td>require-selection / selection-message</td><td>Require a committed native row; selection-message localizes the field-owned validity contribution.</td></tr>
@@ -79,7 +80,17 @@ await installCemComponentPrimitives(runtime);
 <tr><td><span data-gallery-attribute="pending-message">pending-message</span>, <span data-gallery-attribute="failure-message">failure-message</span>, <span data-gallery-attribute="empty-message">empty-message</span>, <span data-gallery-attribute="single-message">single-message</span>, <span data-gallery-attribute="multiple-message">multiple-message</span></td><td>Localized status text. %count substitutes the eligible count in the multiple message.</td></tr>
 <tr><td>editor, options, option, group-label slots</td><td>One direct native field; inert source options; optional isolated text/cem-ml label templates with native suggestion/group parameters.</td></tr>
 <tr><td>options / editor-for and revision inputs</td><td>Native host integration only. Explicit references need fresh host grants and conflict with equivalent local slots. No URL/JSON input shortcut.</td></tr>
-<tr><td>disabled, readonly, required, name, value, help, validation</td><td>These belong to the field. Attribute presence includes the text false.</td></tr><tr><td><span data-gallery-attribute="hidden">hidden</span>, <span data-gallery-attribute="class">class</span></td><td>Standard host visibility and consumer styling membership.</td></tr></table><cem-element><template type="text/cem-ml">
+<tr><td>disabled, readonly, required, name, value, help, validation</td><td>These belong to the field. Attribute presence includes the text false.</td></tr><tr><td><span data-gallery-attribute="hidden">hidden</span>, <span data-gallery-attribute="class">class</span></td><td>Standard host visibility and consumer styling membership.</td></tr></table>
+<cem-element><template type="text/cem-ml">
+{fieldset | {legend | Native numeric suggestions (browser support varies)}
+  {form | {cem-suggestions @profile=native-datalist |
+    {template | {cem-field @slot=editor @type=number @name=quantity @label=Quantity @min=0 @max=3 @step=1}
+      {template @slot=options | {option @value=1 @label=One}{option @value=2 @label=Two}{option @value=3 @label=Three}}}
+  }}
+  {p | The native input keeps numeric values and constraints. The browser owns the picker and filtering; this example does not require a suggestion selection.}
+}
+</template></cem-element>
+<cem-element><template type="text/cem-ml">
 {cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-suggestions"}
 {cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}} {cem-demo-element @legend="Canonical suggestions source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}
 </template></cem-element></main></body></html>

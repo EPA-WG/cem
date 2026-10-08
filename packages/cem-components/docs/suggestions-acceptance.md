@@ -47,8 +47,8 @@ isolated package archives with:
 yarn nx run @epa-wg/cem-components:verify-playgrounds -- --suggestions-only
 ```
 
-Numeric examples verify ordinary field editing only. Numeric suggestions remain
-in the additional-profile todo item. The public catalog identifies the attachment
+The original numeric gallery examples verify ordinary field editing only. The
+explicit native-datalist profile has separate evidence below. The public catalog identifies the attachment
 as declarative; category-state inventory and static material parity markers do
 not replace the interactive or physical acceptance records.
 
@@ -124,3 +124,40 @@ Evidence link / follow-up issue:
 No physical device, operating-system IME or assistive-technology run has been
 recorded for this revision. The template makes the remaining checks executable;
 it does not close their todo item.
+
+
+## Native-datalist profile: 2026-10-08
+
+The explicit local `profile="native-datalist"` implementation is available with
+both field providers. Tests retain the original input and form owner, stage
+native options before claiming `list`, and preserve browser types, constraints,
+labels and focus. Worker and fallback runs cover text/search/tel/url/single-email/
+number, grouped-source rejection and recovery, source withdrawal, reset/resume,
+policy revocation, conflicting controls and switching back to the default listbox.
+Concurrent attachments use distinct runtime-owned target IDs. Publications retain
+original sources and attributed omission diagnostics and offer no row commit proof.
+
+Run the production plays together with the shared transport/lifecycle cases:
+
+```sh
+yarn nx run cem-elements:test -- packages/cem-components/src/components/cem-suggestions/cem-suggestions.stories.ts packages/cem-elements/src/lib/native-datalist-attachment.stories.ts packages/cem-elements/src/lib/native-suggestions.stories.ts packages/cem-elements/src/lib/editor-datalist.stories.ts
+```
+
+| Case | Observed evidence | Acceptance status |
+| --- | --- | --- |
+| Numeric values versus labels | Native options expose value `1`, label One; ordinary native typing stores/submits `1` without a synthetic replacement transaction | Automated editing contract covered; selection remains unproven |
+| Actual numeric picker attempt | Linux HeadlessChrome 148.0.7778.96, original number input, browser-driven click then Arrow Down/Enter: value became `0`, with trusted input/change events | Spinbutton stepping observed; did **not** establish choosing One from a picker |
+| Native constraints | `1.5` triggers step mismatch and `8` triggers range overflow for min 0/max 3/step 1; submission retains the native value | Automated contract covered |
+| Email/URL sanitization | Native field value assignment trims surrounding spaces; invalid strings report native type mismatch | Automated contract covered; picker selection/filtering not established |
+| Pending/failed source | Withdraws `list` and old rendered options; recovery issues a fresh admission and preserves ordinary field editing | Automated lifecycle covered |
+| Semantics | Native types remain; no custom popup, active-descendant, synthetic commit or selection-proof API | DOM/event contract covered; spoken output untested |
+| Native filtering and actual selection | Needs headful browser interaction and evidence of choosing displayed options, including numeric One → `1` | Open |
+| Physical IME/mobile keyboard | Needs real OS candidate windows and device keyboards, including source changes while the native picker is open | Open |
+| Screen readers | Needs supported browser/device/AT combinations, label/help announcements and picker navigation | Open |
+
+These tests do not establish cross-browser native-picker acceptance. Chrome/Edge,
+Firefox and Safari runs must record browser/OS versions, device and AT, exact
+input type and steps, chosen visible label, resulting native value/FormData and
+source-withdrawal behavior. Keep this acceptance todo open until those runs are
+recorded. Unsupported native picker UI leaves ordinary editing available and
+must not activate a custom popup fallback.

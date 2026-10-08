@@ -212,11 +212,12 @@ export type CemProcessingValueResult = { value: NativeCemValue } | { text: strin
 /** Retained executable sources and live publications stay on the original owner. */
 export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
     | { action: 'prepare'; sources: CemNativeSessionSources | CemNativeSessionImport; data: Record<string, unknown>;
-        select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1';
+        select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1' | 'native-datalist-v1';
         labelTemplates?: { option?: string; group?: string };
         nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
     | { action: 'view'; expression: string; index?: number; suggestions?: CemNativeSuggestionsConfig }
     | { action: 'render'; template: string; index?: number; suggestions?: CemNativeSuggestionsConfig; groupLabel?: boolean }
+    | { action: 'publish-datalist'; publication: string; controls: Record<string, never> }
     | { action: 'publish-suggestions'; publication: string; suggestions: CemNativeSuggestionsConfig }
     | { action: 'render-suggestions-frame'; publication: string; template: string; data: Record<string, unknown>;
         consumer: { instanceId: string; scopePolicyStamp: string; revision: string } }

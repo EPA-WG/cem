@@ -1,4 +1,4 @@
-import type { CemNativeSuggestionsConfig } from './native-capability-session.js';
+import type { CemNativePublicationConfig } from './native-capability-session.js';
 import type { CemProcessingCompileInput, CemProcessingRenderDiffInput, CemProcessingRenderDiffResult, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
 import { assertProcessingBoundaryValue } from './projection.js';
 
@@ -16,7 +16,7 @@ export interface CemNativeSuggestionsComponentFrame {
 }
 export interface CemNativeSuggestionsBinding {
     readonly kind: 'cem-live-suggestions-binding-v1';
-    readonly config: Readonly<CemNativeSuggestionsConfig>;
+    readonly config: Readonly<CemNativePublicationConfig>;
     readonly valid: boolean;
     render(template: string, data: Record<string, unknown>): Promise<Rendered>;
     renderComponent(frame: CemNativeSuggestionsComponentFrame): Promise<CemProcessingRenderDiffResult>;
@@ -27,7 +27,7 @@ export interface CemNativeSuggestionsBinding {
 }
 export interface CemNativeSuggestionsPublication {
     readonly valid: boolean;
-    readonly config: Readonly<CemNativeSuggestionsConfig>;
+    readonly config: Readonly<CemNativePublicationConfig>;
     bind(consumer: CemNativeSuggestionsConsumer): CemNativeSuggestionsBinding;
     release(): Promise<void>;
 }
@@ -83,7 +83,7 @@ export function isCemNativeSuggestionsBinding(value: unknown): value is CemNativ
     return typeof value === 'object' && value !== null && bindings.has(value);
 }
 /** A live binding is exact transient authority, never a CEMV value or saved island. */
-export function createCemNativeSuggestionsPublication(config: Readonly<CemNativeSuggestionsConfig>, current: () => boolean,
+export function createCemNativeSuggestionsPublication(config: Readonly<CemNativePublicationConfig>, current: () => boolean,
     run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string,
     runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>,
     sourceForHandle: (handle: string) => CemNativeSuggestionSource): CemNativeSuggestionsPublication {
@@ -144,6 +144,7 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                 },
                 async rows() {
                     if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
+                    if (config.profile === 'native-datalist') throw new Error('Native datalist has no row selection proof');
                     const result = await run({ action: 'suggestions-rows', publication });
                     if (!admitted(this)) throw new Error('Native row preparation was superseded');
                     if (result.status !== 'rows') throw new Error('Invalid native row preparation reply');
@@ -158,6 +159,10 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                 async rowPlacements(result: CemProcessingRenderDiffResult) {
                     if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
                     const metadata = results.get(result);
+                    if (config.profile === 'native-datalist') {
+                        if (!metadata || metadata.length) throw new Error('Invalid native datalist frame');
+                        return Object.freeze([]);
+                    }
                     if (!metadata) throw new TypeError('Placement metadata requires the exact native render result');
                     if (!metadata.length) return Object.freeze([]);
                     const prepared = await binding.rows(), byHandle = new Map(prepared.map(row => [rowHandles.get(row), row]));

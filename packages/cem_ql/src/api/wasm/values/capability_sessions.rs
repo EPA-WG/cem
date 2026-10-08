@@ -11,9 +11,9 @@ pub(super) fn bind_publication(data: &mut TemplateData, id: u32, key: &str) -> R
             .get(&id)
             .ok_or("Unknown native publication owner")?;
         let view = session
-            .suggestions_publication(key)
+            .publication_root(key)
             .map_err(|e| e.message)?;
-        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view))
     })
 }
 fn session_error(message: impl ToString) -> JsValue {
@@ -237,6 +237,33 @@ pub fn publish_suggestions(id: u32, key: &str, config_json: &str) -> Result<(), 
         Ok(())
     })
 }
+#[wasm_bindgen(js_name = "publishNativeDatalist")]
+pub fn publish_datalist(id: u32, key: &str, controls: &str) -> Result<(), JsValue> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions.get(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
+        session.publish_datalist(key, controls).map_err(suggestions_error)
+    })
+}
+#[wasm_bindgen(js_name = "prepareNativeDatalist")]
+pub fn prepare_datalist(id: u32) -> Result<String, JsValue> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions.get(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
+        let view = session.datalist().map_err(suggestions_error)?;
+        let mut diagnostics = Vec::new();
+        let mut bytes = 0usize;
+        for d in view.warnings() {
+            let diagnostic = json!({"code":d.code,"message":d.message,"severity":"warning","sourceMap":d.source});
+            bytes = bytes.checked_add(diagnostic.to_string().len()).filter(|n| *n <= session.limits().max_bytes)
+                .ok_or_else(|| session_error("Datalist control byte limit exceeded"))?;
+            diagnostics.push(diagnostic);
+        }
+        let control = json!({"rows":view.len(),"groups":0,"identity":crate::suggestions::DATALIST_CONSUMER_IDENTITY,"diagnostics":diagnostics}).to_string();
+        if control.len() > session.limits().max_bytes { return Err(session_error("Datalist control byte limit exceeded")); }
+        Ok(control)
+    })
+}
 #[wasm_bindgen(js_name = "releaseNativeSuggestions")]
 pub fn release_suggestions(id: u32, key: &str) -> bool {
     SESSIONS.with(|sessions| {
@@ -272,7 +299,7 @@ pub fn render_suggestions_frame(
             let plan = session
                 .render_suggestions_frame(key, artifact.artifact(), data)
                 .map_err(suggestions_error)?;
-            Ok(plan_json_with_suggestions(&plan, session.limits(), Some(&session.suggestions_publication(key).map_err(suggestions_error)?)).to_string())
+            Ok(plan_json_with_suggestions(&plan, session.limits(), session.suggestions_publication(key).ok().as_ref()).to_string())
         })
     })
 }

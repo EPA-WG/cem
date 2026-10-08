@@ -13,6 +13,16 @@ use crate::{
 };
 use cem_ml::value::artifact::CemValueArtifactLimits;
 
+#[derive(Clone)]
+enum NativePublicationView {
+    Listbox(crate::suggestions::SuggestionsView),
+    Datalist(crate::suggestions::NativeDatalistView),
+}
+impl NativePublicationView {
+    fn root(&self) -> crate::eval::Item {
+        match self { Self::Listbox(view) => view.root(), Self::Datalist(view) => view.root() }
+    }
+}
 pub struct NativeCapabilitySession {
     // Retains all original owners, captured lexical scopes and directed grants.
     execution: ElementReferenceExecution,
@@ -25,7 +35,7 @@ pub struct NativeCapabilitySession {
     values: ItemStream,
     limits: CemValueArtifactLimits,
     publications: std::cell::RefCell<
-        std::collections::BTreeMap<String, (crate::suggestions::SuggestionsView, usize)>,
+        std::collections::BTreeMap<String, (NativePublicationView, usize)>,
     >,
     publication_keys: std::cell::RefCell<std::collections::BTreeSet<String>>,
     publication_bytes: std::cell::Cell<usize>,
@@ -325,9 +335,35 @@ impl NativeCapabilitySession {
         self.publication_keys.borrow_mut().insert(key.into());
         self.publications
             .borrow_mut()
-            .insert(key.into(), (view.clone(), charge));
+            .insert(key.into(), (NativePublicationView::Listbox(view.clone()), charge));
         self.publication_bytes.set(total);
         Ok(view)
+    }
+    /// Immutable native profile: no query, row-selection proof or conversion controls.
+    pub fn publish_datalist(&self, key: &str, controls: &str) -> Result<(), crate::suggestions::SuggestionsError> {
+        crate::suggestions::NativeDatalistConfig::parse(controls)?;
+        if controls.len() > self.limits.max_bytes || key.is_empty() || key.len() > 1024 || key.len() > self.limits.max_bytes {
+            return Err(suggestions_error("Invalid native publication identity or controls"));
+        }
+        if self.publication_keys.borrow().contains(key) {
+            return Err(suggestions_error("Native publication identity was already issued"));
+        }
+        if self.publications.borrow().len() >= self.limits.max_values
+            || self.publication_keys.borrow().len() >= self.limits.max_values.min(100_000) {
+            return Err(suggestions_error("Native publication capacity exceeded"));
+        }
+        let charge = key.len() + controls.len() + 128;
+        let total = self.publication_bytes.get().checked_add(charge).and_then(|n| n.checked_add(key.len()))
+            .filter(|n| *n <= self.limits.max_bytes).ok_or_else(|| suggestions_error("Native publication byte limit exceeded"))?;
+        let view = self.datalist()?;
+        self.publication_keys.borrow_mut().insert(key.into());
+        self.publications.borrow_mut().insert(key.into(), (NativePublicationView::Datalist(view), charge));
+        self.publication_bytes.set(total);
+        Ok(())
+    }
+    pub fn publication_root(&self, key: &str) -> Result<crate::eval::Item, crate::suggestions::SuggestionsError> {
+        self.publications.borrow().get(key).map(|(view, _)| view.root())
+            .ok_or_else(|| suggestions_error("Native publication is not retained; reacquire authority"))
     }
     /// Bounded scalar preparation; neither the source nor arbitrary selectors cross this bridge.
     pub fn suggestion_row_controls(
@@ -360,7 +396,7 @@ impl NativeCapabilitySession {
         self.publications
             .borrow()
             .get(key)
-            .map(|(view, _)| view.clone())
+            .and_then(|(view, _)| match view { NativePublicationView::Listbox(view) => Some(view.clone()), NativePublicationView::Datalist(_) => None })
             .ok_or_else(|| {
                 suggestions_error("Native publication is not retained; reacquire authority")
             })
@@ -381,8 +417,8 @@ impl NativeCapabilitySession {
         template: &TemplateArtifact,
         mut data: TemplateData,
     ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
-        let view = self.suggestions_publication(key)?;
-        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+        let root = self.publication_root(key)?;
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(root))
             .map_err(suggestions_error)?;
         let plan = render_compiled_template(template, &data);
         if plan

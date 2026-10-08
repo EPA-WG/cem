@@ -1,3 +1,4 @@
+import { createLocalDatalist, nativeDatalistConfiguration, type CemNativeDatalistAttachment } from './native-datalist-attachment.js';
 import { captureLocalSuggestions, localSuggestionsNamespaceStamp } from './local-suggestions-capture.js';
 import type { DataIslandSnapshot, CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
@@ -15,9 +16,12 @@ interface State {
     controller?: CemSuggestionsController;
     observer?: MutationObserver;
     stopReferences?: () => void;
+    focusListener?: () => void;
     queued: boolean;
     configuration?: string;
     local?: LocalState;
+    native?: CemNativeDatalistAttachment;
+    nativeConfiguration?: string;
     localBlocked?: boolean;
     feedback?: CemSuggestionsFeedback;
     status?: HTMLElement;
@@ -88,12 +92,17 @@ function presentFeedback(instance: HTMLElement, state: State, listbox: HTMLEleme
 /** Host revocation is synchronous; authorization and leases never enter a snapshot. */
 export function refreshCemSuggestionsAuthorization(instance: HTMLElement): void {
     const state = states.get(instance); if (!state) return;
+    const hadNative = !!state.native;
+    state.native?.release(); state.native = undefined; state.nativeConfiguration = undefined;
+    if (hadNative) state.context.requestRender();
     if (state.local) { stop(state); state.local.release(); state.local = undefined; }
     state.localBlocked = false;
     synchronize(instance, state);
 }
 export function localCemSuggestionsBinding(instance: HTMLElement, snapshot: DataIslandSnapshot): CemNativeSuggestionsBinding | undefined {
-    const local = states.get(instance)?.local;
+    const state = states.get(instance);
+    if (state?.native) return state.native.bind(snapshot);
+    const local = state?.local;
     if (!local?.binding?.valid || !local.options.current?.()) return undefined;
     // Each render acquires its own lease; the source/publication stay native.
     return local.publication?.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
@@ -229,6 +238,38 @@ function sourceConfiguration(instance: HTMLElement): string {
 }
 function synchronize(instance: HTMLElement, state: State): void {
     if (!instance.isConnected || !state.observer) return;
+    const profile = instance.getAttribute('profile') ?? 'listbox';
+    if (profile !== 'listbox') {
+        if (state.controller || state.local) { stop(state); releaseLocal(state); }
+        const configuration = nativeDatalistConfiguration(instance);
+        const ready = (instance.getAttribute('options-state') ?? 'ready') === 'ready';
+        if (state.nativeConfiguration !== configuration || !ready || profile !== 'native-datalist') {
+            state.native?.release(); state.native = undefined;
+            state.nativeConfiguration = configuration;
+        }
+        const nativeEndpoint = resolveCemSuggestionsEditor(instance, 'native-datalist');
+        const nativeSurface = instance.querySelector<HTMLElement>(':scope > datalist[part~="datalist"]');
+        if (!ready && nativeSurface && profile === 'native-datalist') {
+            state.feedback = { state: instance.getAttribute('options-state') === 'pending' ? 'pending' : 'failed',
+                queryRevision: 0, eligibleCount: 0, qualifying: !!nativeEndpoint.editor && instance.ownerDocument.activeElement === nativeEndpoint.editor };
+            presentFeedback(instance, state, nativeSurface);
+        } else { clearFeedback(state); state.feedback = undefined; }
+        if (profile !== 'native-datalist' || !ready) {
+            reportInteractionReference(instance, profile !== 'native-datalist' ? 'suggestions-profile-invalid' : 'suggestions-native-source-unavailable', 'suggestions-binding');
+            return;
+        }
+        if (!state.native) {
+            try {
+                const environment = state.context.runtime.localSuggestionsEnvironmentFor(instance);
+                if (!environment || state.localBlocked || state.context.runtime.suggestionsControllerInputsFor(instance)) throw new Error('Native datalist requires host admission');
+                state.native = createLocalDatalist(instance, state.context, environment, () => {
+                    state.native = undefined; state.context.requestRender();
+                }, () => { state.localBlocked = true; state.context.requestRender(); });
+            } catch { reportInteractionReference(instance, 'suggestions-native-profile-conflict', 'suggestions-binding'); return; }
+        }
+        state.native.reconcile(); return;
+    }
+    state.native?.release(); state.native = undefined; state.nativeConfiguration = undefined;
     const endpoint = resolveCemSuggestionsEditor(instance);
     let options: CemSuggestionsControllerOptions | undefined;
     try {
@@ -290,13 +331,16 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
             queue();
         });
         state.observer.observe(instance, { childList: true, subtree: true, attributes: true,
-            attributeFilter: ['require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options-error', 'options', 'editor-for', 'type', 'list', 'disabled', 'readonly', 'slot', 'part', 'role', 'popover', 'aria-live', 'aria-atomic', 'pending-message', 'failure-message', 'empty-message', 'single-message', 'multiple-message'] });
+            attributeFilter: ['profile', 'multiple', 'require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options-error', 'options', 'editor-for', 'type', 'list', 'disabled', 'readonly', 'slot', 'part', 'role', 'popover', 'aria-live', 'aria-atomic', 'pending-message', 'failure-message', 'empty-message', 'single-message', 'multiple-message'] });
         state.stopReferences = observeInteractionReferences(instance, queue);
+        state.focusListener = queue; instance.addEventListener('focusin', queue); instance.addEventListener('focusout', queue);
     },
     rendered(instance, context) { const state = states.get(instance); if (state) { state.context = context; synchronize(instance, state); } },
     disconnected(instance) {
         const state = states.get(instance); if (!state) return;
+        if (state.focusListener) { instance.removeEventListener('focusin', state.focusListener); instance.removeEventListener('focusout', state.focusListener); state.focusListener = undefined; }
         state.observer?.disconnect(); state.observer = undefined; state.queued = false; state.stopReferences?.(); state.stopReferences = undefined;
+        state.native?.release(); state.native = undefined; state.nativeConfiguration = undefined;
         stop(state); releaseLocal(state); state.localBlocked = false; state.configuration = undefined;
     },
 };

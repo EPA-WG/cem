@@ -42,6 +42,8 @@ import initCemQlWasm, {
     importReferenceReloadBundle,
     parseReferenceSource,
     prepareNativeCapabilitySession,
+    prepareNativeDatalist,
+    publishNativeDatalist,
     nativeCapabilitySessionLength,
     nativeSuggestionRowControls,
     exportNativeCapabilityView,
@@ -877,7 +879,7 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
                     if (input.adapter !== 'suggestions-v1') throw new TypeError('Label templates require the suggestions adapter');
                     nativeSessionCall(() => configureNativeSuggestionLabels(id, JSON.stringify(input.labelTemplates)));
                 }
-                const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
+                const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => input.adapter === 'native-datalist-v1' ? prepareNativeDatalist(id) : prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
                 const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
                     sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;
                 return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)), ...(suggestions ? { suggestions } : {}) };
@@ -900,7 +902,11 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
 
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
 export async function processRetainedSuggestionsPublication(id: number, input: Extract<CemProcessingNativeSessionInput,
-    { action: 'publish-suggestions' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {
+    { action: 'publish-suggestions' | 'publish-datalist' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {
+    if (input.action === 'publish-datalist') {
+        nativeSessionCall(() => publishNativeDatalist(id, input.publication, JSON.stringify(input.controls)));
+        return { status: 'published', handle: input.handle, publication: input.publication };
+    }
     if (input.action === 'publish-suggestions') {
         nativeSessionCall(() => publishNativeSuggestions(id, input.publication, JSON.stringify(input.suggestions)));
         return { status: 'published', handle: input.handle, publication: input.publication };
