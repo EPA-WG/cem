@@ -153,6 +153,49 @@ without the necessary admissions leaves the attachment inactive, not partially
 bound. Resume acquires fresh leases and grants; neither serialization nor local
 convenience lookup supplies them.
 
+### Local host authorization
+
+Adopted 2026-10-08: the embedding host may explicitly opt a runtime into local
+suggestions composition. The shared runtime then prepares native source sessions
+and issues the necessary property-specific placement grants for eligible local
+attachments. The default remains unconfigured/inactive. This is a host API
+policy, never an authored attribute, slot, data-island value or serialized grant.
+The explicit host preparation hooks remain available for other compositions.
+
+Local admission is confined to an attachment managed by that runtime, its one
+direct projected `slot="editor"` provider managed by the same runtime, its one
+direct inert `slot="options"` template (or the already-defined absent-source
+empty set), and its own committed listbox/row shells. Capture the template through
+the shared native CEM import boundary with original lexical bindings and effective
+scope policy; do not reconstruct source records from rendered options. Keep that
+source session across query changes, and replace it when the source changes.
+The local adapter must reject conflicting explicit inputs or ambiguous slots;
+it never falls back from an invalid explicit input to local defaults.
+
+The opt-in authorizes only that local source capture and these exact placement
+relationships: suggestions producer to editor provider for `editor-for`, editor
+producer to listbox for `aria-controls`, and editor producer to current native
+row placements for `aria-activedescendant`. The two directions use the existing
+coordinator and provider leases. Source handles, committed placement metadata,
+provider identity and current revisions must all agree before activation. A
+shared DOM ancestor, equal ID or same runtime does not admit an arbitrary external
+endpoint. Explicit external inputs and foreign source references still require
+host-prepared native inputs and their own directed grants; the local adapter
+cannot invent grants for references discovered inside a captured template.
+
+Host revocation, attachment disconnect, endpoint/source replacement and owner
+loss invalidate affected preparation, publications, placement grants and provider
+claims. Check the current authorization before and after asynchronous work so
+late completion cannot reactivate a revoked attachment. Reauthorization or resume
+starts collapsed and obtains fresh capture/admission and leases; saved IDs and
+snapshots restore no authority. Query changes alone retain the source session
+and replace only the immutable publication and its consumer leases.
+
+This policy is adopted; the shared opt-in adapter and its fixtures remain an
+[implementation action](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
+Existing explicit host hooks remain the implemented route until that action is
+complete. Production XHTML composition follows the adapter.
+
 Only one suggestions attachment may lease an editor and one controller may own
 the listbox. Competing claims suspend suggestions for that editor with a stable
 conflict diagnostic; mounting order cannot choose a winner. Rebinding first
@@ -338,8 +381,8 @@ interaction design. Loading/status announcements follow the source-data lifecycl
 | Whole menu/surface substitution | Keep label templates inside owned shells for the first profile; richer adoption needs separate semantic/visibility/authority evidence. |
 | Existing choice/autocomplete record normalization | Implement retained native adapters; copied records and value-as-identity would break the selected source and reference contracts. |
 
-Public XHTML composition still requires local host authorization and
-source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
+Public XHTML composition still requires the adopted local authorization adapter
+and source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
 provider, native source/view, placement and capability prerequisites are delivered.
 Complete the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)
@@ -402,8 +445,8 @@ The binding accepts only its exact render result and preserves native source ord
 `runtime.renderedSuggestionsFor(instance)` exposes the captured committed elements
 and opaque rows with a current-admission check; it supplies no grants by itself.
 A newer render attempt, disconnect or native owner loss expires that mapping.
-Production composition still requires a local host-authorization policy, recorded
-beside its implementation action in the active checklist. `editor-for` now has native singleton
+Production composition still requires implementation of the adopted
+[local host authorization](#local-host-authorization) policy in the active checklist. `editor-for` now has native singleton
 projection, a property-specific placement grant, and an exact-provider endpoint
 adapter. The adapter admits typed endpoints, scoped local names or a single direct
 editor slot, rejects ambiguous/conflicting/unsupported editors, and grants no

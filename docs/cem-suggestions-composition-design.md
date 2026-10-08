@@ -59,6 +59,11 @@ under the [reference consumer contract](cem-element-reference-ids-design.md).
 Cross-scope and cross-producer access requires the corresponding
 [source and placement grants](cem-element-granted-placements-design.md).
 An authored ID or a CSS selector neither supplies a grant nor proves identity.
+The adopted [local host authorization](cem-suggestions-attachment-design.md#local-host-authorization)
+policy lets an explicitly opted-in runtime prepare the local source and issue
+exact editor/listbox/row grants through the shared adapter. It remains inactive
+without host authorization; external bindings still need their own admissions.
+The adapter is pending implementation, while explicit host hooks remain available.
 The consumer may generate DOM IDs for accessible relationships; the runtime
 context and suggestion source need no authored root IDs.
 

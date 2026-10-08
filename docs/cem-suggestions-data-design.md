@@ -147,7 +147,14 @@ an already-evaluated native reference. Source nodes, scalar handles, prior-view
 rows and duplicate row placements are rejected. The annotation is removed before
 DOM/CEMV export. The runtime binds the metadata to exact committed elements under
 the current render attempt; neither saved IDs nor row positions restore it.
-The production declaration remains open pending local host authorization.
+The production declaration remains open pending the shared adapter for the adopted
+[local host authorization](cem-suggestions-attachment-design.md#local-host-authorization).
+Explicit host opt-in may authorize native capture of the attachment's local inert
+options template; it does not authorize foreign references inside that template.
+Capture retains original lexical bindings and effective bounds. Query filtering
+reuses the captured source session; source replacement or authorization loss
+invalidates it and any dependent publication/commit proof. The opt-in is host
+policy, excluded from source attributes and durable resume state.
 
 Request replacement/disconnect asks the shared resource owner to cancel its
 obsolete work. Cancellation may not stop an already finishing transport; every

@@ -641,7 +641,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       a trusted current-publication hook; original source-to-row placement
       admissions now activate provider claims through exact opaque native rows;
       automatic constructed-shell mapping is delivered; production composition
-      remains open pending the local host-authorization policy below.
+      remains open pending the local host-authorization adapter below.
       Owner-routed immutable publications and independent consumer-frame leases
       are delivered in worker/fallback modes. Copied/serialized bindings, stale
       in-flight results and post-loss authority fail closed. Native publication
@@ -663,7 +663,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       disconnect and source/publication loss. No mapping authority enters snapshots.
       Mapping verification: 53 focused Rust contracts, 72 unit checks, 16 browser
       checks, typecheck, lint (two existing warnings) and fresh package build/import
-      verification pass. Production composition awaits the local policy below.
+      verification pass. Production composition awaits the adopted local adapter below.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;
@@ -693,18 +693,36 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       - [x] Fixture: wire the shared declarative capability through an explicit
         trusted host preparation hook; reject missing authority, endpoint changes
         and copied/resumed row handles without creating component-local behavior.
-      - [ ] Decide local host authorization for production composition: explicit
-        runtime opt-in to native capture of local slotted options and the local
-        editor/listbox grants (recommended), or require host-provided source
-        sessions and grants for every attachment. Foreign source crossings keep
-        their explicit grants under either policy; slots alone confer none.
+      - [x] Decide local host authorization for production composition.
+        Adopted 2026-10-08: explicit runtime opt-in authorizes native capture of
+        local slotted options and exact local editor/listbox/row grants. Foreign
+        source crossings retain explicit grants; slots alone confer none. See
+        [local host authorization](cem-suggestions-attachment-design.md#local-host-authorization).
         Scenarios for later design verification: an unconfigured host stays
         inactive; local opt-in cannot admit unrelated foreign sources; revocation
         and resume require current authority.
+      - [ ] Implement the shared local suggestions authorization adapter before
+        production composition: expose a revocable host-only runtime opt-in,
+        capture the one local inert options template at the native CEM boundary,
+        retain its session across queries, and use exact provider/rendered-row
+        identities to issue property-specific placement grants in both directions.
+        Preserve explicit host hooks; diagnose input conflicts instead of falling
+        back or extending local admission to external endpoints/foreign references.
+        Fence asynchronous preparation and release affected sessions/publications,
+        grants and provider claims on revocation, replacement, disconnect or loss.
+        Fixture action: add native capture/grant cases first for retained lexical
+        scopes, bounds and denied foreign references; then worker/fallback browser
+        cases for unconfigured/local opt-in hosts, exact endpoint admission,
+        conflicting slots/explicit inputs, query reuse, source replacement,
+        revocation during preparation and fresh collapsed admission after resume.
+        Scenarios for later design verification: local composition needs no
+        per-attachment host preparation code after opt-in; copying attributes,
+        IDs or saved state cannot confer authority; stale work cannot restore
+        revoked relationships or commit proof, and unrelated attachments survive.
       - [ ] Assemble the production XHTML declaration with native options inputs,
         row/group label frames, rendered placement metadata, loading/failure/empty
         feedback and accessible label/description handoff. Depend on the local
-        host-authorization decision above; do not derive grants from authored IDs or row positions.
+        host-authorization adapter above; do not derive grants from authored IDs or row positions.
         Scenarios for later design verification: grouped/dynamic sources in both
         field types, slot conflicts, native source readiness, independent instances
         and fresh authority after resume.
