@@ -13,6 +13,10 @@ use std::{
 };
 
 pub const UNICODE_VERSION: &str = "17.0.0";
+pub(crate) mod datalist;
+pub use datalist::{
+    NativeDatalistConfig, NativeDatalistView, DATALIST_CONSUMER_IDENTITY, DATALIST_NAMESPACE,
+};
 mod placements;
 pub use placements::{project_suggestion_placements, SuggestionPlacement};
 mod labels;

@@ -602,6 +602,19 @@ returns only scalar counts, identity and attributed diagnostics. Explicit scalar
 projections export CEMV, while a whole live view fails rather than dropping its
 source/content edges. These APIs do not publish a public suggestions capability.
 
+`NativeCapabilitySession::datalist` caches a scalar native datalist projection;
+`bind_datalist_frame` binds it to the reserved `suggestions` slice without
+exporting its original source nodes. The view exposes ordered option value/label
+attributes and non-owning `source` links, retaining duplicate-value identities
+and authored descendant references. Groups and captured label templates are
+rejected; disabled/hidden rows are omitted and empty values emit attributed
+warnings. NativeDatalistConfig accepts only an empty explicit control object,
+rejecting query/filter/label/selection controls. The view has no commit state and
+cannot be exported as CEMV; explicit scalar extraction remains available.
+This Rust consumer is preparation for the [native profile](../../docs/cem-suggestions-native-profiles-design.md).
+Worker/WASM transport, provider list claims and declarative/browser integration
+remain delivery tasks; it does not yet enable a browser datalist profile.
+
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
 single native node; empty input returns empty, and other types/cardinalities

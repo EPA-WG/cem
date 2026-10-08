@@ -37,7 +37,8 @@ try {
 } finally { wasm.disposeTemplate(label.artifactId); wasm.disposeNativeCapabilitySession(session); }
 const suggestionSource = source('{optgroup @label=Group | {option @value=a | Apple}{option @value=same @label=Straße @selected=false | {#datadom.slices.later}}}{option @value=same | Second}');
 const suggestions = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: suggestionSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', limits);
-const bounded = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: suggestionSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', JSON.stringify({ maxBytes: 256, maxValues: 100000, maxDepth: 128 }));
+// 384 admits native source preparation but is below the 460-byte diagnostic envelope.
+const bounded = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: suggestionSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', JSON.stringify({ maxBytes: 384, maxValues: 100000, maxDepth: 128 }));
 try { assert.throws(() => wasm.prepareNativeSuggestions(bounded), /Suggestions control byte limit exceeded/); }
 finally { wasm.disposeNativeCapabilitySession(bounded); }
 wasm.disposeReferenceSource(suggestionSource);

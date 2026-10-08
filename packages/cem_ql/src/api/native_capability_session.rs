@@ -29,6 +29,9 @@ pub struct NativeCapabilitySession {
     >,
     publication_keys: std::cell::RefCell<std::collections::BTreeSet<String>>,
     publication_bytes: std::cell::Cell<usize>,
+    datalist: std::sync::OnceLock<
+        Result<crate::suggestions::NativeDatalistView, crate::suggestions::SuggestionsError>,
+    >,
     suggestions: std::sync::OnceLock<
         Result<
             std::sync::Arc<crate::suggestions::SuggestionsPlan>,
@@ -93,6 +96,7 @@ impl NativeCapabilitySession {
             publication_keys: Default::default(),
             publication_bytes: Default::default(),
             suggestions: Default::default(),
+            datalist: Default::default(),
         })
     }
     /// Configure isolated local templates once, before issuing any publication.
@@ -101,7 +105,10 @@ impl NativeCapabilitySession {
         option: Option<&str>,
         group: Option<&str>,
     ) -> Result<(), crate::suggestions::SuggestionsError> {
-        if self.labels.is_some() || !self.publication_keys.borrow().is_empty() {
+        if self.labels.is_some()
+            || !self.publication_keys.borrow().is_empty()
+            || self.datalist.get().is_some_and(Result::is_ok)
+        {
             return Err(suggestions_error(
                 "Label capture is immutable after preparation",
             ));
@@ -208,6 +215,33 @@ impl NativeCapabilitySession {
                 crate::suggestions::SuggestionsPlan::prepare(&self.values, self.limits.clone())
             })
             .clone()
+    }
+    /// Immutable native datalist projection; it has no per-query or commit state.
+    pub fn datalist(
+        &self,
+    ) -> Result<crate::suggestions::NativeDatalistView, crate::suggestions::SuggestionsError> {
+        if self
+            .labels
+            .as_ref()
+            .is_some_and(|(option, group)| option.is_some() || group.is_some())
+        {
+            return Err(crate::suggestions::datalist::configuration(
+                "Native datalist does not admit label templates",
+            ));
+        }
+        self.datalist
+            .get_or_init(|| crate::suggestions::NativeDatalistView::prepare(self.suggestions()?))
+            .clone()
+    }
+    /// Bind without exporting original source nodes or replacing the consumer envelope.
+    pub fn bind_datalist_frame(
+        &self,
+        data: &mut TemplateData,
+    ) -> Result<crate::suggestions::NativeDatalistView, crate::suggestions::SuggestionsError> {
+        let view = self.datalist()?;
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+            .map_err(suggestions_error)?;
+        Ok(view)
     }
     fn suggestions_frame(
         &self,

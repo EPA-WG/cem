@@ -274,3 +274,64 @@ fn label_body_inserts_completed_native_nodes_without_a_portable_round_trip() {
         "{html}"
     );
 }
+
+#[test]
+fn datalist_source_projection_retains_granted_scopes_and_independent_contexts() {
+    let relation = source("{#datadom.slices.options}");
+    let options = source("{cem-option @value=1 @label=One | {#datadom.slices.other}}");
+    let owner = options.source.ingress().source().clone();
+    let before = options
+        .source
+        .export_bundle(ReloadLimits::default())
+        .unwrap();
+    let a = prepare(
+        vec![relation.clone(), options.clone()],
+        &[(0, 1)],
+        TemplateData::default(),
+    )
+    .unwrap();
+    let b = prepare(
+        vec![relation.clone(), source("{cem-option @value=2 | Two}")],
+        &[(0, 1)],
+        TemplateData::default(),
+    )
+    .unwrap();
+    let av = a.datalist().unwrap();
+    let bv = b.datalist().unwrap();
+    let rows = av.root().view().unwrap().field("children").unwrap();
+    let retained = rows[0].view().unwrap().field("source").unwrap();
+    assert!(Arc::ptr_eq(
+        retained_cem_node(&retained[0]).unwrap().owner().ast_owner(),
+        owner.ast_owner()
+    ));
+    assert_ne!(
+        av.root().view().unwrap().identity(),
+        bv.root().view().unwrap().identity()
+    );
+    assert_eq!(
+        av.root().view().unwrap().identity(),
+        a.datalist().unwrap().root().view().unwrap().identity()
+    );
+    assert!(a
+        .evaluate("input.children.kind", Some(0))
+        .unwrap()
+        .items
+        .iter()
+        .any(|n| n.atom() == Some(AtomValue::String("reference".into()))));
+    assert_eq!(
+        options
+            .source
+            .export_bundle(ReloadLimits::default())
+            .unwrap(),
+        before
+    );
+    assert!(prepare(
+        vec![relation.clone(), options.clone()],
+        &[],
+        TemplateData::default()
+    )
+    .is_err());
+    let mut bounded = options;
+    bounded.policy.limits.max_work = 1;
+    assert!(prepare(vec![relation, bounded], &[(0, 1)], TemplateData::default()).is_err());
+}

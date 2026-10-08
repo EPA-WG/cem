@@ -1052,14 +1052,26 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       verification: an adopted listbox has one visibility/semantic owner, valid
       row mappings and fresh foreign placement authority, without menu behavior.
 
-- [ ] Implement the [native-datalist profile](cem-suggestions-native-profiles-design.md)
+- [x] Implement the [native-datalist profile](cem-suggestions-native-profiles-design.md)
       source projection: retain original owners/scopes, consume bounded ungrouped
       materialized sets, preserve value/label rules, omit unavailable/empty rows,
       and reject grouped/rich-label/query-dependent inputs with diagnostics.
       Fixture action: native Rust cases for numeric values versus word labels,
       missing/empty native values, duplicates, mixed families and scope/reference
-      bounds. Scenarios for later design verification: projection does not infer
+      bounds. Keep the WASM control-envelope fixture above the source-preparation
+      byte floor so it exercises the intended control bound.
+      Scenarios for later design verification: projection does not infer
       committed source identity or silently flatten groups; numeric value is `1`.
+      Delivered 2026-10-08: Rust sessions cache a distinct native datalist view
+      and bind it directly into the reserved suggestions frame. Original source
+      owners/scopes remain accessible, while ordered value/label projections
+      omit hidden/disabled/empty rows and attribute empty-value warnings. Groups,
+      captured label templates and explicit query/filter/selection controls are
+      rejected. CEMV export rejects the live view; scalar extraction is explicit.
+      Source/work/depth/byte bounds, grant denial, independent contexts and atomic
+      frame failures pass alongside the existing native consumer regressions:
+      41 focused Rust checks, the WASM build and native session bridge checks pass.
+      Browser/provider wiring remains in the following implementation items.
 
 - [ ] Add provider-owned datalist claims and native `list` placement admission:
       retain the original input, enforce exact current grants/unique target IDs,
@@ -1071,7 +1083,10 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 
 - [ ] Integrate explicit profile selection into the declarative attachment,
       accepting text/search/tel/url/single-email/number under the native profile;
-      keep custom listbox as the omitted default. Reject email-multiple,
+      keep custom listbox as the omitted default. Expose the native projection
+      through WASM/worker session transport with source retention, attributed
+      diagnostics, immutable publication lifetimes and control parsing; never
+      export/reload the live view as a portable substitute. Reject email-multiple,
       require-selection/vocabulary proof, custom filter and surface/label APIs
       in the native profile. Fixture action: both-field browser and source/package
       cases for native roles, constraints, FormData/events, original focus,

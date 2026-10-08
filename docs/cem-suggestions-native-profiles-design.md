@@ -135,6 +135,14 @@ source identity or a grant.
 
 ## Delivery and verification
 
+The native Rust source projection is delivered as
+`NativeCapabilitySession::datalist` and `bind_datalist_frame`, with a separate
+view namespace, cached original sources, attributed omission diagnostics and
+strict empty control-object parsing. The view exposes scalar option attributes
+and original source links, with no selection state or implicit portable export.
+WASM/worker exposure, provider claims, declaration integration and browser/device
+acceptance remain pending; no additional browser profile is enabled yet.
+
 Implementation actions and adjacent scenarios are retained in [todo.md](todo.md).
 Deliver native AST/source cases before shared provider claims and declaration
 integration. Prove that rejected profile configuration leaves the field usable.

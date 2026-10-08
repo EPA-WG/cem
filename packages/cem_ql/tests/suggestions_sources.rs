@@ -1285,3 +1285,184 @@ fn default_labels_preserve_rich_content_and_share_publication_budget() {
     assert!(bounded.publish_suggestions("bounded", &config("")).is_err());
     assert!(bounded.suggestions_publication("bounded").is_err());
 }
+
+#[test]
+fn datalist_projection_keeps_values_sources_and_omission_diagnostics() {
+    let s = session("{cem-option @value=1 @label=One | {#later}}{cem-option @value=1 | Another one}{cem-option @value=\"\" | Clear}{cem-option @value=2 @disabled | Two}{cem-option @value=3 @hidden | Three}");
+    let original = s.evaluate("input", None).unwrap();
+    let mut data = TemplateData::default();
+    let view = s.bind_datalist_frame(&mut data).unwrap();
+    assert_eq!(view.len(), 2);
+    assert_eq!(view.warnings().len(), 1);
+    assert_eq!(
+        view.warnings()[0].code,
+        "cem.suggestions.datalist_empty_value"
+    );
+    assert_eq!(
+        view.warnings()[0].source,
+        original.items[2].source_map().unwrap()
+    );
+    let rows = view.root().view().unwrap().field("children").unwrap();
+    assert_ne!(
+        rows[0].view().unwrap().identity(),
+        rows[1].view().unwrap().identity()
+    );
+    for (row, source) in rows.iter().zip(&original.items) {
+        let retained = row.view().unwrap().field("source").unwrap();
+        let a = retained_cem_node(&retained[0]).unwrap();
+        let b = retained_cem_node(source).unwrap();
+        assert!(Arc::ptr_eq(a.owner().ast_owner(), b.owner().ast_owner()));
+        assert_eq!(a.node_id(), b.node_id());
+        assert!(row.view().unwrap().field("committed").is_none());
+        assert!(row.view().unwrap().field("content").is_none());
+        assert!(row.view().unwrap().field("children").unwrap().is_empty());
+    }
+    let template = compile_template(
+        "{datalist | {cem:for-each @select=\"datadom.slices.suggestions.children\" @as=row | {option @value={row.dom:attribute(\"value\").value} @label={row.dom:attribute(\"label\").value}}}}",
+        &CompileTemplateOptions { host_bindings: vec!["datadom".into()], ..Default::default() },
+    );
+    let html = render_plan_to_html(&cem_ql::render::render_compiled_template(&template, &data));
+    assert!(html.contains("value=\"1\" label=\"One\""), "{html}");
+    assert!(html.contains("Another one"), "{html}");
+    assert!(
+        !html.contains("Clear") && !html.contains("#later"),
+        "{html}"
+    );
+    let source_template = compile_template(
+        "{p | {$datadom.slices.suggestions.children.source.children.expression}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["datadom".into()],
+            ..Default::default()
+        },
+    );
+    assert!(
+        render_plan_to_html(&cem_ql::render::render_compiled_template(
+            &source_template,
+            &data
+        ))
+        .contains("#later")
+    );
+    assert!(s.bind_datalist_frame(&mut data).is_err());
+    drop(s);
+    assert_eq!(
+        rows[0].view().unwrap().field("source").unwrap()[0]
+            .view()
+            .unwrap()
+            .identity(),
+        original.items[0].view().unwrap().identity()
+    );
+    assert!(cem_ql::eval::portable::export_values(
+        &ItemStream::once(view.root()),
+        &Default::default()
+    )
+    .is_err());
+}
+
+#[test]
+fn datalist_native_fallback_and_configuration_are_strict() {
+    let s = session("<root><option label='Displayed'> stored   text </option><option value=''>Clear</option><option value='+1'>Unmodified</option><option> A&#160;B </option></root>");
+    let view = s.datalist().unwrap();
+    let values = view
+        .root()
+        .view()
+        .unwrap()
+        .field("children")
+        .unwrap()
+        .iter()
+        .map(|row| {
+            row.view().unwrap().field("attributes").unwrap()[0]
+                .view()
+                .unwrap()
+                .field("value")
+                .unwrap()[0]
+                .atom()
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        values,
+        ["stored text", "+1", "A\u{a0}B"].map(|s| AtomValue::String(s.into()))
+    );
+    for config in [
+        "[]",
+        "null",
+        r#"{"filter":null}"#,
+        r#"{"query":"x"}"#,
+        r#"{"queryRevision":0}"#,
+        r#"{"filter":"none"}"#,
+        r#"{"filterBy":"value"}"#,
+        r#"{"optionLabel":"template"}"#,
+        r#"{"groupLabel":"template"}"#,
+        r#"{"committed":0}"#,
+    ] {
+        assert!(
+            cem_ql::suggestions::NativeDatalistConfig::parse(config).is_err(),
+            "{config}"
+        );
+    }
+    cem_ql::suggestions::NativeDatalistConfig::parse("{}").unwrap();
+    assert!(session("").datalist().unwrap().is_empty());
+}
+
+#[test]
+fn datalist_rejects_groups_mixed_families_labels_and_source_limits() {
+    for source in [
+        "{cem-option-group @label=Group | {cem-option @value=1 | One}}",
+        "{optgroup @label=Empty}",
+        "{cem-option @value=1 | One}{data @value=2 | Two}",
+    ] {
+        assert!(session(source).datalist().is_err(), "{source}");
+    }
+    let mut labeled = captured_session("<root xmlns='http://www.w3.org/1999/xhtml'><options><option value='1'>One</option></options><option-label type='text/cem-ml'>{span | Custom}</option-label></root>", Default::default(), TemplateData::default());
+    labeled
+        .configure_suggestion_labels(Some(OPTION_LABEL), None)
+        .unwrap();
+    assert_eq!(
+        labeled.datalist().unwrap_err().code,
+        "cem.suggestions.datalist_configuration"
+    );
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits {
+        max_depth: 1,
+        ..Default::default()
+    };
+    assert_eq!(
+        session_with_limits("{cem-option @value=1 | {span | Deep}}", limits)
+            .datalist()
+            .unwrap_err()
+            .code,
+        "cem.suggestions.limit"
+    );
+}
+
+#[test]
+fn datalist_failure_keeps_frames_atomic_and_enforces_work_and_bytes() {
+    for limits in [
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_values: 1,
+            ..Default::default()
+        },
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_bytes: 200,
+            ..Default::default()
+        },
+    ] {
+        let s = session_with_limits(
+            &format!("{{cem-option @value=1 | {}}}", "Label".repeat(100)),
+            limits,
+        );
+        let mut frame = TemplateData::default();
+        frame.bindings.insert(
+            "consumer".into(),
+            ItemStream::once(Item::Atomic(AtomValue::String("kept".into()))),
+        );
+        let before = format!("{:?}", frame.bindings);
+        assert_eq!(
+            s.bind_datalist_frame(&mut frame).unwrap_err().code,
+            "cem.suggestions.limit"
+        );
+        assert_eq!(format!("{:?}", frame.bindings), before);
+    }
+    let mut s = session("{cem-option @value=1 | One}");
+    s.datalist().unwrap();
+    assert!(s.configure_suggestion_labels(None, None).is_err());
+}
