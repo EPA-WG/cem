@@ -3,7 +3,8 @@
 Status: adopted design, 2026-10-07, under the user's instruction to continue
 with recommended options. This completes the popup-reuse comparison in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
-Runtime implementation and browser verification remain pending.
+The shared geometry prerequisite is implemented. Suggestions visibility,
+dismissal and semantic delegate integration remain pending.
 
 Use shared cem-elements geometry and surface services through an explicit
 suggestions profile. Its presentation is one native `popover="manual"` listbox,
@@ -93,10 +94,21 @@ by generating a trigger ID.
 One controller owns each actual surface. Registration checks producer identity,
 revision and profile; registering another profile on the same node must not
 silently reuse the earlier controller. Geometry subscriptions must be isolated
-per active surface lease. The current host-keyed `observePopupGeometry` map
-cannot simply be registered twice for different panels and assumed independent.
-Release listeners and style claims when that lease ends, preserving newer
-authored state rather than restoring a stale snapshot over it.
+per active surface lease. The implemented package-private
+`createCemSurfaceGeometryLease` isolates each actual panel under a shared host,
+rejects competing geometry owners and fences queued resize/mutation/viewport
+work when reset or released. Legacy host observers now retain independent
+registrations and their panel target sets. Release listeners and style claims
+when that lease ends, preserving newer authored values and priorities.
+Shorthand claims retain their individual longhands. The transient ownership
+registry is shared by runtime copies in one realm; it is not durable authority.
+
+Native dialog/tooltip adapters use those leases and retain their registered
+semantic kind. A changed kind requires disconnect and fresh registration.
+Geometry alone does not admit an editor or foreign placement, show/hide a
+native surface, choose dismissal regions or change focus. The suggestions
+manual-listbox delegate and coordinated native bindings remain explicit runtime
+actions.
 
 ## Placement and visibility
 
@@ -197,12 +209,16 @@ contracts or public surface kind names to make the new profile appear ready.
 The adopted attachment API identifies provider/surface roles explicitly;
 its native endpoint, provider lease and source/row view require implementation.
 
-Implementation needs an exclusive per-surface registry, isolated geometry
-leases, the editor-provider claim/commit boundary, manual-region dismissal,
-ancestor invalidation and generation-safe native visibility reconciliation.
+Geometry leases and their registration/style cleanup are implemented and verified
+with independent panels, stale callbacks, runtime copies and existing native
+dialog/tooltip/dropdown contracts. Implementation still needs the shared
+visibility/dismissal coordinator, suggestions editor-provider claims,
+manual-region dismissal, ancestor invalidation and generation-safe native
+visibility reconciliation.
 Those gaps and their scenarios are recorded beside the active TODO actions.
-Existing geometry tests and dropdown/native-surface stories are source evidence
-and regression inputs; they have not been rerun as proof of this new design.
+The existing logical geometry units and dropdown/native-surface stories now pass
+as regression checks for this prerequisite. They do not establish the full
+suggestions semantic profile or its accessibility interoperability.
 
 Before release, verify repeated independent fields, input identity/caret/focus
 through opening and refits, one commit/close route, pointer scrolling/cancellation,

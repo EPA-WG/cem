@@ -1,6 +1,6 @@
 import { getCemActionInvocation } from './action-command-capability.js';
 import { interactionReference, interactionControl, observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
-import { fitNativeSurface, nativeSurfaceGeometry, observePopupGeometry, releasePopupGeometry } from './popup-controller.js';
+import { createCemSurfaceGeometryLease, nativeSurfaceGeometry, type CemSurfaceGeometryLease } from './popup-controller.js';
 import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import { captureCemSurfaceInvocation, snapshotGeometryRect, type CemSurfaceInvocation } from './surface-invocation.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
@@ -14,10 +14,15 @@ export interface CemNativeSurfaceController {
     requestClose(reason?: string): boolean;
     disconnect(): void;
 }
-const controllers = new WeakMap<HTMLElement, NativeSurface>();
+const controllers = new WeakMap<HTMLElement, { controller: NativeSurface; kind?: CemNativeSurfaceKind }>();
 const defaultsInitialized = new WeakSet<HTMLElement>();
 let sessions = 0;
 function nativeDialog(node: HTMLElement): node is HTMLDialogElement { return node.localName === 'dialog'; }
+function surfaceKind(owner: HTMLElement, host: HTMLElement): CemNativeSurfaceKind | undefined {
+    const kind = host.getAttribute('kind');
+    if (kind) return kind === 'dialog' || kind === 'tooltip' ? kind : undefined;
+    return owner.getAttribute('role') === 'tooltip' ? 'tooltip' : nativeDialog(owner) || owner.getAttribute('role') === 'dialog' ? 'dialog' : undefined;
+}
 function visible(node: HTMLElement): boolean { return node.hasAttribute('popover') ? node.matches(':popover-open') : nativeDialog(node) && node.open; }
 function retainInvocation(invocation: CemSurfaceInvocation): CemSurfaceInvocation {
     return Object.freeze({ ...invocation, geometry: invocation.geometry && Object.freeze({
@@ -29,7 +34,8 @@ class NativeSurface implements CemNativeSurfaceController {
     private readonly abort = new AbortController();
     private readonly observer: MutationObserver;
     private readonly releaseReferences: () => void;
-    private readonly releaseGeometry: () => void;
+    private readonly geometry: CemSurfaceGeometryLease;
+    private readonly registeredKind?: CemNativeSurfaceKind;
     private readonly tooltipSources = new Map<HTMLElement, AbortController>();
     private readonly describedSources = new Map<HTMLElement, string>();
     private invocation?: CemSurfaceInvocation;
@@ -43,11 +49,12 @@ class NativeSurface implements CemNativeSurfaceController {
     private disposed = false;
     private timer?: ReturnType<typeof setTimeout>;
     constructor(readonly owner: HTMLElement, readonly host: HTMLElement) {
+        this.registeredKind = surfaceKind(owner, host);
+        this.geometry = createCemSurfaceGeometryLease(host, owner, () => this.reposition());
         const options = { signal: this.abort.signal }, root = owner.getRootNode();
         this.observer = new MutationObserver(() => { this.sync(); this.bindTooltipSources(); });
         this.observer.observe(owner, { attributes: true, attributeFilter: ['open', 'popover', 'hidden', 'role'], childList: true, subtree: true });
         this.releaseReferences = observeInteractionReferences(host, () => { this.sync(); this.bindTooltipSources(); this.reposition(); });
-        this.releaseGeometry = observePopupGeometry(host, () => this.reposition());
         owner.addEventListener('command', e => this.command(e as CommandEvent), options);
         owner.addEventListener('beforetoggle', e => {
             if (e.target !== owner) return;
@@ -97,22 +104,15 @@ class NativeSurface implements CemNativeSurfaceController {
         }, options);
         owner.addEventListener('pointerenter', () => this.cancelTimer(), options);
         owner.addEventListener('pointerleave', () => { if (this.kind() === 'tooltip') this.schedule(false, this.invocation, true); }, options);
-        const view = owner.ownerDocument.defaultView;
-        view?.addEventListener('resize', () => this.reposition(), options);
-        view?.addEventListener('scroll', () => this.reposition(), { ...options, capture: true });
-        view?.visualViewport?.addEventListener('resize', () => this.reposition(), options);
-        view?.visualViewport?.addEventListener('scroll', () => this.reposition(), options);
         this.bindTooltipSources(); this.sync();
     }
     private kind(): CemNativeSurfaceKind | undefined {
-        const kind = this.host.getAttribute('kind');
-        if (kind) return kind === 'dialog' || kind === 'tooltip' ? kind : undefined;
-        return this.owner.getAttribute('role') === 'tooltip' ? 'tooltip' : nativeDialog(this.owner) || this.owner.getAttribute('role') === 'dialog' ? 'dialog' : undefined;
+        return surfaceKind(this.owner, this.host);
     }
     private placement(): string { return this.host.getAttribute('placement') ?? (this.kind() === 'tooltip' ? 'block-start center' : 'center'); }
     private profile(): boolean {
         const kind = this.kind(), modal = this.host.getAttribute('mode') === 'modal' || this.owner.matches(':modal'), role = this.owner.getAttribute('role');
-        const invalid = !kind || !this.owner.isConnected || !this.host.isConnected || this.owner.hidden
+        const invalid = !kind || kind !== this.registeredKind || !this.owner.isConnected || !this.host.isConnected || this.owner.hidden
             || kind === 'dialog' && (!nativeDialog(this.owner) && !(role === 'dialog' && this.owner.hasAttribute('popover')) || role !== null && role !== 'dialog' && role !== 'alertdialog')
             || kind === 'tooltip' && (role !== 'tooltip' || !this.owner.hasAttribute('popover') || this.owner.querySelector('button,a[href],input,select,textarea,[contenteditable]:not([contenteditable="false"]),[tabindex]'))
             || modal && (kind !== 'dialog' || !nativeDialog(this.owner) || this.owner.hasAttribute('popover') || this.host.getAttribute('presentation') === 'local')
@@ -214,7 +214,7 @@ class NativeSurface implements CemNativeSurfaceController {
         if (open && !this.wasOpen) {
             if (!this.profile() || !this.reposition()) {
                 if (this.owner.hasAttribute('popover')) this.owner.hidePopover(); else if (nativeDialog(this.owner)) this.owner.close();
-                releasePopupGeometry(this.owner);
+                this.geometry.reset();
                 this.prepared = false; this.invocation = undefined; this.phase = 'closed'; this.reflect(); return;
             }
             this.wasOpen = true; this.prepared = false; this.phase = 'open'; this.reflect();
@@ -222,7 +222,7 @@ class NativeSurface implements CemNativeSurfaceController {
             else this.describe(this.invocation?.source);
             this.emit('cem-open', false, 'activate');
         } else if (!open && this.wasOpen) {
-            this.wasOpen = false; this.phase = 'closed'; this.prepared = false; releasePopupGeometry(this.owner); this.reflect();
+            this.wasOpen = false; this.phase = 'closed'; this.prepared = false; this.geometry.reset(); this.reflect();
             if (this.kind() === 'dialog' && this.restore) restoreSurfaceFocus(this.host, this.invocation?.returnDestination ?? this.invocation?.source);
             this.emit('cem-close', false, this.closeReason); this.invocation = undefined; this.restore = false;
         } else if (!open) { this.prepared = false; this.phase = 'closed'; this.invocation = undefined; this.reflect(); }
@@ -230,7 +230,7 @@ class NativeSurface implements CemNativeSurfaceController {
     }
     private reposition(): boolean {
         if (this.disposed || !visible(this.owner)) return false;
-        const ok = fitNativeSurface(this.host, this.owner, this.invocation?.source, this.invocation?.geometry, this.placement());
+        const ok = this.geometry.fit(this.invocation?.source, this.invocation?.geometry, this.placement());
         if (!ok && this.wasOpen && (this.host.getAttribute('anchor-lost') ?? (this.kind() === 'dialog' ? 'freeze' : 'close')) !== 'freeze') this.requestClose('anchor-lost');
         return ok;
     }
@@ -299,7 +299,7 @@ class NativeSurface implements CemNativeSurfaceController {
         if (this.disposed) return;
         this.cancelTimer(); this.closeReason = 'disconnect'; this.restore = false;
         if (visible(this.owner)) { if (this.owner.hasAttribute('popover')) this.owner.hidePopover(); else if (nativeDialog(this.owner)) this.owner.close(); this.sync(); }
-        this.disposed = true; this.abort.abort(); this.observer.disconnect(); this.releaseReferences(); this.releaseGeometry(); releasePopupGeometry(this.owner);
+        this.disposed = true; this.abort.abort(); this.observer.disconnect(); this.releaseReferences(); this.geometry.release();
         for (const abort of this.tooltipSources.values()) abort.abort(); this.tooltipSources.clear();
         for (const source of this.describedSources.keys()) this.forgetDescription(source);
         this.describedSources.clear(); this.invocation = undefined; this.activation = undefined; controllers.delete(this.owner);
@@ -307,8 +307,12 @@ class NativeSurface implements CemNativeSurfaceController {
 }
 export function connectCemNativeSurface(owner: HTMLElement, options: { host?: HTMLElement } = {}): CemNativeSurfaceController {
     const host = options.host ?? owner, existing = controllers.get(owner);
-    if (existing) { if (existing.host !== host) throw new TypeError('Native surface already has a semantic owner'); return existing; }
-    const controller = new NativeSurface(owner, host); controllers.set(owner, controller); return controller;
+    if (existing) {
+        if (existing.controller.host !== host) throw new TypeError('Native surface already has a semantic owner');
+        if (existing.kind !== surfaceKind(owner, host)) throw new TypeError('Native surface already has a different semantic profile');
+        return existing.controller;
+    }
+    const controller = new NativeSurface(owner, host); controllers.set(owner, { controller, kind: surfaceKind(owner, host) }); return controller;
 }
 const providerControllers = new WeakMap<HTMLElement, CemNativeSurfaceController>();
 export const CEM_NATIVE_SURFACE_CAPABILITY: CemProducedElementBehavior = {

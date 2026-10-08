@@ -86,6 +86,18 @@ rerender, while disconnect cleans sessions and resources. Authors supply names
 on native owners. Component migration and lazy body preparation remain separate;
 see the [implemented adapter contract](../../docs/cem-interaction-design.md#implemented-shared-native-surface-adapter).
 
+Shared geometry now gives each actual panel an exclusive transient lease. A
+host can fit several surfaces without replacing another surface's observer.
+Queued resize, mutation and viewport updates are coalesced and fenced on reset
+or release. Cleanup restores only current geometry claims, preserving newer
+authored style values, priorities and placement attributes; shorthand claims
+retain their longhands. Runtime copies share ownership within the realm.
+Native dialog/tooltip registrations retain their semantic kind and require
+fresh registration after a kind change. Geometry supplies no source/placement
+authority, visibility or focus policy. Suggestions' manual-listbox delegate,
+native publication/bindings and public declaration remain pending in
+[the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
+
 Declarations may publish an exact Semantic Version for SSR adoption:
 
 ```html

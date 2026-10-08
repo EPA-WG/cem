@@ -509,13 +509,66 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       the two existing non-null-assertion warnings. Component publication and
       outbound native bindings remain in the runtime action below.
 
-- [ ] Implement the shared editor-provider boundary, synchronous user-commit
-      transaction and reset/restore/rebinding notifications in cem-elements,
-      then the suggestions capability and declarative field composition after
-      the remaining design items settle. Inventory and add applicable native
+- [x] Extract shared surface geometry leases before the suggestions semantic
+      delegate. Isolate observations and fitting by actual panel under a shared
+      host; reject competing geometry owners and fence queued callbacks, reset
+      and disposal by the current lease. Restore only owned styles/placement
+      claims, preserving newer authored state. Keep native dialog/tooltip
+      registrations bound to their original semantic profile.
+      Fixture action: add browser cases before implementation for independent
+      panels/anchors, observer disposal and reacquisition, stale fitting/release,
+      authored style priorities, profile conflicts and exact native visibility;
+      rerun existing native-surface, dropdown and logical-placement contracts.
+      Scenarios for later design verification: one surface's cleanup never
+      removes another surface's observers; queued work cannot regain ownership;
+      source and packaged runtimes cannot claim the same panel concurrently;
+      suggestions adds its own focus/dismissal delegate to the shared geometry.
+      Completed 2026-10-07: each panel has an exclusive transient lease shared
+      across runtime copies, isolated observations and coalesced viewport work.
+      Reset/disposal fence pending updates; style/placement cleanup preserves
+      authored values and individual shorthand longhand priorities. Native
+      dialog/tooltip adapters consume the lease and keep their original kind.
+      Thirteen browser plays including existing native-surface, typed relationship
+      and dropdown regressions, plus 25 logical/declaration unit checks pass.
+      Build, typecheck, lint and fresh cache-bypassed npm package verification
+      pass; the two existing lint warnings remain. Visibility/dismissal and
+      native publication are the next separate prerequisites below.
+
+- [ ] Extract the shared native visibility/dismissal session service and add the
+      manual-listbox semantic delegate using the completed geometry leases.
+      Require one admitted editor/surface relationship and explicit readiness;
+      preserve editor focus, inspect actual native visibility, reject external
+      opening without admission and invalidate sessions with ancestor lifetime.
+      Keep the existing dialog/tooltip/menu profiles on their own focus/close
+      rules. Shared services must not filter sources or commit field values.
+      Fixture action: add exact-owner, direct native open/hide, stale generation,
+      independent surfaces, ancestor teardown and editor/listbox dismissal-region
+      browser contracts before the delegate; rerun native profile regressions.
+      Scenarios for later design verification: geometry cannot reopen a dismissed
+      session; opening/refits preserve the existing editor/caret; an invalid
+      anchor or zero-size surface never exposes expanded state; nested Escape
+      and native parent teardown follow one close route without focus restoration.
+
+- [ ] Publish the retained suggestions view into component native frames and
+      outbound bindings, then coordinate editor-provider attributes and original
+      source-to-row placement claims through host-issued admissions in both
+      directions. Reserve the native slice against authored writes, keep source
+      identity distinct from output IDs, and reacquire all authority on resume.
+      Fixture action: add native-frame contracts first and browser worker/fallback
+      cases for native bindings, independent consumers, conflicting editor claims,
+      stale row mappings, invalidated grants and coordinated producer revisions.
+      Scenarios for later design verification: separately produced editor and
+      listbox relationships activate together; filtering retains original row
+      identities; a stale view cannot restore an active descendant or authority;
+      releasing one claim preserves authored and unrelated ARIA relationships.
+
+- [ ] Implement the suggestions controller/capability and declarative field
+      composition over the completed editor-provider and native source contracts.
+      Use the visibility/dismissal and native-publication prerequisites above.
+      Inventory and add applicable native
       metadata/constraint forwarding on both field declarations before promising
       the legacy surface. Add focused fixture actions before implementation.
-      Extract shared profile-neutral surface/geometry/dismissal services, add the
+      Use the shared geometry leases and visibility/dismissal services, add the
       manual-listbox delegate and isolated per-surface leases, and preserve current
       dropdown/dialog/tooltip behavior with regression fixtures. Admit no source-
       or component-local popup controller or broadened button endpoint shortcut.
@@ -552,7 +605,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       and list. The shared native source/view transport, atomic source/text/filter
       adapters and native row/group label frames are delivered. Reserved
       suggestions view publication/outbound bindings, attribute/placement claims,
-      surface services, suggestions capability and declarative composition remain
+      visibility/dismissal services, suggestions capability and declarative composition remain
       open; do not mark this complete from the provider foundation alone.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
@@ -657,6 +710,17 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       `cem-theme-switch.stories.ts`. Scenarios for later design verification:
       theme rerenders preserve declaration/instance/group identity and action
       routing while the per-component authoring rule remains enforced.
+
+## Preserve runtime package verification invalidation
+
+- [ ] Fix cem-elements verify-package cache invalidation after runtime build
+      outputs change. Fixture action: add or change a packaged runtime module,
+      then prove the package check reruns against the new dist contents.
+      Evidence 2026-10-07: after the geometry build added three dist files, the
+      normal target replayed a cached 183-file result; cache-bypassed verification
+      ran against the new 186-file package and passed. Scenarios for later design
+      verification: a changed emitted runtime file or required packaged notice
+      invalidates verification; an unchanged build may reuse its verified result.
 
 ## Respect action states in cem-icon-button
 
