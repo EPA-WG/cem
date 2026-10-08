@@ -29,25 +29,60 @@
         "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
         "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml"
     }
-}</script>
+}
+    </script>
     <script type="module">
         import { installCemElementRuntime } from '@epa-wg/cem-elements';
         import { installCemComponentPrimitives } from '@epa-wg/cem-components';
         import '@epa-wg/cem-demo-element';
+
         const runtime = installCemElementRuntime(window, { processingPoolPolicy: { queueSize: 512 } });
         window.cemPlaygroundRuntime = runtime;
         await installCemComponentPrimitives(runtime);
     </script>
     <link rel="stylesheet" href="../demo.css">
     <style>
-        body { margin: 0; font-family: system-ui, sans-serif; }
-        #playground-theme { box-sizing: border-box; min-block-size: 100vh; padding: var(--cem-dim-large); }
-        main { display: block; }
-        .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--cem-dim-large); }
-        .preview { padding: var(--cem-dim-large); border: var(--cem-stroke-boundary) solid currentColor; }
-        .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
-        .examples > article { min-inline-size: 0; }
-        cem-demo-element { display: block; margin-block: var(--cem-dim-large); }
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+        }
+
+        #playground-theme {
+            box-sizing: border-box;
+            min-block-size: 100vh;
+            padding: var(--cem-dim-large);
+        }
+
+        main {
+            display: block;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+            gap: var(--cem-dim-large);
+        }
+
+        .preview {
+            padding: var(--cem-dim-large);
+            border: var(--cem-stroke-boundary) solid currentColor;
+        }
+
+        .examples {
+            display: grid;
+            gap: var(--cem-dim-large);
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+        }
+
+        .examples > article {
+            min-inline-size: 0;
+        }
+
+        cem-demo-element {
+            display: block;
+            margin-block: var(--cem-dim-large);
+        }
+
         /* Five real hr siblings show the panel painting over in-flow content. */
         #playground-theme cem-demo-element > [slot="demo"] {
             flex-direction: column;
@@ -57,84 +92,409 @@
             padding-block-start: calc(4 * var(--cem-menu-row-height) + var(--cem-gap-group));
             padding-block-end: var(--cem-gap-group);
         }
+
         #playground-theme cem-demo-element > [slot="demo"] hr {
             align-self: stretch;
             inline-size: 100%;
             margin-block: calc(var(--cem-menu-row-height) / 2);
         }
-        #playground-theme cem-demo-element > [slot="demo"] > :is(div, cem-element) { inline-size: 100%; }
+
+        #playground-theme cem-demo-element > [slot="demo"] > :is(div, cem-element) {
+            inline-size: 100%;
+        }
+
         [data-gallery-theme] {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: var(--cem-gap-group);
         }
-        [data-gallery-theme] > cem-dropdown[disabled] { order: -1; }
-        @media (max-width: 700px) { .workspace { grid-template-columns: 1fr; } }
+
+        [data-gallery-theme] > cem-dropdown[disabled] {
+            order: -1;
+        }
+
+        @media (max-width: 700px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
 <cem-element hidden>
-<template type="text/cem-ml">
-{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
-{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+    <template type="text/cem-ml">
+        {cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+        {cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav
+        @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
 
-{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
-{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
-{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
-{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
-{cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
-{cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
-{cem-module-url @slice=dropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
-{cem:if @test="datadom.slices.dropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup @src="{$datadom.slices.dropdownUrl}#cem-dropdown"}}
-{cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu"}
-{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
-{cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
-{cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu @capability=composite-menu @src="{$datadom.slices.commandUrl}#cem-menu"}}
-{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
-{cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
-</template>
+        {cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+        {cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control
+        @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+        {cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+        {cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control
+        @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+        {cem-module-url @slice=themeSwitchUrl @src="@epa-wg/cem-components/components/cem-theme-switch"}
+        {cem:if @test="datadom.slices.themeSwitchUrl" | {cem-element @tag=cem-theme-switch
+        @src="{$datadom.slices.themeSwitchUrl}#cem-theme-switch"}}
+        {cem-module-url @slice=dropdownUrl @src="@epa-wg/cem-components/components/cem-dropdown"}
+        {cem:if @test="datadom.slices.dropdownUrl" | {cem-element @tag=cem-dropdown @capability=popup
+        @src="{$datadom.slices.dropdownUrl}#cem-dropdown"}}
+        {cem-module-url @slice=commandUrl @src="@epa-wg/cem-components/components/cem-menu"}
+        {cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+        {cem-module-url @slice=stylesUrl @src="@epa-wg/cem-components/styles.css"}
+        {cem:if @test="datadom.slices.commandUrl" | {cem-element @tag=cem-menu @capability=composite-menu
+        @src="{$datadom.slices.commandUrl}#cem-menu"}}
+        {cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+        {cem:if @test="datadom.slices.stylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.stylesUrl}"}}
+    </template>
 </cem-element>
 
-<div id="playground-theme" class="cem-theme-light"><cem-gallery-nav heading="cem-dropdown: Full examples and variation matrix"></cem-gallery-nav>
-<p class="component-description">A trigger and positioned panel for arbitrary content. Compose <a href="./cem-menu-gallery.html">cem-menu</a> and <a href="./cem-menu-item-gallery.html">cem-menu-item</a> inside the panel for nested command navigation; use <a href="./cem-select-gallery.html">cem-select</a> for value selection.</p>
-<p><a href="./cem-dropdown.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-dropdown/cem-dropdown.stories.ts">Automated stories</a></p>
-<main><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li><li data-gallery-attribute="open"><code>open</code></li><li data-gallery-attribute="disabled"><code>disabled</code></li><li data-gallery-attribute="aria-label"><code>aria-label</code></li><li data-gallery-attribute="hidden"><code>hidden</code></li><li data-gallery-attribute="class"><code>class</code></li><li data-gallery-attribute="dir"><code>dir</code></li></ul><p><code>label</code> supplies fallback trigger text (Dropdown). <code>open="false"</code> closes the panel; other values open it, preserving source visibility semantics (default true). <code>disabled</code> and <code>hidden</code> use presence. <code>aria-label</code> names the fallback trigger separately. <code>class</code> and <code>dir</code> are supported. The <code>base</code> slot replaces the trigger; the default slot supplies panel content.</p>
-<p>Use native click, Enter or Space to toggle, ArrowDown to open and focus, Escape to close and restore focus. Tab and outside activation dismiss without a trap. Menu leaf activation dismisses the complete popup chain. Exercise real hover, press, keyboard focus and expansion. Each example includes five horizontal-rule siblings: an open panel paints over them, and closing it reveals the same rules underneath.</p>
-<cem-demo-element legend="HTML in dropdown" description="Any HTML payload is retained; source open=true shows the content."><template slot="source">
-<cem-dropdown label="Image in drop" open="true"><img src="./assets/wc-square.svg" alt="Custom element logo" width="64" height="64"><p>Arbitrary content</p></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="Menu in dropdown" description="A column menu inside the default slot; choose menu mode for composite navigation."><template slot="source">
-<cem-dropdown label="Vertical menu" open="false"><cem-menu direction="column" keyboard="menu" aria-label="Navigation"><a href="#one">First link</a><a href="#two">Second link</a><a href="#three">Third link</a></cem-menu></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="Hide dropdown dynamically" description="Change open via shared declarative controls; false closes it."><template slot="source">
-<cem-element><template type="text/cem-ml">{slice @name=opened | true}{fieldset @slice=opened @slice-event=change @slice-value="$target.value" | {legend | open}{cem-radio @name=dropdown-open @value=true @checked=true | true}{cem-radio @name=dropdown-open @value=false | false}}{cem-dropdown @label="Vertical menu" @open="{$datadom.slices.opened}" | {cem-menu @direction=column | {a @href=#one | First link}{a @href=#two | Second link}}}</template></cem-element>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="Projected base" description="The base slot replaces the fallback button. Supply a native button or another focusable trigger."><template slot="source">
-<cem-dropdown open="false"><button slot="base" type="button"><span aria-hidden="true">▾</span> Custom trigger</button><p>Custom content</p></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="Nested menus" description="Open Commands, File, then Export. Each Escape closes only the nearest popup and restores its trigger."><template slot="source">
-<cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="RTL and viewport edges" description="Panels flip and clamp to the viewport; arrows inherit RTL."><template slot="source">
-<div dir="rtl"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div>
-</template></cem-demo-element>
-<cem-demo-element legend="Disabled and hidden" description="Presence disables activation or hides the whole dropdown."><template slot="source">
-<cem-dropdown label="Disabled" disabled open="false"><p>Unavailable</p></cem-dropdown><cem-dropdown hidden label="Hidden"><p>Hidden content</p></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<cem-demo-element legend="Token overrides" description="Override consumed action and geometry tokens."><template slot="source">
-<cem-dropdown label="Customized" open="false" style="--cem-action-contextual-default-background: lightblue; --cem-action-contextual-default-text: navy; --cem-control-padding-x: 2rem"><p>Custom panel</p></cem-dropdown>
-<hr/><hr/><hr/><hr/><hr/>
-</template></cem-demo-element>
-<h2>Five theme variation matrix</h2><cem-demo-element legend="Theme light" description="Compare real default, disabled, focus and expansion paint."><template slot="source"><div class="cem-theme-light" data-gallery-theme="light"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><cem-dropdown label="Disabled" open="false" disabled></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div></template></cem-demo-element>
-<cem-demo-element legend="Theme dark" description="Compare real default, disabled, focus and expansion paint."><template slot="source"><div class="cem-theme-dark" data-gallery-theme="dark"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><cem-dropdown label="Disabled" open="false" disabled></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div></template></cem-demo-element>
-<cem-demo-element legend="Theme contrast-light" description="Compare real default, disabled, focus and expansion paint."><template slot="source"><div class="cem-theme-contrast-light" data-gallery-theme="contrast-light"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><cem-dropdown label="Disabled" open="false" disabled></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div></template></cem-demo-element>
-<cem-demo-element legend="Theme contrast-dark" description="Compare real default, disabled, focus and expansion paint."><template slot="source"><div class="cem-theme-contrast-dark" data-gallery-theme="contrast-dark"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><cem-dropdown label="Disabled" open="false" disabled></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div></template></cem-demo-element>
-<cem-demo-element legend="Theme native" description="Compare real default, disabled, focus and expansion paint."><template slot="source"><div class="cem-theme-native" data-gallery-theme="native"><cem-dropdown label="Commands" open="false"><cem-menu keyboard="menu" direction="column" aria-label="Commands"><cem-menu-item label="File"><cem-menu slot="submenu"><cem-menu-item label="New"></cem-menu-item><cem-menu-item label="Export"><cem-menu slot="submenu"><cem-menu-item label="PDF"></cem-menu-item><cem-menu-item label="Text"></cem-menu-item></cem-menu></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Edit"><cem-menu slot="submenu"><cem-menu-item label="Copy"></cem-menu-item></cem-menu></cem-menu-item><cem-menu-item label="Help" href="#help"></cem-menu-item></cem-menu></cem-dropdown><cem-dropdown label="Disabled" open="false" disabled></cem-dropdown><hr/><hr/><hr/><hr/><hr/></div></template></cem-demo-element>
-</main></div></body></html>
+<div id="playground-theme" class="cem-theme-light">
+    <cem-gallery-nav heading="cem-dropdown: Full examples and variation matrix"></cem-gallery-nav>
+    <p class="component-description">A trigger and positioned panel for arbitrary content. Compose <a
+        href="./cem-menu-gallery.html">cem-menu</a> and <a href="./cem-menu-item-gallery.html">cem-menu-item</a> inside
+        the panel for nested command navigation; use <a href="./cem-select-gallery.html">cem-select</a> for value
+        selection.</p>
+    <p><a href="./cem-dropdown.html">Property playground</a> · <a
+        href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-dropdown/cem-dropdown.stories.ts">Automated
+        stories</a></p>
+    <main><h2>Public attributes and slots</h2>
+        <ul>
+            <li data-gallery-attribute="label"><code>label</code></li>
+            <li data-gallery-attribute="open"><code>open</code></li>
+            <li data-gallery-attribute="disabled"><code>disabled</code></li>
+            <li data-gallery-attribute="aria-label"><code>aria-label</code></li>
+            <li data-gallery-attribute="hidden"><code>hidden</code></li>
+            <li data-gallery-attribute="class"><code>class</code></li>
+            <li data-gallery-attribute="dir"><code>dir</code></li>
+        </ul>
+        <p><code>label</code> supplies fallback trigger text (Dropdown). <code>open="false"</code> closes the panel;
+            other values open it, preserving source visibility semantics (default true). <code>disabled</code> and
+            <code>hidden</code> use presence. <code>aria-label</code> names the fallback trigger separately.
+            <code>class</code> and <code>dir</code> are supported. The <code>base</code> slot replaces the trigger; the
+            default slot supplies panel content.</p>
+        <p>Use native click, Enter or Space to toggle, ArrowDown to open and focus, Escape to close and restore focus.
+            Tab and outside activation dismiss without a trap. Menu leaf activation dismisses the complete popup chain.
+            Exercise real hover, press, keyboard focus and expansion. Each example includes five horizontal-rule
+            siblings: an open panel paints over them, and closing it reveals the same rules underneath.</p>
+        <cem-demo-element legend="HTML in dropdown"
+                          description="Any HTML payload is retained; source open=true shows the content.">
+            <template slot="source">
+                <cem-dropdown label="Image in drop" open="true">
+                    <img src="./assets/wc-square.svg" alt="Custom element logo" width="64" height="64">
+                    <p>Arbitrary content</p>
+                </cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Menu in dropdown"
+                          description="A column menu inside the default slot; choose menu mode for composite navigation.">
+            <template slot="source">
+                <cem-dropdown label="Vertical menu" open="false">
+                    <cem-menu direction="column" keyboard="menu" aria-label="Navigation"><a href="#one">First link</a><a
+                        href="#two">Second link</a><a href="#three">Third link</a></cem-menu>
+                </cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Hide dropdown dynamically"
+                          description="Change open via shared declarative controls; false closes it.">
+            <template slot="source">
+                <cem-element>
+                    <template type="text/cem-ml">{slice @name=opened | true}{fieldset @slice=opened @slice-event=change
+                        @slice-value="$target.value" | {legend | open}{cem-radio @name=dropdown-open @value=true
+                        @checked=true | true}{cem-radio @name=dropdown-open @value=false | false}}{cem-dropdown
+                        @label="Vertical menu" @open="{$datadom.slices.opened}" | {cem-menu @direction=column | {a
+                        @href=#one | First link}{a @href=#two | Second link}}}
+                    </template>
+                </cem-element>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Projected base"
+                          description="The base slot replaces the fallback button. Supply a native button or another focusable trigger.">
+            <template slot="source">
+                <cem-dropdown open="false">
+                    <button slot="base" type="button"><span aria-hidden="true">▾</span> Custom trigger</button>
+                    <p>Custom content</p></cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Nested menus"
+                          description="Open Commands, File, then Export. Each Escape closes only the nearest popup and restores its trigger.">
+            <template slot="source">
+                <cem-dropdown label="Commands" open="false">
+                    <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                        <cem-menu-item label="File">
+                            <cem-menu slot="submenu">
+                                <cem-menu-item label="New"></cem-menu-item>
+                                <cem-menu-item label="Export">
+                                    <cem-menu slot="submenu">
+                                        <cem-menu-item label="PDF"></cem-menu-item>
+                                        <cem-menu-item label="Text"></cem-menu-item>
+                                    </cem-menu>
+                                </cem-menu-item>
+                            </cem-menu>
+                        </cem-menu-item>
+                        <cem-menu-item label="Edit">
+                            <cem-menu slot="submenu">
+                                <cem-menu-item label="Copy"></cem-menu-item>
+                            </cem-menu>
+                        </cem-menu-item>
+                        <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                    </cem-menu>
+                </cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="RTL and viewport edges"
+                          description="Panels flip and clamp to the viewport; arrows inherit RTL.">
+            <template slot="source">
+                <div dir="rtl">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Disabled and hidden"
+                          description="Presence disables activation or hides the whole dropdown.">
+            <template slot="source">
+                <cem-dropdown label="Disabled" disabled open="false"><p>Unavailable</p></cem-dropdown>
+                <cem-dropdown hidden label="Hidden"><p>Hidden content</p></cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Token overrides" description="Override consumed action and geometry tokens.">
+            <template slot="source">
+                <cem-dropdown label="Customized" open="false"
+                              style="--cem-action-contextual-default-background: lightblue; --cem-action-contextual-default-text: navy; --cem-control-padding-x: 2rem">
+                    <p>Custom panel</p></cem-dropdown>
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+                <hr />
+            </template>
+        </cem-demo-element>
+        <h2>Five theme variation matrix</h2>
+        <cem-demo-element legend="Theme light" description="Compare real default, disabled, focus and expansion paint.">
+            <template slot="source">
+                <div class="cem-theme-light" data-gallery-theme="light">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <cem-dropdown label="Disabled" open="false" disabled></cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Theme dark" description="Compare real default, disabled, focus and expansion paint.">
+            <template slot="source">
+                <div class="cem-theme-dark" data-gallery-theme="dark">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <cem-dropdown label="Disabled" open="false" disabled></cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Theme contrast-light"
+                          description="Compare real default, disabled, focus and expansion paint.">
+            <template slot="source">
+                <div class="cem-theme-contrast-light" data-gallery-theme="contrast-light">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <cem-dropdown label="Disabled" open="false" disabled></cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Theme contrast-dark"
+                          description="Compare real default, disabled, focus and expansion paint.">
+            <template slot="source">
+                <div class="cem-theme-contrast-dark" data-gallery-theme="contrast-dark">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <cem-dropdown label="Disabled" open="false" disabled></cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+        <cem-demo-element legend="Theme native"
+                          description="Compare real default, disabled, focus and expansion paint.">
+            <template slot="source">
+                <div class="cem-theme-native" data-gallery-theme="native">
+                    <cem-dropdown label="Commands" open="false">
+                        <cem-menu keyboard="menu" direction="column" aria-label="Commands">
+                            <cem-menu-item label="File">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="New"></cem-menu-item>
+                                    <cem-menu-item label="Export">
+                                        <cem-menu slot="submenu">
+                                            <cem-menu-item label="PDF"></cem-menu-item>
+                                            <cem-menu-item label="Text"></cem-menu-item>
+                                        </cem-menu>
+                                    </cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Edit">
+                                <cem-menu slot="submenu">
+                                    <cem-menu-item label="Copy"></cem-menu-item>
+                                </cem-menu>
+                            </cem-menu-item>
+                            <cem-menu-item label="Help" href="#help"></cem-menu-item>
+                        </cem-menu>
+                    </cem-dropdown>
+                    <cem-dropdown label="Disabled" open="false" disabled></cem-dropdown>
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            </template>
+        </cem-demo-element>
+    </main>
+</div>
+</body>
+</html>

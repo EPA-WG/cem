@@ -1720,3 +1720,26 @@ until final [Phases 10 and 11](../roadmap.md#phase-10---figma-ui-kit). Their
 checklists live only in the roadmap. Finish and verify `cem-elements` and the
 declarative `cem-components` migration first, then the remaining non-Figma phases
 through Phase 9 release governance.
+
+
+## Finish retained working-tree edits
+
+- [x] Reconcile the uncommitted dropdown gallery formatting/overlay experiment
+      with the adopted five-separator and reserved-clearance examples. Restore
+      bounded image geometry, rebuild pages, and run existing menu/dropdown
+      verification in source, generated and installed packages.
+      Scenarios for later design verification: initially open panels remain
+      within their demo region; exactly five real separators retain hit-testing,
+      hover and reveal-on-close behavior across themes and narrow layouts.
+- [x] Remove the obsolete `.reference-edit.py` migration helper after verifying
+      its tokenizer, projection schema, inspection and design edits are already
+      incorporated; do not reapply its superseded design text.
+      Completed 2026-10-08: helper effects are present in the tokenizer test,
+      projection schema/inspection and adopted reference design; removed the
+      untracked helper without replaying it. The gallery experiment diverged
+      from the completed overlay requirements in the
+      [archived checklist](archive/todo-snapshot-2026-10-07.md#dropdown-sibling-filler-demonstration).
+      Preserved readable formatting and restored the five fillers, image bounds
+      and overlay clearance. `verify-menu-dropdown` and its build prerequisites
+      pass across source/generated/installed pages, five themes, narrow layouts,
+      overlay hit-testing, scrolling and forced colors.
