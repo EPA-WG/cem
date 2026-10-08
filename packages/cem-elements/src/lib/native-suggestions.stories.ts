@@ -216,7 +216,10 @@ export const PublicationOwnerLossRequiresFreshLeases: Story = {
         const binding = publication.bind({ instanceId: 'consumer', scopePolicyStamp: 'consumer', revision: '1', current: () => true });
         try {
             if (!worker) throw new Error('Missing native publication worker');
+            const rows = await binding.rows(), lost: string[] = [];
+            binding.subscribe(() => lost.push('binding')); rows[0].source.subscribe(() => lost.push('source'));
             worker.dispatchEvent(new ErrorEvent('error', { message: 'publication owner loss' }));
+            expect(lost).toContain('binding'); expect(lost).toContain('source'); expect(rows[0].valid).toBe(false);
             await expect(binding.render('{span | {$datadom.slices.suggestions.children.content}}', {})).rejects.toThrow();
             await expect(binding.valid).toBe(false); await expect(publication.valid).toBe(false);
             const resumed = await CemNativeCapabilitySession.prepare(host, request('{cem-option @value=x | Fresh}'), () => true);

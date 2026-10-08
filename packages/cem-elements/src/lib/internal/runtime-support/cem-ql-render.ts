@@ -42,6 +42,7 @@ import initCemQlWasm, {
     importReferenceReloadBundle,
     prepareNativeCapabilitySession,
     nativeCapabilitySessionLength,
+    nativeSuggestionRowControls,
     exportNativeCapabilityView,
     renderNativeCapabilityTemplate,
     disposeNativeCapabilitySession,
@@ -879,10 +880,14 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
 }
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
 export async function processRetainedSuggestionsPublication(id: number, input: Extract<CemProcessingNativeSessionInput,
-    { action: 'publish-suggestions' | 'release-suggestions' | 'render-suggestions-frame' }>): Promise<CemProcessingNativeSessionResult> {
+    { action: 'publish-suggestions' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {
     if (input.action === 'publish-suggestions') {
         nativeSessionCall(() => publishNativeSuggestions(id, input.publication, JSON.stringify(input.suggestions)));
         return { status: 'published', handle: input.handle, publication: input.publication };
+    }
+    if (input.action === 'suggestions-rows') {
+        const rows = JSON.parse(nativeSessionCall(() => nativeSuggestionRowControls(id, input.publication))) as Extract<CemProcessingNativeSessionResult, { status: 'rows' }>['rows'];
+        return { status: 'rows', handle: input.handle, rows };
     }
     if (input.action === 'release-suggestions') {
         nativeSessionCall(() => releaseNativeSuggestions(id, input.publication));

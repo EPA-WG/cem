@@ -800,3 +800,45 @@ fn filter_modes_and_native_state_are_strict_and_independent() {
         Some(AtomValue::Boolean(false))
     );
 }
+
+#[test]
+fn admitted_row_handles_prepare_only_bounded_current_commit_values() {
+    let s = session("{cem-option @value=same | First}{cem-option @value=same | Second}{cem-option @value=no @disabled | Disabled}");
+    s.publish_suggestions("first", &config("First")).unwrap();
+    let first = s.suggestion_row_controls("first").unwrap();
+    assert_eq!(first.len(), 3);
+    assert_eq!(first[0].value, "same");
+    assert!(first[0].eligible);
+    assert!(!first[1].eligible);
+    assert!(!first[2].eligible);
+    assert_ne!(first[0].handle, first[1].handle);
+    assert!(s.suggestion_row_control("first", "forged").is_err());
+    s.publish_suggestions("second", &config("Second")).unwrap();
+    let second = s.suggestion_row_controls("second").unwrap();
+    assert_eq!(first[0].handle, second[0].handle);
+    assert!(!second[0].eligible);
+    assert!(second[1].eligible);
+    assert!(s.release_suggestions("first"));
+    assert!(s.suggestion_row_control("first", &first[0].handle).is_err());
+    assert!(
+        s.suggestion_row_control("second", &first[1].handle)
+            .unwrap()
+            .eligible
+    );
+    let replacement = session("{cem-option @value=same | First}");
+    replacement
+        .publish_suggestions("second", &config("First"))
+        .unwrap();
+    assert!(replacement
+        .suggestion_row_control("second", &first[0].handle)
+        .is_err());
+    let bounded = session_with_limits(
+        "{cem-option @value=x | Choice}",
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_bytes: 512,
+            ..Default::default()
+        },
+    );
+    bounded.publish_suggestions("ready", &config("")).unwrap();
+    assert_eq!(bounded.suggestion_row_controls("ready").unwrap().len(), 1);
+}

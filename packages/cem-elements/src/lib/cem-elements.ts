@@ -127,6 +127,8 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
+import { CEM_SUGGESTIONS_CAPABILITY } from './suggestions-capability.js';
+import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
 import { CEM_NATIVE_SURFACE_CAPABILITY } from './native-surface.js';
 import { CEM_ACTION_CONTROL_CAPABILITY } from './action-control-capability.js';
@@ -558,6 +560,8 @@ export type CemModuleUrlReferrer = string | Node;
 export interface CemElementRuntimeOptions {
     /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
     nativeSuggestionsInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot) => readonly CemNativeSuggestionsBinding[];
+    /** Explicit host preparation/placement authority; transient and excluded from islands. */
+    suggestionsControllerInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot) => CemSuggestionsControllerOptions | undefined;
     /** Pinned DOM relationship export contract; the Recommendation is the default. */
     ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Host-issued placement authority and synchronous publication checks. */
@@ -732,6 +736,10 @@ export interface CemDeclarationRegistrationOptions {
  * cem-elements and are versioned as part of the declaration identity.
  */
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
+    'suggestions': {
+        behavior: CEM_SUGGESTIONS_CAPABILITY,
+        behaviorIdentity: 'cem-elements-suggestions-v1',
+    },
     'native-surface': {
         behavior: CEM_NATIVE_SURFACE_CAPABILITY,
         behaviorIdentity: 'cem-elements-native-surface-v2',
@@ -1755,6 +1763,7 @@ export class CemElementRuntime {
     private readonly referenceInputControllers = new WeakMap<HTMLElement, AbortController>();
     private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
     private readonly nativeSuggestionsInputsOption?: CemElementRuntimeOptions['nativeSuggestionsInputs'];
+    private readonly suggestionsControllerInputsOption?: CemElementRuntimeOptions['suggestionsControllerInputs'];
     private readonly nativeSuggestionsBindings = new WeakMap<HTMLElement, CemNativeSuggestionsBinding>();
     private readonly nativeSuggestionsCompilations = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileInput>>();
     private readonly placementCoordinator?: CemElementPlacementCoordinator;
@@ -1794,6 +1803,7 @@ export class CemElementRuntime {
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.elementReferenceInputsOption = options.elementReferenceInputs;
         this.nativeSuggestionsInputsOption = options.nativeSuggestionsInputs;
+        this.suggestionsControllerInputsOption = options.suggestionsControllerInputs;
         this.placementCoordinator = options.placementCoordinator;
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
@@ -2457,6 +2467,11 @@ export class CemElementRuntime {
     /** Read the effective declaration version without reserving a property on the produced element. */
     declarationVersionFor(instance: HTMLElement): string | null {
         return this.declarationForInstance(instance)?.declarationVersion ?? null;
+    }
+
+    /** Trusted capability hook. A serialized declaration cannot manufacture this authority. */
+    suggestionsControllerInputsFor(instance: HTMLElement): CemSuggestionsControllerOptions | undefined {
+        return this.suggestionsControllerInputsOption?.(instance, this.snapshotInstance(instance));
     }
 
     /** Refresh host-owned reference readiness/authority without changing authored attributes. */

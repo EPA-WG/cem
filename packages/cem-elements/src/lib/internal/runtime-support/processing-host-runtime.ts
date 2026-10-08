@@ -69,6 +69,7 @@ class CemProcessingWorkerTransport {
     private readonly pending = new Map<number, PendingWorkerRequest>();
     private readySettled = false;
     private failed = false;
+    private readonly failureListeners = new Set<() => void>();
     private resolveReady!: (ready: CemProcessingReadyEnvelope) => void;
     private rejectReady!: (error: unknown) => void;
 
@@ -82,6 +83,11 @@ class CemProcessingWorkerTransport {
         this.worker.addEventListener('message', this.onMessage);
         this.worker.addEventListener('error', this.onError);
         this.worker.addEventListener('messageerror', this.onMessageError);
+    }
+
+    onFailure(listener: () => void): () => void {
+        if (this.failed) { queueMicrotask(listener); return () => undefined; }
+        this.failureListeners.add(listener); return () => { this.failureListeners.delete(listener); };
     }
 
     async request(request: CemProcessingRequestEnvelope): Promise<CemProcessingSuccessEnvelope> {
@@ -155,6 +161,8 @@ class CemProcessingWorkerTransport {
             return error;
         }
         this.failed = true;
+        for (const listener of [...this.failureListeners]) { try { listener(); } catch { /* Finish revoking all owners. */ } }
+        this.failureListeners.clear();
         if (!this.readySettled) {
             this.readySettled = true;
             this.rejectReady(error);
@@ -183,6 +191,7 @@ class CemProcessingWorkerTransportError extends Error {
 }
 
 interface CemProcessingWorkerConnection {
+    onFailure?(listener: () => void): () => void;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
     request(request: CemProcessingRequestEnvelope): Promise<CemProcessingSuccessEnvelope>;
     terminate(): void;
@@ -240,6 +249,7 @@ interface PooledRootOwner {
 }
 
 interface CemProcessingWorkerLease {
+    onFailure(listener: () => void): () => void;
     readonly sequence: CemProcessingJobSequence;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
     addTraceObserver(observer: ((event: CemProcessingSchedulingTraceEvent) => void) | undefined): void;
@@ -401,6 +411,7 @@ class CemProcessingWorkerPool {
         return {
             sequence: this.sequence,
             ready: slot.transport.ready,
+            onFailure: listener => slot.transport.onFailure?.(listener) ?? (() => undefined),
             addTraceObserver: (next) => {
                 if (next) {
                     owner.observers.add(next);
@@ -496,6 +507,8 @@ class RootCemProcessingHost implements CemProcessingHost {
     private readonly stylesheetJobs = new Set<Promise<unknown>>();
     private readonly nativeSessionOwner = crypto.randomUUID();
     private readonly nativeSessionHandles = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; mode: 'worker' | 'main-thread' }>();
+    private readonly nativeAuthorityListeners = new Set<() => void>();
+    private readonly stopNativeOwnerLoss: () => void;
     private readonly nativeSessionJobs = new Set<Promise<unknown>>();
     private readonly documentInputs = new Map<string, Extract<CemProcessingDocumentInput, { action: 'retain' }>>();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
@@ -515,6 +528,7 @@ class RootCemProcessingHost implements CemProcessingHost {
     ) {
         this.lease = pool.acquire(observer);
         this.sequence = this.lease.sequence;
+        this.stopNativeOwnerLoss = this.lease.onFailure(() => this.revokeNativeAuthority());
         try {
             this.initialReady = this.lease.ready.catch((error) => this.selectFallback(error).ready);
         } catch (error) {
@@ -528,6 +542,13 @@ class RootCemProcessingHost implements CemProcessingHost {
         this.removeDisposeListener = onCemDeclarationScopeDispose(ownerScope, () => {
             void this.dispose({ reason: 'scope-disposed' }).result.catch(() => undefined);
         });
+    }
+
+    onNativeAuthorityLost(invalidate: () => void): () => void {
+        this.nativeAuthorityListeners.add(invalidate); return () => { this.nativeAuthorityListeners.delete(invalidate); };
+    }
+    private revokeNativeAuthority(): void {
+        for (const listener of [...this.nativeAuthorityListeners]) { try { listener(); } catch { /* Continue revoking other source sessions. */ } }
     }
 
     addTraceObserver(observer: ((event: CemProcessingSchedulingTraceEvent) => void) | undefined): void {
@@ -656,6 +677,7 @@ class RootCemProcessingHost implements CemProcessingHost {
             return { jobId, result: Promise.resolve({ disposed: true }) };
         }
         this.disposed = true;
+        this.stopNativeOwnerLoss(); this.revokeNativeAuthority(); this.nativeAuthorityListeners.clear();
         this.removeDisposeListener?.();
         const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
         this.jobs.start(request.jobId);

@@ -61,7 +61,7 @@ This new endpoint accepts neither CSS selectors nor bare ID/URL strings.
 
 | Input | Contract |
 | --- | --- |
-| `editor-for` | Exactly one verified editor provider, exclusive with `slot="editor"`; native singleton projection and the exact-provider endpoint adapter are implemented. Controller/placement integration remains open. |
+| `editor-for` | Exactly one verified editor provider, exclusive with `slot="editor"`; native singleton projection and the exact-provider endpoint adapter are implemented. Shared controller/placement integration is implemented; production composition remains open. |
 | `options` | Native node/reference sequence of option/group roots, exclusive with `slot="options"`; a data input, never an ID relationship, URL, JSON string or selector. |
 | `filter` | `contains` default, `prefix`, `external` or `none`; ownership and matching below. |
 | `filter-by` | Local modes only: `label` default, `value`, or both tokens; match either key independently. |
@@ -338,14 +338,15 @@ interaction design. Loading/status announcements follow the source-data lifecycl
 | Whole menu/surface substitution | Keep label templates inside owned shells for the first profile; richer adoption needs separate semantic/visibility/authority evidence. |
 | Existing choice/autocomplete record normalization | Implement retained native adapters; copied records and value-as-identity would break the selected source and reference contracts. |
 
-Implementation must extend native editor-for consumption, coordinated provider
-leases, native option/text/filter adapters, the transient capability view and
-row-to-source placement mapping before publishing the XHTML declaration. Add
-the capability identity and worker/fallback/resume wiring in cem-elements, then
-the canonical component, colocated stories, catalog/slot documentation and
+Public XHTML composition still requires automatic native-render row-to-source
+placement metadata and source/readiness/label wiring. The shared editor-for,
+provider, native source/view, placement and capability prerequisites are delivered.
+Complete the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)
 record those gaps and adjacent verification scenarios. The public suggestions
-declaration and complete controller are not delivered by the shared prerequisites.
+declaration and complete acceptance matrix remain open. The shared controller
+and declarative `suggestions` capability are implemented through a trusted host
+preparation hook; they do not infer source-to-shell authority from markup.
 
 Native consumer-frame publication now retains the live view and original source
 edges directly, rejecting authored `suggestions` aliases or slice values before
@@ -358,7 +359,15 @@ manual-listbox delegate can share that exact verified provider lease.
 
 These APIs require a trusted current-publication hook; endpoint pointers and
 IDs cannot establish original source-to-row placement authority. Cross-component
-outbound publication and the host-issued grants in both directions remain open.
+outbound publication and exact host-issued grants in both directions are
+implemented. The placement coordinator admits opaque native row objects,
+committed editor/listbox/row endpoints and property-specific grants. It checks
+all relationships before reserving omitted endpoint IDs; IDs never issue grants.
+Revocation, conflicting endpoints and disconnected targets expire admissions.
+The controller activates provider attributes and commits only through a current
+admission. Original source objects survive query filtering independently of
+publication rows; releasing the source revokes commit proofs.
+
 The current CEMV channel rejects live views containing native source edges. Live
 publications now stay on their original processing owner. An immutable publication
 admits transient consumer leases whose render jobs route there with independently
@@ -374,14 +383,19 @@ hook and route ordinary compile/render/diff execution to the original publicatio
 owner. They retain the consuming declaration's module/function context, native
 materialized inputs, CSS/DOM publication and source-map metadata. Compilation
 bindings remain fixed for the declaration, as on the ordinary retained path.
-The processing protocol is v19. A second live binding is rejected; execution
+The processing protocol is v20. A second live binding is rejected; execution
 across multiple live owners needs a separate design. Retained HTTP document handles
 belonging to another owner cannot ride this channel; supply materialized inputs.
 These leases are excluded from snapshots and reacquired on subsequent frames.
 
-This integration does not establish DOM placement grants. Original source-to-row
-admissions in both directions must still integrate with provider claims before the
-public suggestions capability can activate. `editor-for` now has native singleton
+The separate host-owned placement coordinator establishes DOM placement grants
+in both directions and integrates them with provider claims. The declarative
+capability requires `suggestionsControllerInputs` from its runtime host; a missing
+hook, invalid endpoint or copied/resumed handle leaves it inactive with a diagnostic.
+The hook supplies bounded native preparation and exact committed shells. It is
+transient and cannot be reconstructed from a data island. Automatic mapping from
+native rendering to constructed row shells remains a decision in the active
+checklist before production XHTML composition. `editor-for` now has native singleton
 projection, a property-specific placement grant, and an exact-provider endpoint
 adapter. The adapter admits typed endpoints, scoped local names or a single direct
 editor slot, rejects ambiguous/conflicting/unsupported editors, and grants no

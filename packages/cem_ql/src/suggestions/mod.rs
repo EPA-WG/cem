@@ -76,6 +76,7 @@ enum Family {
 }
 #[derive(Debug)]
 struct Row {
+    handle: String,
     source: Item,
     content: Vec<Item>,
     label: String,
@@ -469,7 +470,7 @@ impl SuggestionsPlan {
         let value_key = folded(&value);
         budget.text(
             &source,
-            label.len() + value.len() + label_key.len() + value_key.len(),
+            label.len() + value.len() + label_key.len() + value_key.len() + 96,
         )?;
         let disabled =
             attrs.contains_key("disabled") || group.is_some_and(|i| self.groups[i].disabled);
@@ -483,6 +484,10 @@ impl SuggestionsPlan {
         }
         let index = self.rows.len();
         self.rows.push(Row {
+            handle: cem_ml::content_cache::ContentHash::from_blake3(
+                source_identity(&source).as_bytes(),
+            )
+            .header_value(),
             source,
             content,
             label,
@@ -607,9 +612,53 @@ struct View {
     matched: Vec<bool>,
     eligible_count: usize,
 }
+/// Prepared scalar commit controls. Original source/content stay native.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SuggestionRowControl {
+    pub handle: String,
+    pub value: String,
+    pub eligible: bool,
+    pub available: bool,
+}
 #[derive(Debug, Clone)]
 pub struct SuggestionsView(Arc<View>);
 impl SuggestionsView {
+    pub fn row_controls(&self) -> Vec<SuggestionRowControl> {
+        self.0
+            .plan
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| SuggestionRowControl {
+                handle: row.handle.clone(),
+                value: row.value.clone(),
+                eligible: self.0.matched[index] && !row.disabled && !row.hidden,
+                available: !row.disabled && !row.hidden,
+            })
+            .collect()
+    }
+    pub fn row_control(&self, handle: &str) -> Result<SuggestionRowControl, SuggestionsError> {
+        let index = self
+            .0
+            .plan
+            .rows
+            .iter()
+            .position(|row| row.handle == handle)
+            .ok_or_else(|| {
+                error(
+                    "cem.suggestions.configuration",
+                    "Unknown admitted row handle",
+                    None,
+                )
+            })?;
+        let row = &self.0.plan.rows[index];
+        Ok(SuggestionRowControl {
+            handle: row.handle.clone(),
+            value: row.value.clone(),
+            eligible: self.0.matched[index] && !row.disabled && !row.hidden,
+            available: !row.disabled && !row.hidden,
+        })
+    }
     pub fn root(&self) -> Item {
         self.node(Node::Root)
     }

@@ -602,13 +602,22 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
           - [x] Route canonical component render/diff frames through the original
             publication owner, retaining consumer compilation/module context,
             materialized native inputs, CSS/DOM publication and revision fences.
-          - [ ] Connect original source-to-row registrations and grants in both
+          - [x] Connect original source-to-row registrations and grants in both
             directions before activating provider attributes or commits. Keep
             source identities distinct from constructed shells and generated IDs.
-            Decision pending: limit the bridge to opaque handles for admitted
-            rows (recommended), or permit selectors across the retained source
-            document. The current CEMB/selector registry cannot name an original
-            live session owner without defining that authority boundary.
+            Decision adopted: the bridge exposes opaque handles limited to
+            admitted native rows; retained source documents stay private.
+            - [x] Fixture: verify native row handle/source identity, bounded
+              scalar commit preparation, eligibility across query publications,
+              source replacement and publication revocation before implementation;
+              fence queued row preparation against publication release in engine tests.
+            - [x] Fixture: verify explicit grants in both directions, exact
+              provider/row placement mappings, conflicting claims, filtering,
+              disconnected targets and fresh resume authority in worker/fallback.
+            - [ ] Complete automatic source-to-constructed-row mapping. Decision
+              pending: return bounded placement metadata from native rendering
+              (recommended), or require every mapping from embedding hosts.
+              IDs and positional matching do not establish native identity.
             Scenarios for later design verification: independent views of a shared
             source, filtered/removed rows, conflicting claims and fresh resume grants.
       Decision adopted: each consumer frame admits one live publication owner;
@@ -623,16 +632,21 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       revision fences and cleanup that preserves newer authored writes. Manual
       listbox visibility can borrow the same verified lease. These APIs require
       a trusted current-publication hook; original source-to-row placement
-      admissions and automatic capability activation remain open.
+      admissions now activate provider claims through exact opaque native rows;
+      automatic constructed-shell mapping and production composition remain open.
       Owner-routed immutable publications and independent consumer-frame leases
       are delivered in worker/fallback modes. Copied/serialized bindings, stale
       in-flight results and post-loss authority fail closed. Native publication
       count/control-byte budgets include retired keys; release frees active view
-      capacity without allowing identity reuse. Protocol v19 adds normal component
-      frame routing on the original owner, preserves materialized inputs and
+      capacity without allowing identity reuse. Protocol v20 adds bounded native
+      row controls and synchronous publication/source owner-loss revocation.
+      Normal component frame routing on the original owner preserves materialized inputs and
       rejects unavailable owners, reserved-slice conflicts and stale results.
       Verification: native singleton projection contracts, worker/fallback component
       update and provider/browser regressions, unit checks, typecheck and lint pass.
+      Bridge/controller verification: 52 focused Rust contracts, 72 unit checks,
+      25 browser checks, typecheck and clean package verification pass. Lint has
+      only the two existing non-null-assertion warnings.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;
@@ -654,6 +668,21 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         Scenarios for later design verification: filtering preserves original
         source identity, stale publications cannot activate/commit, source
         replacement and owner loss revoke affected leases independently of queries.
+      - [x] Add the shared controller over admitted native row handles, exact
+        editor leases and manual-listbox sessions. Fixture action: verify clamped
+        keyboard navigation, no automatic commit, beforeinput veto, provenance,
+        reset/IME cleanup, stale queries and pointer cancellation before wiring
+        the declarative capability.
+      - [x] Fixture: wire the shared declarative capability through an explicit
+        trusted host preparation hook; reject missing authority, endpoint changes
+        and copied/resumed row handles without creating component-local behavior.
+      - [ ] Assemble the production XHTML declaration with native options inputs,
+        row/group label frames, rendered placement metadata, loading/failure/empty
+        feedback and accessible label/description handoff. Depend on the mapping
+        decision above; do not derive grants from authored IDs or row positions.
+        Scenarios for later design verification: grouped/dynamic sources in both
+        field types, slot conflicts, native source readiness, independent instances
+        and fresh authority after resume.
       Inventory and add applicable native
       metadata/constraint forwarding on both field declarations before promising
       the legacy surface. Add focused fixture actions before implementation.
@@ -696,10 +725,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       visibility/dismissal sessions and the manual-listbox semantic delegate are
       delivered with explicit lifecycle admission/readiness hooks. Native
       suggestions component outbound bindings and source sessions reusable across
-      queries are delivered. Original source-to-row placement claims, suggestions
-      capability and declarative composition remain open; do not mark this complete from the provider foundation alone.
+      queries are delivered. Original source-to-row placement claims, the shared
+      controller and the registered declarative capability with an explicit trusted
+      preparation hook are delivered. Worker/fallback cases verify keyboard
+      clamping, pending-query dismissal, IME cleanup, commit veto/provenance, exact
+      endpoint changes and native mouse activation/drag cancellation. Touch/pen,
+      complete production composition, feedback and the full acceptance matrix
+      remain open; do not mark this parent complete from these shared slices.
       Reserved native consumer-frame publication and provider-owned attribute
-      leases are delivered; their controller/placement integration remains open.
+      leases now integrate with current two-way placement grants.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are

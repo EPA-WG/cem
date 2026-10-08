@@ -3,7 +3,12 @@
 Status: adopted design, 2026-10-07, under the user's instruction to continue
 with recommended options. This completes the keyboard/pointer/selection item in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
-Runtime implementation and native browser verification remain pending.
+The shared controller implements this first text-input profile over exact native
+row admissions and the existing provider/manual-listbox services. Worker/fallback
+fixtures cover keyboard selection, stale-query dismissal, cancellation/provenance,
+IME cleanup and native mouse activation. Production composition, source feedback,
+touch/pen and the complete acceptance matrix remain pending; these fixtures do
+not claim those later profiles.
 
 Use manual selection with the existing field as value/form owner and its actual
 text input as focus/editing owner. Arrows preview; an explicit eligible Enter or

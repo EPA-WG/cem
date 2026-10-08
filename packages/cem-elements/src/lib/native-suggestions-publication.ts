@@ -16,9 +16,12 @@ export interface CemNativeSuggestionsComponentFrame {
 }
 export interface CemNativeSuggestionsBinding {
     readonly kind: 'cem-live-suggestions-binding-v1';
+    readonly config: Readonly<CemNativeSuggestionsConfig>;
     readonly valid: boolean;
     render(template: string, data: Record<string, unknown>): Promise<Rendered>;
     renderComponent(frame: CemNativeSuggestionsComponentFrame): Promise<CemProcessingRenderDiffResult>;
+    rows(): Promise<readonly CemNativeSuggestionRow[]>;
+    subscribe(invalidate: () => void): () => void;
     release(): void;
 }
 export interface CemNativeSuggestionsPublication {
@@ -27,7 +30,50 @@ export interface CemNativeSuggestionsPublication {
     bind(consumer: CemNativeSuggestionsConsumer): CemNativeSuggestionsBinding;
     release(): Promise<void>;
 }
-type Frame = Omit<Extract<CemProcessingNativeSessionInput, { action: 'render-suggestions-frame' }>, 'handle'>;
+/** Exact native identity, session-local and excluded from durable state. */
+export interface CemNativeSuggestionSource {
+    readonly kind: 'cem-live-suggestion-source-v1';
+    readonly valid: boolean;
+    subscribe(invalidate: () => void): () => void;
+}
+/** Prepared scalar commit controls, not a projection of the source AST. */
+export interface CemNativeSuggestionRow {
+    readonly source: CemNativeSuggestionSource;
+    readonly value: string;
+    readonly eligible: boolean;
+    readonly available: boolean;
+    readonly valid: boolean;
+}
+const ROWS = Symbol.for('cem.live-suggestion-rows.v1');
+const rowEnvironment = globalThis as typeof globalThis & { [ROWS]?: WeakMap<object, CemNativeSuggestionsBinding> };
+const rows = rowEnvironment[ROWS] ??= new WeakMap();
+export function isCemNativeSuggestionRow(value: unknown): value is CemNativeSuggestionRow {
+    return typeof value === 'object' && value !== null && rows.has(value);
+}
+export function isCemNativeSuggestionRowFor(row: CemNativeSuggestionRow, binding: CemNativeSuggestionsBinding): boolean {
+    return rows.get(row) === binding;
+}
+export function createCemNativeSuggestionSource(current: () => boolean, subscribe: (expire: () => void) => () => void): CemNativeSuggestionSource {
+    let expired = false;
+    const listeners = new Set<() => void>();
+    const nativeSubscription: { stop(): void } = { stop: () => undefined };
+    const expire = () => {
+        if (expired) return;
+        expired = true; nativeSubscription.stop();
+        for (const listener of [...listeners]) { try { listener(); } catch { /* Revoke every retained proof. */ } }
+        listeners.clear();
+    };
+    nativeSubscription.stop = subscribe(expire);
+    if (expired) nativeSubscription.stop();
+    const valid = () => { if (!expired && !current()) expire(); return !expired; };
+    return Object.freeze({ kind: 'cem-live-suggestion-source-v1' as const,
+        get valid() { return valid(); },
+        subscribe(listener: () => void) { if (!valid()) { listener(); return () => undefined; } listeners.add(listener); return () => { listeners.delete(listener); }; },
+        toJSON() { throw new TypeError('Live native source identity cannot be serialized'); } });
+}
+
+type Frame = Omit<Extract<CemProcessingNativeSessionInput, { action: 'render-suggestions-frame' }>, 'handle'>
+    | Omit<Extract<CemProcessingNativeSessionInput, { action: 'suggestions-rows' }>, 'handle'>;
 const BINDINGS = Symbol.for('cem.live-suggestions-bindings.v1');
 const environment = globalThis as typeof globalThis & { [BINDINGS]?: WeakSet<object> };
 const bindings = environment[BINDINGS] ??= new WeakSet();
@@ -38,9 +84,15 @@ export function isCemNativeSuggestionsBinding(value: unknown): value is CemNativ
 /** A live binding is exact transient authority, never a CEMV value or saved island. */
 export function createCemNativeSuggestionsPublication(config: Readonly<CemNativeSuggestionsConfig>, current: () => boolean,
     run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string,
-    runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>): CemNativeSuggestionsPublication {
+    runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>,
+    sourceForHandle: (handle: string) => CemNativeSuggestionSource): CemNativeSuggestionsPublication {
     let released = false, expired = false;
-    const valid = () => !released && !(expired ||= !current());
+    const publicationListeners = new Set<() => void>();
+    const notify = (listeners: Set<() => void>) => { for (const listener of [...listeners]) { try { listener(); } catch { /* Revocation must reach every lease. */ } } };
+    const valid = () => {
+        if (!released && !expired && !current()) { expired = true; notify(publicationListeners); }
+        return !released && !expired;
+    };
     const nonportable = () => { throw new TypeError('Live suggestions authority cannot be serialized; reacquire on resume'); };
     const leases = new WeakMap<object, { consumer: CemNativeSuggestionsConsumer; released: boolean; expired: boolean }>();
     const publisher = Object.freeze({
@@ -50,14 +102,18 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
             if (!consumer || typeof consumer.current !== 'function' || [consumer.instanceId, consumer.scopePolicyStamp, consumer.revision]
                 .some(value => typeof value !== 'string' || !value || value.length > 1024) || !consumer.current()) throw new TypeError('Invalid admitted native consumer');
             const state = { consumer: Object.freeze({ ...consumer }), released: false, expired: false };
+            const listeners = new Set<() => void>();
+            const revoke = () => { if (state.expired) return; state.expired = true; notify(listeners); };
+            publicationListeners.add(revoke);
             const admitted = (receiver: object) => {
                 if (leases.get(receiver) !== state) throw new TypeError('A copied native binding has no consumer authority');
                 if (state.released || state.expired || !valid()) return false;
-                state.expired ||= !state.consumer.current();
+                if (!state.consumer.current()) revoke();
                 return !state.expired;
             };
             const binding: CemNativeSuggestionsBinding = Object.freeze({
                 kind: 'cem-live-suggestions-binding-v1' as const,
+                config: publisher.config,
                 get valid() { return admitted(this); },
                 async render(template: string, data: Record<string, unknown>) {
                     if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
@@ -82,12 +138,34 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                     if (!admitted(this)) throw new Error('Native consumer result was superseded');
                     return result;
                 },
-                release() { if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority'); state.released = true; },
+                async rows() {
+                    if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
+                    const result = await run({ action: 'suggestions-rows', publication });
+                    if (!admitted(this)) throw new Error('Native row preparation was superseded');
+                    if (result.status !== 'rows') throw new Error('Invalid native row preparation reply');
+                    const prepared = result.rows.map(control => {
+                        const source = sourceForHandle(control.handle);
+                        const row: CemNativeSuggestionRow = Object.freeze({ source, value: control.value, eligible: control.eligible, available: control.available,
+                            get valid() { return admitted(binding) && source.valid; }, toJSON: nonportable });
+                        rows.set(row, binding); return row;
+                    });
+                    return Object.freeze(prepared);
+                },
+                subscribe(listener: () => void) {
+                    if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority');
+                    if (!admitted(this)) { listener(); return () => undefined; }
+                    listeners.add(listener); return () => { listeners.delete(listener); };
+                },
+                release() {
+                    if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority');
+                    if (state.released) return;
+                    state.released = true; publicationListeners.delete(revoke); notify(listeners); listeners.clear();
+                },
                 toJSON: nonportable,
             });
             leases.set(binding, state); bindings.add(binding); return binding;
         },
-        async release() { if (this !== publisher) throw new TypeError('Invalid native publication owner'); if (released) return; released = true; await releaseOwner(); },
+        async release() { if (this !== publisher) throw new TypeError('Invalid native publication owner'); if (released) return; released = true; notify(publicationListeners); publicationListeners.clear(); await releaseOwner(); },
         toJSON: nonportable,
     });
     return publisher;

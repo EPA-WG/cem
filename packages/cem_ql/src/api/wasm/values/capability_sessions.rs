@@ -7,8 +7,12 @@ thread_local! {
 pub(super) fn bind_publication(data: &mut TemplateData, id: u32, key: &str) -> Result<(), String> {
     SESSIONS.with(|sessions| {
         let sessions = sessions.borrow();
-        let session = sessions.get(&id).ok_or("Unknown native publication owner")?;
-        let view = session.suggestions_publication(key).map_err(|e| e.message)?;
+        let session = sessions
+            .get(&id)
+            .ok_or("Unknown native publication owner")?;
+        let view = session
+            .suggestions_publication(key)
+            .map_err(|e| e.message)?;
         data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
     })
 }
@@ -257,6 +261,19 @@ pub fn render_suggestions_frame(
                 .map_err(suggestions_error)?;
             Ok(plan_json_with_limits(&plan, session.limits()).to_string())
         })
+    })
+}
+#[wasm_bindgen(js_name = "nativeSuggestionRowControls")]
+pub fn row_controls(id: u32, key: &str) -> Result<String, JsValue> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions
+            .get(&id)
+            .ok_or_else(|| session_error("Unknown native capability session"))?;
+        let controls = session
+            .suggestion_row_controls(key)
+            .map_err(suggestions_error)?;
+        serde_json::to_string(&controls).map_err(session_error)
     })
 }
 #[wasm_bindgen(js_name = "disposeNativeCapabilitySession")]

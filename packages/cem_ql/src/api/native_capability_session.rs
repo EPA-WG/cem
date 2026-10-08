@@ -237,6 +237,30 @@ impl NativeCapabilitySession {
         self.publication_bytes.set(total);
         Ok(view)
     }
+    /// Bounded scalar preparation; neither the source nor arbitrary selectors cross this bridge.
+    pub fn suggestion_row_controls(
+        &self,
+        key: &str,
+    ) -> Result<Vec<crate::suggestions::SuggestionRowControl>, crate::suggestions::SuggestionsError>
+    {
+        let controls = self.suggestions_publication(key)?.row_controls();
+        let bytes = serde_json::to_vec(&controls).map_err(|e| suggestions_error(e.to_string()))?;
+        if controls.len() > self.limits.max_values || bytes.len() > self.limits.max_bytes {
+            return Err(suggestions_error("Native row controls exceed bounds"));
+        }
+        Ok(controls)
+    }
+    pub fn suggestion_row_control(
+        &self,
+        key: &str,
+        handle: &str,
+    ) -> Result<crate::suggestions::SuggestionRowControl, crate::suggestions::SuggestionsError>
+    {
+        if handle.len() > 1024 {
+            return Err(suggestions_error("Invalid admitted row handle"));
+        }
+        self.suggestions_publication(key)?.row_control(handle)
+    }
     pub fn suggestions_publication(
         &self,
         key: &str,

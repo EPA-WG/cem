@@ -88,7 +88,8 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
         releases.push(observeInteractionReferences(host, () => current.reconcile()));
         releases.push(lifecycle.subscribe(() => current.dismiss('revision')));
         releases.push(provider.subscribe(update => {
-            if (update.cause === 'claims' && lease.valid) return;
+            if ((update.cause === 'claims' || update.cause === 'availability'
+                || update.cause === 'attribute-claims' && lease.attributes.valid) && lease.valid) { current.reconcile(); return; }
             current.dismiss(update.cause);
         }));
     } catch (error) {

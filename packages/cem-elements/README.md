@@ -94,8 +94,8 @@ authored style values, priorities and placement attributes; shorthand claims
 retain their longhands. Runtime copies share ownership within the realm.
 Native dialog/tooltip registrations retain their semantic kind and require
 fresh registration after a kind change. Geometry supplies no source/placement
-authority, visibility or focus policy. Suggestions' manual-listbox delegate,
-native publication/bindings and public declaration remain pending in
+authority, visibility or focus policy. Suggestions' manual-listbox delegate and
+native publication/bindings are implemented; public composition remains pending in
 [the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 
 Declarations may publish an exact Semantic Version for SSR adoption:
@@ -322,7 +322,7 @@ constraints retain precedence. Composition ownership and handled key presses
 remain captured through their terminal key so deferred submission/native surface
 routes cannot reinterpret them. Native history remains browser-owned; a runtime
 replacement does not promise an undo entry. The full suggestions declaration,
-placement integration and acceptance matrix are still pending in
+source/render composition and acceptance matrix are still pending in
 [the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 
 The package-private native capability-session transport retains executable sources
@@ -345,8 +345,21 @@ source/content relationships cannot be preserved there. Host-admitted outbound
 bindings now route canonical component frames to the original publication owner,
 with one live owner per frame and ordinary materialized native inputs. Native
 `editor-for` resolves exact provider endpoints without granting authority.
-Original source-to-row placement admission, the controller and public suggestions
-declaration remain pending.
+The shared placement coordinator admits exact opaque native rows mapped by a
+trusted host to committed editor/listbox/row endpoints. It requires property-specific
+grants in both directions before reserving IDs or activating provider claims.
+The shared controller uses those admissions for keyboard/mouse activation,
+cancellable commits, selection provenance and leased validity. Query filtering
+preserves original source identity; source release and worker loss synchronously
+revoke proofs, while publication release only expires its consumer rows.
+
+Declarations can opt into `capability="suggestions"` through the runtime’s
+`suggestionsControllerInputs` host hook. That hook must supply the exact editor,
+a direct component-owned `part="surface"` listbox and native preparation with
+current placement grants. Markup alone does not grant authority. The hook and
+row handles are transient; resume requires fresh admissions. The public XHTML
+declaration, automatic native-render placement metadata, loading feedback and
+full touch/pen/field acceptance matrix remain in the active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

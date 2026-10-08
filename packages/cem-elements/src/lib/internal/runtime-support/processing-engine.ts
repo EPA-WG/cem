@@ -153,7 +153,7 @@ export class CemProcessingEngine {
             return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
         if (!retained) throw new Error('Native capability session is not retained; reacquire source authority');
-        if (input.action === 'publish-suggestions' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame') {
+        if (input.action === 'publish-suggestions' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame' || input.action === 'suggestions-rows') {
             if (retained.adapter !== 'suggestions-v1') throw new Error('A native publication requires the suggestions adapter');
             if (typeof input.publication !== 'string' || !input.publication || input.publication.length > 1024) throw new TypeError('Invalid native publication identity');
             if (input.action === 'publish-suggestions' && (!Number.isSafeInteger(input.suggestions.queryRevision) || input.suggestions.queryRevision < 0)) throw new TypeError('Invalid native suggestions query revision');

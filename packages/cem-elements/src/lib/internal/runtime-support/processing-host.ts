@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v19' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v20' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -219,6 +219,7 @@ export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle }
     | { action: 'publish-suggestions'; publication: string; suggestions: CemNativeSuggestionsConfig }
     | { action: 'render-suggestions-frame'; publication: string; template: string; data: Record<string, unknown>;
         consumer: { instanceId: string; scopePolicyStamp: string; revision: string } }
+    | { action: 'suggestions-rows'; publication: string }
     | { action: 'release-suggestions'; publication: string }
     | { action: 'release' }
 );
@@ -228,6 +229,7 @@ export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle 
     | { status: 'rendered'; nodes: RenderPlanNode[]; diagnostics: CemProcessingDiagnostic[] }
     | { status: 'released' }
     | { status: 'published'; publication: string }
+    | { status: 'rows'; rows: readonly { handle: string; value: string; eligible: boolean; available: boolean }[] }
 );
 
 export interface CemProcessingRenderDiffInput {
@@ -609,6 +611,8 @@ export interface CemProcessingHost {
     readonly mode: CemProcessingHostMode;
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
+    /** Synchronous revocation of transient native authority after owner loss/disposal. */
+    onNativeAuthorityLost?(invalidate: () => void): () => void;
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;
     nativeSession(input: CemProcessingNativeSessionInput): CemProcessingJob<CemProcessingNativeSessionResult>;
     stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult>;
