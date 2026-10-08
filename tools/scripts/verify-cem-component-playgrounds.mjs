@@ -10,11 +10,14 @@ const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
 const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
 const nativeDatalistOnly = process.argv.includes('--native-datalist-only');
-const suggestionsOnly = nativeDatalistOnly || process.argv.includes('--suggestions-only');
-const nativeBrowser = process.argv.find(value => value.startsWith('--native-browser='))?.split('=')[1] ?? 'chromium';
+const historyOnly = process.argv.includes('--history-only');
+const evidenceOnly = nativeDatalistOnly || historyOnly;
+const suggestionsOnly = evidenceOnly || process.argv.includes('--suggestions-only');
+const nativeBrowser = process.argv.find(value => value.startsWith('--browser='))?.split('=')[1] ?? process.argv.find(value => value.startsWith('--native-browser='))?.split('=')[1] ?? 'chromium';
 const headed = process.argv.includes('--headed');
 const evidenceOutput = process.argv.find(value => value.startsWith('--evidence-output='))?.slice('--evidence-output='.length);
 const nativeEvidence = [];
+const historyEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
 let browser;
@@ -30,7 +33,8 @@ try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
     if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
-    if (!nativeDatalistOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Native evidence flags require --native-datalist-only');
+    if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
+    if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
     if (!navigationOnly && !suggestionsOnly) {
         await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
@@ -46,8 +50,9 @@ try {
         if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (!nativeDatalistOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
+    if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
     if (nativeDatalistOnly) await verifyNativeDatalist(`${origin}/packages/cem-components/playgrounds/`, 'source');
+    if (historyOnly) await verifyNativeHistory(`${origin}/packages/cem-components/playgrounds/`, 'source');
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
@@ -68,10 +73,16 @@ try {
         if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (!nativeDatalistOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
     if (nativeDatalistOnly) {
         await verifyNativeDatalist(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
         const report = { schema: 'cem-native-datalist-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: nativeEvidence, actualPickerSelection: 'unconfirmed', physicalIme: 'not-run', mobileKeyboard: 'not-run', assistiveTechnology: 'not-run' };
+        if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
+        console.log(JSON.stringify(report, null, 2));
+    }
+    else if (historyOnly) {
+        await verifyNativeHistory(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
+        const report = { schema: 'cem-native-history-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: historyEvidence };
         if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
         console.log(JSON.stringify(report, null, 2));
     }
@@ -1375,4 +1386,110 @@ async function verifyNativeDatalist(base, packaging) {
         }
         assert.deepEqual(errors, [], 'Acceptance page must not have script failures');
     } finally { await page.close(); }
+}
+
+
+/** Native history observations; only coherence is portable, not undo grouping. */
+async function verifyNativeHistory(base, packaging) {
+    for (const variant of ['native-typing', 'value-assignment', 'range-replacement', 'cem-field', 'cem-text-field']) {
+        // A fresh context isolates the undo manager from every earlier fixture.
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        try {
+            await page.goto(`${base}cem-suggestions.html`);
+            await page.locator('cem-suggestions input').first().waitFor();
+            const field = variant.startsWith('cem-');
+            await page.evaluate(async ({ variant, field }) => {
+                const fixture = document.createElement('section');
+                fixture.setAttribute('aria-label', 'History acceptance fixture');
+                fixture.innerHTML = field
+                    ? `<form><cem-suggestions filter="none" require-selection><template><${variant} slot="editor" name="choice" label="History choice" required pattern="alpha"></${variant}><template slot="options"><option value="alpha">Alpha</option></template></template></cem-suggestions></form>`
+                    : '<form><label>History choice<input name="choice" required pattern="alpha"></label></form>';
+                document.querySelector('main').prepend(fixture);
+                const host = fixture.querySelector('cem-suggestions');
+                if (host) {
+                    await window.cemPlaygroundRuntime.whenRenderSettled(host);
+                    await window.cemPlaygroundRuntime.whenRenderSettled(host.querySelector('[slot=editor]'));
+                }
+                window.historyAcceptanceInput = fixture.querySelector('input');
+                window.historyAcceptanceEvents = [];
+                for (const type of ['beforeinput', 'input', 'change']) fixture.addEventListener(type, event => {
+                    if (event.target === window.historyAcceptanceInput) window.historyAcceptanceEvents.push({
+                        type, inputType: event.inputType ?? null, trusted: event.isTrusted,
+                        value: event.target.value, start: event.target.selectionStart, end: event.target.selectionEnd,
+                    });
+                });
+                fixture.querySelector('form').addEventListener('submit', event => event.preventDefault());
+            }, { variant, field });
+            const input = page.locator('section[aria-label="History acceptance fixture"] input');
+            const ready = async () => {
+                if (field) await page.waitForFunction(() => window.cemPlaygroundRuntime.renderedSuggestionsFor(
+                    document.querySelector('section[aria-label="History acceptance fixture"] cem-suggestions'))?.current());
+            };
+            const steps = [];
+            const snapshot = async phase => {
+                await ready();
+                const state = await input.evaluate(node => {
+                    const field = node.closest('[slot=editor]'), form = node.closest('form');
+                    return { value: node.value, fieldValue: field?.value ?? null,
+                        submitted: new FormData(form).getAll('choice'),
+                        start: node.selectionStart, end: node.selectionEnd, direction: node.selectionDirection,
+                        sameInput: node === window.historyAcceptanceInput, focused: node === document.activeElement,
+                        nativeValid: node.validity.valid, fieldValid: field?.validity.valid ?? null,
+                        formValid: form.checkValidity(), selectionProofMissing: field?.validity.customError ?? null,
+                        events: window.historyAcceptanceEvents.splice(0),
+                    };
+                });
+                assert.equal(state.sameInput, true); assert.equal(state.focused, true);
+                assert.deepEqual(state.submitted, [state.value]);
+                if (field) {
+                    assert.equal(state.fieldValue, state.value);
+                    assert.equal(state.formValid, state.fieldValid);
+                    if (state.value && state.events.some(event => event.type === 'input' && event.trusted
+                        && ['historyUndo', 'historyRedo'].includes(event.inputType))) {
+                        assert.equal(state.selectionProofMissing, true, 'Native history must not retain or restore source proof');
+                    }
+                } else assert.equal(state.formValid, state.nativeValid);
+                steps.push({ phase, ...state });
+                return state;
+            };
+            await ready(); await input.click();
+            await page.keyboard.type('al');
+            await snapshot('typed-prefix');
+            // Selection is recorded before replacement and during all history commands.
+            await page.keyboard.press('ControlOrMeta+a');
+            await snapshot('selected-prefix');
+            if (field) {
+                await page.keyboard.press('ArrowDown');
+                await page.waitForFunction(() => document.querySelector('section[aria-label="History acceptance fixture"] input')?.hasAttribute('aria-activedescendant'));
+                await page.keyboard.press('Enter');
+            } else if (variant === 'native-typing') await page.keyboard.type('alpha');
+            else await input.evaluate((node, variant) => {
+                if (variant === 'range-replacement') node.setRangeText('alpha', 0, node.value.length, 'end');
+                else node.value = 'alpha';
+            }, variant);
+            const committed = await snapshot('replacement');
+            assert.equal(committed.value, 'alpha'); assert.equal(committed.formValid, true);
+            await page.keyboard.press('ControlOrMeta+z');
+            const undone = await snapshot('immediate-undo');
+            if (variant === 'native-typing') {
+                assert.notEqual(undone.value, 'alpha', 'Plain native typing must establish functioning undo input');
+                assert(undone.events.some(event => event.type === 'input' && event.inputType === 'historyUndo' && event.trusted));
+            }
+            await page.keyboard.press('ControlOrMeta+Shift+z');
+            await snapshot('immediate-redo');
+            await page.keyboard.press('End'); await page.keyboard.type('x');
+            const typed = await snapshot('later-typing');
+            if (field) assert.equal(typed.selectionProofMissing, true);
+            await page.keyboard.press('ControlOrMeta+z');
+            const restored = await snapshot('undo-later-typing');
+            if (field && restored.value) assert.equal(restored.selectionProofMissing, true, 'Restoring a string must not restore source proof');
+            await page.keyboard.press('ControlOrMeta+Shift+z');
+            await snapshot('redo-later-typing');
+            assert.deepEqual(errors, [], 'History probe must not have script failures');
+            historyEvidence.push({ packaging, variant, steps });
+        } finally { await context.close(); }
+    }
 }

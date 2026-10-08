@@ -234,6 +234,48 @@ older source handle. If an undoable replacement becomes a product requirement,
 design a field-owned adapter before advertising it. The adjacent action records
 that extension and its verification, rather than inferring a guarantee here.
 
+### Undoable replacement assessment (2026-10-08)
+
+Keep the current provider commit and its explicit native-history limitation.
+Do not expose an undoable-replacement capability yet. A field-owned adapter is
+an appropriate ownership boundary, but a wrapper around the current write does
+not establish a browser undo transaction. The
+[browser assessment and reproduction procedure](../packages/cem-components/docs/suggestions-acceptance.md#native-history-assessment-2026-10-08)
+record the implementations actually tested and the remaining platform coverage.
+
+The alternatives have different constraints:
+
+| Candidate | Assessment |
+| --- | --- |
+| Original input `value` assignment | Current synchronous commit; retains the input and coherent field/submission state, but provides no single-entry undo guarantee. |
+| Original input `setRangeText` | Supplies range and selection control. Its HTML algorithm does not specify adding a native undo transaction; replacing the setter alone cannot justify a stronger contract. |
+| Synthetic `beforeinput`/`input` | Retain the existing cancellable CEM request and notifications. Event names describe an edit; dispatching them does not execute the browser's native edit/history default. |
+| EditContext | Does not supply a native input undo bridge: its specification restricts attachable hosts and leaves undo to application handling. It would require a different editor model. |
+| Private history, deprecated editing commands or an alternate editor | Outside the adopted contract; do not use these to emulate a stronger native guarantee. |
+
+Sources: the [HTML range-replacement algorithm](https://html.spec.whatwg.org/multipage/form-control-infrastructure.html#dom-textarea/input-setrangetext),
+[Input Events vocabulary](https://www.w3.org/TR/input-events-2/), and
+[EditContext host and input handling](https://w3c.github.io/edit-context/).
+These API facts support the conservative recommendation; they do not predict
+identical history behavior in every browser.
+
+If explicitly requested, reassess supported platform mechanisms before defining
+a field-owned adapter. The provider must own admission and the transaction on
+the original editor. Admission must cover the actual browser, input type and editing
+mode; API presence alone is insufficient. Before committing, recheck editor,
+source, composition and revision authority and preserve beforeinput veto and
+reentrancy. An unsupported admission must leave the field editable and must not
+silently claim an undoable commit. The existing commit remains available under
+its existing weaker contract.
+
+Acceptance for any future adapter must prove the replacement is one native undo
+unit, prior native typing remains reachable, redo and caret/selection are
+correct, and field value, FormData and validity agree after every operation.
+Native history input events invalidate committed source proof even when a restored
+string equals an option. Test reset, source withdrawal, disable/read-only,
+composition and editor replacement too. Do not add a public flag or method until
+that implementation and browser/device evidence exist.
+
 ## Free text and constrained selection
 
 Free text is the default. In that mode suggestions add no vocabulary validity:

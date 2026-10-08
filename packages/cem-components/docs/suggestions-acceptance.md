@@ -215,3 +215,75 @@ this result establishes neither a product failure nor browser acceptance. Run
 this probe on a compatible host, then complete branded-browser/device and
 physical checks using the manual record above. The parent acceptance item stays
 open; successful probe assertions alone must not close it.
+
+
+## Native history assessment: 2026-10-08
+
+The [undoable replacement assessment](../../../docs/cem-suggestions-interaction-design.md#undoable-replacement-assessment-2026-10-08)
+retains the current provider contract without promising a native undo entry.
+Reproduce its browser evidence with:
+
+```sh
+yarn nx run @epa-wg/cem-components:verify-playgrounds --skip-nx-cache -- --history-only --headed --browser=chromium --evidence-output=/tmp/cem-history-chromium.json
+```
+
+Repeat with Firefox and a distinct output file. Each run uses five fresh browser
+contexts from source and again from isolated package archives: a plain input with
+native typing, a plain input with value assignment, a plain input with
+`setRangeText`, and production suggestions attached to each field provider.
+Every input is required and constrained by `pattern="alpha"`; suggestions also
+require selected-source proof. The fixture observes events and public state and
+implements no editor or history behavior.
+
+The probe types `al` with browser keyboard input, selects it, and replaces it with
+`alpha`: by native typing, the named setter, or choosing the production suggestion
+with Arrow Down/Enter. It records immediate Undo/Redo, moves to the end, types
+`x`, and records a second Undo/Redo. It uses `ControlOrMeta+z` and
+`ControlOrMeta+Shift+z`, without `fill()`, synthetic history input or a private
+history stack. At each checkpoint it records value, selection/direction, trusted
+and synthetic event traces, field getter, FormData, validity, focus and original
+input identity. A plain native-typing control must demonstrate working undo.
+
+Assertions require coherent field/submission state and native history input to
+clear committed source proof, including when the string does not change. They
+leave the browser's resulting string and undo grouping as observations. Original
+input identity and focus must survive throughout. These checks do not require
+restored strings to be valid: after a native edit, `alpha` still lacks selected
+source proof under `require-selection`.
+
+
+Headed Playwright Chromium 148.0.7778.96 and Firefox 150.0.2 ran on WSLg/Linux
+`6.6.114.1-microsoft-standard-WSL2`, against runtime revision `adb0a04c`.
+All ten source/package scenarios passed per engine (20 total). Values below were
+the same in source and isolated packages; neither engine restored `al` by
+immediately undoing a scripted replacement.
+
+| Case | Chromium observation | Firefox observation |
+| --- | --- | --- |
+| Plain native typing | Immediate undo restored `al` with selection `[0,2]`; redo restored `alpha` | Same immediate outcome |
+| Plain value assignment | Immediate undo retained `alpha`, moved caret to `0`; redo produced `alphaalal` | Immediate undo/redo retained `alpha` at caret `5` without history input events |
+| Plain range replacement | Same observed result as plain value assignment | Same observed result as plain value assignment |
+| Both production field commits | Immediate undo/redo retained `alpha` at caret `5`; trusted history input cleared selected-source proof | Immediate undo/redo retained `alpha` at caret `5`; no history input occurred and existing proof remained |
+| Later typing after production commit | `alphax` → undo `alpha` → redo `alphax`; caret followed `6` → `5` → `6`; source proof stayed cleared | Same observed outcomes |
+| Later typing in the native-typing control | Undo removed only the later `x` | Undo grouped the later edit with the earlier replacement and restored `al` |
+
+Raw event/state reports: [Chromium](evidence/native-history-chromium-2026-10-08.json)
+and [Firefox](evidence/native-history-firefox-2026-10-08.json). JSON whitespace is
+compacted by checkpoint for review; the complete observations are retained.
+The plain-input controls demonstrate why method presence and successful text
+replacement cannot establish native history semantics. Their unusual results
+are recorded without being promoted to expected behavior for other versions.
+
+The production fields preserved their original input/focus, field getter,
+FormData and effective validity throughout. `require-selection` correctly became
+invalid after actual native history input or typing, even when the resulting
+string was `alpha`. A shortcut which caused no edit/input event did not itself
+clear the existing source proof. Neither setter nor synthetic replacement
+notifications supplied the required single native undo unit in these runs.
+
+This completes the bounded adapter assessment, not cross-platform acceptance.
+WebKit history cases could not be run on this host because its browser launch
+requires unavailable libraries, as recorded above. Safari/macOS/iOS, branded Edge,
+physical keyboard/IME and assistive-technology evidence remain in the manual
+release matrix. A future undoable adapter must meet the design's admission and
+verification requirements before exposing a stronger promise.

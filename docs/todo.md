@@ -1160,7 +1160,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       verification: no label rewrites a numeric value; token edits preserve
       caret/separators/composition, and one provider owns each adopted surface.
 
-- [ ] Assess an explicit field-owned undoable replacement adapter before
+- [x] Assess an explicit field-owned undoable replacement adapter before
       promising an option commit is one native undo entry. Keep the first
       profile's [native history policy](cem-suggestions-interaction-design.md#undo-and-redo)
       and report supported-browser results; do not add a component-local history
@@ -1168,6 +1168,21 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Scenarios for later design verification: immediate undo after commit,
       later native typing then undo/redo, caret/selection restoration and
       submission/validity coherence; restored strings never infer source identity.
+      Delivered 2026-10-08: assessed value assignment, range replacement, input
+      notifications and EditContext against the original-editor contract; retain
+      the current native-history limitation and expose no undoable adapter yet.
+      Headed Chromium/Firefox passed 20 source/package scenarios with real typing,
+      undo/redo and plain-input controls. Immediate undo of scripted replacements
+      did not restore the pre-commit prefix; later history retained coherent value/FormData/validity
+      and never restored source proof. Browser differences, raw traces and
+      reproduction commands are in the suggestions acceptance notes. Future
+      adapter admission/acceptance criteria are in the interaction design;
+      physical/device and WebKit coverage remains open in the acceptance matrix.
+
+  - [x] Add source/package native history probes for both field providers and
+        plain-input controls. Use real browser typing/undo/redo, compare direct
+        value and range replacement, and record selection, events, submission,
+        validity and proof invalidation without imposing browser undo grouping.
 
 - [ ] Design non-key platform close-request support for manual suggestions
       surfaces before claiming Back/dismiss-gesture integration. Evaluate native
