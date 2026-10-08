@@ -71,6 +71,188 @@ fn context(data: &TemplateData) -> StandaloneExpressionContext {
     }
 }
 impl ElementReferenceExecution {
+    pub(crate) fn complete_selected_names(
+        &mut self,
+        sources: &[ElementReferenceSource],
+        data: &TemplateData,
+        values: crate::eval::ItemStream,
+    ) -> Result<crate::eval::ItemStream, String> {
+        use cem_ml::value::reference_resolution::ReferenceResolutionHost;
+        use std::{
+            collections::{BTreeMap, BTreeSet},
+            sync::Arc,
+        };
+        let root = crate::eval::values::reference(Vec::new());
+        let host = self
+            .host
+            .element_reference_host(self.requesting)
+            .ok_or("Unknown requester")?;
+        let request = host.scope_limits(&host.scope(&root));
+        let frame = context(data);
+        let owner_key =
+            |tree: &cem_ml::parser::tree::RetainedCemTree| Arc::as_ptr(tree.ast_owner()) as usize;
+        let mut grouped = BTreeMap::<usize, BTreeSet<cem_ml::parser::AstNodeId>>::new();
+        let mut remaining = request.max_work;
+        for node in values
+            .items
+            .iter()
+            .filter_map(crate::eval::retained_cem_node)
+        {
+            remaining = remaining
+                .checked_sub(1)
+                .ok_or("Native name preparation work limit exceeded")?;
+            grouped
+                .entry(owner_key(node.owner()))
+                .or_default()
+                .insert(node.node_id());
+        }
+        let mut views = BTreeMap::new();
+        for source in sources {
+            let tree = source.source.ingress().source();
+            let Some(roots) = grouped.remove(&owner_key(tree)) else {
+                continue;
+            };
+            // Complete the owning forest once, while retaining selection order/duplicates.
+            let mut forest_roots = Vec::new();
+            for root in &roots {
+                let mut parent = tree.source_parent(*root);
+                let mut contained = false;
+                while let Some(id) = parent {
+                    remaining = remaining
+                        .checked_sub(1)
+                        .ok_or("Native name preparation work limit exceeded")?;
+                    if roots.contains(&id) {
+                        contained = true;
+                        break;
+                    }
+                    parent = tree.source_parent(id);
+                }
+                if !contained {
+                    forest_roots.push(*root);
+                }
+            }
+            let limits = cem_ml::schema::reference_traversal::ReferenceTraversalLimits {
+                max_depth: request.max_depth.min(source.policy.limits.max_depth),
+                max_work: remaining.min(source.policy.limits.max_work),
+            };
+            let (names, ()) = self
+                .host
+                .with_namespace_lifecycle(
+                    source
+                        .source
+                        .require_lexical()
+                        .map_err(|e| format!("{e:?}"))?
+                        .clone(),
+                    &forest_roots,
+                    limits,
+                    |_, _, _, _| (source.context.then(|| frame.clone()), Default::default()),
+                    |_, _| (),
+                )
+                .map_err(|e| format!("Native source name preparation: {e:?}"))?;
+            if !names.is_complete() {
+                return Err(
+                    "cem.capability.source_incomplete: source namespaces are pending".into(),
+                );
+            }
+            remaining = remaining
+                .checked_sub(names.work_used)
+                .ok_or("Native name preparation work limit exceeded")?;
+            views.insert(
+                owner_key(tree),
+                crate::namespace_names::NamespaceQueryTree::new(tree.clone(), names.completion)?,
+            );
+        }
+        let mut result = Vec::new();
+        for item in values.items {
+            if let Some(node) = crate::eval::retained_cem_node(&item) {
+                let view = views
+                    .get(&owner_key(node.owner()))
+                    .ok_or("Selected source owner is not retained")?;
+                result.push(
+                    view.node(node.node_id())
+                        .ok_or("Selected source names are not ready")?,
+                );
+            } else {
+                result.push(item);
+            }
+        }
+        Ok(crate::eval::ItemStream::from_items(result))
+    }
+    pub(crate) fn admit(&self, values: &crate::eval::ItemStream) -> Result<(), String> {
+        for item in &values.items {
+            if item
+                .view()
+                .is_some_and(|v| v.kind() == crate::eval::QueryItemViewKind::Node)
+                && !self.host.admits_reference_target(self.requesting, item)
+            {
+                return Err("cem.capability.source_denied: source crossing has no grant".into());
+            }
+        }
+        Ok(())
+    }
+    /// Shared consumer traversal, independent of DOM placement/ID projection.
+    /// Owning containment groups all selected slots without adding reference depth.
+    pub(crate) fn consume(
+        &mut self,
+        values: crate::eval::ItemStream,
+    ) -> Result<crate::eval::ItemStream, String> {
+        use cem_ml::value::reference_resolution::resolve_owned_reference_structure;
+        let root =
+            crate::eval::output::output_nodes(vec![crate::render::RenderPlanNode::Element {
+                tag: "source-selection".into(),
+                namespace: None,
+                qualified_name: None,
+                attributes: vec![],
+                children: vec![],
+                source_map: Default::default(),
+            }])
+            .items
+            .remove(0);
+        let identity = root.view().expect("native container").identity();
+        let mut host = self
+            .host
+            .element_reference_host(self.requesting)
+            .ok_or("Unknown requester")?;
+        use cem_ml::value::reference_resolution::ReferenceResolutionHost;
+        let limits = host.scope_limits(&host.scope(&root));
+        let walk = resolve_owned_reference_structure(
+            root,
+            &mut host,
+            limits,
+            cem_ml::schema::reference_policy::ReferenceOccurrence {
+                identity: identity.clone(),
+                node_id: None,
+                expression: None,
+                source_map: Default::default(),
+            },
+            |_, item| {
+                item.view()
+                    .is_some_and(|v| v.identity() == identity)
+                    .then(|| values.items.clone())
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        let result = &walk.resolution;
+        if !result.is_complete() {
+            return Err(format!(
+                "cem.capability.source_incomplete: {:?}: {}",
+                result.state,
+                result
+                    .issues
+                    .iter()
+                    .map(|i| i.reason.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ));
+        }
+        Ok(crate::eval::ItemStream::from_items(
+            walk.roots
+                .iter()
+                .flat_map(|root| &walk.children[*root])
+                .map(|index| result.nodes[*index].clone())
+                .collect(),
+        ))
+    }
     /// Build a fresh host over original retained owners and captures. Query
     /// bindings are staged atomically and contexts never enter source metadata.
     pub fn prepare(
@@ -153,8 +335,14 @@ impl ElementReferenceExecution {
                 .evaluate(&binding.select, &selection_context)
                 .map_err(|e| format!("{}: {}", e.code, e.message))?
                 .result;
-            if values.error.is_some() || values.items.len() > ceiling {
-                return Err("Reference source selection failed or exceeded bounds".into());
+            if let Some(error) = &values.error {
+                return Err(format!(
+                    "Reference source selection `{}` failed: {error:?}",
+                    binding.name
+                ));
+            }
+            if values.items.len() > ceiling {
+                return Err("Reference source selection exceeded bounds".into());
             }
             staged.bind_native_slice(&binding.name, values)?;
         }

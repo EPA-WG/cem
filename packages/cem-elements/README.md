@@ -32,7 +32,7 @@ request a fresh invocation without changing authored attributes.
 The signal aborts on replacement/disconnect; ignored late callback results cannot
 hold the publication queue or supply authority to a later render.
 Incomplete updates preserve prior DOM relationships. Contexts and grants are not
-saved in hydration snapshots. Worker protocol v15, fallback and retained Node SSR
+saved in hydration snapshots. Worker protocol v16, fallback and retained Node SSR
 use the same native adapter. Stable production source transport remains a
 separate boundary; cross-instance placement requires an additional host grant.
 
@@ -310,8 +310,18 @@ constraints retain precedence. Composition ownership and handled key presses
 remain captured through their terminal key so deferred submission/native surface
 routes cannot reinterpret them. Native history remains browser-owned; a runtime
 replacement does not promise an undo entry. The full suggestions declaration,
-native source/view channel and acceptance matrix are still pending in
+native view publication/bindings and acceptance matrix are still pending in
 [the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
+
+The package-private native capability-session transport retains executable sources
+through CEMB and exports explicit presentation values through CEMV. Prepared
+sessions retain original owners, lexical capture, grants and current source/query
+revisions. Label-template inputs stay native, including authored descendant
+references; per-session namespace completion leaves source ASTs unchanged.
+Release/cancellation/disposal fence late work, and worker loss requires fresh
+source authority instead of restoring old handles in fallback. The source/session
+channel is not a new public suggestions API or durable snapshot field. See the
+[adopted transport boundary](../../docs/cem-suggestions-data-design.md#native-session-transport).
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

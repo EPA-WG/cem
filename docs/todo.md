@@ -444,11 +444,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       A committed candidate absent from a filtered page is not invalidated merely
       by absence; authoritative revocation releases proof without rewriting text.
 
-- [ ] Finalize and implement the retained native source/view transport for
-      suggestions before exporting its public capability. Decision pending:
-      prefer a separate CEMB-backed capability-session channel for executable
+- [x] Finalize and implement the retained native source/view transport for
+      suggestions before exporting its public capability. Adopted 2026-10-07:
+      a separate CEMB-backed capability-session channel retains executable
       source capture/lifecycle contexts, with CEMV for the derived presentation
-      view, versus extending CEMV itself. Existing native CEMV export explicitly
+      view.
+      Existing native CEMV export explicitly
       rejects executable source references; no copied records or premature deep
       expansion of descendant references may substitute for retained ownership.
       Fixture action: add native source/derived-view tests before transport code,
@@ -456,6 +457,25 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Scenarios for later design verification: label/content templates retain
       original scopes and native source edges; original descendant references
       survive; stale views release ownership and cannot regain authority on resume.
+      Fixture action: add Rust native-session cases before implementation for
+      original identity, retained descendants, independent frames, directed
+      grants, incomplete selections and shared request/destination bounds; add
+      WASM and real browser worker/fallback lifecycle cases for session ownership,
+      derived CEMV projection, native label frames, cancellation and disposal.
+      Fixture action: verify completed native namespace nodes can be inserted in
+      label bodies with their namespaced attributes and original content, without
+      a portable-value round trip or implicit descendant reference evaluation.
+      Completed 2026-10-07: native immutable source selections, selected-forest
+      namespace completion, label inputs and guarded CEMV presentation exports
+      use shared lifecycle contexts/grants/bounds. Protocol v16 transports live
+      session preparation/view/render/release separately from snapshot values;
+      worker loss requires fresh authority. Transient leases reject stale query
+      revisions, cleanup cancels/disposes retained owners, and root ownership is
+      isolated. Verified native/WASM and worker/fallback/cancellation fixtures;
+      suggestion-specific adapters/view publication/bindings remain the next item.
+      Verification: 65 focused Rust checks, the standalone WASM session fixture,
+      57 processing unit checks and four browser plays pass. cem-elements build,
+      typecheck and lint pass, with two existing non-null-assertion warnings.
 
 - [ ] Implement the shared editor-provider boundary, synchronous user-commit
       transaction and reset/restore/rebinding notifications in cem-elements,
@@ -497,7 +517,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       exclusive control leases, independent validity leases, change checkpoints,
       composition/held-press routing and fresh leases after disconnect/rebind are
       implemented. Both fields forward native scalar constraints/editing hints
-      and list. Full native source/view transport, attribute/placement claims,
+      and list. The shared native source/view transport is delivered. Reserved
+      suggestions view publication/outbound bindings, attribute/placement claims,
       surface services, suggestions capability and declarative composition remain
       open; do not mark this complete from the provider foundation alone.
       Scenarios for later design verification: submission and validity update
@@ -513,13 +534,18 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       and both fields' native forwarding/pattern stories are delivered. Browser
       checks distinguish raw capture/public bubbling, cover a later native edit,
       captured composition-terminal Enter and expired leases; they do not claim
-      device IME, source/view transport or full suggestions acceptance coverage.
+      device IME or full suggestions acceptance coverage.
       Verified 2026-10-07: 22 focused provider/form/native-surface/field browser
       plays and 19 declaration-contract unit checks pass; cem-elements typecheck
       and lint pass (two existing non-null-assertion warnings). The components
       declarative gate fails on existing theme-switch story imports; an unchanged
       HEAD archive reproduces the identical failure. Full suggestions and its
-      remaining matrix stay open at the native transport decision.
+      remaining matrix stay open at capability/declaration delivery.
+      Progress 2026-10-07: native session identity/namespace/label/export cases,
+      worker/fallback grant/bound/revision/disposal cases and cancellation after
+      import are delivered. The source channel uses the adopted CEMB boundary;
+      no transport decision remains pending. These shared transport checks do not
+      substitute for the full suggestions/browser/native input acceptance matrix.
       Include [composition acceptance scenarios](cem-suggestions-composition-design.md#delivery-and-verification):
       one submission owner, supported text editors, unsupported type/list/role
       conflicts, independent sessions over a shared native source, disable/readonly

@@ -1,6 +1,6 @@
 import { resolveAriaReferenceProfile, type CemAriaReferenceProfile } from '../../aria-reference-profile.js';
 import { assertElementReferenceInputs, type CemElementReferenceInputs, type CemElementPlacementUse } from '../../element-reference-inputs.js';
-import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult } from './processing-host.js';
+import { CemProcessingDiagnosticError, type CemProcessingDiagnostic, type CemProcessingStylesheetInput, type CemProcessingStylesheetResult, type CemProcessingNativeSessionInput, type CemProcessingNativeSessionResult } from './processing-host.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, type NativeCemAttributeBinding, type NativeCemSliceBinding, type CemValueArtifactLimits } from "../../native-values.js";
 /**
  * Host runtime-support boundary for the `cem_ql` WASM render engine
@@ -40,6 +40,11 @@ import initCemQlWasm, {
     exportCemJsonValue,
     importNativeValueArtifact,
     importReferenceReloadBundle,
+    prepareNativeCapabilitySession,
+    nativeCapabilitySessionLength,
+    exportNativeCapabilityView,
+    renderNativeCapabilityTemplate,
+    disposeNativeCapabilitySession,
     disposeReferenceSource,
     disposeNativeValueArtifact,
     takeRenderValueArtifact,
@@ -810,12 +815,12 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
     }
 }
 
-function withElementReferences<T>(options: CemQlRenderOptions, render: (metadata?: string) => T): T {
+function withElementReferences<T>(options: CemQlRenderOptions, render: (metadata?: string) => T, sourceOnly = false): T {
     resolveAriaReferenceProfile(options.ariaReferenceProfile);
     if (options.ariaReferenceProfile !== undefined && !options.elementReferenceInstanceId) throw new TypeError('An explicit ARIA profile requires a producer instance');
     const input = options.elementReferenceInputs;
     if (!input) return render();
-    if (!options.elementReferenceInstanceId) throw new TypeError('Reference lifecycle consumption needs a producer identity');
+    if (!sourceOnly && !options.elementReferenceInstanceId) throw new TypeError('Reference lifecycle consumption needs a producer identity');
     const limits = options.nativeValueLimits ?? DEFAULT_CEM_VALUE_ARTIFACT_LIMITS;
     assertElementReferenceInputs(input, limits);
     const handles: number[] = [];
@@ -830,6 +835,49 @@ function withElementReferences<T>(options: CemQlRenderOptions, render: (metadata
     } finally {
         for (const id of handles) disposeReferenceSource(id);
     }
+}
+
+/** Session handles are local to the processing engine; JSON carries control only. */
+function nativeSessionCall<T>(call: () => T): T {
+    try { return call(); }
+    catch (error) {
+        if (typeof error !== 'string') throw error;
+        let diagnostic: { code?: unknown; message?: unknown; sourceMap?: unknown };
+        try { diagnostic = JSON.parse(error); }
+        catch { throw new Error(error, { cause: error }); }
+        if (typeof diagnostic?.code === 'string' && typeof diagnostic.message === 'string') {
+            throw new CemProcessingDiagnosticError([{ code: diagnostic.code, message: diagnostic.message, severity: 'error',
+                ...(diagnostic.sourceMap ? { sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(diagnostic.sourceMap)}` } as SourceMapRef } : {}) }]);
+        }
+        throw new Error(error, { cause: error });
+    }
+}
+export async function prepareRetainedNativeSession(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number }> {
+    assertProcessingBoundaryValue(input.data, 'native session control frame');
+    if (input.sources.kind !== 'cem-native-session-sources-v1' || 'placements' in input.sources) throw new TypeError('Invalid native session source authority');
+    await ensureRuntimeReady();
+    const options: CemQlRenderOptions = { nativeAttributes: input.nativeAttributes, nativeSlices: input.nativeSlices,
+        nativeValueLimits: input.limits, elementReferenceInputs: { ...input.sources, kind: 'cem-element-reference-inputs-v1' } };
+    return nativeSessionCall(() => withNativeAttributes(options, bindings => withElementReferences(options, sources => {
+        const id = nativeSessionCall(() => prepareNativeCapabilitySession(JSON.stringify(input.data), sources ?? '', input.select, input.resolve !== false, bindings, JSON.stringify(input.limits)));
+        try { return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)) }; }
+        catch (error) { disposeNativeCapabilitySession(id); throw error; }
+    }, true)));
+}
+export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
+export function exportRetainedNativeSessionView(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'view' }>): CemProcessingNativeSessionResult {
+    const result = JSON.parse(nativeSessionCall(() => exportNativeCapabilityView(id, input.expression, input.index))) as { length: number; artifactId: number | null; contentHash: string | null };
+    const artifact = result.artifactId == null ? undefined : takeRenderValueArtifact(result.artifactId).slice().buffer as ArrayBuffer;
+    return { status: 'view', handle: input.handle, values: artifact ? Array.from({ length: result.length }, (_, index) => ({
+        kind: 'cem-native-value-v1' as const, artifact, contentHash: result.contentHash as string, index })) : [] };
+}
+export async function renderRetainedNativeSessionLabel(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'render' }>): Promise<CemProcessingNativeSessionResult> {
+    const template = await retainCemMlTemplateSource(input.template, ['input']);
+    try {
+        const result = mapWasmRenderPlan(nativeSessionCall(() => renderNativeCapabilityTemplate(id, template.artifactId, input.index)), { renderNodeIdPrefix: `native-label-${input.handle.sessionKey}-${input.index ?? 'all'}` });
+        if (result.diagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')) throw new CemProcessingDiagnosticError(result.diagnostics);
+        return { status: 'rendered', handle: input.handle, nodes: result.nodes, diagnostics: result.diagnostics };
+    } finally { disposeRetainedCemMlTemplate(template.artifactId); }
 }
 
 function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQlRenderResult {

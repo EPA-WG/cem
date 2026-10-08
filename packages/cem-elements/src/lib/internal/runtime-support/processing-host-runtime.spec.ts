@@ -17,6 +17,10 @@ vi.mock('./cem-ql-render.js', () => ({
         diagnostics: [],
     })),
     processNativeCemValue: vi.fn(async () => ({ text: 'null' })),
+    prepareRetainedNativeSession: vi.fn(async () => ({ id: 701, length: 2 })),
+    releaseRetainedNativeSession: vi.fn(),
+    exportRetainedNativeSessionView: vi.fn((_id, input) => ({ status: 'view', handle: input.handle, values: [] })),
+    renderRetainedNativeSessionLabel: vi.fn(async (_id, input) => ({ status: 'rendered', handle: input.handle, nodes: [], diagnostics: [] })),
     retainLoadedCemDocument: vi.fn(async () => 201),
     processRetainedTemplateStylesheet: vi.fn(async (_id, input) => input.action === 'release'
         ? { status: 'released', count: 1 }
@@ -571,4 +575,27 @@ it('releases stylesheet generations outside a saturated worker work queue', asyn
         worker.respondNext(); await queued.result;
         root.dispose();
     }
+});
+
+it('cancels a native session after fallback import and releases its owner before retry', async () => {
+    const native = await import('./cem-ql-render.js');
+    const root = createCemDeclarationScope({ document: {} as Document });
+    const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
+        workerFactory: () => { throw new Error('unavailable'); } });
+    const handle = { sessionKey: 'cancel-native', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    let finish!: (value: { id: number; length: number }) => void;
+    vi.mocked(native.prepareRetainedNativeSession).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const request = { action: 'prepare' as const, handle, sources: { kind: 'cem-native-session-sources-v1' as const,
+        requesting: 0, sources: [], bindings: [], grants: [] }, data: {}, select: '()', limits: { maxBytes: 1024, maxValues: 100, maxDepth: 20 } };
+    const job = host.nativeSession(request);
+    const rejected = expect(job.result).rejects.toThrow('cancelled');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await host.cancel({ targetJobId: job.jobId, reason: 'superseded' }).result;
+    finish({ id: 719, length: 1 });
+    await rejected;
+    expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(719);
+    await expect(host.nativeSession({ action: 'view', handle, expression: 'input' }).result).rejects.toThrow();
+    await host.nativeSession({ ...request, handle: { ...handle, sessionKey: 'fresh' } }).result;
+    await host.dispose({ reason: 'runtime-disposed' }).result;
+    expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(701);
 });

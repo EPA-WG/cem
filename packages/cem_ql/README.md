@@ -571,6 +571,20 @@ unsupported-source/graph codes. CEMB separately preserves supported single-arena
 cycles. No transport persists live contexts or resumable pending sessions. See the
 [preservation matrix](../../docs/cem-ql-cem-ml-node-references-design.md#graph-export-and-native-transport-adopted-2026-10-06).
 
+`api::native_capability_session::NativeCapabilitySession` is the transient
+consumer channel for source-backed capability inputs. It shares lifecycle
+registration, directed grants and request/destination bounds with the element
+consumer; source selection reference chains resolve together while target
+descendants stay authored. Selected namespace names complete per execution.
+`evaluate` and label `render` retain the original native input; `export` names
+the guarded CEMV presentation boundary. WASM provides
+`prepareNativeCapabilitySession`, `nativeCapabilitySessionLength`,
+`exportNativeCapabilityView`, `renderNativeCapabilityTemplate` and
+`disposeNativeCapabilitySession`. View export returns only root-count/artifact
+control metadata; take the opaque bytes with `takeRenderValueArtifact`.
+Handles remain heap-local and are never a serialized resume authority.
+Native and WASM cases are included in `test:reference-consumers`.
+
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
 single native node; empty input returns empty, and other types/cardinalities

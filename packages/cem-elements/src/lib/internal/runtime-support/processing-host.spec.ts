@@ -28,6 +28,13 @@ const REVISION: RenderRevision = {
 };
 
 describe('Phase 3A processing-host contract', () => {
+    it('retries native preparation but never restores live view or label handles after worker loss', () => {
+        expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'native-session', action: 'prepare' })).toHaveProperty('action', 'retry-main-thread');
+        for (const action of ['view', 'render'] as const) {
+            expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'native-session', action })).toHaveProperty('action', 'restart-native-session');
+        }
+        expect(decideCemProcessingWorkerFailure({ phase: 'execution', operation: 'native-session', action: 'release' })).toHaveProperty('action', 'complete-control-without-retry');
+    });
     it('accepts cancellation only for active jobs and forgets terminal jobs', () => {
         const jobs = new CemProcessingCancellationRegistry();
 

@@ -46,6 +46,10 @@ vi.mock('./cem-ql-render.js', () => {
         };
     }),
     retainXsltComponentSource: vi.fn(async () => ({ stylesheets: [], diagnostics: [], dispose: vi.fn(), render: vi.fn() })),
+    prepareRetainedNativeSession: vi.fn(async () => ({ id: 701, length: 2 })),
+    releaseRetainedNativeSession: vi.fn(),
+    exportRetainedNativeSessionView: vi.fn((_id, input) => ({ status: 'view', handle: input.handle, values: [] })),
+    renderRetainedNativeSessionLabel: vi.fn(async (_id, input) => ({ status: 'rendered', handle: input.handle, nodes: [], diagnostics: [] })),
     retainLoadedCemDocument: vi.fn(async () => 101),
     retainStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
         stylesheets: [{ css: ':scope { color: red; }', scope: null }], moduleMap: null })),
@@ -1027,4 +1031,31 @@ it('keeps instance stylesheet identities separate in native compilation and load
     await expect(engine.compile({ ...input, templateArtifactId: 'empty', instanceStylesheetIdentity: '' })).rejects.toThrow('instance stylesheet identity');
     await expect(engine.compile({ ...input, language: 'cem-ml', templateArtifactId: 'wrong-language' })).rejects.toThrow('CSS');
     engine.dispose();
+});
+
+it('fences released native preparation and rejects stale revisions without touching another session', async () => {
+    const engine = new CemProcessingEngine({ maxNativeSessionEntries: 1 });
+    const native = await import('./cem-ql-render.js');
+    const handle = { sessionKey: 'native-test-session', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    const request = { action: 'prepare' as const, handle, sources: { kind: 'cem-native-session-sources-v1' as const,
+        requesting: 0, sources: [], bindings: [], grants: [] }, data: {}, select: '()', limits: { maxBytes: 1024, maxValues: 100, maxDepth: 20 } };
+    let finish!: (value: { id: number; length: number }) => void;
+    vi.mocked(native.prepareRetainedNativeSession).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = engine.nativeSession(request);
+    const rejected = expect(pending).rejects.toThrow('superseded or released');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await expect(engine.nativeSession({ action: 'release', handle: { ...handle, queryRevision: 0 } })).rejects.toThrow('mismatch');
+    await engine.nativeSession({ action: 'release', handle });
+    finish({ id: 709, length: 1 });
+    await rejected;
+    expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(709);
+    await expect(engine.nativeSession(request)).rejects.toThrow('already issued');
+    const fresh = { ...request, handle: { ...handle, sessionKey: 'fresh' } };
+    await engine.nativeSession(fresh);
+    await expect(engine.nativeSession({ ...request, handle: { ...handle, sessionKey: 'capacity' } })).rejects.toThrow('capacity');
+    await expect(engine.nativeSession({ action: 'view', handle: { ...fresh.handle, queryRevision: 2 }, expression: 'input' })).rejects.toThrow('mismatch');
+    await expect(engine.nativeSession({ action: 'view', handle: fresh.handle, expression: 'input' })).resolves.toHaveProperty('status', 'view');
+    await expect(engine.nativeSession({ action: 'view', handle: { queryRevision: 1, sourceRevision: 'one', scopePolicyStamp: 'scope', instanceId: 'field', sessionKey: 'fresh' }, expression: 'input' })).resolves.toHaveProperty('status', 'view');
+    engine.dispose({ reason: 'runtime-disposed' });
+    expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(701);
 });

@@ -97,6 +97,9 @@ impl QueryItemView for NamespaceQueryNode {
     fn provenance(&self) -> Option<cem_ml::value::artifact::CemValueProvenance> {
         self.authored().view()?.provenance()
     }
+    fn value_contract(&self) -> Option<cem_ml::schema::document_model::AttributeValueContract> {
+        self.authored().view()?.value_contract()
+    }
     fn parent(&self, _: QueryContextScope) -> Result<Option<Item>, QueryNodeAccessError> {
         // The selected roots have no completed-view ancestry outside the forest.
         Ok(self

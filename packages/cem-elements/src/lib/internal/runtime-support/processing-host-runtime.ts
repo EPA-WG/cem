@@ -19,6 +19,8 @@ import {
     type CemProcessingCompileResult,
     type CemProcessingStylesheetInput,
     type CemProcessingStylesheetResult,
+    type CemProcessingNativeSessionInput,
+    type CemProcessingNativeSessionResult,
     type CemProcessingValueInput,
     type CemProcessingValueResult,
     type CemProcessingDocumentInput,
@@ -289,7 +291,7 @@ class CemProcessingWorkerSlot {
     enqueue(owner: PooledRootOwner, pending: PooledWorkerRequest): void {
         // Exact-generation CSS release is cleanup control, just like cancel.
         // Bulk disconnect must not fill the work queue or reject new renders.
-        if (pending.request.operation === 'cancel' || pending.request.operation === 'stylesheet'
+        if (pending.request.operation === 'cancel' || pending.request.operation === 'native-session' && pending.request.payload.action === 'release' || pending.request.operation === 'stylesheet'
             && pending.request.payload.action === 'release') {
             this.pool.record(owner, 'enqueue', pending.request, pending.scopePolicyStamp);
             this.pool.record(owner, 'dispatch', pending.request, pending.scopePolicyStamp);
@@ -492,6 +494,9 @@ class RootCemProcessingHost implements CemProcessingHost {
     private readonly stylesheetOwner = crypto.randomUUID();
     private readonly stylesheetConsumers = new Map<string, Pick<CemProcessingStylesheetInput, 'artifact' | 'consumer'>>();
     private readonly stylesheetJobs = new Set<Promise<unknown>>();
+    private readonly nativeSessionOwner = crypto.randomUUID();
+    private readonly nativeSessionHandles = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; mode: 'worker' | 'main-thread' }>();
+    private readonly nativeSessionJobs = new Set<Promise<unknown>>();
     private readonly documentInputs = new Map<string, Extract<CemProcessingDocumentInput, { action: 'retain' }>>();
     private readonly compileInputs = new Map<string, CemProcessingCompileInput>();
     private readonly jobPolicies = new Map<number, string>();
@@ -535,6 +540,46 @@ class RootCemProcessingHost implements CemProcessingHost {
 
     get ready(): Promise<CemProcessingReadyEnvelope> {
         return this.initialReady;
+    }
+
+    nativeSession(input: CemProcessingNativeSessionInput): CemProcessingJob<CemProcessingNativeSessionResult> {
+        input = structuredClone(input);
+        const publicHandle = { ...input.handle };
+        input = { ...input, handle: { ...publicHandle, sessionKey: JSON.stringify([this.nativeSessionOwner, publicHandle.sessionKey]) } };
+        const key = input.handle.sessionKey;
+        const known = this.nativeSessionHandles.get(key);
+        if (known && (known.handle.instanceId !== input.handle.instanceId || known.handle.scopePolicyStamp !== input.handle.scopePolicyStamp
+            || known.handle.sourceRevision !== input.handle.sourceRevision || known.handle.queryRevision !== input.handle.queryRevision)) {
+            return { jobId: this.sequence.next(), result: Promise.reject(new Error('Native session revision or owner mismatch')) };
+        }
+        if (input.action === 'prepare' && known) {
+            return { jobId: this.sequence.next(), result: Promise.reject(new Error('Native session identity was already issued')) };
+        }
+        if (input.action !== 'prepare' && input.action !== 'release' && (!known || known.mode !== this.mode)) {
+            return { jobId: this.sequence.next(), result: Promise.reject(new Error('Native session worker owner was lost; prepare a fresh session')) };
+        }
+        if (input.action === 'prepare') this.nativeSessionHandles.set(key, { handle: input.handle, mode: this.mode });
+        if (input.action === 'release') this.nativeSessionHandles.delete(key);
+        const payload = input;
+        const job = this.submit('native-session', payload);
+        const result = job.result.then(async result => {
+            if (this.disposed) throw new Error('Native session host was disposed');
+            if (payload.action === 'prepare') {
+                const current = this.nativeSessionHandles.get(key);
+                if (!current) throw new Error('Native session preparation was released');
+                current.mode = this.mode;
+            }
+            if (payload.action === 'release') this.nativeSessionHandles.delete(key);
+            return { ...result, handle: publicHandle };
+        }).catch(async (error: unknown) => {
+            if (payload.action === 'prepare') {
+                this.nativeSessionHandles.delete(key);
+                if (!this.disposed) await this.submit('native-session', { action: 'release', handle: payload.handle }).result.catch(() => undefined);
+            }
+            throw error;
+        }).finally(() => this.nativeSessionJobs.delete(result));
+        this.nativeSessionJobs.add(result);
+        return { jobId: job.jobId, result };
     }
 
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult> {
@@ -603,9 +648,13 @@ class RootCemProcessingHost implements CemProcessingHost {
         const request = createCemProcessingRequestEnvelope(this.sequence, 'dispose', input);
         this.jobs.start(request.jobId);
         const result = Promise.resolve().then(async () => {
-            await Promise.allSettled([...this.stylesheetJobs]);
+            await Promise.allSettled([...this.stylesheetJobs, ...this.nativeSessionJobs]);
             if (!this.fallbackSelected) {
                 // The worker may also serve other roots. Release this root's owners first.
+                if (this.nativeSessionHandles.size) await Promise.all([...this.nativeSessionHandles.values()].filter(s => s.mode === 'worker').map(s =>
+                    this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session',
+                        { action: 'release', handle: s.handle }), s.handle.scopePolicyStamp).catch(() => undefined)));
+
                 await Promise.all([...this.stylesheetConsumers.values()].map((consumer) =>
                     this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'stylesheet',
                         { ...consumer, action: 'release' }), consumer.artifact.scopePolicyStamp).catch(() => undefined)));
@@ -615,6 +664,7 @@ class RootCemProcessingHost implements CemProcessingHost {
                         { action: 'release', handle: document.handle }), document.handle.scopePolicyStamp)
                         .catch(() => undefined)));
             }
+            this.nativeSessionHandles.clear();
             this.stylesheetConsumers.clear();
             this.documentInputs.clear();
             this.lease.release();
@@ -660,6 +710,12 @@ class RootCemProcessingHost implements CemProcessingHost {
                         loadId: response.result.loadId,
                     }), scopePolicyStamp).catch(() => undefined);
                 }
+                if (request.operation === 'native-session' && request.payload.action === 'prepare'
+                    && (this.disposed || this.jobs.isCancelled(request.jobId))) {
+                    await this.lease.request(createCemProcessingRequestEnvelope(this.sequence, 'native-session', {
+                        action: 'release', handle: request.payload.handle,
+                    }), scopePolicyStamp).catch(() => undefined);
+                }
                 this.assertNotCancelled(request);
                 if (request.operation === 'cancel' && cancellationAccepted) {
                     return {
@@ -674,6 +730,9 @@ class RootCemProcessingHost implements CemProcessingHost {
                     throw error;
                 }
                 this.selectFallback(error, request);
+                if (request.operation === 'native-session' && request.payload.action !== 'prepare') {
+                    throw new Error('Native session worker owner was lost; prepare a fresh session', { cause: error });
+                }
                 if (request.operation === 'stylesheet' && request.payload.action !== 'begin') {
                     throw new Error('stylesheet worker owner was lost; restart the load', { cause: error });
                 }
@@ -723,6 +782,15 @@ class RootCemProcessingHost implements CemProcessingHost {
         request: CemProcessingRequestEnvelope<TOperation>,
         cancellationAccepted = false
     ): Promise<OperationResult<TOperation>> {
+        if (request.operation === 'native-session') {
+            const result = await this.engine.nativeSession(request.payload);
+            try { this.assertNotCancelled(request); }
+            catch (error) {
+                if (request.payload.action === 'prepare') await this.engine.nativeSession({ action: 'release', handle: request.payload.handle });
+                throw error;
+            }
+            return result as OperationResult<TOperation>;
+        }
         if (request.operation === 'value') {
             const result = await this.engine.value(request.payload);
             this.assertNotCancelled(request);
@@ -794,6 +862,8 @@ class RootCemProcessingHost implements CemProcessingHost {
             })
             : request?.operation === 'stylesheet'
                 ? decideCemProcessingWorkerFailure({ phase, operation: 'stylesheet', action: request.payload.action })
+            : request?.operation === 'native-session'
+                ? decideCemProcessingWorkerFailure({ phase, operation: 'native-session', action: request.payload.action })
             : decideCemProcessingWorkerFailure({
                 phase,
                 operation: request?.operation ?? 'compile',
@@ -842,6 +912,7 @@ function requestScopePolicyStamp(
     request: CemProcessingRequestEnvelope,
     jobPolicies: ReadonlyMap<number, string>
 ): string {
+    if (request.operation === 'native-session') return request.payload.handle.scopePolicyStamp;
     if (request.operation === 'value') return request.payload.scopePolicyStamp;
     if (request.operation === 'document') return request.payload.handle.scopePolicyStamp;
     if (request.operation === 'compile') {
@@ -857,7 +928,8 @@ function requestScopePolicyStamp(
 }
 
 type OperationResult<TOperation extends CemProcessingOperation> =
-    TOperation extends 'stylesheet' ? CemProcessingStylesheetResult
+    TOperation extends 'native-session' ? CemProcessingNativeSessionResult
+        : TOperation extends 'stylesheet' ? CemProcessingStylesheetResult
         : TOperation extends 'value' ? CemProcessingValueResult
         : TOperation extends 'document' ? CemProcessingDocumentResult
         : TOperation extends 'compile' ? CemProcessingCompileResult

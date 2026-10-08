@@ -6,6 +6,16 @@ pub struct CemQlElementReferenceHost<'a> {
     requesting: DeclarationScope,
 }
 impl CemQlSchemaDeclarationHost {
+    pub(crate) fn admits_reference_target(
+        &self,
+        requesting: DeclarationScope,
+        item: &Item,
+    ) -> bool {
+        self.permits_edge(
+            &self.query_node(crate::eval::values::reference(Vec::new()), Some(requesting)),
+            &self.query_node(item.clone(), Some(requesting)),
+        )
+    }
     /// Contexts, lexical captures, policies and directed grants must already be
     /// supplied. This adapter registers no owners and creates no authority.
     pub fn element_reference_host(

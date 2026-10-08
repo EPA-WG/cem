@@ -79,36 +79,7 @@ pub(crate) fn prepare(
         return Err("Reference lifecycle metadata byte limit exceeded".into());
     }
     let inputs: Inputs = serde_json::from_str(json).map_err(|e| e.to_string())?;
-    let sources = inputs
-        .sources
-        .into_iter()
-        .map(|s| {
-            let mut policy = ReferenceScopePolicy::schema_defaults().map_err(|e| e.to_string())?;
-            if let Some(depth) = s.max_depth {
-                policy.limits.max_depth = depth;
-            }
-            if let Some(work) = s.max_work {
-                policy.limits.max_work = work;
-            }
-            if let Some(disposition) = s.unresolved {
-                policy.unresolved =
-                    ReferenceUnresolvedPolicy::standard(match disposition.as_str() {
-                        "mandatory" => UnresolvedDisposition::Mandatory,
-                        "warning" => UnresolvedDisposition::Warning,
-                        "ignore" => UnresolvedDisposition::Ignore,
-                        "neutral" => UnresolvedDisposition::Neutral,
-                        _ => return Err("Unknown reference disposition".into()),
-                    })
-                    .map_err(|e| e.to_string())?;
-            }
-            Ok(ElementReferenceSource {
-                source: retained_source(s.source_id)
-                    .map_err(|_| "Unknown reference source handle")?,
-                context: s.context,
-                policy,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
+    let sources = decode_sources(inputs.sources)?;
     let bindings = inputs
         .bindings
         .into_iter()
@@ -160,4 +131,72 @@ pub(crate) fn prepare(
         data,
     )
     .map(Some)
+}
+
+fn decode_sources(sources: Vec<Source>) -> Result<Vec<ElementReferenceSource>, String> {
+    sources
+        .into_iter()
+        .map(|s| {
+            let mut policy = ReferenceScopePolicy::schema_defaults().map_err(|e| e.to_string())?;
+            if let Some(depth) = s.max_depth {
+                policy.limits.max_depth = depth;
+            }
+            if let Some(work) = s.max_work {
+                policy.limits.max_work = work;
+            }
+            if let Some(disposition) = s.unresolved {
+                policy.unresolved =
+                    ReferenceUnresolvedPolicy::standard(match disposition.as_str() {
+                        "mandatory" => UnresolvedDisposition::Mandatory,
+                        "warning" => UnresolvedDisposition::Warning,
+                        "ignore" => UnresolvedDisposition::Ignore,
+                        "neutral" => UnresolvedDisposition::Neutral,
+                        _ => return Err("Unknown reference disposition".into()),
+                    })
+                    .map_err(|e| e.to_string())?;
+            }
+            Ok(ElementReferenceSource {
+                source: retained_source(s.source_id)
+                    .map_err(|_| "Unknown reference source handle")?,
+                context: s.context,
+                policy,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()
+}
+
+pub(super) fn prepare_native_session(
+    data: TemplateData,
+    json: &str,
+    select: &str,
+    resolve: bool,
+    limits: CemValueArtifactLimits,
+) -> Result<crate::api::native_capability_session::NativeCapabilitySession, String> {
+    if json.len() > 128 * 1024 {
+        return Err("Reference lifecycle metadata byte limit exceeded".into());
+    }
+    let inputs: Inputs = serde_json::from_str(json).map_err(|e| e.to_string())?;
+    if inputs.placements.is_some() {
+        return Err("Native source session cannot carry DOM placement authority".into());
+    }
+    let sources = decode_sources(inputs.sources)?;
+    let bindings = inputs
+        .bindings
+        .into_iter()
+        .map(|b| ElementReferenceBinding {
+            source: b.source,
+            name: b.name,
+            select: b.select,
+        })
+        .collect::<Vec<_>>();
+    crate::api::native_capability_session::NativeCapabilitySession::prepare(
+        sources,
+        inputs.requesting,
+        &bindings,
+        &inputs.grants,
+        data,
+        select,
+        resolve,
+        limits,
+    )
 }

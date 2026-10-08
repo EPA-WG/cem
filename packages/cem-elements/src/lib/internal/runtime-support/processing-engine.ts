@@ -13,6 +13,10 @@ import {
 } from '../../projection.js';
 import {
     processNativeCemValue,
+    prepareRetainedNativeSession,
+    releaseRetainedNativeSession,
+    exportRetainedNativeSessionView,
+    renderRetainedNativeSessionLabel,
     processRetainedTemplateStylesheet,
     releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
@@ -37,6 +41,8 @@ import type {
     CemProcessingCompileResult,
     CemProcessingStylesheetInput,
     CemProcessingStylesheetResult,
+    CemProcessingNativeSessionInput,
+    CemProcessingNativeSessionResult,
     CemProcessingValueInput,
     CemProcessingValueResult,
     CemProcessingDocumentInput,
@@ -75,6 +81,7 @@ interface CachedTemplateCompilation {
 export interface CemProcessingEngineOptions {
     maxArtifactEntries?: number;
     maxRenderPlanEntries?: number;
+    maxNativeSessionEntries?: number;
 }
 
 const DEFAULT_ARTIFACT_CACHE_ENTRIES = 64;
@@ -89,15 +96,67 @@ export class CemProcessingEngine {
     private readonly xpathLibraries = new CemXPathFunctionLibraries();
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
+    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits'] }>();
+    private readonly nativeSessionOperations = new Map<string, { handle: CemProcessingNativeSessionInput['handle'] }>();
+    private readonly nativeSessionKeys = new Set<string>();
+    private readonly maxNativeSessionEntries: number;
     private disposed = false;
 
     constructor(options: CemProcessingEngineOptions = {}) {
         const maxArtifactEntries = options.maxArtifactEntries ?? DEFAULT_ARTIFACT_CACHE_ENTRIES;
+        this.maxNativeSessionEntries = options.maxNativeSessionEntries ?? 64;
+        if (!Number.isSafeInteger(this.maxNativeSessionEntries) || this.maxNativeSessionEntries < 1) throw new RangeError('Invalid native session capacity');
         this.artifacts = new CemProcessingLruCache(maxArtifactEntries);
         this.compiledArtifacts = new CemProcessingLruCache(maxArtifactEntries);
         this.renderPlans = new CemProcessingLruCache(
             options.maxRenderPlanEntries ?? DEFAULT_RENDER_PLAN_CACHE_ENTRIES
         );
+    }
+
+    async nativeSession(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
+        this.assertActive();
+        const handle = input.handle;
+        if (!handle || typeof handle.sessionKey !== 'string' || !handle.sessionKey || handle.sessionKey.length > 1024
+            || typeof handle.instanceId !== 'string' || !handle.instanceId || typeof handle.scopePolicyStamp !== 'string' || !handle.scopePolicyStamp
+            || typeof handle.sourceRevision !== 'string' || !handle.sourceRevision
+            || !Number.isSafeInteger(handle.queryRevision) || handle.queryRevision < 0) throw new TypeError('Invalid native session identity');
+        if ([handle.instanceId, handle.scopePolicyStamp, handle.sourceRevision].some(s => s.length > 1024)) throw new RangeError('Native session identity byte limit exceeded');
+        const key = handle.sessionKey;
+        const retained = this.nativeSessions.get(key);
+        const owned = retained ?? this.nativeSessionOperations.get(key);
+        if (owned && (owned.handle.instanceId !== handle.instanceId || owned.handle.scopePolicyStamp !== handle.scopePolicyStamp
+            || owned.handle.sourceRevision !== handle.sourceRevision || owned.handle.queryRevision !== handle.queryRevision)) throw new Error('Native session revision or owner mismatch');
+        if (input.action === 'release') {
+            this.nativeSessionOperations.delete(key);
+            if (retained) releaseRetainedNativeSession(retained.id);
+            this.nativeSessions.delete(key);
+            return { status: 'released', handle };
+        }
+        if (input.action === 'prepare') {
+            if (this.nativeSessions.size + this.nativeSessionOperations.size >= this.maxNativeSessionEntries) throw new RangeError('Native session capacity exceeded');
+            if (this.nativeSessionKeys.has(key)) throw new Error('Native session identity was already issued; prepare a fresh session');
+            if (this.nativeSessionKeys.size >= 100_000) throw new RangeError('Native session identity limit exceeded');
+            this.nativeSessionKeys.add(key);
+            const operation = { handle };
+            this.nativeSessionOperations.set(key, operation);
+            let session: { id: number; length: number };
+            try { session = await prepareRetainedNativeSession(input); }
+            catch (error) { if (this.nativeSessionOperations.get(key) === operation) this.nativeSessionOperations.delete(key); throw error; }
+            if (this.disposed || this.nativeSessionOperations.get(key) !== operation) {
+                releaseRetainedNativeSession(session.id);
+                throw new Error('Native session preparation was superseded or released');
+            }
+            this.nativeSessionOperations.delete(key);
+            this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits });
+            return { status: 'ready', handle, length: session.length };
+        }
+        if (!retained) throw new Error('Native capability session is not retained; reacquire source authority');
+        if (input.index !== undefined && (!Number.isSafeInteger(input.index) || input.index < 0 || input.index > 0xffffffff)) throw new TypeError('Invalid native source index');
+        if (input.action === 'render' && new TextEncoder().encode(input.template).byteLength > retained.limits.maxBytes) throw new RangeError('Native label byte limit exceeded');
+        const result = input.action === 'view' ? exportRetainedNativeSessionView(retained.id, input)
+            : await renderRetainedNativeSessionLabel(retained.id, input);
+        if (this.disposed || this.nativeSessions.get(key) !== retained) throw new Error('Native session result was superseded or released');
+        return result;
     }
 
     async value(input: CemProcessingValueInput): Promise<CemProcessingValueResult> {
@@ -360,6 +419,10 @@ export class CemProcessingEngine {
     }
 
     dispose(_input: CemProcessingDisposeInput): CemProcessingDisposeResult {
+        for (const session of this.nativeSessions.values()) releaseRetainedNativeSession(session.id);
+        this.nativeSessions.clear();
+        this.nativeSessionOperations.clear();
+        this.nativeSessionKeys.clear();
         for (const document of this.documents.values()) disposeLoadedCemDocument(document.id);
         this.documents.clear();
         this.documentOperations.clear();

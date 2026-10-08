@@ -30,6 +30,7 @@ pub mod wasm;
 
 pub mod native_values;
 pub mod element_references;
+pub mod native_capability_session;
 pub mod reference_transport;
 pub mod reference_lifecycle;
 mod binding_selection;

@@ -1,3 +1,4 @@
+import type { CemNativeSessionHandle, CemNativeSessionSources } from '../../native-capability-session.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
@@ -8,6 +9,7 @@ import {
     assertProcessingBoundaryValue,
     type PatchFrame,
     type RenderRevision,
+    type RenderPlanNode,
     type SourceMapRef,
 } from '../../projection.js';
 import {
@@ -17,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v15' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v16' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -25,6 +27,7 @@ export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'document',
     'stylesheet',
     'value',
+    'native-session',
     'cancel',
     'dispose',
 ] as const;
@@ -206,6 +209,22 @@ export type CemProcessingValueInput = { scopePolicyStamp: string; limits: CemVal
 );
 export type CemProcessingValueResult = { value: NativeCemValue } | { text: string | null };
 
+/** Retained executable sources use CEMB; the derived presentation uses CEMV. */
+export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
+    | { action: 'prepare'; sources: CemNativeSessionSources; data: Record<string, unknown>;
+        select: string; resolve?: boolean; limits: CemValueArtifactLimits;
+        nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
+    | { action: 'view'; expression: string; index?: number }
+    | { action: 'render'; template: string; index?: number }
+    | { action: 'release' }
+);
+export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle } & (
+    | { status: 'ready'; length: number }
+    | { status: 'view'; values: NativeCemValue[] }
+    | { status: 'rendered'; nodes: RenderPlanNode[]; diagnostics: CemProcessingDiagnostic[] }
+    | { status: 'released' }
+);
+
 export interface CemProcessingRenderDiffInput {
     elementReferenceInputs?: CemElementReferenceInputs;
     /** Native payload CSS is installed separately on the consuming host. */
@@ -350,6 +369,7 @@ interface CemProcessingRequestPayloads {
     stylesheet: CemProcessingStylesheetInput;
     document: CemProcessingDocumentInput;
     value: CemProcessingValueInput;
+    'native-session': CemProcessingNativeSessionInput;
     compile: CemProcessingCompileInput;
     'render-diff': CemProcessingRenderDiffInput;
     cancel: CemProcessingCancelInput;
@@ -360,6 +380,7 @@ interface CemProcessingSuccessResults {
     stylesheet: CemProcessingStylesheetResult;
     document: CemProcessingDocumentResult;
     value: CemProcessingValueResult;
+    'native-session': CemProcessingNativeSessionResult;
     compile: CemProcessingCompileResult;
     'render-diff': CemProcessingRenderDiffResult;
     cancel: CemProcessingCancelResult;
@@ -582,6 +603,7 @@ export interface CemProcessingHost {
     readonly ownerScope: CemDeclarationScope;
     readonly ready: Promise<CemProcessingReadyEnvelope>;
     value(input: CemProcessingValueInput): CemProcessingJob<CemProcessingValueResult>;
+    nativeSession(input: CemProcessingNativeSessionInput): CemProcessingJob<CemProcessingNativeSessionResult>;
     stylesheet(input: CemProcessingStylesheetInput): CemProcessingJob<CemProcessingStylesheetResult>;
     document(input: CemProcessingDocumentInput): CemProcessingJob<CemProcessingDocumentResult>;
     compile(input: CemProcessingCompileInput): CemProcessingJob<CemProcessingCompileResult>;
@@ -623,6 +645,7 @@ export type CemProcessingWorkerFailure =
           revision: RenderRevision;
       })
     | (CemProcessingWorkerFailureBase & { operation: 'stylesheet'; action: 'begin' | 'deliver' | 'fail' | 'release' })
+    | (CemProcessingWorkerFailureBase & { operation: 'native-session'; action: CemProcessingNativeSessionInput['action'] })
     | (CemProcessingWorkerFailureBase & { operation: 'value' | 'document' | 'cancel' | 'dispose' });
 
 export type CemProcessingWorkerFailureDecision =
@@ -653,7 +676,7 @@ export type CemProcessingWorkerFailureDecision =
           diagnostic: CemProcessingDiagnostic;
       }
     | {
-          action: 'complete-control-without-retry' | 'restart-stylesheet-load';
+          action: 'complete-control-without-retry' | 'restart-stylesheet-load' | 'restart-native-session';
           nextMode: 'main-thread' | 'disposed';
           allocateNewJobId: false;
           ignoreLateWorkerResult: true;
@@ -684,6 +707,7 @@ export function decideCemProcessingWorkerFailure(
 
     const diagnostic = workerFallbackDiagnostic(failure.phase);
     if (failure.operation === 'compile' || failure.operation === 'document' || failure.operation === 'value'
+        || failure.operation === 'native-session' && failure.action === 'prepare'
         || failure.operation === 'stylesheet' && failure.action === 'begin') {
         return {
             action: 'retry-main-thread',
@@ -696,7 +720,8 @@ export function decideCemProcessingWorkerFailure(
     }
     if (failure.operation !== 'render-diff') {
         return {
-            action: failure.operation === 'stylesheet' ? 'restart-stylesheet-load' : 'complete-control-without-retry',
+            action: failure.operation === 'stylesheet' ? 'restart-stylesheet-load'
+                : failure.operation === 'native-session' && failure.action !== 'release' ? 'restart-native-session' : 'complete-control-without-retry',
             nextMode: failure.operation === 'dispose' ? 'disposed' : 'main-thread',
             allocateNewJobId: false,
             ignoreLateWorkerResult: true,

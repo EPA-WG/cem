@@ -43,6 +43,14 @@ async function handleMessage(message: unknown): Promise<void> {
             return;
         }
         jobs.start(request.jobId);
+        if (request.operation === 'native-session') {
+            const result = await engine.nativeSession(request.payload);
+            if (jobs.isCancelled(request.jobId)) {
+                if (request.payload.action === 'prepare') await engine.nativeSession({ action: 'release', handle: request.payload.handle });
+                workerScope.postMessage(createCemProcessingFailureEnvelope(request, 'cancelled', [cancelledDiagnostic()]));
+            } else workerScope.postMessage(createCemProcessingSuccessEnvelope(request, result));
+            return;
+        }
         if (request.operation === 'value') {
             const result = await engine.value(request.payload);
             workerScope.postMessage(jobs.isCancelled(request.jobId)

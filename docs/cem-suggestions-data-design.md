@@ -81,6 +81,48 @@ processing boundary, with worker/fallback and source grants intact. Do not
 implement a component-specific DOM event payload containing response records.
 The implementation action includes that extension and atomic result admission.
 
+### Native session transport
+
+Adopted 2026-10-07:
+executable source capture uses a separate CEMB-backed capability session;
+CEMV remains the materialized presentation boundary. A session imports its
+original sources and lexical capture once, prepares explicit runtime inputs,
+directed grants and effective request/destination bounds, then retains its
+ordered native selection. The default consumer resolves selection reference
+chains, while descendant references remain authored until another explicit
+consumer evaluates them. Owning selection containment does not add reference
+depth. An incomplete or denied selection cannot activate as ready-empty.
+
+Complete the selected forest's namespace names through the existing lifecycle
+stage. The resulting native query view retains the original source handles;
+another session can complete the same source differently without changing it.
+Namespace preparation has one bounded work allowance across source forests.
+It does not expand general descendant references or grant new crossings.
+
+Label templates receive the retained selected native input in the session's
+frame. Explicit presentation queries may export CEMV values for render/binding
+consumers. An export containing executable source capture still fails with its
+native diagnostic; projecting a presentation value does not transfer source
+authority. Original source edges stay inside the native session rather than
+becoming serialized JavaScript records.
+
+Processing-host protocol v16 provides prepare/view/render/release operations
+with immutable source/query revisions and root-owned session identities. A
+transient lease checks attachment/query eligibility before and after async
+work. Cancellation, release and root disposal fence in-flight preparation and
+release native owners. Default capacity is 64 live/preparing sessions per engine;
+the embedding engine may configure its capacity. Issued session identities are
+bounded and cannot be reused during that engine's lifetime. Views and label
+templates use explicit value/byte/index bounds as well as native execution
+limits. These handles and leases never enter durable data-island state.
+
+Startup fallback may prepare a new native session through the same code. Loss
+of a worker invalidates its live sessions: views or label work cannot silently
+reload old grants into fallback. Resume/retry obtains fresh source authority and
+a new session identity. The shared transport is implemented; suggestion-specific
+source adapters, the reserved view's publication, outbound bindings and the
+public capability/declaration remain the next runtime action.
+
 Request replacement/disconnect asks the shared resource owner to cancel its
 obsolete work. Cancellation may not stop an already finishing transport; every
 completion must still match the requesting attachment/editor/query revision and

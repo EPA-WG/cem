@@ -57,6 +57,8 @@ impl PlanRenderer<'_> {
                     .is_some()
                     || v.downcast_ref::<crate::eval::portable::GraphView>()
                         .is_some()
+                    || v.downcast_ref::<crate::namespace_names::NamespaceQueryNode>()
+                        .is_some()
             }) {
                 out.push(occurrence(item.clone(), source.clone()));
             } else if let Some(node) = native(item) {
@@ -98,6 +100,13 @@ impl PlanRenderer<'_> {
 pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
     let mut result = Vec::new();
     for item in reference.values() {
+        if let Some(view) = item
+            .view()
+            .and_then(|v| v.downcast_ref::<crate::namespace_names::NamespaceQueryNode>())
+        {
+            result.extend(expand_namespace(view));
+            continue;
+        }
         if let Some(graph) = item
             .view()
             .and_then(|v| v.downcast_ref::<crate::eval::portable::GraphView>())
@@ -217,7 +226,12 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
                         }
                     };
                     attributes.push(RenderPlanAttribute {
-                        contract: cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(&attribute).cloned().map(std::sync::Arc::new),
+                        contract:
+                            cem_ml::value::xpath::CemValueXPathProjection::attribute_contract(
+                                &attribute,
+                            )
+                            .cloned()
+                            .map(std::sync::Arc::new),
                         name,
                         qualified_name: Some(qualified_name),
                         namespace,
@@ -257,24 +271,42 @@ pub fn expand_reference(reference: &CemReference<Item>) -> Vec<RenderPlanNode> {
 }
 
 pub(super) fn expand_reference_scoped(
-    reference: &CemReference<Item>, budget: &mut crate::eval::value_control::ValueControl<'_>,
+    reference: &CemReference<Item>,
+    budget: &mut crate::eval::value_control::ValueControl<'_>,
 ) -> Result<Vec<RenderPlanNode>, cem_ml::operation_control::ControlError> {
     let mut result = Vec::new();
     for item in reference.values() {
         budget.charge(0, 0)?;
-        if let Some(view) = item.view().filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node) {
+        if let Some(view) = item
+            .view()
+            .filter(|v| v.kind() == crate::eval::QueryItemViewKind::Node)
+        {
             if reference_values(item).is_none() {
-                view.parent(budget.query_scope).map_err(|e| budget.access_error(e))?;
-                let kind = view.field("kind").and_then(|v| v.first().and_then(Item::atom));
-                if matches!(kind, Some(AtomValue::String(ref k)) if k == "element" || k == "document") {
-                    for child in view.children(budget.query_scope).map_err(|e| budget.access_error(e))? {
+                view.parent(budget.query_scope)
+                    .map_err(|e| budget.access_error(e))?;
+                let kind = view
+                    .field("kind")
+                    .and_then(|v| v.first().and_then(Item::atom));
+                if matches!(kind, Some(AtomValue::String(ref k)) if k == "element" || k == "document")
+                {
+                    for child in view
+                        .children(budget.query_scope)
+                        .map_err(|e| budget.access_error(e))?
+                    {
                         budget.charge(0, 0)?;
                         child.map_err(|e| budget.access_error(e))?;
                     }
                 }
                 if native(item).is_none()
-                    && view.downcast_ref::<crate::eval::output::OutputView>().is_none()
-                    && view.downcast_ref::<crate::eval::portable::GraphView>().is_none()
+                    && view
+                        .downcast_ref::<crate::eval::output::OutputView>()
+                        .is_none()
+                    && view
+                        .downcast_ref::<crate::eval::portable::GraphView>()
+                        .is_none()
+                    && view
+                        .downcast_ref::<crate::namespace_names::NamespaceQueryNode>()
+                        .is_none()
                 {
                     return Err(budget.failure("cem.value.projection_unsupported"));
                 }
@@ -285,6 +317,98 @@ pub(super) fn expand_reference_scoped(
         result.extend(expand_reference(&CemReference::new(vec![item.clone()])));
     }
     Ok(result)
+}
+
+/// Explicit output projection keeps completed names and native owning edges.
+fn expand_namespace(view: &crate::namespace_names::NamespaceQueryNode) -> Vec<RenderPlanNode> {
+    use crate::eval::QueryItemView;
+    let source = view.source_node();
+    if !matches!(source.node(), cem_ml::parser::CemAstNode::Element { .. }) {
+        return expand_reference(&CemReference::new(vec![source.query_item()]));
+    }
+    let field = |name: &str| view.field(name).unwrap_or_default();
+    let lexical = |name: &str| field(name).first().map(item_to_string).unwrap_or_default();
+    let namespace = lexical("namespace");
+    let source_map = view.source_map().unwrap_or_default();
+    let mut attributes = Vec::new();
+    let mut declare = |name: String, qualified: String, value: String| {
+        attributes.push(RenderPlanAttribute {
+            name,
+            namespace: Some("http://www.w3.org/2000/xmlns/".into()),
+            qualified_name: Some(qualified),
+            value: value.clone(),
+            value_stream: string_stream(value),
+            contract: None,
+            source_map: source_map.clone(),
+        })
+    };
+    if !namespace.is_empty() {
+        declare("xmlns".into(), "xmlns".into(), namespace.clone());
+    }
+    for (index, attribute) in field("attributes").iter().enumerate() {
+        let Some(attribute_view) = attribute.view() else {
+            continue;
+        };
+        let text = |name: &str| {
+            attribute_view
+                .field(name)
+                .and_then(|v| v.first().map(item_to_string))
+                .unwrap_or_default()
+        };
+        let uri = text("namespace");
+        if uri == "http://www.w3.org/2000/xmlns/" {
+            continue;
+        }
+        let name = text("name");
+        let qualified_name = if uri.is_empty() {
+            name.clone()
+        } else if uri == "http://www.w3.org/XML/1998/namespace" {
+            format!("xml:{name}")
+        } else {
+            let prefix = format!("ns{}", index + 1);
+            attributes.push(RenderPlanAttribute {
+                name: prefix.clone(),
+                namespace: Some("http://www.w3.org/2000/xmlns/".into()),
+                qualified_name: Some(format!("xmlns:{prefix}")),
+                value: uri.clone(),
+                value_stream: string_stream(uri.clone()),
+                contract: None,
+                source_map: source_map.clone(),
+            });
+            format!("{prefix}:{name}")
+        };
+        let nodes = attribute_view.field("valueNodes").unwrap_or_default();
+        let value = text("value");
+        attributes.push(RenderPlanAttribute {
+            name,
+            namespace: (!uri.is_empty()).then_some(uri),
+            qualified_name: Some(qualified_name),
+            value: value.clone(),
+            value_stream: if nodes.is_empty() {
+                string_stream(value)
+            } else {
+                ItemStream::from_items(nodes)
+            },
+            contract: attribute_view.value_contract().map(std::sync::Arc::new),
+            source_map: attribute.source_map().unwrap_or_default(),
+        });
+    }
+    let children = field("children")
+        .into_iter()
+        .map(|child| {
+            let source = child.source_map().unwrap_or_default();
+            occurrence(child, source)
+        })
+        .collect();
+    let name = lexical("name");
+    vec![RenderPlanNode::Element {
+        tag: name.clone(),
+        qualified_name: Some(name),
+        namespace: (!namespace.is_empty()).then_some(namespace),
+        attributes,
+        children,
+        source_map,
+    }]
 }
 
 fn expand_graph(view: &crate::eval::portable::GraphView) -> Vec<RenderPlanNode> {
