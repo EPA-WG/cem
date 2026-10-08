@@ -52,7 +52,9 @@
         "./playgrounds/cem-menu.html": "./dist/cem-menu.html",
         "./playgrounds/cem-menu-gallery.html": "./dist/cem-menu-gallery.html",
         "./playgrounds/cem-dropdown.html": "./dist/cem-dropdown.html",
-        "./playgrounds/cem-dropdown-gallery.html": "./dist/cem-dropdown-gallery.html"
+        "./playgrounds/cem-dropdown-gallery.html": "./dist/cem-dropdown-gallery.html",
+        "./playgrounds/cem-suggestions.html": "./dist/cem-suggestions.html",
+        "./playgrounds/cem-suggestions-gallery.html": "./dist/cem-suggestions-gallery.html"
     },
     "files": [
         "dist",

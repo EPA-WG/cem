@@ -1,0 +1,78 @@
+<cem-element xmlns="http://www.w3.org/1999/xhtml" tag="cem-suggestions" capability="suggestions" uid-seed="cem-components/cem-suggestions">
+  <template id="cem-suggestions" type="text/cem-ml">
+    {module |
+      {attribute @name=label | Suggestions}
+      {attribute @name=pending-message | Loading suggestions.}
+      {attribute @name=failure-message | Suggestions are unavailable.}
+      {attribute @name=empty-message | No suggestions available.}
+      {attribute @name=single-message | 1 suggestion available.}
+      {attribute @name=multiple-message | %count suggestions available.}
+      {template @name=suggestion-row |
+        {param @name=row}
+        {body |
+          {div @part=option @role=option @suggestion-row={#row}
+               @hidden={if row.dom:attribute("hidden").value {true} else {null}}
+               @aria-disabled={row.dom:attribute("disabled").value}
+               @aria-label={if row.dom:attribute("label").value == row.dom:attribute("value").value {row.dom:attribute("label").value} else {str:concat((row.dom:attribute("label").value, " (", row.dom:attribute("value").value, ")"), "")}} |
+            {span @part=option-label | {$row.labelContent}}
+            {cem:if @test='row.dom:attribute("label").value != row.dom:attribute("value").value'  |
+              {span @part=option-value @aria-hidden=true | {$row.dom:attribute("value").value}}
+            }
+          }
+        }
+      }
+      {body |
+        {style @type="text/css" |```
+          :scope { display: inline-block; inline-size: 100%; }
+          :scope[hidden]:where(:not([hidden="until-found" i])) { display: none; }
+          [part~='surface'] {
+            box-sizing: border-box;
+            margin: 0;
+            padding: var(--cem-gap-related);
+            overflow: auto;
+            max-block-size: min(50vh, 24rem);
+            color: var(--cem-select-popup-text);
+            background: var(--cem-select-popup-background);
+            border: var(--cem-stroke-boundary) solid var(--cem-select-popup-border-color);
+            border-radius: var(--cem-bend-control);
+            font-family: var(--cem-typography-ui-font-family);
+            font-size: var(--cem-typography-ui-font-size);
+            line-height: var(--cem-typography-ui-line-height);
+          }
+          [part~='option'] { display: flex; align-items: center; gap: var(--cem-gap-related); padding: var(--cem-gap-related); cursor: default; }
+          [part~='option-value'] { margin-inline-start: auto; font-size: var(--cem-typography-ui-font-size); }
+          [part~='group-label'] { padding: var(--cem-gap-related); font-weight: bold; }
+          [part~='option'][aria-disabled='true'] { color: var(--cem-select-option-disabled-text); }
+          [part~='option']:where(:not([aria-disabled='true'])):hover { background: var(--cem-select-option-hover-background); color: var(--cem-select-option-hover-text); }
+          [part~='option'][aria-selected='true'] { background: var(--cem-select-option-active-background); color: var(--cem-select-option-active-text); }
+          [part~='option'][hidden], [part~='group'][hidden] { display: none; }
+          [part~='status'] { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+          @media (forced-colors: active) {
+            [part~='option'][aria-selected='true'] { outline: var(--cem-stroke-boundary) solid Highlight; }
+          }
+        ```}
+        {slot @name=editor}
+        {slot @name=options}
+        {slot @name=option}
+        {slot @name=group-label}
+        {div @part=surface @role=listbox @popover=manual @aria-label="{$label}" |
+          {cem:for-each @select="datadom.slices.suggestions.children" @as=entry |
+            {cem:choose |
+              {cem:when @test='entry.name == "group"'  |
+                {div @part=group @role=group @aria-label={entry.dom:attribute("label").value}
+                     @hidden={if entry.dom:attribute("hidden").value {true} else {null}} |
+                  {div @part=group-label @aria-hidden=true | {$entry.labelContent}}
+                  {cem:for-each @select="entry.children" @as=row | {call @template=suggestion-row @with:row="{$row}"}}
+                }
+              }
+              {cem:otherwise | {call @template=suggestion-row @with:row="{$entry}"}}
+            }
+          }
+        }
+        {div @part=status @role=status @aria-live=polite @aria-atomic=true
+             @pending-message="{$pending-message}" @failure-message="{$failure-message}"
+             @empty-message="{$empty-message}" @single-message="{$single-message}" @multiple-message="{$multiple-message}"}
+      }
+    }
+  </template>
+</cem-element>

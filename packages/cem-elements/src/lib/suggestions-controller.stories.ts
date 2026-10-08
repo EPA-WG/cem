@@ -227,7 +227,7 @@ export const DeclarativeCapabilityRequiresFreshHostAdmission: Story = {
     },
 };
 
-async function localFixture(root: HTMLElement, fallback: boolean, enabled = true, empty = false) {
+async function localFixture(root: HTMLElement, fallback: boolean, enabled = true, empty = false, customLabels = false) {
     const suffix = crypto.randomUUID(), declarationTag = `local-declaration-${suffix}`, fieldTag = `local-field-${suffix}`, tag = `local-suggestions-${suffix}`;
     const scope = createCemDeclarationScope({ document });
     const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope, localSuggestions: enabled,
@@ -235,7 +235,7 @@ async function localFixture(root: HTMLElement, fallback: boolean, enabled = true
     const declarations: HTMLElement[] = [];
     for (const [name, capability, source] of [
         [fieldTag, 'form-control', '{input @part=control @form="" @type=text @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}'],
-        [tag, 'suggestions', '{slot @name=editor}{slot @name=options}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} | {$row.dom:attribute("label").value}}}}{div @part=status @role=status @aria-live=polite @aria-atomic=true @pending-message="Loading suggestions." @failure-message="Suggestions are unavailable." @empty-message="No suggestions available." @single-message="1 suggestion available." @multiple-message="%count suggestions available."}'],
+        [tag, 'suggestions', '{slot @name=editor}{slot @name=options}{slot @name=option}{slot @name=group-label}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} | {$row.labelContent}}}}{div @part=status @role=status @aria-live=polite @aria-atomic=true @pending-message="Loading suggestions." @failure-message="Suggestions are unavailable." @empty-message="No suggestions available." @single-message="1 suggestion available." @multiple-message="%count suggestions available."}'],
     ]) {
         const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', name); declaration.setAttribute('capability', capability);
         const template = document.createElement('template'); template.type = 'text/cem-ml'; template.textContent = source; declaration.append(template);
@@ -245,7 +245,9 @@ async function localFixture(root: HTMLElement, fallback: boolean, enabled = true
     let field = document.createElement(fieldTag) as HTMLElement & { value: string };
     field.slot = 'editor'; field.setAttribute('name', 'choice');
     const options = document.createElement('template'); options.slot = 'options'; options.innerHTML = '<option value="a">Alpha</option><option value="b">Beta</option>';
-    const payload = document.createElement('template'); payload.content.append(field); if (!empty) payload.content.append(options); host.append(payload); form.append(host); root.append(form); await runtime.whenRenderSettled(host); field = host.querySelector(fieldTag) as HTMLElement & { value: string }; if (!field) throw new Error(`Local fixture rendering failed: ${JSON.stringify(runtime.diagnosticsFor(host))}`); await runtime.whenRenderSettled(field);
+    const payload = document.createElement('template'); payload.content.append(field);
+    if (customLabels) { const label = document.createElement('template'); label.slot = 'option'; label.setAttribute('type', 'text/cem-ml'); label.setAttribute('xmlns:s', 'http://www.w3.org/2000/svg'); label.content.append(document.createTextNode('{strong | {$suggestion.dom:attribute("label").value}}{s:svg | {s:path @d="M0 0"}}')); payload.content.append(label); }
+     if (!empty) payload.content.append(options); host.append(payload); form.append(host); root.append(form); await runtime.whenRenderSettled(host); field = host.querySelector(fieldTag) as HTMLElement & { value: string }; if (!field) throw new Error(`Local fixture rendering failed: ${JSON.stringify(runtime.diagnosticsFor(host))}`); await runtime.whenRenderSettled(field);
     const editor = field.querySelector('input'); if (!editor) throw new Error('Missing local editor'); editor.style.width = '150px';
     const ready = async () => { await waitFor(() => { const controller = cemSuggestionsControllerFor(host); expect(controller).toBeDefined(); expect(controller?.pending).toBe(false); expect(runtime.renderedSuggestionsFor(host)?.current()).toBe(true); }); expect(runtime.localSuggestionsEnvironmentFor(host)?.owner.mode).toBe(fallback ? 'main-thread' : 'worker'); };
     return { runtime, host, field, editor, form, options: host.querySelector('template[slot=options]') as HTMLTemplateElement, ready,
@@ -446,6 +448,31 @@ export const DeclarativeFeedbackPreservesFieldAndLiveRegion: Story = {
                 f.field.setAttribute('readonly', ''); await waitFor(() => expect(status.textContent).toBe(''));
                 f.field.removeAttribute('readonly'); await f.ready();
                 f.runtime.setLocalSuggestionsEnabled(false); expect(status.textContent).toBe(''); expect(panel.hasAttribute('aria-busy')).toBe(false);
+            } finally { await f.cleanup(); }
+        }
+    },
+};
+
+export const CapturedLocalLabelsRetainScopeAndInvalidate: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const f = await localFixture(canvasElement, fallback, true, false, true);
+            try {
+                await f.ready();
+                expect(f.host.querySelector('[role=option] strong')?.textContent).toBe('Alpha');
+                expect(f.host.querySelector('[role=option] svg')?.namespaceURI).toBe('http://www.w3.org/2000/svg');
+                const original = f.runtime.localSuggestionsEnvironmentFor(f.host)?.labelSources[0] as HTMLTemplateElement;
+                original.content.textContent = '{em | Updated {$suggestion.dom:attribute("label").value}}';
+                await waitFor(() => expect(f.host.querySelector('[role=option] em')?.textContent).toBe('Updated Alpha'));
+                await f.ready();
+                original.content.textContent = '{button | Interactive}';
+                await waitFor(() => expect(cemSuggestionsControllerFor(f.host)?.feedback.state).toBe('failed'));
+                expect(cemSuggestionsControllerFor(f.host)?.visible).toBe(false);
+                expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+                original.content.textContent = '{span | Recovered {$suggestion.dom:attribute("label").value}}';
+                await waitFor(() => expect(f.host.querySelector('[role=option] span')?.textContent).toBe('Recovered Alpha'));
+                await f.ready();
             } finally { await f.cleanup(); }
         }
     },

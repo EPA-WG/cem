@@ -1,3 +1,4 @@
+import { captureLocalSuggestions, localSuggestionsNamespaceStamp } from './local-suggestions-capture.js';
 import type { DataIslandSnapshot, CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
 import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
 import { resolveCemSuggestionsEditor } from './suggestions-editor.js';
@@ -28,6 +29,7 @@ export interface CemLocalSuggestionsEnvironment {
     owner: CemProcessingHost;
     limits: CemValueArtifactLimits;
     optionsSources: readonly Element[];
+    labelSources: readonly Element[];
     sourceRoot?: Element;
     ownsEditor(editor: HTMLElement): boolean;
     current(): boolean;
@@ -36,6 +38,7 @@ interface LocalState {
     options: CemSuggestionsControllerOptions;
     template?: HTMLTemplateElement;
     sourceTemplate?: HTMLTemplateElement;
+    sourceLabels: readonly HTMLTemplateElement[];
     provider: object;
     abort: AbortController;
     binding?: CemNativeSuggestionsBinding;
@@ -105,9 +108,14 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     if (!endpoint.host || !endpoint.provider) throw new Error('Local suggestions requires an exact editor provider');
     const { host: editorHost, provider } = endpoint;
     const templates = [...instance.children].filter(child => child.getAttribute('slot') === 'options');
+    const labels = [...instance.children].filter(child => ['option', 'group-label'].includes(child.getAttribute('slot') ?? ''));
     const surfaces = [...instance.children].filter(child => child.getAttribute('part')?.split(/\s+/).includes('surface'));
     if (endpoint.code || instance.hasAttribute('editor-for') || instance.hasAttribute('options')
         || environment.snapshot.nativeAttributes?.some(attribute => ['options', 'editor-for'].includes(attribute.name))
+        || environment.labelSources.length !== labels.length
+        || labels.some(label => !(label instanceof HTMLTemplateElement) || label.getAttribute('type') !== 'text/cem-ml')
+        || environment.labelSources.some(label => !(label instanceof HTMLTemplateElement) || label.getAttribute('type') !== 'text/cem-ml')
+        || ['option', 'group-label'].some(slot => labels.filter(label => label.getAttribute('slot') === slot).length > 1)
         || environment.optionsSources.length !== templates.length
         || environment.optionsSources.some(source => !(source instanceof HTMLTemplateElement))
         || templates.length > 1 || templates.length === 1 && !(templates[0] instanceof HTMLTemplateElement)
@@ -117,40 +125,14 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     }
     const template = templates[0] as HTMLTemplateElement | undefined, listbox = surfaces[0] as HTMLElement;
     const sourceTemplate = environment.optionsSources[0] as HTMLTemplateElement | undefined;
+    const sourceLabels = environment.labelSources as readonly HTMLTemplateElement[];
     const previous = state.local;
-    if (previous && previous.template === template && previous.sourceTemplate === sourceTemplate && previous.provider === provider
+    if (previous && previous.template === template && previous.sourceTemplate === sourceTemplate && previous.sourceLabels.length === sourceLabels.length && previous.sourceLabels.every((label, i) => label === sourceLabels[i]) && previous.provider === provider
         && previous.options.editorHost === editorHost && previous.options.listbox === listbox && previous.options.current?.()) return previous.options;
     stop(state); releaseLocal(state);
-    const captureSource = () => {
-        const wrapper = instance.ownerDocument.createElementNS('http://www.w3.org/1999/xhtml', 'options');
-        if (sourceTemplate) {
-            const walker = instance.ownerDocument.createTreeWalker(sourceTemplate.content, NodeFilter.SHOW_ALL); let count = 0, bytes = 0;
-            const depths = new WeakMap<Node, number>(); depths.set(sourceTemplate.content, 0);
-            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                const depth = (node.parentNode ? depths.get(node.parentNode) ?? 0 : 0) + 1; depths.set(node, depth);
-                if (++count > environment.limits.maxValues || depth > environment.limits.maxDepth) throw new RangeError('Local options capture node/depth limit exceeded');
-                if (node instanceof HTMLTemplateElement) throw new Error('Local options cannot contain nested source templates');
-                if ((node.nodeValue?.length ?? 0) > environment.limits.maxBytes) throw new RangeError('Local options capture byte limit exceeded');
-                bytes += new TextEncoder().encode(node.nodeValue ?? '').byteLength;
-                if (node instanceof Element) for (const attribute of node.attributes) {
-                    if (attribute.name.length + attribute.value.length > environment.limits.maxBytes) throw new RangeError('Local options capture byte limit exceeded');
-                    bytes += new TextEncoder().encode(attribute.name + attribute.value).byteLength;
-                }
-                if (bytes > environment.limits.maxBytes) throw new RangeError('Local options capture byte limit exceeded');
-            }
-            // Namespace bindings belong to the original capture, including unused prefixes.
-            const namespaces = new Map<string, string>();
-            for (let ancestor: Element | null = sourceTemplate; ancestor; ancestor = ancestor.parentElement) {
-                for (const attribute of ancestor.attributes) if ((attribute.namespaceURI === 'http://www.w3.org/2000/xmlns/' || attribute.name === 'xmlns' || attribute.name.startsWith('xmlns:')) && !namespaces.has(attribute.name)) namespaces.set(attribute.name, attribute.value);
-            }
-            for (const [name, value] of namespaces) wrapper.setAttributeNS('http://www.w3.org/2000/xmlns/', name, value);
-            wrapper.append(sourceTemplate.content.cloneNode(true));
-        }
-        const text = new XMLSerializer().serializeToString(wrapper);
-        if (new TextEncoder().encode(text).byteLength > environment.limits.maxBytes) throw new RangeError('Local options capture byte limit exceeded');
-        return text;
-    };
-    const sourceText = captureSource();
+    const capturedSources = [...(sourceTemplate ? [sourceTemplate] : []), ...sourceLabels];
+    const namespaces = localSuggestionsNamespaceStamp(capturedSources, environment.limits);
+    const sourceText = captureLocalSuggestions(instance.ownerDocument, sourceTemplate, sourceLabels, environment.limits);
 
     const abort = new AbortController(), coordinator = new CemSuggestionsPlacementCoordinator(instance.getRootNode() as Document | ShadowRoot, environment.limits);
     let session: Promise<CemNativeCapabilitySession> | undefined, publication: CemNativeSuggestionsPublication | undefined;
@@ -161,17 +143,20 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     if (environment.sourceRoot) sourceObserver.observe(environment.sourceRoot, { childList: true });
     if (sourceTemplate) sourceObserver.observe(sourceTemplate, { attributes: true });
     if (sourceTemplate) sourceObserver.observe(sourceTemplate.content, { childList: true, subtree: true, attributes: true, characterData: true });
-    const local: LocalState = { template, sourceTemplate, provider, abort,
+    for (const label of sourceLabels) { sourceObserver.observe(label, { attributes: true }); sourceObserver.observe(label.content, { childList: true, subtree: true, attributes: true, characterData: true }); }
+    const local: LocalState = { template, sourceTemplate, sourceLabels, provider, abort,
         options: { editorHost, listbox,
             current: () => {
-                if (sourceObserver.takeRecords().length) { abort.abort(); queue(); }
+                let sameNamespaces = false;
+                try { sameNamespaces = namespaces === localSuggestionsNamespaceStamp(capturedSources, environment.limits); } catch { /* invalid capture revokes this source revision */ }
+                if (sourceObserver.takeRecords().length || !sameNamespaces) { abort.abort(); queue(); }
                 return !abort.signal.aborted && state.local === local && environment.current()
                     && resolveCemSuggestionsEditor(instance).provider === provider
                     && editorHost.parentElement === instance && listbox.parentElement === instance
                     && !instance.hasAttribute('editor-for') && !instance.hasAttribute('options')
                     && [...instance.children].filter(child => child.getAttribute('slot') === 'options').length === (template ? 1 : 0)
                     && (!template || template.parentElement === instance)
-                    && runtime.localSuggestionsSourceCurrent(instance, sourceTemplate);
+                    && runtime.localSuggestionsSourceCurrent(instance, sourceTemplate, sourceLabels);
             },
             async prepare(query, queryRevision) {
                 if (!local.options.current?.()) throw new Error('Local suggestions authority is unavailable');
@@ -191,7 +176,11 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
                         handle: { sessionKey: crypto.randomUUID(), instanceId: environment.snapshot.instanceId,
                             scopePolicyStamp: environment.snapshot.scopePolicyStamp, sourceRevision: crypto.randomUUID() },
                         sources: { kind: 'cem-native-session-import-v1', bytes: bytes.buffer as ArrayBuffer, contentType: 'application/xml', sourceUri: instance.baseURI },
-                        data: {}, select: 'input.children.children', limits: environment.limits,
+                        data: {}, select: 'seq:where(input.children.children, fn(n) => n.name == "options").children', limits: environment.limits,
+                        labelTemplates: {
+                            ...(sourceLabels.some(label => label.slot === 'option') ? { option: 'seq:where(input.children.children, fn(n) => n.name == "option-label")' } : {}),
+                            ...(sourceLabels.some(label => label.slot === 'group-label') ? { group: 'seq:where(input.children.children, fn(n) => n.name == "group-label")' } : {}),
+                        },
                     }, () => local.options.current?.() === true, abort.signal);
                 }
                 const source = await session;

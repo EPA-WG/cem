@@ -16,6 +16,7 @@ pub const UNICODE_VERSION: &str = "17.0.0";
 mod placements;
 pub use placements::{project_suggestion_placements, SuggestionPlacement};
 mod labels;
+pub mod captured_labels;
 pub use labels::{admit_label_output, admit_label_template};
 
 pub const VIEW_NAMESPACE: &str = "https://cem.dev/ns/runtime/suggestions/v1";
@@ -606,6 +607,7 @@ impl SuggestionsPlan {
             config: config.clone(),
             matched,
             eligible_count,
+            row_labels: vec![], group_labels: vec![],
         })))
     }
 }
@@ -616,6 +618,8 @@ struct View {
     config: SuggestionsConfig,
     matched: Vec<bool>,
     eligible_count: usize,
+    row_labels: Vec<ItemStream>,
+    group_labels: Vec<ItemStream>,
 }
 /// Prepared scalar commit controls. Original source/content stay native.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -628,6 +632,9 @@ pub struct SuggestionRowControl {
 #[derive(Debug, Clone)]
 pub struct SuggestionsView(Arc<View>);
 impl SuggestionsView {
+    fn with_labels(&self, rows: Vec<ItemStream>, groups: Vec<ItemStream>) -> Self {
+        Self(Arc::new(View { plan: self.0.plan.clone(), config: self.0.config.clone(), matched: self.0.matched.clone(), eligible_count: self.0.eligible_count, row_labels: rows, group_labels: groups }))
+    }
     pub fn row_controls(&self) -> Vec<SuggestionRowControl> {
         self.0
             .plan
@@ -875,6 +882,11 @@ impl QueryItemView for SuggestionNode {
             })),
             "namespace" => Some(text(VIEW_NAMESPACE)),
             "source" => Some(self.source().cloned().into_iter().collect()),
+            "labelContent" => Some(match self.node {
+                Node::Row(i) => self.view.row_labels.get(i).map(|v| v.items.clone()).unwrap_or_default(),
+                Node::Group(i) => self.view.group_labels.get(i).map(|v| v.items.clone()).unwrap_or_default(),
+                Node::Root => vec![],
+            }),
             "content" => Some(if let Node::Row(i) = self.node {
                 self.view.plan.rows[i].content.clone()
             } else {

@@ -13,8 +13,16 @@ pub fn project_render_plan_with_control(
     scope: ExecutionScopeId,
 ) -> Result<RenderPlan, ControlError> {
     let mut budget = ValueControl::new(control, scope, query_scope, *limits)?;
-    let nodes = nodes(&plan.nodes, &mut budget, 0)?;
+    let result = project_render_plan_with_budget(plan, &mut budget)?;
     control.check_scope(scope)?;
+    Ok(result)
+}
+
+pub(crate) fn project_render_plan_with_budget(
+    plan: &RenderPlan,
+    budget: &mut ValueControl<'_>,
+) -> Result<RenderPlan, ControlError> {
+    let nodes = nodes(&plan.nodes, budget, 0)?;
     Ok(RenderPlan {
         nodes,
         host_attribute_updates: plan.host_attribute_updates.clone(),

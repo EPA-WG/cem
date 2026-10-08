@@ -114,4 +114,6 @@
 
   {import @id=cem-dropdown-gallery @src="cem-dropdown-gallery.html" @content-type="text/html" | {rewrite-importmap @id=cem-dropdown-gallery-map @source-map="importmap.source.json" @target-map="importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-dropdown-gallery-html @out="../dist/cem-dropdown-gallery.html" @content-type="text/html"}}}
 
+  {import @id=cem-suggestions @src="cem-suggestions.html" @content-type="text/html" | {rewrite-importmap @id=cem-suggestions-map @source-map="suggestions.importmap.source.json" @target-map="suggestions.importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-suggestions-html @out="../dist/cem-suggestions.html" @content-type="text/html"}}}
+  {import @id=cem-suggestions-gallery @src="cem-suggestions-gallery.html" @content-type="text/html" | {rewrite-importmap @id=cem-suggestions-gallery-map @source-map="suggestions.importmap.source.json" @target-map="suggestions.importmap.package.json" @mode="replace-imports" @missing="error" | {export @id=cem-suggestions-gallery-html @out="../dist/cem-suggestions-gallery.html" @content-type="text/html"}}}
 }

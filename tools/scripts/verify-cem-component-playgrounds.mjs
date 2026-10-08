@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
 const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
+const suggestionsOnly = process.argv.includes('--suggestions-only');
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
 let browser;
@@ -24,7 +25,7 @@ try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
     browser = await chromium.launch({ headless: true });
-    if (!navigationOnly) {
+    if (!navigationOnly && !suggestionsOnly) {
         await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
         if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
         if (!actionOnly) await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
@@ -32,19 +33,20 @@ try {
         if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
         if (!actionOnly) await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
     }
-    if (!actionOnly) await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
-    if (!navigationOnly) {
+    if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
+    if (!navigationOnly && !suggestionsOnly) {
         if (!actionOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
         if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
+    if (!navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (!navigationOnly) {
+    if (!navigationOnly && !suggestionsOnly) {
         await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
         if (!actionOnly) await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
         if (!actionOnly) await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
@@ -52,15 +54,17 @@ try {
         if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
         if (!actionOnly) await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
     }
-    if (!actionOnly) await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-    if (!navigationOnly) {
+    if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (!navigationOnly && !suggestionsOnly) {
         if (!actionOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
         if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
+    if (!navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (suggestionsOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
+    else if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
     else if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
-    else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -1189,4 +1193,41 @@ async function verifyNavigation(baseUrl) {
     } finally {
         await context.close();
     }
+}
+
+async function verifySuggestions(baseUrl) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(new URL('cem-suggestions.html', baseUrl).href);
+        await page.waitForFunction(() => {
+            const host = document.querySelector('cem-suggestions');
+            return host && window.cemPlaygroundRuntime?.renderedSuggestionsFor(host)?.current();
+        });
+        const editor = page.locator('cem-suggestions [slot=editor] input');
+        await editor.focus();
+        await page.waitForFunction(() => document.querySelector('cem-suggestions [slot=editor] input')?.getAttribute('aria-expanded') === 'true');
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+        assert.equal(await editor.inputValue(), 'a');
+        await page.getByRole('link', { name: 'Full examples and variation matrix', exact: true }).click();
+        await page.waitForFunction(() => {
+            const hosts = [...document.querySelectorAll('[data-gallery-theme] cem-suggestions')];
+            return hosts.length === 30 && hosts.every(host => host.querySelector('[part=surface]') && host.querySelector('[slot=editor] input'));
+        });
+        assert.equal(await page.locator('[data-gallery-theme]').count(), 5);
+        const custom = page.locator('cem-demo-element[legend="Native custom labels"] cem-suggestions');
+        await custom.locator('[part=option-label] strong').first().waitFor({ state: 'attached' });
+        assert.equal(await custom.locator('[part=option-label] strong').first().textContent(), 'Alpha');
+        assert.equal(await custom.locator('[part=option-value]').first().textContent(), 'a');
+        const diagnostics = await page.evaluate(() => [...document.querySelectorAll('cem-suggestions')].flatMap(host => window.cemPlaygroundRuntime.diagnosticsFor(host)));
+        assert.deepEqual(diagnostics, []);
+        assert.deepEqual(errors, []);
+        const back = page.getByRole('link', { name: 'Suggestions property playground and source', exact: true });
+        assert.equal(new URL(await back.getAttribute('href'), page.url()).href, new URL('cem-suggestions.html', baseUrl).href);
+    } catch (error) {
+        console.error('Suggestions page failure:', page.url(), await page.evaluate(() => [...document.querySelectorAll('cem-suggestions, cem-element')].slice(0, 8).map(host => ({ tag: host.localName, diagnostics: window.cemPlaygroundRuntime?.diagnosticsFor(host) }))), errors);
+        throw error;
+    } finally { await context.close(); }
 }

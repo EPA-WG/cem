@@ -835,7 +835,8 @@ fn admitted_row_handles_prepare_only_bounded_current_commit_values() {
     let bounded = session_with_limits(
         "{cem-option @value=x | Choice}",
         cem_ml::value::artifact::CemValueArtifactLimits {
-            max_bytes: 512,
+            // Includes the retained default label as well as scalar controls.
+            max_bytes: 1024,
             ..Default::default()
         },
     );
@@ -1114,4 +1115,173 @@ fn native_label_output_requires_bounded_noninteractive_content() {
         ),
         vec!["#missing"]
     );
+}
+
+#[test]
+fn captured_labels_stay_source_owned_and_publish_atomically() {
+    let text = r#"<capture xmlns="http://www.w3.org/1999/xhtml" xmlns:s="http://www.w3.org/2000/svg"><options><option value="x" label="Explicit">Ignored</option></options><option-label type="text/cem-ml">{span | {$suggestion.dom:attribute("label").value}}{s:svg | {s:path @d="M0 0"}}</option-label></capture>"#;
+    let owner = RetainedReferenceSource::parse(
+        text.as_bytes(),
+        "application/xml",
+        "memory:labels.xml",
+        ReloadLimits::default(),
+    )
+    .unwrap();
+    let mut s = NativeCapabilitySession::prepare(
+        vec![ElementReferenceSource {
+            source: owner,
+            context: true,
+            policy: ReferenceScopePolicy::schema_defaults().unwrap(),
+        }],
+        0,
+        &[],
+        &[],
+        TemplateData::default(),
+        r#"seq:where(input.children.children, fn(n) => n.name == "options").children"#,
+        true,
+        Default::default(),
+    )
+    .unwrap();
+    // Select the options' children only; the template text must never become an option.
+    // The actual fixture selection below is intentionally explicit.
+    s.configure_suggestion_labels(
+        Some("seq:where(input.children.children, fn(n) => n.name == \"option-label\")"),
+        None,
+    )
+    .unwrap();
+    let view = s.publish_suggestions("labels", &config("")).unwrap();
+    let label = view
+        .row(0)
+        .unwrap()
+        .view()
+        .unwrap()
+        .field("labelContent")
+        .unwrap();
+    assert!(!label.is_empty());
+    assert_eq!(
+        label[1].view().unwrap().field("namespace").unwrap()[0].atom(),
+        Some(AtomValue::String("http://www.w3.org/2000/svg".into()))
+    );
+    let template = compile_template(
+        "{$datadom.slices.suggestions.children.labelContent}",
+        &Default::default(),
+    );
+    let html = render_plan_to_html(
+        &s.render_suggestions_frame("labels", &template, TemplateData::default())
+            .unwrap(),
+    );
+    assert!(html.contains("Explicit"));
+    assert!(!html.contains("Ignored"));
+    assert!(s.configure_suggestion_labels(None, None).is_err());
+}
+
+fn captured_session(
+    text: &str,
+    limits: cem_ml::value::artifact::CemValueArtifactLimits,
+    data: TemplateData,
+) -> NativeCapabilitySession {
+    let source = RetainedReferenceSource::parse(
+        text.as_bytes(),
+        "application/xml",
+        "memory:captured-labels.xml",
+        ReloadLimits::default(),
+    )
+    .unwrap();
+    NativeCapabilitySession::prepare(
+        vec![ElementReferenceSource {
+            source,
+            context: true,
+            policy: ReferenceScopePolicy::schema_defaults().unwrap(),
+        }],
+        0,
+        &[],
+        &[],
+        data,
+        r#"seq:where(input.children.children, fn(n) => n.name == "options").children"#,
+        true,
+        limits,
+    )
+    .unwrap()
+}
+const OPTION_LABEL: &str =
+    r#"seq:where(input.children.children, fn(n) => n.name == "option-label")"#;
+#[test]
+fn captured_labels_reject_ambient_bindings_and_invalid_publications() {
+    for body in ["{span | {$private}}", "{foreign:span | Label}"] {
+        let text = format!(
+            r#"<capture xmlns="http://www.w3.org/1999/xhtml"><options><option value="x">Label</option></options><option-label type="text/cem-ml">{body}</option-label></capture>"#
+        );
+        let mut data = TemplateData::default();
+        data.bindings.insert(
+            "private".into(),
+            ItemStream::once(Item::Atomic(AtomValue::String("Consumer secret".into()))),
+        );
+        let mut s = captured_session(&text, Default::default(), data);
+        assert!(s
+            .configure_suggestion_labels(Some(OPTION_LABEL), None)
+            .is_err());
+    }
+    let mut s = captured_session(
+        r#"<capture xmlns="http://www.w3.org/1999/xhtml"><options><option value="x">Label</option></options><option-label type="text/cem-ml">{button | {$suggestion.dom:attribute("label").value}}</option-label></capture>"#,
+        Default::default(),
+        TemplateData::default(),
+    );
+    s.configure_suggestion_labels(Some(OPTION_LABEL), None)
+        .unwrap();
+    assert!(s.publish_suggestions("denied", &config("")).is_err());
+    assert!(s.suggestions_publication("denied").is_err());
+    assert!(s.publish_suggestions("denied", &config("x")).is_err());
+    assert_eq!(s.len(), 1);
+}
+#[test]
+fn default_labels_preserve_rich_content_and_share_publication_budget() {
+    let mut s = captured_session(
+        r#"<capture xmlns="http://www.w3.org/1999/xhtml"><options><optgroup label="Group"><option value="x" label="Explicit">Ignored</option></optgroup></options></capture>"#,
+        Default::default(),
+        TemplateData::default(),
+    );
+    s.configure_suggestion_labels(None, None).unwrap();
+    s.publish_suggestions("default", &config("")).unwrap();
+    let template = compile_template("{$datadom.slices.suggestions.children.labelContent}|{$datadom.slices.suggestions.children.children.labelContent}", &Default::default());
+    assert_eq!(
+        render_plan_to_html(
+            &s.render_suggestions_frame("default", &template, TemplateData::default())
+                .unwrap()
+        ),
+        "Group|Explicit"
+    );
+    let mut rich = captured_session(
+        r#"<capture xmlns="http://www.w3.org/1999/xhtml"><options><data value="x">Rich <strong>content</strong></data></options></capture>"#,
+        Default::default(),
+        TemplateData::default(),
+    );
+    rich.configure_suggestion_labels(None, None).unwrap();
+    rich.publish_suggestions("rich", &config("")).unwrap();
+    let template = compile_template(
+        "{$datadom.slices.suggestions.children.labelContent}",
+        &Default::default(),
+    );
+    assert!(render_plan_to_html(
+        &rich
+            .render_suggestions_frame("rich", &template, TemplateData::default())
+            .unwrap()
+    )
+    .contains("<strong"));
+    let label = "{span | Label}".repeat(5);
+    let text = format!(
+        r#"<capture xmlns="http://www.w3.org/1999/xhtml"><options><option value="a">A</option><option value="b">B</option><option value="c">C</option></options><option-label type="text/cem-ml">{label}</option-label></capture>"#
+    );
+    let mut bounded = captured_session(
+        &text,
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_values: 60,
+            ..Default::default()
+        },
+        TemplateData::default(),
+    );
+    bounded
+        .configure_suggestion_labels(Some(OPTION_LABEL), None)
+        .unwrap();
+    assert!(bounded.publish_suggestions("bounded", &config("")).is_err());
+    assert!(bounded.suggestions_publication("bounded").is_err());
 }

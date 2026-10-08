@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v22' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v23' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -213,6 +213,7 @@ export type CemProcessingValueResult = { value: NativeCemValue } | { text: strin
 export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
     | { action: 'prepare'; sources: CemNativeSessionSources | CemNativeSessionImport; data: Record<string, unknown>;
         select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1';
+        labelTemplates?: { option?: string; group?: string };
         nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
     | { action: 'view'; expression: string; index?: number; suggestions?: CemNativeSuggestionsConfig }
     | { action: 'render'; template: string; index?: number; suggestions?: CemNativeSuggestionsConfig; groupLabel?: boolean }

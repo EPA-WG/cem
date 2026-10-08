@@ -200,6 +200,25 @@ Pending preserves dimensions and activation; use `disabled` to block activation.
 
 ## Inputs
 
+`cem-suggestions` attaches a native suggestions list to one projected `cem-field`
+or `cem-text-field`. Enable local composition through the embedding runtime's
+`localSuggestions: true` policy. Use inert `editor` and `options` payload slots;
+optional `option`/`group-label` templates use `type="text/cem-ml"` and receive
+native `suggestion`/`group` parameters in their original namespace context.
+The field owns value, name, constraints, visible label, help and form submission.
+The attachment owns listbox/row IDs, group names, preview and status feedback.
+
+The local text-input profile supports `filter="contains|prefix|none"`,
+`filter-by="label|value|label value"` (omit with `none`), `require-selection`,
+`selection-message`, `options-state="ready|pending|failed"`, `options-error`,
+listbox `label`, and the five `*-message` feedback attributes shown in its
+[gallery](../playgrounds/cem-suggestions-gallery.html). Custom labels cannot hide
+the stored-value hint. Explicit native `options`/`editor-for` integration requires
+host-admitted sources and relationships; it conflicts with the matching local
+slot. Touch/pen, device IME, screen-reader interoperability and the broader
+composition matrix remain tracked in the active suggestions checklist.
+
+
 `cem-field` and `cem-text-field` use canonical XHTML declarations and the shared
 form-control capability. See the [field controls contract](./field-controls-contract.md)
 for attribute presence, host form ownership, reset and scoped indicators.

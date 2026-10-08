@@ -61,6 +61,8 @@
                 "{projectRoot}/dist/cem-menu.html",
                 "{projectRoot}/dist/cem-dropdown.html",
                 "{projectRoot}/dist/cem-dropdown-gallery.html",
+                "{projectRoot}/dist/cem-suggestions.html",
+                "{projectRoot}/dist/cem-suggestions-gallery.html",
                 "{projectRoot}/dist/cem-menu-gallery.html",
                 "{projectRoot}/dist/cem-icon.html",
                 "{projectRoot}/dist/cem-icon-gallery.html",

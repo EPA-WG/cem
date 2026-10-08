@@ -48,6 +48,7 @@ import initCemQlWasm, {
     renderNativeCapabilityTemplate,
     disposeNativeCapabilitySession,
     prepareNativeSuggestions,
+    configureNativeSuggestionLabels,
     exportNativeSuggestionsView,
     renderNativeSuggestionTemplate,
     publishNativeSuggestions,
@@ -872,6 +873,10 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
         nativeSessionCall(() => withNativeAttributes(options, bindings => {
             const id = nativeSessionCall(() => prepareNativeCapabilitySession(JSON.stringify(input.data), sources ?? '', input.select, input.resolve !== false, bindings, JSON.stringify(input.limits)));
             try {
+                if (input.labelTemplates) {
+                    if (input.adapter !== 'suggestions-v1') throw new TypeError('Label templates require the suggestions adapter');
+                    nativeSessionCall(() => configureNativeSuggestionLabels(id, JSON.stringify(input.labelTemplates)));
+                }
                 const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
                 const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
                     sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;

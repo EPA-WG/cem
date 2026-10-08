@@ -742,7 +742,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         per-attachment host preparation code after opt-in; copying attributes,
         IDs or saved state cannot confer authority; stale work cannot restore
         revoked relationships or commit proof, and unrelated attachments survive.
-      - [ ] Assemble the production XHTML declaration with native options inputs,
+      - [x] Assemble the production XHTML declaration with native options inputs,
         row/group label frames, rendered placement metadata, loading/failure/empty
         feedback and accessible label/description handoff. Depend on the local
         host-authorization adapter above; do not derive grants from authored IDs or row positions.
@@ -766,7 +766,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
           Scenarios for later design verification: feedback never overwrites
           field help/error/busy, previews produce no repeated announcements, and
           stale requests cannot announce after Escape, blur or authority loss.
-        - [ ] Wire captured native option/group-label template inputs into the
+        - [x] Wire captured native option/group-label template inputs into the
           canonical component frame before completing the production declaration.
           Preserve original template scopes and reject interactive label output;
           do not recompile copied template strings with another source's bindings.
@@ -789,8 +789,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
             Scenarios for later design verification: captured template scope
             failures cannot fall back to consumer bindings, and production
             default/custom labels pass admission before attachment activation.
-          - [ ] Decide the execution context of local HTML CEM-ML label templates
-            before canonical captured-template wiring. Recommended: isolated
+          - [x] Decide the execution context of local HTML CEM-ML label templates
+            before canonical captured-template wiring. Adopted 2026-10-08: isolated
             source-owned compilation with captured namespaces, the explicit
             native `suggestion`/`group` parameter and standard library; do not
             inherit the consuming declaration's function/binding closure.
@@ -798,6 +798,30 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
             Scenarios for later design verification: consumer-local functions
             cannot become ambient authority; equal template bytes from different
             sources retain distinct owners and namespace bindings.
+          - [x] Fixture: verify original XML label captures, namespace completion,
+            parameter isolation, bounded publication-wide output and original row
+            identity in Rust first; then verify local slot invalidation and custom
+            labels through worker/fallback canonical component rendering.
+        - [x] Fixture: add the production declaration's colocated plays for both
+          field providers, grouped/custom labels, stored-value hints, source
+          conflicts, localized feedback, keyboard commit and field ownership.
+          Add linked property/gallery pages and source/built browser coverage
+          alongside the declaration; keep full device/accessibility acceptance
+          in the dedicated matrix below.
+        Delivered 2026-10-08: captured local label templates retain their original
+        native owners and namespace contexts, compile with isolated explicit
+        row/group parameters, and publish passive native `labelContent` atomically
+        under shared output and retained-session budgets. Source/template edits
+        invalidate leases in worker and fallback execution. The production
+        `cem-suggestions` XHTML declaration composes both field providers, grouped
+        rows, stored-value hints and localized status without component JavaScript.
+        Linked property/gallery pages cover five themes and six states; source
+        and isolated installed-package browser checks pass.
+        Verification: 58 focused Rust checks, 19 browser plays, 607 unit checks,
+        typecheck, fresh runtime package/import and page builds pass. Lint retains
+        two existing warnings. The aggregate declarative gate remains blocked by
+        the existing `cem-theme-switch` story imports; catalog verification and
+        full device/accessibility/source-example parity remain below.
         Scenarios for later design verification: grouped/dynamic sources in both
         field types, slot conflicts, native source readiness, independent instances
         and fresh authority after resume.
@@ -848,8 +872,10 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       preparation hook are delivered. Worker/fallback cases verify keyboard
       clamping, pending-query dismissal, IME cleanup, commit veto/provenance, exact
       endpoint changes and native mouse activation/drag cancellation. Touch/pen,
-      complete production composition, feedback and the full acceptance matrix
+      the full device/accessibility acceptance matrix and source-example parity
       remain open; do not mark this parent complete from these shared slices.
+      Production local composition, captured labels and feedback were delivered
+      2026-10-08.
       Reserved native consumer-frame publication and provider-owned attribute
       leases now integrate with current two-way placement grants.
       Scenarios for later design verification: submission and validity update
@@ -905,7 +931,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       equal-value distinct sources, custom/native/selection error precedence and
       native undo/redo/caret results with coherent field/submission state.
 
-- [ ] Fixture: plan linked property playgrounds and galleries mapping source examples, all five themes, forced colors, keyboard/pointer use and source/generated/installed-package checks; update public attribute/slot inventory, accessibility contracts, catalog and exports with implementation.
+- [ ] Fixture: complete suggestions source-example and public-contract parity across the linked property playground and gallery: map all source examples, verify forced colors and keyboard/pointer use, and finish catalog verification.
+      Delivered 2026-10-08: linked pages, five-theme/six-state matrix, public
+      attribute/slot and accessibility inventories, package exports, and source/
+      generated/isolated-installed-package browser checks for the first local
+      profile. Complete the remaining audit below and rerun the aggregate catalog
+      gate after the existing theme-switch story import violation is resolved.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
       add explicit native option values and label/text edge cases, and distinguish
       example-intent coverage from the existing static material parity markers.

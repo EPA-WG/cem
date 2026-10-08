@@ -50,6 +50,7 @@ contract for `@epa-wg/cem-components`, the CEM core schema state vocabulary, and
 | Input | `autocomplete` | `cem-autocomplete` | Form-associated editable combobox with declarative suggestions | palette, select, stroke, bend, layering, control, typography |
 | Input | `timepicker` | `cem-timepicker` | Time-of-day choice popup with an authored native text-input form owner | action, palette, select, stroke, bend, layering, coupling, control, typography |
 | Input | `datepicker` | `cem-datepicker` | Single-date modal calendar with an authored native text-input form owner | action, palette, content, select, stroke, bend, layering, coupling, control, typography |
+| Input | `suggestions` | `cem-suggestions` | Suggestions attached to an existing text field with one native editor/form owner | palette, select, stroke, bend, gap, typography |
 | Input | `select` | `cem-select` | Form-associated rich single/multiple choice | palette, select, stroke, bend, layering, control, typography |
 | Input | `option` | `cem-option` | Canonical rich option payload for select and autocomplete | palette, typography |
 | Input | `option-group` | `cem-option-group` | Labeled option grouping payload for select and autocomplete | palette, typography |

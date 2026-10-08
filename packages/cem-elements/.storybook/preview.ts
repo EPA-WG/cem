@@ -97,6 +97,14 @@ export function loadCemDeclaration(path: string, source: string): Promise<void> 
     return load;
 }
 
+/** Source-backed dependency setup for compound declaration stories. */
+const componentDeclarations = import.meta.glob<string>('../../cem-components/src/components/*/*.xhtml', { query: '?raw', import: 'default' });
+export async function loadCemComponent(name: string): Promise<void> {
+    const source = componentDeclarations[`../../cem-components/src/components/${name}/${name}.xhtml`];
+    if (!source) throw new Error(`Unknown component declaration ${name}`);
+    await loadCemDeclaration(name, await source());
+}
+
 async function registerCemDeclaration(path: string, source: string): Promise<void> {
     runtime ??= installStorybookRuntime();
     const parsed = document.createElement('template');

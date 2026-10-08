@@ -124,6 +124,14 @@ template's original captured bindings and scope policy. Outer projection keeps
 their contents inert; no string interpolation, implicit reference evaluation or
 bindings installed inside the field are substitutes for this consumer stage.
 
+Local HTML templates use an isolated source-owned context: capture their original
+namespace bindings and supply only the native `suggestion` or `group` parameter
+and the standard library. They do not inherit the consuming declaration's
+function or data bindings. Native module templates retain their own original
+closure when a host supports that entry point. The first local adapter accepts
+the inert HTML `text/cem-ml` form. Validated label content becomes a native
+`labelContent` sequence on each published row/group, prepared before activation.
+
 ## Provider binding and reference authority
 
 The editor provider supplies its current editor identity/revision, eligibility,

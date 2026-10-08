@@ -45,6 +45,19 @@ fn suggestions_config(
     serde_json::from_str(json)
         .map_err(|e| transport_error("cem.suggestions.configuration", "InvalidConfig", e, None))
 }
+#[wasm_bindgen(js_name = "configureNativeSuggestionLabels")]
+pub fn configure_labels(id: u32, config: &str) -> Result<(), JsValue> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Labels { option: Option<String>, group: Option<String> }
+    SESSIONS.with(|sessions| {
+        let mut sessions = sessions.borrow_mut();
+        let session = sessions.get_mut(&id).ok_or_else(|| session_error("Unknown native capability session"))?;
+        if config.len() > session.limits().max_bytes { return Err(session_error("Label selector byte limit exceeded")); }
+        let labels: Labels = serde_json::from_str(config).map_err(session_error)?;
+        session.configure_suggestion_labels(labels.option.as_deref(), labels.group.as_deref()).map_err(suggestions_error)
+    })
+}
 #[wasm_bindgen(js_name = "prepareNativeSuggestions")]
 pub fn prepare_suggestions(id: u32) -> Result<String, JsValue> {
     SESSIONS.with(|sessions| {

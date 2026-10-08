@@ -42,6 +42,7 @@ pub use element_reference_ids::{
 };
 mod whitespace;
 pub use projection::{project_attribute_value_with_control, project_render_plan_with_control};
+pub(crate) use projection::project_render_plan_with_budget;
 pub use hooks::ExpressionScope;
 mod attributes;
 pub use attributes::project_attribute_value;

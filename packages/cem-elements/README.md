@@ -401,8 +401,15 @@ attributes retain their source attribution. This output check does not evaluate
 authored descendant references or change the original source tree. A rejected
 label does not invalidate the retained source session.
 
-Captured label-template wiring, the public XHTML declaration and the full
-touch/pen/field acceptance matrix remain in the active checklist.
+The local adapter captures `slot="option"` and `slot="group-label"` inert
+`text/cem-ml` templates with their original namespace contexts. Each runs with
+only its explicit native `suggestion` or `group` parameter and the standard
+library. Default and custom labels publish atomically as native `labelContent`;
+one shared output budget and retained-session byte budget cover the publication.
+Source/template edits invalidate its leases. The production `cem-suggestions`
+XHTML declaration and linked playground/gallery use this first local profile.
+Full touch/pen, device IME, screen-reader and source-example parity verification
+remain in the active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

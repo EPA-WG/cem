@@ -51,6 +51,12 @@ pub fn admit_label_output(
         ROOT_EXECUTION_SCOPE_ID,
     )
     .map_err(|e| invalid(e.to_string(), &Default::default()))?;
+    admit_projected_label_output(projected)
+}
+
+pub(crate) fn admit_projected_label_output(
+    projected: RenderPlan,
+) -> Result<RenderPlan, SuggestionsError> {
     let mut pending: Vec<_> = projected.nodes.iter().collect();
     while let Some(node) = pending.pop() {
         match node {

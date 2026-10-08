@@ -44,6 +44,7 @@ impl<'a> ValueControl<'a> {
     pub fn into_permits(self) -> Vec<MemoryPermit> {
         self.permits
     }
+    pub(crate) fn charged_bytes(&self) -> usize { self.bytes }
     pub fn remaining_work(&self) -> usize {
         self.limits.max_values.saturating_sub(self.work)
     }

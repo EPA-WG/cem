@@ -104,14 +104,16 @@ another session can complete the same source differently without changing it.
 Namespace preparation has one bounded work allowance across source forests.
 It does not expand general descendant references or grant new crossings.
 
-Label templates receive the retained selected native input in the session's
-frame. Explicit presentation queries may export CEMV values for render/binding
+Local label templates compile from their original inert XML owner with captured
+namespaces and an isolated native row/group parameter. Each publication prepares
+its `labelContent` node sequences atomically under a shared output budget; active
+label storage also counts against the session publication byte limit. Explicit presentation queries may export CEMV values for render/binding
 consumers. An export containing executable source capture still fails with its
 native diagnostic; projecting a presentation value does not transfer source
 authority. Original source edges stay inside the native session rather than
 becoming serialized JavaScript records.
 
-Processing-host protocol v22 provides prepare/view/render/release operations
+Processing-host protocol v23 provides prepare/view/render/release operations
 with immutable source revisions and root-owned session identities. Source leases
 survive query changes; immutable publications capture query revisions and
 consumer leases check attachment/query eligibility before and after async work. Cancellation, release and root disposal fence in-flight preparation and

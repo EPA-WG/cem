@@ -16,6 +16,11 @@ use cem_ml::value::artifact::CemValueArtifactLimits;
 pub struct NativeCapabilitySession {
     // Retains all original owners, captured lexical scopes and directed grants.
     execution: ElementReferenceExecution,
+    source: super::reference_transport::RetainedReferenceSource,
+    labels: Option<(
+        Option<crate::suggestions::captured_labels::CapturedLabel>,
+        Option<crate::suggestions::captured_labels::CapturedLabel>,
+    )>,
     data: TemplateData,
     values: ItemStream,
     limits: CemValueArtifactLimits,
@@ -79,6 +84,8 @@ impl NativeCapabilitySession {
         let values = execution.complete_selected_names(&captured_sources, &data, values)?;
         Ok(Self {
             execution,
+            source,
+            labels: None,
             data,
             values,
             limits,
@@ -87,6 +94,46 @@ impl NativeCapabilitySession {
             publication_bytes: Default::default(),
             suggestions: Default::default(),
         })
+    }
+    /// Configure isolated local templates once, before issuing any publication.
+    pub fn configure_suggestion_labels(
+        &mut self,
+        option: Option<&str>,
+        group: Option<&str>,
+    ) -> Result<(), crate::suggestions::SuggestionsError> {
+        if self.labels.is_some() || !self.publication_keys.borrow().is_empty() {
+            return Err(suggestions_error(
+                "Label capture is immutable after preparation",
+            ));
+        }
+        let capture = |selector: Option<&str>, parameter| {
+            let Some(selector) = selector else {
+                return Ok(None);
+            };
+            if selector.len() > self.limits.max_bytes {
+                return Err(suggestions_error("Label selector byte limit exceeded"));
+            }
+            let values = self
+                .source
+                .evaluate(selector, &context(&self.data))
+                .map_err(|e| suggestions_error(e.message))?
+                .result;
+            self.execution.admit(&values).map_err(suggestions_error)?;
+            let [item] = values.items.as_slice() else {
+                return Err(suggestions_error(
+                    "A label selector must select exactly one original template",
+                ));
+            };
+            crate::suggestions::captured_labels::CapturedLabel::capture(
+                item,
+                parameter,
+                &self.limits,
+            )
+            .map(Some)
+        };
+        let labels = (capture(option, "suggestion")?, capture(group, "group")?);
+        self.labels = Some(labels);
+        Ok(())
     }
     pub fn len(&self) -> usize {
         self.values.items.len()
@@ -216,13 +263,13 @@ impl NativeCapabilitySession {
         }
         let plan = self.suggestions()?;
         // Retained control strings, match flags and active/retired keys share one byte budget.
-        let charge = serde_json::to_vec(config)
+        let mut charge = serde_json::to_vec(config)
             .map_err(|error| suggestions_error(error.to_string()))?
             .len()
             .checked_add(plan.len())
             .and_then(|n| n.checked_add(key.len() + 128))
             .ok_or_else(|| suggestions_error("Native publication byte limit exceeded"))?;
-        let total = self
+        let mut total = self
             .publication_bytes
             .get()
             .checked_add(charge)
@@ -230,6 +277,17 @@ impl NativeCapabilitySession {
             .filter(|n| *n <= self.limits.max_bytes)
             .ok_or_else(|| suggestions_error("Native publication byte limit exceeded"))?;
         let view = plan.view(config)?;
+        let (option, group) = self
+            .labels
+            .as_ref()
+            .map(|(o, g)| (o.as_ref(), g.as_ref()))
+            .unwrap_or((None, None));
+        let mut limits = self.limits;
+        limits.max_bytes = limits.max_bytes.saturating_sub(total);
+        let (view, bytes) =
+            crate::suggestions::captured_labels::prepare_labels(view, option, group, &limits)?;
+        total += bytes;
+        charge += bytes;
         self.publication_keys.borrow_mut().insert(key.into());
         self.publications
             .borrow_mut()

@@ -2509,7 +2509,7 @@ export class CemElementRuntime {
         if (!this.localSuggestionsEnabled || compiled.mode !== 'cem-ml' || compiled.declarationScope.disposed) return undefined;
         const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
         const optionsSources = [...(payload?.children ?? [])].filter(child => child.getAttribute('slot') === 'options');
-        return { snapshot: this.snapshotInstance(instance), owner: this.processingHost(compiled), limits: this.nativeValueLimits, optionsSources, sourceRoot: payload ?? undefined,
+        return { snapshot: this.snapshotInstance(instance), owner: this.processingHost(compiled), limits: this.nativeValueLimits, optionsSources, labelSources: [...(payload?.children ?? [])].filter(child => ['option', 'group-label'].includes(child.getAttribute('slot') ?? '')), sourceRoot: payload ?? undefined,
             ownsEditor: editor => this.initializedInstances.has(editor) && !!this.declarationForInstance(editor),
             current: () => this.localSuggestionsEnabled && instance.isConnected && !compiled.declarationScope.disposed
                 && this.declarationForInstance(instance) === compiled,
@@ -2517,10 +2517,12 @@ export class CemElementRuntime {
     }
 
     /** Check original inert source identity without importing another producer's output. */
-    localSuggestionsSourceCurrent(instance: HTMLElement, source: HTMLTemplateElement | undefined): boolean {
+    localSuggestionsSourceCurrent(instance: HTMLElement, source: HTMLTemplateElement | undefined, labels: readonly HTMLTemplateElement[] = []): boolean {
         const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
         const sources = [...(payload?.children ?? [])].filter(child => child.getAttribute('slot') === 'options');
-        return source ? sources.length === 1 && sources[0] === source : sources.length === 0;
+        const currentLabels = [...(payload?.children ?? [])].filter(child => ['option', 'group-label'].includes(child.getAttribute('slot') ?? ''));
+        return currentLabels.length === labels.length && currentLabels.every((label, i) => label === labels[i])
+            && (source ? sources.length === 1 && sources[0] === source : sources.length === 0);
     }
 
     /** Refresh host-owned reference readiness/authority without changing authored attributes. */

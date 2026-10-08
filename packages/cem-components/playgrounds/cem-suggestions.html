@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cem-suggestions — property playground</title>
+<script type="importmap">{
+    "imports": {
+        "@epa-wg/cem-elements": "../../cem-elements/dist/index.js",
+        "@epa-wg/cem-components": "../dist/lib/primitives.js",
+        "@epa-wg/cem-demo-element": "../../cem-demo-element/dist/index.js",
+        "@epa-wg/cem-ml/wasm": "../../cem-ml-npm/dist/wasm/browser/cem_ml.js",
+        "@epa-wg/cem-theme/styles.css": "../../cem-theme/dist/lib/css/cem-combined.css",
+        "@epa-wg/cem-components/styles.css": "../dist/styles.css",
+        "@epa-wg/cem-components/components/cem-action": "../src/components/cem-action/cem-action.xhtml",
+        "@epa-wg/cem-components/action-demo": "./cem-action-gallery.html",
+        "@epa-wg/cem-components/action-playground": "./cem-action.html",
+        "@epa-wg/cem-components/components/cem-theme-switch": "../src/components/cem-theme-switch/cem-theme-switch.xhtml",
+        "@epa-wg/cem-components/theme-switch-playground": "./cem-theme-switch.html",
+        "@epa-wg/cem-components/components/cem-select": "../src/components/cem-select/cem-select.xhtml",
+        "@epa-wg/cem-components/components/cem-icon-button": "../src/components/cem-icon-button/cem-icon-button.xhtml",
+        "@epa-wg/cem-components/components/cem-menu-item": "../src/components/cem-menu-item/cem-menu-item.xhtml",
+        "@epa-wg/cem-components/components/cem-field": "../src/components/cem-field/cem-field.xhtml",
+        "@epa-wg/cem-components/components/cem-text-field": "../src/components/cem-text-field/cem-text-field.xhtml",
+        "@epa-wg/cem-components/components/cem-icon": "../src/components/cem-icon/cem-icon.xhtml",
+        "@epa-wg/cem-components/components/cem-textarea": "../src/components/cem-textarea/cem-textarea.xhtml",
+        "@epa-wg/cem-components/playgrounds/assets/wc-square.svg": "./assets/wc-square.svg",
+        "@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml": "./cem-gallery-nav.xhtml",
+        "@epa-wg/cem-components/components/cem-menu": "../src/components/cem-menu/cem-menu.xhtml",
+        "@epa-wg/cem-components/components/cem-dropdown": "../src/components/cem-dropdown/cem-dropdown.xhtml",
+        "@epa-wg/cem-components/components/cem-suggestions": "../src/components/cem-suggestions/cem-suggestions.xhtml"
+    }
+}</script>
+<script type="module">
+import { installCemElementRuntime } from '@epa-wg/cem-elements';
+import { installCemComponentPrimitives } from '@epa-wg/cem-components';
+import '@epa-wg/cem-demo-element';
+const runtime = installCemElementRuntime(window, { localSuggestions: true, processingPoolPolicy: { queueSize: 512 } });
+window.cemPlaygroundRuntime = runtime;
+await installCemComponentPrimitives(runtime);
+</script><link rel="stylesheet" href="../demo.css">
+<style>body { margin: 0; font-family: system-ui,sans-serif; } main { display:block; padding: var(--cem-dim-large); } .matrix { display:grid; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)); gap:var(--cem-gap-block); } cem-demo-element { display:block; margin-block:var(--cem-gap-block); } fieldset { margin-block:var(--cem-gap-related); }</style></head><body>
+<cem-element hidden><template type="text/cem-ml">
+{cem-module-url @slice=themeUrl @src="@epa-wg/cem-theme/styles.css"}
+{cem:if @test="datadom.slices.themeUrl" | {link @rel=stylesheet @href="{$datadom.slices.themeUrl}"}}
+{cem-module-url @slice=legacyStylesUrl @src="@epa-wg/cem-components/styles.css"}
+{cem:if @test="datadom.slices.legacyStylesUrl" | {link @rel=stylesheet @href="{$datadom.slices.legacyStylesUrl}"}}
+{cem-module-url @slice=galleryNavUrl @src="@epa-wg/cem-components/playgrounds/cem-gallery-nav.xhtml"}
+{cem:if @test="datadom.slices.galleryNavUrl" | {cem-element @tag=cem-gallery-nav @src="{$datadom.slices.galleryNavUrl}#cem-gallery-nav"}}
+
+{cem-module-url @slice=cemsuggestionsUrl @src="@epa-wg/cem-components/components/cem-suggestions"}
+{cem:if @test="datadom.slices.cemsuggestionsUrl" | {cem-element @tag=cem-suggestions @capability=suggestions @src="{$datadom.slices.cemsuggestionsUrl}#cem-suggestions"}}
+{cem-module-url @slice=cemfieldUrl @src="@epa-wg/cem-components/components/cem-field"}
+{cem:if @test="datadom.slices.cemfieldUrl" | {cem-element @tag=cem-field @capability=form-control @src="{$datadom.slices.cemfieldUrl}#cem-field"}}
+{cem-module-url @slice=cemtextfieldUrl @src="@epa-wg/cem-components/components/cem-text-field"}
+{cem:if @test="datadom.slices.cemtextfieldUrl" | {cem-element @tag=cem-text-field @capability=form-control @src="{$datadom.slices.cemtextfieldUrl}#cem-text-field"}}
+</template></cem-element>
+<main>
+<cem-gallery-nav heading="cem-suggestions — property playground"></cem-gallery-nav><p>Suggestions attach to the existing editor in <a href="cem-field-gallery.html">cem-field</a> or <a href="cem-text-field-gallery.html">cem-text-field</a>. The field keeps its label, help, validation and form value; the attachment owns the suggestion list.</p><p><a href="cem-suggestions-gallery.html">Full examples and variation matrix</a> · <a href="../src/components/cem-suggestions/cem-suggestions.stories.ts">Automated stories</a></p><cem-element><template type="text/cem-ml">
+{slice @name=filter | contains}{slice @name=filterBy | label}{slice @name=sourceState | ready}{slice @name=selection | optional}{slice @name=fieldState | default}
+{fieldset @role=radiogroup @aria-label="Filter" @slice=filter @slice-event=change @slice-value="$target.value" | {legend | Filter}{cem-radio @name="suggestions-filter" @value="contains" @checked=true | contains}{cem-radio @name="suggestions-filter" @value="prefix" | prefix}{cem-radio @name="suggestions-filter" @value="none" | none}}
+{fieldset @role=radiogroup @aria-label="Filter by" @slice=filterBy @slice-event=change @slice-value="$target.value" | {legend | Filter by}{cem-radio @name="suggestions-filterBy" @value="label" @checked=true | label}{cem-radio @name="suggestions-filterBy" @value="value" | value}{cem-radio @name="suggestions-filterBy" @value="label value" | label value}}
+{fieldset @role=radiogroup @aria-label="Source state" @slice=sourceState @slice-event=change @slice-value="$target.value" | {legend | Source state}{cem-radio @name="suggestions-sourceState" @value="ready" @checked=true | ready}{cem-radio @name="suggestions-sourceState" @value="pending" | pending}{cem-radio @name="suggestions-sourceState" @value="failed" | failed}}
+{fieldset @role=radiogroup @aria-label="Selection requirement" @slice=selection @slice-event=change @slice-value="$target.value" | {legend | Selection requirement}{cem-radio @name="suggestions-selection" @value="optional" @checked=true | optional}{cem-radio @name="suggestions-selection" @value="required" | required}}
+{fieldset @role=radiogroup @aria-label="Field state" @slice=fieldState @slice-event=change @slice-value="$target.value" | {legend | Field state}{cem-radio @name="suggestions-fieldState" @value="default" @checked=true | default}{cem-radio @name="suggestions-fieldState" @value="disabled" | disabled}{cem-radio @name="suggestions-fieldState" @value="readonly" | readonly}{cem-radio @name="suggestions-fieldState" @value="invalid" | invalid}}
+{slice @name=label | Suggestions}{cem-text-field @label="Listbox name" @value="{$datadom.slices.label}" @slice=label @slice-event=input @slice-value="$target.value"}
+{slice @name=selectionMessage | Choose a suggestion.}{cem-text-field @label="Selection error" @value="{$datadom.slices.selectionMessage}" @slice=selectionMessage @slice-event=input @slice-value="$target.value"}
+{slice @name=optionsError | }{cem-text-field @label="Failure detail" @value="{$datadom.slices.optionsError}" @slice=optionsError @slice-event=input @slice-value="$target.value"}
+{slice @name=pendingMessage | Loading suggestions.}{cem-text-field @label="Pending message" @value="{$datadom.slices.pendingMessage}" @slice=pendingMessage @slice-event=input @slice-value="$target.value"}
+{slice @name=failureMessage | Suggestions are unavailable.}{cem-text-field @label="Failure message" @value="{$datadom.slices.failureMessage}" @slice=failureMessage @slice-event=input @slice-value="$target.value"}
+{slice @name=emptyMessage | No suggestions available.}{cem-text-field @label="Empty message" @value="{$datadom.slices.emptyMessage}" @slice=emptyMessage @slice-event=input @slice-value="$target.value"}
+{slice @name=singleMessage | 1 suggestion available.}{cem-text-field @label="Single message" @value="{$datadom.slices.singleMessage}" @slice=singleMessage @slice-event=input @slice-value="$target.value"}
+{slice @name=multipleMessage | %count suggestions available.}{cem-text-field @label="Multiple message" @value="{$datadom.slices.multipleMessage}" @slice=multipleMessage @slice-event=input @slice-value="$target.value"}
+{form | {cem-suggestions @label="{$datadom.slices.label}" @filter="{$datadom.slices.filter}" @filter-by={if datadom.slices.filter == "none" {null} else {datadom.slices.filterBy}} @options-state="{$datadom.slices.sourceState}" @require-selection={if datadom.slices.selection == "required" {true} else {null}} @selection-message="{$datadom.slices.selectionMessage}" @options-error="{$datadom.slices.optionsError}" @pending-message="{$datadom.slices.pendingMessage}" @failure-message="{$datadom.slices.failureMessage}" @empty-message="{$datadom.slices.emptyMessage}" @single-message="{$datadom.slices.singleMessage}" @multiple-message="{$datadom.slices.multipleMessage}" |
+{template | {cem-field @slot=editor @name=letter @label=Letter @disabled={if datadom.slices.fieldState == "disabled" {true} else {null}} @readonly={if datadom.slices.fieldState == "readonly" {true} else {null}} @invalid={if datadom.slices.fieldState == "invalid" {true} else {null}} | {span @slot=help | Type to filter; use Arrow keys and Enter to commit.}} {template @slot=options | {option @value=a @label=Alpha | Alpha}{option @value=b @label=Beta | Beta}}}}
+{cem-action @type=reset | Reset}}
+</template></cem-element><table><caption>First local profile</caption><tr><th>Input</th><th>Behavior</th></tr>
+<tr><td data-gallery-attribute="label">label</td><td>Listbox accessible name; default Suggestions. The projected field owns its visible label and help.</td></tr>
+<tr><td>filter / filter-by</td><td>contains (default), prefix, none. label (default), value, or label value; omit filter-by with none.</td></tr>
+<tr><td>require-selection / selection-message</td><td>Require a committed native row; selection-message localizes the field-owned validity contribution.</td></tr>
+<tr><td>options-state / options-error</td><td>ready, pending, failed; plain-text failure override. Pending/failed results cannot commit old rows.</td></tr>
+<tr><td><span data-gallery-attribute="pending-message">pending-message</span>, <span data-gallery-attribute="failure-message">failure-message</span>, <span data-gallery-attribute="empty-message">empty-message</span>, <span data-gallery-attribute="single-message">single-message</span>, <span data-gallery-attribute="multiple-message">multiple-message</span></td><td>Localized status text. %count substitutes the eligible count in the multiple message.</td></tr>
+<tr><td>editor, options, option, group-label slots</td><td>One direct native field; inert source options; optional isolated text/cem-ml label templates with native suggestion/group parameters.</td></tr>
+<tr><td>options / editor-for and revision inputs</td><td>Native host integration only. Explicit references need fresh host grants and conflict with equivalent local slots. No URL/JSON input shortcut.</td></tr>
+<tr><td>disabled, readonly, required, name, value, help, validation</td><td>These belong to the field. Attribute presence includes the text false.</td></tr><tr><td><span data-gallery-attribute="hidden">hidden</span>, <span data-gallery-attribute="class">class</span></td><td>Standard host visibility and consumer styling membership.</td></tr></table><cem-element><template type="text/cem-ml">
+{cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-suggestions"}
+{cem:if @test="datadom.slices.sourceUrl" | {p | {a @href="{$datadom.slices.sourceUrl}" | Canonical XHTML}} {cem-demo-element @legend="Canonical suggestions source" @src="{$datadom.slices.sourceUrl}" @type=xml @demo=false}}
+</template></cem-element></main></body></html>
