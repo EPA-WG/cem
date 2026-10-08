@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { nativeTap, nativeTouchGesture, nativePenDrag, nativeInputPoint, nativeWheel } from '../../.storybook/native-input.js';
+import { cemComponentDeclarationSource, loadCemComponent, whenCemRendered } from '../../.storybook/preview.js';
+import { connectCemNativeSurface } from './native-surface.js';
+import { captureCemSurfaceLifetime, type CemSurfaceLifetime } from './surface-session.js';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
@@ -17,9 +20,10 @@ import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Suggestions Controller', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 const workerScriptUrl = new URL('./internal/runtime-support/processing-worker.ts', import.meta.url);
-async function fixture(root: HTMLElement, fallback: boolean, declarative = false) {
+async function fixture(root: HTMLElement, fallback: boolean, declarative = false, productionField?: string) {
     await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
-    const suffix = crypto.randomUUID(), declarationTag = `controller-declaration-${suffix}`, tag = `controller-field-${suffix}`;
+    if (productionField) await loadCemComponent(productionField);
+    const suffix = crypto.randomUUID(), declarationTag = `controller-declaration-${suffix}`, tag = productionField ?? `controller-field-${suffix}`;
     let capabilityOptions: CemSuggestionsControllerOptions | undefined;
     let renderPublication: CemNativeSuggestionsPublication | undefined;
     const runtime = new CemElementRuntime({ declarationTag,
@@ -32,13 +36,19 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'form-control');
     const template = document.createElement('template'); template.type = 'text/cem-ml';
     template.textContent = '{input @part=control @form="" @type=text @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}';
-    declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration);
+    declaration.append(template); if (!productionField) { root.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration); }
     let parentDeclaration: HTMLElement | undefined;
     const parentTag = `controller-attachment-${suffix}`;
     if (declarative) {
         parentDeclaration = document.createElement(declarationTag); parentDeclaration.setAttribute('tag', parentTag); parentDeclaration.setAttribute('capability', 'suggestions');
         const parentTemplate = document.createElement('template'); parentTemplate.type = 'text/cem-ml';
         parentTemplate.textContent = '{slot @name=editor}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} @aria-disabled={row.dom:attribute("disabled").value} | {$row.dom:attribute("label").value}}}}{slot @name=outside}';
+        if (productionField) {
+            const source = document.createElement('template'); source.innerHTML = await cemComponentDeclarationSource('cem-suggestions');
+            const authored = source.content.querySelector('template');
+            if (!authored) throw new Error('Missing production suggestions template');
+            parentTemplate.textContent = authored.content.textContent;
+        }
         parentDeclaration.append(parentTemplate); root.append(parentDeclaration); runtime.registerDeclaration(parentDeclaration); await runtime.whenDeclarationSettled(parentDeclaration);
     }
     const form = document.createElement('form'), host = document.createElement(declarative ? parentTag : 'section');
@@ -50,14 +60,15 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
         const row = document.createElement('div'); row.setAttribute('role', 'option'); row.textContent = label; panel.append(row); return row;
     });
     const outside = document.createElement('button'); outside.type = 'button'; outside.textContent = 'Outside'; if (declarative) { outside.setAttribute('slot', 'outside'); host.append(field, outside); } else host.append(field, panel, outside);
+    if (productionField) { const payload = document.createElement('template'); payload.content.append(field, outside); host.replaceChildren(payload); }
     form.append(host); root.append(form);
     if (declarative) {
         await runtime.whenRenderSettled(host);
         field = host.querySelector(tag) as HTMLElement & { value: string }; panel = host.querySelector('[part=surface]') as HTMLElement;
-        if (!field || !panel) throw new Error('Missing declarative fixture output');
+        if (!field || !panel) throw new Error(`Missing declarative fixture output: ${runtime.diagnosticsFor(host).map(d => d.message).join('; ')}`);
         panel.style.cssText = 'width:160px;height:80px'; rowElements = [...panel.querySelectorAll<HTMLElement>('[role=option]')];
     }
-    await runtime.whenRenderSettled(field); const editor = field.querySelector('input'), provider = getCemEditorProvider(field);
+    if (productionField) await whenCemRendered(field); else await runtime.whenRenderSettled(field); const editor = field.querySelector('input'), provider = getCemEditorProvider(field);
     if (!editor || !provider) throw new Error('Missing fixture editor'); editor.style.width = '150px';
     const scope = createCemDeclarationScope({ document }), owner = cemProcessingHostForScope(scope, { workerScriptUrl,
         ...(fallback ? { workerFactory: () => { throw new Error('fallback fixture'); } } : {}) });
@@ -113,6 +124,14 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const key = (name: string, extra: KeyboardEventInit = {}) => { const event = new KeyboardEvent('keydown', { key: name, code: name, bubbles: true, cancelable: true, ...extra }); editor.dispatchEvent(event); return event; };
     const up = (name: string) => editor.dispatchEvent(new KeyboardEvent('keyup', { key: name, code: name, bubbles: true }));
     return { host, field, form, panel, editor, provider, controller, feedbacks, errors, get rowElements() { return rowElements; }, outside, settled, key, up,
+        async admitAncestors(ancestors: readonly CemSurfaceLifetime[]) {
+            capabilityOptions = { ...controllerOptions, ancestors }; runtime.setInstanceSlices(host, { fixtureTick: crypto.randomUUID() });
+            await runtime.whenRenderSettled(host);
+            await waitFor(() => expect(cemSuggestionsControllerFor(host)).toBeDefined());
+            const admitted = cemSuggestionsControllerFor(host);
+            if (!admitted) throw new Error('Missing admitted controller');
+            return admitted;
+        },
         fail(value: boolean) { failed = value; },
         releaseSource: () => session.release(),
         block() { let finish!: () => void; delay = new Promise(resolve => { finish = resolve; }); return () => { delay = undefined; finish(); }; },
@@ -532,6 +551,56 @@ export const NativeTouchPenRowsPreserveFocusAndScrolling: Story = {
                 f.panel.removeEventListener('pointerdown', down); f.editor.removeEventListener('input', changed); f.editor.removeEventListener('change', changed);
                 await f.cleanup();
             }
+        }
+    },
+};
+
+export const ProductionFieldsExternalSourcesAndTrustedAncestorResume: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const field of ['cem-field', 'cem-text-field']) for (const fallback of [false, true]) {
+            const dialog = document.createElement('dialog'); dialog.setAttribute('mode', 'modal');
+            dialog.setAttribute('aria-label', 'Host task'); canvasElement.append(dialog);
+            const parent = connectCemNativeSurface(dialog);
+            expect(parent.open()).toBe(true);
+            const f = await fixture(dialog, fallback, true, field);
+            let child = f.controller;
+            try {
+                const lifetime = captureCemSurfaceLifetime(dialog);
+                if (!lifetime) throw new Error('Missing trusted parent lifetime');
+                child = await f.admitAncestors([lifetime]);
+                f.editor.focus();
+                await waitFor(() => expect(child.visible).toBe(true));
+                expect(dialog.matches(':modal')).toBe(true);
+                expect(f.host.contains(f.panel)).toBe(true);
+                f.key('ArrowDown');
+                expect(f.editor.getAttribute('aria-activedescendant')).toBe(f.rowElements[0].id);
+                f.key('Enter'); f.up('Enter');
+                await waitFor(() => expect(f.field.value).toBe('same'));
+                expect(new FormData(f.form).get('choice')).toBe('same');
+                expect(f.field.querySelector('input')).toBe(f.editor);
+                f.editor.value = ''; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await waitFor(() => expect(child.visible).toBe(true));
+                expect(f.key('Escape').defaultPrevented).toBe(true);
+                expect(child.visible).toBe(false); expect(dialog.open).toBe(true);
+                expect(f.key('Escape', { repeat: true }).defaultPrevented).toBe(true);
+                expect(dialog.open).toBe(true); f.up('Escape');
+                f.key('ArrowDown'); await waitFor(() => expect(child.visible).toBe(true)); f.up('ArrowDown');
+                dialog.close(); await waitFor(() => expect(child.visible).toBe(false));
+                expect(lifetime.current()).toBe(false);
+                expect(parent.open()).toBe(true); f.editor.focus(); f.key('ArrowDown'); f.up('ArrowDown');
+                await Promise.resolve(); expect(child.visible).toBe(false);
+                const resumed = captureCemSurfaceLifetime(dialog);
+                if (!resumed) throw new Error('Missing resumed parent lifetime');
+                const previous = child; child = await f.admitAncestors([resumed]);
+                expect(child).not.toBe(previous);
+                await waitFor(() => expect(child.pending).toBe(false));
+                f.editor.focus(); f.key('ArrowDown'); f.up('ArrowDown');
+                await waitFor(() => { if (f.errors.length) throw new Error(f.errors.map(String).join('; ')); expect(child.visible).toBe(true); });
+                parent.disconnect(); await waitFor(() => expect(child.visible).toBe(false));
+                expect(resumed.current()).toBe(false);
+                expect(f.editor.hasAttribute('aria-activedescendant')).toBe(false);
+            } finally { child.disconnect(); await f.cleanup(); parent.disconnect(); dialog.remove(); }
         }
     },
 };

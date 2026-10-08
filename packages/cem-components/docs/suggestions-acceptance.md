@@ -32,7 +32,7 @@ trusted and do not represent an operating-system candidate window.
 | Pointer taps | Mouse/touch/pen browser input commits once and leaves the original editor focused | Chromium protocol-driven input |
 | Pointer cancellation | Touch movement, cancel, pen drag, outside focus and source loss cannot commit a stale press; native wheel input scrolls | No row refocus after blur |
 | Composition | Composing edits update submission, close preview, settle from editor text and fence terminal Enter; a new press can select afterward | Protocol-driven composition, not physical IME |
-| Native surfaces | Shared listbox/geometry/native-surface regressions cover visibility, logical fitting, stale attempts, ancestor lifetimes and cleanup | Local production composition does not supply a trusted ancestor lifetime automatically |
+| Native surfaces | Shared listbox/geometry/native-surface regressions plus production-template host integration with both fields and external CEMB sources: modal containment, nested Escape/held repeats, close/reopen, expired lifetime rejection, fresh admission and teardown | Worker/fallback host hooks explicitly supply ancestor authority; local adjacency supplies none |
 | Accessibility structure | Listbox/group names, option active-descendant, stored-value names, localized status, disabled rows and preserved field help | DOM contracts, not spoken-output evidence |
 
 The row adapter cancels primary mouse pointerdown only on an admitted row. Touch
@@ -50,6 +50,15 @@ later native close does not discard focused status feedback. This timing is
 covered by the shared feedback play and concurrent source/installed-package
 gallery verification. Explicit dismissal, blur, composition and authority loss
 still clear qualifying feedback.
+
+The host integration uses the production suggestions template under a unique
+fixture tag and the unchanged production fields. It admits original external
+CEMB owners through `nativeSuggestionsInputs` and exact endpoint/grant leases
+through `suggestionsControllerInputs`. Captured parent lifetimes expire on
+close, remain expired after reopen, and must be replaced explicitly by the host.
+Source preparation settles before the deliberate opening key; a key issued
+while pending is never replayed. The combined five-suite run passes 39 browser
+plays. Physical release evidence below remains separate.
 
 ## Manual release record
 
@@ -72,3 +81,29 @@ Actionable pending runs and their scenarios remain next to the acceptance item
 in [todo.md](../../../docs/todo.md). Additional editor types, full surface-provider
 adoption, undoable replacement and platform close requests have separate design
 items.
+
+## Recording a physical run
+
+Use one record per browser/device/field combination. Test both `cem-field` and
+`cem-text-field` against the same options. Keep failures and inconclusive runs;
+repeat a failed gesture on a plain native overflow box to distinguish runner or
+platform limitations from the suggestions surface. A release run is complete
+only when its actual observations are attached here or linked from this record.
+
+```text
+Date / tester:
+Source revision / source or installed package:
+Browser version / OS version:
+Device / pointer / keyboard / IME / assistive technology version:
+Field: cem-field | cem-text-field
+Scenario from the pending-run table:
+Steps / input event order (for IME):
+Observed focus / caret / stored value / FormData:
+Observed scroll / viewport fitting / spoken announcements:
+Outcome: pass | fail | inconclusive
+Evidence link / follow-up issue:
+```
+
+No physical device, operating-system IME or assistive-technology run has been
+recorded for this revision. The template makes the remaining checks executable;
+it does not close their todo item.

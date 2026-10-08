@@ -941,14 +941,26 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         Record browser/OS/device/AT versions and exact outcomes. The automated
         touch gesture does not scroll a plain overflow-box control in this
         environment; a wheel-scroll pass does not substitute for touch-pan.
+        Preparation 2026-10-08: acceptance record now provides a repeatable
+        per-device/field/version/evidence template and plain-scroll baseline
+        procedure. Actual hardware, OS IME and AT observations remain pending.
         Scenarios for later design verification: tap preserves editor/caret,
         pan remains scrolling, terminal IME keys neither select nor submit, and
         active-row/status announcements preserve the field's label/help.
-      - [ ] Add host-integrated both-field acceptance fixtures for explicit
+      - [x] Add host-integrated both-field acceptance fixtures for explicit
         external native sources and trusted ancestor-surface lifetimes, covering
         nested Escape, modal containment, parent teardown and resume. Existing
         shared service tests do not establish production local-slot admission
         inside a foreign ancestor surface.
+        Delivered 2026-10-08: both production fields and the production
+        suggestions template consume external CEMB source owners through trusted
+        host hooks in worker/fallback execution. Modal parent lifetimes cover
+        nested Escape/held repeats, commit/FormData coherence, parent close,
+        expired-lifetime rejection after reopen, fresh host admission and parent
+        teardown. Source preparation must settle before a fresh deliberate key;
+        pending keys do not replay. The production and shared controller/listbox/
+        geometry/native-surface suites pass all 39 browser plays; typecheck and
+        lint pass (two existing warnings).
         Scenarios for later design verification: adjacency cannot confer parent
         lifetime authority and a closed ancestor cannot revive an old child.
       Progress 2026-10-07: editor-provider transaction/admission/reentrancy stories
