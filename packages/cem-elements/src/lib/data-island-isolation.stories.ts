@@ -1,3 +1,4 @@
+import { startReadinessTiming, readinessCheckpoint } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import {
     CemElementRuntime,
@@ -24,6 +25,7 @@ const meta: Meta = {
 export default meta;
 
 type Story = StoryObj;
+const isolationRuntimes = new WeakMap<Element, CemElementRuntime>();
 const stylesheetRuntimes = new WeakMap<HTMLElement, CemElementRuntime>();
 
 export const SelectorsDoNotPierceTheDataIsland: Story = {
@@ -98,14 +100,26 @@ export const DataIslandControlsDoNotParticipateInFormSubmission: Story = {
             wrapInForm: true,
         }),
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
         const form = requiredElement(canvasElement, 'form[data-iso="form"]') as HTMLFormElement;
         const instance = requiredElement(canvasElement, 'iso-form-el');
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
 
+        readinessCheckpoint('form-before-settlement', {
+            liveControls: instance.querySelectorAll('input[name="visible"]').length,
+            formControls: form.elements.length,
+            capturedControls: island.content.querySelectorAll('input').length,
+        });
+        const runtime = isolationRuntimes.get(instance);
+        assert(runtime, 'the form instance retains its owning runtime');
+        await runtime.whenRenderSettled(instance as HTMLElement);
+        readinessCheckpoint('form-after-settlement', {
+            liveControls: instance.querySelectorAll('input[name="visible"]').length,
+            formControls: form.elements.length,
+            capturedControls: island.content.querySelectorAll('input').length,
+        });
         const data = new FormData(form);
         assertEqual(data.get('visible'), 'ok', 'the rendered control participates in form submission');
+        assertEqual(data.getAll('visible').length, 1, 'the rendered control submits exactly once');
         assert(!data.has('island-secret'), 'the island control does not participate in form submission');
 
         assert(form.elements.namedItem('island-secret') === null, 'island controls are absent from form.elements');
@@ -626,6 +640,7 @@ function mountIsolationStory(spec: IsolationStorySpec): HTMLElement {
     runtime.registerDeclaration(declaration);
 
     const instance = document.createElement(spec.producedTag);
+    isolationRuntimes.set(instance, runtime);
     for (const [name, value] of Object.entries(spec.instanceAttributes ?? {})) {
         instance.setAttribute(name, value);
     }
@@ -640,6 +655,9 @@ function mountIsolationStory(spec: IsolationStorySpec): HTMLElement {
         root.appendChild(form);
     } else {
         root.appendChild(instance);
+    }
+    if (spec.wrapInForm) {
+        startReadinessTiming(root, 'isolation/FormSubmission', runtime);
     }
     return root;
 }

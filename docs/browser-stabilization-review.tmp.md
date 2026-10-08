@@ -6128,3 +6128,64 @@ isolated-package playground journeys pass after the fix; six concurrent gallery
 loads all retained both stylesheet links. Logs: `/tmp/cem-batch-guards.log`,
 `/tmp/cem-batch-uri.log`, `/tmp/cem-batch-final-stories.log`,
 `/tmp/cem-batch-playgrounds.log`, `/tmp/cem-batch-probes.json`.
+
+### Form submission lifecycle capture and recurrence follow-up (2026-10-08)
+
+The traced aggregate browser run reproduced the form-isolation failure before
+any wait was changed. At 22:19:54.537 UTC (4.3 ms after trace start), the original
+single-frame assertion saw zero live inputs and zero form controls, one captured
+input, and an instance whose render was still pending. Declaration diagnostics
+were empty. Render settlement followed at 22:19:54.547 UTC (14.1 ms), also without
+diagnostics. This establishes a fixture readiness race; it does not implicate
+reference evaluation or island isolation.
+
+The form story now retains its own runtime in a WeakMap and awaits that runtime's
+existing `whenRenderSettled` boundary before constructing FormData. It additionally
+checks exactly one submitted live value. The disconnected captured-input and
+form.elements exclusion checks remain. Opt-in checkpoints record only control
+counts and lifecycle state before/after settlement. No production runtime,
+component, frame budget, or story timeout changes.
+
+The original aggregate result was 478 passed / eight failed across 101 files.
+Besides the attributed form failure, seven failures need separate investigation:
+
+- Runtime `Legacy Named Slot Payload Parity`: missing h3.
+- Runtime `Slot Projection Render Loop`: missing div.card.
+- Data-table `Every Authored Sample`: 30-second story deadline.
+- Module-URL `Siblings Commit Together`: zero of four expected resolver entries.
+- Set-URL `Every Authored Sample`: 30-second story deadline.
+- Suggestions `Native Pointer Taps Keep Both Editors Focused`: 30-second deadline.
+- Suggestions `Native Pan Cancellation Drag And Outside Focus`: expected true,
+  observed false in the pointer-state check.
+
+Historical stock, HTTP and location timeouts did not recur. The stock diagnostic
+initially rejected stale packaged WASM; after rebuilding cem-elements, 32/32 cases
+passed across four batches of eight pages, alternating helper and real-component
+paths. Warning publication ranged from 5.65 to 9.35 seconds. Stock activity ran
+22:17:50.569–22:18:38.763 UTC during the aggregate suite. HTTP and location startup
+occurred later (22:19:18 and 22:19:44); do not claim those particular stories
+overlapped the stock probes.
+
+The earlier thirteen-file static readiness inventory is already reconciled.
+Keep recurrence-dependent investigations open instead of repeatedly migrating
+unchanged waits or attributing unrelated failures to the form fix.
+
+Evidence and reproduction:
+
+- `/tmp/cem-readiness-aggregate.log`: full baseline trace and failures.
+- `/tmp/cem-worker-readiness-stock.{json,log}`: versioned stock observations.
+- `yarn nx run cem-elements:test:readiness-trace`: aggregate lifecycle capture.
+- `yarn nx run cem-elements:diagnose:stock-startup`: stock probes; build the
+  package first when its freshness guard rejects stale outputs.
+
+Final verification: all 19 stories in the focused isolation/HTTP/location/
+cell-overrides workload pass, including all nine isolation cases. The corrected
+form checkpoint records one live control, one form control, one captured input
+and settled rendering with no diagnostics. Package typecheck and diff checks
+pass. The normal aggregate rerun passes 484/486 stories in 101 files; the form
+case passes. Module-URL sibling settlement and suggestions pan/outside-focus
+still fail and remain actionable. The other baseline failures did not recur;
+that does not establish their cause. Logs:
+`/tmp/cem-readiness-fixed.log`,
+`/tmp/cem-readiness-final-aggregate.log`,
+`/tmp/cem-readiness-types-final.log`.

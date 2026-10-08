@@ -1436,13 +1436,50 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       incomplete nested declarations; native input readiness must remain distinct
       from initial sample publication.
 
-- [ ] Fixture: capture the form-isolation story's rendered-control readiness under
+- [x] Fixture: capture the form-isolation story's rendered-control readiness under
       aggregate browser load before replacing its single-frame wait. FormData
       lacked `visible=ok` once in the 417-case run; both focused current/baseline
       runs pass all nine isolation cases. Preserve inert island assertions.
+      Delivered 2026-10-08: the traced aggregate run reproduces zero live
+      controls while rendering is pending at the single-frame assertion;
+      rendering settles 10 ms later without diagnostics. Await the instance's
+      owning runtime settlement and assert exactly one submitted live value.
+      All 19 focused isolation/HTTP/location/cell-override stories pass.
+      Normal aggregate verification passes 484/486, including this form case;
+      module-URL settlement and suggestions pointer failures remain below.
+      Counts-only lifecycle tracing remains opt-in. Evidence:
+      [form lifecycle capture](browser-stabilization-review.tmp.md#form-submission-lifecycle-capture-and-recurrence-follow-up-2026-10-08).
       Scenarios for later design verification: the live control submits once after
       actual render completion; captured controls stay disconnected and absent
       from FormData. Do not attribute the recurrence to references without evidence.
+
+- [ ] Fixture: trace the aggregate runtime slot failures before changing waits:
+      `Legacy Named Slot Payload Parity` misses h3 and `Slot Projection Render
+      Loop` misses div.card in the 2026-10-08 traced run. Capture the owning
+      runtime's render state at the original assertion; preserve slot identity,
+      ordering and projection assertions.
+      Scenarios for later design verification: asynchronous publication must
+      settle before lookup, while projection updates retain their original nodes.
+
+- [ ] Fixture: attribute `Module URL Settlement / Siblings Commit Together`
+      observing zero of four resolver entries under aggregate load. Capture
+      declaration/compile/render state before changing its polling deadline;
+      preserve the controlled sibling-release and atomic publication assertions.
+      The normal aggregate rerun also fails this case (484/486 overall).
+      Scenarios for later design verification: startup latency and stale sibling
+      completion must remain distinguishable.
+
+- [ ] Fixture: investigate aggregate-only data-table/set-URL story deadlines
+      and the two native suggestions pointer failures recorded on 2026-10-08.
+      Establish isolated controls, then capture the failing step under load.
+      Normal aggregate follow-up passes the data-table/set-URL and pointer-tap
+      cases; pan cancellation/outside focus still fails. Prioritize that
+      reproduced pointer-state failure; passing repeats do not attribute the
+      other three deadlines.
+      Do not increase global deadlines or relax focus/pointer expectations.
+      Scenarios for later design verification: all authored cases finish within
+      the story budget; native taps, pan cancellation and outside focus keep
+      their distinct contracts.
 
 ## Immediate: Legacy Demo Case Coverage
 
@@ -1482,6 +1519,11 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       timeout recurred in both final aggregate runs and a dedicated full
       Storybook rerun (219/220 each), temporarily blocking aggregate sign-off.
       The specific referrer fixture below now attributes and corrects it.
+      Follow-up 2026-10-08: after refreshing stale packaged WASM, all 32
+      stock probes pass (eight concurrent pages across four batches, both helper
+      and real-component paths). Warning publication takes 5.65–9.35 seconds
+      during an overlapping traced aggregate suite. No historical stock failure
+      recurs; retain its diagnostic target and existing deadline.
 
   - [ ] Audit remaining frame-count readiness helpers and aggregate-count
         predicates in demo stories. Check the authored instance inventory and
@@ -1517,6 +1559,13 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
         204-test full suites and all 160 stock probes. Location passes under
         focused load; its failure and the broader inventory remain open. See
         [NPM/location evidence](browser-stabilization-review.tmp.md#npm-and-location-readiness-under-overlapping-load).
+        Audit reconciliation 2026-10-08: the later thirteen-file source audit
+        already completed the static inventory and corrected the reproduced
+        string-demo race; see
+        [current boundary inventory](browser-stabilization-review.tmp.md#reconciliation-of-the-remaining-readiness-inventory).
+        Remaining work is traced HTTP/location recurrence attribution, not
+        another wholesale migration of frame waits. Preserve exact per-card
+        output and resource predicates when a supported correction is made.
 
     - [ ] Capture HTTP's newly observed 300-frame initial article-count
           timeout with declaration/render/worker tracing before choosing its
