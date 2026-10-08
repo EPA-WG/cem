@@ -163,6 +163,7 @@ export interface CemMlTemplateCompileResult {
 }
 
 export interface CemQlRenderOptions {
+    nativeSuggestions?: { sessionId: number; publication: string };
     ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Enable native relationship ID projection for this persisted producer identity. */
     elementReferenceInstanceId?: string;
@@ -340,6 +341,7 @@ export interface CemMlTemplateProcessingIdentity {
 }
 
 export interface CemMlTemplateProcessingInput {
+    nativeSuggestions?: { sessionId: number; publication: string };
     elementReferenceInputs?: CemElementReferenceInputs;
     /** Opt-in ordinary HTML navigation base, captured from the owning declaration. */
     linkBaseUrl?: string;
@@ -815,7 +817,7 @@ function withNativeAttributes<T>(options: CemQlRenderOptions, render: (bindings:
             }
             return { name, artifactId, index: value.index, target, attribute };
         });
-        return render(JSON.stringify(bindings));
+        return render(JSON.stringify(options.nativeSuggestions ? [...bindings, options.nativeSuggestions] : bindings));
     } finally {
         for (const id of imported.values()) disposeNativeValueArtifact(id);
     }
@@ -1036,6 +1038,7 @@ export async function processRetainedCemMlTemplate(
     }
 
     const renderOptions = {
+        nativeSuggestions: input.nativeSuggestions,
         elementReferenceInstanceId: input.identity.instanceId,
         ariaReferenceProfile: resolveAriaReferenceProfile(input.identity.ariaReferenceProfile),
         elementReferenceInputs: input.elementReferenceInputs,

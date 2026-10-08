@@ -1040,7 +1040,7 @@ it('keeps instance stylesheet identities separate in native compilation and load
 it('fences released native preparation and rejects stale revisions without touching another session', async () => {
     const engine = new CemProcessingEngine({ maxNativeSessionEntries: 1 });
     const native = await import('./cem-ql-render.js');
-    const handle = { sessionKey: 'native-test-session', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    const handle = { sessionKey: 'native-test-session', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one' };
     const request = { action: 'prepare' as const, handle, sources: { kind: 'cem-native-session-sources-v1' as const,
         requesting: 0, sources: [], bindings: [], grants: [] }, data: {}, select: '()', limits: { maxBytes: 1024, maxValues: 100, maxDepth: 20 } };
     let finish!: (value: { id: number; length: number }) => void;
@@ -1048,7 +1048,7 @@ it('fences released native preparation and rejects stale revisions without touch
     const pending = engine.nativeSession(request);
     const rejected = expect(pending).rejects.toThrow('superseded or released');
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
-    await expect(engine.nativeSession({ action: 'release', handle: { ...handle, queryRevision: 0 } })).rejects.toThrow('mismatch');
+    await expect(engine.nativeSession({ action: 'release', handle: { ...handle, sourceRevision: 'zero' } })).rejects.toThrow('mismatch');
     await engine.nativeSession({ action: 'release', handle });
     finish({ id: 709, length: 1 });
     await rejected;
@@ -1057,9 +1057,9 @@ it('fences released native preparation and rejects stale revisions without touch
     const fresh = { ...request, handle: { ...handle, sessionKey: 'fresh' } };
     await engine.nativeSession(fresh);
     await expect(engine.nativeSession({ ...request, handle: { ...handle, sessionKey: 'capacity' } })).rejects.toThrow('capacity');
-    await expect(engine.nativeSession({ action: 'view', handle: { ...fresh.handle, queryRevision: 2 }, expression: 'input' })).rejects.toThrow('mismatch');
+    await expect(engine.nativeSession({ action: 'view', handle: { ...fresh.handle, sourceRevision: 'two' }, expression: 'input' })).rejects.toThrow('mismatch');
     await expect(engine.nativeSession({ action: 'view', handle: fresh.handle, expression: 'input' })).resolves.toHaveProperty('status', 'view');
-    await expect(engine.nativeSession({ action: 'view', handle: { queryRevision: 1, sourceRevision: 'one', scopePolicyStamp: 'scope', instanceId: 'field', sessionKey: 'fresh' }, expression: 'input' })).resolves.toHaveProperty('status', 'view');
+    await expect(engine.nativeSession({ action: 'view', handle: { sourceRevision: 'one', scopePolicyStamp: 'scope', instanceId: 'field', sessionKey: 'fresh' }, expression: 'input' })).resolves.toHaveProperty('status', 'view');
     engine.dispose({ reason: 'runtime-disposed' });
     expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(701);
 });
@@ -1067,7 +1067,7 @@ it('fences released native preparation and rejects stale revisions without touch
 it('revokes in-flight native consumer frames without releasing their shared source session', async () => {
     const engine = new CemProcessingEngine();
     const native = await import('./cem-ql-render.js');
-    const handle = { sessionKey: 'publication-session', instanceId: 'producer', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    const handle = { sessionKey: 'publication-session', instanceId: 'producer', scopePolicyStamp: 'scope', sourceRevision: 'one' };
     await engine.nativeSession({ action: 'prepare', handle, sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [], bindings: [], grants: [] },
         data: {}, select: '()', limits: { maxBytes: 1024, maxValues: 100, maxDepth: 20 }, adapter: 'suggestions-v1' });
     const publication = 'live';
@@ -1082,5 +1082,42 @@ it('revokes in-flight native consumer frames without releasing their shared sour
     finish({ status: 'rendered', handle, nodes: [], diagnostics: [] }); await rejected;
     await expect(engine.nativeSession({ action: 'view', handle, expression: 'input.name' })).resolves.toHaveProperty('status', 'view');
     await expect(engine.nativeSession({ action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } })).rejects.toThrow('already issued');
+    engine.dispose();
+});
+
+it('fences normal component renders against live publication loss and applies owner bounds', async () => {
+    const engine = new CemProcessingEngine();
+    const native = await import('./cem-ql-render.js');
+    const handle = { sessionKey: 'component-publication', instanceId: 'producer', scopePolicyStamp: 'source', sourceRevision: 'one' };
+    const limits = { maxBytes: 1024, maxValues: 100, maxDepth: 20 };
+    await engine.nativeSession({ action: 'prepare', handle, sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [], bindings: [], grants: [] },
+        data: {}, select: '()', limits, adapter: 'suggestions-v1' });
+    const publication = 'component-view';
+    await engine.nativeSession({ action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } });
+    const snapshot = snapshotFixture('1', 'component-template', 'cem-component');
+    const compiled = await engine.compile({ language: 'cem-ml', producedTag: 'cem-component', templateArtifactId: snapshot.templateArtifactId,
+        registrationIdentity: 'component', source: createCemProcessingTextSource('{span | {$label}}'), sourceRef: { kind: 'inline', value: 'component' },
+        resolverIdentity: 'fixture', scopePolicyStamp: snapshot.scopePolicyStamp, sourceMapMode: 'dev' });
+    const input = { artifact: compiled.artifact, snapshot, revision: { instanceId: snapshot.instanceId, templateArtifactId: snapshot.templateArtifactId,
+        dataRevision: snapshot.dataRevision, scopePolicyStamp: snapshot.scopePolicyStamp, outputTarget: snapshot.outputTarget },
+        scopeUid: 'component', data: { label: 'live' }, nativeSuggestions: { handle, publication },
+        nativeValueLimits: { maxBytes: 4096, maxValues: 50, maxDepth: 50 } };
+    await engine.renderDiff(input);
+    expect(native.processRetainedCemMlTemplate).toHaveBeenLastCalledWith(expect.any(Number), expect.objectContaining({
+        nativeSuggestions: { sessionId: 701, publication }, nativeValueLimits: { maxBytes: 1024, maxValues: 50, maxDepth: 20 },
+    }));
+    await expect(engine.renderDiff({ ...input, data: { label: 'x'.repeat(1025) } })).rejects.toThrow('byte limit');
+    await expect(engine.renderDiff({ ...input, nativeSuggestions: { handle: { ...handle, sourceRevision: 'stale' }, publication } })).rejects.toThrow('unavailable');
+    const original = vi.mocked(native.processRetainedCemMlTemplate).getMockImplementation();
+    if (!original) throw new Error('Missing renderer fixture');
+    let finish: (() => void) | undefined;
+    vi.mocked(native.processRetainedCemMlTemplate).mockImplementationOnce(async (...args) => {
+        await new Promise<void>(resolve => { finish = resolve; }); return original(...args);
+    });
+    const pending = engine.renderDiff(input), rejected = expect(pending).rejects.toThrow('unavailable');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await engine.nativeSession({ action: 'release-suggestions', handle, publication });
+    finish?.(); await rejected;
+    await expect(engine.nativeSession({ action: 'view', handle, expression: 'input.name' })).resolves.toHaveProperty('status', 'view');
     engine.dispose();
 });

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { expect } from 'storybook/test';
+import { expect, waitFor } from 'storybook/test';
 import { createCemDeclarationScope } from './declaration-scope.js';
 import { CemNativeCapabilitySession, type CemNativeSuggestionsConfig } from './native-capability-session.js';
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS } from './native-values.js';
@@ -7,6 +7,8 @@ import { cemProcessingHostForScope } from './internal/runtime-support/processing
 import type { CemProcessingHost, CemProcessingNativeSessionInput } from './internal/runtime-support/processing-host.js';
 import type { RenderPlanNode } from './projection.js';
 import { isCemNativeSuggestionsBinding } from './native-suggestions-publication.js';
+import { CemElementRuntime } from './cem-elements.js';
+import { createCemProcessingTextSource } from './internal/runtime-support/processing-host.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- fixture sources enter through the explicit native CEMB boundary.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 
@@ -19,7 +21,7 @@ function renderedText(nodes: readonly RenderPlanNode[]): string {
 function request(text: string): Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> {
     const id = wasm.parseReferenceSource(new TextEncoder().encode(text), 'text/cem-ml', 'memory:suggestions.cem', '');
     try {
-        return { action: 'prepare', adapter: 'suggestions-v1', handle: { sessionKey: crypto.randomUUID(), instanceId: 'suggestions-fixture', scopePolicyStamp: 'suggestions-scope', sourceRevision: 'source-1', queryRevision: 1 },
+        return { action: 'prepare', adapter: 'suggestions-v1', handle: { sessionKey: crypto.randomUUID(), instanceId: 'suggestions-fixture', scopePolicyStamp: 'suggestions-scope', sourceRevision: 'source-1' },
             sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [{ bundle: wasm.exportReferenceReloadBundle(id, '').slice().buffer as ArrayBuffer, primarySourceId: 1, context: true }], bindings: [], grants: [] },
             data: {}, select: 'input.children', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS };
     } finally { wasm.disposeReferenceSource(id); }
@@ -31,6 +33,74 @@ async function scalar(host: CemProcessingHost, session: CemNativeCapabilitySessi
     if (!('text' in exported)) throw new Error('Expected a named JSON export');
     return exported.text;
 }
+export const ComponentFramesRouteToOriginalOwner: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+        const root = canvasElement.querySelector('section'); if (!root) throw new Error('Missing fixture');
+        for (const fallback of [false, true]) {
+            const sourceScope = createCemDeclarationScope({ document }), consumerScope = createCemDeclarationScope({ document });
+            const host = cemProcessingHostForScope(sourceScope, { workerScriptUrl,
+                ...(fallback ? { workerFactory: () => { throw new Error('fixture fallback'); } } : {}) });
+            const session = await CemNativeCapabilitySession.prepare(host, request('{cem-option @value=x | Original {#later}}'), () => true);
+            const publication = await session.publishSuggestions({ query: 'Original', queryRevision: 1 }, () => true);
+            const suffix = crypto.randomUUID(), declarationTag = `native-frame-declaration-${suffix}`, tag = `native-frame-${suffix}`;
+            let multiple = false;
+            const runtime = new CemElementRuntime({ declarationTag, declarationScope: consumerScope,
+                ...(fallback ? { processingWorkerFactory: () => { throw new Error('fixture fallback'); } } : {}),
+                nativeSuggestionsInputs(instance, snapshot) {
+                    const bind = () => publication.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                        revision: snapshot.dataRevision, current: () => instance.isConnected });
+                    return multiple ? [bind(), bind()] : [bind()];
+                } });
+            runtime.install(window);
+            const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag);
+            const template = document.createElement('template'); template.type = 'text/cem-ml';
+            template.textContent = '{attribute @name=caption | First}{span | {$caption}|{$datadom.slices.suggestions.dom:attribute("query").value}|{$datadom.slices.suggestions.children.source.children.expression}}';
+            declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration);
+            const instance = document.createElement(tag); root.append(instance);
+            try {
+                await runtime.whenRenderSettled(instance);
+                expect(runtime.diagnosticsFor(instance)).toEqual([]);
+                expect(instance.querySelector('span')?.textContent).toBe('First|Original|#later');
+                const span = instance.querySelector('span'); instance.setAttribute('caption', 'Second');
+                await new Promise(resolve => setTimeout(resolve));
+                await runtime.whenRenderSettled(instance);
+                expect(runtime.diagnosticsFor(instance)).toEqual([]);
+                expect(instance.querySelector('span')).toBe(span);
+                await waitFor(() => expect(span?.textContent).toBe('Second|Original|#later'));
+                const snapshot = runtime.snapshotInstance(instance);
+                const imported = await host.value({ action: 'import', scopePolicyStamp: snapshot.scopePolicyStamp,
+                    bytes: new TextEncoder().encode('<b>Materialized</b>').buffer, contentType: 'application/xml', sourceUri: 'memory:extra.xml',
+                    limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS }).result;
+                if (!('value' in imported)) throw new Error('Missing materialized input');
+                const direct = publication.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
+                    revision: snapshot.dataRevision, current: () => instance.isConnected });
+                const id = 'materialized-extra';
+                const source = '{span | {$extra.children.children}|{$datadom.slices.suggestions.children.source.children.expression}}';
+                const frame = { compile: { language: 'cem-ml' as const, producedTag: tag, templateArtifactId: id, registrationIdentity: id,
+                    source: createCemProcessingTextSource(source), sourceRef: { kind: 'inline' as const, value: id }, resolverIdentity: 'fixture',
+                    scopePolicyStamp: snapshot.scopePolicyStamp, sourceMapMode: 'dev' as const, hostBindings: ['extra', 'datadom'] },
+                    render: { revision: { instanceId: snapshot.instanceId, templateArtifactId: id, dataRevision: snapshot.dataRevision,
+                        scopePolicyStamp: snapshot.scopePolicyStamp, outputTarget: snapshot.outputTarget, renderAttempt: snapshot.renderAttempt },
+                        snapshot: { ...snapshot, templateArtifactId: id }, data: {}, scopeUid: snapshot.instanceId,
+                        nativeSlices: [{ name: 'extra', value: imported.value }], nativeValueLimits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS } };
+                const rendered = await direct.renderComponent(frame);
+                expect(JSON.stringify(rendered.frames)).toContain('Materialized');
+                expect(JSON.stringify(rendered.frames)).toContain('#later');
+                await expect(direct.renderComponent({ ...frame, render: { ...frame.render, nativeSlices: [{ name: 'suggestions', value: imported.value }] } })).rejects.toThrow('reserved');
+                const stale = direct.renderComponent(frame); direct.release(); await expect(stale).rejects.toThrow('superseded');
+                expect(snapshot.slices).not.toHaveProperty('suggestions');
+                expect(snapshot.nativeSlices?.some(slice => slice.name === 'suggestions')).not.toBe(true);
+                expect(() => runtime.setInstanceSlices(instance, { suggestions: 'forged' })).toThrow('reserved');
+                multiple = true; runtime.refreshElementReferences(instance); await runtime.whenRenderSettled(instance);
+                expect(runtime.diagnosticsFor(instance).some(d => d.message.includes('one verified live'))).toBe(true);
+                expect(span?.textContent).toBe('Second|Original|#later');
+            } finally { instance.remove(); declaration.remove(); consumerScope.dispose(); await publication.release(); await session.release();
+                await host.dispose({ reason: 'runtime-disposed' }).result; sourceScope.dispose(); }
+        }
+    },
+};
 export const SourceViewsLabelsAndFilteringWorkerAndFallback: Story = {
     render: () => '<section aria-label="Native suggestions consumer fixture"></section>',
     play: async () => {
@@ -60,7 +130,8 @@ export const SourceViewsLabelsAndFilteringWorkerAndFallback: Story = {
                 const complete = await session.view('input.children.children.dom:attribute("value").value', undefined, config);
                 await expect(complete.values.length).toBe(2);
                 await expect(session.view('input', undefined, { ...config, filter: 'none', filterBy: 'label' })).rejects.toThrow('conflicts');
-                await expect(session.view('input', undefined, { ...config, queryRevision: 2 })).rejects.toThrow('revision mismatch');
+                await expect(scalar(host, session, 'dom:attribute(input, "query").value', { ...config, query: 'Next', queryRevision: 2 })).resolves.toBe('"Next"');
+                await expect(session.view('input', undefined, { ...config, queryRevision: -1 })).rejects.toThrow('query revision');
                 await expect(session.view('input', 3, config)).rejects.toThrow('row handle');
                 current = false;
                 await expect(session.view('input', undefined, config)).rejects.toThrow('no longer current');
@@ -108,14 +179,24 @@ export const OwnerRoutedPublicationsAndIndependentConsumers: Story = {
                 await expect(pending).rejects.toThrow('superseded');
                 revision = 1; await expect(first.valid).toBe(false); first.release();
                 await expect(second.render(template, { consumer: 'Still current' })).resolves.toHaveProperty('status', 'rendered');
-                publicationCurrent = false; await expect(second.valid).toBe(false);
-                publicationCurrent = true; await expect(second.valid).toBe(false);
-                await expect(second.render(template, {})).rejects.toThrow('no longer current');
-                await publication.release(); await expect(session.valid).toBe(true);
-                const fresh = await session.publishSuggestions({ query: '', queryRevision: 1 }, () => true);
-                try { const binding = fresh.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '2', current: () => true });
-                    await expect(binding.render('{span | {$datadom.slices.suggestions.children.content}}', {})).resolves.toHaveProperty('status', 'rendered'); binding.release(); }
-                finally { await fresh.release(); }
+                const fresh = await session.publishSuggestions({ query: 'Next', queryRevision: 2 }, () => true);
+                try {
+                    const binding = fresh.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '2', current: () => true });
+                    try {
+                        await expect(renderedText((await binding.render(template, { consumer: 'New' })).nodes)).toBe('New|Next|#later');
+                        await expect(renderedText((await second.render(template, { consumer: 'Old' })).nodes)).toBe('Old|Original|#later');
+                        const stale = second.render(template, { consumer: 'Stale' });
+                        publicationCurrent = false;
+                        await expect(stale).rejects.toThrow('superseded');
+                        await expect(second.valid).toBe(false);
+                        publicationCurrent = true; await expect(second.valid).toBe(false);
+                        await expect(second.render(template, {})).rejects.toThrow('no longer current');
+                        await publication.release();
+                        await expect(session.valid).toBe(true);
+                        await expect(fresh.config.queryRevision).toBe(2);
+                        await expect(binding.render('{span | {$datadom.slices.suggestions.children.content}}', {})).resolves.toHaveProperty('status', 'rendered');
+                    } finally { binding.release(); }
+                } finally { await fresh.release(); }
             } finally { first.release(); second.release(); await publication.release(); await session.release();
                 await peer.dispose({ reason: 'runtime-disposed' }).result; peerScope.dispose(); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
         }

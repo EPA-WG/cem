@@ -596,6 +596,24 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
           and owner loss.
         - [ ] Integrate the routed publication leases with component outbound
           bindings and two-way original source-to-row placement admissions.
+          Fixture action: exercise normal compiled component frames with one live
+          owner plus materialized inputs, reserved-slice conflicts, stale in-flight
+          work and owner loss in worker/fallback modes.
+          - [x] Route canonical component render/diff frames through the original
+            publication owner, retaining consumer compilation/module context,
+            materialized native inputs, CSS/DOM publication and revision fences.
+          - [ ] Connect original source-to-row registrations and grants in both
+            directions before activating provider attributes or commits. Keep
+            source identities distinct from constructed shells and generated IDs.
+            Decision pending: limit the bridge to opaque handles for admitted
+            rows (recommended), or permit selectors across the retained source
+            document. The current CEMB/selector registry cannot name an original
+            live session owner without defining that authority boundary.
+            Scenarios for later design verification: independent views of a shared
+            source, filtered/removed rows, conflicting claims and fresh resume grants.
+      Decision adopted: each consumer frame admits one live publication owner;
+      another live owner is a diagnostic. Ordinary materialized native inputs
+      remain supported. Multi-owner execution requires a separate design.
       Decision adopted: retain live views on their original processing owner and
       route consuming jobs there. CEMV remains a materialized presentation channel;
       it cannot export a live view or restore consumer authority on resume.
@@ -604,14 +622,17 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       transient ARIA leases with atomic conflicts, exact endpoint checks, editor
       revision fences and cleanup that preserves newer authored writes. Manual
       listbox visibility can borrow the same verified lease. These APIs require
-      a trusted current-publication hook; native outbound bindings and original
-      source-to-row placement admissions remain open.
+      a trusted current-publication hook; original source-to-row placement
+      admissions and automatic capability activation remain open.
       Owner-routed immutable publications and independent consumer-frame leases
       are delivered in worker/fallback modes. Copied/serialized bindings, stale
       in-flight results and post-loss authority fail closed. Native publication
       count/control-byte budgets include retired keys; release frees active view
-      capacity without allowing identity reuse. Processing protocol v18 prevents
-      an older worker from interpreting the new publication jobs as label jobs.
+      capacity without allowing identity reuse. Protocol v19 adds normal component
+      frame routing on the original owner, preserves materialized inputs and
+      rejects unavailable owners, reserved-slice conflicts and stale results.
+      Verification: native singleton projection contracts, worker/fallback component
+      update and provider/browser regressions, unit checks, typecheck and lint pass.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;
@@ -620,6 +641,19 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 - [ ] Implement the suggestions controller/capability and declarative field
       composition over the completed editor-provider and native source contracts.
       Use the visibility/dismissal and native-publication prerequisites above.
+      - [x] Add native `editor-for` singleton projection/grant contracts and the
+        shared exact-provider endpoint adapter. Fixture action: verify typed
+        references, scoped local names, direct editor slots, ambiguity, unsupported
+        controls and reference observation; endpoint lookup never issues grants.
+      - [x] Implement the adopted source-session/query-publication lifetime split
+        before wiring the controller: retain the source session across queries
+        and put query freshness on immutable publications/leases.
+        Fixture action: verify original source and row identity across native
+        query views and worker/fallback publications; reject stale consumer
+        results without releasing the reusable source session.
+        Scenarios for later design verification: filtering preserves original
+        source identity, stale publications cannot activate/commit, source
+        replacement and owner loss revoke affected leases independently of queries.
       Inventory and add applicable native
       metadata/constraint forwarding on both field declarations before promising
       the legacy surface. Add focused fixture actions before implementation.
@@ -661,9 +695,9 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       adapters and native row/group label frames are delivered. Shared native
       visibility/dismissal sessions and the manual-listbox semantic delegate are
       delivered with explicit lifecycle admission/readiness hooks. Native
-      suggestions view outbound bindings and placement claims,
-      suggestions capability and declarative composition remain
-      open; do not mark this complete from the provider foundation alone.
+      suggestions component outbound bindings and source sessions reusable across
+      queries are delivered. Original source-to-row placement claims, suggestions
+      capability and declarative composition remain open; do not mark this complete from the provider foundation alone.
       Reserved native consumer-frame publication and provider-owned attribute
       leases are delivered; their controller/placement integration remains open.
       Scenarios for later design verification: submission and validity update

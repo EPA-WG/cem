@@ -111,10 +111,10 @@ native diagnostic; projecting a presentation value does not transfer source
 authority. Original source edges stay inside the native session rather than
 becoming serialized JavaScript records.
 
-Processing-host protocol v17 provides prepare/view/render/release operations
-with immutable source/query revisions and root-owned session identities. A
-transient lease checks attachment/query eligibility before and after async
-work. Cancellation, release and root disposal fence in-flight preparation and
+Processing-host protocol v19 provides prepare/view/render/release operations
+with immutable source revisions and root-owned session identities. Source leases
+survive query changes; immutable publications capture query revisions and
+consumer leases check attachment/query eligibility before and after async work. Cancellation, release and root disposal fence in-flight preparation and
 release native owners. Default capacity is 64 live/preparing sessions per engine;
 the embedding engine may configure its capacity. Issued session identities are
 bounded and cannot be reused during that engine's lifetime. Views and label
@@ -131,8 +131,9 @@ retaining original source/content edges. Adapter preparation returns scalar
 counts, consumer identity and attributed diagnostics. Explicit scalar queries
 can export CEMV; exporting the live derived view fails because CEMV cannot retain
 its source/content edges. Native label frames bind the reserved view locally.
-Publication into component rendering, outbound native bindings and the public
-capability/declaration remain the next runtime action.
+Canonical component render/diff frames consume host-admitted outbound bindings
+on the original publication owner, with one live owner per frame. Original
+source-to-row placement grants and the public capability/declaration remain open.
 
 Request replacement/disconnect asks the shared resource owner to cancel its
 obsolete work. Cancellation may not stop an already finishing transport; every

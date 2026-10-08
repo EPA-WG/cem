@@ -322,13 +322,13 @@ constraints retain precedence. Composition ownership and handled key presses
 remain captured through their terminal key so deferred submission/native surface
 routes cannot reinterpret them. Native history remains browser-owned; a runtime
 replacement does not promise an undo entry. The full suggestions declaration,
-native view publication/bindings and acceptance matrix are still pending in
+placement integration and acceptance matrix are still pending in
 [the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 
 The package-private native capability-session transport retains executable sources
 through CEMB and exports explicit presentation values through CEMV. Prepared
-sessions retain original owners, lexical capture, grants and current source/query
-revisions. Label-template inputs stay native, including authored descendant
+sessions retain original owners, lexical capture, grants and source revisions
+across queries. Immutable publications capture query revisions separately. Label-template inputs stay native, including authored descendant
 references; per-session namespace completion leaves source ASTs unchanged.
 Release/cancellation/disposal fence late work, and worker loss requires fresh
 source authority instead of restoring old handles in fallback. The source/session
@@ -341,8 +341,12 @@ scalar source attributes, preserves original source/content identity and rejects
 invalid revisions atomically. Unicode 17.0.0 filtering produces immutable native
 row/group views; row/group label templates use those native frames. Explicit
 scalar queries can export CEMV, while a whole live view is rejected because its
-source/content relationships cannot be preserved there. Component publication,
-outbound native bindings and the public suggestions declaration remain pending.
+source/content relationships cannot be preserved there. Host-admitted outbound
+bindings now route canonical component frames to the original publication owner,
+with one live owner per frame and ordinary materialized native inputs. Native
+`editor-for` resolves exact provider endpoints without granting authority.
+Original source-to-row placement admission, the controller and public suggestions
+declaration remain pending.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

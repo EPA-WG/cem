@@ -549,7 +549,7 @@ class RootCemProcessingHost implements CemProcessingHost {
         const key = input.handle.sessionKey;
         const known = this.nativeSessionHandles.get(key);
         if (known && (known.handle.instanceId !== input.handle.instanceId || known.handle.scopePolicyStamp !== input.handle.scopePolicyStamp
-            || known.handle.sourceRevision !== input.handle.sourceRevision || known.handle.queryRevision !== input.handle.queryRevision)) {
+            || known.handle.sourceRevision !== input.handle.sourceRevision)) {
             return { jobId: this.sequence.next(), result: Promise.reject(new Error('Native session revision or owner mismatch')) };
         }
         if (input.action === 'prepare' && known) {
@@ -620,6 +620,18 @@ class RootCemProcessingHost implements CemProcessingHost {
     }
 
     renderDiff(input: CemProcessingRenderDiffInput): CemProcessingJob<CemProcessingRenderDiffResult> {
+        if (input.nativeSuggestions) {
+            input = structuredClone(input);
+            const live = input.nativeSuggestions;
+            if (!live) throw new Error('Missing live publication');
+            const handle = { ...live.handle, sessionKey: JSON.stringify([this.nativeSessionOwner, live.handle.sessionKey]) };
+            const known = this.nativeSessionHandles.get(handle.sessionKey);
+            if (!known || known.mode !== this.mode || known.handle.instanceId !== handle.instanceId
+                || known.handle.scopePolicyStamp !== handle.scopePolicyStamp || known.handle.sourceRevision !== handle.sourceRevision) {
+                return { jobId: this.sequence.next(), result: Promise.reject(new Error('Native frame owner was lost or differs; reacquire authority')) };
+            }
+            input.nativeSuggestions = { ...live, handle };
+        }
         const compileInput = this.compileInputs.get(
             compileInputKey(input.artifact.scopePolicyStamp, input.artifact.artifactId)
         );

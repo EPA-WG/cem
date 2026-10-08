@@ -208,6 +208,64 @@ fn retained_publication_routes_independent_frames_without_rebuilding_its_view() 
 }
 
 #[test]
+fn query_publications_share_original_sources_but_keep_immutable_query_state() {
+    let s = session("{cem-option @value=x | Original {#later}}");
+    let first = s
+        .publish_suggestions(
+            "first",
+            &SuggestionsConfig {
+                query: "Original".into(),
+                query_revision: 1,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let second = s
+        .publish_suggestions(
+            "second",
+            &SuggestionsConfig {
+                query: "Absent".into(),
+                query_revision: 2,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let original = s.evaluate("input", None).unwrap();
+    for view in [&first, &second] {
+        let row = view.row(0).unwrap();
+        let source = row.view().unwrap().field("source").unwrap();
+        assert_eq!(
+            source[0].view().unwrap().identity(),
+            original.items[0].view().unwrap().identity()
+        );
+    }
+    assert_eq!(
+        first.row(0).unwrap().view().unwrap().identity(),
+        second.row(0).unwrap().view().unwrap().identity()
+    );
+    let query = |view: &cem_ql::suggestions::SuggestionsView| {
+        let mut data = TemplateData::default();
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+            .unwrap();
+        render_plan_to_html(&cem_ql::render::render_compiled_template(
+            &compile_template(
+                "{output | {$datadom.slices.suggestions.dom:attribute(\"query\").value}}",
+                &CompileTemplateOptions {
+                    host_bindings: vec!["datadom".into()],
+                    ..Default::default()
+                },
+            ),
+            &data,
+        ))
+    };
+    assert!(query(&first).contains("Original"));
+    assert!(query(&second).contains("Absent"));
+    assert!(s.release_suggestions("first"));
+    assert!(s.suggestions_publication("second").is_ok());
+    assert!(s.evaluate("input", None).is_ok());
+}
+
+#[test]
 fn publication_bounds_include_retired_keys_and_release_active_control_bytes() {
     use cem_ml::value::artifact::CemValueArtifactLimits;
     let s = session_with_limits(

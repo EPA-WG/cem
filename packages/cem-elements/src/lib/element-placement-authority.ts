@@ -41,7 +41,7 @@ interface Dependency<Root> { snapshot: Snapshot<Root>; uses: readonly CemElement
 const token = (value: string) => typeof value === 'string' && !!value && !/[\s\p{Cc}]/u.test(value);
 const properties = new Set(['commandfor', 'popovertarget', 'interestfor', 'form', 'list', 'for', 'aria-controls', 'aria-labelledby', 'aria-describedby',
     'aria-owns', 'aria-activedescendant', 'aria-details', 'aria-errormessage', 'headers', 'command-target', 'interaction', 'trigger-for', 'parent-item',
-    'focus-target', 'return-focus', 'anchor', 'boundary']);
+    'focus-target', 'return-focus', 'anchor', 'boundary', 'editor-for']);
 
 /** Host authority stays in this registry. Exported metadata is an invocation snapshot. */
 export class CemPlacementAuthority<Root> {

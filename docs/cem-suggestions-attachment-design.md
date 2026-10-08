@@ -61,7 +61,7 @@ This new endpoint accepts neither CSS selectors nor bare ID/URL strings.
 
 | Input | Contract |
 | --- | --- |
-| `editor-for` | Exactly one verified editor provider, exclusive with `slot="editor"`; adding native consumption for this property is implementation work. |
+| `editor-for` | Exactly one verified editor provider, exclusive with `slot="editor"`; native singleton projection and the exact-provider endpoint adapter are implemented. Controller/placement integration remains open. |
 | `options` | Native node/reference sequence of option/group roots, exclusive with `slot="options"`; a data input, never an ID relationship, URL, JSON string or selector. |
 | `filter` | `contains` default, `prefix`, `external` or `none`; ownership and matching below. |
 | `filter-by` | Local modes only: `label` default, `value`, or both tokens; match either key independently. |
@@ -368,7 +368,29 @@ release or worker loss cannot revive an old lease. Retained views, control bytes
 and retired identities share bounded session capacity. They are excluded from
 serialized resume authority. The processing protocol is versioned for these jobs.
 
-The host supplies each consumer's current-admission hook. This transport API does
-not establish DOM placement grants: the component outbound channel and original
-source-to-row admissions still need to integrate these leases before declaring
-the public suggestions capability complete.
+The host supplies each consumer's current-admission hook. Canonical component
+frames now acquire outbound leases through the runtime's `nativeSuggestionsInputs`
+hook and route ordinary compile/render/diff execution to the original publication
+owner. They retain the consuming declaration's module/function context, native
+materialized inputs, CSS/DOM publication and source-map metadata. Compilation
+bindings remain fixed for the declaration, as on the ordinary retained path.
+The processing protocol is v19. A second live binding is rejected; execution
+across multiple live owners needs a separate design. Retained HTTP document handles
+belonging to another owner cannot ride this channel; supply materialized inputs.
+These leases are excluded from snapshots and reacquired on subsequent frames.
+
+This integration does not establish DOM placement grants. Original source-to-row
+admissions in both directions must still integrate with provider claims before the
+public suggestions capability can activate. `editor-for` now has native singleton
+projection, a property-specific placement grant, and an exact-provider endpoint
+adapter. The adapter admits typed endpoints, scoped local names or a single direct
+editor slot, rejects ambiguous/conflicting/unsupported editors, and grants no
+authority from lookup alone.
+
+Source sessions retain source revision and owner identity across queries. Each
+immutable publication captures its query revision and its own current-eligibility
+hook; consuming leases additionally capture the receiving instance revision.
+Superseding a query invalidates its publication and consumer results without
+reimporting sources or releasing unrelated publications. Source replacement or
+owner loss invalidates the entire session. Query revisions do not grant authority
+and need not be globally ordered across independent consumers.

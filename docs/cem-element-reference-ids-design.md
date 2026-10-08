@@ -29,7 +29,7 @@ fail target validation rather than forming an ID by concatenating text.
 | `commandfor`, `popovertarget`, `interestfor`, `form`, `list`, `aria-activedescendant`, `aria-details`, `aria-errormessage`, `for` outside `output` | Exactly one element |
 | `aria-controls`, `aria-labelledby`, `aria-describedby`, `aria-owns` | Nonempty ordered element sequence; repetitions retained |
 | `headers`, `output`'s `for` | Nonempty element sequence exported as unique ID tokens in first-occurrence order |
-| `command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`, `return-focus`, `anchor`, `boundary` | Exactly one element/provider; its owning interaction capability validates the semantic role |
+| `command-target`, `interaction`, `trigger-for`, `parent-item`, `focus-target`, `return-focus`, `anchor`, `boundary`, `editor-for` | Exactly one element/provider; its owning interaction capability validates the semantic role |
 
 The table uses the pinned `wai-aria-1.2-rec-20230606` default, whose
 [details](https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/#aria-details) and

@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v18' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v19' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -231,6 +231,8 @@ export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle 
 );
 
 export interface CemProcessingRenderDiffInput {
+    /** One original live owner; materialized inputs remain in their ordinary channel. */
+    nativeSuggestions?: { handle: CemNativeSessionHandle; publication: string };
     elementReferenceInputs?: CemElementReferenceInputs;
     /** Native payload CSS is installed separately on the consuming host. */
     payloadStylesInstalled?: boolean;

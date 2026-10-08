@@ -20,6 +20,15 @@ it('keeps source crossing authority separate and rejects copied or stale snapsho
     expect(() => f.authority.check({ ...prepared }, [f.use])).toThrow();
     f.unavailable(); expect(() => f.authority.check(prepared, [f.use])).toThrow();
 });
+it('admits editor-for only through its own property grant', () => {
+    const f = fixture();
+    const use = { ...f.use, attribute: 'editor-for' };
+    expect(() => f.authority.check(f.authority.prepare('consumer', inputs(), 'root'), [use])).toThrow();
+    const revoke = f.authority.grant('consumer', f.placement, ['editor-for']);
+    const snapshot = f.authority.prepare('consumer', inputs(), 'root');
+    expect(() => f.authority.check(snapshot, [use])).not.toThrow();
+    revoke(); expect(() => f.authority.check(snapshot, [use])).toThrow();
+});
 it('reserves IDs once, retains live dependencies and rolls reservations back on failure', () => {
     const f = fixture(); const prepared = f.authority.prepare('consumer', inputs(), 'root');
     expect(() => f.authority.publish(prepared, [f.use], () => { throw new Error('publication'); })).toThrow('publication');

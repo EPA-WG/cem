@@ -120,14 +120,13 @@ export class CemProcessingEngine {
         const handle = input.handle;
         if (!handle || typeof handle.sessionKey !== 'string' || !handle.sessionKey || handle.sessionKey.length > 1024
             || typeof handle.instanceId !== 'string' || !handle.instanceId || typeof handle.scopePolicyStamp !== 'string' || !handle.scopePolicyStamp
-            || typeof handle.sourceRevision !== 'string' || !handle.sourceRevision
-            || !Number.isSafeInteger(handle.queryRevision) || handle.queryRevision < 0) throw new TypeError('Invalid native session identity');
+            || typeof handle.sourceRevision !== 'string' || !handle.sourceRevision) throw new TypeError('Invalid native session identity');
         if ([handle.instanceId, handle.scopePolicyStamp, handle.sourceRevision].some(s => s.length > 1024)) throw new RangeError('Native session identity byte limit exceeded');
         const key = handle.sessionKey;
         const retained = this.nativeSessions.get(key);
         const owned = retained ?? this.nativeSessionOperations.get(key);
         if (owned && (owned.handle.instanceId !== handle.instanceId || owned.handle.scopePolicyStamp !== handle.scopePolicyStamp
-            || owned.handle.sourceRevision !== handle.sourceRevision || owned.handle.queryRevision !== handle.queryRevision)) throw new Error('Native session revision or owner mismatch');
+            || owned.handle.sourceRevision !== handle.sourceRevision)) throw new Error('Native session revision or owner mismatch');
         if (input.action === 'release') {
             this.nativeSessionOperations.delete(key);
             if (retained) releaseRetainedNativeSession(retained.id);
@@ -157,7 +156,7 @@ export class CemProcessingEngine {
         if (input.action === 'publish-suggestions' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame') {
             if (retained.adapter !== 'suggestions-v1') throw new Error('A native publication requires the suggestions adapter');
             if (typeof input.publication !== 'string' || !input.publication || input.publication.length > 1024) throw new TypeError('Invalid native publication identity');
-            if (input.action === 'publish-suggestions' && input.suggestions.queryRevision !== handle.queryRevision) throw new Error('Native suggestions query revision mismatch');
+            if (input.action === 'publish-suggestions' && (!Number.isSafeInteger(input.suggestions.queryRevision) || input.suggestions.queryRevision < 0)) throw new TypeError('Invalid native suggestions query revision');
             if (input.action === 'render-suggestions-frame') {
                 if (!input.consumer || [input.consumer.instanceId, input.consumer.scopePolicyStamp, input.consumer.revision]
                     .some(value => typeof value !== 'string' || !value || value.length > 1024)) throw new TypeError('Invalid native consumer identity');
@@ -188,7 +187,7 @@ export class CemProcessingEngine {
                 throw error;
             }
         }
-        if (input.suggestions && (retained.adapter !== 'suggestions-v1' || input.suggestions.queryRevision !== handle.queryRevision)) throw new Error('Native suggestions adapter or query revision mismatch');
+        if (input.suggestions && (retained.adapter !== 'suggestions-v1' || !Number.isSafeInteger(input.suggestions.queryRevision) || input.suggestions.queryRevision < 0)) throw new TypeError('Invalid native suggestions adapter or query revision');
         if (input.action === 'render' && input.groupLabel && !input.suggestions) throw new TypeError('A group label requires a native suggestions view');
         if (input.index !== undefined && (!Number.isSafeInteger(input.index) || input.index < 0 || input.index > 0xffffffff)) throw new TypeError('Invalid native source index');
         if (input.action === 'render' && new TextEncoder().encode(input.template).byteLength > retained.limits.maxBytes) throw new RangeError('Native label byte limit exceeded');
@@ -388,6 +387,30 @@ export class CemProcessingEngine {
             throw new Error(`template artifact \`${input.artifact.artifactId}\` is not retained by this processing host`);
         }
         assertRenderRevision(input);
+        const live = input.nativeSuggestions;
+        const owner = live && this.nativeSessions.get(live.handle.sessionKey);
+        const publication = live && owner?.publications.get(live.publication);
+        const checkLive = () => {
+            if (!live) return;
+            if (!owner || owner.adapter !== 'suggestions-v1' || !publication?.ready
+                || this.nativeSessions.get(live.handle.sessionKey) !== owner || owner.publications.get(live.publication) !== publication
+                || owner.handle.instanceId !== live.handle.instanceId || owner.handle.scopePolicyStamp !== live.handle.scopePolicyStamp
+                || owner.handle.sourceRevision !== live.handle.sourceRevision) {
+                throw new Error('Live suggestions owner or publication is unavailable; reacquire authority');
+            }
+        };
+        checkLive();
+        const effectiveLimits = live && owner ? { ...owner.limits } : input.nativeValueLimits;
+        if (live && owner && effectiveLimits) {
+            for (const name of ['maxBytes', 'maxValues', 'maxDepth'] as const) {
+                const requested = input.nativeValueLimits?.[name] ?? owner.limits[name];
+                if (!Number.isSafeInteger(requested) || requested < 1) throw new RangeError('Invalid native frame limits');
+                effectiveLimits[name] = Math.min(requested, owner.limits[name]);
+            }
+            if (new TextEncoder().encode(JSON.stringify(input.data)).byteLength > effectiveLimits.maxBytes) throw new RangeError('Native consumer frame byte limit exceeded');
+            if (input.elementReferenceInputs?.bindings.some(binding => binding.name === 'suggestions')
+                || input.documents?.some(binding => binding.slice === 'suggestions')) throw new Error('Native suggestions slice is reserved');
+        }
         const previous = retainedPreviousPlan(this.renderPlans, input.previousRenderPlan, input.artifact);
         const processed = await processRetainedCemMlTemplate(artifact.wasmArtifactId, {
             linkBaseUrl: artifact.input.linkBaseUrl,
@@ -404,7 +427,8 @@ export class CemProcessingEngine {
             elementReferenceInputs: input.elementReferenceInputs,
             nativeAttributes: input.nativeAttributes,
             nativeSlices: input.nativeSlices,
-            nativeValueLimits: input.nativeValueLimits,
+            nativeSuggestions: live && owner ? { sessionId: owner.id, publication: live.publication } : undefined,
+            nativeValueLimits: effectiveLimits,
             source: processingSourceText(artifact.input),
             data: input.data,
             payload: input.snapshot.payload,
@@ -415,6 +439,10 @@ export class CemProcessingEngine {
             renderNodeIdPrefix: artifact.input.producedTag,
         });
         this.assertActive();
+        checkLive();
+        if (live && processed.diagnostics.some(diagnostic => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
+            throw new Error(processed.diagnostics.map(diagnostic => diagnostic.message).join('; '));
+        }
         const scoped = scopeRenderPlan(processed.renderPlan, input.scopeUid, {
             payloadStylesInstalled: input.payloadStylesInstalled,
             payload: input.snapshot.payload,

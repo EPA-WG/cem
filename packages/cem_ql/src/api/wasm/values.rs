@@ -74,13 +74,36 @@ struct Binding {
     attribute: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LiveSuggestionsBinding {
+    session_id: u32,
+    publication: String,
+}
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum FrameBinding {
+    Materialized(Binding),
+    Suggestions(LiveSuggestionsBinding),
+}
+
 pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), String> {
     if bindings_json.len() > 128 * 1024 {
         return Err("Native value binding metadata limit exceeded".into());
     }
-    let bindings: Vec<Binding> = serde_json::from_str(bindings_json).map_err(|e| e.to_string())?;
+    let bindings: Vec<FrameBinding> = serde_json::from_str(bindings_json).map_err(|e| e.to_string())?;
+    let mut live = None;
     let mut names = std::collections::BTreeSet::new();
     for binding in bindings {
+        let binding = match binding {
+            FrameBinding::Materialized(binding) => binding,
+            FrameBinding::Suggestions(binding) => {
+                if live.replace(binding).is_some() {
+                    return Err("A consumer frame admits only one live suggestions owner".into());
+                }
+                continue;
+            }
+        };
         if !names.insert((binding.target.as_deref().unwrap_or("attribute").to_owned(), binding.name.clone())) {
             return Err("Duplicate native attribute binding".into());
         }
@@ -106,6 +129,9 @@ pub(super) fn bind(data: &mut TemplateData, bindings_json: &str) -> Result<(), S
             }
             _ => return Err("Unknown native value binding target".into()),
         }
+    }
+    if let Some(binding) = live {
+        capability_sessions::bind_publication(data, binding.session_id, &binding.publication)?;
     }
     Ok(())
 }

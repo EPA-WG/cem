@@ -1,4 +1,5 @@
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
+import { isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding } from './native-suggestions-publication.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
 import { CemElementPlacementCoordinator, clearCemPlacementRelationships, hasCemPlacementRelationships } from './element-placement-coordinator.js';
 import { placementRoutes } from './element-placement-plans.js';
@@ -70,6 +71,7 @@ import {
     type CemProcessingArtifactBinaryTransfer,
     type CemProcessingSourceRef,
     type CemProcessingCompileResult,
+    type CemProcessingCompileInput,
     type CemProcessingDocumentHandle,
     type CemProcessingValueInput,
     type CemProcessingHost,
@@ -554,6 +556,8 @@ export interface CemStorageStatusEnvelope {
 export type CemModuleUrlReferrer = string | Node;
 
 export interface CemElementRuntimeOptions {
+    /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
+    nativeSuggestionsInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot) => readonly CemNativeSuggestionsBinding[];
     /** Pinned DOM relationship export contract; the Recommendation is the default. */
     ariaReferenceProfile?: CemAriaReferenceProfile;
     /** Host-issued placement authority and synchronous publication checks. */
@@ -1750,6 +1754,9 @@ export class CemElementRuntime {
     private readonly xpathLibrarySources = new WeakMap<CemDeclarationScope, Map<string, Promise<CemXPathFunctionLibrarySource>>>();
     private readonly referenceInputControllers = new WeakMap<HTMLElement, AbortController>();
     private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
+    private readonly nativeSuggestionsInputsOption?: CemElementRuntimeOptions['nativeSuggestionsInputs'];
+    private readonly nativeSuggestionsBindings = new WeakMap<HTMLElement, CemNativeSuggestionsBinding>();
+    private readonly nativeSuggestionsCompilations = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileInput>>();
     private readonly placementCoordinator?: CemElementPlacementCoordinator;
     private readonly placementInputs = new WeakMap<HTMLElement, { token: number; inputs: CemElementReferenceInputs }>();
     private readonly loadSrcDocumentOption?: CemElementRuntimeOptions['loadSrcDocument'];
@@ -1786,6 +1793,7 @@ export class CemElementRuntime {
         this.moduleUrlRootOption = options.moduleUrlRoot;
         this.loadSrcDocumentOption = options.loadSrcDocument;
         this.elementReferenceInputsOption = options.elementReferenceInputs;
+        this.nativeSuggestionsInputsOption = options.nativeSuggestionsInputs;
         this.placementCoordinator = options.placementCoordinator;
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
@@ -2454,7 +2462,7 @@ export class CemElementRuntime {
     /** Refresh host-owned reference readiness/authority without changing authored attributes. */
     refreshElementReferences(instance: HTMLElement): boolean {
         const compiled = this.declarationForInstance(instance);
-        if (!this.elementReferenceInputsOption || !compiled || compiled.declarationScope.disposed || !instance.isConnected || !this.initializedInstances.has(instance)) return false;
+        if (!(this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption) || !compiled || compiled.declarationScope.disposed || !instance.isConnected || !this.initializedInstances.has(instance)) return false;
         this.renderInstance(instance, compiled);
         return true;
     }
@@ -2472,6 +2480,7 @@ export class CemElementRuntime {
         const island = this.ensureDataIsland(instance);
         const state = this.ensureInstanceState(instance, compiled, island);
         let changed = false;
+        if (this.nativeSuggestionsBindings.has(instance) && Object.hasOwn(values, 'suggestions')) throw new Error('Native suggestions slice is reserved');
         for (const [name, value] of Object.entries(values)) {
             if (!resourceValuesEqual(state.slices[name], value)) {
                 state.slices[name] = value;
@@ -2669,6 +2678,8 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.nativeSuggestionsBindings.get(instance)?.release();
+        this.nativeSuggestionsBindings.delete(instance);
         clearCemPlacementRelationships(instance);
         const producer = this.instanceIds.get(instance);
         if (producer) this.placementCoordinator?.release(producer);
@@ -3690,7 +3701,10 @@ export class CemElementRuntime {
             if (!current() || loadFailed) return false;
             if (result.status !== 'applied') result = await queue.recoverPublication(() => prepare(true));
             if (!current() || loadFailed) return false;
-            if (result.status !== 'applied') throw new Error('CSS/DOM authoritative recovery failed');
+            if (result.status !== 'applied') throw new Error(`CSS/DOM authoritative recovery failed: ${[
+                ...result.errors.map(error => error instanceof Error ? error.message : String(error)),
+                ...result.diagnostics.map(diagnostic => diagnostic.message),
+            ].join('; ')}`);
             const bounds = this.ensureRenderBounds(instance, this.ensureDataIsland(instance));
             this.bindRenderedSliceEventsInRange(instance, compiled, bounds);
             this.bindRenderedCustomValidityInRange(bounds);
@@ -3758,6 +3772,43 @@ export class CemElementRuntime {
     ): Promise<CemProcessingRenderDiffResult> {
         const references = await this.prepareElementReferenceInputs(instance, input.snapshot, token);
         if (this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Reference invocation was superseded or disposed');
+        if (this.nativeSuggestionsInputsOption) {
+            const bindings = this.nativeSuggestionsInputsOption(instance, input.snapshot);
+            if (!Array.isArray(bindings) || bindings.length > 1 || bindings.some(binding => !isCemNativeSuggestionsBinding(binding))) {
+                if (Array.isArray(bindings)) for (const binding of bindings) if (isCemNativeSuggestionsBinding(binding)) binding.release();
+                throw new Error('A component frame admits one verified live suggestions owner');
+            }
+            const binding = bindings[0];
+            if (binding) {
+                const previous = this.nativeSuggestionsBindings.get(instance);
+                if (previous && previous !== binding) previous.release();
+                this.nativeSuggestionsBindings.set(instance, binding);
+                const compiled = this.declarationForInstance(instance);
+                if (!compiled || compiled.mode !== 'cem-ml' || !binding.valid) throw new Error('Live suggestions require a current canonical component frame');
+                if (input.documents?.length) throw new Error('Live owner routing requires materialized resource inputs');
+                let compilation = this.nativeSuggestionsCompilations.get(compiled);
+                if (!compilation) {
+                    compilation = (async (): Promise<CemProcessingCompileInput> => {
+                        const hostBindings = [...new Set([...compiled.declaredAttributes.map(a => a.name), ...compiled.declaredSlices.map(s => s.name), ...Object.keys(input.data), 'suggestions'])];
+                        const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
+                        const xpathFunctionLibrary = await this.preflightXPathFunctionLibrary(compiled);
+                        return { language: 'cem-ml', producedTag: compiled.producedTag, templateArtifactId: compiled.artifactId,
+                            registrationIdentity: compiled.registrationIdentity ?? compiled.artifactId, source: createCemProcessingTextSource(compiled.cemMlSource ?? ''),
+                            sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity, scopePolicyStamp: input.revision.scopePolicyStamp,
+                            sourceMapMode: 'dev', linkBaseUrl: compiled.linkBaseUrl ?? undefined, hostBindings, moduleClosure, xpathFunctionLibrary };
+                    })().catch(error => { this.nativeSuggestionsCompilations.delete(compiled); throw error; });
+                    this.nativeSuggestionsCompilations.set(compiled, compilation);
+                }
+                const { artifact: _artifact, ...render } = input;
+                const result = await binding.renderComponent({
+                    compile: await compilation,
+                    render: { ...render, ...(references ? { elementReferenceInputs: references } : {}) },
+                });
+                if (!binding.valid || this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Native component frame was superseded');
+                return result;
+            }
+            this.nativeSuggestionsBindings.get(instance)?.release(); this.nativeSuggestionsBindings.delete(instance);
+        }
         const job = host.renderDiff({ ...input, ...(references ? { elementReferenceInputs: references } : {}) });
         const active = { host, jobId: job.jobId, token };
         this.processingRenderJobs.set(instance, active);
@@ -3835,6 +3886,8 @@ export class CemElementRuntime {
     }
 
     private publishElementPlacements<T>(instance: HTMLElement, token: number, uses: readonly CemElementPlacementUse[], commit: () => T): T {
+        const live = this.nativeSuggestionsBindings.get(instance);
+        if (live && !live.valid) throw new Error('Native publication authority was revoked before commit');
         const prepared = this.placementInputs.get(instance);
         if (!prepared || prepared.token !== token || !this.placementCoordinator) {
             if (uses.length) throw new Error('Foreign placement publication requires the current host coordinator');

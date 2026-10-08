@@ -122,7 +122,7 @@ fn interaction_references_use_an_explicit_projection_marker() {
 }
 #[test]
 fn focus_geometry_slots_are_single_placement_relationships() {
-    for name in ["focus-target", "return-focus", "anchor", "boundary"] {
+    for name in ["focus-target", "return-focus", "anchor", "boundary", "editor-for"] {
         let original = plan(&format!("{{surface @{name}={{#target}}}}{{$target}}"));
         let html = render_plan_to_html(&project(&original, "first").unwrap());
         assert!(html.contains(&format!("{name}=\"first-ref-1\"")), "{html}");

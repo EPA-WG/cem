@@ -582,7 +582,7 @@ it('cancels a native session after fallback import and releases its owner before
     const root = createCemDeclarationScope({ document: {} as Document });
     const host = cemProcessingHostForScope(root, { workerScriptUrl: new URL('https://example.test/worker.js'),
         workerFactory: () => { throw new Error('unavailable'); } });
-    const handle = { sessionKey: 'cancel-native', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    const handle = { sessionKey: 'cancel-native', instanceId: 'field', scopePolicyStamp: 'scope', sourceRevision: 'one' };
     let finish!: (value: { id: number; length: number }) => void;
     vi.mocked(native.prepareRetainedNativeSession).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     const request = { action: 'prepare' as const, handle, sources: { kind: 'cem-native-session-sources-v1' as const,

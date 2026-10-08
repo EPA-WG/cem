@@ -4,6 +4,14 @@ use crate::api::native_capability_session::NativeCapabilitySession;
 thread_local! {
     static SESSIONS: RefCell<BTreeMap<u32, NativeCapabilitySession>> = const { RefCell::new(BTreeMap::new()) };
 }
+pub(super) fn bind_publication(data: &mut TemplateData, id: u32, key: &str) -> Result<(), String> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions.get(&id).ok_or("Unknown native publication owner")?;
+        let view = session.suggestions_publication(key).map_err(|e| e.message)?;
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+    })
+}
 fn session_error(message: impl ToString) -> JsValue {
     let message = message.to_string();
     let code = if message.starts_with("cem.capability.source_incomplete:") {

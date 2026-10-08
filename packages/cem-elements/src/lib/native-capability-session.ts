@@ -9,7 +9,6 @@ export interface CemNativeSessionHandle {
     instanceId: string;
     scopePolicyStamp: string;
     sourceRevision: string;
-    queryRevision: number;
 }
 export type CemNativeSessionSources = Omit<CemElementReferenceInputs, 'kind' | 'placements'> & {
     kind: 'cem-native-session-sources-v1';
@@ -28,7 +27,7 @@ export interface CemNativeSuggestionsConfig {
     active?: number;
     committed?: number;
 }
-/** Immutable revision lease. Consumers supply current attachment/query eligibility. */
+/** Retained source lease. Query freshness belongs to each immutable publication. */
 export class CemNativeCapabilitySession {
     private released = false;
     private readonly ownerMode: CemProcessingHost['mode'];
@@ -85,7 +84,19 @@ export class CemNativeCapabilitySession {
             if (result.status !== 'published' || !current()) throw new Error('Native suggestions publication was superseded');
             return createCemNativeSuggestionsPublication(captured, () => this.valid && current(),
                 input => this.run({ ...input, handle: this.handle }),
-                () => this.host.nativeSession({ action: 'release-suggestions', handle: this.handle, publication }).result.then(() => undefined), publication);
+                () => this.host.nativeSession({ action: 'release-suggestions', handle: this.handle, publication }).result.then(() => undefined), publication,
+                async frame => {
+                    if (!this.valid || !current()) throw new Error('Native publication is no longer current');
+                    const compiled = await this.host.compile(frame.compile).result;
+                    if (!this.valid || !current()) throw new Error('Native publication compile was superseded');
+                    if (compiled.diagnostics.some(diagnostic => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
+                        throw new Error(compiled.diagnostics.map(diagnostic => diagnostic.message).join('; '));
+                    }
+                    const result = await this.host.renderDiff({ ...frame.render, artifact: compiled.artifact,
+                        nativeSuggestions: { handle: this.handle, publication } }).result;
+                    if (!this.valid || !current()) throw new Error('Native publication render was superseded');
+                    return result;
+                });
         } catch (error) {
             await this.host.nativeSession({ action: 'release-suggestions', handle: this.handle, publication }).result.catch(() => undefined);
             throw error;

@@ -10,8 +10,8 @@ import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Native Capability Sessions', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 const workerScriptUrl = new URL('./internal/runtime-support/processing-worker.ts', import.meta.url);
-function handle(queryRevision = 1): CemNativeSessionHandle {
-    return { sessionKey: crypto.randomUUID(), instanceId: 'native-session-fixture', scopePolicyStamp: 'session-fixture', sourceRevision: 'source-1', queryRevision };
+function handle(revision = 1): CemNativeSessionHandle {
+    return { sessionKey: crypto.randomUUID(), instanceId: 'native-session-fixture', scopePolicyStamp: 'session-fixture', sourceRevision: `source-${revision}` };
 }
 function sources(label: string): CemNativeSessionSources {
     const bundle = (text: string) => {
@@ -25,8 +25,8 @@ function sources(label: string): CemNativeSessionSources {
         bindings: [{ source: 0, name: 'relation', select: 'input.children' },
             { source: 1, name: 'options', select: 'seq:where(input.children, fn(n) => n.kind == "element" && n.name != "@ns")' }], grants: [[0, 1]] };
 }
-function input(label: string, queryRevision = 1): Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> {
-    return { action: 'prepare', handle: handle(queryRevision), sources: sources(label), data: {}, select: 'relation', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS };
+function input(label: string, revision = 1): Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> {
+    return { action: 'prepare', handle: handle(revision), sources: sources(label), data: {}, select: 'relation', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS };
 }
 async function ready(): Promise<void> {
     await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
@@ -53,7 +53,7 @@ export const RetainedSourcesWorkerAndFallback: Story = {
                 await expect(host.mode).toBe(fallback ? 'main-thread' : 'worker');
                 await expect(first.length).toBe(2);
                 const view = await first.view('input.name');
-                await expect(view.handle.queryRevision).toBe(1);
+                await expect(view.handle.sourceRevision).toBe('source-1');
                 await expect(view.values.length).toBe(2);
                 const exported = await host.value({ action: 'export-json', scopePolicyStamp: first.handle.scopePolicyStamp,
                     limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS, value: view.values[0] }).result;
@@ -66,16 +66,16 @@ export const RetainedSourcesWorkerAndFallback: Story = {
                 await expect(JSON.stringify(independent.nodes)).toContain('Second');
                 // CEMV must not smuggle executable descendants through the view channel.
                 await expect(first.view('input', 0)).rejects.toThrow();
-                await expect(host.nativeSession({ action: 'view', handle: { ...first.handle, queryRevision: 9 }, expression: 'input.name' }).result).rejects.toThrow('mismatch');
-                await expect(host.nativeSession({ action: 'release', handle: { ...first.handle, queryRevision: 9 } }).result).rejects.toThrow('mismatch');
+                await expect(host.nativeSession({ action: 'view', handle: { ...first.handle, sourceRevision: 'source-9' }, expression: 'input.name' }).result).rejects.toThrow('mismatch');
+                await expect(host.nativeSession({ action: 'release', handle: { ...first.handle, sourceRevision: 'source-9' } }).result).rejects.toThrow('mismatch');
                 await expect(first.view('input.name')).resolves.toHaveProperty('values.length', 2);
                 await expect(host.nativeSession(firstInput).result).rejects.toThrow('already issued');
                 await expect(first.view('input.name', 0)).resolves.toHaveProperty('values.length', 1);
                 const mutableInput = input('Immutable', 5);
                 const preparing = CemNativeCapabilitySession.prepare(host, mutableInput, () => true);
-                mutableInput.handle.queryRevision = 99;
+                mutableInput.handle.sourceRevision = 'source-99';
                 const immutable = await preparing;
-                try { await expect(immutable.handle.queryRevision).toBe(5); }
+                try { await expect(immutable.handle.sourceRevision).toBe('source-5'); }
                 finally { await immutable.release(); }
                 const denied = input('Denied'); denied.sources.grants = [];
                 await expect(CemNativeCapabilitySession.prepare(host, denied, () => true)).rejects.toThrow();

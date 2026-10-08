@@ -1,5 +1,5 @@
 import type { CemNativeSuggestionsConfig } from './native-capability-session.js';
-import type { CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
+import type { CemProcessingCompileInput, CemProcessingRenderDiffInput, CemProcessingRenderDiffResult, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
 import { assertProcessingBoundaryValue } from './projection.js';
 
 /** Supplied by the host that admitted this consuming instance and captured revision. */
@@ -10,10 +10,15 @@ export interface CemNativeSuggestionsConsumer {
     current(): boolean;
 }
 type Rendered = Extract<CemProcessingNativeSessionResult, { status: 'rendered' }>;
+export interface CemNativeSuggestionsComponentFrame {
+    compile: CemProcessingCompileInput;
+    render: Omit<CemProcessingRenderDiffInput, 'artifact' | 'nativeSuggestions'>;
+}
 export interface CemNativeSuggestionsBinding {
     readonly kind: 'cem-live-suggestions-binding-v1';
     readonly valid: boolean;
     render(template: string, data: Record<string, unknown>): Promise<Rendered>;
+    renderComponent(frame: CemNativeSuggestionsComponentFrame): Promise<CemProcessingRenderDiffResult>;
     release(): void;
 }
 export interface CemNativeSuggestionsPublication {
@@ -32,7 +37,8 @@ export function isCemNativeSuggestionsBinding(value: unknown): value is CemNativ
 }
 /** A live binding is exact transient authority, never a CEMV value or saved island. */
 export function createCemNativeSuggestionsPublication(config: Readonly<CemNativeSuggestionsConfig>, current: () => boolean,
-    run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string): CemNativeSuggestionsPublication {
+    run: (input: Frame) => Promise<CemProcessingNativeSessionResult>, releaseOwner: () => Promise<void>, publication: string,
+    runComponent: (frame: CemNativeSuggestionsComponentFrame) => Promise<CemProcessingRenderDiffResult>): CemNativeSuggestionsPublication {
     let released = false, expired = false;
     const valid = () => !released && !(expired ||= !current());
     const nonportable = () => { throw new TypeError('Live suggestions authority cannot be serialized; reacquire on resume'); };
@@ -61,6 +67,19 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                         consumer: { instanceId: state.consumer.instanceId, scopePolicyStamp: state.consumer.scopePolicyStamp, revision: state.consumer.revision } });
                     if (!admitted(this)) throw new Error('Native consumer result was superseded');
                     if (result.status !== 'rendered') throw new Error('Invalid native consumer frame reply');
+                    return result;
+                },
+                async renderComponent(frame: CemNativeSuggestionsComponentFrame) {
+                    if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
+                    const { revision } = frame.render;
+                    if (revision.instanceId !== state.consumer.instanceId || revision.scopePolicyStamp !== state.consumer.scopePolicyStamp
+                        || revision.dataRevision !== state.consumer.revision || frame.compile.scopePolicyStamp !== revision.scopePolicyStamp
+                        || frame.compile.templateArtifactId !== revision.templateArtifactId || 'nativeSuggestions' in frame.render) {
+                        throw new TypeError('Native component frame differs from its admitted consumer');
+                    }
+                    assertProcessingBoundaryValue(frame, 'native component control frame');
+                    const result = await runComponent(structuredClone(frame));
+                    if (!admitted(this)) throw new Error('Native consumer result was superseded');
                     return result;
                 },
                 release() { if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority'); state.released = true; },
