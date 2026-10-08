@@ -403,8 +403,9 @@ interaction design. Loading/status announcements follow the source-data lifecycl
 | Whole menu/surface substitution | Keep label templates inside owned shells for the first profile; richer adoption needs separate semantic/visibility/authority evidence. |
 | Existing choice/autocomplete record normalization | Implement retained native adapters; copied records and value-as-identity would break the selected source and reference contracts. |
 
-The local authorization adapter is implemented. Public XHTML composition still
-requires source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
+The local authorization and shared feedback adapters are implemented. Public
+XHTML composition still requires captured label-template wiring and the canonical
+declaration. Native-render row-to-source metadata is delivered. The shared editor-for,
 provider, native source/view, placement and capability prerequisites are delivered.
 Complete the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)

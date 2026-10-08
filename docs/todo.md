@@ -746,6 +746,32 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         row/group label frames, rendered placement metadata, loading/failure/empty
         feedback and accessible label/description handoff. Depend on the local
         host-authorization adapter above; do not derive grants from authored IDs or row positions.
+        - [x] Implement the prerequisite shared feedback lifecycle: expose current
+          focused-session readiness/count, fence stale preparation and dismissal,
+          and bind declaration-owned plain-text status and listbox busy state.
+          Fixture: verify pending/failed/empty/all-disabled/count feedback,
+          unchanged-text deduplication, editor focus/IME/availability, cancellation
+          during preparation and clearing on revocation/disconnect in both owners;
+          verify declaration-local message changes and invalid status targets.
+          Delivered 2026-10-08: immutable presentation feedback, focused-session
+          qualification, stale-request/dismissal fences and a shared adapter for
+          a declaration-owned plain-text status region and listbox busy state.
+          Localized message attributes remain declaration-owned; source handles
+          and grants never enter the feedback snapshot. Preview does not rewrite
+          unchanged status text, and field help/error/busy remain field-owned.
+          Verification: 26 worker/fallback browser checks, 85 unit checks,
+          typecheck and fresh package build/import verification pass. Lint retains
+          its two existing non-null-assertion warnings. Screen-reader announcement
+          interoperability stays in the full acceptance matrix below.
+          Scenarios for later design verification: feedback never overwrites
+          field help/error/busy, previews produce no repeated announcements, and
+          stale requests cannot announce after Escape, blur or authority loss.
+        - [ ] Wire captured native option/group-label template inputs into the
+          canonical component frame before completing the production declaration.
+          Preserve original template scopes and reject interactive label output;
+          do not recompile copied template strings with another source's bindings.
+          Fixture: verify worker/fallback label templates, explicit-label/default
+          precedence, stored-value hints, group names and denied template scopes.
         Scenarios for later design verification: grouped/dynamic sources in both
         field types, slot conflicts, native source readiness, independent instances
         and fresh authority after resume.

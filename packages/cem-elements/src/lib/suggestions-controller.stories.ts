@@ -7,7 +7,7 @@ import { cemProcessingHostForScope } from './internal/runtime-support/processing
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS } from './native-values.js';
 import { CemSuggestionsPlacementCoordinator, type CemSuggestionsPlacementLease } from './suggestions-placements.js';
 import { cemSuggestionsControllerFor } from './suggestions-capability.js';
-import { connectCemSuggestionsController, type CemSuggestionsControllerOptions } from './suggestions-controller.js';
+import { connectCemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
 import { getCemEditorProvider } from './form-control-capability.js';
 import type { CemNativeSuggestionsPublication, CemNativeSuggestionsBinding } from './native-suggestions-publication.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- fixture source capture uses the adopted native CEMB boundary.
@@ -72,11 +72,14 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     placements.grant('listbox', editorPlacement, ['editor-for']); placements.grant('field', panelPlacement, ['aria-controls']);
     let publication: CemNativeSuggestionsPublication | undefined, binding: CemNativeSuggestionsBinding | undefined, rowPlacements: CemSuggestionsPlacementLease[] = [];
     let latest = 0, delay: Promise<void> | undefined;
-    const errors: unknown[] = [];
+    const errors: unknown[] = [], feedbacks: CemSuggestionsFeedback[] = [];
+    let failed = false;
     const controllerOptions: CemSuggestionsControllerOptions = { editorHost: field, listbox: panel, onError: error => errors.push(error),
+        onFeedback: feedback => feedbacks.push(feedback),
         async prepare(query, queryRevision) {
             latest = queryRevision;
             if (delay) await delay;
+            if (failed) throw new Error('Fixture source unavailable');
             const next = await session.publishSuggestions({ query, queryRevision }, () => latest === queryRevision);
             let nextBinding: CemNativeSuggestionsBinding | undefined;
             try {
@@ -108,7 +111,8 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const settled = () => waitFor(() => { expect(controller.pending).toBe(false); expect(errors).toEqual([]); });
     const key = (name: string, extra: KeyboardEventInit = {}) => { const event = new KeyboardEvent('keydown', { key: name, code: name, bubbles: true, cancelable: true, ...extra }); editor.dispatchEvent(event); return event; };
     const up = (name: string) => editor.dispatchEvent(new KeyboardEvent('keyup', { key: name, code: name, bubbles: true }));
-    return { host, field, form, panel, editor, provider, controller, get rowElements() { return rowElements; }, outside, settled, key, up,
+    return { host, field, form, panel, editor, provider, controller, feedbacks, errors, get rowElements() { return rowElements; }, outside, settled, key, up,
+        fail(value: boolean) { failed = value; },
         releaseSource: () => session.release(),
         block() { let finish!: () => void; delay = new Promise(resolve => { finish = resolve; }); return () => { delay = undefined; finish(); }; },
         async cleanup() { controller.disconnect(); binding?.release(); await publication?.release(); placements.dispose(); await session.release();
@@ -231,7 +235,7 @@ async function localFixture(root: HTMLElement, fallback: boolean, enabled = true
     const declarations: HTMLElement[] = [];
     for (const [name, capability, source] of [
         [fieldTag, 'form-control', '{input @part=control @form="" @type=text @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}'],
-        [tag, 'suggestions', '{slot @name=editor}{slot @name=options}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} | {$row.dom:attribute("label").value}}}}'],
+        [tag, 'suggestions', '{slot @name=editor}{slot @name=options}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} | {$row.dom:attribute("label").value}}}}{div @part=status @role=status @aria-live=polite @aria-atomic=true @pending-message="Loading suggestions." @failure-message="Suggestions are unavailable." @empty-message="No suggestions available." @single-message="1 suggestion available." @multiple-message="%count suggestions available."}'],
     ]) {
         const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', name); declaration.setAttribute('capability', capability);
         const template = document.createElement('template'); template.type = 'text/cem-ml'; template.textContent = source; declaration.append(template);
@@ -364,6 +368,84 @@ export const LocalOwnerLossCannotRecoverFromMarkup: Story = {
                 expect(cemSuggestionsControllerFor(f.host)).toBeUndefined(); expect(f.editor.hasAttribute('aria-controls')).toBe(false);
                 f.host.setAttribute('filter', 'prefix'); await new Promise(resolve => setTimeout(resolve));
                 expect(cemSuggestionsControllerFor(f.host)).toBeUndefined();
+            } finally { await f.cleanup(); }
+        }
+    },
+};
+
+export const FeedbackQualifiesFocusAndFencesLateRequests: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const f = await fixture(canvasElement, fallback);
+            try {
+                await f.settled(); expect(f.controller.feedback.qualifying).toBe(false);
+                f.editor.focus(); expect(f.controller.feedback).toMatchObject({ state: 'ready', eligibleCount: 2, qualifying: true });
+                expect(Object.isFrozen(f.controller.feedback)).toBe(true);
+                const announcements = f.feedbacks.length;
+                f.key('ArrowDown'); f.key('ArrowDown'); expect(f.feedbacks).toHaveLength(announcements);
+                const finish = f.block();
+                f.editor.value = 'No match'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                expect(f.controller.feedback).toMatchObject({ state: 'pending', eligibleCount: 0, qualifying: true });
+                expect(f.key('Escape').defaultPrevented).toBe(true); f.up('Escape');
+                expect(f.controller.feedback.qualifying).toBe(false);
+                finish(); await f.settled(); expect(f.controller.feedback).toMatchObject({ state: 'ready', eligibleCount: 0, qualifying: false });
+                f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.settled();
+                expect(f.controller.feedback).toMatchObject({ state: 'ready', eligibleCount: 0, qualifying: true });
+                f.fail(true); f.editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+                await waitFor(() => expect(f.controller.pending).toBe(false));
+                expect(f.controller.feedback).toMatchObject({ state: 'failed', qualifying: true });
+                f.outside.focus(); expect(f.controller.feedback.qualifying).toBe(false);
+                f.controller.disconnect(); expect(f.controller.feedback).toMatchObject({ state: 'idle', qualifying: false });
+                expect(f.feedbacks.at(-1)).toEqual(f.controller.feedback);
+            } finally { await f.cleanup(); }
+        }
+    },
+};
+
+export const DeclarativeFeedbackPreservesFieldAndLiveRegion: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const f = await localFixture(canvasElement, fallback);
+            try {
+                await f.ready(); const status = f.host.querySelector<HTMLElement>('[part=status]'), panel = f.host.querySelector<HTMLElement>('[part=surface]');
+                if (!status || !panel) throw new Error('Missing declaration-owned feedback fixture');
+                expect(status.textContent).toBe(''); f.editor.focus();
+                await waitFor(() => expect(status.textContent).toBe('2 suggestions available.'));
+                status.setAttribute('multiple-message', '%count available locally.');
+                await waitFor(() => expect(status.textContent).toBe('2 available locally.'));
+                status.setAttribute('multiple-message', '%count suggestions available.');
+                await waitFor(() => expect(status.textContent).toBe('2 suggestions available.'));
+                let mutations = 0; const observer = new MutationObserver(records => { mutations += records.length; }); observer.observe(status, { childList: true, subtree: true, characterData: true });
+                const key = (key: string) => f.editor.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true }));
+                key('ArrowDown'); key('ArrowDown'); await new Promise(resolve => setTimeout(resolve)); expect(mutations).toBe(0); observer.disconnect();
+                f.host.setAttribute('options-state', 'pending');
+                await waitFor(() => { expect(status.textContent).toBe('Loading suggestions.'); expect(panel.getAttribute('aria-busy')).toBe('true'); });
+                expect(f.editor.getAttribute('aria-busy')).toBeNull(); expect(f.editor.disabled).toBe(false);
+                f.host.setAttribute('options-error', 'Service offline'); f.host.setAttribute('options-state', 'failed');
+                await waitFor(() => { expect(status.textContent).toBe('Service offline'); expect(panel.hasAttribute('aria-busy')).toBe(false); });
+                f.host.setAttribute('options-state', 'ready'); await f.ready();
+                f.editor.value = 'Beta'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.ready();
+                await waitFor(() => expect(status.textContent).toBe('1 suggestion available.'));
+                f.editor.value = 'none'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.ready();
+                await waitFor(() => expect(status.textContent).toBe('No suggestions available.'));
+                f.editor.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); expect(status.textContent).toBe('');
+                f.editor.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true })); await f.ready();
+                await waitFor(() => expect(status.textContent).toBe('No suggestions available.'));
+                key('Escape'); expect(status.textContent).toBe('');
+                f.editor.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', code: 'Escape', bubbles: true }));
+                f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.ready();
+                const source = f.runtime.localSuggestionsEnvironmentFor(f.host)?.optionsSources[0] as HTMLTemplateElement;
+                source.innerHTML = '<option value="a" disabled>Alpha</option><option value="b" disabled>Beta</option>'; await f.ready();
+                f.editor.value = ''; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.ready();
+                await waitFor(() => expect(status.textContent).toBe('No suggestions available.'));
+                expect(f.runtime.renderedSuggestionsFor(f.host)?.rows.every(row => !row.native.eligible)).toBe(true);
+                status.setAttribute('role', 'alert'); await waitFor(() => expect(status.textContent).toBe(''));
+                status.setAttribute('role', 'status'); await waitFor(() => expect(status.textContent).toBe('No suggestions available.'));
+                f.field.setAttribute('readonly', ''); await waitFor(() => expect(status.textContent).toBe(''));
+                f.field.removeAttribute('readonly'); await f.ready();
+                f.runtime.setLocalSuggestionsEnabled(false); expect(status.textContent).toBe(''); expect(panel.hasAttribute('aria-busy')).toBe(false);
             } finally { await f.cleanup(); }
         }
     },

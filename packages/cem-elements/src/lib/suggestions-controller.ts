@@ -13,6 +13,14 @@ export interface CemSuggestionsControllerOptions {
     ancestors?: readonly CemSurfaceLifetime[];
     current?(): boolean;
     onError?(error: unknown): void;
+    /** Presentation-only lifecycle; never supplies source or placement authority. */
+    onFeedback?(feedback: CemSuggestionsFeedback): void;
+}
+export interface CemSuggestionsFeedback {
+    readonly state: 'idle' | 'pending' | 'ready' | 'failed';
+    readonly queryRevision: number;
+    readonly eligibleCount: number;
+    readonly qualifying: boolean;
 }
 export interface CemSuggestionsController {
     /** Current editor/host lease, independent of query readiness. */
@@ -21,6 +29,7 @@ export interface CemSuggestionsController {
     readonly pending: boolean;
     readonly active: CemNativeSuggestionSource | undefined;
     readonly committed: CemNativeSuggestionSource | undefined;
+    readonly feedback: CemSuggestionsFeedback;
     refresh(): Promise<void>;
     reconcile(): void;
     dismiss(reason?: string): void;
@@ -40,6 +49,8 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     let stopProof: (() => void) | undefined;
     const clearProof = () => { stopProof?.(); stopProof = undefined; committed = undefined; };
     let popup: CemManualListboxController | undefined, pending = false, reconciling = false;
+    let feedbackIntent = false, feedbackState: CemSuggestionsFeedback['state'] = 'idle';
+    let lastFeedback = '';
     let pointer: { row: CemSuggestionsPlacedRow; generation: number; id: number; x: number; y: number; ended: boolean } | undefined;
     const focused = () => editor.ownerDocument.activeElement === editor;
     const retained = () => !disposed && host.isConnected && options.editorHost.isConnected && lease.current && provider.control === editor && (options.current?.() ?? true);
@@ -50,6 +61,16 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         && options.listbox.contains(row.element) && !row.element.closest('[hidden],[inert],[disabled],[aria-disabled="true"]');
     const eligible = (row: CemSuggestionsPlacedRow) => current() && eligibleRow(row);
     const available = () => current() ? placements?.rows.filter(eligibleRow) ?? [] : [];
+    const feedback = (): CemSuggestionsFeedback => {
+        // A placement check may synchronously revoke the prior view and change readiness.
+        const count = feedbackState === 'ready' ? available().length : 0;
+        return Object.freeze({ state: feedbackState, queryRevision, eligibleCount: feedbackState === 'ready' ? count : 0,
+            qualifying: feedbackIntent && bound() && focused() && provider.editable && !provider.composing });
+    };
+    const notifyFeedback = () => {
+        const next = feedback(), key = JSON.stringify(next);
+        if (key !== lastFeedback) { lastFeedback = key; options.onFeedback?.(next); }
+    };
     const updateValidity = () => {
         if (committed && !committed.source.valid) clearProof();
         validity.set(host.hasAttribute('require-selection') && !!editor.value && !committed
@@ -67,21 +88,34 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
                 listbox: options.listbox, expanded: visible, ...(active ? { row: active.element } : {}),
                 autocomplete: placements?.binding.config.filter === 'none' ? 'none' : 'list' });
             if (!accepted && visible) popup?.dismiss('attribute-conflict');
-        } finally { reconciling = false; }
+        } finally { reconciling = false; notifyFeedback(); }
     };
-    const dismiss = (reason = 'dismiss') => { intent = false; pointer = undefined; active = undefined; popup?.dismiss(reason); claim(); };
-    const invalidate = () => { for (const listener of [...lifecycleListeners]) listener(); dismiss('authority'); lease.attributes.clear(); updateValidity(); };
+    const dismiss = (reason = 'dismiss') => { intent = false; feedbackIntent = false; pointer = undefined; active = undefined; popup?.dismiss(reason); claim(); };
+    const closePresentation = (reason: string) => { intent = false; pointer = undefined; active = undefined; popup?.dismiss(reason); claim(); };
+    const invalidate = () => {
+        const readiness = host.getAttribute('options-state');
+        const retainFeedback = bound() && feedbackIntent && focused() && ['pending', 'failed'].includes(readiness ?? '');
+        feedbackState = retainFeedback ? readiness === 'pending' ? 'pending' : 'failed' : 'idle';
+        // Suspend the row/surface first; scalar readiness only retains presentation intent.
+        const qualified = retainFeedback && feedbackIntent;
+        for (const listener of [...lifecycleListeners]) listener();
+        if (qualified) { feedbackIntent = true; closePresentation('source'); } else dismiss('authority');
+        lease.attributes.clear(); updateValidity();
+    };
     const releases: (() => void)[] = [];
     const lifecycleListeners = new Set<() => void>();
-    const request = async (opening: boolean) => {
+    const request = async (opening: boolean, preserveFeedback = false) => {
         if (!bound() || !provider.editable || provider.composing) { dismiss('unavailable'); return; }
         const attempt = ++generation, revision = provider.revision, value = editor.value, nextQuery = ++queryRevision;
-        intent = opening && focused(); pending = true; active = undefined; pointer = undefined;
+        feedbackIntent = focused() && (opening || preserveFeedback && feedbackIntent);
+        intent = opening && focused(); pending = true; feedbackState = 'pending'; active = undefined; pointer = undefined;
         popup?.dismiss('query'); lease.attributes.clear();
+        notifyFeedback();
         unsubscribePlacement?.(); unsubscribePlacement = undefined; placements?.release(); placements = undefined;
         try {
             const prepared = await options.prepare(value, nextQuery);
             if (!bound() || attempt !== generation || revision !== provider.revision || editor.value !== value || provider.composing) {
+                if (attempt === generation) { feedbackState = 'idle'; feedbackIntent = false; }
                 prepared.release(); return;
             }
             if (!prepared.current() || prepared.provider !== provider || prepared.editorHost !== options.editorHost || prepared.listbox !== options.listbox
@@ -92,23 +126,28 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             unsubscribePlacement = prepared.subscribe(invalidate); preparedRevision = revision; query = value; pending = false;
             if (committed && host.getAttribute('options-policy') === 'vocabulary'
                 && !prepared.rows.some(row => row.native.source === committed?.source && row.native.available)) clearProof();
-            updateValidity(); reportInteractionReference(host, undefined, 'suggestions-source');
+            feedbackState = 'ready'; updateValidity(); reportInteractionReference(host, undefined, 'suggestions-source');
             claim();
             if (intent && focused() && available().length) intent = !!popup?.open();
-            else if (!available().length) dismiss('empty');
+            else if (!available().length) closePresentation('empty');
             claim();
         } catch (error) {
             if (!disposed && attempt === generation) {
-                pending = false; dismiss('source'); lease.attributes.clear();
+                pending = false; feedbackState = host.getAttribute('options-state') === 'pending' ? 'pending' : 'failed';
+                closePresentation('source'); lease.attributes.clear();
                 reportInteractionReference(host, 'suggestions-source-unavailable', 'suggestions-source'); options.onError?.(error);
             }
-        } finally { if (attempt === generation) pending = false; }
+        } finally { if (attempt === generation) { pending = false; notifyFeedback(); } }
     };
     try {
         popup = connectCemManualListbox(options.listbox, { host, editorHost: options.editorHost, editorLease: lease,
             ancestors: options.ancestors, lifecycle: { current, ready: () => available().length > 0,
                 subscribe(listener) { lifecycleListeners.add(listener); return () => { lifecycleListeners.delete(listener); }; } },
-            onVisibility(open, reason) { if (!open) { if (reason !== 'query') intent = false; active = undefined; pointer = undefined; } claim(); },
+            onVisibility(open, reason) { if (!open) {
+                if (reason !== 'query') intent = false;
+                if (!['query', 'empty', 'source'].includes(reason)) feedbackIntent = false;
+                active = undefined; pointer = undefined;
+            } claim(); },
         });
     } catch (error) { lease.release(); validity.release(); throw error; }
     const commit = (row: CemSuggestionsPlacedRow) => {
@@ -125,6 +164,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     };
     const move = (direction: number) => {
         const ready = available(); if (!ready.length || !popup?.open()) return false;
+        feedbackIntent = true;
         const index = active ? ready.indexOf(active) : -1;
         active = ready[index < 0 ? direction > 0 ? 0 : ready.length - 1 : Math.max(0, Math.min(ready.length - 1, index + direction))];
         claim();
@@ -151,7 +191,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         const opening = update.cause === 'input' || update.cause === 'composition-end';
         void request(opening);
     }));
-    editor.addEventListener('focus', () => { if (current()) { intent = true; active = undefined; if (available().length) popup?.open(); claim(); } else void request(true); }, { signal: abort.signal });
+    editor.addEventListener('focus', () => { if (current()) { intent = true; feedbackIntent = true; active = undefined; if (available().length) popup?.open(); claim(); } else void request(true); }, { signal: abort.signal });
     options.editorHost.addEventListener('keydown', event => {
         if (event.target !== editor || event.defaultPrevented || !bound() || provider.compositionOwned(event)) return;
         if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey && event.key !== 'Tab') return;
@@ -159,7 +199,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
             if (move(event.key === 'ArrowDown' ? 1 : -1)) event.preventDefault(); else if (!pending) void request(true);
         } else if (event.key === 'Enter' && active && eligible(active) && popup?.visible) {
             if (lease.handlePress(event)) commit(active);
-        } else if (event.key === 'Escape' && (intent || popup?.visible || popup?.pending)) {
+        } else if (event.key === 'Escape' && (intent || feedbackIntent || popup?.visible || popup?.pending)) {
             if (lease.handlePress(event)) dismiss('escape');
         } else if (event.key === 'Tab') dismiss('tab');
         else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { active = undefined; claim(); }
@@ -191,9 +231,11 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         get retained() { return retained(); },
         get visible() { return !!popup?.visible; }, get pending() { return pending; },
         get active() { return active?.native.source; }, get committed() { updateValidity(); return committed?.source; },
-        refresh: () => request(false), reconcile: () => { popup?.reconcile(); claim(); updateValidity(); }, dismiss,
+        get feedback() { return feedback(); },
+        refresh: () => request(false, true), reconcile: () => { popup?.reconcile(); claim(); updateValidity(); }, dismiss,
         disconnect() {
-            if (disposed) return; disposed = true; ++generation; pending = false;
+            if (disposed) return; disposed = true; ++generation; pending = false; feedbackIntent = false; feedbackState = 'idle';
+            notifyFeedback();
             abort.abort(); clearProof(); unsubscribePlacement?.(); placements?.release();
             for (const release of [...releases]) release(); releases.length = 0;
             popup?.disconnect(); lease.release(); validity.release();

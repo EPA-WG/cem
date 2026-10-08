@@ -1,5 +1,5 @@
 import type { DataIslandSnapshot, CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
-import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions } from './suggestions-controller.js';
+import { connectCemSuggestionsController, type CemSuggestionsController, type CemSuggestionsControllerOptions, type CemSuggestionsFeedback } from './suggestions-controller.js';
 import { resolveCemSuggestionsEditor } from './suggestions-editor.js';
 import { CemNativeCapabilitySession } from './native-capability-session.js';
 import { CemSuggestionsPlacementCoordinator, type CemSuggestionsPlacementLease } from './suggestions-placements.js';
@@ -18,6 +18,10 @@ interface State {
     configuration?: string;
     local?: LocalState;
     localBlocked?: boolean;
+    feedback?: CemSuggestionsFeedback;
+    status?: HTMLElement;
+    statusText?: string;
+    busyListbox?: HTMLElement;
 }
 export interface CemLocalSuggestionsEnvironment {
     snapshot: DataIslandSnapshot;
@@ -41,7 +45,43 @@ interface LocalState {
 const states = new WeakMap<HTMLElement, State>();
 /** Package-private read-only view of the active shared controller. */
 export function cemSuggestionsControllerFor(instance: HTMLElement): CemSuggestionsController | undefined { return states.get(instance)?.controller; }
-function stop(state: State): void { state.controller?.disconnect(); state.controller = undefined; state.options = undefined; }
+function stop(state: State): void {
+    state.controller?.disconnect(); state.controller = undefined; state.options = undefined;
+    clearFeedback(state); state.feedback = undefined;
+}
+function clearFeedback(state: State): void {
+    if (state.status && !state.status.childElementCount && state.status.textContent === state.statusText) state.status.textContent = '';
+    state.status = undefined; state.statusText = undefined;
+    if (state.busyListbox?.getAttribute('aria-busy') === 'true') state.busyListbox.removeAttribute('aria-busy');
+    state.busyListbox = undefined;
+}
+/** Plain-text feedback targets are declaration-owned; this adapter never touches the field. */
+function presentFeedback(instance: HTMLElement, state: State, listbox: HTMLElement): void {
+    const feedback = state.feedback;
+    if (state.busyListbox && state.busyListbox !== listbox) clearFeedback(state);
+    if (feedback?.state === 'pending') { if (listbox.getAttribute('aria-busy') !== 'true') listbox.setAttribute('aria-busy', 'true'); state.busyListbox = listbox; }
+    else if (state.busyListbox) { if (state.busyListbox.getAttribute('aria-busy') === 'true') state.busyListbox.removeAttribute('aria-busy'); state.busyListbox = undefined; }
+    const targets = [...instance.children].filter(child => child.getAttribute('part')?.split(/\s+/).includes('status'));
+    const status = targets.length === 1 && targets[0] instanceof HTMLElement ? targets[0] : undefined;
+    if (!status || status.getAttribute('role') !== 'status' || status.getAttribute('aria-live') !== 'polite' || status.getAttribute('aria-atomic') !== 'true'
+        || status.childElementCount || status.matches('[slot],[tabindex],[autofocus],[contenteditable]:not([contenteditable="false"])')) {
+        if (state.status && !state.status.childElementCount && state.status.textContent === state.statusText) state.status.textContent = '';
+        state.status = undefined; state.statusText = undefined;
+        reportInteractionReference(instance, targets.length ? 'suggestions-status-conflict' : undefined, 'suggestions-feedback'); return;
+    }
+    reportInteractionReference(instance, undefined, 'suggestions-feedback');
+    if (state.status && state.status !== status && !state.status.childElementCount && state.status.textContent === state.statusText) state.status.textContent = '';
+    let text = '';
+    if (feedback?.qualifying) {
+        const message = feedback.state === 'pending' ? 'pending-message' : feedback.state === 'failed' ? 'failure-message'
+            : feedback.state === 'ready' ? feedback.eligibleCount === 0 ? 'empty-message' : feedback.eligibleCount === 1 ? 'single-message' : 'multiple-message' : undefined;
+        text = message ? status.getAttribute(message)?.replaceAll('%count', String(feedback.eligibleCount)) ?? '' : '';
+        if (feedback.state === 'failed') text = instance.getAttribute('options-error')?.trim() || text;
+    }
+    // Preserve the live-region node and avoid repeating unchanged announcements on previews/renders.
+    if (status.textContent !== text) status.textContent = text;
+    state.status = status; state.statusText = text;
+}
 /** Host revocation is synchronous; authorization and leases never enter a snapshot. */
 export function refreshCemSuggestionsAuthorization(instance: HTMLElement): void {
     const state = states.get(instance); if (!state) return;
@@ -210,7 +250,9 @@ function synchronize(instance: HTMLElement, state: State): void {
         || state.options?.current !== options.current || state.options?.ancestors !== options.ancestors) {
         stop(state);
         const current = () => resolveCemSuggestionsEditor(instance).host === options.editorHost && (options.current?.() ?? true);
-        try { state.controller = connectCemSuggestionsController(instance, { ...options, current }); state.options = options; }
+        try { state.controller = connectCemSuggestionsController(instance, { ...options, current,
+            onFeedback(feedback) { state.feedback = feedback; presentFeedback(instance, state, options.listbox); options.onFeedback?.(feedback); },
+        }); state.options = options; }
         catch { reportInteractionReference(instance, 'suggestions-binding-unavailable', 'suggestions-binding'); return; }
     }
     reportInteractionReference(instance, undefined, 'suggestions-binding');
@@ -219,6 +261,7 @@ function synchronize(instance: HTMLElement, state: State): void {
     if (state.configuration !== undefined && state.configuration !== configuration) void state.controller?.refresh();
     state.configuration = configuration;
     state.controller?.reconcile();
+    presentFeedback(instance, state, options.listbox);
 }
 
 /** Declarative wiring uses trusted lifecycle preparation; attributes and slots alone issue no grants. */
@@ -233,7 +276,7 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
         };
         state.observer = new MutationObserver(queue);
         state.observer.observe(instance, { childList: true, subtree: true, attributes: true,
-            attributeFilter: ['require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options', 'editor-for', 'slot', 'part', 'role', 'popover'] });
+            attributeFilter: ['require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options-error', 'options', 'editor-for', 'slot', 'part', 'role', 'popover', 'aria-live', 'aria-atomic', 'pending-message', 'failure-message', 'empty-message', 'single-message', 'multiple-message'] });
         state.stopReferences = observeInteractionReferences(instance, queue);
     },
     rendered(instance, context) { const state = states.get(instance); if (state) { state.context = context; synchronize(instance, state); } },

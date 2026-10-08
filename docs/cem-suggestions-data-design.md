@@ -229,6 +229,33 @@ declarative contract, but loading does not do so implicitly.
 
 Localization is declaration-owned: custom declarations can provide status text
 from the native view without replacing its listbox semantics or loading controller.
+The shared controller now also exposes an immutable presentation-only feedback
+snapshot (`state`, `queryRevision`, `eligibleCount`, `qualifying`) and an
+`onFeedback` lifecycle callback. The callback carries no source handles or grants.
+Focus/edit/arrow intent qualifies feedback; Escape, Tab, blur, composition,
+unavailability and authority loss clear it. A pending/failed source transition
+may preserve an already-qualified feedback session while revoking row eligibility.
+An older preparation cannot restore feedback after dismissal or a newer request.
+
+Implemented 2026-10-08: the declarative capability admits an optional single
+direct, plain-text `part=status` region with `role=status`, `aria-live=polite`
+and `aria-atomic=true`. It rejects projected, focusable, editable or element-bearing
+status targets. Declaration-authored `pending-message`, `failure-message`,
+`empty-message`, `single-message` and `multiple-message` supply its text;
+`%count` is replaced with the current eligible count. The production declaration
+will supply the default messages above. A nonempty `options-error` overrides
+the failure text through plain-text assignment. Missing messages remain empty;
+the runtime supplies no language strings. Custom declarations may use the
+feedback callback through an explicit host hook for another presentation adapter.
+
+The adapter retains the live-region element and does not rewrite unchanged text
+when arrow preview or an unrelated reconciliation repeats the same feedback.
+It sets `aria-busy=true` only on the attachment's listbox while pending and
+releases its busy/status writes on teardown or rebind. It never writes field
+help, error, labels, value or busy state. These browser checks cover lifecycle
+and DOM mutation behavior; they do not establish screen-reader announcement
+interoperability or complete production composition. Captured label-template
+inputs and the production XHTML remain in the active checklist.
 Announce honest state/count, including all-disabled readiness. Native screen-reader
 fixtures must assess polite announcement behavior; status markup alone is not
 interoperability evidence. The [ARIA status role](https://www.w3.org/TR/wai-aria-1.2/#status)

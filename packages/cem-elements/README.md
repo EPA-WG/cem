@@ -380,8 +380,20 @@ or reconnecting obtains fresh collapsed admissions. Owner loss cannot restore
 local authority from markup. The host opt-in and live bindings are excluded from
 snapshot state. Protocol v22 carries the bounded native XML source import.
 
-The public XHTML declaration, loading feedback and full touch/pen/field acceptance
-matrix remain in the active checklist.
+The shared controller exposes immutable presentation feedback with state, query
+revision, eligible count and focused-session qualification. The declarative
+capability can update one direct plain-text `part=status` live region
+(`role=status`, `aria-live=polite`, `aria-atomic=true`) and the listbox's busy
+state. The declaration supplies `pending-message`, `failure-message`,
+`empty-message`, `single-message` and `multiple-message`; `%count` inserts the
+eligible count. A nonempty host `options-error` supplies failure text. The runtime
+does not supply language strings or touch the field's help/error/busy state.
+Preview leaves unchanged status text alone; dismissal, composition, unavailability,
+revocation and disconnect clear qualifying feedback. Late preparation cannot
+restore an announcement after dismissal.
+
+Captured label-template wiring, the public XHTML declaration and the full
+touch/pen/field acceptance matrix remain in the active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects
