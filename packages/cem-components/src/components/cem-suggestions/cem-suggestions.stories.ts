@@ -237,9 +237,9 @@ export const BrowserCompositionSettlesWithoutTerminalCommitOrSubmit = meta.story
     },
 });
 
-export const NativePanCancellationDragAndOutsideFocus = meta.story({
-    render: () => ['cem-field', 'cem-text-field'].map(tag => `<form aria-label="${tag}"><cem-suggestions filter="none"><template><${tag} slot="editor" name="choice" label="Choice"></${tag}><template slot="options">${Array.from({ length: 10 }, (_, i) => `<option value="${i}">Option ${i}</option>`).join('')}</template></template></cem-suggestions><button type="button">Outside</button></form>`).join(''),
-    play: async ({ canvasElement }) => {
+const panCancellationStory = {
+    render: () => ['cem-field'].map(tag => `<form aria-label="${tag}"><cem-suggestions filter="none"><template><${tag} slot="editor" name="choice" label="Choice"></${tag}><template slot="options">${Array.from({ length: 10 }, (_, i) => `<option value="${i}">Option ${i}</option>`).join('')}</template></template></cem-suggestions><button type="button">Outside</button></form>`).join(''),
+    play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
         if (import.meta.env.MODE !== 'test') return; // Native Chromium pointer/scroll evidence; physical devices remain separate.
         const { cdp } = await import('vitest/browser');
         for (const host of canvasElement.querySelectorAll<HTMLElement>('cem-suggestions')) {
@@ -249,7 +249,27 @@ export const NativePanCancellationDragAndOutsideFocus = meta.story({
             input.addEventListener('input', changed); input.addEventListener('change', changed); surface.addEventListener('pointerdown', down);
             try {
                 surface.style.blockSize = '100px'; // Constrain this geometry fixture to require scrolling.
-                input.focus(); await waitFor(() => expect(surface.matches(':popover-open')).toBe(true));
+                input.focus();
+                try {
+                    // Focusing can supersede the initial native publication.
+                    // Await the current rows and actual opening before driving gestures.
+                    await waitFor(() => {
+                        expect(storybookCemRuntime().renderedSuggestionsFor(host)?.current()).toBe(true);
+                        expect(surface.matches(':popover-open')).toBe(true);
+                    }, { timeout: 10000 });
+                } catch (error) {
+                    console.warn('[suggestions-pan-readiness]', JSON.stringify({
+                        provider: input.closest('[slot=editor]')?.localName,
+                        focused: input.ownerDocument.activeElement === input,
+                        inputConnected: input.isConnected, surfaceConnected: surface.isConnected,
+                        currentSurface: host.querySelector('[part=surface]') === surface,
+                        currentInput: host.querySelector('[slot=editor] input') === input,
+                        expanded: input.getAttribute('aria-expanded'),
+                        current: storybookCemRuntime().renderedSuggestionsFor(host)?.current() ?? false,
+                        diagnostics: storybookCemRuntime().diagnosticsFor(host).map(({ code }) => code),
+                    }));
+                    throw error;
+                }
                 expect(surface.scrollHeight).toBeGreaterThan(surface.clientHeight);
                 await nativeTouchGesture(cdp(), surface, 'pan');
                 expect(downs.at(-1)?.pointerType).toBe('touch'); expect(downs.at(-1)?.defaultPrevented).toBe(false);
@@ -268,6 +288,12 @@ export const NativePanCancellationDragAndOutsideFocus = meta.story({
             } finally { input.removeEventListener('input', changed); input.removeEventListener('change', changed); surface.removeEventListener('pointerdown', down); }
         }
     },
+};
+
+export const NativePanCancellationDragAndOutsideFocus = meta.story(panCancellationStory);
+export const NativePanCancellationDragAndOutsideFocusTextField = meta.story({
+    ...panCancellationStory,
+    render: () => panCancellationStory.render().replaceAll('cem-field', 'cem-text-field'),
 });
 
 export const UnsupportedEditorsAndInputConflictsSuspendThenRecover = meta.story({

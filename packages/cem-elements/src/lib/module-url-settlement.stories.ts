@@ -1,3 +1,4 @@
+import { startReadinessTiming, readinessCheckpoint } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
@@ -34,7 +35,18 @@ async function mount(root: HTMLElement) {
     await runtime.whenDeclarationSettled(declaration);
     const instance = document.createElement(tag);
     root.append(instance);
-    await waitFor(() => expect(pending.size, JSON.stringify(runtime.diagnosticsFor(instance))).toBe(4));
+    let settlement = 'pending';
+    void runtime.whenRenderSettled(instance).then(
+        () => { settlement = 'settled'; }, () => { settlement = 'rejected'; });
+    startReadinessTiming(root, 'module-url/SiblingDiscovery', runtime);
+    try {
+        await waitFor(() => expect(pending.size, JSON.stringify(runtime.diagnosticsFor(instance))).toBe(4));
+    } catch (error) {
+        readinessCheckpoint('resolver-discovery-failed', { resolvers: pending.size });
+        console.warn('[module-discovery]', JSON.stringify({ resolvers: pending.size, settlement,
+            diagnostics: runtime.diagnosticsFor(instance).map(({ code }) => code) }));
+        throw error;
+    }
     return { runtime, instance, pending, failures };
 }
 

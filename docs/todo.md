@@ -1453,11 +1453,16 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       actual render completion; captured controls stay disconnected and absent
       from FormData. Do not attribute the recurrence to references without evidence.
 
-- [ ] Fixture: trace the aggregate runtime slot failures before changing waits:
+- [x] Fixture: trace the aggregate runtime slot failures before changing waits:
       `Legacy Named Slot Payload Parity` misses h3 and `Slot Projection Render
       Loop` misses div.card in the 2026-10-08 traced run. Capture the owning
       runtime's render state at the original assertion; preserve slot identity,
       ordering and projection assertions.
+      Delivered 2026-10-08: both failures recur with pending instance renders
+      and no diagnostics at their single-frame checks. Both fixtures now await
+      every instance through their owning runtime. All 90 focused runtime,
+      module-URL and suggestions stories pass; opt-in lifecycle checkpoints stay.
+      Final normal aggregate verification passes all 487 stories in 101 files.
       Scenarios for later design verification: asynchronous publication must
       settle before lookup, while projection updates retain their original nodes.
 
@@ -1466,6 +1471,15 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       declaration/compile/render state before changing its polling deadline;
       preserve the controlled sibling-release and atomic publication assertions.
       The normal aggregate rerun also fails this case (484/486 overall).
+      Follow-up: the 16-test control, 90-test traced control and two further
+      aggregate traces do not reproduce it. Added opt-in resolver-count and
+      owning-render diagnostics on failure; discovery and sibling-release
+      deadlines/assertions remain unchanged. Resume correction on captured
+      recurrence rather than inferring a cause from passing controls.
+      The next normal aggregate reproduces zero resolvers again without tracing;
+      failure capture now always includes resolver count, settlement and codes.
+      Final aggregate verification passes 487/487. The original discovery wait
+      remains unchanged pending a failure with the new capture.
       Scenarios for later design verification: startup latency and stale sibling
       completion must remain distinguishable.
 
@@ -1477,9 +1491,32 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       reproduced pointer-state failure; passing repeats do not attribute the
       other three deadlines.
       Do not increase global deadlines or relax focus/pointer expectations.
+      Fixture scope: split the serial native pan/cancel/outside-focus matrix
+      into independently scheduled cem-field and cem-text-field stories, each
+      retaining every gesture assertion and its own unchanged 30-second limit.
+      Pan-opening correction 2026-10-08: the original one-second check
+      observes retained focus/nodes but no current row publication; failure-only
+      observation captures current rows and an open popup 6.23 seconds later.
+      The fixture now requires both conditions within a ten-second interaction
+      budget, retaining the 30-second story limit and all gesture assertions.
+      All 90 focused stories pass. Historical tap/data-table/set-URL deadlines
+      still need separate attribution.
+      After splitting the providers, the final normal aggregate passes 487/487;
+      both complete gesture sequences pass within their separate original limits.
       Scenarios for later design verification: all authored cases finish within
       the story budget; native taps, pan cancellation and outside focus keep
       their distinct contracts.
+
+- [ ] Fixture: capture the newly observed retained stylesheet
+      `Payload Css Disconnect And Failure` zero-versus-one assertion and
+      isolation `Declaration Element Renders No Visible Content` and
+      `Data Island Content Stays Out Of The Accessibility Tree` failures
+      before changing readiness. Both appear during the 2026-10-08 traced
+      aggregate investigation; retain exact style ownership and inert declaration
+      assertions. Evidence:
+      [slot and suggestions follow-up](browser-stabilization-review.tmp.md#slot-and-suggestions-readiness-follow-up-2026-10-08).
+      Scenarios for later design verification: style publication/disposal and
+      declaration inertness remain distinct from produced-instance readiness.
 
 ## Immediate: Legacy Demo Case Coverage
 

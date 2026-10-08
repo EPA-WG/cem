@@ -1,4 +1,4 @@
-import { startReadinessTiming, readinessWait } from '../../.storybook/readiness-timing.js';
+import { startReadinessTiming, readinessWait, readinessCheckpoint } from '../../.storybook/readiness-timing.js';
 import { treeProcessingTimingOptions } from '../../.storybook/tree-processing-timing.js';
 import httpDataLibrary from '../../demo/http-data.cemt?raw';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
@@ -2332,12 +2332,14 @@ export const LegacyDatadomAccessMigrationParity: Story = {
     },
 };
 
+const slotReadinessRuntimes = new WeakMap<HTMLElement, CemElementRuntime>();
+
 export const LegacyNamedSlotPayloadParity: Story = {
     render: () => {
         const root = document.createElement('section');
         root.setAttribute('aria-label', 'legacy slot parity story');
 
-        registerInlineDeclaration({
+        const runtime = registerInlineDeclaration({
             declarationTag: 'cem-element-story-legacy-slot',
             producedTag: 'story-legacy-slot',
             innerHTML:
@@ -2352,12 +2354,19 @@ export const LegacyNamedSlotPayloadParity: Story = {
 
         const fallback = document.createElement('story-legacy-slot');
         root.append(filled, fallback);
+        slotReadinessRuntimes.set(root, runtime);
+        startReadinessTiming(root, 'slots/LegacyNamed', runtime);
         return root;
     },
     play: async ({ canvasElement }) => {
-        await nextFrame();
-        const instances = Array.from(canvasElement.querySelectorAll('story-legacy-slot'));
+        const instances = Array.from(canvasElement.querySelectorAll<HTMLElement>('story-legacy-slot'));
         assertEqual(instances.length, 2, 'legacy slot parity story renders two instances');
+        const root = instances[0].parentElement as HTMLElement;
+        const runtime = slotReadinessRuntimes.get(root);
+        assert(runtime, 'the slot story retains its owning runtime');
+        readinessCheckpoint('slots-before-settlement');
+        await Promise.all(instances.map(instance => runtime.whenRenderSettled(instance)));
+        readinessCheckpoint('slots-after-settlement');
 
         assertEqual(
             requiredElement(instances[0], 'h3').textContent?.trim(),
@@ -3908,15 +3917,20 @@ export const SlotProjectionRenderLoop: Story = {
         full.innerHTML = '<span slot="leading">L</span>Body text<strong>Body node</strong><span slot="trailing">T</span>';
         const empty = document.createElement('story-slot-card');
         root.append(full, empty);
+        slotReadinessRuntimes.set(root, runtime);
+        startReadinessTiming(root, 'slots/ProjectionLoop', runtime);
 
         return root;
     },
     play: async ({ canvasElement }) => {
-        await nextFrame();
-
-        const instances = canvasElement.querySelectorAll('story-slot-card');
+        const instances = canvasElement.querySelectorAll<HTMLElement>('story-slot-card');
         const full = instances[0];
         const empty = instances[1];
+        const runtime = slotReadinessRuntimes.get(full.parentElement as HTMLElement);
+        assert(runtime, 'the projection story retains its owning runtime');
+        readinessCheckpoint('slots-before-settlement');
+        await Promise.all(Array.from(instances, instance => runtime.whenRenderSettled(instance)));
+        readinessCheckpoint('slots-after-settlement');
 
         // Every <slot> is resolved away in light DOM (replaced by payload or fallback).
         assert(full.querySelector('slot') === null, 'slots are projected away in light DOM');

@@ -6189,3 +6189,59 @@ that does not establish their cause. Logs:
 `/tmp/cem-readiness-fixed.log`,
 `/tmp/cem-readiness-final-aggregate.log`,
 `/tmp/cem-readiness-types-final.log`.
+
+### Slot and suggestions readiness follow-up (2026-10-08)
+
+The initial two-file control passes 16/16; the traced runtime/module-URL/
+suggestions workload passes 90/90. Subsequent aggregate tracing reproduces
+both slot races and the suggestions opening deadline.
+
+- Legacy named-slot parity: at 22:29:55.756 UTC the filled instance is settled
+  but its fallback sibling is pending. That sibling settles at 22:29:55.765
+  without diagnostics.
+- Slot projection: at 22:30:02.248 UTC both instances are pending at the
+  single-frame assertion; settlement begins 13 ms later without diagnostics.
+- Suggestions pan story: at its original one-second opening deadline, the
+  cem-field editor is focused, input and surface are connected and unchanged,
+  diagnostics are empty, but the committed rows are no longer current and
+  aria-expanded is absent. A temporary failure-only observer sees the popup
+  open with current rows and retained focus 6.23 seconds later. It rethrows
+  the original failure; no passing gesture assertions are claimed for that run.
+
+Both slot fixtures now retain their owning runtime and await each instance's
+render settlement before their unchanged payload, order and fallback assertions.
+Opt-in before/after checkpoints remain. The suggestions fixture requires current
+rows and an actually open popup within a bounded ten-second interaction wait,
+inside the unchanged 30-second story deadline. It preserves all touch, pen, wheel,
+cancellation, input-event and outside-focus assertions. Failure diagnostics retain
+node identity, focus, publication currency and diagnostic codes. The temporary
+post-failure recovery wait is removed. No production runtime changed.
+
+Module-URL's historical zero-resolver timeout did not recur in these controls
+or either aggregate trace. Its new opt-in lifecycle capture records resolver count
+and the owning render state on failure and rethrows immediately. Its one-second
+discovery predicate and controlled sibling-release assertions remain unchanged.
+
+Aggregate investigation results before correction were 484/486 and 482/486.
+The first additionally observed retained stylesheet `Payload Css Disconnect And
+Failure` (zero where one was expected); the second observed isolation
+`Declaration Element Renders No Visible Content`. These are separate unresolved
+readiness observations, not attributed to the corrected fixtures.
+
+Logs: `/tmp/cem-next-baseline.log`, `/tmp/cem-next-traced.log`,
+`/tmp/cem-next-full-traced.log`, `/tmp/cem-next-late-traced.log`.
+
+Final aggregate verification initially passed 483/486: both corrected slot cases
+passed, module discovery again timed out, and the serial two-provider pan story
+exhausted its overall 30-second limit. Its two provider cases now run as separate
+stories, each retaining every assertion and the original 30-second deadline.
+Module discovery additionally records resolver count, settlement and diagnostic
+codes on failure even when tracing is disabled; no post-failure waiting remains.
+
+The final normal aggregate passes **487/487 stories across 101 files**, including
+both provider-specific gesture stories, both slot cases and all module-URL cases.
+Typecheck and whitespace checks pass. Historical module discovery and the other
+intermittent observations remain open; this green run is not causal attribution.
+Final logs: `/tmp/cem-next-fixed.log` (90/90 before splitting),
+`/tmp/cem-next-final.log` (483/486), `/tmp/cem-next-split-full.log` (487/487),
+and `/tmp/cem-next-types-final.log`.
