@@ -239,7 +239,14 @@
                     indent: $indent,
                     lineEnding: $lineEnding
                 }),
-                default: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: $depth }))
+                default: fold($subject, [], match($item.kind, {
+                    whitespace: match($formatterProfile, {
+                        pretty: $acc,
+                        tabular: $acc,
+                        default: append($acc, call("cem.format-tree.format-node", { subject: $item, depth: $depth }))
+                    }),
+                    default: append($acc, call("cem.format-tree.format-node", { subject: $item, depth: $depth }))
+                }))
             }) }
         }
     }
@@ -402,6 +409,7 @@
         {body |
             {$ fold($subject, true, match($acc, {
                 true: match($item.kind, {
+                    whitespace: true,
                     text: true,
                     content: true,
                     string: true,

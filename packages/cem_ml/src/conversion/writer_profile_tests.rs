@@ -628,3 +628,73 @@ fn profile_inspection_writer() {
         );
     }
 }
+
+#[test]
+fn tabular_text_formatting_is_idempotent() {
+    use crate::{
+        events::cem::CemEventNormalizer,
+        parser::builder::CemAstBuilder,
+        projection::CemTreeAstNode,
+        source::{BytesSource, SourceId},
+        tokenizer::cem::CemTokenizer,
+    };
+    fn parse(text: &str) -> crate::projection::CemTreeAstStream {
+        let ast = CemAstBuilder::new(CemEventNormalizer::new(CemTokenizer::from_source(
+            BytesSource::new(SourceId(1), text.as_bytes().to_vec()),
+        )))
+        .build();
+        crate::projection::cem_tree_nodes(&ast)
+    }
+    fn text_values(nodes: &[CemTreeAstNode]) -> Vec<String> {
+        nodes
+            .iter()
+            .flat_map(|node| match node {
+                CemTreeAstNode::Text { value, .. } => vec![value.clone()],
+                CemTreeAstNode::Element { children, .. }
+                | CemTreeAstNode::Document { children, .. } => text_values(children),
+                _ => vec![],
+            })
+            .collect()
+    }
+    let schemas = SchemaRegistry::with_builtin_schemas();
+    let conversions = ConversionRegistry::with_builtin_converters();
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &schemas,
+        conversion_registry: &conversions,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    for input in [
+        "{p | Hello}",
+        "{p|Hello}",
+        "{p | Hello {b | world}!}",
+        "{div | {span | Text} tail}",
+        "{p |\nHello\n}",
+        "{p | ```  significant spaces  ```}",
+        "{p | ```first\nsecond\n```}",
+    ] {
+        let format = |text: &str| {
+            let result = execute_conversion_output_pipeline_from_cem_tree_with_environment(
+                &environment,
+                &pipeline(),
+                Arc::new(parse(text)),
+                None,
+                vec![],
+                "cemml:format",
+                None,
+                Some("memory:tabular-text"),
+            );
+            assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+            result.output.unwrap().as_str().unwrap().to_owned()
+        };
+        let once = format(input);
+        let twice = format(&once);
+        assert_eq!(once, twice, "unstable input: {input}");
+        assert_eq!(twice, format(&twice));
+        assert_eq!(
+            text_values(parse(input).as_nodes()),
+            text_values(parse(&once).as_nodes()),
+            "text changed: {input}"
+        );
+    }
+}

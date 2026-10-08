@@ -157,6 +157,17 @@
         <h2>Public attributes and slots</h2>
         <ul>
             <li data-gallery-attribute="label"><code>label</code></li>
+            <li data-gallery-attribute="autocapitalize"><code>autocapitalize</code></li>
+            <li data-gallery-attribute="autocomplete"><code>autocomplete</code></li>
+            <li data-gallery-attribute="inputmode"><code>inputmode</code></li>
+            <li data-gallery-attribute="list"><code>list</code></li>
+            <li data-gallery-attribute="max"><code>max</code></li>
+            <li data-gallery-attribute="maxlength"><code>maxlength</code></li>
+            <li data-gallery-attribute="min"><code>min</code></li>
+            <li data-gallery-attribute="minlength"><code>minlength</code></li>
+            <li data-gallery-attribute="pattern"><code>pattern</code></li>
+            <li data-gallery-attribute="spellcheck"><code>spellcheck</code></li>
+            <li data-gallery-attribute="step"><code>step</code></li>
             <li data-gallery-attribute="type"><code>type</code></li>
             <li data-gallery-attribute="value"><code>value</code></li>
             <li data-gallery-attribute="name"><code>name</code></li>
@@ -260,6 +271,11 @@
 }
 </template>
         </cem-demo-element>
+        <cem-demo-element legend="Native input constraints" description="Native input attributes control editing hints and validation. The list attribute connects the city-code field to browser suggestions."><template slot="source">
+<cem-text-field label="Quantity" type="number" min="1" max="10" step="1" inputmode="numeric"></cem-text-field>
+<cem-text-field label="City code" minlength="2" maxlength="3" pattern="[A-Z]+" autocomplete="off" autocapitalize="characters" spellcheck="false" list="cem-text-field-city-options"></cem-text-field>
+<datalist id="cem-text-field-city-options"><option value="SEA"></option><option value="SFO"></option></datalist>
+</template></cem-demo-element>
     </main>
 </div>
 <section aria-label="Theme and state variation matrix">

@@ -21,6 +21,8 @@ const historyEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
 const iconsOnly = process.argv.includes('--icons-only');
+const installedOnly = process.argv.includes('--installed-only');
+const verifiedLocations = installedOnly ? 'isolated package archives' : 'source and isolated package archives';
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -38,8 +40,8 @@ try {
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (iconsOnly) await verifyIcons(`${origin}/packages/cem-components/playgrounds/`);
-    else {
+    if (!installedOnly && iconsOnly) await verifyIcons(`${origin}/packages/cem-components/playgrounds/`);
+    else if (!installedOnly) {
         if (!navigationOnly && !suggestionsOnly) {
             await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
             if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
@@ -94,11 +96,11 @@ try {
             console.log(JSON.stringify(report, null, 2));
         }
     }
-    if (iconsOnly) console.log('Icon and icon-button playgrounds, galleries and release bundle verified from source and isolated package archives.');
-    else if (suggestionsOnly && !evidenceOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
-    else if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
-    else if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
-    else if (!evidenceOnly) console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    if (iconsOnly) console.log(`Icon and icon-button playgrounds, galleries and release bundle verified from ${verifiedLocations}.`);
+    else if (suggestionsOnly && !evidenceOnly) console.log(`Suggestions playground and gallery verified from ${verifiedLocations}.`);
+    else if (actionOnly) console.log(`Action playground and gallery verified from ${verifiedLocations}.`);
+    else if (navigationOnly) console.log(`Gallery navigation verified from ${verifiedLocations}.`);
+    else if (!evidenceOnly) console.log(`Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from ${verifiedLocations}.`);
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -135,6 +137,7 @@ async function verifyActionGallery(page) {
         ...[...declaration.matchAll(/:scope[^\s{]*?\[([\w-]+)/g)].map(match => match[1]),
         'class', 'command-target', 'interaction', 'context-key',
     ])].sort();
+    await page.locator('section[aria-label="Implemented attributes"] [data-action-attribute]').first().waitFor({ state: 'attached' });
     const documented = await page.locator('[data-action-attribute]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-action-attribute')).sort());
     const demonstrated = await page.locator('cem-demo-element[data-covers]').evaluateAll(nodes => [...new Set(nodes.flatMap(node => node.getAttribute('data-covers').split(' ')))].sort());
     assert.deepEqual(documented, implemented, 'Gallery attribute inventory must match the canonical declaration');
@@ -812,6 +815,16 @@ async function verifyCommand(url, tag) {
         await page.locator('#command-preview button').press('Space');
         await page.evaluate(() => window.cemPlaygroundRuntime.whenRenderSettled(document.querySelector('#command-preview')));
         assert.equal(await page.locator('#command-preview').evaluate((host, name) => window.cemPlaygroundRuntime.snapshotInstance(host).slices[name], tag === 'cem-icon-button' ? 'pressed' : 'selected'), 'click');
+        if (tag === 'cem-menu-item') {
+            await page.getByRole('textbox', { name: 'href', exact: true }).fill('#menu-item-help');
+            await page.locator('#command-preview a[href="#menu-item-help"]').waitFor();
+            await page.getByRole('textbox', { name: 'aria-label', exact: true }).fill('Open help');
+            await page.waitForFunction(() => document.querySelector('#command-preview a')?.getAttribute('aria-label') === 'Open help');
+            await page.getByRole('textbox', { name: 'href', exact: true }).fill('');
+            await page.locator('#command-preview button').waitFor();
+            await page.getByRole('textbox', { name: 'aria-label', exact: true }).fill('');
+            await page.waitForFunction(() => !document.querySelector('#command-preview button')?.hasAttribute('aria-label'));
+        }
         await page.setViewportSize({ width: 375, height: 812 });
         assert(await page.locator('.property-groups').evaluate(node => node.getBoundingClientRect().right <= innerWidth));
         if (tag === 'cem-icon-button') await verifyIconLinkExamples(page);
@@ -922,6 +935,19 @@ async function verifyGalleries(baseUrl, tags) {
             if (tag !== 'cem-icon') {
                 await control.hover();
                 await control.focus();
+            }
+            if (tag === 'cem-field' || tag === 'cem-text-field') {
+                const constraints = page.locator('cem-demo-element[legend="Native input constraints"]');
+                const number = constraints.locator('input[type="number"]');
+                await number.waitFor();
+                for (const [name, value] of Object.entries({ min: '1', max: '10', step: '1', inputmode: 'numeric' })) {
+                    assert.equal(await number.getAttribute(name), value, `${tag}: native ${name}`);
+                }
+                const text = constraints.locator('input[list]');
+                for (const [name, value] of Object.entries({ minlength: '2', maxlength: '3', pattern: '[A-Z]+', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false' })) {
+                    assert.equal(await text.getAttribute(name), value, `${tag}: native ${name}`);
+                }
+                assert.equal(await text.evaluate(input => input.list?.options.length), 2);
             }
             if (tag === 'cem-field' || tag === 'cem-text-field' || tag === 'cem-textarea') {
                 assert.equal(await control.evaluate(node => getComputedStyle(node).borderWidth), '0px');
@@ -1233,7 +1259,9 @@ async function verifyNavigation(baseUrl) {
             assert.equal(await theme.isDisabled(), true);
             await index.click();
             assert.equal(page.url(), new URL('index.html', baseUrl).href);
-            await page.getByRole('heading', { name: 'CEM component playground', exact: true }).waitFor();
+            await page.getByRole('heading', { name: 'CEM component playground', exact: true }).waitFor().catch(async error => {
+                throw new Error(`Index navigation from ${file} failed: ${JSON.stringify(await capturePlaygroundReadiness(page))}; headings=${await page.locator('h1').allTextContents()}`, { cause: error });
+            });
         }
     } finally {
         await context.close();
@@ -1252,7 +1280,7 @@ async function verifySuggestions(baseUrl) {
             const host = document.querySelector('cem-suggestions');
             return host && window.cemPlaygroundRuntime?.renderedSuggestionsFor(host)?.current();
         });
-        const editor = page.locator('cem-suggestions [slot=editor] input');
+        const editor = page.getByRole('combobox', { name: 'Letter', exact: true });
         await editor.focus();
         await page.waitForFunction(() => document.querySelector('cem-suggestions [slot=editor] input')?.getAttribute('aria-expanded') === 'true');
         await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');

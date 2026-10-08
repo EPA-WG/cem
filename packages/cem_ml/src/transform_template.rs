@@ -9882,7 +9882,37 @@ impl TransformTemplateTypedCemTreeRenderer<'_, '_> {
                     self.rendered.push_line_ending();
                 }
             }
-            self.render_node(node, &path)?;
+            if let CemTreeAstNode::Text { value, source } = node {
+                // Layout around a bare text node would be parsed back into its
+                // value. Fence the value when the formatter supplies a boundary
+                // so another formatting pass cannot absorb indent/newline bytes.
+                // Leading whitespace in text also needs a fence to remain data.
+                if self.syntax.is_cem_like()
+                    && (has_intervening_fragment
+                        || value.is_empty()
+                        || value.starts_with(char::is_whitespace)
+                        || !self
+                            .gap_operation_indices(parent_path, before_node + 1)
+                            .is_empty())
+                {
+                    if value.contains("```") {
+                        return Err(
+                            "CEM text containing rich-content delimiters cannot be safely fenced"
+                                .to_owned(),
+                        );
+                    }
+                    let role = self.owner_color_role(&path);
+                    self.rendered.push_colored_mapped(
+                        &format!("```{value}```"),
+                        Some(source),
+                        role.as_deref(),
+                    );
+                } else {
+                    self.render_node(node, &path)?;
+                }
+            } else {
+                self.render_node(node, &path)?;
+            }
             wrote_source = true;
             previous_source_whitespace = whitespace;
             has_intervening_fragment = false;

@@ -1312,46 +1312,89 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#convert-five-icon-gallery-demos-to-cem-ml).
 
-- [ ] Formatter follow-up: repeated tabular CEM formatting adds blank lines to
-      text-bearing nodes. Keep the first native conversion output for this task;
-      diagnose formatter idempotence separately with a minimal native fixture.
+- [x] Formatter follow-up: diagnose and fix repeated tabular CEM formatting
+      adding blank lines to text-bearing nodes with a minimal native fixture.
+      Delivered 2026-10-08: text-only layout ignores formatting whitespace;
+      mixed-content text is fenced at inserted layout boundaries, and leading
+      significant whitespace remains inside text fences. Native fixtures assert
+      stable second/third output and unchanged inline, nested, multiline and
+      fenced text values. Writer tests and all six CEM target conversion tests
+      pass; the rebuilt CLI produces identical first/second tabular output.
+      Scenarios for later design verification: formatting layout must not become
+      text on reparse; significant text whitespace must not be trimmed.
 
 ## Remove fixture-only gallery IDs
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#remove-fixture-only-gallery-ids).
 
-- [ ] Run source/installed-package browser checks when execution is available.
+- [x] Run source/installed-package browser checks. Delivered 2026-10-08:
+      all source checks completed in the unfiltered verifier; the complete
+      installed leg passes with `--installed-only`. Navigation, galleries,
+      property controls, native input forwarding, suggestions, bundle loading and
+      pending theme gradients are covered. The explicit package retry keeps
+      every installed check and the default combined gate remains unchanged.
 
 ## Organize cem-icon gallery examples
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#organize-cem-icon-gallery-examples).
 
-- [ ] Run browser gallery verification when session permissions allow it.
+- [x] Run browser gallery verification. Source and installed icon galleries
+      pass the focused 2026-10-08 gate recorded above.
 
 ## Fix duplicate Font Awesome glyphs in cem-icon
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#fix-duplicate-font-awesome-glyphs-in-cem-icon).
 
-- [ ] Run icon stories and source/installed-package galleries when browser
-      execution is available; current session restrictions still apply.
+- [x] Run icon stories and source/installed-package galleries. The 2026-10-08
+      focused run above passes 20 stories and both package locations.
 
 ## Align cem-icon with the label principle
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#align-cem-icon-with-the-label-principle).
 
-- [ ] Rerun icon stories after removing `name` (browser execution requires host permissions).
+- [x] Rerun icon stories after removing `name`: covered by the 20 passing
+      icon/icon-button stories recorded above.
 
-- [ ] Complete source/installed-package playground verification, then commit and push.
-      The prior playground run was interrupted by the session environment change;
-      `.git` is now read-only and network access is restricted. Package checks
-      passed before that change; the rerun hit `spawnSync npm EPERM`. Stop the
-      restricted reruns and resume these checks in a browser-capable environment
-      with Git write access.
+- [x] Complete source/installed-package playground verification, then commit and push.
+      Delivered 2026-10-08: browser/Git access is available; source and isolated
+      npm package checks pass as recorded above. Refreshed playground builds pass.
 
-- [ ] Next: align `cem-icon-button` with the shared label principle; its current
-      accessibility-only `label` remains an inconsistency outside this change.
+- [x] Align `cem-icon-button` with the shared label principle. Its declaration
+      forwards visible fallback `label` to `cem-icon` and separate `aria-label`
+      to the glyph/control; the focused stories and package galleries above pass.
+
+## Native verification follow-ups
+
+- [ ] Reconcile two CLI query source-contract tests with the current dispatch
+      boundary and restore the legacy material dropdown fixture's required
+      `template#cem-dropdown` selector. The 2026-10-08 full CEM-ML run passed
+      2,077 tests; two formatter expectations were subsequently updated and pass,
+      while these three unrelated failures remain. Scenarios for later design
+      verification: query execution still uses the common typed runner and host
+      policy; the legacy manifest points to a real retained template.
 
 ## Browser failures observed during placement verification
+
+- [x] Fixture: support installed-only playground verification without weakening
+      the default source-plus-installed gate. Wait for the action inventory
+      section before comparing its full attribute set. The first full installed
+      run observed an empty set; isolated source/installed action verification
+      passed. Preserve readiness diagnostics if it recurs; do not claim a runtime
+      cause from this single observation. Scenarios for later design verification:
+      explicit package retries run all installed checks and report their scope.
+      Delivered 2026-10-08: the installed-only run passes every package check;
+      isolated action checks also pass in both source and installed locations.
+
+- [x] Fixture: complete native input attribute inventories and live forwarding
+      examples in the field/text-field galleries, plus a suggestions profile
+      example. Scope the suggestions property interaction to its named Letter
+      combobox so the numeric datalist example does not make it ambiguous.
+      The full gate first reached `cem-field` and reported missing `min`.
+      Scenarios for later design verification: min/max/step and text constraints
+      reach native controls; datalist IDs serve real relationships; both source
+      and installed galleries use the same admitted public attributes.
+      Delivered 2026-10-08: all source/installed gallery inventories and native
+      constraint/datalist assertions pass; suggestions pass in both locations.
 
 - [ ] Add a native template diagnostic regression for adjacent expression text
       in a quoted attribute (`@image="{$path}{$image}"`). The icon module example
@@ -1362,12 +1405,14 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       Scenarios for later design verification: malformed expression input must
       not silently remove an attribute; supported concatenation retains its value.
 
-- [ ] Reconcile the `cem-menu-item` property/gallery attribute inventory with
+- [x] Reconcile the `cem-menu-item` property/gallery attribute inventory with
       its canonical declaration, then rerun the full `verify-playgrounds` gate.
-      Reproduced 2026-10-08: the property page inventory omits `aria-label` and
-      `href`; the gate stops before subsequent galleries and installed packages.
+      Delivered 2026-10-08: the inventory and live navigation/name example now
+      include `aria-label` and `href`. Source and installed control checks pass.
       Scenarios for later design verification: every admitted public attribute
-      has a documented live example in source and installed pages; focused icon
+      has a documented live example in source and installed pages; exercise
+      live link/button switching and accessible-name updates. Capture index
+      navigation readiness on failure; focused icon
       verification does not count as a pass of this full gate.
 
 - [ ] Fixture: diagnose the workflow gallery's missing `cem-text-field input`

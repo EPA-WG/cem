@@ -22870,7 +22870,7 @@ mod tests {
                     br#"@doc cem-ml 1
 
 {article @id="welcome" |
-    {h1 | Welcome}
+    {section | {h1 | Welcome}}
     {p | This is a minimal CEM-ML document.}
 }"#,
                     "basic.cem",
@@ -22896,7 +22896,7 @@ mod tests {
         let resp = convert_with_indent_options(BTreeMap::new());
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "@doc cem-ml 1\n{article @id=welcome |\n    {h1 |\n        Welcome\n    }\n    {p |\n        This is a minimal CEM-ML document.\n    }\n}\n"
+            "@doc cem-ml 1\n{article @id=welcome |\n    {section |\n        {h1 | Welcome}\n    }\n    {p | This is a minimal CEM-ML document.}\n}\n"
         );
         assert!(
             resp.diagnostics.is_empty(),
@@ -22908,7 +22908,7 @@ mod tests {
             convert_with_indent_options(BTreeMap::from([("indent".to_owned(), "  ".to_owned())]));
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "@doc cem-ml 1\n{article @id=welcome |\n  {h1 |\n    Welcome\n  }\n  {p |\n    This is a minimal CEM-ML document.\n  }\n}\n"
+            "@doc cem-ml 1\n{article @id=welcome |\n  {section |\n    {h1 | Welcome}\n  }\n  {p | This is a minimal CEM-ML document.}\n}\n"
         );
         assert!(
             resp.diagnostics.is_empty(),
@@ -22946,7 +22946,7 @@ mod tests {
 
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "@doc cem-ml 1\n{article @data-attr1=abc @data-attr2=\"long attr value\" @data-attr3=abc @data-attr4=abc\n    @data-attr5=abc @data-attr6=abc @id=welcome |\n    {h1 |\n        Welcome\n    }\n}\n"
+            "@doc cem-ml 1\n{article @data-attr1=abc @data-attr2=\"long attr value\" @data-attr3=abc @data-attr4=abc\n    @data-attr5=abc @data-attr6=abc @id=welcome |\n    {h1 | Welcome}\n}\n"
         );
         assert!(
             resp.diagnostics.is_empty(),

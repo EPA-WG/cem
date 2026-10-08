@@ -111,7 +111,9 @@
 {p | Label is the fallback command text. Default slot content replaces it. The native button exposes the menuitem role; a complete menu owns navigation and focus between commands.}
 }}
 </template></cem-element>
-<h2>Attribute inventory</h2><ul><li data-command-attribute="class"><code>class</code></li>
+<h2>Attribute inventory</h2><ul><li data-command-attribute="href"><code>href</code></li>
+<li data-command-attribute="aria-label"><code>aria-label</code></li>
+<li data-command-attribute="class"><code>class</code></li>
 <li data-command-attribute="disabled"><code>disabled</code></li>
 <li data-command-attribute="expanded"><code>expanded</code></li>
 <li data-command-attribute="hidden"><code>hidden</code></li>
@@ -124,6 +126,10 @@
 <cem-menu-item id="command-hidden" label="Hidden by presence" hidden="false"></cem-menu-item>
 <cem-menu-item id="command-content" label="Projected command"><span>Projected content</span></cem-menu-item>
 </template></cem-demo-element>
+<cem-demo-element legend="Leaf navigation and accessible naming" data-covers="href aria-label"><template slot="source">
+<cem-menu-item href="#menu-item-help" label="Help" aria-label="Open menu-item help"></cem-menu-item>
+</template></cem-demo-element>
+<p id="menu-item-help">Navigation leaves retain their native link destination and accessible name.</p>
 <cem-element><template type="text/cem-ml">
 {cem-module-url @slice=sourceUrl @src="@epa-wg/cem-components/components/cem-menu-item"}
 {cem:if @test="datadom.slices.sourceUrl" |

@@ -80,6 +80,17 @@
 <p><a href="./cem-field.html">Property playground</a> · <a href="https://github.com/EPA-WG/cem/blob/develop/packages/cem-components/src/components/cem-field/cem-field.stories.ts">Automated stories</a></p></header><main>
 <style>[data-gallery-theme] { padding: var(--cem-dim-large); background-color: var(--cem-palette-comfort); color: var(--cem-palette-comfort-text); } .examples { display: grid; gap: var(--cem-dim-large); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); } cem-demo-element { display: block; margin-block: var(--cem-dim-large); }</style><p>Hover each enabled control, hold a pointer press, and use Tab for keyboard focus. States below are real component attributes. The five theme rows stay fixed so you can compare the same states side by side.</p>
 <p>Both fields remain borderless. Enabled, unfocused controls keep a subtle resting indicator. Hover changes its color; focus adds a separate stripe. Busy preserves editing; disabled, readonly, required and busy use attribute presence, including the text false. Invalid is an ARIA string.</p><h2>Public attributes and slots</h2><ul><li data-gallery-attribute="label"><code>label</code></li>
+<li data-gallery-attribute="autocapitalize"><code>autocapitalize</code></li>
+<li data-gallery-attribute="autocomplete"><code>autocomplete</code></li>
+<li data-gallery-attribute="inputmode"><code>inputmode</code></li>
+<li data-gallery-attribute="list"><code>list</code></li>
+<li data-gallery-attribute="max"><code>max</code></li>
+<li data-gallery-attribute="maxlength"><code>maxlength</code></li>
+<li data-gallery-attribute="min"><code>min</code></li>
+<li data-gallery-attribute="minlength"><code>minlength</code></li>
+<li data-gallery-attribute="pattern"><code>pattern</code></li>
+<li data-gallery-attribute="spellcheck"><code>spellcheck</code></li>
+<li data-gallery-attribute="step"><code>step</code></li>
 <li data-gallery-attribute="type"><code>type</code></li>
 <li data-gallery-attribute="value"><code>value</code></li>
 <li data-gallery-attribute="name"><code>name</code></li>
@@ -146,6 +157,11 @@
 {cem-field @describedby=validation-help @error=validation-error @invalid=true @label="Invalid entry"}
 {p @id=validation-help | Check the account name.}
 {p @id=validation-error | This name is unavailable.}
+</template></cem-demo-element>
+<cem-demo-element legend="Native input constraints" description="Native input attributes control editing hints and validation. The list attribute connects the city-code field to browser suggestions."><template slot="source">
+<cem-field label="Quantity" type="number" min="1" max="10" step="1" inputmode="numeric"></cem-field>
+<cem-field label="City code" minlength="2" maxlength="3" pattern="[A-Z]+" autocomplete="off" autocapitalize="characters" spellcheck="false" list="cem-field-city-options"></cem-field>
+<datalist id="cem-field-city-options"><option value="SEA"></option><option value="SFO"></option></datalist>
 </template></cem-demo-element>
 </main></div>
 <section aria-label="Theme and state variation matrix">
