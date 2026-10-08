@@ -537,9 +537,14 @@
             "inputs": [
                 "{projectRoot}/scripts/verify-package.mjs",
                 "{projectRoot}/package.json",
+                "{projectRoot}/README*",
+                "{projectRoot}/LICENSE*",
+                "{workspaceRoot}/packages/cem_ql/src/suggestions/UNICODE-LICENSE.txt",
+                { "runtime": "node --version" },
+                { "runtime": "npm --version" },
                 {
-                    "dependentTasksOutputFiles": "dist/**",
-                    "transitive": false
+                    "dependentTasksOutputFiles": "**/*",
+                    "transitive": true
                 }
             ],
             "outputs": [],

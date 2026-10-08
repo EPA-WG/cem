@@ -1184,13 +1184,36 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         value and range replacement, and record selection, events, submission,
         validity and proof invalidation without imposing browser undo grouping.
 
-- [ ] Design non-key platform close-request support for manual suggestions
+- [x] Design non-key platform close-request support for manual suggestions
       surfaces before claiming Back/dismiss-gesture integration. Evaluate native
       CloseWatcher activation/grouping against parent dialogs/popovers and provide
       one close route without a competing keyboard watcher or local behavior.
       Scenarios for later design verification: first Escape closes only the child;
       a platform close request follows its declared scope; async opening does not
       silently group an independently dismissible child with its parent.
+      Delivered 2026-10-08: adopted explicit host-coordinated admission in the
+      popup design. Reserve one watcher during a deliberate opening activation,
+      bind it to pending/visible session lifetime, and dismiss through the shared
+      route. Keep the existing Escape/IME press owner; decline platform admission
+      when independent parent grouping cannot be established. Implementation and
+      device support remain gated by the following actions.
+
+  - [ ] Implement shared platform-close admission and watcher lifecycle for the
+        manual-listbox session. Fixture action: pending cancellation before
+        publication, generation fencing, source/parent/authority loss, disposal,
+        reentrant close and fresh reopen. Scenarios for later design verification:
+        no stale completion revives a canceled intent; no duplicate watcher or
+        close notification; native datalist acquires no watcher.
+  - [ ] Integrate admitted watchers with the existing editor Escape/IME route and
+        test native grouping with modal dialogs and auto/hint popovers. Fixture
+        action: separately activated child, same-activation/unmanaged-parent
+        refusal, held Escape and unsupported API. Scenarios for later design
+        verification: first Escape closes only the child; late async readiness
+        creates no new group; direct requestClose tests do not prove UA grouping.
+  - [ ] Record supported-device Back/dismiss-gesture evidence before advertising
+        platform close support. Scenarios for later design verification: one
+        accepted platform request dismisses the admitted child, preserves text
+        and parent state, and releases the watcher so normal navigation resumes.
 
 ## Restore the components declarative verification gate
 
@@ -1211,7 +1234,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 
 ## Preserve runtime package verification invalidation
 
-- [ ] Fix cem-elements verify-package cache invalidation after runtime build
+- [x] Fix cem-elements verify-package cache invalidation after runtime build
       outputs change. Fixture action: add or change a packaged runtime module,
       then prove the package check reruns against the new dist contents.
       Evidence 2026-10-07: after the geometry build added three dist files, the
@@ -1221,7 +1244,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       invalidates verification; an unchanged build may reuse its verified result.
       Reconfirmed 2026-10-08: the normal target rebuilt the runtime but replayed
       the old 183-file verification result; cache-bypassed verification checked
-      the current 213-file package and passed. The invalidation fix remains open.
+      the current 213-file package and passed.
+      Delivered 2026-10-08: changed the dependency-output filter from `dist/**`
+      to `**/*`, including transitive WASM comparison inputs, pinned source notice,
+      metadata/README/license files and Node/npm versions. Six normal Nx runs
+      proved added and changed compiled modules invalidate verification, unchanged
+      output hits cache, and fixture removal restores the original hash/output.
+      Counts were 219 baseline, 222 with the temporary module, and 219 restored;
+      both module versions had different verification hashes. The package README
+      records reproduction and links the machine-readable run evidence.
 
 ## Respect action states in cem-icon-button
 

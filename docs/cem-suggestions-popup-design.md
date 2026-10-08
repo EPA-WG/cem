@@ -187,10 +187,9 @@ refocus-after-blur workaround. Scrollbar/touch scrolling is not an option commit
 The [HTML close-request model](https://html.spec.whatwg.org/multipage/interaction.html#close-requests)
 lets a handled Escape key prevent the subsequent native close request. The
 first profile uses that shared key route; it does not install a competing
-`CloseWatcher` for the same Escape. Non-key platform close integration requires
-separate design and verification: watcher grouping can close a new child with
-an existing parent without a separate activation. Do not claim parent-preserving
-Back/dismiss-gesture behavior from the presence of that API.
+`CloseWatcher` for the same Escape. The opt-in non-key extension below retains
+that route and requires explicit admission; API presence alone does not establish
+parent-preserving Back/dismiss-gesture behavior.
 
 The runtime tracks the admitted ancestor surface lifetime explicitly. Manual
 popovers do not supply automatic transient-parent cleanup. Close child sessions
@@ -198,6 +197,92 @@ when their parent closes, their editor becomes inert/hidden or their authority
 is revoked, even if the listbox was produced separately. Inside a modal dialog,
 the listbox must remain in that dialog's interactive DOM subtree; a placement
 grant does not exempt native containment. No body portal is introduced.
+
+## Non-key platform close requests: adopted design
+
+This extension belongs to the shared surface/session runtime. It is not enabled
+by the current manual-listbox implementation. The host supplies a short-lived
+close-request admission tied to the original editor, session generation and
+explicit ancestor lifetimes. Component markup, DOM adjacency and reference
+values cannot manufacture that authority. Native-datalist remains browser-owned
+and does not participate in this extension.
+
+### Browser boundary
+
+HTML groups watchers and can close several together when opening lacks a fresh
+activation. Modal dialogs and auto/hint popovers already participate. Canceling
+Escape's keydown prevents subsequent watcher processing; watcher cancel events
+are not always cancelable. The public API exposes no group identifier or group
+reservation query. See the [HTML close-request and watcher algorithms](https://html.spec.whatwg.org/multipage/interaction.html#close-requests-and-close-watchers).
+
+Consequently the host must coordinate watcher creation for the relevant window
+and ancestor chain. A trusted event or `userActivation.isActive` alone is not a
+proof of independent grouping. An unmanaged native ancestor or another watcher
+created during the same activation invalidates any independence claim. Do not
+probe grouping by triggering a close request or cancel parents to compensate.
+
+### Admission and asynchronous opening
+
+1. Keep programmatic/focus-only openings on the existing keyboard, pointer and
+   focus routes. Platform admission requires an eligible, deliberate trusted
+   opening interaction on the original editor and a live explicit parent chain.
+2. Within that interaction, before awaiting native queries or rendering, the
+   shared host coordinator may create one watcher for the pending session. It
+   must know that this activation has not already been used to create another
+   watcher or native surface and that the supported browser's activation/grouping
+   behavior has been verified. Reserve no watcher at module load or for an
+   unrequested future session; create no second watcher when rendering finishes.
+3. Bind the reservation to the pending intent and its generation. A platform
+   close while pending cancels that intent. Late source/query/render completion
+   cannot reopen it. Failed admission leaves ordinary suggestions functional and
+   reports platform integration unavailable; it never silently co-dismisses a
+   parent to provide child-only behavior.
+4. Keep the watcher only while that same intent is pending or visible. Source,
+   authority or editor loss, parent close, unsuccessful opening, explicit
+   dismissal, reset and disconnect destroy it. Destruction is cleanup, not a
+   second close notification. A new opening requires fresh admission; do not
+   bank activation or indefinitely retain a watcher for possible later results.
+
+If the host cannot control the relevant watcher creation sequence, it must
+decline admission. Browser grouping cannot be repaired retrospectively after an
+asynchronous open. Automatic promotion of an already-open session to a platform
+watcher is outside this extension; dismiss/reopen under a new deliberate action
+instead. No fallback installs history entries or intercepts navigation.
+
+### One dismissal route
+
+The editor lease continues to own Escape, IME fencing and held-press suppression.
+A handled Escape dismisses through the existing session, destroys its watcher
+and prevents the key default. No watcher handler independently processes keys,
+and the generic native-surface adapter must not register a second watcher for
+this manual-listbox session. Enter/Tab and pointer behavior remain as specified
+in the interaction design.
+
+The watcher's `close` notification calls the same generation-checked session
+`dismiss` route with a platform-close reason. It cancels pending work, clears
+preview/active descendant and hides once without committing, submitting,
+clearing text or moving focus. The event does not identify a specific Back key
+or gesture; do not fabricate one. Suggestions do not veto `cancel` events or
+try to keep a parent open by canceling its watcher. A close that cannot be
+canceled must finish cleanup; it cannot be translated into an application veto.
+
+The host's explicit parent relationships remain responsible for child cleanup
+on ancestor loss. They do not authorize replacing an ancestor's native watcher
+or bypassing modal containment. An independently admitted child must dismiss
+before its parent on a fresh native close request; otherwise that browser/host
+combination cannot advertise independent platform close support.
+
+### Implementation and acceptance gates
+
+The following work remains actionable in [todo.md](todo.md): shared admission and
+watcher/session disposal, integration with the original editor route, and browser
+plus physical-device verification. Cover pending cancellation and delayed
+publication, separately activated modal/auto-popover parents, same-activation
+refusal, unmanaged parents, repeated Escape/IME keys, unsupported browsers,
+reentrant dismissal and fresh reopening. Verify native close processing in a
+browser independently from direct `requestClose()`/`close()` method tests;
+method calls alone do not establish group isolation or mobile Back behavior.
+No platform-support claim is made until those gates pass.
 
 ## Delivery gaps and verification
 

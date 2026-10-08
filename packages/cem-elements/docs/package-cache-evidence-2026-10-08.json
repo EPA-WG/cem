@@ -1,0 +1,100 @@
+{
+  "schema": "cem-package-cache-evidence-v1",
+  "date": "2026-10-08",
+  "nx": "22.7.0",
+  "command": "yarn nx run cem-elements:verify-package",
+  "fixture": "temporary unexported src/__verify_package_cache_probe.ts, changed from literal 1 to 2, then removed",
+  "cacheBypassed": false,
+  "runs": [
+    {
+      "phase": "baseline",
+      "packagedFiles": 219,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "4956493887267516411",
+        "startTime": "2026-10-08T20:30:58.059Z",
+        "endTime": "2026-10-08T20:31:00.080Z",
+        "params": "",
+        "cacheStatus": "cache-miss",
+        "status": 0
+      }
+    },
+    {
+      "phase": "unchanged",
+      "packagedFiles": 219,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "4956493887267516411",
+        "startTime": "2026-10-08T20:31:56.097Z",
+        "endTime": "2026-10-08T20:31:56.097Z",
+        "params": "",
+        "cacheStatus": "local-cache-hit",
+        "status": 0
+      }
+    },
+    {
+      "phase": "added-module",
+      "packagedFiles": 222,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "10159827938666728248",
+        "startTime": "2026-10-08T20:32:32.700Z",
+        "endTime": "2026-10-08T20:32:34.661Z",
+        "params": "",
+        "cacheStatus": "cache-miss",
+        "status": 0
+      }
+    },
+    {
+      "phase": "changed-module",
+      "packagedFiles": 222,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "9476083839936222986",
+        "startTime": "2026-10-08T20:32:39.372Z",
+        "endTime": "2026-10-08T20:32:41.441Z",
+        "params": "",
+        "cacheStatus": "cache-miss",
+        "status": 0
+      }
+    },
+    {
+      "phase": "unchanged-module",
+      "packagedFiles": 222,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "9476083839936222986",
+        "startTime": "2026-10-08T20:32:43.214Z",
+        "endTime": "2026-10-08T20:32:43.214Z",
+        "params": "",
+        "cacheStatus": "local-cache-hit",
+        "status": 0
+      }
+    },
+    {
+      "phase": "restored",
+      "packagedFiles": 219,
+      "task": {
+        "taskId": "cem-elements:verify-package",
+        "target": "verify-package",
+        "projectName": "cem-elements",
+        "hash": "4956493887267516411",
+        "startTime": "2026-10-08T20:32:45.408Z",
+        "endTime": "2026-10-08T20:32:45.408Z",
+        "params": "",
+        "cacheStatus": "local-cache-hit",
+        "status": 0
+      }
+    }
+  ]
+}

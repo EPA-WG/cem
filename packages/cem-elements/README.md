@@ -753,6 +753,26 @@ runtime modules never import a monorepo-relative `packages/cem_ql` path. Run
 `yarn nx run cem-elements:verify-package` to compare those bytes and verify the
 real npm archive and clean-consumer import.
 
+Package verification hashes completed dependency outputs with `**/*` (including
+transitive WASM comparison inputs), the pinned source notice, package metadata,
+README/license files, and Node/npm versions. Output paths are workspace-relative;
+`dist/**` misses `packages/cem-elements/dist` and can replay a stale success.
+Keep this gate cached, but do not replace output hashing with a source-only glob
+or hash generated files before their build dependency finishes.
+
+For a cache regression check, run `verify-package` twice normally, add a temporary
+unexported TypeScript module under `src`, run again, change that module's emitted
+content and run again, then repeat unchanged. Added/changed outputs must give
+new verification hashes and execute the check; unchanged output must reuse it.
+Remove only the temporary module and rerun to restore the original build. Inspect
+both the verifier's package count and its task hash/cache status in
+`.nx/cache/run.json` (Nx 22.7); a replayed success message alone proves nothing.
+Do not use `--skip-nx-cache` for this regression check. Run it without concurrent
+builds or edits to this package.
+The [2026-10-08 evidence](docs/package-cache-evidence-2026-10-08.json) records
+219 → 222 → 222 → 219 packaged files, distinct hashes for the two emitted module
+versions, and successful cache reuse for unchanged and restored outputs.
+
 ## Testing
 
 Run `yarn nx run cem-elements:test` to execute the runtime stories through Storybook Test.
