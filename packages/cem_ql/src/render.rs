@@ -133,6 +133,34 @@ impl TemplateData {
         Ok(())
     }
 
+    /// Capability-owned live inputs cannot be replaced by authored aliases or slices.
+    /// Stage the control envelope so malformed input never leaves a partial binding.
+    pub fn bind_reserved_native_slice(&mut self, name: &str, values: ItemStream) -> Result<(), String> {
+        let paths = [name.to_owned(), format!("datadom.slices.{name}")];
+        if self.bindings.keys().any(|binding| paths.iter().any(|path| {
+            binding == path || binding.strip_prefix(path).is_some_and(|suffix| suffix.starts_with('.'))
+        })) {
+            return Err(format!("Native slice `{name}` is reserved by its capability"));
+        }
+        if let Some(datadom) = self.bindings.get("datadom") {
+            let [Item::Record(fields)] = datadom.items.as_slice() else {
+                return Err("Native slices require a data-island control envelope".into());
+            };
+            if let Some(slices) = fields.get("slices") {
+                let [Item::Record(slices)] = slices.as_slice() else {
+                    return Err("Native slices require a slice control envelope".into());
+                };
+                if slices.contains_key(name) {
+                    return Err(format!("Native slice `{name}` is reserved by its capability"));
+                }
+            }
+        }
+        let mut staged = self.clone();
+        staged.bind_native_slice(name, values)?;
+        *self = staged;
+        Ok(())
+    }
+
     pub fn with_binding(mut self, name: impl Into<String>, value: ItemStream) -> Self {
         self.bindings.insert(name.into(), value);
         self

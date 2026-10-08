@@ -1,4 +1,4 @@
-import { getCemEditorProvider } from './form-control-capability.js';
+import { getCemEditorProvider, isCemEditorLeaseFor, type CemEditorLease } from './form-control-capability.js';
 import { createCemSurfaceGeometryLease, nativeSurfaceGeometry } from './popup-controller.js';
 import { observeInteractionReferences, reportInteractionReference } from './interaction-reference.js';
 import { assertCemSurfaceOwnerAvailable, createCemSurfaceSession, observeCemSurfaceDismissalRegion, type CemSurfaceLifetime, type CemSurfaceSession } from './surface-session.js';
@@ -15,6 +15,8 @@ interface Options {
     host: HTMLElement;
     editorHost: HTMLElement;
     lifecycle: CemManualListboxLifecycle;
+    /** One attachment shares its provider lease with attributes, visibility and commits. */
+    editorLease?: CemEditorLease;
     ancestors?: readonly CemSurfaceLifetime[];
     onVisibility?(open: boolean, reason: string): void;
 }
@@ -27,12 +29,14 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
     const { host, editorHost, lifecycle } = options;
     const provider = getCemEditorProvider(editorHost), editor = provider?.control;
     if (!provider || !(editor instanceof HTMLInputElement)) throw new TypeError('Manual listbox requires an exact native editor provider');
+    if (options.editorLease && !isCemEditorLeaseFor(options.editorLease, provider)) throw new TypeError('Manual listbox requires a verified editor lease');
     const ancestors = Object.freeze([...(options.ancestors ?? [])]);
     const abort = new AbortController();
     // Acquire surface ownership before the editor claim: a competing surface must not perturb another provider.
     let session: CemSurfaceSession | undefined;
     const geometry = createCemSurfaceGeometryLease(host, owner, () => session?.reconcile());
-    const lease = provider.lease({});
+    const lease = options.editorLease ?? provider.lease({});
+    const releaseLease = () => { if (!options.editorLease) lease.release(); };
     const placement = () => host.getAttribute('placement') ?? 'block-end start';
     const admittedAncestors = (node: HTMLElement) => {
         for (let parent = node.parentElement; parent; parent = parent.parentElement) {
@@ -77,7 +81,7 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
             },
             reset: () => geometry.reset(), onVisibility: options.onVisibility,
         });
-    } catch (error) { lease.release(); geometry.release(); throw error; }
+    } catch (error) { releaseLease(); geometry.release(); throw error; }
     const current = session;
     const releases: (() => void)[] = [];
     try {
@@ -89,7 +93,7 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
         }));
     } catch (error) {
         for (const release of releases) release();
-        try { current.disconnect(); } finally { lease.release(); geometry.release(); }
+        try { current.disconnect(); } finally { releaseLease(); geometry.release(); }
         throw error;
     }
     const inside = (target: EventTarget | null) => target instanceof Node && (target === editor || owner.contains(target));
@@ -117,7 +121,7 @@ export function connectCemManualListbox(owner: HTMLElement, options: Options): C
         disconnect() {
             if (disposed) return;
             disposed = true; abort.abort(); for (const release of releases) release(); stopPointers();
-            try { current.disconnect(); } finally { lease.release(); geometry.release(); }
+            try { current.disconnect(); } finally { releaseLease(); geometry.release(); }
         },
     };
 }

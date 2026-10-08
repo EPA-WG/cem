@@ -734,7 +734,7 @@ export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     },
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
-        behaviorIdentity: 'cem-elements-form-control-v2',
+        behaviorIdentity: 'cem-elements-form-control-v3',
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,

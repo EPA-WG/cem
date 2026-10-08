@@ -1,7 +1,8 @@
 import type { CemProducedElementBehavior, CemProducedElementBehaviorContext } from './cem-elements.js';
+import { createCemEditorAttributeClaim, type CemEditorAttributeClaim } from './editor-attributes.js';
 
 type Control = HTMLInputElement | HTMLTextAreaElement;
-export type CemEditorChangeCause = 'input' | 'programmatic' | 'reset' | 'restore' | 'authored' | 'commit' | 'rebind' | 'availability' | 'composition-start' | 'composition-end' | 'claims';
+export type CemEditorChangeCause = 'input' | 'programmatic' | 'reset' | 'restore' | 'authored' | 'commit' | 'rebind' | 'availability' | 'composition-start' | 'composition-end' | 'claims' | 'attribute-claims';
 export interface CemEditorUpdate { cause: CemEditorChangeCause; revision: number; control: Control | null }
 export interface CemEditorCommit {
     revision: number;
@@ -12,6 +13,7 @@ export interface CemEditorCommit {
 }
 export interface CemEditorLease {
     readonly valid: boolean;
+    readonly attributes: CemEditorAttributeClaim;
     handlePress(event: KeyboardEvent): boolean;
     commit(value: string, request: CemEditorCommit): boolean;
     release(): void;
@@ -42,6 +44,7 @@ interface FormControlState {
     handledPresses: Map<string, object>;
     listeners: Set<(update: CemEditorUpdate) => void>;
     leases: Set<object>;
+    attributeClaims: Map<object, CemEditorAttributeClaim>;
     validityClaims: Map<object, string>;
     generation: number;
     checkpoint?: { control: Control; revision: number; value: string };
@@ -52,12 +55,17 @@ const providerEvents = new WeakSet<Event>();
 // identities in this realm; never serialize them into an island or native input.
 const EDITOR_PROVIDERS = Symbol.for('cem.editor-providers.v2');
 const COMPOSITION_KEYS = Symbol.for('cem.editor-composition-keys.v1');
+const EDITOR_LEASES = Symbol.for('cem.editor-leases.v1');
 const environment = globalThis as typeof globalThis & {
     [EDITOR_PROVIDERS]?: WeakMap<HTMLElement, CemEditorProvider>;
     [COMPOSITION_KEYS]?: WeakSet<KeyboardEvent>;
+    [EDITOR_LEASES]?: WeakMap<CemEditorLease, CemEditorProvider>;
 };
 const providers = environment[EDITOR_PROVIDERS] ??= new WeakMap();
 const compositionKeys = environment[COMPOSITION_KEYS] ??= new WeakSet();
+const editorLeases = environment[EDITOR_LEASES] ??= new WeakMap();
+/** Exact transient provider ownership; a copied record cannot stand in for a lease. */
+export function isCemEditorLeaseFor(lease: CemEditorLease, provider: CemEditorProvider): boolean { return editorLeases.get(lease) === provider; }
 /** Captured before compositionend; native surface routes must keep this ownership. */
 export function isCemEditorCompositionKey(event: KeyboardEvent): boolean { return event.isComposing || compositionKeys.has(event); }
 /** Provider identity is established by the shared form capability, never a DOM selector. */
@@ -73,7 +81,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
     constructed(instance, context) {
         const state: FormControlState = { context, authoredValue: undefined, formDisabled: false, customValidity: '',
             provider: undefined as unknown as CemEditorProvider, control: null, revision: 0, composing: false,
-            imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), validityClaims: new Map(), generation: 0 };
+            imePresses: new Set(), handledPresses: new Map(), listeners: new Set(), leases: new Set(), attributeClaims: new Map(), validityClaims: new Map(), generation: 0 };
         states.set(instance, state);
         state.provider = editorProvider(instance, state);
         providers.set(instance, state.provider);
@@ -158,6 +166,7 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         state.abort?.abort(); state.abort = undefined;
         state.composing = false; state.imePresses.clear(); state.handledPresses.clear(); state.checkpoint = undefined;
         state.generation++; state.leases.clear(); state.validityClaims.clear();
+        for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
         publish(instance, state, 'availability');
         if (state.onInput) {
             instance.removeEventListener('input', state.onInput, true);
@@ -188,10 +197,17 @@ export const CEM_FORM_CONTROL_CAPABILITY: CemProducedElementBehavior = {
         const state = stateFor(instance), control = controlFor(instance);
         if (state.control !== control) {
             state.control = control; state.generation++; state.leases.clear(); state.validityClaims.clear();
+            for (const claim of state.attributeClaims.values()) claim.dispose(); state.attributeClaims.clear();
             publish(instance, state, 'rebind', true);
         }
         synchronize(instance, state);
         publish(instance, state, 'availability');
+    },
+    preserveRenderedAttribute(instance, current, desired, attribute) {
+        const state = stateFor(instance);
+        if (current !== controlFor(instance) || desired.hasAttribute(attribute.name)
+            && desired.getAttribute(attribute.name) !== current.getAttribute(attribute.name)) return false;
+        return [...state.attributeClaims.values()].some(claim => claim.preserves(attribute.name));
     },
     formDisabled(instance, disabled, context) {
         const state = stateFor(instance);
@@ -228,6 +244,7 @@ function controlFor(instance: HTMLElement): Control | null {
 
 function publish(instance: HTMLElement, state: FormControlState, cause: CemEditorChangeCause, edit = false): void {
     if (edit) { state.revision++; state.checkpoint = undefined; }
+    for (const claim of state.attributeClaims.values()) { if (edit) claim.clear(); else claim.refresh(); }
     const update = { cause, revision: state.revision, control: controlFor(instance) };
     for (const listener of [...state.listeners]) listener(update);
 }
@@ -277,8 +294,14 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
             let released = false;
             const valid = () => !released && state.leases.has(token) && instance.isConnected && !!state.abort
                 && state.leases.size === 1 && !!admitted && controlFor(instance) === admitted;
-            return {
+            const attributes = admitted ? createCemEditorAttributeClaim(admitted, () => valid() && editable(instance, state),
+                () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
+                    valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
+                };
+            state.attributeClaims.set(token, attributes);
+            const lease: CemEditorLease = {
                 get valid() { return valid(); },
+                attributes,
                 handlePress(event) {
                     if (!valid() || event.defaultPrevented || event.target !== controlFor(instance)
                         || !['Enter', 'Escape'].includes(event.key) || state.provider.compositionOwned(event)) return false;
@@ -318,10 +341,12 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
                 release() {
                     if (released) return;
                     released = true; state.leases.delete(token);
+                    attributes.dispose(); state.attributeClaims.delete(token); editorLeases.delete(lease);
                     for (const [press, claim] of state.handledPresses) if (claim === token) state.handledPresses.delete(press);
                     synchronize(instance, state); publish(instance, state, 'claims');
                 },
             };
+            editorLeases.set(lease, state.provider); return lease;
         },
     };
 }

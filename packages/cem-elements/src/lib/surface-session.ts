@@ -112,7 +112,7 @@ export function createCemSurfaceSession(host: HTMLElement, owner: HTMLElement, o
     const current = () => !disposed && available(host) && available(owner) && ancestors.every(a => a.current()) && !!proof?.();
     const reset = () => { generation++; opening = undefined; proof = undefined; options.reset(); };
     const dismiss = (cause = 'dismiss') => {
-        if (disposed) return false;
+        if (disposed || closing) return false;
         const active = accepted || !!opening || nativeSurfaceVisible(owner);
         reason = cause; closing = true; reset();
         try { if (nativeSurfaceVisible(owner)) owner.hidePopover(); }

@@ -39,6 +39,8 @@ export const Transactions: Story = {
         const changes: string[] = [];
         const release = provider.subscribe(update => changes.push(update.cause));
         const lease = provider.lease({});
+        expect(isolated.isCemEditorLeaseFor(lease, provider)).toBe(true);
+        expect(isolated.isCemEditorLeaseFor({ ...lease }, provider)).toBe(false);
         const seen: unknown[] = [];
         input.addEventListener('input', () => seen.push([field.value, input.value, new FormData(form).get('choice'), runtime.snapshotInstance(field).slices.value]));
         const events: string[] = [];

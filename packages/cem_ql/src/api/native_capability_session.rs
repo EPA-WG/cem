@@ -166,16 +166,26 @@ impl NativeCapabilitySession {
         ),
         crate::suggestions::SuggestionsError,
     > {
-        let view = self.suggestions()?.view(config)?;
         let mut data = self.data.clone();
+        let view = self.bind_suggestions_frame(&mut data, config)?;
         let root = ItemStream::once(view.root());
-        data.bind_native_slice("suggestions", root.clone())
-            .map_err(suggestions_error)?;
         let input = match index {
             Some(index) => ItemStream::once(view.row(index)?),
             None => root,
         };
         Ok((data, view, input))
+    }
+    /// Publish directly into a consumer's native frame without CEMV export/reload.
+    /// The frame retains the view and original source edges after this call.
+    pub fn bind_suggestions_frame(
+        &self,
+        data: &mut TemplateData,
+        config: &crate::suggestions::SuggestionsConfig,
+    ) -> Result<crate::suggestions::SuggestionsView, crate::suggestions::SuggestionsError> {
+        let view = self.suggestions()?.view(config)?;
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+            .map_err(suggestions_error)?;
+        Ok(view)
     }
     pub fn evaluate_suggestions(
         &self,

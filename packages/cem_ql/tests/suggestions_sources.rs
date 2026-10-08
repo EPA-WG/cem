@@ -62,6 +62,102 @@ fn config(query: &str) -> SuggestionsConfig {
 }
 
 #[test]
+fn published_suggestions_frame_retains_source_edges_and_reserves_slice_names() {
+    let s = session(
+        "{cem-option @value=same @label=First | {#later}}{cem-option @value=same | Second}",
+    );
+    let mut data = TemplateData::default();
+    s.bind_suggestions_frame(&mut data, &config("First"))
+        .unwrap();
+    let template = compile_template(
+        "{output | {$datadom.slices.suggestions.children.source.children.expression}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["datadom".into()],
+            ..Default::default()
+        },
+    );
+    let html = render_plan_to_html(&cem_ql::render::render_compiled_template(&template, &data));
+    assert!(html.contains("#later"), "{html}");
+    let original = s.evaluate("input", None).unwrap();
+    let root = data.bindings.get("suggestions").unwrap().items[0]
+        .view()
+        .unwrap();
+    let source = root.field("children").unwrap()[0]
+        .view()
+        .unwrap()
+        .field("source")
+        .unwrap();
+    assert_eq!(
+        source[0].view().unwrap().identity(),
+        original.items[0].view().unwrap().identity()
+    );
+    let query_template = compile_template(
+        "{output | {$datadom.slices.suggestions.dom:attribute(\"query\").value}}",
+        &CompileTemplateOptions {
+            host_bindings: vec!["datadom".into()],
+            ..Default::default()
+        },
+    );
+    let mut independent = TemplateData::default();
+    s.bind_suggestions_frame(&mut independent, &config("Second"))
+        .unwrap();
+    assert!(
+        render_plan_to_html(&cem_ql::render::render_compiled_template(
+            &query_template,
+            &independent
+        ))
+        .contains("Second")
+    );
+    assert!(
+        render_plan_to_html(&cem_ql::render::render_compiled_template(
+            &query_template,
+            &data
+        ))
+        .contains("First")
+    );
+    assert!(s.bind_suggestions_frame(&mut data, &config("")).is_err());
+    let mut forged = TemplateData::default().with_binding(
+        "suggestions",
+        ItemStream::once(Item::Atomic(AtomValue::String("authored".into()))),
+    );
+    assert!(s.bind_suggestions_frame(&mut forged, &config("")).is_err());
+    for name in [
+        "datadom.slices.suggestions",
+        "datadom.slices.suggestions.query",
+    ] {
+        let mut forged = TemplateData::default().with_binding(
+            name,
+            ItemStream::once(Item::Atomic(AtomValue::String("authored".into()))),
+        );
+        assert!(s.bind_suggestions_frame(&mut forged, &config("")).is_err());
+    }
+    let mut forged = TemplateData::default();
+    forged
+        .bind_native_slice(
+            "suggestions",
+            ItemStream::once(Item::Atomic(AtomValue::String("authored".into()))),
+        )
+        .unwrap();
+    forged.bindings.remove("suggestions");
+    assert!(s.bind_suggestions_frame(&mut forged, &config("")).is_err());
+}
+
+#[test]
+fn failed_suggestions_publication_keeps_the_original_control_envelope() {
+    let s = session("{cem-option @value=x | Choice}");
+    let scalar = Item::Atomic(AtomValue::String("authored".into()));
+    for envelope in [
+        scalar.clone(),
+        Item::Record([("slices".into(), vec![scalar])].into()),
+    ] {
+        let mut data = TemplateData::default().with_binding("datadom", ItemStream::once(envelope));
+        let before = format!("{:?}", data.bindings);
+        assert!(s.bind_suggestions_frame(&mut data, &config("")).is_err());
+        assert_eq!(format!("{:?}", data.bindings), before);
+    }
+}
+
+#[test]
 fn option_text_and_empty_values_do_not_borrow_labels_or_insert_spaces() {
     let s = session("<options xmlns=\"http://www.w3.org/1999/xhtml\"><option label=\"Display\">A<b>B</b> <!--gap--> <img alt=\"Image\"/> <script>ignored</script> C</option><option value=\"\">Empty</option><option value=\"x\" label=\"\">Fallback</option></options>");
     let plan = s.suggestions().unwrap();

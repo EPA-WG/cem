@@ -344,5 +344,22 @@ row-to-source placement mapping before publishing the XHTML declaration. Add
 the capability identity and worker/fallback/resume wiring in cem-elements, then
 the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)
-record those gaps and adjacent verification scenarios. No runtime or browser
-behavior is delivered or claimed by this design change.
+record those gaps and adjacent verification scenarios. The public suggestions
+declaration and complete controller are not delivered by the shared prerequisites.
+
+Native consumer-frame publication now retains the live view and original source
+edges directly, rejecting authored `suggestions` aliases or slice values before
+binding. The provider's package-private attribute lease checks current editor
+revision, exact unique endpoints, native visibility and focused eligible rows.
+It applies scalar claims atomically, merges only its own controls token, and
+releases without overwriting newer authored relationships. Render reconciliation
+preserves active provider claims that the declaration does not replace. The
+manual-listbox delegate can share that exact verified provider lease.
+
+These APIs require a trusted current-publication hook; endpoint pointers and
+IDs cannot establish original source-to-row placement authority. Cross-component
+outbound publication and the host-issued grants in both directions remain open.
+The current CEMV channel rejects live views containing native source edges. The
+active action records the pending choice between original processing-owner
+routing and explicitly granted consumer-local derivation; resume must reacquire
+authority under either approach.

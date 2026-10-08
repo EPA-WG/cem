@@ -575,6 +575,29 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Fixture action: add native-frame contracts first and browser worker/fallback
       cases for native bindings, independent consumers, conflicting editor claims,
       stale row mappings, invalidated grants and coordinated producer revisions.
+      - [x] Add native contracts for injecting the retained suggestions view into
+        a fresh consumer frame, preserving source/content identity and rejecting
+        authored writes to its reserved slice/alias before publication. Check
+        independent consumer queries and atomic malformed-envelope rejection.
+      - [x] Add provider-owned attribute lease contracts before implementation:
+        atomic role/autocomplete conflicts, preserved unrelated controls tokens,
+        current focused/visible row admission, stale revisions, newer authored
+        writes, competing leases and reset/rebind/disconnect cleanup. Share one
+        verified editor lease with the manual-listbox delegate.
+      - [ ] Complete cross-component live-view transport after choosing owner
+        routing or consumer-local derivation. Add worker/fallback contracts before
+        integrating native outbound bindings and the two-way row placement grants.
+      Decision pending: cross-component live bindings need a transport beyond
+      CEMV, which rejects retained native source edges. Choose original processing
+      owner routing or explicitly granted consumer-local derived views; neither
+      path may export a live view as a portable value or restore resume authority.
+      Progress 2026-10-07: native consumer-frame injection retains original
+      source/content edges and rejects reserved aliases/slices. The provider owns
+      transient ARIA leases with atomic conflicts, exact endpoint checks, editor
+      revision fences and cleanup that preserves newer authored writes. Manual
+      listbox visibility can borrow the same verified lease. These APIs require
+      a trusted current-publication hook; native outbound bindings and original
+      source-to-row placement admissions remain open.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;
@@ -623,10 +646,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       and list. The shared native source/view transport, atomic source/text/filter
       adapters and native row/group label frames are delivered. Shared native
       visibility/dismissal sessions and the manual-listbox semantic delegate are
-      delivered with explicit lifecycle admission/readiness hooks. Reserved
-      suggestions view publication/outbound bindings, attribute/placement claims,
+      delivered with explicit lifecycle admission/readiness hooks. Native
+      suggestions view outbound bindings and placement claims,
       suggestions capability and declarative composition remain
       open; do not mark this complete from the provider foundation alone.
+      Reserved native consumer-frame publication and provider-owned attribute
+      leases are delivered; their controller/placement integration remains open.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are

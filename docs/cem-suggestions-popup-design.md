@@ -3,8 +3,8 @@
 Status: adopted design, 2026-10-07, under the user's instruction to continue
 with recommended options. This completes the popup-reuse comparison in
 [todo.md](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
-The shared geometry prerequisite is implemented. Suggestions visibility,
-dismissal and semantic delegate integration remain pending.
+Shared geometry, visibility/dismissal sessions and the package-private manual
+listbox delegate are implemented. Public suggestions integration remains pending.
 
 Use shared cem-elements geometry and surface services through an explicit
 suggestions profile. Its presentation is one native `popover="manual"` listbox,
@@ -232,8 +232,12 @@ fitting and revision rechecks, and release synchronously on native hide. The
 delegate does not patch editor ARIA. Source filtering, row activation, field
 commits and public suggestions declarations remain owned by the later controller.
 
-Coordinated native reference bindings, editor attribute claims and source-to-row
-publication still need implementation. Those gaps and their scenarios are
+The delegate can borrow the attachment's exact verified editor lease. The
+provider's transient attribute API owns combobox relationships and preserves
+newer authored writes; it requires a trusted current-publication hook and never
+creates source/placement authority from endpoints or IDs. Coordinated native
+reference bindings, source-to-row publication and controller integration of
+those claims still need implementation. Those gaps and their scenarios are
 recorded beside the active TODO actions. The session browser contracts and existing
 logical geometry/dropdown/native-surface regressions establish this prerequisite;
 they do not establish full suggestions or accessibility interoperability.
