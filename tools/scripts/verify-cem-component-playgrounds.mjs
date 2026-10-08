@@ -1,15 +1,20 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { readFile, readdir, mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve, extname, join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { chromium } from 'playwright';
+import { tmpdir, release } from 'node:os';
+import { chromium, firefox, webkit } from 'playwright';
 
 const root = resolve(import.meta.dirname, '../..');
 const temporary = await mkdtemp(join(tmpdir(), 'cem-action-playground-'));
 const mime = { '.svg': 'image/svg+xml', '.html': 'text/html', '.xhtml': 'application/xhtml+xml', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm' };
-const suggestionsOnly = process.argv.includes('--suggestions-only');
+const nativeDatalistOnly = process.argv.includes('--native-datalist-only');
+const suggestionsOnly = nativeDatalistOnly || process.argv.includes('--suggestions-only');
+const nativeBrowser = process.argv.find(value => value.startsWith('--native-browser='))?.split('=')[1] ?? 'chromium';
+const headed = process.argv.includes('--headed');
+const evidenceOutput = process.argv.find(value => value.startsWith('--evidence-output='))?.slice('--evidence-output='.length);
+const nativeEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
 let browser;
@@ -24,7 +29,9 @@ const server = createServer(async (request, response) => {
 try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
-    browser = await chromium.launch({ headless: true });
+    if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
+    if (!nativeDatalistOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Native evidence flags require --native-datalist-only');
+    browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
     if (!navigationOnly && !suggestionsOnly) {
         await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
         if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
@@ -39,7 +46,8 @@ try {
         if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (!navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
+    if (!nativeDatalistOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
+    if (nativeDatalistOnly) await verifyNativeDatalist(`${origin}/packages/cem-components/playgrounds/`, 'source');
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
@@ -60,8 +68,14 @@ try {
         if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
         if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
     }
-    if (!navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-    if (suggestionsOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
+    if (!nativeDatalistOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    if (nativeDatalistOnly) {
+        await verifyNativeDatalist(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
+        const report = { schema: 'cem-native-datalist-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: nativeEvidence, actualPickerSelection: 'unconfirmed', physicalIme: 'not-run', mobileKeyboard: 'not-run', assistiveTechnology: 'not-run' };
+        if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
+        console.log(JSON.stringify(report, null, 2));
+    }
+    else if (suggestionsOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
     else if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
     else if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
     else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from source and isolated package archives.');
@@ -1296,4 +1310,69 @@ async function verifySuggestions(baseUrl) {
         console.error('Suggestions page failure:', page.url(), await page.evaluate(() => [...document.querySelectorAll('cem-suggestions, cem-element')].slice(0, 8).map(host => ({ tag: host.localName, diagnostics: window.cemPlaygroundRuntime?.diagnosticsFor(host) }))), errors);
         throw error;
     } finally { await context.close(); }
+}
+
+
+/** Observations only: accepting a showPicker call is not proof of a visible/chosen option. */
+async function verifyNativeDatalist(base, packaging) {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await page.goto(`${base}cem-suggestions.html`);
+        await page.locator('cem-suggestions[profile="native-datalist"] input').waitFor();
+        for (const tag of ['cem-field', 'cem-text-field']) {
+            for (const type of ['number', 'text']) {
+                // Test fixture uses the production declaration/runtime and original provider.
+                // Its event recorder observes native input; it implements no UI behavior.
+                await page.evaluate(async ({ tag, type }) => {
+                    document.querySelector('section[aria-label="Native acceptance fixture"]')?.remove();
+                    const fixture = document.createElement('section'); fixture.setAttribute('aria-label', 'Native acceptance fixture');
+                    fixture.innerHTML = `<form><cem-suggestions profile="native-datalist"><template><${tag} slot="editor" name="choice" type="${type}" label="Native acceptance" min="0" max="30" step="1"></${tag}><template slot="options"><option value="1" label="One"></option><option value="2" label="Two"></option><option value="10" label="Ten"></option></template></template></cem-suggestions></form>`;
+                    document.querySelector('main').prepend(fixture);
+                    const host = fixture.querySelector('cem-suggestions');
+                    await window.cemPlaygroundRuntime.whenRenderSettled(host);
+                    await window.cemPlaygroundRuntime.whenRenderSettled(host.querySelector('[slot=editor]'));
+                    window.nativeAcceptanceEvents = [];
+                    for (const eventName of ['input', 'change']) fixture.addEventListener(eventName, event => {
+                        if (event.target instanceof HTMLInputElement) window.nativeAcceptanceEvents.push({ type: event.type, trusted: event.isTrusted, value: event.target.value });
+                    });
+                    fixture.querySelector('form').addEventListener('submit', event => event.preventDefault());
+                }, { tag, type });
+                const fixture = page.locator('section[aria-label="Native acceptance fixture"]');
+                const input = fixture.locator('input');
+                await page.waitForFunction(() => document.querySelector('section[aria-label="Native acceptance fixture"] input')?.list?.options.length === 3);
+                await input.scrollIntoViewIfNeeded();
+                const initial = await input.evaluate(node => ({ type: node.type, role: node.getAttribute('role'), options: [...node.list.options].map(o => ({ value: o.value, label: o.label })) }));
+                assert.equal(initial.type, type); assert.equal(initial.role, null);
+                await input.click();
+                const picker = await input.evaluate(node => {
+                    try { node.showPicker(); return 'request-accepted'; } catch (error) { return `${error.name}: ${error.message}`; }
+                });
+                await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+                const afterPicker = await input.evaluate(node => ({ value: node.value, submitted: new FormData(node.closest('form')).get('choice'), events: [...window.nativeAcceptanceEvents] }));
+                assert.notEqual(afterPicker.value, 'One'); // labels must not replace numeric or textual values
+                assert.equal(afterPicker.submitted, afterPicker.value);
+                await page.keyboard.press('Escape');
+                await input.fill('1');
+                await page.waitForFunction(() => document.querySelector('section[aria-label="Native acceptance fixture"] input')?.list?.options.length === 3);
+                // Browser filtering is not exposed as a shared-runtime match list.
+                const filterRequest = await input.evaluate(node => { try { node.showPicker(); return 'request-accepted'; } catch (error) { return error.name; } });
+                const accessibility = await input.ariaSnapshot();
+                const filtered = await input.evaluate(node => ({ value: node.value, optionCount: node.list.options.length, customSurface: !!node.closest('cem-suggestions').querySelector('[part~=surface]') }));
+                assert.equal(filtered.optionCount, 3); assert.equal(filtered.customSurface, false);
+                await fixture.locator('cem-suggestions').evaluate(async host => {
+                    host.setAttribute('options-state', 'pending'); await window.cemPlaygroundRuntime.whenRenderSettled(host);
+                });
+                await page.waitForFunction(() => !document.querySelector('section[aria-label="Native acceptance fixture"] input')?.hasAttribute('list'));
+                const withdrawn = await input.evaluate(node => ({ value: node.value, list: node.getAttribute('list'), options: node.closest('cem-suggestions').querySelector('datalist').options.length, submitted: new FormData(node.closest('form')).get('choice') }));
+                assert.equal(withdrawn.value, '1'); assert.equal(withdrawn.options, 0); assert.equal(withdrawn.submitted, '1');
+                await page.keyboard.press('Escape');
+                await input.fill('2');
+                assert.equal(await input.inputValue(), '2');
+                nativeEvidence.push({ packaging, field: tag, type, initial, picker, afterPicker, filterRequest, filtered, accessibility, withdrawn, editingAfterWithdrawal: true, pickerSelection: 'unconfirmed', visibleFilteredChoices: 'not-observed' });
+            }
+        }
+        assert.deepEqual(errors, [], 'Acceptance page must not have script failures');
+    } finally { await page.close(); }
 }

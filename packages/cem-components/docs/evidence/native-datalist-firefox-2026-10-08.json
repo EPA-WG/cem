@@ -1,0 +1,418 @@
+{
+  "schema": "cem-native-datalist-evidence-v1",
+  "revision": "1ced472e1e6dafa3bf59259b9d459eb020cf5d2d",
+  "browser": "firefox",
+  "version": "150.0.2",
+  "headed": true,
+  "platform": "linux",
+  "observations": [
+    {
+      "packaging": "source",
+      "field": "cem-field",
+      "type": "number",
+      "initial": {
+        "type": "number",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "0",
+        "submitted": "0",
+        "events": [
+          {
+            "type": "input",
+            "trusted": true,
+            "value": "0"
+          },
+          {
+            "type": "change",
+            "trusted": true,
+            "value": "0"
+          }
+        ]
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- spinbutton \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "source",
+      "field": "cem-field",
+      "type": "text",
+      "initial": {
+        "type": "text",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "",
+        "submitted": "",
+        "events": []
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- combobox \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "source",
+      "field": "cem-text-field",
+      "type": "number",
+      "initial": {
+        "type": "number",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "0",
+        "submitted": "0",
+        "events": [
+          {
+            "type": "input",
+            "trusted": true,
+            "value": "0"
+          },
+          {
+            "type": "change",
+            "trusted": true,
+            "value": "0"
+          }
+        ]
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- spinbutton \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "source",
+      "field": "cem-text-field",
+      "type": "text",
+      "initial": {
+        "type": "text",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "",
+        "submitted": "",
+        "events": []
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- combobox \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "installed",
+      "field": "cem-field",
+      "type": "number",
+      "initial": {
+        "type": "number",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "0",
+        "submitted": "0",
+        "events": [
+          {
+            "type": "input",
+            "trusted": true,
+            "value": "0"
+          },
+          {
+            "type": "change",
+            "trusted": true,
+            "value": "0"
+          }
+        ]
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- spinbutton \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "installed",
+      "field": "cem-field",
+      "type": "text",
+      "initial": {
+        "type": "text",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "",
+        "submitted": "",
+        "events": []
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- combobox \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "installed",
+      "field": "cem-text-field",
+      "type": "number",
+      "initial": {
+        "type": "number",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "0",
+        "submitted": "0",
+        "events": [
+          {
+            "type": "input",
+            "trusted": true,
+            "value": "0"
+          },
+          {
+            "type": "change",
+            "trusted": true,
+            "value": "0"
+          }
+        ]
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- spinbutton \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    },
+    {
+      "packaging": "installed",
+      "field": "cem-text-field",
+      "type": "text",
+      "initial": {
+        "type": "text",
+        "role": null,
+        "options": [
+          {
+            "value": "1",
+            "label": "One"
+          },
+          {
+            "value": "2",
+            "label": "Two"
+          },
+          {
+            "value": "10",
+            "label": "Ten"
+          }
+        ]
+      },
+      "picker": "request-accepted",
+      "afterPicker": {
+        "value": "",
+        "submitted": "",
+        "events": []
+      },
+      "filterRequest": "request-accepted",
+      "filtered": {
+        "value": "1",
+        "optionCount": 3,
+        "customSurface": false
+      },
+      "accessibility": "- combobox \"Native acceptance\": \"1\"",
+      "withdrawn": {
+        "value": "1",
+        "list": null,
+        "options": 0,
+        "submitted": "1"
+      },
+      "editingAfterWithdrawal": true,
+      "pickerSelection": "unconfirmed",
+      "visibleFilteredChoices": "not-observed"
+    }
+  ],
+  "actualPickerSelection": "unconfirmed",
+  "physicalIme": "not-run",
+  "mobileKeyboard": "not-run",
+  "assistiveTechnology": "not-run"
+}

@@ -161,3 +161,57 @@ input type and steps, chosen visible label, resulting native value/FormData and
 source-withdrawal behavior. Keep this acceptance todo open until those runs are
 recorded. Unsupported native picker UI leaves ordinary editing available and
 must not activate a custom popup fallback.
+
+
+### Reproducible headed browser observations
+
+The playground verifier can collect native-datalist observations with a headed
+Playwright browser. It uses the production declaration and both field providers,
+first from source and then from isolated npm package archives. Its numeric and
+text fixtures have option values `1`, `2`, `10` and labels One, Two, Ten.
+
+```sh
+yarn nx run @epa-wg/cem-components:verify-playgrounds --skip-nx-cache -- --native-datalist-only --headed --native-browser=chromium --evidence-output=/tmp/cem-native-chromium.json
+```
+
+Repeat with `--native-browser=firefox` or `--native-browser=webkit`, a distinct
+output filename and the corresponding Playwright browser installed. Run engines
+sequentially so they do not compete for graphical focus. `--skip-nx-cache`
+ensures this command runs the probe and writes current evidence rather than
+replaying a cached log. Omit `--headed` only for explicitly headless observations.
+The optional JSON output is a test report, not a runtime tree handoff.
+
+For each field/type, the probe clicks the original input, requests `showPicker()`,
+presses Arrow Down and Enter, and records native input/change events plus value
+and FormData. It then enters `1`, requests the picker again, records the field's
+accessibility snapshot and the still-complete native option collection, withdraws
+the source, and checks that ordinary editing still works. Successful assertions
+establish DOM, event and submission contracts. They do not establish which
+choices the browser displayed or that a user selected a visible option.
+
+
+Recorded on 2026-10-08 against runtime revision `1ced472e`, Linux WSL2
+`6.6.114.1-microsoft-standard-WSL2` with WSLg display `:0`. Each completed
+engine run covers eight combinations: two providers × two types × source/isolated
+packages. These are Playwright browser builds, not branded Edge or Safari runs.
+
+| Engine | Native picker attempt | Accessibility snapshot after entering `1` | Withdrawal and editing |
+| --- | --- | --- | --- |
+| Chromium 148.0.7778.96 | `showPicker()` accepted; Arrow Down/Enter produced numeric `0` with trusted input/change events, while text stayed empty without input/change events | Number: named spinbutton; text: named combobox | Both providers and packaging paths removed `list` and options, retained value/FormData `1`, and accepted a later edit to `2` |
+| Firefox 150.0.2 | Same observed outcomes as Chromium | Number: named spinbutton; text: named combobox | Same assertions passed for both providers and packaging paths |
+| Playwright WebKit build 2287 | Launch blocked before any page interaction | Not run | Not run |
+
+Raw observations: [Chromium](evidence/native-datalist-chromium-2026-10-08.json)
+and [Firefox](evidence/native-datalist-firefox-2026-10-08.json). Each report keeps
+picker selection **unconfirmed**, visible filtered choices **not observed**, and
+physical IME/mobile/assistive technology **not run**. A browser accessibility
+snapshot is not evidence of a screen reader's spoken output. Keeping all three
+DOM options after entering `1` confirms that the adapter leaves filtering to the
+browser; it does not prove the visible popup's filtering behavior.
+
+WebKit's launcher reported missing system dependencies, including GTK4,
+Graphene, ICU74 and GStreamer libraries. No WebKit component assertion ran, so
+this result establishes neither a product failure nor browser acceptance. Run
+this probe on a compatible host, then complete branded-browser/device and
+physical checks using the manual record above. The parent acceptance item stays
+open; successful probe assertions alone must not close it.

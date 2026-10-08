@@ -1139,6 +1139,20 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       headful native picker selection/filtering, physical IME/mobile keyboard and
       screen-reader evidence on supported browser/device combinations.
 
+  - [x] Add a reproducible headful browser acceptance probe to the playground
+        verifier for both field providers, source and isolated packages. Record
+        picker requests, native event/value/FormData observations, accessibility
+        snapshots, filtering attempts and withdrawal; keep actual selection and
+        physical IME/AT acceptance separate from these observations.
+        Delivered 2026-10-08: headed Chromium 148.0.7778.96 and Firefox 150.0.2
+        passed eight field/type/package observations each on WSLg. Native numeric
+        Arrow Down/Enter produced `0`, not demonstrated option selection; text
+        remained empty. Both retained value/FormData through source withdrawal
+        and preserved editing. The acceptance notes link raw reports and the
+        repeatable command. WebKit launch is blocked by missing host libraries.
+        Parent acceptance stays open for visible picker selection/filtering,
+        supported-browser/device coverage, physical IME/mobile and spoken AT.
+
 - [ ] Design field-owned label/submission conversion, multiline/email-multiple
       token completion and full surface-provider adoption only when requested.
       Carry explicit value/provenance, selection/history, native semantics and
