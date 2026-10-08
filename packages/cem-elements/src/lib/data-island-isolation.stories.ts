@@ -138,9 +138,13 @@ export const DataIslandContentStaysOutOfTheAccessibilityTree: Story = {
             payloadHTML: '<button type="button" data-iso="ghost">Ghost</button>',
         }),
     play: async ({ canvasElement }) => {
-        await nextFrame();
+        const instance = requiredElement(canvasElement, 'iso-a11y-el') as HTMLElement;
+        const owner = isolationRuntimes.get(instance);
+        assert(owner, 'the isolation instance retains its owning runtime');
+        readinessCheckpoint('isolation-before-settlement');
+        await owner.whenRenderSettled(instance);
+        readinessCheckpoint('isolation-after-settlement');
 
-        const instance = requiredElement(canvasElement, 'iso-a11y-el');
         const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
 
         // Only the rendered control exists in the live (accessible) DOM.
@@ -168,10 +172,14 @@ export const DeclarationElementRendersNoVisibleContent: Story = {
             templateHTML: '<button type="button">Go</button>',
         }),
     play: async ({ canvasElement }) => {
-        await nextFrame();
+        const instance = requiredElement(canvasElement, 'iso-decl-el') as HTMLElement;
+        const owner = isolationRuntimes.get(instance);
+        assert(owner, 'the isolation instance retains its owning runtime');
+        readinessCheckpoint('isolation-before-settlement');
+        await owner.whenRenderSettled(instance);
+        readinessCheckpoint('isolation-after-settlement');
 
         const declaration = requiredElement(canvasElement, '[data-iso="declaration-host"]');
-        const instance = requiredElement(canvasElement, 'iso-decl-el');
 
         // The declaration's template is render source, not page content: it renders nothing
         // where the declaration sits, even though instances render it.
@@ -656,8 +664,8 @@ function mountIsolationStory(spec: IsolationStorySpec): HTMLElement {
     } else {
         root.appendChild(instance);
     }
-    if (spec.wrapInForm) {
-        startReadinessTiming(root, 'isolation/FormSubmission', runtime);
+    if (spec.wrapInForm || ['iso-a11y-el', 'iso-decl-el'].includes(spec.producedTag)) {
+        startReadinessTiming(root, spec.wrapInForm ? 'isolation/FormSubmission' : `isolation/${spec.producedTag}`, runtime);
     }
     return root;
 }

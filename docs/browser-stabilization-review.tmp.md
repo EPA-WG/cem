@@ -6245,3 +6245,51 @@ intermittent observations remain open; this green run is not causal attribution.
 Final logs: `/tmp/cem-next-fixed.log` (90/90 before splitting),
 `/tmp/cem-next-final.log` (483/486), `/tmp/cem-next-split-full.log` (487/487),
 and `/tmp/cem-next-types-final.log`.
+
+### Resource-start and isolation follow-up (2026-10-08)
+
+The traced aggregate run passes 486/487 and reproduces the payload stylesheet
+first-read deadline. At 22:54:09 UTC, `PayloadCssReadinessAndHydration` has zero
+reader calls, no published paragraph and no diagnostics. A temporary failure-only
+observation sees its held import reader invoked 602 ms later, then rethrows the
+original error. This is a resource-start readiness race; it does not establish
+the cause of any historical post-settlement missing-style assertion.
+
+Both payload readiness/hydration and disconnect/failure fixtures now await an
+explicit first-call signal from their own controlled reader, then assert exactly
+one read. They cannot await full render settlement there: their held response
+intentionally prevents it. Existing no-publication-before-read, abort, reconnect,
+content-type failure, style ownership and hydration assertions remain; the
+30-second story limits are unchanged.
+
+The module and two isolation cases pass in that trace. Normal-run isolation
+failure capture now records pending/settled/rejected rendering and diagnostic
+codes without changing the single-frame assertion. Opt-in lifecycle checkpoints
+also remain available. Temporary module continuation observations are used only
+to attribute a recurrence, not to turn a failing assertion into a pass.
+
+Evidence: `/tmp/cem-followup-capture.log`.
+
+The normal aggregate then captures both isolation failures with pending rendering
+and no diagnostics at 22:57:28 UTC. Module discovery has zero resolvers and pending
+settlement without diagnostics at 22:57:32; all four appear 85 ms later.
+The original errors are rethrown. That run passes 481 tests, fails three, and
+fails to load the separate bundle-source-context file because its Storybook setup
+module cannot be fetched; its three tests are not counted as executed.
+
+Both isolation fixtures now await their own runtime before the unchanged
+inertness, live-control and focus assertions. Module discovery now awaits an
+explicit signal from its four controlled resolvers and checks their exact count,
+within the original story deadline. Full render settlement would deadlock here
+because the test intentionally withholds resolver results. Temporary recovery
+observations are removed; lifecycle checkpoints remain opt-in.
+
+All 28 focused cases pass across the three changed files plus
+bundle-source-context; typecheck and whitespace checks pass. Logs:
+`/tmp/cem-followup-normal.log`, `/tmp/cem-followup-fixed.log`,
+`/tmp/cem-followup-types-final.log`.
+
+Final normal aggregate verification passes **487/487 stories in 101 files**,
+including module sibling settlement, both payload stylesheet fixtures, both
+isolation cases and the bundle-source-context file. Evidence:
+`/tmp/cem-followup-final.log`. No production runtime or global timeout changed.

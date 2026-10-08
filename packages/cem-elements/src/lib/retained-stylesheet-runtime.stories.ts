@@ -425,7 +425,9 @@ export const PayloadCssReadinessAndHydration: Story = {
         if (!root) throw new Error('missing payload CSS fixture');
         for (const fallback of [false, true]) for (const mode of ['dom', 'cem-ml'] as const) {
             let gate = held(); let reads = 0;
-            const f = fixture(root, fallback, async () => { reads++; return gate.promise; });
+            let readStarted!: () => void;
+            const firstRead = new Promise<void>(resolve => { readStarted = resolve; });
+            const f = fixture(root, fallback, async () => { reads++; readStarted(); return gate.promise; });
             try {
                 const declaration = f.declare('payload-card', mode === 'dom' ? '<p>Ready</p>' : '{p | Ready}', mode);
                 await declaration.ready;
@@ -435,7 +437,9 @@ export const PayloadCssReadinessAndHydration: Story = {
                 instance.append(payload); root.append(instance);
                 let settled = false;
                 const ready = f.runtime.whenRenderSettled(instance).then(() => { settled = true; });
-                await waitFor(() => expect(reads).toBe(1));
+                // Observe resource admission; render settlement waits on our held response.
+                await firstRead;
+                expect(reads).toBe(1);
                 expect(settled).toBe(false); expect(instance.querySelector('p')).toBeNull();
                 gate.resolve(response('p {color: rgb(1, 2, 3); animation: pulse 20s infinite} @keyframes pulse {from{opacity:0.5}to{opacity:1}}'));
                 await ready;
@@ -481,8 +485,10 @@ export const PayloadCssDisconnectAndFailure: Story = {
         if (!root) throw new Error('missing payload cancellation fixture');
         for (const fallback of [false, true]) {
             let gate = held(); let reads = 0;
+            let readStarted!: () => void;
+            const firstRead = new Promise<void>(resolve => { readStarted = resolve; });
             const signals: AbortSignal[] = [];
-            const f = fixture(root, fallback, async (_request, signal) => { reads++; signals.push(signal); return gate.promise; });
+            const f = fixture(root, fallback, async (_request, signal) => { reads++; readStarted(); signals.push(signal); return gate.promise; });
             try {
                 const declaration = f.declare('payload-cancel', '{p | Ready}'); await declaration.ready;
                 const instance = document.createElement(declaration.tag);
@@ -490,7 +496,9 @@ export const PayloadCssDisconnectAndFailure: Story = {
                 payload.innerHTML = '<style>@import "./child.css";</style><style>p {color:green}</style>';
                 instance.append(payload); root.append(instance);
                 const ready = f.runtime.whenRenderSettled(instance);
-                await waitFor(() => expect(reads).toBe(1));
+                // Observe resource admission; render settlement waits on our held response.
+                await firstRead;
+                expect(reads).toBe(1);
                 instance.remove(); await ready;
                 expect(signals[0].aborted).toBe(true);
                 expect(instance.querySelector('p')).toBeNull();

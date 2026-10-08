@@ -1,6 +1,6 @@
 import { startReadinessTiming, readinessCheckpoint } from '../../.storybook/readiness-timing.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
-import { expect, waitFor } from 'storybook/test';
+import { expect } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
 
 const meta: Meta = { title: 'CEM Elements/Module URL Settlement', tags: ['test'] };
@@ -11,11 +11,14 @@ let sequence = 0;
 async function mount(root: HTMLElement) {
     const pending = new Map<string, (value: string) => void>();
     const failures = new Map<string, (error: Error) => void>();
+    let resolversReady!: () => void;
+    const discovered = new Promise<void>(resolve => { resolversReady = resolve; });
     const runtime = new CemElementRuntime({
         declarationTag: `cem-module-batch-${++sequence}`,
         resolveModuleUrl: specifier => new Promise<string>((resolve, reject) => {
             pending.set(specifier, resolve);
             failures.set(specifier, reject);
+            if (pending.size === 4) resolversReady();
         }),
     });
     runtime.install(window);
@@ -35,18 +38,11 @@ async function mount(root: HTMLElement) {
     await runtime.whenDeclarationSettled(declaration);
     const instance = document.createElement(tag);
     root.append(instance);
-    let settlement = 'pending';
-    void runtime.whenRenderSettled(instance).then(
-        () => { settlement = 'settled'; }, () => { settlement = 'rejected'; });
     startReadinessTiming(root, 'module-url/SiblingDiscovery', runtime);
-    try {
-        await waitFor(() => expect(pending.size, JSON.stringify(runtime.diagnosticsFor(instance))).toBe(4));
-    } catch (error) {
-        readinessCheckpoint('resolver-discovery-failed', { resolvers: pending.size });
-        console.warn('[module-discovery]', JSON.stringify({ resolvers: pending.size, settlement,
-            diagnostics: runtime.diagnosticsFor(instance).map(({ code }) => code) }));
-        throw error;
-    }
+    // Render settlement depends on the held results; wait only for admission here.
+    await discovered;
+    expect(pending.size, JSON.stringify(runtime.diagnosticsFor(instance))).toBe(4);
+    readinessCheckpoint('resolvers-discovered', { resolvers: pending.size });
     return { runtime, instance, pending, failures };
 }
 

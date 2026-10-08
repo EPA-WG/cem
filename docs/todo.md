@@ -1466,7 +1466,7 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       Scenarios for later design verification: asynchronous publication must
       settle before lookup, while projection updates retain their original nodes.
 
-- [ ] Fixture: attribute `Module URL Settlement / Siblings Commit Together`
+- [x] Fixture: attribute `Module URL Settlement / Siblings Commit Together`
       observing zero of four resolver entries under aggregate load. Capture
       declaration/compile/render state before changing its polling deadline;
       preserve the controlled sibling-release and atomic publication assertions.
@@ -1480,6 +1480,12 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       failure capture now always includes resolver count, settlement and codes.
       Final aggregate verification passes 487/487. The original discovery wait
       remains unchanged pending a failure with the new capture.
+      Delivered 2026-10-08: normal-run capture shows zero resolvers, pending
+      render settlement and no diagnostics at the one-second deadline; all four
+      resolvers appear 85 ms later. Await the controlled resolver-admission
+      signal, then assert exactly four entries, within the existing story limit.
+      All sibling-release, stale/disconnected batch and failure assertions stay.
+      Final normal aggregate verification passes all 487 stories in 101 files.
       Scenarios for later design verification: startup latency and stale sibling
       completion must remain distinguishable.
 
@@ -1507,7 +1513,7 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       the story budget; native taps, pan cancellation and outside focus keep
       their distinct contracts.
 
-- [ ] Fixture: capture the newly observed retained stylesheet
+- [x] Fixture: capture the newly observed retained stylesheet
       `Payload Css Disconnect And Failure` zero-versus-one assertion and
       isolation `Declaration Element Renders No Visible Content` and
       `Data Island Content Stays Out Of The Accessibility Tree` failures
@@ -1517,6 +1523,16 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       [slot and suggestions follow-up](browser-stabilization-review.tmp.md#slot-and-suggestions-readiness-follow-up-2026-10-08).
       Scenarios for later design verification: style publication/disposal and
       declaration inertness remain distinct from produced-instance readiness.
+      Delivered 2026-10-08: both isolation cases reproduce pending rendering
+      with no diagnostics before their assertions; await their owning runtime.
+      Payload stylesheet readiness reproduces a first-read deadline, with the
+      controlled reader called 602 ms later. Both readiness/hydration and
+      disconnect/failure fixtures now await their reader's first-call signal,
+      preserving exact counts and all publication, cancellation and style checks.
+      All 28 focused stories pass, including the bundle-source-context file
+      that had a transient setup-module fetch failure during investigation.
+      Final normal aggregate verification passes all 487 stories in 101 files.
+      Historical post-settlement missing-style attribution remains separate.
 
 ## Immediate: Legacy Demo Case Coverage
 
