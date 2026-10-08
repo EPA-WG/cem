@@ -1,5 +1,5 @@
 import { resolveAriaReferenceProfile, DEFAULT_ARIA_REFERENCE_PROFILE, withoutAriaReferenceProfileStamp, type CemAriaReferenceProfile } from './aria-reference-profile.js';
-import { isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding } from './native-suggestions-publication.js';
+import { isCemNativeSuggestionsBinding, type CemNativeSuggestionsBinding, type CemNativeSuggestionRow } from './native-suggestions-publication.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from './element-reference-inputs.js';
 import { CemElementPlacementCoordinator, clearCemPlacementRelationships, hasCemPlacementRelationships } from './element-placement-coordinator.js';
 import { placementRoutes } from './element-placement-plans.js';
@@ -556,6 +556,13 @@ export interface CemStorageStatusEnvelope {
 }
 
 export type CemModuleUrlReferrer = string | Node;
+
+/** Current native rows associated with exact committed output, never snapshot state. */
+export interface CemRenderedSuggestions {
+    readonly binding: CemNativeSuggestionsBinding;
+    readonly rows: readonly { native: CemNativeSuggestionRow; element: HTMLElement }[];
+    current(): boolean;
+}
 
 export interface CemElementRuntimeOptions {
     /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
@@ -1764,6 +1771,8 @@ export class CemElementRuntime {
     private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
     private readonly nativeSuggestionsInputsOption?: CemElementRuntimeOptions['nativeSuggestionsInputs'];
     private readonly suggestionsControllerInputsOption?: CemElementRuntimeOptions['suggestionsControllerInputs'];
+    private readonly preparedSuggestionRows = new WeakMap<CemProcessingRenderDiffResult, { binding: CemNativeSuggestionsBinding; rows: readonly { native: CemNativeSuggestionRow; renderNodeId: string }[] }>();
+    private readonly committedSuggestionRows = new WeakMap<HTMLElement, CemRenderedSuggestions>();
     private readonly nativeSuggestionsBindings = new WeakMap<HTMLElement, CemNativeSuggestionsBinding>();
     private readonly nativeSuggestionsCompilations = new WeakMap<CompiledDeclaration, Promise<CemProcessingCompileInput>>();
     private readonly placementCoordinator?: CemElementPlacementCoordinator;
@@ -2469,6 +2478,11 @@ export class CemElementRuntime {
         return this.declarationForInstance(instance)?.declarationVersion ?? null;
     }
 
+    renderedSuggestionsFor(instance: HTMLElement): CemRenderedSuggestions | undefined {
+        const prepared = this.committedSuggestionRows.get(instance);
+        return prepared?.current() ? prepared : undefined;
+    }
+
     /** Trusted capability hook. A serialized declaration cannot manufacture this authority. */
     suggestionsControllerInputsFor(instance: HTMLElement): CemSuggestionsControllerOptions | undefined {
         return this.suggestionsControllerInputsOption?.(instance, this.snapshotInstance(instance));
@@ -2695,6 +2709,7 @@ export class CemElementRuntime {
     private disconnectProducedInstance(instance: HTMLElement): void {
         this.nativeSuggestionsBindings.get(instance)?.release();
         this.nativeSuggestionsBindings.delete(instance);
+        this.committedSuggestionRows.delete(instance);
         clearCemPlacementRelationships(instance);
         const producer = this.instanceIds.get(instance);
         if (producer) this.placementCoordinator?.release(producer);
@@ -3604,6 +3619,7 @@ export class CemElementRuntime {
                     result.elementPlacementUses,
                 );
             }
+            this.publishSuggestionRows(instance, result, token);
             this.processingRenderPlans.set(instance, result.nextRenderPlan);
             await resourcesSettled;
             return true;
@@ -3699,7 +3715,10 @@ export class CemElementRuntime {
                         this.instanceStylesheets.set(instance, { key, reported: true,
                             installation: { ready: Promise.resolve(instanceCss.diagnostics), dispose: () => styles.dispose() } });
                         this.stylesheetReady.add(instance);
-                        if (result.nextRenderPlan) this.processingRenderPlans.set(instance, result.nextRenderPlan);
+                        if (result.nextRenderPlan) {
+                            this.publishSuggestionRows(instance, result as CemProcessingRenderDiffResult, token);
+                            this.processingRenderPlans.set(instance, result.nextRenderPlan);
+                        }
                         if (domPlan) this.committedRenderPlans.set(instance, domPlan);
                         resources = result.resourceControls;
                         this.applyHostAttributeUpdates(instance, compiled, result.hostAttributeUpdates, token);
@@ -3819,7 +3838,9 @@ export class CemElementRuntime {
                     compile: await compilation,
                     render: { ...render, ...(references ? { elementReferenceInputs: references } : {}) },
                 });
+                const rows = await binding.rowPlacements(result);
                 if (!binding.valid || this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Native component frame was superseded');
+                this.preparedSuggestionRows.set(result, { binding, rows });
                 return result;
             }
             this.nativeSuggestionsBindings.get(instance)?.release(); this.nativeSuggestionsBindings.delete(instance);
@@ -3898,6 +3919,36 @@ export class CemElementRuntime {
         this.bindRenderedCustomValidityInRange(bounds);
         this.bindRenderedFormEventsInRange(instance, compiled, bounds);
         return this.bindProcessingResourceControls(instance, compiled, resourceControls, token);
+    }
+
+    private publishSuggestionRows(instance: HTMLElement, result: CemProcessingRenderDiffResult, token: number): void {
+        this.committedSuggestionRows.delete(instance);
+        const prepared = this.preparedSuggestionRows.get(result);
+        if (!prepared) { if (result.suggestionPlacements?.length) throw new Error('Missing native row preparation'); return; }
+        const bounds = this.renderBounds.get(instance);
+        if (!bounds || !prepared.binding.valid) throw new Error('Native row publication expired');
+        const byId = new Map<string, HTMLElement>(), required = new Set(prepared.rows.map(row => row.renderNodeId));
+        let visited = 0;
+        if (required.size) for (let root = bounds.start.nextSibling; root && root !== bounds.end; root = root.nextSibling) {
+            const walker = instance.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+            for (let node: Node | null = root.nodeType === 1 ? root : walker.nextNode(); node; node = walker.nextNode()) {
+                if (++visited > this.nativeValueLimits.maxValues) throw new Error('Native row DOM mapping exceeds bounds');
+                const identity = (node as HTMLElement & { cemRenderNodeId?: string }).cemRenderNodeId;
+                if (!identity || !required.has(identity) || !(node instanceof HTMLElement)) continue;
+                if (byId.has(identity)) throw new Error('Ambiguous native render node identity');
+                byId.set(identity, node);
+            }
+        }
+        const rows = Object.freeze(prepared.rows.map(({ native, renderNodeId }) => {
+            const element = byId.get(renderNodeId);
+            if (!element || element.getAttribute('role') !== 'option') throw new Error('Native row has no committed option shell');
+            return Object.freeze({ native, element });
+        }));
+        const record: CemRenderedSuggestions = Object.freeze({ binding: prepared.binding, rows,
+            current: () => this.committedSuggestionRows.get(instance) === record && this.renderTokens.get(instance) === token
+                && instance.isConnected && this.nativeSuggestionsBindings.get(instance) === prepared.binding && prepared.binding.valid
+                && rows.every(row => row.native.valid && row.element.isConnected && instance.contains(row.element)) });
+        this.committedSuggestionRows.set(instance, record);
     }
 
     private publishElementPlacements<T>(instance: HTMLElement, token: number, uses: readonly CemElementPlacementUse[], commit: () => T): T {

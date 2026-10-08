@@ -21,6 +21,7 @@ export interface CemNativeSuggestionsBinding {
     render(template: string, data: Record<string, unknown>): Promise<Rendered>;
     renderComponent(frame: CemNativeSuggestionsComponentFrame): Promise<CemProcessingRenderDiffResult>;
     rows(): Promise<readonly CemNativeSuggestionRow[]>;
+    rowPlacements(result: CemProcessingRenderDiffResult): Promise<readonly { native: CemNativeSuggestionRow; renderNodeId: string }[]>;
     subscribe(invalidate: () => void): () => void;
     release(): void;
 }
@@ -103,6 +104,8 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                 .some(value => typeof value !== 'string' || !value || value.length > 1024) || !consumer.current()) throw new TypeError('Invalid admitted native consumer');
             const state = { consumer: Object.freeze({ ...consumer }), released: false, expired: false };
             const listeners = new Set<() => void>();
+            const results = new WeakMap<CemProcessingRenderDiffResult, readonly { handle: string; renderNodeId: string }[]>();
+            const rowHandles = new WeakMap<CemNativeSuggestionRow, string>();
             const revoke = () => { if (state.expired) return; state.expired = true; notify(listeners); };
             publicationListeners.add(revoke);
             const admitted = (receiver: object) => {
@@ -136,6 +139,7 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                     assertProcessingBoundaryValue(frame, 'native component control frame');
                     const result = await runComponent(structuredClone(frame));
                     if (!admitted(this)) throw new Error('Native consumer result was superseded');
+                    results.set(result, Object.freeze((result.suggestionPlacements ?? []).map(p => Object.freeze({ ...p }))));
                     return result;
                 },
                 async rows() {
@@ -147,9 +151,26 @@ export function createCemNativeSuggestionsPublication(config: Readonly<CemNative
                         const source = sourceForHandle(control.handle);
                         const row: CemNativeSuggestionRow = Object.freeze({ source, value: control.value, eligible: control.eligible, available: control.available,
                             get valid() { return admitted(binding) && source.valid; }, toJSON: nonportable });
-                        rows.set(row, binding); return row;
+                        rows.set(row, binding); rowHandles.set(row, control.handle); return row;
                     });
                     return Object.freeze(prepared);
+                },
+                async rowPlacements(result: CemProcessingRenderDiffResult) {
+                    if (!admitted(this)) throw new Error('Native consumer binding is no longer current');
+                    const metadata = results.get(result);
+                    if (!metadata) throw new TypeError('Placement metadata requires the exact native render result');
+                    if (!metadata.length) return Object.freeze([]);
+                    const prepared = await binding.rows(), byHandle = new Map(prepared.map(row => [rowHandles.get(row), row]));
+                    const targets = new Map<string, string>(), nodeIds = new Set<string>();
+                    for (const { handle, renderNodeId } of metadata) {
+                        if (!byHandle.has(handle) || targets.has(handle) || nodeIds.has(renderNodeId) || !renderNodeId) throw new TypeError('Invalid current native row placement');
+                        targets.set(handle, renderNodeId); nodeIds.add(renderNodeId);
+                    }
+                    // Constructed order cannot change the native source-order navigation contract.
+                    return Object.freeze(prepared.flatMap(native => {
+                        const handle = rowHandles.get(native), renderNodeId = handle && targets.get(handle);
+                        return renderNodeId ? [Object.freeze({ native, renderNodeId })] : [];
+                    }));
                 },
                 subscribe(listener: () => void) {
                     if (leases.get(this) !== state) throw new TypeError('A copied native binding has no consumer authority');

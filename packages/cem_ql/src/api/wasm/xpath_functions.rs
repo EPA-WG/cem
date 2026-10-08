@@ -161,6 +161,6 @@ pub fn render_template_with_native_values(
             Ok(execution) => execution,
             Err(error) => return element_reference_inputs_error(error),
         };
-        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile).to_string()
+        plan_json_for_elements(&render_compiled_template(artifact.artifact(), &data), &limits, element_reference_instance_id.as_deref(), execution, profile, data.bindings.get("suggestions").and_then(|s| s.items.first()).and_then(crate::suggestions::SuggestionsView::from_root).as_ref()).to_string()
     })
 }

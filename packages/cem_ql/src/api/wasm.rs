@@ -427,9 +427,10 @@ fn plan_json_for_elements(
     instance: Option<&str>,
     execution: Option<crate::api::element_references::ElementReferenceExecution>,
     profile: crate::render::AriaReferenceProfile,
+    suggestions: Option<&crate::suggestions::SuggestionsView>,
 ) -> Value {
     let Some(instance) = instance else {
-        return plan_json_with_limits(plan, limits);
+        return plan_json_with_suggestions(plan, limits, suggestions);
     };
     let control = cem_ml::operation_control::OperationControl::default();
     let options = crate::render::ElementReferenceExportOptions { aria_profile: profile };
@@ -441,7 +442,7 @@ fn plan_json_for_elements(
     };
     match projected {
         Ok(projected) => {
-            let mut result = plan_json_with_limits(&projected.plan, limits);
+            let mut result = plan_json_with_suggestions(&projected.plan, limits, suggestions);
             result["ariaReferenceProfile"] = json!(projected.aria_profile.identity());
             result["elementPlacementUses"] = serde_json::to_value(projected.placements).expect("placement control metadata");
             result
@@ -464,11 +465,17 @@ fn plan_json(plan: &RenderPlan) -> Value {
     plan_json_with_limits(plan, &cem_ml::value::artifact::CemValueArtifactLimits::default())
 }
 fn plan_json_with_limits(plan: &RenderPlan, limits: &cem_ml::value::artifact::CemValueArtifactLimits) -> Value {
+    plan_json_with_suggestions(plan, limits, None)
+}
+fn plan_json_with_suggestions(plan: &RenderPlan, limits: &cem_ml::value::artifact::CemValueArtifactLimits,
+    suggestions: Option<&crate::suggestions::SuggestionsView>) -> Value {
     let control = cem_ml::operation_control::OperationControl::default();
     let scope = cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID;
-    let plan = match crate::render::project_render_plan_with_control(plan, crate::eval::QueryContextScope(0), limits, &control, scope) {
-        Ok(plan) => plan,
-        Err(error) => { values::clear_output(); return serde_json::from_str(&error_json("cem.value.projection", error.to_string())).expect("error control metadata"); }
+    let (plan, placements) = match crate::suggestions::project_suggestion_placements(plan, suggestions, limits) {
+        Ok(projected) => projected,
+        Err(error) => { values::clear_output(); return json!({ "nodes": [], "referenceProjectionComplete": false,
+            "referenceProjectionCode": error.code, "referenceProjectionMessage": error.message,
+            "diagnostics": [{ "code": error.code, "severity": "error", "message": error.message, "sourceMap": source_map_json(&error.source) }] }); }
     };
     let mut values = crate::eval::ItemStream::empty();
     let nodes = nodes_json(&plan.nodes, &mut values);
@@ -478,6 +485,7 @@ fn plan_json_with_limits(plan: &RenderPlan, limits: &cem_ml::value::artifact::Ce
     };
     json!({
         "nodes": nodes,
+        "suggestionPlacements": placements,
         "nativeValueArtifactId": artifact.as_ref().map(|a| a.0),
         "nativeValueContentHash": artifact.as_ref().map(|a| &a.1),
         "hostAttributeUpdates": plan.host_attribute_updates.iter().map(|update| json!({

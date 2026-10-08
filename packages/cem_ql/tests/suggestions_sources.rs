@@ -842,3 +842,84 @@ fn admitted_row_handles_prepare_only_bounded_current_commit_values() {
     bounded.publish_suggestions("ready", &config("")).unwrap();
     assert_eq!(bounded.suggestion_row_controls("ready").unwrap().len(), 1);
 }
+
+#[test]
+fn native_row_placement_metadata_requires_exact_current_view_and_unique_shells() {
+    use cem_ql::suggestions::project_suggestion_placements;
+    let s = session("{cem-option @value=same | First}{cem-option @value=same | Second}");
+    let view = s.publish_suggestions("placements", &config("")).unwrap();
+    let render = |source: &str, row: Item| {
+        let artifact = compile_template(
+            source,
+            &CompileTemplateOptions {
+                host_bindings: vec!["row".into()],
+                ..Default::default()
+            },
+        );
+        assert!(
+            artifact.diagnostics.is_empty(),
+            "{:?}",
+            artifact.diagnostics
+        );
+        cem_ql::render::render_compiled_template(
+            &artifact,
+            &TemplateData::default().with_binding("row", ItemStream::once(row)),
+        )
+    };
+    let plan = render(
+        "{section | before{div @role=option @suggestion-row={row} | label}}",
+        view.row(1).unwrap(),
+    );
+    let (clean, metadata) =
+        project_suggestion_placements(&plan, Some(&view), &Default::default()).unwrap();
+    assert_eq!(metadata.len(), 1);
+    assert_eq!(metadata[0].path, vec![0, 1]);
+    assert_eq!(metadata[0].handle, view.row_controls()[1].handle);
+    assert!(!render_plan_to_html(&clean).contains("suggestion-row"));
+    for expression in ["#row", "#(#row)"] {
+        let source = format!("{{div @role=option @suggestion-row={{{expression}}} | label}}");
+        let (_, refs) = project_suggestion_placements(
+            &render(&source, view.row(1).unwrap()),
+            Some(&view),
+            &Default::default(),
+        )
+        .unwrap();
+        assert_eq!(refs[0].handle, metadata[0].handle);
+    }
+    assert!(project_suggestion_placements(&plan, None, &Default::default()).is_err());
+    let newer = s
+        .publish_suggestions("next-placements", &config("Second"))
+        .unwrap();
+    assert!(project_suggestion_placements(&plan, Some(&newer), &Default::default()).is_err());
+    let original = s.evaluate("input.children", None).unwrap().items[0].clone();
+    assert!(project_suggestion_placements(
+        &render("{div @role=option @suggestion-row={row}}", original),
+        Some(&view),
+        &Default::default()
+    )
+    .is_err());
+    for source in [
+        "{div @role=option @suggestion-row=forged}",
+        "{div @suggestion-row={row}}",
+        "{div @role=option @suggestion-row={row}}{div @role=option @suggestion-row={row}}",
+    ] {
+        assert!(
+            project_suggestion_placements(
+                &render(source, view.row(1).unwrap()),
+                Some(&view),
+                &Default::default()
+            )
+            .is_err(),
+            "{source}"
+        );
+    }
+    assert!(project_suggestion_placements(
+        &plan,
+        Some(&view),
+        &cem_ml::value::artifact::CemValueArtifactLimits {
+            max_values: 1,
+            ..Default::default()
+        }
+    )
+    .is_err());
+}

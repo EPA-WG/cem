@@ -567,7 +567,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       filtering/row activation and the public suggestions capability remain in
       the separate actions below.
 
-- [ ] Publish the retained suggestions view into component native frames and
+- [x] Publish the retained suggestions view into component native frames and
       outbound bindings, then coordinate editor-provider attributes and original
       source-to-row placement claims through host-issued admissions in both
       directions. Reserve the native slice against authored writes, keep source
@@ -584,7 +584,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         current focused/visible row admission, stale revisions, newer authored
         writes, competing leases and reset/rebind/disconnect cleanup. Share one
         verified editor lease with the manual-listbox delegate.
-      - [ ] Complete cross-component live-view publication over original-owner
+      - [x] Complete cross-component live-view publication over original-owner
         routing. Add worker/fallback contracts before
         integrating native outbound bindings and the two-way row placement grants.
         - [x] Retain one immutable native suggestions publication on its original
@@ -594,7 +594,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
           release/reuse and bounds; then worker/fallback browser cases for directed
           consumer leases, realm copies, stale in-flight work, independent release
           and owner loss.
-        - [ ] Integrate the routed publication leases with component outbound
+        - [x] Integrate the routed publication leases with component outbound
           bindings and two-way original source-to-row placement admissions.
           Fixture action: exercise normal compiled component frames with one live
           owner plus materialized inputs, reserved-slice conflicts, stale in-flight
@@ -614,10 +614,17 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
             - [x] Fixture: verify explicit grants in both directions, exact
               provider/row placement mappings, conflicting claims, filtering,
               disconnected targets and fresh resume authority in worker/fallback.
-            - [ ] Complete automatic source-to-constructed-row mapping. Decision
-              pending: return bounded placement metadata from native rendering
-              (recommended), or require every mapping from embedding hosts.
+            - [x] Complete automatic source-to-constructed-row mapping. Decision
+              adopted 2026-10-08: return bounded placement metadata from native
+              rendering, checked against the current publication and committed output.
               IDs and positional matching do not establish native identity.
+              - [x] Fixture: native row annotations retain exact current-view identity,
+                reject scalar/copied/foreign/duplicate rows and bound metadata;
+                worker/fallback rendering maps only committed nodes, revokes stale
+                frames and excludes placement authority from durable snapshots.
+              - [x] Fixture: connect the shared controller to native-rendered
+                placements in both worker/fallback modes, retaining the slotted
+                editor while source/query renders replace row admissions.
             Scenarios for later design verification: independent views of a shared
             source, filtered/removed rows, conflicting claims and fresh resume grants.
       Decision adopted: each consumer frame admits one live publication owner;
@@ -633,7 +640,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       listbox visibility can borrow the same verified lease. These APIs require
       a trusted current-publication hook; original source-to-row placement
       admissions now activate provider claims through exact opaque native rows;
-      automatic constructed-shell mapping and production composition remain open.
+      automatic constructed-shell mapping is delivered; production composition
+      remains open pending the local host-authorization policy below.
       Owner-routed immutable publications and independent consumer-frame leases
       are delivered in worker/fallback modes. Copied/serialized bindings, stale
       in-flight results and post-loss authority fail closed. Native publication
@@ -647,6 +655,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Bridge/controller verification: 52 focused Rust contracts, 72 unit checks,
       25 browser checks, typecheck and clean package verification pass. Lint has
       only the two existing non-null-assertion warnings.
+      Progress 2026-10-08: `suggestion-row` consumes an exact native row or an
+      already-evaluated reference to it in the current immutable publication.
+      Bounded render metadata carries its mapping through protocol v21, while the
+      annotation is removed from DOM/CEMV output. The runtime captures exact
+      committed elements and expires mappings on newer renders, failed updates,
+      disconnect and source/publication loss. No mapping authority enters snapshots.
+      Mapping verification: 53 focused Rust contracts, 72 unit checks, 16 browser
+      checks, typecheck, lint (two existing warnings) and fresh package build/import
+      verification pass. Production composition awaits the local policy below.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;
@@ -676,10 +693,18 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       - [x] Fixture: wire the shared declarative capability through an explicit
         trusted host preparation hook; reject missing authority, endpoint changes
         and copied/resumed row handles without creating component-local behavior.
+      - [ ] Decide local host authorization for production composition: explicit
+        runtime opt-in to native capture of local slotted options and the local
+        editor/listbox grants (recommended), or require host-provided source
+        sessions and grants for every attachment. Foreign source crossings keep
+        their explicit grants under either policy; slots alone confer none.
+        Scenarios for later design verification: an unconfigured host stays
+        inactive; local opt-in cannot admit unrelated foreign sources; revocation
+        and resume require current authority.
       - [ ] Assemble the production XHTML declaration with native options inputs,
         row/group label frames, rendered placement metadata, loading/failure/empty
-        feedback and accessible label/description handoff. Depend on the mapping
-        decision above; do not derive grants from authored IDs or row positions.
+        feedback and accessible label/description handoff. Depend on the local
+        host-authorization decision above; do not derive grants from authored IDs or row positions.
         Scenarios for later design verification: grouped/dynamic sources in both
         field types, slot conflicts, native source readiness, independent instances
         and fresh authority after resume.

@@ -259,7 +259,7 @@ pub fn render_suggestions_frame(
             let plan = session
                 .render_suggestions_frame(key, artifact.artifact(), data)
                 .map_err(suggestions_error)?;
-            Ok(plan_json_with_limits(&plan, session.limits()).to_string())
+            Ok(plan_json_with_suggestions(&plan, session.limits(), Some(&session.suggestions_publication(key).map_err(suggestions_error)?)).to_string())
         })
     })
 }

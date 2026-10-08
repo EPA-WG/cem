@@ -466,6 +466,7 @@ export class CemProcessingEngine {
             revision: input.revision,
             nextRenderPlan,
             frames,
+            suggestionPlacements: processed.suggestionPlacements,
             elementPlacementUses: processed.elementPlacementUses,
             hostAttributeUpdates: processed.hostAttributeUpdates,
             resourceControls: lowered.resourceControls,

@@ -180,7 +180,7 @@ pub fn render_xslt_component_with_native_values(id: u32, data_json: &str, docume
         Ok(execution) => execution,
         Err(error) => return element_reference_inputs_error(error),
     };
-    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref(), execution, profile).to_string()
+    plan_json_for_elements(&component.render(&data), &limits, element_reference_instance_id.as_deref(), execution, profile, data.bindings.get("suggestions").and_then(|s| s.items.first()).and_then(crate::suggestions::SuggestionsView::from_root).as_ref()).to_string()
 }
 
 #[wasm_bindgen(js_name = "disposeXsltComponent")]

@@ -56,18 +56,27 @@ export const ComponentFramesRouteToOriginalOwner: Story = {
             runtime.install(window);
             const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag);
             const template = document.createElement('template'); template.type = 'text/cem-ml';
-            template.textContent = '{attribute @name=caption | First}{span | {$caption}|{$datadom.slices.suggestions.dom:attribute("query").value}|{$datadom.slices.suggestions.children.source.children.expression}}';
+            template.textContent = '{attribute @name=caption | First}{span @role=option @suggestion-row={#datadom.slices.suggestions.children} | {$caption}|{$datadom.slices.suggestions.dom:attribute("query").value}|{$datadom.slices.suggestions.children.source.children.expression}}';
             declaration.append(template); root.append(declaration); runtime.registerDeclaration(declaration);
             const instance = document.createElement(tag); root.append(instance);
             try {
                 await runtime.whenRenderSettled(instance);
                 expect(runtime.diagnosticsFor(instance)).toEqual([]);
                 expect(instance.querySelector('span')?.textContent).toBe('First|Original|#later');
+                const mapped = runtime.renderedSuggestionsFor(instance);
+                expect(mapped?.rows).toHaveLength(1); expect(mapped?.rows[0].element).toBe(instance.querySelector('span'));
+                expect(mapped?.rows[0].native.value).toBe('x'); expect(mapped?.current()).toBe(true);
+                expect(instance.querySelector('[suggestion-row]')).toBeNull();
+                expect(JSON.stringify(runtime.snapshotInstance(instance))).not.toContain('suggestionPlacements');
                 const span = instance.querySelector('span'); instance.setAttribute('caption', 'Second');
                 await new Promise(resolve => setTimeout(resolve));
                 await runtime.whenRenderSettled(instance);
                 expect(runtime.diagnosticsFor(instance)).toEqual([]);
                 expect(instance.querySelector('span')).toBe(span);
+                expect(mapped?.current()).toBe(false);
+                const replacement = runtime.renderedSuggestionsFor(instance);
+                expect(replacement?.rows[0].element).toBe(span);
+                expect(replacement?.rows[0].native.source).toBe(mapped?.rows[0].native.source);
                 await waitFor(() => expect(span?.textContent).toBe('Second|Original|#later'));
                 const snapshot = runtime.snapshotInstance(instance);
                 const imported = await host.value({ action: 'import', scopePolicyStamp: snapshot.scopePolicyStamp,
@@ -77,7 +86,7 @@ export const ComponentFramesRouteToOriginalOwner: Story = {
                 const direct = publication.bind({ instanceId: snapshot.instanceId, scopePolicyStamp: snapshot.scopePolicyStamp,
                     revision: snapshot.dataRevision, current: () => instance.isConnected });
                 const id = 'materialized-extra';
-                const source = '{span | {$extra.children.children}|{$datadom.slices.suggestions.children.source.children.expression}}';
+                const source = '{span @role=option @suggestion-row={#datadom.slices.suggestions.children} | {$extra.children.children}|{$datadom.slices.suggestions.children.source.children.expression}}';
                 const frame = { compile: { language: 'cem-ml' as const, producedTag: tag, templateArtifactId: id, registrationIdentity: id,
                     source: createCemProcessingTextSource(source), sourceRef: { kind: 'inline' as const, value: id }, resolverIdentity: 'fixture',
                     scopePolicyStamp: snapshot.scopePolicyStamp, sourceMapMode: 'dev' as const, hostBindings: ['extra', 'datadom'] },
@@ -88,6 +97,11 @@ export const ComponentFramesRouteToOriginalOwner: Story = {
                 const rendered = await direct.renderComponent(frame);
                 expect(JSON.stringify(rendered.frames)).toContain('Materialized');
                 expect(JSON.stringify(rendered.frames)).toContain('#later');
+                if (rendered.suggestionPlacements?.[0]) rendered.suggestionPlacements[0].handle = 'forged';
+                const directRows = await direct.rowPlacements(rendered);
+                expect(directRows).toHaveLength(1); expect(directRows[0].native.source).toBe(mapped?.rows[0].native.source);
+                await expect(direct.rowPlacements({ ...rendered })).rejects.toThrow('exact native render result');
+                expect(JSON.stringify(rendered.frames)).not.toContain('suggestion-row');
                 await expect(direct.renderComponent({ ...frame, render: { ...frame.render, nativeSlices: [{ name: 'suggestions', value: imported.value }] } })).rejects.toThrow('reserved');
                 const stale = direct.renderComponent(frame); direct.release(); await expect(stale).rejects.toThrow('superseded');
                 expect(snapshot.slices).not.toHaveProperty('suggestions');
@@ -95,6 +109,7 @@ export const ComponentFramesRouteToOriginalOwner: Story = {
                 expect(() => runtime.setInstanceSlices(instance, { suggestions: 'forged' })).toThrow('reserved');
                 multiple = true; runtime.refreshElementReferences(instance); await runtime.whenRenderSettled(instance);
                 expect(runtime.diagnosticsFor(instance).some(d => d.message.includes('one verified live'))).toBe(true);
+                expect(runtime.renderedSuggestionsFor(instance)).toBeUndefined();
                 expect(span?.textContent).toBe('Second|Original|#later');
             } finally { instance.remove(); declaration.remove(); consumerScope.dispose(); await publication.release(); await session.release();
                 await host.dispose({ reason: 'runtime-disposed' }).result; sourceScope.dispose(); }

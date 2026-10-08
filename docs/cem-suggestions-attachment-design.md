@@ -338,8 +338,8 @@ interaction design. Loading/status announcements follow the source-data lifecycl
 | Whole menu/surface substitution | Keep label templates inside owned shells for the first profile; richer adoption needs separate semantic/visibility/authority evidence. |
 | Existing choice/autocomplete record normalization | Implement retained native adapters; copied records and value-as-identity would break the selected source and reference contracts. |
 
-Public XHTML composition still requires automatic native-render row-to-source
-placement metadata and source/readiness/label wiring. The shared editor-for,
+Public XHTML composition still requires local host authorization and
+source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
 provider, native source/view, placement and capability prerequisites are delivered.
 Complete the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)
@@ -383,7 +383,7 @@ hook and route ordinary compile/render/diff execution to the original publicatio
 owner. They retain the consuming declaration's module/function context, native
 materialized inputs, CSS/DOM publication and source-map metadata. Compilation
 bindings remain fixed for the declaration, as on the ordinary retained path.
-The processing protocol is v20. A second live binding is rejected; execution
+The processing protocol is v21. A second live binding is rejected; execution
 across multiple live owners needs a separate design. Retained HTTP document handles
 belonging to another owner cannot ride this channel; supply materialized inputs.
 These leases are excluded from snapshots and reacquired on subsequent frames.
@@ -394,8 +394,16 @@ capability requires `suggestionsControllerInputs` from its runtime host; a missi
 hook, invalid endpoint or copied/resumed handle leaves it inactive with a diagnostic.
 The hook supplies bounded native preparation and exact committed shells. It is
 transient and cannot be reconstructed from a data island. Automatic mapping from
-native rendering to constructed row shells remains a decision in the active
-checklist before production XHTML composition. `editor-for` now has native singleton
+native rendering to constructed row shells is implemented. A declaration annotates
+its owned option shell with `@suggestion-row={#row}`, where `row` is the exact
+current native view row (a direct row value is also accepted). The consumer strips
+that attribute from output and returns a bounded source-handle/placement map.
+The binding accepts only its exact render result and preserves native source order.
+`runtime.renderedSuggestionsFor(instance)` exposes the captured committed elements
+and opaque rows with a current-admission check; it supplies no grants by itself.
+A newer render attempt, disconnect or native owner loss expires that mapping.
+Production composition still requires a local host-authorization policy, recorded
+beside its implementation action in the active checklist. `editor-for` now has native singleton
 projection, a property-specific placement grant, and an exact-provider endpoint
 adapter. The adapter admits typed endpoints, scoped local names or a single direct
 editor slot, rejects ambiguous/conflicting/unsupported editors, and grants no

@@ -20,7 +20,14 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
     const suffix = crypto.randomUUID(), declarationTag = `controller-declaration-${suffix}`, tag = `controller-field-${suffix}`;
     let capabilityOptions: CemSuggestionsControllerOptions | undefined;
-    const runtime = new CemElementRuntime({ declarationTag, suggestionsControllerInputs: instance => instance === host ? capabilityOptions : undefined, ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback fixture'); } } : {}) }); runtime.install(window);
+    let renderPublication: CemNativeSuggestionsPublication | undefined;
+    const runtime = new CemElementRuntime({ declarationTag,
+        nativeSuggestionsInputs(instance, snapshot) {
+            const current = renderPublication;
+            return declarative && instance === host && current ? [current.bind({ instanceId: snapshot.instanceId,
+                scopePolicyStamp: snapshot.scopePolicyStamp, revision: snapshot.dataRevision,
+                current: () => instance.isConnected && renderPublication === current })] : [];
+        }, suggestionsControllerInputs: instance => instance === host ? capabilityOptions : undefined, ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback fixture'); } } : {}) }); runtime.install(window);
     const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', tag); declaration.setAttribute('capability', 'form-control');
     const template = document.createElement('template'); template.type = 'text/cem-ml';
     template.textContent = '{input @part=control @form="" @type=text @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}';
@@ -30,7 +37,7 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     if (declarative) {
         parentDeclaration = document.createElement(declarationTag); parentDeclaration.setAttribute('tag', parentTag); parentDeclaration.setAttribute('capability', 'suggestions');
         const parentTemplate = document.createElement('template'); parentTemplate.type = 'text/cem-ml';
-        parentTemplate.textContent = '{slot @name=editor}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {div @role=option | First}{div @role=option | Second}{div @role=option | Disabled}}{slot @name=outside}';
+        parentTemplate.textContent = '{slot @name=editor}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} @aria-disabled={row.dom:attribute("disabled").value} | {$row.dom:attribute("label").value}}}}{slot @name=outside}';
         parentDeclaration.append(parentTemplate); root.append(parentDeclaration); runtime.registerDeclaration(parentDeclaration); await runtime.whenDeclarationSettled(parentDeclaration);
     }
     const form = document.createElement('form'), host = document.createElement(declarative ? parentTag : 'section');
@@ -71,20 +78,27 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
             latest = queryRevision;
             if (delay) await delay;
             const next = await session.publishSuggestions({ query, queryRevision }, () => latest === queryRevision);
-            const nextBinding = next.bind({ instanceId: 'listbox', scopePolicyStamp: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision });
+            let nextBinding: CemNativeSuggestionsBinding | undefined;
             try {
-                const rows = await nextBinding.rows();
+                let mapped: ReturnType<CemElementRuntime['renderedSuggestionsFor']>;
+                if (declarative) {
+                    renderPublication = next; runtime.refreshElementReferences(host); await runtime.whenRenderSettled(host);
+                    mapped = runtime.renderedSuggestionsFor(host);
+                    if (!mapped) throw new Error(`Missing committed native row map: ${runtime.diagnosticsFor(host).map(d => d.message).join('; ')}`);
+                    nextBinding = mapped.binding; rowElements = mapped.rows.map(row => row.element);
+                } else nextBinding = next.bind({ instanceId: 'listbox', scopePolicyStamp: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision });
+                const rows = mapped ? mapped.rows.map(row => row.native) : await nextBinding.rows();
                 if (latest !== queryRevision) throw new Error('Fixture preparation superseded');
                 for (const lease of rowPlacements) lease.dispose(); binding?.release(); await publication?.release();
                 publication = next; binding = nextBinding;
                 rowPlacements = rows.map((row, i) => {
-                    rowElements[i].hidden = !row.eligible;
-                    const registered = placements.register({ producer: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision,
+                    if (!declarative) rowElements[i].hidden = !row.eligible;
+                    const registered = placements.register({ producer: 'listbox', revision: String(queryRevision), current: () => latest === queryRevision && (!mapped || mapped.current()),
                         kind: 'row', element: rowElements[i], row });
                     placements.grant('field', registered, ['aria-activedescendant']); return registered;
                 });
                 return placements.prepare(nextBinding, editorPlacement, panelPlacement, rowPlacements);
-            } catch (error) { nextBinding.release(); await next.release(); throw error; }
+            } catch (error) { nextBinding?.release(); await next.release(); throw error; }
         },
     };
     if (declarative) { capabilityOptions = controllerOptions; runtime.setInstanceSlices(host, { fixtureTick: 1 });
@@ -94,7 +108,7 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     const settled = () => waitFor(() => { expect(controller.pending).toBe(false); expect(errors).toEqual([]); });
     const key = (name: string, extra: KeyboardEventInit = {}) => { const event = new KeyboardEvent('keydown', { key: name, code: name, bubbles: true, cancelable: true, ...extra }); editor.dispatchEvent(event); return event; };
     const up = (name: string) => editor.dispatchEvent(new KeyboardEvent('keyup', { key: name, code: name, bubbles: true }));
-    return { host, field, form, panel, editor, provider, controller, rowElements, outside, settled, key, up,
+    return { host, field, form, panel, editor, provider, controller, get rowElements() { return rowElements; }, outside, settled, key, up,
         releaseSource: () => session.release(),
         block() { let finish!: () => void; delay = new Promise(resolve => { finish = resolve; }); return () => { delay = undefined; finish(); }; },
         async cleanup() { controller.disconnect(); binding?.release(); await publication?.release(); placements.dispose(); await session.release();
@@ -192,6 +206,15 @@ export const DeclarativeCapabilityRequiresFreshHostAdmission: Story = {
                 await f.settled(); expect(f.controller.visible).toBe(false);
                 f.editor.focus(); await f.settled(); expect(f.controller.visible).toBe(true);
                 f.key('ArrowDown'); expect(f.editor.getAttribute('aria-activedescendant')).toBe(f.rowElements[0].id);
+                const originalFirst = f.rowElements[0];
+                f.editor.value = 'Second'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.settled();
+                expect(f.field.querySelector('input')).toBe(f.editor); expect(f.rowElements[0]).toBe(originalFirst);
+                expect(f.rowElements[0].hidden).toBe(true); expect(f.controller.active).toBeUndefined();
+                expect(f.key('ArrowDown').defaultPrevented).toBe(true);
+                expect(f.editor.getAttribute('aria-activedescendant')).toBe(f.rowElements[1].id);
+                expect(f.key('Enter').defaultPrevented).toBe(true); f.up('Enter'); await f.settled();
+                expect(f.field.value).toBe('same'); expect(new FormData(f.form).get('choice')).toBe('same');
+                expect(f.controller.committed).toBeDefined();
                 f.host.setAttribute('editor-for', '@missing');
                 await waitFor(() => expect(cemSuggestionsControllerFor(f.host)).toBeUndefined());
                 expect(f.editor.hasAttribute('aria-controls')).toBe(false); expect(f.panel.matches(':popover-open')).toBe(false);

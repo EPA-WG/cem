@@ -96,6 +96,7 @@ export interface CemQlHostAttributeUpdate {
 }
 
 export interface CemQlRenderResult {
+    suggestionPlacements?: { handle: string; renderNodeId: string }[];
     elementPlacementUses?: CemElementPlacementUse[];
     nodes: RenderPlanNode[];
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
@@ -377,6 +378,7 @@ export interface RetainedCemMlTemplate {
 }
 
 export interface CemMlTemplateProcessingResult {
+    suggestionPlacements?: { handle: string; renderNodeId: string }[];
     elementPlacementUses?: CemElementPlacementUse[];
     renderPlan: RenderPlan;
     hostAttributeUpdates: CemQlHostAttributeUpdate[];
@@ -963,8 +965,15 @@ function mapWasmRenderPlan(planJson: string, options: CemQlRenderOptions): CemQl
         if (target?.kind !== 'element') throw new TypeError('Invalid native placement consumer path');
         return { ...use, renderNodeId: target.renderNodeId };
     });
+    const suggestionPlacements = (plan.suggestionPlacements ?? []).map(({ path, handle }) => {
+        let children = nodes, target: RenderPlanNode | undefined;
+        for (const index of path) { target = children[index]; children = target?.kind === 'element' ? target.children : []; }
+        if (target?.kind !== 'element') throw new TypeError('Invalid native suggestion placement path');
+        return { handle, renderNodeId: target.renderNodeId };
+    });
     return {
         nodes,
+        suggestionPlacements,
         elementPlacementUses: uses,
         hostAttributeUpdates: (plan.hostAttributeUpdates ?? []).map((update) => ({
             name: update.name,
@@ -1019,6 +1028,7 @@ export async function processCemMlTemplate(
     return {
         renderPlan,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
+        suggestionPlacements: rendered.suggestionPlacements,
         elementPlacementUses: rendered.elementPlacementUses,
         diagnostics: [...declaration.diagnostics, ...rendered.diagnostics],
         patchFrames:
@@ -1068,6 +1078,7 @@ export async function processRetainedCemMlTemplate(
     return {
         renderPlan,
         hostAttributeUpdates: rendered.hostAttributeUpdates,
+        suggestionPlacements: rendered.suggestionPlacements,
         elementPlacementUses: rendered.elementPlacementUses,
         diagnostics: rendered.diagnostics,
         patchFrames:
@@ -1078,6 +1089,7 @@ export async function processRetainedCemMlTemplate(
 }
 
 interface WasmRenderPlan {
+    suggestionPlacements?: { path: number[]; handle: string }[];
     ariaReferenceProfile?: CemAriaReferenceProfile;
     elementPlacementUses?: (Omit<CemElementPlacementUse, 'renderNodeId'> & { path: number[] })[];
     referenceProjectionComplete?: boolean;

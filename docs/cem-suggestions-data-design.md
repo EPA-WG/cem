@@ -111,7 +111,7 @@ native diagnostic; projecting a presentation value does not transfer source
 authority. Original source edges stay inside the native session rather than
 becoming serialized JavaScript records.
 
-Processing-host protocol v20 provides prepare/view/render/release operations
+Processing-host protocol v21 provides prepare/view/render/release operations
 with immutable source revisions and root-owned session identities. Source leases
 survive query changes; immutable publications capture query revisions and
 consumer leases check attachment/query eligibility before and after async work. Cancellation, release and root disposal fence in-flight preparation and
@@ -140,8 +140,14 @@ Opaque original-source identities are session-local and stable across queries.
 Publication/consumer release invalidates its rows immediately, while source
 replacement, worker loss and root disposal also revoke retained commit proofs.
 Provider relationships activate only after the host maps the exact rows to
-committed DOM shells and grants both directions. Automatic render-to-shell
-metadata and the public declaration remain open.
+committed DOM shells and grants both directions. Native rendering now consumes
+`suggestion-row` on an option shell and returns bounded placement metadata.
+The value must be one exact row from the current publication, directly or through
+an already-evaluated native reference. Source nodes, scalar handles, prior-view
+rows and duplicate row placements are rejected. The annotation is removed before
+DOM/CEMV export. The runtime binds the metadata to exact committed elements under
+the current render attempt; neither saved IDs nor row positions restore it.
+The production declaration remains open pending local host authorization.
 
 Request replacement/disconnect asks the shared resource owner to cancel its
 obsolete work. Cancellation may not stop an already finishing transport; every

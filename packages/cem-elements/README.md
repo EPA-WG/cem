@@ -357,9 +357,13 @@ Declarations can opt into `capability="suggestions"` through the runtime’s
 `suggestionsControllerInputs` host hook. That hook must supply the exact editor,
 a direct component-owned `part="surface"` listbox and native preparation with
 current placement grants. Markup alone does not grant authority. The hook and
-row handles are transient; resume requires fresh admissions. The public XHTML
-declaration, automatic native-render placement metadata, loading feedback and
-full touch/pen/field acceptance matrix remain in the active checklist.
+row handles are transient; resume requires fresh admissions. Native option shells
+use `@suggestion-row={#row}` to return bounded consumer placement metadata, removed
+from DOM/CEMV output. `runtime.renderedSuggestionsFor(instance)` supplies exact
+committed shells and native row handles for host-issued placement grants. Copies,
+old views, ambiguous mappings and later render attempts cannot reuse the authority.
+The public XHTML declaration, local host-authorization policy, loading feedback
+and full touch/pen/field acceptance matrix remain in the active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects
