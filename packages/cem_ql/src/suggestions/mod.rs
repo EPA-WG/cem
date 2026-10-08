@@ -15,6 +15,8 @@ use std::{
 pub const UNICODE_VERSION: &str = "17.0.0";
 mod placements;
 pub use placements::{project_suggestion_placements, SuggestionPlacement};
+mod labels;
+pub use labels::{admit_label_output, admit_label_template};
 
 pub const VIEW_NAMESPACE: &str = "https://cem.dev/ns/runtime/suggestions/v1";
 pub const CONSUMER_IDENTITY: &str = "cem-suggestions-v1-unicode-17.0.0";

@@ -982,3 +982,136 @@ fn local_xml_options_capture_retains_namespace_owner_and_bounds() {
     )
     .is_err());
 }
+
+#[test]
+fn native_label_output_requires_bounded_noninteractive_content() {
+    let source = session("{data @value=x | Label}");
+    let options = CompileTemplateOptions {
+        host_bindings: vec!["suggestion".into(), "group".into()],
+        ..Default::default()
+    };
+    let safe = compile_template(
+        "{span | {strong | {$suggestion.dom:attribute(\"label\").value}}}",
+        &options,
+    );
+    let output = source
+        .render_suggestion(&config(""), &safe, Some(0))
+        .unwrap();
+    assert!(render_plan_to_html(&output).contains("Label"));
+    for limits in [
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_values: 1,
+            ..Default::default()
+        },
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_bytes: 1,
+            ..Default::default()
+        },
+    ] {
+        assert!(cem_ql::suggestions::admit_label_output(&output, &limits).is_err());
+    }
+    for template in [
+        "{button | Choose}",
+        "{span @tabindex=-1 | Label}",
+        "{span @id=own | Label}",
+        "{span @role=option | Label}",
+        "{span @contenteditable=false | Label}",
+        "{span @autofocus | Label}",
+        "{a @href=/ | Label}",
+        "{input @type=hidden}",
+        "{label | Label}",
+        "{span @onclick=execute | Label}",
+        "{foreign-widget | Label}",
+        "{span @slot=editor | Label}",
+        "{span @form=other | Label}",
+        "{span @style=display:none | Label}",
+        "{attribute @name=value | Changed}{span | Label}",
+        "{style | ```span { color: red }```}{span | Label}",
+    ] {
+        let template = compile_template(template, &options);
+        assert!(
+            source
+                .render_suggestion(&config(""), &template, Some(0))
+                .is_err(),
+            "unsafe label was admitted: {template:?}"
+        );
+    }
+    let grouped = session("{optgroup @label=Group | {option @value=x | Label}}");
+    assert!(grouped
+        .render_suggestion_group(
+            &config(""),
+            &compile_template("{button | Group}", &options),
+            0
+        )
+        .is_err());
+    let constrained = session_with_limits(
+        "{data @value=x | Label}",
+        cem_ml::value::artifact::CemValueArtifactLimits {
+            max_depth: 3,
+            ..Default::default()
+        },
+    );
+    assert!(constrained
+        .render_suggestion(
+            &config(""),
+            &compile_template("{span | {span | {span | {span | Deep}}}}", &options),
+            Some(0)
+        )
+        .is_err());
+    let rich = session("{data @value=x | Label {strong | Safe}}");
+    let rich_template = compile_template("{$suggestion.content}", &options);
+    assert!(render_plan_to_html(
+        &rich
+            .render_suggestion(&config(""), &rich_template, Some(0))
+            .unwrap()
+    )
+    .contains("Safe"));
+    let svg = session(
+        r#"<options xmlns="http://www.w3.org/1999/xhtml"><option value="x" label="Icon"><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg></option></options>"#,
+    );
+    let svg_output = svg
+        .render_suggestion(&config(""), &rich_template, Some(0))
+        .unwrap();
+    assert!(
+        matches!(&svg_output.nodes[0], cem_ql::render::RenderPlanNode::Element { namespace: Some(uri), .. } if uri == "http://www.w3.org/2000/svg")
+    );
+    let unsafe_source = session("{data @value=x | Label {button | Unsafe}}");
+    let error = unsafe_source
+        .render_suggestion(&config(""), &rich_template, Some(0))
+        .unwrap_err();
+    assert_eq!(error.code, "cem.suggestions.label_invalid");
+    let original = unsafe_source.evaluate("input.children", None).unwrap();
+    let button_source = original
+        .items
+        .iter()
+        .find_map(|item| {
+            let node = retained_cem_node(item)?;
+            match node.node() {
+                cem_ml::parser::CemAstNode::Element {
+                    expanded_name,
+                    source,
+                    ..
+                } if expanded_name.local_name == "button" => Some(source.clone()),
+                _ => None,
+            }
+        })
+        .unwrap();
+    assert_eq!(error.source.origin(), button_source.origin());
+    assert!(!error.source.frames.is_empty());
+    let reference_source = session("{data @value=x @label=Label | {#missing}}");
+    let before = reference_source
+        .evaluate("input.children.expression", None)
+        .unwrap();
+    reference_source
+        .render_suggestion(&config(""), &safe, Some(0))
+        .unwrap();
+    assert_eq!(strings(before), vec!["#missing"]);
+    assert_eq!(
+        strings(
+            reference_source
+                .evaluate("input.children.expression", None)
+                .unwrap()
+        ),
+        vec!["#missing"]
+    );
+}

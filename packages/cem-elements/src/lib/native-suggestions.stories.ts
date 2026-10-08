@@ -142,6 +142,19 @@ export const SourceViewsLabelsAndFilteringWorkerAndFallback: Story = {
                 await expect(JSON.stringify(label.nodes)).toContain('#datadom.slices.later');
                 const group = await session.render('{span | {$dom:attribute(group, "label").value}}', 0, config, true);
                 await expect(JSON.stringify(group.nodes)).toContain('Group');
+                for (const unsafe of ['{button | Interactive}', '{span @id=foreign | Label}',
+                    '{span @tabindex=-1 | Label}', '{span @role=option | Label}', '{span @style=display:none | Label}',
+                    '{attribute @name=value | Changed}{span | Label}', '{style | ```span { color: red }```}{span | Label}']) {
+                    await expect(session.render(unsafe, 1, config)).rejects.toThrow();
+                }
+                await expect(session.render('{button | Group}', 0, config, true)).rejects.toThrow();
+                const afterRejectedLabel = await session.render('{span | {$suggestion.content.expression}}', 1, config);
+                await expect(JSON.stringify(afterRejectedLabel.nodes)).toContain('#datadom.slices.later');
+                const unsafeContent = await CemNativeCapabilitySession.prepare(host, request('{option @value=x | Label {button | Interactive}}'), () => current);
+                try {
+                    await expect(unsafeContent.render('{$suggestion.content}', 0, { query: '', queryRevision: 1 })).rejects.toThrow();
+                    await expect(unsafeContent.render('{span | {$suggestion.dom:attribute("label").value}}', 0, { query: '', queryRevision: 1 })).resolves.toHaveProperty('status', 'rendered');
+                } finally { await unsafeContent.release(); }
                 const complete = await session.view('input.children.children.dom:attribute("value").value', undefined, config);
                 await expect(complete.values.length).toBe(2);
                 await expect(session.view('input', undefined, { ...config, filter: 'none', filterBy: 'label' })).rejects.toThrow('conflicts');

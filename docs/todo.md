@@ -772,6 +772,32 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
           do not recompile copied template strings with another source's bindings.
           Fixture: verify worker/fallback label templates, explicit-label/default
           precedence, stored-value hints, group names and denied template scopes.
+          - [x] Fixture: add native bounded label-output admission cases before
+            wiring templates; reject interactive descendants, roles/IDs/focus
+            overrides, executable attributes and template-owned host/style writes.
+            Verify original source attribution, native-content projection and
+            node/depth/byte bounds without evaluating authored descendants;
+            cover worker/fallback row/group rejection and reusable sessions after
+            failed label rendering.
+            Delivered 2026-10-08: native row/group rendering admits passive
+            HTML/SVG output after bounded native-content projection and rejects
+            interaction ownership, executable attributes, host writes and
+            template-owned styles/module mappings. Invalid source nodes retain
+            attribution; rejection leaves the source session usable.
+            Verification: 55 focused Rust checks, 15 worker/fallback browser
+            checks, typecheck and fresh package build/import verification pass.
+            Scenarios for later design verification: captured template scope
+            failures cannot fall back to consumer bindings, and production
+            default/custom labels pass admission before attachment activation.
+          - [ ] Decide the execution context of local HTML CEM-ML label templates
+            before canonical captured-template wiring. Recommended: isolated
+            source-owned compilation with captured namespaces, the explicit
+            native `suggestion`/`group` parameter and standard library; do not
+            inherit the consuming declaration's function/binding closure.
+            Preserve original captured context for native module templates.
+            Scenarios for later design verification: consumer-local functions
+            cannot become ambient authority; equal template bytes from different
+            sources retain distinct owners and namespace bindings.
         Scenarios for later design verification: grouped/dynamic sources in both
         field types, slot conflicts, native source readiness, independent instances
         and fresh authority after resume.

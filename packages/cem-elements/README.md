@@ -392,6 +392,15 @@ Preview leaves unchanged status text alone; dismissal, composition, unavailabili
 revocation and disconnect clear qualifying feedback. Late preparation cannot
 restore an announcement after dismissal.
 
+Native row/group label rendering admits its complete output before returning a
+presentation plan, including rich native source content. It accepts a passive
+HTML/SVG subset and rejects controls, focus/role/ID overrides, executable
+attributes, host writes and template-owned styles or module mappings. One
+node/depth/byte budget covers the projected subtree; invalid elements and
+attributes retain their source attribution. This output check does not evaluate
+authored descendant references or change the original source tree. A rejected
+label does not invalidate the retained source session.
+
 Captured label-template wiring, the public XHTML declaration and the full
 touch/pen/field acceptance matrix remain in the active checklist.
 

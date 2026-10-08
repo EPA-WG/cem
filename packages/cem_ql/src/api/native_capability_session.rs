@@ -337,6 +337,7 @@ impl NativeCapabilitySession {
         template: &TemplateArtifact,
         index: Option<usize>,
     ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
+        crate::suggestions::admit_label_template(template)?;
         let (mut data, _, input) = self.suggestions_frame(config, index)?;
         data.bindings.insert("suggestion".into(), input.clone());
         data.bindings.insert("input".into(), input);
@@ -354,7 +355,7 @@ impl NativeCapabilitySession {
                     .join("; "),
             ));
         }
-        Ok(plan)
+        crate::suggestions::admit_label_output(&plan, &self.limits)
     }
     pub fn render_suggestion_group(
         &self,
@@ -362,6 +363,7 @@ impl NativeCapabilitySession {
         template: &TemplateArtifact,
         index: usize,
     ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
+        crate::suggestions::admit_label_template(template)?;
         let (mut data, view, _) = self.suggestions_frame(config, None)?;
         let input = ItemStream::once(view.group(index)?);
         data.bindings.insert("group".into(), input.clone());
@@ -380,7 +382,7 @@ impl NativeCapabilitySession {
                     .join("; "),
             ));
         }
-        Ok(plan)
+        crate::suggestions::admit_label_output(&plan, &self.limits)
     }
 }
 fn suggestions_error(message: impl Into<String>) -> crate::suggestions::SuggestionsError {
