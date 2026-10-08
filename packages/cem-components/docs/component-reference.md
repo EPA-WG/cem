@@ -219,6 +219,10 @@ slot. Chromium input-protocol plays cover mouse/touch/pen taps, cancellation,
 wheel scrolling and composition settlement on both fields. Physical touch-pan,
 device IME, screen-reader interoperability and the broader composition matrix
 remain in the [acceptance evidence and release record](./suggestions-acceptance.md).
+The gallery maps [all seven audited source intents](../../../docs/cem-autocomplete-source-audit.md#adopted-gallery-coverage),
+including native text fallback and explicit value/label edge cases. Its numeric
+examples demonstrate ordinary editing only; numeric suggestion selection remains
+deferred to an additional native profile.
 
 
 `cem-field` and `cem-text-field` use canonical XHTML declarations and the shared

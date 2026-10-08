@@ -1198,6 +1198,7 @@ async function verifyNavigation(baseUrl) {
 async function verifySuggestions(baseUrl) {
     const context = await browser.newContext();
     const page = await context.newPage();
+    page.setDefaultTimeout(30_000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     try {
@@ -1221,6 +1222,71 @@ async function verifySuggestions(baseUrl) {
         await custom.locator('[part=option-label] strong').first().waitFor({ state: 'attached' });
         assert.equal(await custom.locator('[part=option-label] strong').first().textContent(), 'Alpha');
         assert.equal(await custom.locator('[part=option-value]').first().textContent(), 'a');
+        const demo = legend => page.locator(`cem-demo-element[legend="${legend}"]`);
+        const sourceLegends = ['No value', 'No value with placeholder', 'Value defined', 'No initial value with placeholder',
+            'Number, No initial value without placeholder', 'Options text as value', 'Options Grouping'];
+        for (const legend of sourceLegends) {
+            assert.equal(await demo(legend).count(), 1, `one source-intent example: ${legend}`);
+            await demo(legend).locator('input').waitFor();
+        }
+        for (const legend of ['No value', 'No value with placeholder', 'Number, No initial value without placeholder']) {
+            const input = demo(legend).locator('input');
+            assert.equal(await demo(legend).locator('cem-suggestions').count(), 0);
+            await input.fill(legend === 'No value' ? 'ordinary edit' : '2');
+            assert.equal(await input.inputValue(), legend === 'No value' ? 'ordinary edit' : '2');
+            assert.equal(await input.getAttribute('role'), null);
+        }
+        assert.equal(await demo('No value with placeholder').locator('input').getAttribute('placeholder'), 'Enter a number');
+        const readyDemo = async legend => {
+            await page.waitForFunction(legend => {
+                const host = document.querySelector(`cem-demo-element[legend="${legend}"] cem-suggestions`);
+                return host && window.cemPlaygroundRuntime.renderedSuggestionsFor(host)?.current();
+            }, legend);
+        };
+        const submitted = legend => demo(legend).locator('form').evaluate(form => new FormData(form).get('choice'));
+        const initial = demo('Value defined').locator('input'); await readyDemo('Value defined');
+        assert.equal(await initial.inputValue(), 'abc'); await initial.fill('edited'); await readyDemo('Value defined');
+        await demo('Value defined').locator('cem-suggestions').evaluate(host => host.setAttribute('label', 'Updated suggestions'));
+        await readyDemo('Value defined'); assert.equal(await initial.inputValue(), 'edited');
+        await initial.fill(''); await readyDemo('Value defined'); assert.equal(await initial.inputValue(), '');
+        assert.equal(await submitted('Value defined'), '');
+        const choose = async (legend, index, expected, pointer = false) => {
+            await readyDemo(legend); const input = demo(legend).locator('input');
+            await input.scrollIntoViewIfNeeded(); await input.evaluate(node => node.blur()); await input.fill(''); await readyDemo(legend); await input.focus();
+            await page.waitForFunction(legend => document.querySelector(`cem-demo-element[legend="${legend}"] input`)?.getAttribute('aria-expanded') === 'true', legend);
+            const rows = demo(legend).locator('[part=option]');
+            if (pointer) await rows.nth(index).click();
+            else { for (let i = 0; i <= index; i++) await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); }
+            assert.equal(await input.inputValue(), expected);
+            assert.equal(await submitted(legend), expected);
+            assert.equal(await input.evaluate(node => node === document.activeElement), true);
+        };
+        await choose('No initial value with placeholder', 0, 'apple');
+        await choose('Options text as value', 0, 'Apple pie', true);
+        await choose('Native option value and label edges', 0, '');
+        await choose('Native option value and label edges', 1, 'stored text', true);
+        await choose('Native option value and label edges', 2, 'explicit');
+        await choose('Native option value and label edges', 3, 'A\u00a0B', true);
+        const grouped = demo('Options Grouping'), groupInput = grouped.locator('input');
+        await readyDemo('Options Grouping'); await groupInput.scrollIntoViewIfNeeded(); await groupInput.fill('Str'); await readyDemo('Options Grouping');
+        await page.waitForFunction(() => {
+            const host = document.querySelector('cem-demo-element[legend="Options Grouping"]');
+            return [...host.querySelectorAll('[part=group]')].some(group => group.getAttribute('aria-label') === 'Orchard' && group.hidden);
+        });
+        assert.equal(await grouped.locator('[part=group]:not([hidden])').getAttribute('aria-label'), 'Berries');
+        await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+        assert.equal(await submitted('Options Grouping'), 'strawberry');
+        await page.emulateMedia({ forcedColors: 'active' });
+        await groupInput.fill(''); await readyDemo('Options Grouping');
+        await page.waitForFunction(() => document.querySelector('cem-demo-element[legend="Options Grouping"] input')?.getAttribute('aria-expanded') === 'true');
+        await page.keyboard.press('ArrowDown');
+        const active = grouped.locator('[part=option][aria-selected=true]');
+        await active.waitFor();
+        assert.equal(await active.evaluate(node => getComputedStyle(node).outlineStyle), 'solid');
+        assert(await active.evaluate(node => parseFloat(getComputedStyle(node).outlineWidth) > 0), 'forced-colors preview has a visible outline');
+        assert.equal(await groupInput.getAttribute('aria-activedescendant'), await active.getAttribute('id'));
+        await page.keyboard.press('Escape'); assert.equal(await groupInput.inputValue(), '');
+        await page.emulateMedia({ forcedColors: 'none' });
         const diagnostics = await page.evaluate(() => [...document.querySelectorAll('cem-suggestions')].flatMap(host => window.cemPlaygroundRuntime.diagnosticsFor(host)));
         assert.deepEqual(diagnostics, []);
         assert.deepEqual(errors, []);

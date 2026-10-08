@@ -56,6 +56,13 @@ if (
     throw new Error('dist/catalog/cem.components.catalog.json must contain the public component catalog');
 }
 
+const suggestions = componentCatalog.components.filter(component => component.tag === 'cem-suggestions');
+if (suggestions.length !== 1 || suggestions[0].id !== 'suggestions' || suggestions[0].category !== 'Input'
+    || suggestions[0].implementation?.kind !== 'cem-element-xhtml'
+    || suggestions[0].implementation?.source !== 'packages/cem-components/src/components/cem-suggestions/cem-suggestions.xhtml') {
+    throw new Error('public catalog must identify cem-suggestions as one declarative field attachment');
+}
+
 if (!sourcePrimitives.includes("tag: 'cem-autocomplete'")) {
     throw new Error('source primitive inventory must contain cem-autocomplete');
 }

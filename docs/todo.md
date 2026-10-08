@@ -1007,12 +1007,26 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       equal-value distinct sources, custom/native/selection error precedence and
       native undo/redo/caret results with coherent field/submission state.
 
-- [ ] Fixture: complete suggestions source-example and public-contract parity across the linked property playground and gallery: map all source examples, verify forced colors and keyboard/pointer use, and finish catalog verification.
+- [x] Fixture: complete suggestions source-example and public-contract parity across the linked property playground and gallery: map all source examples, verify forced colors and keyboard/pointer use, and finish catalog verification.
       Delivered 2026-10-08: linked pages, five-theme/six-state matrix, public
       attribute/slot and accessibility inventories, package exports, and source/
       generated/isolated-installed-package browser checks for the first local
-      profile. Complete the remaining audit below and rerun the aggregate catalog
-      gate after the existing theme-switch story import violation is resolved.
+      profile. The seven source legends now map to executable gallery examples
+      with numeric editing explicitly separated from deferred numeric selection.
+      Native option edge cases, grouped filtering, retained edits, keyboard/mouse
+      commits, original focus/FormData and forced-colors preview checks pass from
+      source and isolated archives. Shared setup fixes the theme-switch import
+      violation; the aggregate declarative gate, 53-component catalog build,
+      package/catalog verification, 27 theme-switch/suggestions browser plays,
+      typecheck and lint (two existing warnings) all pass.
+      - [x] Fixture: add seven legend-addressed source-intent samples and native
+        value/label edge cases; verify editing, grouped filtering, keyboard and
+        mouse commit, and forced-colors active-row visibility from source and
+        isolated packages. Keep numeric selection explicitly deferred.
+        Scenarios for later design verification: explicit empty values remain
+        distinct from missing values, native text fallback differs from an
+        explicit label, and filtering hides empty groups without transferring
+        row identity.
       Map all [seven audited source examples](cem-autocomplete-source-audit.md#map-of-the-seven-examples),
       add explicit native option values and label/text edge cases, and distinguish
       example-intent coverage from the existing static material parity markers.
@@ -1053,10 +1067,15 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 
 ## Restore the components declarative verification gate
 
-- [ ] Move the theme-switch runtime/scope/action-declaration setup to the shared
+- [x] Move the theme-switch runtime/scope/action-declaration setup to the shared
       Storybook test/setup boundary, removing forbidden cross-component/runtime
       imports from its colocated story; rerun verify-declarative and its native
       lifecycle/theme fixtures. Do not loosen the gate to admit component behavior.
+      Delivered 2026-10-08: isolated runtime/scope/declaration preparation and
+      source dependency loading use the shared Storybook setup boundary. The
+      colocated story keeps only permitted imports; no gate relaxation or
+      component behavior was added. Declarative verification and all 27
+      theme-switch/suggestions lifecycle plays pass.
       Evidence 2026-10-07: the current tree and unchanged HEAD both reject
       `cem-elements/src/index.js` and `cem-action.xhtml?raw` imports in
       `cem-theme-switch.stories.ts`. Scenarios for later design verification:

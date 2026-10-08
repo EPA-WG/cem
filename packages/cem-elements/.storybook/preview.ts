@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import { installCemElementRuntime, type CemElementRuntime } from '../src/index.js';
+import { installCemElementRuntime, createCemDeclarationScope, CemElementRuntime } from '../src/index.js';
 export { getCemActionInvocation } from '../src/index.js';
 export { nativeTap, nativeInputPoint, nativeTouchGesture, nativePenDrag, nativeWheel } from './native-input.js';
 import '@epa-wg/cem-demo-element';
@@ -104,6 +104,24 @@ export async function cemComponentDeclarationSource(name: string): Promise<strin
     const source = componentDeclarations[`../../cem-components/src/components/${name}/${name}.xhtml`];
     if (!source) throw new Error(`Unknown component declaration ${name}`);
     return source();
+}
+/** Isolated host setup for worker/fallback declaration lifecycle plays. */
+export function createCemStoryRuntime(root: HTMLElement, fallback: boolean) {
+    const declarationTag = `declaration-${crypto.randomUUID()}`;
+    const scope = createCemDeclarationScope({ document: root.ownerDocument });
+    const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope,
+        ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback fixture'); } } : {}) });
+    runtime.install(window);
+    const declare = async (source: string, tag: string) => {
+        const parsed = document.createElement('template'); parsed.innerHTML = source;
+        const original = parsed.content.querySelector('cem-element');
+        if (!original) throw new Error('Missing source declaration');
+        const declaration = document.createElement(declarationTag);
+        for (const attribute of original.attributes) if (attribute.name !== 'tag') declaration.setAttribute(attribute.name, attribute.value);
+        declaration.setAttribute('tag', tag); declaration.append(...original.childNodes); root.append(declaration);
+        await runtime.whenDeclarationSettled(declaration); return declaration;
+    };
+    return { runtime, scope, declarationTag, declare };
 }
 export async function loadCemComponent(name: string): Promise<void> {
     await loadCemDeclaration(name, await cemComponentDeclarationSource(name));

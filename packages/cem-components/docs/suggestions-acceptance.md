@@ -35,6 +35,23 @@ trusted and do not represent an operating-system candidate window.
 | Native surfaces | Shared listbox/geometry/native-surface regressions plus production-template host integration with both fields and external CEMB sources: modal containment, nested Escape/held repeats, close/reopen, expired lifetime rejection, fresh admission and teardown | Worker/fallback host hooks explicitly supply ancestor authority; local adjacency supplies none |
 | Accessibility structure | Listbox/group names, option active-descendant, stored-value names, localized status, disabled rows and preserved field help | DOM contracts, not spoken-output evidence |
 
+The standalone gallery verifier also maps the seven audited source legends and
+checks initial/empty edits, explicit `data` values, native text fallback,
+explicit empty values, differing labels/text and non-ASCII whitespace. Keyboard
+and mouse commits preserve the original input focus and FormData owner; group
+filtering hides empty groups. Forced-colors mode checks a visible active-row
+outline and its active-descendant relation. Run the same cases from source and
+isolated package archives with:
+
+```sh
+yarn nx run @epa-wg/cem-components:verify-playgrounds -- --suggestions-only
+```
+
+Numeric examples verify ordinary field editing only. Numeric suggestions remain
+in the additional-profile todo item. The public catalog identifies the attachment
+as declarative; category-state inventory and static material parity markers do
+not replace the interactive or physical acceptance records.
+
 The row adapter cancels primary mouse pointerdown only on an admitted row. Touch
 and pen pointerdown stay native. While an exact row press is armed, its
 compatibility mousedown may suppress the focus default. Normal implicit capture

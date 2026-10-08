@@ -1,8 +1,6 @@
 import { expect, userEvent, waitFor, within } from 'storybook/test';
-import preview, { loadCemDeclaration, whenCemRendered } from '../../../../cem-elements/.storybook/preview.js';
+import preview, { loadCemDeclaration, whenCemRendered, cemComponentDeclarationSource, createCemStoryRuntime } from '../../../../cem-elements/.storybook/preview.js';
 import declarationSource from './cem-theme-switch.xhtml?raw';
-import actionSource from '../cem-action/cem-action.xhtml?raw';
-import { CemElementRuntime, createCemDeclarationScope } from '../../../../cem-elements/src/index.js';
 
 const meta = preview.meta({
     component: 'cem-theme-switch',
@@ -102,20 +100,10 @@ export const NativeActivationThenThemeProjection = meta.story({
     play: async ({ canvasElement }) => {
         const root = required(canvasElement, 'section');
         for (const fallback of [false, true]) {
-            const suffix = crypto.randomUUID(), declarationTag = `declaration-${suffix}`;
+            const suffix = crypto.randomUUID();
             const actionTag = `action-${suffix}`, themeTag = `theme-${suffix}`;
-            const scope = createCemDeclarationScope({ document });
-            const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope,
-                ...(fallback ? { processingWorkerFactory: () => { throw new Error('fallback fixture'); } } : {}) });
-            runtime.install(window);
-            const declare = async (source: string, tag: string) => {
-                const template = document.createElement('template'); template.innerHTML = source;
-                const original = required(template.content, 'cem-element');
-                const declaration = document.createElement(declarationTag);
-                for (const attribute of original.attributes) if (attribute.name !== 'tag') declaration.setAttribute(attribute.name, attribute.value);
-                declaration.setAttribute('tag', tag); declaration.append(...original.childNodes); root.append(declaration);
-                await runtime.whenDeclarationSettled(declaration); return declaration;
-            };
+            const { runtime, scope, declarationTag, declare } = createCemStoryRuntime(root, fallback);
+            const actionSource = await cemComponentDeclarationSource('cem-action');
             const declarations = [await declare(actionSource, actionTag), await declare(declarationSource, themeTag)];
             const theme = document.createElement(themeTag); theme.setAttribute('mode', 'light');
             theme.innerHTML = `<template><cem-demo-element legend="Controlled selection"><template slot="source">

@@ -169,3 +169,27 @@ Later fixture tasks should map all seven examples and exercise the missing
 behavior on the accepted controls. Static source comparison and the material
 fixture manifest are the evidence for this audit; they do not establish legacy
 browser interoperability or a completed suggestions implementation.
+
+## Adopted gallery coverage
+
+The [suggestions gallery](../packages/cem-components/playgrounds/cem-suggestions-gallery.html)
+now preserves these source legends as public examples. This maps author intent;
+it does not change the evidence about the pinned legacy implementation above.
+
+| Source legend | Delivered example and browser verification |
+| --- | --- |
+| No value | Empty ordinary field editing with no attachment or popup. |
+| No value with placeholder | Native number type and placeholder, ordinary numeric editing without suggestions. |
+| Value defined | Initial `abc`, subsequent and empty edits retained through attachment rerender and FormData. |
+| No initial value with placeholder | `data` values and emoji labels; keyboard commit submits `apple` through the existing field. |
+| Number, No initial value without placeholder | Native numeric editing is shown. Selection of `1`/`2`/`3` from word labels remains deferred to the additional native profile in todo. |
+| Options text as value | Missing-value text fallback, ASCII whitespace collapse and mouse commit. |
+| Options Grouping | Prefix filtering hides empty groups; keyboard commit submits the matching source value. |
+
+A separate native-option edge example verifies explicit empty values, explicit
+labels different from text, explicit stored values, and non-ASCII whitespace.
+Forced-colors verification checks a visible active-row outline and the original
+editor's active-descendant relationship. Source and isolated installed-package
+runs use the same cases. Catalog category-state entries and older static material
+parity markers remain inventory evidence; they do not establish physical-device,
+IME or screen-reader acceptance, or numeric suggestion support.
