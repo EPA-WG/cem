@@ -197,7 +197,7 @@
     {cem-icon @image="{$datadom.slices.logoUrl}" |
         custom-element}
 }
-{cem-icon @image="{$path}{$image}" | Bulbasaur}```
+{cem-icon @image={str:concat(($path, $image), "")} | Bulbasaur}```
 }   }
             </template>
         </cem-demo-element>

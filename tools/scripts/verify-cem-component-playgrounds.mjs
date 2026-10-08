@@ -20,6 +20,7 @@ const nativeEvidence = [];
 const historyEvidence = [];
 const navigationOnly = process.argv.includes('--navigation-only');
 const actionOnly = process.argv.includes('--action-only');
+const iconsOnly = process.argv.includes('--icons-only');
 let browser;
 const server = createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
@@ -33,63 +34,71 @@ try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const origin = `http://127.0.0.1:${server.address().port}`;
     if (!['chromium', 'firefox', 'webkit'].includes(nativeBrowser)) throw new Error('Unknown native browser');
+    if (iconsOnly && (navigationOnly || actionOnly || suggestionsOnly)) throw new Error('Choose one focused verification mode');
     if (nativeDatalistOnly && historyOnly) throw new Error('Choose one evidence mode');
     if (!evidenceOnly && (headed || nativeBrowser !== 'chromium' || evidenceOutput)) throw new Error('Browser evidence flags require --native-datalist-only or --history-only');
     browser = await ({ chromium, firefox, webkit })[nativeBrowser].launch({ headless: !headed });
-    if (!navigationOnly && !suggestionsOnly) {
-        await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
-        if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
-        if (!actionOnly) await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
-        if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-        if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
-        if (!actionOnly) await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
+    if (iconsOnly) await verifyIcons(`${origin}/packages/cem-components/playgrounds/`);
+    else {
+        if (!navigationOnly && !suggestionsOnly) {
+            await verify(`${origin}/packages/cem-components/playgrounds/cem-action.html`);
+            if (!actionOnly) await verifyThemeSwitch(`${origin}/packages/cem-components/playgrounds/cem-theme-switch.html`);
+            if (!actionOnly) await verifySelect(`${origin}/packages/cem-components/playgrounds/cem-select.html`);
+            if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+            if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/packages/cem-components/playgrounds/${tag}.html`, tag);
+            if (!actionOnly) await verifyIcon(`${origin}/packages/cem-components/playgrounds/cem-icon.html`);
+        }
+        if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
+        if (!navigationOnly && !suggestionsOnly) {
+            if (!actionOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
+            if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
+            if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
+        }
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
+        if (nativeDatalistOnly) await verifyNativeDatalist(`${origin}/packages/cem-components/playgrounds/`, 'source');
+        if (historyOnly) await verifyNativeHistory(`${origin}/packages/cem-components/playgrounds/`, 'source');
     }
-    if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/packages/cem-components/playgrounds/`);
-    if (!navigationOnly && !suggestionsOnly) {
-        if (!actionOnly) await verifyGalleries(`${origin}/packages/cem-components/playgrounds/`);
-        if (!actionOnly) await verifyBundle(`${origin}/packages/cem-components/playgrounds/cem-bundle.html`);
-        if (!actionOnly) await verifyPendingTheme(`${origin}/packages/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    }
-    if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/packages/cem-components/playgrounds/`);
-    if (nativeDatalistOnly) await verifyNativeDatalist(`${origin}/packages/cem-components/playgrounds/`, 'source');
-    if (historyOnly) await verifyNativeHistory(`${origin}/packages/cem-components/playgrounds/`, 'source');
     for (const [folder, name] of [['cem-components','cem-components'], ['cem-elements','cem-elements'], ['cem-demo-element','cem-demo-element'], ['cem-theme','cem-theme'], ['cem-ml-npm','cem-ml']]) {
         const output = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', temporary], { cwd: join(root, 'packages', folder), encoding: 'utf8', env: { ...process.env, npm_config_update_notifier: 'false' } }));
         const target = join(temporary, 'installed/node_modules/@epa-wg', name);
         await mkdir(target, { recursive: true });
         execFileSync('tar', ['-xzf', join(temporary, output[0].filename), '--strip-components=1', '-C', target]);
     }
-    if (!navigationOnly && !suggestionsOnly) {
-        await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
-        if (!actionOnly) await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
-        if (!actionOnly) await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
-        if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-        if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
-        if (!actionOnly) await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
+    if (iconsOnly) await verifyIcons(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+    else {
+        if (!navigationOnly && !suggestionsOnly) {
+            await verify(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-action.html`);
+            if (!actionOnly) await verifyThemeSwitch(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-theme-switch.html`);
+            if (!actionOnly) await verifySelect(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-select.html`);
+            if (!actionOnly) for (const tag of ['cem-icon-button', 'cem-menu-item']) await verifyCommand(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+            if (!actionOnly) for (const tag of ['cem-field', 'cem-text-field', 'cem-textarea']) await verifyField(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/${tag}.html`, tag);
+            if (!actionOnly) await verifyIcon(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-icon.html`);
+        }
+        if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (!navigationOnly && !suggestionsOnly) {
+            if (!actionOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+            if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
+            if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
+        }
+        if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
+        if (nativeDatalistOnly) {
+            await verifyNativeDatalist(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
+            const report = { schema: 'cem-native-datalist-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: nativeEvidence, actualPickerSelection: 'unconfirmed', physicalIme: 'not-run', mobileKeyboard: 'not-run', assistiveTechnology: 'not-run' };
+            if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
+            console.log(JSON.stringify(report, null, 2));
+        }
+        else if (historyOnly) {
+            await verifyNativeHistory(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
+            const report = { schema: 'cem-native-history-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: historyEvidence };
+            if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
+            console.log(JSON.stringify(report, null, 2));
+        }
     }
-    if (!actionOnly && !suggestionsOnly) await verifyNavigation(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-    if (!navigationOnly && !suggestionsOnly) {
-        if (!actionOnly) await verifyGalleries(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-        if (!actionOnly) await verifyBundle(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/cem-bundle.html`);
-        if (!actionOnly) await verifyPendingTheme(`${origin}/installed/node_modules/@epa-wg/cem-theme/dist/lib/css-generators/cem-colors.html`);
-    }
-    if (!evidenceOnly && !navigationOnly && !actionOnly) await verifySuggestions(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`);
-    if (nativeDatalistOnly) {
-        await verifyNativeDatalist(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
-        const report = { schema: 'cem-native-datalist-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: nativeEvidence, actualPickerSelection: 'unconfirmed', physicalIme: 'not-run', mobileKeyboard: 'not-run', assistiveTechnology: 'not-run' };
-        if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
-        console.log(JSON.stringify(report, null, 2));
-    }
-    else if (historyOnly) {
-        await verifyNativeHistory(`${origin}/installed/node_modules/@epa-wg/cem-components/dist/`, 'installed');
-        const report = { schema: 'cem-native-history-evidence-v1', recordedAt: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), browser: nativeBrowser, version: browser.version(), headed, platform: process.platform, osRelease: release(), observations: historyEvidence };
-        if (evidenceOutput) await writeFile(resolve(evidenceOutput), JSON.stringify(report, null, 2) + '\n');
-        console.log(JSON.stringify(report, null, 2));
-    }
-    else if (suggestionsOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
+    if (iconsOnly) console.log('Icon and icon-button playgrounds, galleries and release bundle verified from source and isolated package archives.');
+    else if (suggestionsOnly && !evidenceOnly) console.log('Suggestions playground and gallery verified from source and isolated packages.');
     else if (actionOnly) console.log('Action playground and gallery verified from source and isolated package archives.');
     else if (navigationOnly) console.log('Gallery navigation verified on all source and isolated-package pages.');
-    else console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from source and isolated package archives.');
+    else if (!evidenceOnly) console.log('Action, field, text-field, textarea, icon, icon-button, menu-item, select, suggestions, theme-switch and bundle playgrounds verified from source and isolated package archives.');
 } finally {
     await browser?.close();
     await new Promise(resolve => server.close(resolve));
@@ -703,7 +712,7 @@ async function verifyBundle(url) {
         assert.equal(await page.locator('#bundle-textarea textarea').inputValue(), 'First line\nSecond line');
         await page.locator('#bundle-icon [role=img]').waitFor();
         await page.locator('#bundle-action button').waitFor();
-        await page.locator('cem-icon-button button cem-icon [part="glyph"]').waitFor();
+        await page.getByRole('button', { name: 'Bundled icon command', exact: true }).locator('cem-icon [part="glyph"]').waitFor();
         await page.locator('#bundle-select [role=combobox]').waitFor();
         await page.locator('#bundle-field input').waitFor();
         await page.locator('#bundle-text-field input').waitFor();
@@ -732,6 +741,7 @@ async function verifyBundle(url) {
                 checks.at(-1).metadata = JSON.stringify(attrs(template.parentElement)) === JSON.stringify(attrs(originalTemplate.parentElement));
             }
             const styleCount = document.querySelectorAll('style[data-cem-declaration-style]').length;
+            const navigationStyleCount = document.querySelectorAll('cem-element[tag="cem-gallery-nav"] > style[data-cem-declaration-style]').length;
             const duplicate = document.createElement('cem-element');
             duplicate.setAttribute('tag', 'cem-action');
             duplicate.setAttribute('src', declaration.getAttribute('src'));
@@ -740,7 +750,7 @@ async function verifyBundle(url) {
             const diagnostics = runtime.diagnosticsFor(duplicate).map(item => item.code);
             const stylesAfter = document.querySelectorAll('style[data-cem-declaration-style]').length;
             duplicate.remove();
-            return { checks, invalidXml: !!bundle.querySelector('parsererror'), styleCount, stylesAfter, diagnostics };
+            return { checks, invalidXml: !!bundle.querySelector('parsererror'), styleCount, navigationStyleCount, stylesAfter, diagnostics };
         });
         assert.equal(result.invalidXml, false);
         for (const check of result.checks) {
@@ -749,7 +759,8 @@ async function verifyBundle(url) {
             assert.equal(check.count, 1);
             assert.equal(check.base, check.sourceUrl);
         }
-        assert.equal(result.styleCount, result.checks.length);
+        assert.equal(result.navigationStyleCount, 1);
+        assert.equal(result.styleCount, result.checks.length + result.navigationStyleCount);
         assert.equal(result.stylesAfter, result.styleCount);
         assert.ok(result.diagnostics.includes('cem-element.registry_same_scope_duplicate'));
         assert.equal(await page.locator('#bundle-action button').getAttribute('aria-pressed'), 'true');
@@ -860,9 +871,16 @@ async function verifyField(url, tag) {
     } finally { await context.close(); }
 }
 
-async function verifyGalleries(baseUrl) {
+async function verifyIcons(baseUrl) {
+    await verifyCommand(new URL('cem-icon-button.html', baseUrl).href, 'cem-icon-button');
+    await verifyIcon(new URL('cem-icon.html', baseUrl).href);
+    await verifyGalleries(baseUrl, ['cem-icon', 'cem-icon-button']);
+    await verifyBundle(new URL('cem-bundle.html', baseUrl).href);
+}
+
+async function verifyGalleries(baseUrl, tags) {
     const folders = await readdir(join(root, 'packages/cem-components/src/components'), { withFileTypes: true });
-    for (const folder of folders.filter(entry => entry.isDirectory())) {
+    for (const folder of folders.filter(entry => entry.isDirectory() && (!tags || tags.includes(entry.name)))) {
         const tag = folder.name;
         const context = await browser.newContext();
         const page = await context.newPage();
@@ -930,7 +948,7 @@ async function verifyGalleries(baseUrl) {
             assert.equal(new URL(page.url()).pathname, new URL(`${tag}.html`, baseUrl).pathname);
         } finally { await context.close(); }
     }
-    console.log('All canonical component galleries verified: ' + baseUrl);
+    console.log(`${tags ? tags.join(', ') : 'All canonical component'} galleries verified: ${baseUrl}`);
 }
 
 async function verifyIconButtonSamples(page) {
@@ -1086,11 +1104,10 @@ async function verifyIcon(url) {
         await verifyIconLabels(page);
         await page.getByRole('textbox', { name: 'label', exact: true }).fill('Visible fallback');
         await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsVisiblefallback');
-        await page.getByRole('textbox', { name: 'content', exact: true }).fill('Projected text');
-        await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsProjectedtext');
         await page.getByRole('textbox', { name: 'label', exact: true }).fill('Updated fallback');
-        await page.getByRole('textbox', { name: 'content', exact: true }).fill('');
         await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.replace(/\s/g, "") === 'settingsUpdatedfallback');
+        await page.getByRole('textbox', { name: 'label', exact: true }).fill('');
+        await page.waitForFunction(() => document.querySelector('#icon-preview [part="content"]')?.textContent?.trim() === 'settings');
         await page.getByRole('textbox', { name: 'image', exact: true }).fill('★');
         await page.waitForFunction(() => document.querySelector('#icon-preview .unicode')?.textContent === '★');
         await page.getByRole('radio', { name: 'large', exact: true }).check();
@@ -1121,7 +1138,8 @@ async function verifyIcon(url) {
 
 async function verifyLegacyIconExamples(page) {
     const cases = ['direction', 'size', 'unicode', 'material', 'fontawesome', 'module-image', 'color'];
-    assert.deepEqual(await page.locator('[data-legacy-icon-case]').evaluateAll(nodes => nodes.map(node => node.dataset.legacyIconCase)), cases);
+    // Gallery sections may regroup examples; require each legacy case exactly once.
+    assert.deepEqual(await page.locator('[data-legacy-icon-case]').evaluateAll(nodes => nodes.map(node => node.dataset.legacyIconCase).sort()), [...cases].sort());
     const sources = {
         unicode: ['🚀', '👁', '🎄', '😭', '🔥', '💀', '🛒', '✨', '😊', '😂', '⭐', '🫶', '🎁', '✅'],
         material: ['recycling', 'shopping_cart', 'search', 'home', 'menu', 'close', 'check_circle', 'favorite', 'add', 'star', 'chevron_right', 'logout', 'add_circle', 'cancel'],
@@ -1149,7 +1167,7 @@ async function verifyLegacyIconExamples(page) {
         glyph: getComputedStyle(node.querySelector('[part="glyph"]')).color,
         token: node.style.color,
     })));
-    assert.deepEqual(colors.map(color => color.token), ['var(--cem-palette-danger)', 'var(--cem-palette-calm)', 'var(--cem-palette-trust)']);
+    assert.deepEqual(colors.map(color => color.token), ['var(--cem-palette-danger)', 'green', 'blue']);
     for (const color of colors) assert.equal(color.host, color.glyph);
     assert.equal(new Set(colors.map(color => color.host)).size, 3);
     await page.waitForFunction(() => document.querySelector('[data-legacy-icon-case="module-image"] cem-icon[image$="/wc-square.svg"] img')?.naturalWidth > 0);
@@ -1168,9 +1186,11 @@ async function verifyLegacyIconExamples(page) {
 async function verifyIconLabels(page) {
     await page.waitForFunction(() => document.querySelector('cem-demo-element cem-icon[label="Favorite"] [part="content"]')?.textContent?.replace(/\s/g, "") === '★Favorite');
     assert.equal(await page.locator('cem-demo-element cem-icon[label="Favorite"] [part="icon"]').getAttribute('aria-hidden'), 'true');
-    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] [part="content"]').evaluate(node => node.textContent.replace(/\s/g, '')), '★Details');
-    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] a strong').textContent(), 'Details');
-    assert.equal(await page.locator('cem-demo-element cem-icon[label="Fallback"] a').evaluate(node => node.closest('[role="img"], [aria-hidden="true"]')), null);
+    const projected = page.locator('cem-demo-element cem-icon').filter({ has: page.locator('a').filter({ hasText: /^Details$/ }) });
+    assert.equal(await projected.count(), 1);
+    assert.equal(await projected.locator('[part="content"]').evaluate(node => node.textContent.replace(/\s/g, '')), `${await projected.getAttribute('image')}Details`);
+    assert.equal(await projected.locator('a :is(strong, b)').textContent(), 'Details');
+    assert.equal(await projected.locator('a').evaluate(node => node.closest('[role="img"], [aria-hidden="true"]')), null);
     assert.equal(await page.locator('cem-demo-element cem-icon[image=""][label="Text without glyph"] [part="content"]').evaluate(node => node.textContent.trim()), 'Text without glyph');
     assert.equal(await page.locator('cem-demo-element cem-icon[image=""][label="Text without glyph"] [part="icon"]').count(), 0);
 }

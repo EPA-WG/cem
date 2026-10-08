@@ -137,7 +137,6 @@
                 {slice @name=direction | row}
                 {slice @name=hidden | absent}
                 {slice @name=class | consumer-icon}
-                {slice @name=content}
                 {div @class=workspace | {section @aria-label="Icon properties" | {h2 | Properties}
                 {cem-field @label="image" @value="{$datadom.slices.image}" @slice=image @slice-event=input
                 @slice-value="$target.value"}
@@ -146,8 +145,6 @@
                 {cem-field @label="aria-label" @value="{$datadom.slices.ariaLabel}" @slice=ariaLabel @slice-event=input
                 @slice-value="$target.value"}
                 {cem-field @label="class" @value="{$datadom.slices.class}" @slice=class @slice-event=input
-                @slice-value="$target.value"}
-                {cem-field @label="content" @value="{$datadom.slices.content}" @slice=content @slice-event=input
                 @slice-value="$target.value"}
                 {fieldset @class=property-group @slice=imageMode @slice-event=change @slice-value="$target.value" |
                 {legend | image-mode}{div @class=property-options |
@@ -178,7 +175,6 @@
                 @hidden={if datadom.slices.hidden == "absent" { null } else { datadom.slices.hidden }} |
                 {cem:if @test='datadom.slices.imageMode != "absent"' | {cem:attribute @name=image @value={if
                 datadom.slices.imageMode == "empty" { "" } else { datadom.slices.image }}}}
-                {cem:if @test="datadom.slices.content" | {span | {$datadom.slices.content}}}
                 }
                 }}}
             </template>
@@ -188,7 +184,8 @@
             an image, <code>fa-</code> selects Font Awesome, and other values select Material Icons. Font icons require
             the corresponding stylesheet, loaded by these demos.</p>
         <p><code>label</code> supplies visible fallback text (empty by default). Default-slot payload replaces it,
-            preserving markup. <code>aria-label</code> names the glyph with one image role; otherwise the glyph is
+            preserving markup. Edit <code>label</code> above for live text; the examples below demonstrate
+            rich slot content captured when each icon connects. <code>aria-label</code> names the glyph with one image role; otherwise the glyph is
             decorative. Migrate accessibility-only uses of <code>label</code> to <code>aria-label</code>. Default slot
             content remains accessible independently. Icons have no click, hover, focus, selected, or disabled behavior;
             the containing action owns interactive states. Color is inherited. Hidden uses attribute presence.</p>

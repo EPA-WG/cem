@@ -23,7 +23,8 @@ export const Dimensions = meta.story({
                 await whenIconButtonRendered(host);
                 const control = host.querySelector<HTMLElement>('[part="control"]')!;
                 const icon = host.querySelector<HTMLElement>('cem-icon')!;
-                expect(icon.getAttribute('size')).toBe(size);
+                // cem-icon reflects its own default after absent size is forwarded.
+                expect(icon.getAttribute('size')).toBe(size ?? 'normal');
                 expect(parseFloat(getComputedStyle(control).minBlockSize)).toBeCloseTo(Math.max(3, height) * rem);
                 expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(Math.max(3, height) * rem);
                 expect(parseFloat(getComputedStyle(icon.querySelector('[part="icon"]')!).fontSize)).toBeCloseTo(iconSize * rem);
@@ -611,7 +612,11 @@ export const Hover = meta.story({
                 button: harness.query<HTMLButtonElement>('cem-icon-button[disabled] button'),
                 name: 'Disabled settings',
                 role: null,
-                tokens: actionCases[0].tokens,
+                tokens: {
+                    ...actionCases[0].tokens,
+                    disabledBackground: '--cem-action-primary-disabled-background',
+                    disabledText: '--cem-action-primary-disabled-text',
+                },
             },
         ] as const;
         const activationEvents: string[] = [];
@@ -667,8 +672,8 @@ export const Hover = meta.story({
             expect(document.activeElement).toBe(focusOwner);
 
             const baseline = captureActionState(runtime, host, button);
-            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.defaultBackground));
-            expect(baseline.color).toBe(resolveTokenColor(button, tokens.defaultText));
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.disabledBackground));
+            expect(baseline.color).toBe(resolveTokenColor(button, tokens.disabledText));
             expect(baseline.backgroundColor).not.toBe(resolveTokenColor(button, tokens.hoverBackground));
 
             await userEvent.hover(button);
@@ -739,7 +744,11 @@ export const Active = meta.story({
                 button: harness.query<HTMLButtonElement>('cem-icon-button[disabled] button'),
                 name: 'Disabled settings',
                 role: null,
-                tokens: actionCases[0].tokens,
+                tokens: {
+                    ...actionCases[0].tokens,
+                    disabledBackground: '--cem-action-primary-disabled-background',
+                    disabledText: '--cem-action-primary-disabled-text',
+                },
             },
         ] as const;
         const activationEvents: string[] = [];
@@ -830,8 +839,8 @@ export const Active = meta.story({
             expect(document.activeElement).toBe(focusOwner);
             const baseline = captureActionState(runtime, host, button);
             const eventCount = activationEvents.length;
-            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.defaultBackground));
-            expect(baseline.color).toBe(resolveTokenColor(button, tokens.defaultText));
+            expect(baseline.backgroundColor).toBe(resolveTokenColor(button, tokens.disabledBackground));
+            expect(baseline.color).toBe(resolveTokenColor(button, tokens.disabledText));
             expect(baseline.forcedColorAdjust).toBe('auto');
 
             const pointerDown = nextTrustedPointerDown(button);

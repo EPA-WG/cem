@@ -1273,25 +1273,39 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#respect-action-states-in-cem-icon-button).
 
-- [ ] Run the new browser state/paint checks and full source/package gallery
-      verification when browser execution is permitted. Restricted session
-      permissions still prevent that verification.
-      Follow-up 2026-10-07: browser execution is available. Dimensions, Hover and
-      Active fail identically with the current and pre-change runtime: forwarded
-      size is `normal` where the fixture expects absence, and baseline background
-      resolves to 72 rather than 239. Diagnose the component/fixture contract before
-      changing public CSS ownership; the reference placement suite is independent.
+- [x] Run browser state/paint checks and full icon-button source/package gallery
+      verification. Delivered 2026-10-08: all 20 icon/icon-button browser stories
+      pass, including five-theme state precedence, held pointer/Space, geometry
+      and native form behavior. The nested icon reflects its declared `normal`
+      default; disabled controls use the adopted disabled action tokens. Corrected
+      the stale fixture expectations without changing component CSS or token
+      ownership. Both property pages, both galleries and release-bundle checks
+      pass from source and isolated package archives through `--icons-only`.
+      The unfiltered playground gate still fails the separately tracked menu-item
+      attribute inventory; this result does not claim that full gate passes.
 
 ## Compose cem-icon-button from cem-icon
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#compose-cem-icon-button-from-cem-icon).
 
-- [ ] Rerun focused icon/icon-button browser stories and source/installed-package
-      playground and bundle checks when browser execution is permitted. The first
-      browser run passed 12 of 15 tests; its failures exposed empty-source
-      forwarding and a style assertion that included the nested declaration.
-      Both are corrected; native rendering confirms empty-source preservation.
-      Browser rerun is pending after the session changed to restricted permissions.
+- [x] Fixture: add an `--icons-only` playground verification mode reusing the
+      existing icon/icon-button property, gallery and release-bundle checks for
+      both source and installed packages. Scenarios for later design verification:
+      unrelated component failures must not prevent focused evidence, and the
+      unfiltered gate must retain all its checks.
+      Delivered 2026-10-08: focused verification passes in both locations. The
+      icon property preview uses live `label` updates and authored rich-content
+      examples, respecting captured payload ownership. The module-image example
+      uses one explicit `str:concat` expression. Fixture expectations now match
+      the gallery's regrouped examples and authored colors; rich-content checks
+      find the meaningful Details link, and bundle checks distinguish the sample
+      and stylesheet from shared gallery navigation.
+- [x] Rerun focused icon/icon-button browser stories and source/installed-package
+      playground and bundle checks. Delivered 2026-10-08: 20 stories pass;
+      `verify-playgrounds --args=--icons-only` passes both property playgrounds,
+      both complete galleries, and bundle loading/metadata/style deduplication in
+      source and isolated npm archives. Declarative verification, builds, package
+      verification (151 files) and lint (zero errors, 95 existing warnings) pass.
       Command: `yarn nx run cem-elements:test -- packages/cem-components/src/components/cem-icon-button/cem-icon-button.stories.ts packages/cem-components/src/components/cem-icon/cem-icon.stories.ts`.
 
 ## Convert five icon gallery demos to CEM-ML
@@ -1338,6 +1352,23 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       accessibility-only `label` remains an inconsistency outside this change.
 
 ## Browser failures observed during placement verification
+
+- [ ] Add a native template diagnostic regression for adjacent expression text
+      in a quoted attribute (`@image="{$path}{$image}"`). The icon module example
+      lost its image binding with no browser diagnostic on 2026-10-08; a single
+      explicit `str:concat` expression renders the intended URL. Determine whether
+      the adapter should reject or lower the quoted form under its documented
+      syntax, and preserve source-attributed diagnostics through the browser.
+      Scenarios for later design verification: malformed expression input must
+      not silently remove an attribute; supported concatenation retains its value.
+
+- [ ] Reconcile the `cem-menu-item` property/gallery attribute inventory with
+      its canonical declaration, then rerun the full `verify-playgrounds` gate.
+      Reproduced 2026-10-08: the property page inventory omits `aria-label` and
+      `href`; the gate stops before subsequent galleries and installed packages.
+      Scenarios for later design verification: every admitted public attribute
+      has a documented live example in source and installed pages; focused icon
+      verification does not count as a pass of this full gate.
 
 - [ ] Fixture: diagnose the workflow gallery's missing `cem-text-field input`
       after its sample readiness check. It fails in focused runs with both the

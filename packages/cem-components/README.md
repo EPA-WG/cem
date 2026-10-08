@@ -489,6 +489,10 @@ is authored in this package and uses the same canonical action definition.
 
 `yarn nx run @epa-wg/cem-components:verify-playgrounds` tests real interactions
 and source display in the repository and in isolated npm package archives.
+Use `yarn nx run @epa-wg/cem-components:verify-playgrounds --args=--icons-only`
+for the icon and icon-button property playgrounds, their full galleries, and
+the release bundle in both locations. This focused mode reuses the full gate's
+checks; failures in unrelated component galleries remain part of the full gate.
 
 ## Select property playground
 
