@@ -215,8 +215,10 @@ listbox `label`, and the five `*-message` feedback attributes shown in its
 [gallery](../playgrounds/cem-suggestions-gallery.html). Custom labels cannot hide
 the stored-value hint. Explicit native `options`/`editor-for` integration requires
 host-admitted sources and relationships; it conflicts with the matching local
-slot. Touch/pen, device IME, screen-reader interoperability and the broader
-composition matrix remain tracked in the active suggestions checklist.
+slot. Chromium input-protocol plays cover mouse/touch/pen taps, cancellation,
+wheel scrolling and composition settlement on both fields. Physical touch-pan,
+device IME, screen-reader interoperability and the broader composition matrix
+remain in the [acceptance evidence and release record](./suggestions-acceptance.md).
 
 
 `cem-field` and `cem-text-field` use canonical XHTML declarations and the shared

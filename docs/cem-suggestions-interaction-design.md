@@ -6,9 +6,13 @@ with recommended options. This completes the keyboard/pointer/selection item in
 The shared controller implements this first text-input profile over exact native
 row admissions and the existing provider/manual-listbox services. Worker/fallback
 fixtures cover keyboard selection, stale-query dismissal, cancellation/provenance,
-IME cleanup and native mouse activation. Production composition, source feedback,
-touch/pen and the complete acceptance matrix remain pending; these fixtures do
-not claim those later profiles.
+IME cleanup and native mouse activation. Production local composition and source
+feedback are delivered. Chromium input-protocol fixtures also cover mouse/touch/
+pen taps, normal implicit touch-capture release, canceled/dragged/revoked presses,
+wheel scrolling and composition settlement on both production fields. Physical
+touch-pan, operating-system IME and assistive-technology interoperability remain
+in the [acceptance record](../packages/cem-components/docs/suggestions-acceptance.md);
+the protocol-driven fixtures do not establish those release claims.
 
 Use manual selection with the existing field as value/form owner and its actual
 text input as focus/editing owner. Arrows preview; an explicit eligible Enter or

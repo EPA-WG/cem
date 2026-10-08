@@ -145,7 +145,11 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
                 subscribe(listener) { lifecycleListeners.add(listener); return () => { lifecycleListeners.delete(listener); }; } },
             onVisibility(open, reason) { if (!open) {
                 if (reason !== 'query') intent = false;
-                if (!['query', 'empty', 'source'].includes(reason)) feedbackIntent = false;
+                // Source readiness may close the old view before its next
+                // committed render; focused pending/failure feedback survives.
+                const sourceUnavailable = reason === 'unavailable' && ['pending', 'failed'].includes(host.getAttribute('options-state') ?? '')
+                    && bound() && focused() && provider.editable && !provider.composing;
+                if (!['query', 'empty', 'source'].includes(reason) && !sourceUnavailable) feedbackIntent = false;
                 active = undefined; pointer = undefined;
             } claim(); },
         });
@@ -207,9 +211,16 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     const rowAt = (target: EventTarget | null) => target instanceof Node && current() ? placements?.rows.find(row => row.element.contains(target) && eligibleRow(row)) : undefined;
     options.listbox.addEventListener('pointerdown', event => {
         pointer = undefined;
-        if (event.defaultPrevented || !event.isPrimary || event.pointerType !== 'mouse' || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !focused()) return;
+        if (event.defaultPrevented || !event.isPrimary || !['mouse', 'touch', 'pen'].includes(event.pointerType) || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !focused()) return;
         const row = rowAt(event.target); if (!row) return;
-        pointer = { row, generation, id: event.pointerId, x: event.clientX, y: event.clientY, ended: false }; event.preventDefault();
+        pointer = { row, generation, id: event.pointerId, x: event.clientX, y: event.clientY, ended: false };
+        if (event.pointerType === 'mouse') event.preventDefault();
+    }, { signal: abort.signal });
+    // Compatibility mouse focus is suppressed only for this exact armed row.
+    // Touch/pen pointerdown remains native so gestures may become scrolling.
+    options.listbox.addEventListener('mousedown', event => {
+        if (!event.defaultPrevented && event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+            && focused() && pointer?.generation === generation && rowAt(event.target) === pointer.row) event.preventDefault();
     }, { signal: abort.signal });
     options.listbox.addEventListener('pointermove', event => {
         if (pointer && (event.pointerId !== pointer.id || Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 8)) pointer = undefined;
@@ -218,7 +229,12 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         if (pointer && event.pointerId === pointer.id && rowAt(event.target) === pointer.row && pointer.generation === generation) pointer.ended = true;
         else pointer = undefined;
     }, { signal: abort.signal });
-    for (const event of ['pointercancel', 'lostpointercapture', 'scroll']) options.listbox.addEventListener(event, () => { pointer = undefined; }, { signal: abort.signal, capture: true });
+    for (const event of ['pointercancel', 'scroll']) options.listbox.addEventListener(event, () => { pointer = undefined; }, { signal: abort.signal, capture: true });
+    options.listbox.addEventListener('lostpointercapture', event => {
+        // Native touch releases implicit capture after pointerup, before click.
+        // An already completed exact-row press remains armed for that click.
+        if (pointer?.id === event.pointerId && !pointer.ended) pointer = undefined;
+    }, { signal: abort.signal, capture: true });
     options.listbox.addEventListener('click', event => {
         const row = rowAt(event.target), armed = pointer; pointer = undefined;
         if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !row || !focused()) return;

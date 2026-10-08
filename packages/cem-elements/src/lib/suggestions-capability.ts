@@ -223,6 +223,10 @@ function localInputs(instance: HTMLElement, state: State): CemSuggestionsControl
     stopOwner = environment.owner.onNativeAuthorityLost?.(() => { state.localBlocked = true; stop(state); releaseLocal(state); queue(); });
     return local.options;
 }
+function sourceConfiguration(instance: HTMLElement): string {
+    return ['filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy']
+        .map(name => instance.getAttribute(name)).join('\u0000');
+}
 function synchronize(instance: HTMLElement, state: State): void {
     if (!instance.isConnected || !state.observer) return;
     const endpoint = resolveCemSuggestionsEditor(instance);
@@ -245,8 +249,7 @@ function synchronize(instance: HTMLElement, state: State): void {
         catch { reportInteractionReference(instance, 'suggestions-binding-unavailable', 'suggestions-binding'); return; }
     }
     reportInteractionReference(instance, undefined, 'suggestions-binding');
-    const configuration = ['filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy']
-        .map(name => instance.getAttribute(name)).join('\u0000');
+    const configuration = sourceConfiguration(instance);
     if (state.configuration !== undefined && state.configuration !== configuration) void state.controller?.refresh();
     state.configuration = configuration;
     state.controller?.reconcile();
@@ -261,17 +264,39 @@ export const CEM_SUGGESTIONS_CAPABILITY: CemProducedElementBehavior = {
         state.context = context;
         const queue = () => {
             if (state.queued) return;
-            state.queued = true; queueMicrotask(() => { state.queued = false; synchronize(instance, state); });
+            state.queued = true;
+            const observer = state.observer;
+            // DOM mutation delivery can precede the parent's atomic CSS/DOM
+            // publication. Consume the committed frame, never its intermediate tree.
+            void state.context.runtime.whenRenderSettled(instance).then(() => {
+                if (state.observer !== observer) return;
+                state.queued = false; synchronize(instance, state);
+            }, () => {
+                if (state.observer !== observer) return;
+                state.queued = false; stop(state); releaseLocal(state);
+                reportInteractionReference(instance, 'suggestions-binding-unavailable', 'suggestions-binding');
+            });
         };
-        state.observer = new MutationObserver(queue);
+        state.observer = new MutationObserver(records => {
+            // Scalar readiness withdraws the old presentation before a DOM
+            // publication can close it natively. It evaluates no new row frame.
+            if (records.some(record => record.target === instance && ['options-state', 'options-error'].includes(record.attributeName ?? ''))
+                && ['pending', 'failed'].includes(instance.getAttribute('options-state') ?? '') && state.controller?.retained && state.options) {
+                const configuration = sourceConfiguration(instance);
+                if (state.configuration !== configuration) {
+                    state.configuration = configuration; void state.controller.refresh();
+                } else presentFeedback(instance, state, state.options.listbox);
+            }
+            queue();
+        });
         state.observer.observe(instance, { childList: true, subtree: true, attributes: true,
-            attributeFilter: ['require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options-error', 'options', 'editor-for', 'slot', 'part', 'role', 'popover', 'aria-live', 'aria-atomic', 'pending-message', 'failure-message', 'empty-message', 'single-message', 'multiple-message'] });
+            attributeFilter: ['require-selection', 'selection-message', 'filter', 'filter-by', 'options-state', 'options-revision', 'options-query-revision', 'options-policy', 'options-error', 'options', 'editor-for', 'type', 'list', 'disabled', 'readonly', 'slot', 'part', 'role', 'popover', 'aria-live', 'aria-atomic', 'pending-message', 'failure-message', 'empty-message', 'single-message', 'multiple-message'] });
         state.stopReferences = observeInteractionReferences(instance, queue);
     },
     rendered(instance, context) { const state = states.get(instance); if (state) { state.context = context; synchronize(instance, state); } },
     disconnected(instance) {
         const state = states.get(instance); if (!state) return;
-        state.observer?.disconnect(); state.observer = undefined; state.stopReferences?.(); state.stopReferences = undefined;
+        state.observer?.disconnect(); state.observer = undefined; state.queued = false; state.stopReferences?.(); state.stopReferences = undefined;
         stop(state); releaseLocal(state); state.localBlocked = false; state.configuration = undefined;
     },
 };

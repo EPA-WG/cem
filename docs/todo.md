@@ -871,8 +871,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       controller and the registered declarative capability with an explicit trusted
       preparation hook are delivered. Worker/fallback cases verify keyboard
       clamping, pending-query dismissal, IME cleanup, commit veto/provenance, exact
-      endpoint changes and native mouse activation/drag cancellation. Touch/pen,
-      the full device/accessibility acceptance matrix and source-example parity
+      endpoint changes and native mouse activation/drag cancellation. Physical
+      touch/pen, the device/accessibility acceptance matrix and source-example parity
       remain open; do not mark this parent complete from these shared slices.
       Production local composition, captured labels and feedback were delivered
       2026-10-08.
@@ -887,6 +887,70 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       claim clearing another; IME terminal keys do not submit or select.
 
 - [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
+      - [x] Add production both-field acceptance plays for native mouse/touch/pen
+        activation, native touch movement/cancel, wheel scrolling and stale row
+        rejection; first verify the shared focus-preserving row adapter in
+        worker/fallback execution.
+        Scenarios for later design verification: pointerdown stays native for
+        touch/pen, scrolling never commits, compatibility focus suppression is
+        row-specific and blur never leads to a refocus or stale commit.
+      - [x] Add production both-field acceptance plays for independent grouped
+        filtering, disabled/read-only changes, type/list conflict recovery, source
+        replacement, beforeinput veto and coherent raw/public input/change/FormData
+        ownership.
+        Scenarios for later design verification: one attachment's revision never
+        mutates another; equal text alone cannot establish selection provenance.
+      - [x] Fixture: verify observer-driven suggestions synchronization consumes
+        committed parent render frames in concurrent source/installed-package
+        galleries; retain current endpoint identity through profile recovery and
+        fence queued synchronization after disconnect/reconnect.
+        Scenarios for later design verification: native label/row publication
+        never starts from an intermediate CSS/DOM frame or restores a retired
+        capability connection.
+      - [x] Add Chromium browser-input composition settlement and terminal-key
+        fixtures through the real editor; record this as protocol-driven browser
+        evidence and retain physical keyboard/IME and assistive-technology runs
+        as an explicit release checklist.
+        Scenarios for later design verification: composition settles from actual
+        editor text, its terminal Enter cannot select or submit, and a fresh
+        deliberate key remains available after keyup.
+      Delivered 2026-10-08: shared row activation now admits mouse/touch/pen
+      while preserving native touch/pen pointerdown. Exact-row compatibility
+      mousedown suppresses focus loss, and normal implicit capture release after
+      completed pointerup preserves the click admission. Cancel/drag/scroll,
+      source loss and blur still invalidate it. The capability observes type/list
+      and availability changes so unsupported profiles recover with fresh leases.
+      Observer-driven synchronization waits for the committed parent CSS/DOM
+      frame and fences reconnect callbacks. Scalar pending/failure readiness
+      withdraws the prior view immediately and preserves focused feedback while
+      its render settles. Concurrent source/installed-package galleries verify
+      that row publication does not overlap an intermediate parent frame.
+      Both production fields have colocated plays for independent grouped filters,
+      source replacement, type/list/input conflicts, commit veto, raw/public
+      event coherence, native pointer taps/cancel/drag/wheel and protocol-driven
+      composition settlement. Verification: 38 browser plays across controller,
+      production declaration, manual listbox, geometry and native-surface suites,
+      plus 607 unit checks, typecheck, lint (two existing warnings) and fresh
+      cache-bypassed package build/import verification pass. Source and isolated
+      installed-package property/gallery browser verification also passes.
+      The [acceptance evidence](../packages/cem-components/docs/suggestions-acceptance.md)
+      records the automated boundary and remaining release runs. This parent
+      remains open for physical and host-integrated cases below.
+      - [ ] Complete physical touch/pen, real keyboard/IME, screen-reader and
+        mobile viewport runs using the [acceptance record](../packages/cem-components/docs/suggestions-acceptance.md).
+        Record browser/OS/device/AT versions and exact outcomes. The automated
+        touch gesture does not scroll a plain overflow-box control in this
+        environment; a wheel-scroll pass does not substitute for touch-pan.
+        Scenarios for later design verification: tap preserves editor/caret,
+        pan remains scrolling, terminal IME keys neither select nor submit, and
+        active-row/status announcements preserve the field's label/help.
+      - [ ] Add host-integrated both-field acceptance fixtures for explicit
+        external native sources and trusted ancestor-surface lifetimes, covering
+        nested Escape, modal containment, parent teardown and resume. Existing
+        shared service tests do not establish production local-slot admission
+        inside a foreign ancestor surface.
+        Scenarios for later design verification: adjacency cannot confer parent
+        lifetime authority and a closed ancestor cannot revive an old child.
       Progress 2026-10-07: editor-provider transaction/admission/reentrancy stories
       and both fields' native forwarding/pattern stories are delivered. Browser
       checks distinguish raw capture/public bubbling, cover a later native edit,
@@ -997,6 +1061,9 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       ran against the new 186-file package and passed. Scenarios for later design
       verification: a changed emitted runtime file or required packaged notice
       invalidates verification; an unchanged build may reuse its verified result.
+      Reconfirmed 2026-10-08: the normal target rebuilt the runtime but replayed
+      the old 183-file verification result; cache-bypassed verification checked
+      the current 213-file package and passed. The invalidation fix remains open.
 
 ## Respect action states in cem-icon-button
 

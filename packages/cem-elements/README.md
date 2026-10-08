@@ -406,10 +406,19 @@ The local adapter captures `slot="option"` and `slot="group-label"` inert
 only its explicit native `suggestion` or `group` parameter and the standard
 library. Default and custom labels publish atomically as native `labelContent`;
 one shared output budget and retained-session byte budget cover the publication.
-Source/template edits invalidate its leases. The production `cem-suggestions`
+Source/template edits invalidate its leases. Observer-driven row synchronization
+waits for the committed parent frame and fences old connection callbacks;
+pending/failure scalar readiness withdraws the prior view immediately while
+retaining focused status feedback. The production `cem-suggestions`
 XHTML declaration and linked playground/gallery use this first local profile.
-Full touch/pen, device IME, screen-reader and source-example parity verification
-remain in the active checklist.
+The shared row adapter admits mouse/touch/pen sequences and preserves touch/pen
+pointerdown for native gestures. It suppresses compatibility-mouse focus only on
+an exact armed row and retains a completed touch press through normal implicit
+capture release. Native cancel, drag, scroll, blur and revision loss invalidate it.
+Chromium browser-input plays verify both field declarations and worker/fallback
+execution; physical devices, operating-system IMEs, screen readers and the full
+source-example audit remain in the [acceptance record](../../packages/cem-components/docs/suggestions-acceptance.md)
+and active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

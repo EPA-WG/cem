@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { nativeTap, nativeTouchGesture, nativePenDrag, nativeInputPoint, nativeWheel } from '../../.storybook/native-input.js';
 import { expect, waitFor } from 'storybook/test';
 import { CemElementRuntime } from './cem-elements.js';
 import { createCemDeclarationScope } from './declaration-scope.js';
@@ -423,10 +424,12 @@ export const DeclarativeFeedbackPreservesFieldAndLiveRegion: Story = {
                 const key = (key: string) => f.editor.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true }));
                 key('ArrowDown'); key('ArrowDown'); await new Promise(resolve => setTimeout(resolve)); expect(mutations).toBe(0); observer.disconnect();
                 f.host.setAttribute('options-state', 'pending');
+                cemSuggestionsControllerFor(f.host)?.reconcile(); // Visibility may notice readiness before observer-driven refresh.
                 await waitFor(() => { expect(status.textContent).toBe('Loading suggestions.'); expect(panel.getAttribute('aria-busy')).toBe('true'); });
                 expect(f.editor.getAttribute('aria-busy')).toBeNull(); expect(f.editor.disabled).toBe(false);
                 f.host.setAttribute('options-error', 'Service offline'); f.host.setAttribute('options-state', 'failed');
                 await waitFor(() => { expect(status.textContent).toBe('Service offline'); expect(panel.hasAttribute('aria-busy')).toBe(false); });
+
                 f.host.setAttribute('options-state', 'ready'); await f.ready();
                 f.editor.value = 'Beta'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true })); await f.ready();
                 await waitFor(() => expect(status.textContent).toBe('1 suggestion available.'));
@@ -474,6 +477,61 @@ export const CapturedLocalLabelsRetainScopeAndInvalidate: Story = {
                 await waitFor(() => expect(f.host.querySelector('[role=option] span')?.textContent).toBe('Recovered Alpha'));
                 await f.ready();
             } finally { await f.cleanup(); }
+        }
+    },
+};
+
+export const NativeTouchPenRowsPreserveFocusAndScrolling: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return; // Chromium input-protocol evidence; physical devices are separate acceptance runs.
+        const { cdp } = await import('vitest/browser');
+        for (const fallback of [false, true]) {
+            const f = await fixture(canvasElement, fallback), driver = cdp();
+            const downs: PointerEvent[] = [], values: string[] = [];
+            const down = (event: PointerEvent) => downs.push(event);
+            const changed = (event: Event) => values.push(event.type);
+            f.panel.addEventListener('pointerdown', down); f.editor.addEventListener('input', changed); f.editor.addEventListener('change', changed);
+            try {
+                for (const pointerType of ['mouse', 'touch', 'pen'] as const) {
+                    f.field.value = ''; await f.settled(); f.editor.focus(); f.key('ArrowDown');
+                    const row = f.rowElements[0]; await nativeTap(driver, row, pointerType);
+                    await waitFor(() => expect(f.editor.value).toBe('same'));
+                    const press = downs.at(-1); expect(press?.isTrusted).toBe(true); expect(press?.pointerType).toBe(pointerType);
+                    expect(press?.defaultPrevented).toBe(pointerType === 'mouse');
+                    expect(f.editor.ownerDocument.activeElement).toBe(f.editor); expect(f.controller.committed).toBeDefined();
+                    await f.settled();
+                }
+                expect(values).toEqual(['input', 'change', 'input', 'change', 'input', 'change']);
+                f.field.value = ''; await f.settled(); f.key('ArrowDown');
+                f.panel.style.height = '64px'; f.panel.style.overflow = 'auto'; for (const row of f.rowElements) row.style.height = '40px';
+                f.controller.reconcile();
+                await nativeTouchGesture(driver, f.panel, 'pan');
+                expect(f.editor.value).toBe(''); expect(values).toHaveLength(6);
+                await nativeWheel(driver, f.panel);
+                await waitFor(() => expect(f.panel.scrollTop).toBeGreaterThan(0));
+                expect(f.editor.value).toBe(''); expect(f.editor.ownerDocument.activeElement).toBe(f.editor);
+                expect(f.controller.visible).toBe(true); expect(values).toHaveLength(6);
+                f.panel.scrollTop = 0;
+                await nativeTouchGesture(driver, f.rowElements[0], 'cancel');
+                expect(f.editor.value).toBe(''); expect(values).toHaveLength(6);
+                await nativePenDrag(driver, f.rowElements[0]);
+                expect(f.editor.value).toBe(''); expect(values).toHaveLength(6);
+                expect(f.editor.ownerDocument.activeElement).toBe(f.editor);
+                // A native press cannot retain authority past source loss.
+                const point = nativeInputPoint(f.rowElements[0]);
+                await driver.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+                try {
+                    await driver.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 1 }] });
+                    await f.releaseSource();
+                    await driver.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                    expect(f.editor.value).toBe(''); expect(values).toHaveLength(6);
+                    expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+                } finally { await driver.send('Emulation.setTouchEmulationEnabled', { enabled: false }); }
+            } finally {
+                f.panel.removeEventListener('pointerdown', down); f.editor.removeEventListener('input', changed); f.editor.removeEventListener('change', changed);
+                await f.cleanup();
+            }
         }
     },
 };
