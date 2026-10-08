@@ -13,7 +13,13 @@ const wasmSourceRoot = resolve(workspaceRoot, 'packages/cem_ql/dist/wasm');
 const vendorRelativeRoot = 'dist/lib/internal/runtime-support/vendor';
 const vendorRoot = resolve(packageRoot, vendorRelativeRoot);
 const packageJson = JSON.parse(readFileSync(resolve(packageRoot, 'package.json'), 'utf8'));
-const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm'];
+const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
+
+if (!readFileSync(resolve(wasmSourceRoot, 'UNICODE-LICENSE.txt')).equals(
+    readFileSync(resolve(workspaceRoot, 'packages/cem_ql/src/suggestions/UNICODE-LICENSE.txt')),
+)) {
+    throw new Error('packaged Unicode notice must match the pinned source data notice');
+}
 
 if (!packageJson.files?.includes('dist')) {
     throw new Error('cem-elements package.json files must include dist');

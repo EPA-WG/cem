@@ -35,4 +35,36 @@ try {
     assert.equal(wasm.disposeNativeCapabilitySession(session), false);
     assert.throws(() => wasm.nativeCapabilitySessionLength(session), /Unknown native/);
 } finally { wasm.disposeTemplate(label.artifactId); wasm.disposeNativeCapabilitySession(session); }
-console.log('native capability session WASM checks passed');
+const suggestionSource = source('{optgroup @label=Group | {option @value=a | Apple}{option @value=same @label=Straße @selected=false | {#datadom.slices.later}}}{option @value=same | Second}');
+const suggestions = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: suggestionSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', limits);
+const bounded = wasm.prepareNativeCapabilitySession('{}', JSON.stringify({ requesting: 0, sources: [{ sourceId: suggestionSource, context: true }], bindings: [], grants: [] }), 'input.children', true, '[]', JSON.stringify({ maxBytes: 256, maxValues: 100000, maxDepth: 128 }));
+try { assert.throws(() => wasm.prepareNativeSuggestions(bounded), /Suggestions control byte limit exceeded/); }
+finally { wasm.disposeNativeCapabilitySession(bounded); }
+wasm.disposeReferenceSource(suggestionSource);
+const config = JSON.stringify({ query: 'STRASSE', queryRevision: 1 });
+const scalar = (expression, index) => {
+    const value = JSON.parse(wasm.exportNativeSuggestionsView(suggestions, config, expression, index));
+    const bytes = wasm.takeRenderValueArtifact(value.artifactId);
+    return Array.from({ length: value.length }, (_, i) => JSON.parse(wasm.exportCemJsonValue(bytes, i, '', limits)));
+};
+const suggestionLabel = JSON.parse(wasm.compileTemplate('{span | {$dom:attribute(suggestion, "label").value}|{$suggestion.content.expression}}', '["suggestion"]'));
+const groupLabel = JSON.parse(wasm.compileTemplate('{span | {$dom:attribute(group, "label").value}}', '["group"]'));
+try {
+    const plan = JSON.parse(wasm.prepareNativeSuggestions(suggestions));
+    assert.equal(plan.rows, 3); assert.equal(plan.groups, 1);
+    assert.equal(plan.identity, 'cem-suggestions-v1-unicode-17.0.0');
+    assert.equal(plan.diagnostics[0].code, 'cem.suggestions.selected_ignored');
+    assert.ok(plan.diagnostics[0].sourceMap.frames.length);
+    assert.deepEqual(scalar('input.children.children.dom:attribute("matched").value'), [false, true]);
+    assert.deepEqual(scalar('input.children.children.dom:attribute("value").value'), ['a', 'same']);
+    assert.deepEqual(scalar('input.content.expression', 1), ['#datadom.slices.later']);
+    assert.throws(() => wasm.exportNativeSuggestionsView(suggestions, config, 'input', undefined), /live suggestions source\/content edges/);
+    assert.throws(() => wasm.exportNativeSuggestionsView(suggestions, JSON.stringify({ query: '', filter: 'external', filterBy: 'label' }), 'input', undefined), /cem.suggestions.configuration/);
+    assert.throws(() => wasm.exportNativeSuggestionsView(suggestions, config, 'input', 3), /row handle/);
+    const label = JSON.parse(wasm.renderNativeSuggestionTemplate(suggestions, suggestionLabel.artifactId, config, 1, false));
+    assert.ok(JSON.stringify(label.nodes).includes('Straße'));
+    assert.ok(JSON.stringify(label.nodes).includes('#datadom.slices.later'));
+    const group = JSON.parse(wasm.renderNativeSuggestionTemplate(suggestions, groupLabel.artifactId, config, 0, true));
+    assert.ok(JSON.stringify(group.nodes).includes('Group'));
+} finally { wasm.disposeTemplate(suggestionLabel.artifactId); wasm.disposeTemplate(groupLabel.artifactId); wasm.disposeNativeCapabilitySession(suggestions); }
+console.log('native capability and suggestions session WASM checks passed');

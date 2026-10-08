@@ -32,7 +32,7 @@ request a fresh invocation without changing authored attributes.
 The signal aborts on replacement/disconnect; ignored late callback results cannot
 hold the publication queue or supply authority to a later render.
 Incomplete updates preserve prior DOM relationships. Contexts and grants are not
-saved in hydration snapshots. Worker protocol v16, fallback and retained Node SSR
+saved in hydration snapshots. Worker protocol v17, fallback and retained Node SSR
 use the same native adapter. Stable production source transport remains a
 separate boundary; cross-instance placement requires an additional host grant.
 
@@ -322,6 +322,15 @@ Release/cancellation/disposal fence late work, and worker loss requires fresh
 source authority instead of restoring old handles in fallback. The source/session
 channel is not a new public suggestions API or durable snapshot field. See the
 [adopted transport boundary](../../docs/cem-suggestions-data-design.md#native-session-transport).
+
+The versioned native suggestions adapter now admits canonical CEM options,
+HTML data and HTML option/group roots in those sessions. It requires materialized
+scalar source attributes, preserves original source/content identity and rejects
+invalid revisions atomically. Unicode 17.0.0 filtering produces immutable native
+row/group views; row/group label templates use those native frames. Explicit
+scalar queries can export CEMV, while a whole live view is rejected because its
+source/content relationships cannot be preserved there. Component publication,
+outbound native bindings and the public suggestions declaration remain pending.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

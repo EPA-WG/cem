@@ -131,6 +131,13 @@ fn encode_graph_checked(
         } else {
             let view = view.expect("native node");
             let kind = lexical_field(view, "kind");
+            if view.representation_id() == crate::suggestions::CONSUMER_IDENTITY {
+                return Err(NativeExportFailure {
+                    kind: NativeExportFailureKind::UnsupportedSourceReference,
+                    message: "CEMV cannot preserve live suggestions source/content edges; explicitly project presentation values".into(),
+                    source: item.source_map(), control: None,
+                });
+            }
             if kind == "reference" && view.field("expression").is_some() {
                 return Err(NativeExportFailure {
                     kind: NativeExportFailureKind::UnsupportedSourceReference,

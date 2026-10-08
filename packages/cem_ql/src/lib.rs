@@ -27,6 +27,7 @@ pub mod schema_references;
 pub mod validation_structure;
 pub mod attribute_values;
 pub mod stdlib;
+pub mod suggestions;
 pub mod template;
 pub mod template_artifact;
 pub mod transport;

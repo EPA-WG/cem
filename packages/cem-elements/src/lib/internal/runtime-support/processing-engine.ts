@@ -96,7 +96,7 @@ export class CemProcessingEngine {
     private readonly xpathLibraries = new CemXPathFunctionLibraries();
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
-    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits'] }>();
+    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1' }>();
     private readonly nativeSessionOperations = new Map<string, { handle: CemProcessingNativeSessionInput['handle'] }>();
     private readonly nativeSessionKeys = new Set<string>();
     private readonly maxNativeSessionEntries: number;
@@ -133,13 +133,14 @@ export class CemProcessingEngine {
             return { status: 'released', handle };
         }
         if (input.action === 'prepare') {
+            if (input.adapter !== undefined && input.adapter !== 'suggestions-v1') throw new TypeError('Unknown native source adapter');
             if (this.nativeSessions.size + this.nativeSessionOperations.size >= this.maxNativeSessionEntries) throw new RangeError('Native session capacity exceeded');
             if (this.nativeSessionKeys.has(key)) throw new Error('Native session identity was already issued; prepare a fresh session');
             if (this.nativeSessionKeys.size >= 100_000) throw new RangeError('Native session identity limit exceeded');
             this.nativeSessionKeys.add(key);
             const operation = { handle };
             this.nativeSessionOperations.set(key, operation);
-            let session: { id: number; length: number };
+            let session: Awaited<ReturnType<typeof prepareRetainedNativeSession>>;
             try { session = await prepareRetainedNativeSession(input); }
             catch (error) { if (this.nativeSessionOperations.get(key) === operation) this.nativeSessionOperations.delete(key); throw error; }
             if (this.disposed || this.nativeSessionOperations.get(key) !== operation) {
@@ -147,10 +148,12 @@ export class CemProcessingEngine {
                 throw new Error('Native session preparation was superseded or released');
             }
             this.nativeSessionOperations.delete(key);
-            this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits });
-            return { status: 'ready', handle, length: session.length };
+            this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits, adapter: input.adapter });
+            return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
         if (!retained) throw new Error('Native capability session is not retained; reacquire source authority');
+        if (input.suggestions && (retained.adapter !== 'suggestions-v1' || input.suggestions.queryRevision !== handle.queryRevision)) throw new Error('Native suggestions adapter or query revision mismatch');
+        if (input.action === 'render' && input.groupLabel && !input.suggestions) throw new TypeError('A group label requires a native suggestions view');
         if (input.index !== undefined && (!Number.isSafeInteger(input.index) || input.index < 0 || input.index > 0xffffffff)) throw new TypeError('Invalid native source index');
         if (input.action === 'render' && new TextEncoder().encode(input.template).byteLength > retained.limits.maxBytes) throw new RangeError('Native label byte limit exceeded');
         const result = input.action === 'view' ? exportRetainedNativeSessionView(retained.id, input)

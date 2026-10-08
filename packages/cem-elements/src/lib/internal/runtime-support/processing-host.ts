@@ -1,4 +1,4 @@
-import type { CemNativeSessionHandle, CemNativeSessionSources } from '../../native-capability-session.js';
+import type { CemNativeSessionHandle, CemNativeSessionSources, CemNativeSuggestionsConfig } from '../../native-capability-session.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v16' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v17' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -212,14 +212,14 @@ export type CemProcessingValueResult = { value: NativeCemValue } | { text: strin
 /** Retained executable sources use CEMB; the derived presentation uses CEMV. */
 export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
     | { action: 'prepare'; sources: CemNativeSessionSources; data: Record<string, unknown>;
-        select: string; resolve?: boolean; limits: CemValueArtifactLimits;
+        select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1';
         nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
-    | { action: 'view'; expression: string; index?: number }
-    | { action: 'render'; template: string; index?: number }
+    | { action: 'view'; expression: string; index?: number; suggestions?: CemNativeSuggestionsConfig }
+    | { action: 'render'; template: string; index?: number; suggestions?: CemNativeSuggestionsConfig; groupLabel?: boolean }
     | { action: 'release' }
 );
 export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle } & (
-    | { status: 'ready'; length: number }
+    | { status: 'ready'; length: number; suggestions?: { identity: string; rows: number; groups: number; diagnostics: CemProcessingDiagnostic[] } }
     | { status: 'view'; values: NativeCemValue[] }
     | { status: 'rendered'; nodes: RenderPlanNode[]; diagnostics: CemProcessingDiagnostic[] }
     | { status: 'released' }

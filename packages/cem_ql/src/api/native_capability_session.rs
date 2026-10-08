@@ -19,6 +19,12 @@ pub struct NativeCapabilitySession {
     data: TemplateData,
     values: ItemStream,
     limits: CemValueArtifactLimits,
+    suggestions: std::sync::OnceLock<
+        Result<
+            std::sync::Arc<crate::suggestions::SuggestionsPlan>,
+            crate::suggestions::SuggestionsError,
+        >,
+    >,
 }
 impl NativeCapabilitySession {
     pub fn prepare(
@@ -71,6 +77,7 @@ impl NativeCapabilitySession {
             data,
             values,
             limits,
+            suggestions: Default::default(),
         })
     }
     pub fn len(&self) -> usize {
@@ -133,6 +140,123 @@ impl NativeCapabilitySession {
     }
     pub fn limits(&self) -> &CemValueArtifactLimits {
         &self.limits
+    }
+    /// Adapt once per retained source revision, caching even an invalid revision.
+    pub fn suggestions(
+        &self,
+    ) -> Result<
+        std::sync::Arc<crate::suggestions::SuggestionsPlan>,
+        crate::suggestions::SuggestionsError,
+    > {
+        self.suggestions
+            .get_or_init(|| {
+                crate::suggestions::SuggestionsPlan::prepare(&self.values, self.limits.clone())
+            })
+            .clone()
+    }
+    fn suggestions_frame(
+        &self,
+        config: &crate::suggestions::SuggestionsConfig,
+        index: Option<usize>,
+    ) -> Result<
+        (
+            TemplateData,
+            crate::suggestions::SuggestionsView,
+            ItemStream,
+        ),
+        crate::suggestions::SuggestionsError,
+    > {
+        let view = self.suggestions()?.view(config)?;
+        let mut data = self.data.clone();
+        let root = ItemStream::once(view.root());
+        data.bind_native_slice("suggestions", root.clone())
+            .map_err(suggestions_error)?;
+        let input = match index {
+            Some(index) => ItemStream::once(view.row(index)?),
+            None => root,
+        };
+        Ok((data, view, input))
+    }
+    pub fn evaluate_suggestions(
+        &self,
+        config: &crate::suggestions::SuggestionsConfig,
+        expression: &str,
+        index: Option<usize>,
+    ) -> Result<ItemStream, crate::suggestions::SuggestionsError> {
+        if expression.len() > self.limits.max_bytes {
+            return Err(suggestions_error("Native query byte limit exceeded"));
+        }
+        let (data, view, input) = self.suggestions_frame(config, index)?;
+        let values = evaluate_expression(expression, &context(&data).with_input(input, Type::Any))
+            .map_err(|e| suggestions_error(e.message))?
+            .result;
+        check_values(&values, self.limits.max_values).map_err(suggestions_error)?;
+        for value in &values.items {
+            if !view.owns(value) {
+                self.execution
+                    .admit(&ItemStream::once(value.clone()))
+                    .map_err(suggestions_error)?;
+            }
+        }
+        Ok(values)
+    }
+    pub fn render_suggestion(
+        &self,
+        config: &crate::suggestions::SuggestionsConfig,
+        template: &TemplateArtifact,
+        index: Option<usize>,
+    ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
+        let (mut data, _, input) = self.suggestions_frame(config, index)?;
+        data.bindings.insert("suggestion".into(), input.clone());
+        data.bindings.insert("input".into(), input);
+        let plan = render_compiled_template(template, &data);
+        if plan
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
+        {
+            return Err(suggestions_error(
+                plan.diagnostics
+                    .iter()
+                    .map(|d| d.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
+        }
+        Ok(plan)
+    }
+    pub fn render_suggestion_group(
+        &self,
+        config: &crate::suggestions::SuggestionsConfig,
+        template: &TemplateArtifact,
+        index: usize,
+    ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
+        let (mut data, view, _) = self.suggestions_frame(config, None)?;
+        let input = ItemStream::once(view.group(index)?);
+        data.bindings.insert("group".into(), input.clone());
+        data.bindings.insert("input".into(), input);
+        let plan = render_compiled_template(template, &data);
+        if plan
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
+        {
+            return Err(suggestions_error(
+                plan.diagnostics
+                    .iter()
+                    .map(|d| d.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
+        }
+        Ok(plan)
+    }
+}
+fn suggestions_error(message: impl Into<String>) -> crate::suggestions::SuggestionsError {
+    crate::suggestions::SuggestionsError {
+        code: "cem.suggestions.consumer",
+        message: message.into(),
+        source: Default::default(),
     }
 }
 fn context(data: &TemplateData) -> StandaloneExpressionContext {

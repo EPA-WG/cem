@@ -193,6 +193,13 @@ session selection; ignore it with a compatibility diagnostic and keep the
 field's authored value.
 Boolean availability follows attribute presence, including `disabled="false"`.
 
+The first native adapter requires materialized scalar `value` and `label`
+attributes, including group labels and image `alt` text. It rejects expression
+or reference value slots instead of evaluating them. Prepare dynamic scalars
+with an upstream native query/template before source admission. Availability
+and `selected` use presence alone; their operands are not evaluated. References
+inside candidate content remain authored for a later explicit consumer.
+
 Keep the original source nodes, owners, group relationships and content handles.
 The [existing record normalizer](../packages/cem-elements/src/lib/choice-options.ts)
 is evidence for legacy behavior, not a new ingress: it computes native fallback
@@ -231,6 +238,11 @@ No additional Unicode normalization is implicit. Empty query matches all
 admitted roots; matching both label and value tests either key, without joining
 them into a synthetic string. Preserve source/group order; there is no ranking.
 
+The implemented native adapter pins full default folding to Unicode 17.0.0,
+using the common and full mappings from the licensed
+[Unicode folding data](../packages/cem_ql/src/suggestions/CaseFolding-17.0.0.txt).
+The consumer identity includes that version.
+
 Hidden candidates do not display. Disabled candidates may display with disabled
 semantics but cannot become active or commit. A group is hidden when no direct
 option remains displayed after source visibility and matching. Group labels do
@@ -250,7 +262,7 @@ handles remain distinct from the current produced row placement.
 
 | Native view element | Scalar attributes | Native relationships/structure |
 | --- | --- | --- |
-| `suggestions` root | `query`, `query-revision`, `expanded` | Source-order group and ungrouped option children. |
+| `suggestions` root | `query`, `query-revision`, `expanded`, `eligible-count`, `unicode-version` | Source-order group and ungrouped option children. |
 | `group` | `label`, `disabled`, `hidden` | `source` identifies the original group; children are its option view nodes. |
 | `option` | `label`, `value`, `matched`, `disabled`, `hidden`, `active`, `committed` | `source` identifies the original candidate; `content` retains its admitted child content sequence. |
 

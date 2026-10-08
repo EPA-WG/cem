@@ -24,6 +24,11 @@ original nodes may have duplicate stored values; repeated placement of the
 same original node in one session is ambiguous and rejected. Neither string
 equality nor row position establishes identity or initializes selection.
 
+The first adapter accepts already-materialized scalar source attributes.
+An upstream native query/template prepares dynamic `value`/`label` attributes;
+the adapter does not evaluate their authored expression/reference slots.
+This does not resolve descendant content references or change original owners.
+
 Add these planned scalar coordination inputs alongside the native `options`:
 
 | Input | Contract |
@@ -106,7 +111,7 @@ native diagnostic; projecting a presentation value does not transfer source
 authority. Original source edges stay inside the native session rather than
 becoming serialized JavaScript records.
 
-Processing-host protocol v16 provides prepare/view/render/release operations
+Processing-host protocol v17 provides prepare/view/render/release operations
 with immutable source/query revisions and root-owned session identities. A
 transient lease checks attachment/query eligibility before and after async
 work. Cancellation, release and root disposal fence in-flight preparation and
@@ -119,9 +124,15 @@ limits. These handles and leases never enter durable data-island state.
 Startup fallback may prepare a new native session through the same code. Loss
 of a worker invalidates its live sessions: views or label work cannot silently
 reload old grants into fallback. Resume/retry obtains fresh source authority and
-a new session identity. The shared transport is implemented; suggestion-specific
-source adapters, the reserved view's publication, outbound bindings and the
-public capability/declaration remain the next runtime action.
+a new session identity. The shared transport and versioned native source adapter
+are implemented. An immutable session prepares its option/group plan once;
+subsequent native frames apply filtering and row/group label templates while
+retaining original source/content edges. Adapter preparation returns scalar
+counts, consumer identity and attributed diagnostics. Explicit scalar queries
+can export CEMV; exporting the live derived view fails because CEMV cannot retain
+its source/content edges. Native label frames bind the reserved view locally.
+Publication into component rendering, outbound native bindings and the public
+capability/declaration remain the next runtime action.
 
 Request replacement/disconnect asks the shared resource owner to cancel its
 obsolete work. Cancellation may not stop an already finishing transport; every

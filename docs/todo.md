@@ -477,6 +477,38 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       57 processing unit checks and four browser plays pass. cem-elements build,
       typecheck and lint pass, with two existing non-null-assertion warnings.
 
+- [x] Implement the native suggestions source/text/filter consumer over retained
+      capability sessions before binding the public suggestions declaration.
+      Adapt canonical CEM options, HTML data, and HTML option/group roots by
+      expanded name; preserve original owners, ordered groups/content, duplicate
+      values and explicit empty values. Reject mixed families, repeated native
+      identity, malformed declarations and unavailable owning axes atomically.
+      Require materialized scalar value/label/alt attributes; prepare dynamic
+      scalars upstream and retain descendant references for explicit consumers.
+      Pin full default Unicode case folding and keep local filtering native.
+      Provide immutable native row/group views and native label frames through
+      the existing session channel, with scalar/CEMV presentation exports only.
+      Fixture action: add Rust adapter/view contracts before implementation,
+      then real WASM and browser worker/fallback cases for text/value distinctions,
+      Unicode/filter agreement, source identity, retained descendant references,
+      all-disabled/no-match states, bounds, diagnostics and stale/disposed leases.
+      Fixture action: verify the packaged WASM and npm runtime include the pinned
+      Unicode data's byte-identical copyright and permission notice.
+      Scenarios for later design verification: equal values never merge source
+      identities; filtering keeps the complete source-order row sequence; label
+      frames retain original content/capture; invalid revisions cannot publish
+      a partial plan or fall back to another source family.
+      Completed 2026-10-07: retained native plans, immutable row/group views and
+      label frames are available through protocol v17. Full default Unicode
+      17.0.0 folding and materialized scalar admission are adopted; live views
+      retain source/content edges and only explicit presentation projections
+      export CEMV. The reference-consumer gate passes 354 native checks including
+      nine adapter fixtures and its three real WASM lanes. Five browser plays
+      across worker/fallback and 57 processing unit checks pass. Package
+      build, clean npm import/Unicode notice, typecheck and lint pass; lint keeps
+      the two existing non-null-assertion warnings. Component publication and
+      outbound native bindings remain in the runtime action below.
+
 - [ ] Implement the shared editor-provider boundary, synchronous user-commit
       transaction and reset/restore/rebinding notifications in cem-elements,
       then the suggestions capability and declarative field composition after
@@ -517,7 +549,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       exclusive control leases, independent validity leases, change checkpoints,
       composition/held-press routing and fresh leases after disconnect/rebind are
       implemented. Both fields forward native scalar constraints/editing hints
-      and list. The shared native source/view transport is delivered. Reserved
+      and list. The shared native source/view transport, atomic source/text/filter
+      adapters and native row/group label frames are delivered. Reserved
       suggestions view publication/outbound bindings, attribute/placement claims,
       surface services, suggestions capability and declarative composition remain
       open; do not mark this complete from the provider foundation alone.

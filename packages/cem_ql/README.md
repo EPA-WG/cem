@@ -585,6 +585,23 @@ control metadata; take the opaque bytes with `takeRenderValueArtifact`.
 Handles remain heap-local and are never a serialized resume authority.
 Native and WASM cases are included in `test:reference-consumers`.
 
+`suggestions::SuggestionsPlan` adapts retained canonical CEM, HTML data or HTML
+option/group sources once per immutable capability session. Scalar `value`,
+`label` and image `alt` attributes must already be materialized; descendant
+content references retain their authored source handles. Source-order native
+views keep duplicate values distinct and apply strict local contains/prefix or
+upstream external/none filtering. Full default case folding uses the pinned
+[Unicode 17.0.0 data](src/suggestions/CaseFolding-17.0.0.txt) under its included
+[Unicode license](src/suggestions/UNICODE-LICENSE.txt), without value rewriting
+or implicit Unicode normalization. WASM builds and the packaged cem-elements
+runtime include that notice. `evaluate_suggestions`, `render_suggestion`
+and `render_suggestion_group` bind the derived native view and original content
+inside each execution frame. WASM exposes `prepareNativeSuggestions`,
+`exportNativeSuggestionsView` and `renderNativeSuggestionTemplate`; preparation
+returns only scalar counts, identity and attributed diagnostics. Explicit scalar
+projections export CEMV, while a whole live view fails rather than dropping its
+source/content edges. These APIs do not publish a public suggestions capability.
+
 `data:node_key(node)` and `data:line_number(node)` read source metadata from
 either an imported CEM node or a retained XPath node. They accept an optional
 single native node; empty input returns empty, and other types/cardinalities

@@ -45,6 +45,9 @@ import initCemQlWasm, {
     exportNativeCapabilityView,
     renderNativeCapabilityTemplate,
     disposeNativeCapabilitySession,
+    prepareNativeSuggestions,
+    exportNativeSuggestionsView,
+    renderNativeSuggestionTemplate,
     disposeReferenceSource,
     disposeNativeValueArtifact,
     takeRenderValueArtifact,
@@ -852,7 +855,7 @@ function nativeSessionCall<T>(call: () => T): T {
         throw new Error(error, { cause: error });
     }
 }
-export async function prepareRetainedNativeSession(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number }> {
+export async function prepareRetainedNativeSession(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number; suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions'] }> {
     assertProcessingBoundaryValue(input.data, 'native session control frame');
     if (input.sources.kind !== 'cem-native-session-sources-v1' || 'placements' in input.sources) throw new TypeError('Invalid native session source authority');
     await ensureRuntimeReady();
@@ -860,21 +863,28 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
         nativeValueLimits: input.limits, elementReferenceInputs: { ...input.sources, kind: 'cem-element-reference-inputs-v1' } };
     return nativeSessionCall(() => withNativeAttributes(options, bindings => withElementReferences(options, sources => {
         const id = nativeSessionCall(() => prepareNativeCapabilitySession(JSON.stringify(input.data), sources ?? '', input.select, input.resolve !== false, bindings, JSON.stringify(input.limits)));
-        try { return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)) }; }
+        try {
+            const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
+            const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
+                sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;
+            return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)), ...(suggestions ? { suggestions } : {}) };
+        }
         catch (error) { disposeNativeCapabilitySession(id); throw error; }
     }, true)));
 }
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
 export function exportRetainedNativeSessionView(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'view' }>): CemProcessingNativeSessionResult {
-    const result = JSON.parse(nativeSessionCall(() => exportNativeCapabilityView(id, input.expression, input.index))) as { length: number; artifactId: number | null; contentHash: string | null };
+    const result = JSON.parse(nativeSessionCall(() => input.suggestions ? exportNativeSuggestionsView(id, JSON.stringify(input.suggestions), input.expression, input.index)
+        : exportNativeCapabilityView(id, input.expression, input.index))) as { length: number; artifactId: number | null; contentHash: string | null };
     const artifact = result.artifactId == null ? undefined : takeRenderValueArtifact(result.artifactId).slice().buffer as ArrayBuffer;
     return { status: 'view', handle: input.handle, values: artifact ? Array.from({ length: result.length }, (_, index) => ({
         kind: 'cem-native-value-v1' as const, artifact, contentHash: result.contentHash as string, index })) : [] };
 }
 export async function renderRetainedNativeSessionLabel(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'render' }>): Promise<CemProcessingNativeSessionResult> {
-    const template = await retainCemMlTemplateSource(input.template, ['input']);
+    const template = await retainCemMlTemplateSource(input.template, input.suggestions ? ['input', 'suggestion', 'group', 'suggestions'] : ['input']);
     try {
-        const result = mapWasmRenderPlan(nativeSessionCall(() => renderNativeCapabilityTemplate(id, template.artifactId, input.index)), { renderNodeIdPrefix: `native-label-${input.handle.sessionKey}-${input.index ?? 'all'}` });
+        const result = mapWasmRenderPlan(nativeSessionCall(() => input.suggestions ? renderNativeSuggestionTemplate(id, template.artifactId, JSON.stringify(input.suggestions), input.index, input.groupLabel === true)
+            : renderNativeCapabilityTemplate(id, template.artifactId, input.index)), { renderNodeIdPrefix: `native-label-${input.handle.sessionKey}-${input.groupLabel ? 'group' : 'row'}-${input.index ?? 'all'}` });
         if (result.diagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')) throw new CemProcessingDiagnosticError(result.diagnostics);
         return { status: 'rendered', handle: input.handle, nodes: result.nodes, diagnostics: result.diagnostics };
     } finally { disposeRetainedCemMlTemplate(template.artifactId); }

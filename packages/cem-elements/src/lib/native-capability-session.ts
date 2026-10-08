@@ -17,13 +17,24 @@ export interface CemNativeSessionView {
     handle: CemNativeSessionHandle;
     values: readonly NativeCemValue[];
 }
+/** Scalar control only. Sources, content and row identity stay in the native owner. */
+export interface CemNativeSuggestionsConfig {
+    query: string;
+    queryRevision: number;
+    filter?: 'contains' | 'prefix' | 'external' | 'none';
+    filterBy?: string;
+    expanded?: boolean;
+    active?: number;
+    committed?: number;
+}
 /** Immutable revision lease. Consumers supply current attachment/query eligibility. */
 export class CemNativeCapabilitySession {
     private released = false;
     private readonly ownerMode: CemProcessingHost['mode'];
     private readonly abort = () => { void this.release().catch(() => undefined); };
     private constructor(private readonly host: CemProcessingHost, readonly handle: CemNativeSessionHandle,
-        readonly length: number, private readonly current: () => boolean, private readonly signal?: AbortSignal) {
+        readonly length: number, private readonly current: () => boolean, private readonly signal?: AbortSignal,
+        readonly suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions']) {
         Object.freeze(handle);
         this.ownerMode = host.mode;
         signal?.addEventListener('abort', this.abort, { once: true });
@@ -41,20 +52,20 @@ export class CemNativeCapabilitySession {
                 await host.nativeSession({ action: 'release', handle }).result;
                 throw new Error('Native capability preparation was superseded');
             }
-            return new CemNativeCapabilitySession(host, handle, result.length, () => !signal?.aborted && current(), signal);
+            return new CemNativeCapabilitySession(host, handle, result.length, () => !signal?.aborted && current(), signal, result.suggestions);
         } catch (error) {
             await host.nativeSession({ action: 'release', handle }).result.catch(() => undefined);
             throw error;
         } finally { signal?.removeEventListener('abort', cancel); }
     }
     get valid(): boolean { return !this.released && !this.host.ownerScope.disposed && this.host.mode === this.ownerMode && this.current(); }
-    async view(expression: string, index?: number): Promise<CemNativeSessionView> {
-        const result = await this.run({ action: 'view', handle: this.handle, expression, index });
+    async view(expression: string, index?: number, suggestions?: CemNativeSuggestionsConfig): Promise<CemNativeSessionView> {
+        const result = await this.run({ action: 'view', handle: this.handle, expression, index, suggestions });
         if (result.status !== 'view') throw new Error('Invalid native capability view reply');
         return { handle: this.handle, values: result.values };
     }
-    async render(template: string, index?: number): Promise<Extract<CemProcessingNativeSessionResult, { status: 'rendered' }>> {
-        const result = await this.run({ action: 'render', handle: this.handle, template, index });
+    async render(template: string, index?: number, suggestions?: CemNativeSuggestionsConfig, groupLabel?: boolean): Promise<Extract<CemProcessingNativeSessionResult, { status: 'rendered' }>> {
+        const result = await this.run({ action: 'render', handle: this.handle, template, index, suggestions, groupLabel });
         if (result.status !== 'rendered') throw new Error('Invalid native label reply');
         return result;
     }

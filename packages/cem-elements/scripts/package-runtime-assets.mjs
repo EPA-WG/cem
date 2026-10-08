@@ -15,7 +15,7 @@ const workspaceRoot = resolve(packageRoot, '../..');
 const wasmSourceRoot = resolve(workspaceRoot, 'packages/cem_ql/dist/wasm');
 const runtimeSupportRoot = resolve(packageRoot, 'dist/lib/internal/runtime-support');
 const vendorRoot = resolve(runtimeSupportRoot, 'vendor');
-const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm'];
+const runtimeFiles = ['cem_ql.js', 'cem_ql.d.ts', 'cem_ql_bg.wasm', 'UNICODE-LICENSE.txt'];
 const workspaceImport = '../../../../../cem_ql/dist/wasm/cem_ql.js';
 const packageImport = './vendor/cem_ql.js';
 
