@@ -584,13 +584,21 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         current focused/visible row admission, stale revisions, newer authored
         writes, competing leases and reset/rebind/disconnect cleanup. Share one
         verified editor lease with the manual-listbox delegate.
-      - [ ] Complete cross-component live-view transport after choosing owner
-        routing or consumer-local derivation. Add worker/fallback contracts before
+      - [ ] Complete cross-component live-view publication over original-owner
+        routing. Add worker/fallback contracts before
         integrating native outbound bindings and the two-way row placement grants.
-      Decision pending: cross-component live bindings need a transport beyond
-      CEMV, which rejects retained native source edges. Choose original processing
-      owner routing or explicitly granted consumer-local derived views; neither
-      path may export a live view as a portable value or restore resume authority.
+        - [x] Retain one immutable native suggestions publication on its original
+          processing owner and route admitted consumer-frame rendering there.
+          Fixture action: add Rust contracts before implementation for native view
+          identity/source retention, independent consumer frames, reserved names,
+          release/reuse and bounds; then worker/fallback browser cases for directed
+          consumer leases, realm copies, stale in-flight work, independent release
+          and owner loss.
+        - [ ] Integrate the routed publication leases with component outbound
+          bindings and two-way original source-to-row placement admissions.
+      Decision adopted: retain live views on their original processing owner and
+      route consuming jobs there. CEMV remains a materialized presentation channel;
+      it cannot export a live view or restore consumer authority on resume.
       Progress 2026-10-07: native consumer-frame injection retains original
       source/content edges and rejects reserved aliases/slices. The provider owns
       transient ARIA leases with atomic conflicts, exact endpoint checks, editor
@@ -598,6 +606,12 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       listbox visibility can borrow the same verified lease. These APIs require
       a trusted current-publication hook; native outbound bindings and original
       source-to-row placement admissions remain open.
+      Owner-routed immutable publications and independent consumer-frame leases
+      are delivered in worker/fallback modes. Copied/serialized bindings, stale
+      in-flight results and post-loss authority fail closed. Native publication
+      count/control-byte budgets include retired keys; release frees active view
+      capacity without allowing identity reuse. Processing protocol v18 prevents
+      an older worker from interpreting the new publication jobs as label jobs.
       Scenarios for later design verification: separately produced editor and
       listbox relationships activate together; filtering retains original row
       identities; a stale view cannot restore an active descendant or authority;

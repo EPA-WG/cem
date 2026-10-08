@@ -48,6 +48,9 @@ import initCemQlWasm, {
     prepareNativeSuggestions,
     exportNativeSuggestionsView,
     renderNativeSuggestionTemplate,
+    publishNativeSuggestions,
+    releaseNativeSuggestions,
+    renderNativeSuggestionsFrame,
     disposeReferenceSource,
     disposeNativeValueArtifact,
     takeRenderValueArtifact,
@@ -873,6 +876,25 @@ export async function prepareRetainedNativeSession(input: Extract<CemProcessingN
     }, true)));
 }
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
+export async function processRetainedSuggestionsPublication(id: number, input: Extract<CemProcessingNativeSessionInput,
+    { action: 'publish-suggestions' | 'release-suggestions' | 'render-suggestions-frame' }>): Promise<CemProcessingNativeSessionResult> {
+    if (input.action === 'publish-suggestions') {
+        nativeSessionCall(() => publishNativeSuggestions(id, input.publication, JSON.stringify(input.suggestions)));
+        return { status: 'published', handle: input.handle, publication: input.publication };
+    }
+    if (input.action === 'release-suggestions') {
+        nativeSessionCall(() => releaseNativeSuggestions(id, input.publication));
+        return { status: 'released', handle: input.handle };
+    }
+    assertProcessingBoundaryValue(input.data, 'native consumer control frame');
+    const template = await retainCemMlTemplateSource(input.template, [...Object.keys(input.data), 'datadom', 'suggestions']);
+    try {
+        const result = mapWasmRenderPlan(nativeSessionCall(() => renderNativeSuggestionsFrame(id, input.publication, template.artifactId, JSON.stringify(input.data))),
+            { renderNodeIdPrefix: `native-consumer-${input.consumer.instanceId}-${input.consumer.revision}` });
+        if (result.diagnostics.some(d => d.severity === 'error' || d.severity === 'fatal')) throw new CemProcessingDiagnosticError(result.diagnostics);
+        return { status: 'rendered', handle: input.handle, nodes: result.nodes, diagnostics: result.diagnostics };
+    } finally { disposeRetainedCemMlTemplate(template.artifactId); }
+}
 export function exportRetainedNativeSessionView(id: number, input: Extract<CemProcessingNativeSessionInput, { action: 'view' }>): CemProcessingNativeSessionResult {
     const result = JSON.parse(nativeSessionCall(() => input.suggestions ? exportNativeSuggestionsView(id, JSON.stringify(input.suggestions), input.expression, input.index)
         : exportNativeCapabilityView(id, input.expression, input.index))) as { length: number; artifactId: number | null; contentHash: string | null };

@@ -17,6 +17,7 @@ import {
     releaseRetainedNativeSession,
     exportRetainedNativeSessionView,
     renderRetainedNativeSessionLabel,
+    processRetainedSuggestionsPublication,
     processRetainedTemplateStylesheet,
     releaseRetainedTemplateStylesheets,
     retainLoadedCemDocument,
@@ -96,7 +97,8 @@ export class CemProcessingEngine {
     private readonly xpathLibraries = new CemXPathFunctionLibraries();
     private readonly documents = new Map<string, { input: Extract<CemProcessingDocumentInput, { action: 'retain' }>; id: number }>();
     private readonly documentOperations = new Map<string, object>();
-    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1' }>();
+    private readonly nativeSessions = new Map<string, { handle: CemProcessingNativeSessionInput['handle']; id: number; limits: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>['limits']; adapter?: 'suggestions-v1';
+        publications: Map<string, { ready: boolean }>; publicationKeys: Set<string>; publicationKeyBytes: number }>();
     private readonly nativeSessionOperations = new Map<string, { handle: CemProcessingNativeSessionInput['handle'] }>();
     private readonly nativeSessionKeys = new Set<string>();
     private readonly maxNativeSessionEntries: number;
@@ -148,10 +150,44 @@ export class CemProcessingEngine {
                 throw new Error('Native session preparation was superseded or released');
             }
             this.nativeSessionOperations.delete(key);
-            this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits, adapter: input.adapter });
+            this.nativeSessions.set(key, { handle, id: session.id, limits: input.limits, adapter: input.adapter, publications: new Map(), publicationKeys: new Set(), publicationKeyBytes: 0 });
             return { status: 'ready', handle, length: session.length, ...(session.suggestions ? { suggestions: session.suggestions } : {}) };
         }
         if (!retained) throw new Error('Native capability session is not retained; reacquire source authority');
+        if (input.action === 'publish-suggestions' || input.action === 'release-suggestions' || input.action === 'render-suggestions-frame') {
+            if (retained.adapter !== 'suggestions-v1') throw new Error('A native publication requires the suggestions adapter');
+            if (typeof input.publication !== 'string' || !input.publication || input.publication.length > 1024) throw new TypeError('Invalid native publication identity');
+            if (input.action === 'publish-suggestions' && input.suggestions.queryRevision !== handle.queryRevision) throw new Error('Native suggestions query revision mismatch');
+            if (input.action === 'render-suggestions-frame') {
+                if (!input.consumer || [input.consumer.instanceId, input.consumer.scopePolicyStamp, input.consumer.revision]
+                    .some(value => typeof value !== 'string' || !value || value.length > 1024)) throw new TypeError('Invalid native consumer identity');
+                if (new TextEncoder().encode(input.template).byteLength > retained.limits.maxBytes
+                    || new TextEncoder().encode(JSON.stringify(input.data)).byteLength > retained.limits.maxBytes) throw new RangeError('Native consumer frame byte limit exceeded');
+            }
+            let publication = retained.publications.get(input.publication);
+            if (input.action === 'publish-suggestions') {
+                if (retained.publicationKeys.has(input.publication)) throw new Error('Native publication identity was already issued');
+                const keyBytes = new TextEncoder().encode(input.publication).byteLength;
+                if (retained.publications.size >= retained.limits.maxValues || retained.publicationKeys.size >= Math.min(retained.limits.maxValues, 100_000)
+                    || retained.publicationKeyBytes + keyBytes > retained.limits.maxBytes) throw new RangeError('Native publication capacity exceeded');
+                retained.publicationKeyBytes += keyBytes;
+                retained.publicationKeys.add(input.publication); publication = { ready: false }; retained.publications.set(input.publication, publication);
+            } else if (input.action === 'release-suggestions') retained.publications.delete(input.publication);
+            else if (!publication?.ready) throw new Error('Native publication is not retained; reacquire authority');
+            try {
+                const result = await processRetainedSuggestionsPublication(retained.id, input);
+                if (this.disposed || this.nativeSessions.get(key) !== retained
+                    || input.action !== 'release-suggestions' && retained.publications.get(input.publication) !== publication) throw new Error('Native publication result was superseded or released');
+                if (input.action === 'publish-suggestions' && publication) publication.ready = true;
+                return result;
+            } catch (error) {
+                if (input.action === 'publish-suggestions') {
+                    if (retained.publications.get(input.publication) === publication) retained.publications.delete(input.publication);
+                    await processRetainedSuggestionsPublication(retained.id, { action: 'release-suggestions', handle, publication: input.publication }).catch(() => undefined);
+                }
+                throw error;
+            }
+        }
         if (input.suggestions && (retained.adapter !== 'suggestions-v1' || input.suggestions.queryRevision !== handle.queryRevision)) throw new Error('Native suggestions adapter or query revision mismatch');
         if (input.action === 'render' && input.groupLabel && !input.suggestions) throw new TypeError('A group label requires a native suggestions view');
         if (input.index !== undefined && (!Number.isSafeInteger(input.index) || input.index < 0 || input.index > 0xffffffff)) throw new TypeError('Invalid native source index');

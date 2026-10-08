@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v17' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v18' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -209,13 +209,17 @@ export type CemProcessingValueInput = { scopePolicyStamp: string; limits: CemVal
 );
 export type CemProcessingValueResult = { value: NativeCemValue } | { text: string | null };
 
-/** Retained executable sources use CEMB; the derived presentation uses CEMV. */
+/** Retained executable sources and live publications stay on the original owner. */
 export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
     | { action: 'prepare'; sources: CemNativeSessionSources; data: Record<string, unknown>;
         select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1';
         nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
     | { action: 'view'; expression: string; index?: number; suggestions?: CemNativeSuggestionsConfig }
     | { action: 'render'; template: string; index?: number; suggestions?: CemNativeSuggestionsConfig; groupLabel?: boolean }
+    | { action: 'publish-suggestions'; publication: string; suggestions: CemNativeSuggestionsConfig }
+    | { action: 'render-suggestions-frame'; publication: string; template: string; data: Record<string, unknown>;
+        consumer: { instanceId: string; scopePolicyStamp: string; revision: string } }
+    | { action: 'release-suggestions'; publication: string }
     | { action: 'release' }
 );
 export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle } & (
@@ -223,6 +227,7 @@ export type CemProcessingNativeSessionResult = { handle: CemNativeSessionHandle 
     | { status: 'view'; values: NativeCemValue[] }
     | { status: 'rendered'; nodes: RenderPlanNode[]; diagnostics: CemProcessingDiagnostic[] }
     | { status: 'released' }
+    | { status: 'published'; publication: string }
 );
 
 export interface CemProcessingRenderDiffInput {

@@ -359,7 +359,16 @@ manual-listbox delegate can share that exact verified provider lease.
 These APIs require a trusted current-publication hook; endpoint pointers and
 IDs cannot establish original source-to-row placement authority. Cross-component
 outbound publication and the host-issued grants in both directions remain open.
-The current CEMV channel rejects live views containing native source edges. The
-active action records the pending choice between original processing-owner
-routing and explicitly granted consumer-local derivation; resume must reacquire
-authority under either approach.
+The current CEMV channel rejects live views containing native source edges. Live
+publications now stay on their original processing owner. An immutable publication
+admits transient consumer leases whose render jobs route there with independently
+captured scalar control frames. Consumers do not rebuild the native view or source
+owners. Consumer and publication revision checks run before and after processing;
+release or worker loss cannot revive an old lease. Retained views, control bytes
+and retired identities share bounded session capacity. They are excluded from
+serialized resume authority. The processing protocol is versioned for these jobs.
+
+The host supplies each consumer's current-admission hook. This transport API does
+not establish DOM placement grants: the component outbound channel and original
+source-to-row admissions still need to integrate these leases before declaring
+the public suggestions capability complete.

@@ -50,6 +50,10 @@ vi.mock('./cem-ql-render.js', () => {
     releaseRetainedNativeSession: vi.fn(),
     exportRetainedNativeSessionView: vi.fn((_id, input) => ({ status: 'view', handle: input.handle, values: [] })),
     renderRetainedNativeSessionLabel: vi.fn(async (_id, input) => ({ status: 'rendered', handle: input.handle, nodes: [], diagnostics: [] })),
+    processRetainedSuggestionsPublication: vi.fn(async (_id, input) => input.action === 'publish-suggestions'
+        ? { status: 'published', handle: input.handle, publication: input.publication }
+        : input.action === 'release-suggestions' ? { status: 'released', handle: input.handle }
+        : { status: 'rendered', handle: input.handle, nodes: [], diagnostics: [] }),
     retainLoadedCemDocument: vi.fn(async () => 101),
     retainStylesheetSources: vi.fn(async () => ({ artifactId: nextArtifactId++, diagnostics: [],
         stylesheets: [{ css: ':scope { color: red; }', scope: null }], moduleMap: null })),
@@ -1058,4 +1062,25 @@ it('fences released native preparation and rejects stale revisions without touch
     await expect(engine.nativeSession({ action: 'view', handle: { queryRevision: 1, sourceRevision: 'one', scopePolicyStamp: 'scope', instanceId: 'field', sessionKey: 'fresh' }, expression: 'input' })).resolves.toHaveProperty('status', 'view');
     engine.dispose({ reason: 'runtime-disposed' });
     expect(native.releaseRetainedNativeSession).toHaveBeenCalledWith(701);
+});
+
+it('revokes in-flight native consumer frames without releasing their shared source session', async () => {
+    const engine = new CemProcessingEngine();
+    const native = await import('./cem-ql-render.js');
+    const handle = { sessionKey: 'publication-session', instanceId: 'producer', scopePolicyStamp: 'scope', sourceRevision: 'one', queryRevision: 1 };
+    await engine.nativeSession({ action: 'prepare', handle, sources: { kind: 'cem-native-session-sources-v1', requesting: 0, sources: [], bindings: [], grants: [] },
+        data: {}, select: '()', limits: { maxBytes: 1024, maxValues: 100, maxDepth: 20 }, adapter: 'suggestions-v1' });
+    const publication = 'live';
+    await engine.nativeSession({ action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } });
+    let finish!: (result: Awaited<ReturnType<typeof native.processRetainedSuggestionsPublication>>) => void;
+    vi.mocked(native.processRetainedSuggestionsPublication).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = engine.nativeSession({ action: 'render-suggestions-frame', handle, publication, template: '{p}', data: {},
+        consumer: { instanceId: 'consumer', scopePolicyStamp: 'consumer-scope', revision: '1' } });
+    const rejected = expect(pending).rejects.toThrow('superseded or released');
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    await engine.nativeSession({ action: 'release-suggestions', handle, publication });
+    finish({ status: 'rendered', handle, nodes: [], diagnostics: [] }); await rejected;
+    await expect(engine.nativeSession({ action: 'view', handle, expression: 'input.name' })).resolves.toHaveProperty('status', 'view');
+    await expect(engine.nativeSession({ action: 'publish-suggestions', handle, publication, suggestions: { query: '', queryRevision: 1 } })).rejects.toThrow('already issued');
+    engine.dispose();
 });

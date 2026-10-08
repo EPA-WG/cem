@@ -198,6 +198,59 @@ pub fn render(id: u32, artifact_id: u32, index: Option<u32>) -> Result<String, J
         })
     })
 }
+#[wasm_bindgen(js_name = "publishNativeSuggestions")]
+pub fn publish_suggestions(id: u32, key: &str, config_json: &str) -> Result<(), JsValue> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions
+            .get(&id)
+            .ok_or_else(|| session_error("Unknown native capability session"))?;
+        let config = suggestions_config(session, config_json)?;
+        session
+            .publish_suggestions(key, &config)
+            .map_err(suggestions_error)?;
+        Ok(())
+    })
+}
+#[wasm_bindgen(js_name = "releaseNativeSuggestions")]
+pub fn release_suggestions(id: u32, key: &str) -> bool {
+    SESSIONS.with(|sessions| {
+        sessions
+            .borrow()
+            .get(&id)
+            .is_some_and(|session| session.release_suggestions(key))
+    })
+}
+#[wasm_bindgen(js_name = "renderNativeSuggestionsFrame")]
+pub fn render_suggestions_frame(
+    id: u32,
+    key: &str,
+    artifact_id: u32,
+    data_json: &str,
+) -> Result<String, JsValue> {
+    SESSIONS.with(|sessions| {
+        let sessions = sessions.borrow();
+        let session = sessions
+            .get(&id)
+            .ok_or_else(|| session_error("Unknown native capability session"))?;
+        if data_json.len() > session.limits().max_bytes {
+            return Err(session_error("Consumer frame control byte limit exceeded"));
+        }
+        let data = parse_template_data(data_json).map_err(session_error)?;
+        ARTIFACTS.with(|artifacts| {
+            let artifacts = artifacts.borrow();
+            let artifact = artifact_id
+                .checked_sub(1)
+                .and_then(|i| artifacts.get(i as usize))
+                .and_then(Option::as_ref)
+                .ok_or_else(|| session_error("Unknown native consumer template"))?;
+            let plan = session
+                .render_suggestions_frame(key, artifact.artifact(), data)
+                .map_err(suggestions_error)?;
+            Ok(plan_json_with_limits(&plan, session.limits()).to_string())
+        })
+    })
+}
 #[wasm_bindgen(js_name = "disposeNativeCapabilitySession")]
 pub fn dispose(id: u32) -> bool {
     SESSIONS.with(|sessions| sessions.borrow_mut().remove(&id).is_some())

@@ -19,6 +19,11 @@ pub struct NativeCapabilitySession {
     data: TemplateData,
     values: ItemStream,
     limits: CemValueArtifactLimits,
+    publications: std::cell::RefCell<
+        std::collections::BTreeMap<String, (crate::suggestions::SuggestionsView, usize)>,
+    >,
+    publication_keys: std::cell::RefCell<std::collections::BTreeSet<String>>,
+    publication_bytes: std::cell::Cell<usize>,
     suggestions: std::sync::OnceLock<
         Result<
             std::sync::Arc<crate::suggestions::SuggestionsPlan>,
@@ -77,6 +82,9 @@ impl NativeCapabilitySession {
             data,
             values,
             limits,
+            publications: Default::default(),
+            publication_keys: Default::default(),
+            publication_bytes: Default::default(),
             suggestions: Default::default(),
         })
     }
@@ -186,6 +194,95 @@ impl NativeCapabilitySession {
         data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
             .map_err(suggestions_error)?;
         Ok(view)
+    }
+    /// One immutable view stays on this execution owner across consumer jobs.
+    pub fn publish_suggestions(
+        &self,
+        key: &str,
+        config: &crate::suggestions::SuggestionsConfig,
+    ) -> Result<crate::suggestions::SuggestionsView, crate::suggestions::SuggestionsError> {
+        if key.is_empty() || key.len() > 1024 || key.len() > self.limits.max_bytes {
+            return Err(suggestions_error("Invalid native publication identity"));
+        }
+        if self.publication_keys.borrow().contains(key) {
+            return Err(suggestions_error(
+                "Native publication identity was already issued",
+            ));
+        }
+        if self.publications.borrow().len() >= self.limits.max_values
+            || self.publication_keys.borrow().len() >= self.limits.max_values.min(100_000)
+        {
+            return Err(suggestions_error("Native publication capacity exceeded"));
+        }
+        let plan = self.suggestions()?;
+        // Retained control strings, match flags and active/retired keys share one byte budget.
+        let charge = serde_json::to_vec(config)
+            .map_err(|error| suggestions_error(error.to_string()))?
+            .len()
+            .checked_add(plan.len())
+            .and_then(|n| n.checked_add(key.len() + 128))
+            .ok_or_else(|| suggestions_error("Native publication byte limit exceeded"))?;
+        let total = self
+            .publication_bytes
+            .get()
+            .checked_add(charge)
+            .and_then(|n| n.checked_add(key.len()))
+            .filter(|n| *n <= self.limits.max_bytes)
+            .ok_or_else(|| suggestions_error("Native publication byte limit exceeded"))?;
+        let view = plan.view(config)?;
+        self.publication_keys.borrow_mut().insert(key.into());
+        self.publications
+            .borrow_mut()
+            .insert(key.into(), (view.clone(), charge));
+        self.publication_bytes.set(total);
+        Ok(view)
+    }
+    pub fn suggestions_publication(
+        &self,
+        key: &str,
+    ) -> Result<crate::suggestions::SuggestionsView, crate::suggestions::SuggestionsError> {
+        self.publications
+            .borrow()
+            .get(key)
+            .map(|(view, _)| view.clone())
+            .ok_or_else(|| {
+                suggestions_error("Native publication is not retained; reacquire authority")
+            })
+    }
+    pub fn release_suggestions(&self, key: &str) -> bool {
+        if let Some((_, charge)) = self.publications.borrow_mut().remove(key) {
+            self.publication_bytes
+                .set(self.publication_bytes.get() - charge);
+            true
+        } else {
+            false
+        }
+    }
+    /// Scalar consumer control enters here; retained source edges never leave their owner.
+    pub fn render_suggestions_frame(
+        &self,
+        key: &str,
+        template: &TemplateArtifact,
+        mut data: TemplateData,
+    ) -> Result<RenderPlan, crate::suggestions::SuggestionsError> {
+        let view = self.suggestions_publication(key)?;
+        data.bind_reserved_native_slice("suggestions", ItemStream::once(view.root()))
+            .map_err(suggestions_error)?;
+        let plan = render_compiled_template(template, &data);
+        if plan
+            .diagnostics
+            .iter()
+            .any(|d| d.severity.is_hard_violation())
+        {
+            return Err(suggestions_error(
+                plan.diagnostics
+                    .iter()
+                    .map(|d| d.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
+        }
+        Ok(plan)
     }
     pub fn evaluate_suggestions(
         &self,

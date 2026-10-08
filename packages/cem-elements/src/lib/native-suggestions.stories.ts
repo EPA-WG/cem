@@ -5,12 +5,17 @@ import { CemNativeCapabilitySession, type CemNativeSuggestionsConfig } from './n
 import { DEFAULT_CEM_VALUE_ARTIFACT_LIMITS } from './native-values.js';
 import { cemProcessingHostForScope } from './internal/runtime-support/processing-host-runtime.js';
 import type { CemProcessingHost, CemProcessingNativeSessionInput } from './internal/runtime-support/processing-host.js';
+import type { RenderPlanNode } from './projection.js';
+import { isCemNativeSuggestionsBinding } from './native-suggestions-publication.js';
 // eslint-disable-next-line @nx/enforce-module-boundaries -- fixture sources enter through the explicit native CEMB boundary.
 import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 
 export default { title: 'CEM Elements/Native Suggestions Consumer', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 const workerScriptUrl = new URL('./internal/runtime-support/processing-worker.ts', import.meta.url);
+function renderedText(nodes: readonly RenderPlanNode[]): string {
+    return nodes.map(node => node.kind === 'text' ? node.text : node.kind === 'element' ? renderedText(node.children ?? []) : '').join('');
+}
 function request(text: string): Extract<CemProcessingNativeSessionInput, { action: 'prepare' }> {
     const id = wasm.parseReferenceSource(new TextEncoder().encode(text), 'text/cem-ml', 'memory:suggestions.cem', '');
     try {
@@ -68,5 +73,79 @@ export const SourceViewsLabelsAndFilteringWorkerAndFallback: Story = {
                 finally { await empty.release(); }
             } finally { await session.release(); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
         }
+    },
+};
+
+export const OwnerRoutedPublicationsAndIndependentConsumers: Story = {
+    render: () => '<section aria-label="Owner routed suggestions fixture"></section>',
+    play: async () => {
+        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+        for (const fallback of [false, true]) {
+            const scope = createCemDeclarationScope({ document }), peerScope = createCemDeclarationScope({ document });
+            const options = { workerScriptUrl, ...(fallback ? { workerFactory: () => { throw new Error('fixture fallback'); } } : {}) };
+            const host = cemProcessingHostForScope(scope, options), peer = cemProcessingHostForScope(peerScope, options);
+            const session = await CemNativeCapabilitySession.prepare(host, request('{cem-option @value=x | Original {#later}}'), () => true);
+            let publicationCurrent = true, revision = 1;
+            const config = { query: 'Original', queryRevision: 1 };
+            const publication = await session.publishSuggestions(config, () => publicationCurrent);
+            config.query = 'Mutated';
+            const first = publication.bind({ instanceId: 'first', scopePolicyStamp: 'first-scope', revision: '1', current: () => revision === 1 });
+            const second = publication.bind({ instanceId: 'second', scopePolicyStamp: 'second-scope', revision: '1', current: () => true });
+            const template = '{span | {$consumer}|{$datadom.slices.suggestions.dom:attribute("query").value}|{$datadom.slices.suggestions.children.source.children.expression}}';
+            try {
+                await expect(peer.nativeSession({ action: 'view', handle: session.handle, expression: 'input.name' }).result).rejects.toThrow();
+                await expect(publication.config.query).toBe('Original');
+                await expect(renderedText((await first.render(template, { consumer: 'First' })).nodes)).toBe('First|Original|#later');
+                await expect(renderedText((await second.render(template, { consumer: 'Second' })).nodes)).toBe('Second|Original|#later');
+                await expect(first.render(template, { suggestions: 'forged' })).rejects.toThrow('reserved');
+                await expect(() => JSON.stringify(first)).toThrow('cannot be serialized');
+                await expect(() => structuredClone(first)).toThrow();
+                const copied = { ...first }; await expect(copied.render(template, {})).rejects.toThrow('copied native binding');
+                await expect(isCemNativeSuggestionsBinding(first)).toBe(true); await expect(isCemNativeSuggestionsBinding(copied)).toBe(false);
+                const isolated = await import(/* @vite-ignore */ new URL('./native-suggestions-publication.ts?interop', import.meta.url).href) as typeof import('./native-suggestions-publication.js');
+                await expect(isolated.isCemNativeSuggestionsBinding(first)).toBe(true);
+                const data = { consumer: 'Captured' }, pending = first.render(template, data); data.consumer = 'Changed'; revision = 2;
+                await expect(pending).rejects.toThrow('superseded');
+                revision = 1; await expect(first.valid).toBe(false); first.release();
+                await expect(second.render(template, { consumer: 'Still current' })).resolves.toHaveProperty('status', 'rendered');
+                publicationCurrent = false; await expect(second.valid).toBe(false);
+                publicationCurrent = true; await expect(second.valid).toBe(false);
+                await expect(second.render(template, {})).rejects.toThrow('no longer current');
+                await publication.release(); await expect(session.valid).toBe(true);
+                const fresh = await session.publishSuggestions({ query: '', queryRevision: 1 }, () => true);
+                try { const binding = fresh.bind({ instanceId: 'fresh', scopePolicyStamp: 'fresh', revision: '2', current: () => true });
+                    await expect(binding.render('{span | {$datadom.slices.suggestions.children.content}}', {})).resolves.toHaveProperty('status', 'rendered'); binding.release(); }
+                finally { await fresh.release(); }
+            } finally { first.release(); second.release(); await publication.release(); await session.release();
+                await peer.dispose({ reason: 'runtime-disposed' }).result; peerScope.dispose(); await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
+        }
+    },
+};
+
+export const PublicationOwnerLossRequiresFreshLeases: Story = {
+    render: () => '<section aria-label="Native publication owner loss fixture"></section>',
+    play: async () => {
+        await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
+        const scope = createCemDeclarationScope({ document }); let worker: Worker | undefined;
+        const host = cemProcessingHostForScope(scope, { workerScriptUrl, workerFactory: settings => {
+            worker = new Worker(settings.scriptUrl, { type: 'module', name: settings.name }); return worker;
+        } });
+        const session = await CemNativeCapabilitySession.prepare(host, request('{cem-option @value=x | Original}'), () => true);
+        const publication = await session.publishSuggestions({ query: '', queryRevision: 1 }, () => true);
+        const binding = publication.bind({ instanceId: 'consumer', scopePolicyStamp: 'consumer', revision: '1', current: () => true });
+        try {
+            if (!worker) throw new Error('Missing native publication worker');
+            worker.dispatchEvent(new ErrorEvent('error', { message: 'publication owner loss' }));
+            await expect(binding.render('{span | {$datadom.slices.suggestions.children.content}}', {})).rejects.toThrow();
+            await expect(binding.valid).toBe(false); await expect(publication.valid).toBe(false);
+            const resumed = await CemNativeCapabilitySession.prepare(host, request('{cem-option @value=x | Fresh}'), () => true);
+            const next = await resumed.publishSuggestions({ query: '', queryRevision: 1 }, () => true);
+            try {
+                const fresh = next.bind({ instanceId: 'consumer', scopePolicyStamp: 'consumer', revision: '2', current: () => true });
+                await expect(renderedText((await fresh.render('{span | {$datadom.slices.suggestions.children.content}}', {})).nodes)).toBe('Fresh');
+                await expect(binding.render('{span}', {})).rejects.toThrow('no longer current'); fresh.release();
+            } finally { await next.release(); await resumed.release(); }
+        } finally { binding.release(); await publication.release().catch(() => undefined); await session.release().catch(() => undefined);
+            await host.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
     },
 };

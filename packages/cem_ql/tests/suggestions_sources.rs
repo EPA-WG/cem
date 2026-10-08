@@ -12,6 +12,12 @@ use cem_ql::{
 use std::sync::Arc;
 
 fn session(text: &str) -> NativeCapabilitySession {
+    session_with_limits(text, Default::default())
+}
+fn session_with_limits(
+    text: &str,
+    limits: cem_ml::value::artifact::CemValueArtifactLimits,
+) -> NativeCapabilitySession {
     let xml = text.starts_with('<');
     let source = RetainedReferenceSource::parse(
         text.as_bytes(),
@@ -40,7 +46,7 @@ fn session(text: &str) -> NativeCapabilitySession {
             "seq:where(input.children, fn(n) => n.kind == \"element\" && n.name != \"@ns\")"
         },
         true,
-        Default::default(),
+        limits,
     )
     .unwrap()
 }
@@ -155,6 +161,78 @@ fn failed_suggestions_publication_keeps_the_original_control_envelope() {
         assert!(s.bind_suggestions_frame(&mut data, &config("")).is_err());
         assert_eq!(format!("{:?}", data.bindings), before);
     }
+}
+
+#[test]
+fn retained_publication_routes_independent_frames_without_rebuilding_its_view() {
+    let s = session("{cem-option @value=x | Original {#later}}");
+    let published = s
+        .publish_suggestions("publication", &config("Original"))
+        .unwrap();
+    let template = compile_template("{output | {$consumer}|{$datadom.slices.suggestions.dom:attribute(\"query\").value}|{$datadom.slices.suggestions.children.source.children.expression}}",
+        &CompileTemplateOptions { host_bindings: vec!["consumer".into(), "datadom".into()], ..Default::default() });
+    for consumer in ["first", "second"] {
+        let data = TemplateData::default().with_binding(
+            "consumer",
+            ItemStream::once(Item::Atomic(AtomValue::String(consumer.into()))),
+        );
+        let plan = s
+            .render_suggestions_frame("publication", &template, data)
+            .unwrap();
+        let html = render_plan_to_html(&plan);
+        assert!(
+            html.contains(&format!("{consumer}|Original|#later")),
+            "{html}"
+        );
+        let same = s.suggestions_publication("publication").unwrap();
+        assert_eq!(
+            published.root().view().unwrap().identity(),
+            same.root().view().unwrap().identity()
+        );
+    }
+    assert!(s
+        .publish_suggestions("publication", &config("Other"))
+        .is_err());
+    let forged = TemplateData::default().with_binding("suggestions", ItemStream::empty());
+    assert!(s
+        .render_suggestions_frame("publication", &template, forged)
+        .is_err());
+    assert!(s.release_suggestions("publication"));
+    assert!(!s.release_suggestions("publication"));
+    assert!(s
+        .render_suggestions_frame("publication", &template, TemplateData::default())
+        .is_err());
+    assert!(s.publish_suggestions("publication", &config("")).is_err());
+    assert!(s.publish_suggestions("fresh", &config("")).is_ok());
+    assert!(s.publish_suggestions("", &config("")).is_err());
+}
+
+#[test]
+fn publication_bounds_include_retired_keys_and_release_active_control_bytes() {
+    use cem_ml::value::artifact::CemValueArtifactLimits;
+    let s = session_with_limits(
+        "",
+        CemValueArtifactLimits {
+            max_values: 1,
+            ..Default::default()
+        },
+    );
+    s.publish_suggestions("one", &config("")).unwrap();
+    assert!(s.publish_suggestions("two", &config("")).is_err());
+    assert!(s.release_suggestions("one"));
+    assert!(s.publish_suggestions("two", &config("")).is_err()); // a fresh session is required once identities are exhausted
+    let s = session_with_limits(
+        "",
+        CemValueArtifactLimits {
+            max_bytes: 1024,
+            ..Default::default()
+        },
+    );
+    let query = "x".repeat(450);
+    s.publish_suggestions("one", &config(&query)).unwrap();
+    assert!(s.publish_suggestions("two", &config(&query)).is_err());
+    assert!(s.release_suggestions("one"));
+    assert!(s.publish_suggestions("two", &config(&query)).is_ok());
 }
 
 #[test]

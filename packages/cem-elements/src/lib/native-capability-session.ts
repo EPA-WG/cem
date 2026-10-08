@@ -1,6 +1,7 @@
 import type { CemElementReferenceInputs } from './element-reference-inputs.js';
 import type { NativeCemValue } from './native-values.js';
 import type { CemProcessingHost, CemProcessingNativeSessionInput, CemProcessingNativeSessionResult } from './internal/runtime-support/processing-host.js';
+import { createCemNativeSuggestionsPublication, type CemNativeSuggestionsPublication } from './native-suggestions-publication.js';
 
 /** Host-issued live authority. This is neither saved state nor a native value artifact. */
 export interface CemNativeSessionHandle {
@@ -74,6 +75,21 @@ export class CemNativeCapabilitySession {
         this.released = true;
         this.signal?.removeEventListener('abort', this.abort);
         await this.host.nativeSession({ action: 'release', handle: this.handle }).result;
+    }
+    /** Host-owned publication; consumers route to this session's original processing owner. */
+    async publishSuggestions(config: CemNativeSuggestionsConfig, current: () => boolean): Promise<CemNativeSuggestionsPublication> {
+        if (!this.suggestions || !current()) throw new Error('Native suggestions publication is unavailable');
+        const publication = crypto.randomUUID(), captured = Object.freeze({ ...config });
+        try {
+            const result = await this.run({ action: 'publish-suggestions', handle: this.handle, publication, suggestions: captured });
+            if (result.status !== 'published' || !current()) throw new Error('Native suggestions publication was superseded');
+            return createCemNativeSuggestionsPublication(captured, () => this.valid && current(),
+                input => this.run({ ...input, handle: this.handle }),
+                () => this.host.nativeSession({ action: 'release-suggestions', handle: this.handle, publication }).result.then(() => undefined), publication);
+        } catch (error) {
+            await this.host.nativeSession({ action: 'release-suggestions', handle: this.handle, publication }).result.catch(() => undefined);
+            throw error;
+        }
     }
     private async run(input: CemProcessingNativeSessionInput): Promise<CemProcessingNativeSessionResult> {
         if (!this.valid) {
