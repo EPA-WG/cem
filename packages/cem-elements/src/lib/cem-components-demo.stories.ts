@@ -96,5 +96,16 @@ async function waitForElement(root: ParentNode, selector: string): Promise<HTMLE
         if (element) return element;
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
-    throw new Error(`Expected ${selector} to render`);
+    const page = root instanceof Document ? root : root.ownerDocument;
+    const hostWindow = page?.defaultView as (Window & {
+        cemPlaygroundRuntime?: { diagnosticsFor(host: Element): unknown };
+    }) | null;
+    const tag = selector.split(' ')[0];
+    const declarations = Array.from(page?.querySelectorAll('cem-element[tag]') ?? []).map(host => ({
+        tag: host.getAttribute('tag'), src: host.getAttribute('src'),
+        diagnostics: hostWindow?.cemPlaygroundRuntime?.diagnosticsFor(host),
+    }));
+    throw new Error(`Expected ${selector} to render: ${JSON.stringify({
+        registered: !!hostWindow?.customElements.get(tag), declarations,
+    })}`);
 }

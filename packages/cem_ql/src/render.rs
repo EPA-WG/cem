@@ -2070,11 +2070,20 @@ impl TemplateCompiler<'_> {
         let mut attributes = Vec::new();
         while self.index < self.tokens.len() {
             match &self.tokens[self.index].kind {
-                SchemaTokenKind::Attribute { name, value, .. } => {
+                SchemaTokenKind::Attribute {
+                    name, value, value_syntax, ..
+                } => {
                     let token = self.tokens[self.index].clone();
                     let compiled_value = value.as_ref().map(|value| {
                         if local_template_name(tag) == "attribute" && name == "pattern" {
                             TemplateAttributeValue::Literal(value.clone())
+                        } else if *value_syntax == cem_ml::tokenizer::AttributeValueSyntax::Expression {
+                            // Native slots already own their outer braces; doubled
+                            // braces here are query syntax, not quoted AVT escapes.
+                            TemplateAttributeValue::Expression(self.compile_expression(
+                                value[1..value.len() - 1].trim(),
+                                &token,
+                            ))
                         } else if (local_template_name(tag) == "attribute" && name == "select")
                             || (local_template_name(tag) == "template" && name == "match")
                             || (local_template_name(tag) == "apply-templates" && name == "select")
@@ -2838,6 +2847,20 @@ impl TemplateCompiler<'_> {
             .into_iter()
             .map(|part| match part {
                 RawAttributePart::Literal(value) => TemplateAttributePart::Literal(value),
+                RawAttributePart::UnterminatedExpression(source) => {
+                    self.diagnostics.push(render_diagnostic(
+                        "cem.ql.render.compile_failed",
+                        format!("unterminated template attribute expression `{source}`"),
+                        host.byte_range.start,
+                        frame_for(host),
+                    ));
+                    TemplateAttributePart::Expression(CompiledTemplateExpression {
+                        source,
+                        query: None,
+                        source_map: frame_for(host),
+                        byte_offset: host.byte_range.start,
+                    })
+                }
                 RawAttributePart::Expression(source) => {
                     TemplateAttributePart::Expression(self.compile_expression(&source, host))
                 }
@@ -2872,7 +2895,7 @@ impl TemplateCompiler<'_> {
                     "cem.ql.render.compile_failed",
                     format!("template expression `{source}` failed to compile: {error}"),
                     host.byte_range.start,
-                    host.source_map.clone(),
+                    frame_for(host),
                 ));
                 None
             }
@@ -3991,6 +4014,7 @@ fn string_stream(value: String) -> ItemStream {
 enum RawAttributePart {
     Literal(String),
     Expression(String),
+    UnterminatedExpression(String),
 }
 
 fn split_avt(value: &str) -> Vec<RawAttributePart> {
@@ -3998,36 +4022,31 @@ fn split_avt(value: &str) -> Vec<RawAttributePart> {
     let mut chars = value.char_indices().peekable();
     let mut literal_start = 0;
     while let Some((offset, c)) = chars.next() {
-        if c != '{' {
-            continue;
-        }
-        if matches!(chars.peek(), Some((_, '{'))) {
-            let (_, next) = chars.next().expect("peeked char exists");
-            debug_assert_eq!(next, '{');
+        if matches!(c, '{' | '}') && chars.peek().map(|(_, next)| *next) == Some(c) {
+            chars.next();
             if literal_start < offset {
-                out.push(RawAttributePart::Literal(
-                    value[literal_start..offset].to_owned(),
-                ));
+                out.push(RawAttributePart::Literal(value[literal_start..offset].to_owned()));
             }
-            out.push(RawAttributePart::Literal("{".to_owned()));
+            out.push(RawAttributePart::Literal(c.to_string()));
             literal_start = offset + 2;
             continue;
         }
-
-        let mut depth = 1u32;
+        if c != '{' {
+            continue;
+        }
         let body_start = offset + 1;
-        let mut body_end = None;
-        while let Some((inner_offset, inner)) = chars.next() {
-            match inner {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        body_end = Some(inner_offset);
-                        break;
-                    }
-                }
-                _ => {}
+        let body_end = avt_expression_end(value, offset);
+        if body_end.is_none() {
+            if literal_start < offset {
+                out.push(RawAttributePart::Literal(value[literal_start..offset].to_owned()));
+            }
+            out.push(RawAttributePart::UnterminatedExpression(value[body_start..].to_owned()));
+            literal_start = value.len();
+            break;
+        }
+        if let Some(end) = body_end {
+            while chars.peek().is_some_and(|(offset, _)| *offset <= end) {
+                chars.next();
             }
         }
 
@@ -4075,9 +4094,81 @@ pub(crate) fn item_to_string(item: &Item) -> String {
     }
 }
 
+// Find one AVT boundary without treating braces in query strings/comments as
+// delimiters. Both whole-value classification and composite splitting use it.
+fn avt_expression_end(value: &str, start: usize) -> Option<usize> {
+    let mut chars = value[start + 1..].char_indices().peekable();
+    let mut depth = 1usize;
+    let mut quote = None;
+    let mut comment = 0usize;
+    let mut block = false;
+    let mut line = false;
+    while let Some((offset, c)) = chars.next() {
+        let next = chars.peek().map(|(_, c)| *c);
+        if let Some(q) = quote {
+            if c == '\\' {
+                chars.next();
+            } else if c == q {
+                if next == Some(q) {
+                    chars.next();
+                } else {
+                    quote = None;
+                }
+            }
+            continue;
+        }
+        if line {
+            if matches!(c, '\n' | '\r') {
+                line = false;
+            }
+            continue;
+        }
+        if block {
+            if c == '*' && next == Some('/') {
+                chars.next();
+                block = false;
+            }
+            continue;
+        }
+        if comment > 0 {
+            if c == '(' && next == Some(':') {
+                chars.next();
+                comment += 1;
+            } else if c == ':' && next == Some(')') {
+                chars.next();
+                comment -= 1;
+            }
+            continue;
+        }
+        if matches!(c, '\'' | '"') {
+            quote = Some(c);
+        } else if c == '(' && next == Some(':') {
+            chars.next();
+            comment = 1;
+        } else if c == '/' && next == Some('*') {
+            chars.next();
+            block = true;
+        } else if c == '/' && next == Some('/') {
+            chars.next();
+            line = true;
+        } else if c == '{' {
+            depth += 1;
+        } else if c == '}' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(start + 1 + offset);
+            }
+        }
+    }
+    None
+}
+
 fn whole_avt_expression(value: &str) -> Option<&str> {
     let trimmed = value.trim();
-    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+    if trimmed.starts_with('{')
+        && !trimmed.starts_with("{{")
+        && avt_expression_end(trimmed, 0) == Some(trimmed.len() - 1)
+    {
         Some(trimmed[1..trimmed.len() - 1].trim())
     } else {
         None
@@ -4849,6 +4940,72 @@ fn escape_controlled(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn adjacent_quoted_attribute_expressions_preserve_values_and_diagnostics() {
+        let data = TemplateData::default()
+            .with_binding("path", string_stream("/assets/".into()))
+            .with_binding("image", string_stream("icon.svg".into()));
+        let rendered = render_template(r#"{img @src="{$path}{$image}"}"#, &data);
+        assert!(
+            rendered.diagnostics.is_empty(),
+            "{:?}",
+            rendered.diagnostics
+        );
+        assert!(
+            rendered.rendered.contains(r#"src="/assets/icon.svg""#),
+            "{}",
+            rendered.rendered
+        );
+
+        let source = r#"{img @src="{$path}{$image + }"}"#;
+        let invalid = render_template(source, &data);
+        let diagnostic = invalid
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "cem.ql.render.compile_failed")
+            .expect("invalid adjacent expression must report a diagnostic");
+        assert!(!diagnostic
+            .source_map
+            .as_ref()
+            .expect("source map")
+            .frames
+            .is_empty());
+        assert!(diagnostic.message.contains("image"));
+        let start = source.find("@src").unwrap() as u64;
+        assert!(
+            matches!(&diagnostic.source_map.as_ref().unwrap().frames[0].span,
+            FrameSpan::Single(range) if range.start == start)
+        );
+        for (value, expected) in [
+            (r#"{"x}"}{$image}"#, "x}icon.svg"),
+            ("{{literal}}", "{literal}"),
+            (r#"{if true { "a" } else { "b" }}{$image}"#, "aicon.svg"),
+        ] {
+            let rendered = render_template(&format!("{{p @title='{value}'}}"), &data);
+            assert!(
+                rendered.diagnostics.is_empty(),
+                "{:?}",
+                rendered.diagnostics
+            );
+            assert!(
+                rendered.rendered.contains(&format!("title=\"{expected}\"")),
+                "{}",
+                rendered.rendered
+            );
+        }
+    }
+
+    #[test]
+    fn unterminated_quoted_attribute_expression_is_not_literal_fallback() {
+        let source = r#"{img @src="prefix {$image"}"#;
+        let result = render_template(source, &TemplateData::default()
+            .with_binding("image", string_stream("icon.svg".into())));
+        assert!(result.diagnostics.iter().any(|d|
+            d.code == "cem.ql.render.compile_failed"
+                && d.message.contains("unterminated")
+                && d.byte_offset == Some(source.find("@src").unwrap() as u64)));
+    }
+
     use super::*;
 
     fn stack(start: u64, len: u32) -> SourceMapStack {

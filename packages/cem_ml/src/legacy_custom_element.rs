@@ -4642,6 +4642,26 @@ mod tests {
             ));
             let html = std::fs::read_to_string(&html_path)
                 .unwrap_or_else(|err| panic!("read {}: {err}", html_path.display()));
+            if let Some(declarations) = component["requiredDeclarations"].as_array() {
+                for declaration in declarations {
+                    let tag = declaration["tag"].as_str().expect("declaration tag");
+                    let src = declaration["src"].as_str().expect("declaration src");
+                    assert!(html.split("<cem-element").skip(1).any(|tail| {
+                        let attrs = parse_tag_attrs(tail.split('>').next().unwrap());
+                        attrs.get("tag").map(String::as_str) == Some(tag)
+                            && attrs.get("src").map(String::as_str) == Some(src)
+                    }), "{name}: missing canonical declaration {tag} at {src}");
+                    let (path, id) = src.split_once('#').expect("canonical template fragment");
+                    let target = html_path.parent().unwrap().join(path);
+                    let source = std::fs::read_to_string(&target)
+                        .unwrap_or_else(|err| panic!("read {}: {err}", target.display()));
+                    assert!(extract_document_templates(&source).iter().any(|template| {
+                        template.attrs.get("id").map(String::as_str) == Some(id)
+                            && template.attrs.get("type").map(String::as_str) == Some("text/cem-ml")
+                            && !template.body.trim().is_empty()
+                    }), "{name}: canonical native template #{id} is missing or empty");
+                }
+            }
             let templates = extract_document_templates(&html);
             assert!(
                 !templates.is_empty(),

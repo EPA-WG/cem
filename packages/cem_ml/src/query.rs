@@ -1175,7 +1175,13 @@ mod query_execution_contract_tests {
             .and_then(|source| source.split("fn run_transform_graph").next())
             .expect("CLI query dispatch source");
 
-        assert!(query_dispatch.contains("cem_ml::query::run_query(QueryRunRequest"));
+        assert!(query_dispatch.contains("let request = QueryRunRequest {"));
+        assert!(query_dispatch.contains("cem_ml::query::run_query(request)"));
+        assert!(query_dispatch.contains("cem_ml::query::run_query_with_source_owner("));
+        assert!(query_dispatch.contains("owner.ingress().query_source_owner()"));
+        // Explicit result/reload exports can inspect retained owners after the
+        // shared runner returns; evaluation must remain engine-owned.
+        let execution_dispatch = query_dispatch.split("let mut exporters =").next().unwrap();
         for engine_owned_symbol in [
             "LifecycleRegistry::with_builtin_adapters",
             "CssSelectorElementTreeOwner",
@@ -1186,7 +1192,7 @@ mod query_execution_contract_tests {
             "QueryExecutionRequest",
         ] {
             assert!(
-                !query_dispatch.contains(engine_owned_symbol),
+                !execution_dispatch.contains(engine_owned_symbol),
                 "CLI query dispatch must not recover engine-owned `{engine_owned_symbol}` orchestration"
             );
         }

@@ -1365,13 +1365,16 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
 
 ## Native verification follow-ups
 
-- [ ] Reconcile two CLI query source-contract tests with the current dispatch
-      boundary and restore the legacy material dropdown fixture's required
-      `template#cem-dropdown` selector. The 2026-10-08 full CEM-ML run passed
-      2,077 tests; two formatter expectations were subsequently updated and pass,
-      while these three unrelated failures remain. Scenarios for later design
-      verification: query execution still uses the common typed runner and host
-      policy; the legacy manifest points to a real retained template.
+- [x] Reconcile two CLI query source-contract tests with the current dispatch
+      boundary and verify the legacy dropdown/menu pages' external canonical
+      declarations instead of requiring removed local templates.
+      Delivered 2026-10-08: assertions cover both shared-runner entry points,
+      retaining the execution boundary while allowing explicit result exports.
+      The manifest verifies canonical declaration links and nonempty native
+      templates. Full CEM-ML library verification: 2,082 passed, two ignored.
+      Scenarios for later design verification: query execution still uses the
+      common typed runner and host policy; the legacy manifest points to a real
+      retained template.
 
 ## Browser failures observed during placement verification
 
@@ -1396,12 +1399,18 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       Delivered 2026-10-08: all source/installed gallery inventories and native
       constraint/datalist assertions pass; suggestions pass in both locations.
 
-- [ ] Add a native template diagnostic regression for adjacent expression text
-      in a quoted attribute (`@image="{$path}{$image}"`). The icon module example
-      lost its image binding with no browser diagnostic on 2026-10-08; a single
-      explicit `str:concat` expression renders the intended URL. Determine whether
-      the adapter should reject or lower the quoted form under its documented
-      syntax, and preserve source-attributed diagnostics through the browser.
+- [x] Add a native template diagnostic regression for adjacent expression text
+      in a quoted attribute (`@image="{$path}{$image}"`), and preserve
+      source-attributed diagnostics through the browser.
+      Delivered 2026-10-08: AC-T-7 already admits multiple AVT spans. Whole-value
+      classification now uses balanced expression boundaries; quoted composite
+      spans concatenate, escaped braces remain literal, and native unquoted
+      slots retain their own syntax. Invalid and unterminated expressions report
+      the owning attribute frame instead of silently falling back to literal text.
+      Fixture scope: native adjacent/nested/escaped spans and invalid/unterminated
+      attribute frames; a focused browser WASM story checks values and diagnostic
+      attribution at the rendering boundary. All 123 CEM-QL library tests pass
+      (four ignored), as do 82 template integration tests and the browser story.
       Scenarios for later design verification: malformed expression input must
       not silently remove an attribute; supported concatenation retains its value.
 
@@ -1415,10 +1424,14 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
       navigation readiness on failure; focused icon
       verification does not count as a pass of this full gate.
 
-- [ ] Fixture: diagnose the workflow gallery's missing `cem-text-field input`
-      after its sample readiness check. It fails in focused runs with both the
-      current runtime and the pre-placement runtime; preserve declaration/load
-      diagnostics before changing readiness or component behavior.
+- [x] Fixture: diagnose the workflow gallery's missing `cem-text-field input`
+      after its sample readiness check. Preserve declaration/load diagnostics
+      before changing readiness or component behavior.
+      Delivered 2026-10-08: timeout capture showed an unregistered text-field tag
+      and no declaration errors. The page omitted its canonical declaration;
+      adding that declaration fixes the focused workflow browser story. Failure
+      output now retains registration and declaration diagnostics; waits and
+      component behavior are unchanged.
       Scenarios for later design verification: a ready demo marker must not hide
       incomplete nested declarations; native input readiness must remain distinct
       from initial sample publication.

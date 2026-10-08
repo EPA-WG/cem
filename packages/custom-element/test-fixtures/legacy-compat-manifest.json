@@ -20,7 +20,11 @@
         },
         {
             "name": "dropdown",
-            "requiredTemplates": [{ "selector": "template#cem-dropdown", "minSourceLength": 1 }],
+            "requiredTemplates": [],
+            "requiredDeclarations": [{
+                "tag": "cem-dropdown",
+                "src": "../../../cem-components/src/components/cem-dropdown/cem-dropdown.xhtml#cem-dropdown"
+            }],
             "allowedDiagnostics": []
         },
         {
@@ -40,7 +44,11 @@
         },
         {
             "name": "menu",
-            "requiredTemplates": [{ "selector": "template#cem-menu", "minSourceLength": 1 }],
+            "requiredTemplates": [],
+            "requiredDeclarations": [{
+                "tag": "cem-menu",
+                "src": "../../../cem-components/src/components/cem-menu/cem-menu.xhtml#cem-menu"
+            }],
             "allowedDiagnostics": []
         }
     ]

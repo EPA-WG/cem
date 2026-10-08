@@ -1500,8 +1500,8 @@ mod tests {
             ("convert", "eng::ConvertRequest {", "engine.convert(req)"),
             (
                 "query",
-                "cem_ml::query::run_query(QueryRunRequest {",
-                "cem_ml::query::run_query(QueryRunRequest {",
+                "let request = QueryRunRequest {",
+                "cem_ml::query::run_query(request)",
             ),
             (
                 "transform",
@@ -1524,6 +1524,8 @@ mod tests {
                 "native CLI `{operation}` must delegate execution to the common boundary"
             );
         }
+        assert!(dispatch.contains("cem_ml::query::run_query_with_source_owner("));
+        assert!(dispatch.contains("owner.ingress().query_source_owner()"));
         assert!(dispatch.contains("cem_ml::capability::product_version()"));
 
         for host_policy in [

@@ -19,6 +19,7 @@
         import { installCemComponentPrimitives } from './dist/lib/primitives.js';
 
         const runtime = installCemElementRuntime(window);
+        window.cemPlaygroundRuntime = runtime;
         const result = await installCemComponentPrimitives(runtime);
         const errors = result.diagnostics.filter(
             ({ severity }) => severity === 'error' || severity === 'fatal'
@@ -30,6 +31,7 @@
     </script>
 </head>
 <body class="cem-theme-native">
+<cem-element hidden capability="form-control" src="./src/components/cem-text-field/cem-text-field.xhtml#cem-text-field" tag="cem-text-field"></cem-element>
 <cem-element hidden capability="form-control" src="./src/components/cem-textarea/cem-textarea.xhtml#cem-textarea" tag="cem-textarea"></cem-element>
 <cem-element hidden src="./src/components/cem-action/cem-action.xhtml#cem-action" tag="cem-action" capability="action-command"></cem-element>
 <cem-element hidden src="./src/components/cem-icon-button/cem-icon-button.xhtml#cem-icon-button" tag="cem-icon-button"></cem-element>
