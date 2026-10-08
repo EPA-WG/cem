@@ -4,6 +4,7 @@ import { fitNativeSurface, nativeSurfaceGeometry, observePopupGeometry, releaseP
 import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import { captureCemSurfaceInvocation, snapshotGeometryRect, type CemSurfaceInvocation } from './surface-invocation.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
+import { isCemEditorCompositionKey } from './form-control-capability.js';
 
 export type CemNativeSurfaceKind = 'dialog' | 'tooltip';
 export interface CemNativeSurfaceController {
@@ -74,7 +75,7 @@ class NativeSurface implements CemNativeSurfaceController {
         }, { ...options, capture: true });
         root.addEventListener('keydown', e => {
             const event = e as KeyboardEvent;
-            if (!visible(owner) || event.defaultPrevented) return;
+            if (!visible(owner) || event.defaultPrevented || isCemEditorCompositionKey(event)) return;
             if (event.key === 'Tab') this.noteDismissalReason('tab');
             if (event.key === 'Escape' && (owner.contains(owner.ownerDocument.activeElement) || this.kind() === 'tooltip')) {
                 this.closeReason = 'escape';

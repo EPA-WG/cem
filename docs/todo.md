@@ -422,7 +422,14 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       one handled Escape cannot also close a parent dialog; pointer activation,
       focus-leave and scrolling must not compete with outside dismissal.
 
-- [ ] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
+- [x] Define static and externally loaded suggestion data at the retained CEM tree boundary, with optional asynchronous loading, stale-response handling, loading/error feedback and accessible announcements; keep UI behavior out of components, galleries and application JavaScript.
+      Completed 2026-10-07 in the [source-data lifecycle design](cem-suggestions-data-design.md).
+      Adopt atomic retained snapshots, duplicate values with distinct identity,
+      explicit readiness/query-revision coordination, page versus vocabulary
+      proof lifetime, shared loader/native query ownership, cancellation and
+      current-session polite status feedback. Public coordination names are
+      planned contracts; outbound native view publication is an implementation
+      prerequisite, not a component-local data event/record API.
       Apply the [retained source adapters and filtering boundary](cem-suggestions-attachment-design.md#retained-source-adapters).
       Define duplicate-value policy, source replacement/invalid-revision recovery,
       external result/query-revision association, request cancellation and native
@@ -436,6 +443,19 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       value and focus; source readiness never overwrites field-owned `busy`.
       A committed candidate absent from a filtered page is not invalidated merely
       by absence; authoritative revocation releases proof without rewriting text.
+
+- [ ] Finalize and implement the retained native source/view transport for
+      suggestions before exporting its public capability. Decision pending:
+      prefer a separate CEMB-backed capability-session channel for executable
+      source capture/lifecycle contexts, with CEMV for the derived presentation
+      view, versus extending CEMV itself. Existing native CEMV export explicitly
+      rejects executable source references; no copied records or premature deep
+      expansion of descendant references may substitute for retained ownership.
+      Fixture action: add native source/derived-view tests before transport code,
+      then worker/fallback, grant, bounds, query revision and disposal cases.
+      Scenarios for later design verification: label/content templates retain
+      original scopes and native source edges; original descendant references
+      survive; stale views release ownership and cannot regain authority on resume.
 
 - [ ] Implement the shared editor-provider boundary, synchronous user-commit
       transaction and reset/restore/rebinding notifications in cem-elements,
@@ -462,6 +482,24 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Deliver one row-activation/dismissal state machine and verify a shared
       focus-preserving adapter per supported pointer type/browser before claiming
       touch/pen support; preserve scrolling, never refocus after stale blur.
+      Fixture action: add editor-provider stories before the transaction changes,
+      covering exact owned-control admission, synchronous event/FormData/slice
+      coherence, beforeinput veto/reentrancy, equal-string cause notifications,
+      reset/restore/rebind, competing leases, merged validity and IME terminal
+      keys in the shared deferred-submit route. Add retained native source/view
+      fixtures before its worker/fallback/binding extension.
+      Fixture action: verify coexisting runtime module copies share transient
+      provider/key identities while leases remain bound to the original instance.
+      Fixture action: extend both fields' native-attribute stories before adding
+      scalar constraint/editing-hint forwarding; verify removal, native pattern
+      validity and preserved form/name/reset ownership.
+      Progress 2026-10-07: shared provider transactions, mutation-cause subscriptions,
+      exclusive control leases, independent validity leases, change checkpoints,
+      composition/held-press routing and fresh leases after disconnect/rebind are
+      implemented. Both fields forward native scalar constraints/editing hints
+      and list. Full native source/view transport, attribute/placement claims,
+      surface services, suggestions capability and declarative composition remain
+      open; do not mark this complete from the provider foundation alone.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;
       the authored reset default survives commits; listeners and ARIA claims are
@@ -471,6 +509,17 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       claim clearing another; IME terminal keys do not submit or select.
 
 - [ ] Fixture: add shared native contract cases first, then browser stories applying the same suggestions to cem-field and cem-text-field (and any accepted additional input), covering forms, dynamic suggestions, grouped filtering, focus, IME, independent controls and cancellation.
+      Progress 2026-10-07: editor-provider transaction/admission/reentrancy stories
+      and both fields' native forwarding/pattern stories are delivered. Browser
+      checks distinguish raw capture/public bubbling, cover a later native edit,
+      captured composition-terminal Enter and expired leases; they do not claim
+      device IME, source/view transport or full suggestions acceptance coverage.
+      Verified 2026-10-07: 22 focused provider/form/native-surface/field browser
+      plays and 19 declaration-contract unit checks pass; cem-elements typecheck
+      and lint pass (two existing non-null-assertion warnings). The components
+      declarative gate fails on existing theme-switch story imports; an unchanged
+      HEAD archive reproduces the identical failure. Full suggestions and its
+      remaining matrix stay open at the native transport decision.
       Include [composition acceptance scenarios](cem-suggestions-composition-design.md#delivery-and-verification):
       one submission owner, supported text editors, unsupported type/list/role
       conflicts, independent sessions over a shared native source, disable/readonly
@@ -537,6 +586,18 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Scenarios for later design verification: first Escape closes only the child;
       a platform close request follows its declared scope; async opening does not
       silently group an independently dismissible child with its parent.
+
+## Restore the components declarative verification gate
+
+- [ ] Move the theme-switch runtime/scope/action-declaration setup to the shared
+      Storybook test/setup boundary, removing forbidden cross-component/runtime
+      imports from its colocated story; rerun verify-declarative and its native
+      lifecycle/theme fixtures. Do not loosen the gate to admit component behavior.
+      Evidence 2026-10-07: the current tree and unchanged HEAD both reject
+      `cem-elements/src/index.js` and `cem-action.xhtml?raw` imports in
+      `cem-theme-switch.stories.ts`. Scenarios for later design verification:
+      theme rerenders preserve declaration/instance/group identity and action
+      routing while the per-component authoring rule remains enforced.
 
 ## Respect action states in cem-icon-button
 

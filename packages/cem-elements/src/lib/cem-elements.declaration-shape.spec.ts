@@ -12,7 +12,8 @@ import {
 describe('cem-element declarative capability contract', () => {
     it('owns reusable select behavior in cem-elements under a stable declaration identity', () => {
         expect(Object.keys(CEM_DECLARATIVE_CAPABILITIES)).toEqual(['native-surface', 'form-control', 'popup', 'action-control', 'action-command', 'composite-menu', 'choice-select']);
-        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v1');
+        expect(CEM_DECLARATIVE_CAPABILITIES['native-surface'].behaviorIdentity).toBe('cem-elements-native-surface-v2');
+        expect(CEM_DECLARATIVE_CAPABILITIES['form-control'].behaviorIdentity).toBe('cem-elements-form-control-v2');
         expect(CEM_DECLARATIVE_CAPABILITIES['choice-select'].behaviorIdentity).toBe(
             'cem-elements-choice-select-v1',
         );

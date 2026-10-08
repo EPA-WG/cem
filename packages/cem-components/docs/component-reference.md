@@ -203,6 +203,9 @@ Pending preserves dimensions and activation; use `disabled` to block activation.
 `cem-field` and `cem-text-field` use canonical XHTML declarations and the shared
 form-control capability. See the [field controls contract](./field-controls-contract.md)
 for attribute presence, host form ownership, reset and scoped indicators.
+Both single-line fields forward native range/step, length/pattern, editing hints
+and `list` bindings; see that contract for the full shared inventory. Live public
+value writes update submission/validity synchronously and preserve reset defaults.
 
 | Component | Semantics | Content and Attributes | Token Families | Required A11y |
 | --- | --- | --- | --- | --- |

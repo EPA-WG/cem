@@ -9,7 +9,7 @@ const meta = preview.meta({
 });
 
 export const AllAttributes = meta.story({
-    render: () => '<cem-field></cem-field><p id="field-description">Description</p><p id="field-error">Error</p>',
+    render: () => '<cem-field></cem-field><p id="field-description">Description</p><p id="field-error">Error</p><datalist id="field-suggestions"><option value="apple"></option></datalist>',
     play: async ({ canvasElement }) => {
         const host = canvasElement.querySelector('cem-field') as HTMLElement;
         await whenCemRendered(host);
@@ -23,6 +23,11 @@ export const AllAttributes = meta.story({
         expect(storybookCemRuntime().diagnosticsFor(host)).toEqual([]);
         for (const [attribute, value, target] of [
             ['placeholder', 'Enter account', 'placeholder'],
+            ['min', '1', 'min'], ['max', '10', 'max'], ['step', '2', 'step'],
+            ['minlength', '2', 'minlength'], ['maxlength', '10', 'maxlength'], ['pattern', '[A-Z]+', 'pattern'],
+            ['autocomplete', 'off', 'autocomplete'], ['inputmode', 'text', 'inputmode'],
+            ['spellcheck', 'false', 'spellcheck'], ['autocapitalize', 'none', 'autocapitalize'],
+            ['list', 'field-suggestions', 'list'],
             ['invalid', 'true', 'aria-invalid'], ['describedby', 'field-description', 'aria-describedby'],
             ['error', 'field-error', 'aria-errormessage'],
         ]) {
@@ -49,6 +54,13 @@ export const AllAttributes = meta.story({
         await whenCemRendered(host);
         expect(input.getAttribute('aria-invalid')).toBe('false');
         host.removeAttribute('invalid');
+        host.setAttribute('pattern', '[A-Z]+');
+        (host as HTMLElement & { value: string }).value = 'lowercase';
+        await whenCemRendered(host);
+        expect(input.validity.patternMismatch).toBe(true);
+        host.removeAttribute('pattern');
+        await whenCemRendered(host);
+        expect(input.validity.patternMismatch).toBe(false);
         for (const attribute of ['disabled', 'required', 'readonly', 'busy']) {
             for (const value of ['', 'false', 'true']) {
                 host.setAttribute(attribute, value);

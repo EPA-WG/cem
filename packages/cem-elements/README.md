@@ -301,6 +301,18 @@ host form, preserving default submitter activation and event cancellation.
 It is not a file, checkbox/radio, or multi-value capability. Template-fragment
 loaders must repeat the capability on their loading declaration.
 
+The shared provider now admits exactly one owned control, offers synchronous
+replacement transactions with cancellable synthetic beforeinput, and updates
+native value, slices, submission and validity before commit notifications.
+Exclusive editor leases and independent validity-contributor leases are transient
+and expire on disconnect/editor replacement. Author custom validity and native
+constraints retain precedence. Composition ownership and handled key presses
+remain captured through their terminal key so deferred submission/native surface
+routes cannot reinterpret them. Native history remains browser-owned; a runtime
+replacement does not promise an undo entry. The full suggestions declaration,
+native source/view channel and acceptance matrix are still pending in
+[the active checklist](../../docs/todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
+
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects
 use the last explicit selection, or native empty-selection rules when no option

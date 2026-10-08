@@ -26,14 +26,19 @@ Load template fragments with the capability explicitly:
   value or the text `false`. Remove the attribute to clear the state.
 - `placeholder`, `invalid`, `describedby`, and `error` project to the native input.
   `invalid` is an ARIA string, not a presence boolean or native custom validity.
+- `min`, `max`, `step`, `minlength`, `maxlength`, `pattern`, `autocomplete`,
+  `inputmode`, `spellcheck`, `autocapitalize` and `list` forward as native attributes.
+  Removing them removes the native binding; the browser applies type-specific
+  constraints. An authored native `list` remains its own suggestions route.
 - `indicator="underline"` is the default; `outline` selects an outline.
   Unsupported indicator values retain the default.
 - Host `hidden` and `class` retain their native meaning.
 
 The host exposes `value`, `defaultValue`, `form`, `labels`, `validity`,
 `validationMessage`, `willValidate`, `checkValidity()`, `reportValidity()` and
-`setCustomValidity()`. Value assignment schedules rendering; after settlement,
-FormData and native validity reflect the rendered control.
+`setCustomValidity()`. When an owned control is present, value assignment updates
+its live value, slice, FormData and validity synchronously and schedules rendering;
+it preserves the authored reset default and emits no synthetic value events.
 
 Reset restores the declared default and live value slice. Disabled fieldsets
 disable the control. Restored browser state updates the live value without

@@ -10,7 +10,8 @@ Public names, slots and filtering ownership are adopted in the
 [attachment/capability design](cem-suggestions-attachment-design.md).
 Keyboard, pointer, event/history and constrained-selection policies are adopted
 in the [interaction design](cem-suggestions-interaction-design.md).
-The source data lifecycle remains a subsequent item.
+Static/async sources and feedback follow the adopted
+[source-data lifecycle design](cem-suggestions-data-design.md).
 
 Attach a shared suggestions session to the existing field's editor provider.
 Keep that field as the sole form and value owner, and its actual native input
@@ -100,7 +101,7 @@ when the resulting string equals an option value. Programmatic updates, reset
 and restore also clear selection metadata; equal strings alone never select a
 node. Replacing or removing suggestions may invalidate option handles but must
 not rewrite the field value. Duplicate-value and source-vocabulary policies
-remain part of the upcoming suggestion-data contract; session identity cannot
+follow the adopted suggestion-data contract; session identity cannot
 be reconstructed from strings or array positions.
 Provider lifecycle notifications must identify mutation causes; comparing old
 and new strings alone cannot distinguish a commit, reset or equal-value setter.
@@ -113,10 +114,13 @@ is pending implementation, rather than inherited from the frozen product.
 
 ## Commit through the existing form owner
 
-The editor-provider boundary needs a shared synchronous user-commit operation.
-It is an implementation prerequisite, not an existing API. The current field
-setter schedules rendering and therefore is not sufficient by itself to make
-a complete commit visible before event observers run.
+The [shared form-control provider](../packages/cem-elements/src/lib/form-control-capability.ts)
+now implements the synchronous user-commit transaction and cause notifications.
+Its leases expire on disconnect/editor replacement, and competing claims have
+no mounting-order winner. Ordinary setters update live value/submission/validity
+synchronously when the control is present, but emit no commit events or source
+provenance. Suggestions must still integrate native source/placement admission,
+preview/proof state and claimed attributes before exposing the full attachment.
 
 The operation must:
 
@@ -219,8 +223,8 @@ native fixtures must record results and field/submission coherence.
 Disabled hosts/fieldsets and native readonly state suppress opening and commit.
 Transitioning to those states ends the suggestion session without clearing the
 field. `busy` is already field-owned presentation that permits editing; a
-suggestion source's pending state does not overwrite it. The async-data design
-must provide separate truthful suggestion readiness/announcements or an
+suggestion source's pending state does not overwrite it. The source-data design
+specifies separate truthful suggestion readiness/announcements or an
 explicit declarative binding to the existing field state.
 
 The attachment may claim combobox role and its own popup relationships on the
@@ -257,15 +261,18 @@ only after the new editor is admitted.
 
 The checklist promotes this composition contract and the selected popup service.
 The attachment/shared capability and interaction policies are now adopted.
-The remaining core design item defines static/async data and status feedback.
-Implementation must add the editor-provider commit boundary and lifecycle
-notifications in cem-elements before authoring component attachment conveniences.
+The source-data lifecycle and status feedback are also adopted; runtime delivery
+and its acceptance fixtures are the next actions.
+The provider commit/lifecycle foundation is implemented. Native source/view
+transport, attachment claims, suggestions surface/selection and the complete
+acceptance matrix remain prerequisites to component attachment conveniences.
 
-The current field declarations forward only a subset of the legacy metadata
-and constraints. Before promising the broader surface, inventory and add
-applicable forwarding declaratively on both fields, with native constraint
-fixtures. Suggestions cannot emulate missing native attributes in its own
-validator or assume declaration in the legacy wrapper proves current support.
+Both field declarations now forward native min/max/step, length/pattern,
+autocomplete/inputmode/spellcheck/autocapitalize and list bindings, with removal
+and native pattern fixtures. Additional profile-specific or legacy convenience
+metadata still needs inventory before promising the broader surface. Suggestions
+cannot emulate missing native attributes in its own validator or assume
+declaration in the legacy wrapper proves current support.
 
 The adjacent fixture actions must verify value coherence during event callbacks,
 one FormData entry, original reset defaults, actual editor identity and focus,

@@ -14,7 +14,7 @@ attachment mechanism. Public attachment syntax is now adopted in the
 [attachment/capability design](cem-suggestions-attachment-design.md);
 keyboard, pointer and selection policy is adopted in the
 [interaction design](cem-suggestions-interaction-design.md).
-The data lifecycle remains a subsequent item.
+Static/async data and feedback follow the [adopted source-data design](cem-suggestions-data-design.md).
 
 ## Comparison against the current runtime
 

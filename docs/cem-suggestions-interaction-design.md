@@ -37,7 +37,7 @@ a settled native text edit. Empty query uses the attachment's all-options match;
 there is no minimum character threshold in this profile. Opening needs at least
 one current eligible match, editor focus/editability, valid placements and usable
 geometry. Ready-empty, no-match and all-disabled results close and clear preview
-without changing text. Their status feedback is the next data-lifecycle item.
+without changing text. Feedback follows the [source-data lifecycle design](cem-suggestions-data-design.md#loading-failure-and-accessible-feedback).
 Hidden/unmatched rows and disabled options/groups are never navigable or
 committable; group headings are not options.
 
@@ -253,10 +253,10 @@ normal validated submission uses the existing field's validity route.
 
 Filtering a committed option out of the current display page does not alone
 revoke its proof; retain its source owner. Explicit source authority loss or
-authoritative invalidation may revoke it without rewriting text. The next data
-item must distinguish display-result replacement from authoritative vocabulary
-invalidation and define proof lifetime; this interaction contract does not equate
-absence from one filtered page with invalid membership.
+authoritative invalidation may revoke it without rewriting text. The
+[source-data design](cem-suggestions-data-design.md#display-pages-and-committed-provenance)
+distinguishes display pages from authoritative vocabularies and defines proof
+lifetime; absence from one filtered page is not invalid membership.
 
 Add a leased validity-contributor boundary to the field provider before enabling
 this mode. The selection claim supplies its own customError/message without
@@ -290,5 +290,5 @@ beforeinput veto/reentrancy, raw capture versus bubbling changes, later genuine
 edits, equal-string causes, manual navigation/held presses, native Enter without
 selection, nested Escape, mouse/touch/pen focus and scrolling, final IME keys,
 constrained/custom/native validity, restored text, native undo/redo and independent
-sessions. The data/readiness and accessible loading/status design is still open.
+sessions. Data/readiness and loading/status follow the [adopted source design](cem-suggestions-data-design.md).
 This document adopts policies; it supplies no browser test or runtime evidence.

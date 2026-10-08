@@ -6,7 +6,8 @@ with recommended options. This completes the attachment/slots/capability item in
 The public names below are selected contracts, not implemented exports.
 Keyboard/event/history and selection policy are adopted in the
 [interaction design](cem-suggestions-interaction-design.md).
-Static/async source lifecycle remains a subsequent item.
+Static/async sources and coordination inputs are adopted in the
+[source-data lifecycle design](cem-suggestions-data-design.md).
 
 Add a non-form-associated `cem-suggestions` declaration requesting the shared
 `suggestions` capability. It binds one existing field provider, produces one
@@ -66,6 +67,7 @@ This new endpoint accepts neither CSS selectors nor bare ID/URL strings.
 | `filter-by` | Local modes only: `label` default, `value`, or both tokens; match either key independently. |
 | `label` | Nonempty plain-text listbox name, default declaration text `Suggestions`; does not rename the editor. A custom declaration may instead supply a valid native naming relationship. |
 | `require-selection`, `selection-message` | Opt-in commit-provenance validity and its field-owned message, as defined in the interaction design; omitted requirement keeps free text. |
+| `options-state`, `options-revision`, `options-query-revision`, `options-policy`, `options-error` | Atomic readiness/query coordination and page/vocabulary proof policy in the source-data lifecycle design; these strings never grant authority. |
 | `placement`, `fallback`, `boundary`, `overflow` | Shared logical fitting inputs, with the defaults and admitted boundaries in the popup-service profile. |
 
 Unknown filter modes/tokens diagnose an inactive attachment rather than choosing
@@ -197,8 +199,8 @@ is evidence for legacy behavior, not a new ingress: it computes native fallback
 from label and uses values as identities. Neither rule is adopted. Browser code
 may receive scalar commit strings and opaque handles as consumer results; it
 must not replace the source tree with arrays of option records.
-Duplicate string values and async replacement policy belong to the next data
-item. Regardless of that policy, value equality or a filtered array index never
+Duplicate string values and async replacement follow the [source-data design](cem-suggestions-data-design.md).
+Value equality or a filtered array index never
 identifies a candidate. Repeating the same native source node as two rows is
 ambiguous; require distinct source nodes rather than choosing one placement.
 
@@ -215,7 +217,7 @@ This separation follows
 [WAI-ARIA's autocomplete distinction](https://www.w3.org/TR/wai-aria-1.2/#aria-autocomplete).
 It is a stable description of the behavior, not a loading/match-count indicator.
 External mode must publish results for the provider's captured query revision;
-readiness and stale-result acceptance are specified by the next data item.
+readiness and stale-result acceptance follow the source-data lifecycle design.
 
 Local matching uses the current whole editor value as query. Strip/collapse
 ASCII whitespace and apply Unicode full default case folding to both query and
@@ -311,7 +313,7 @@ session requests a synchronous field-provider commit after checking current
 source and placement eligibility; the field updates value/submission/validity
 and closes the popup before value-event observers. Keyboard/pointer/IME
 arbitration, event/history reconciliation and constrained validity follow the
-interaction design. Loading/status announcements remain the next data item.
+interaction design. Loading/status announcements follow the source-data lifecycle design.
 
 ## Alternatives and delivery
 

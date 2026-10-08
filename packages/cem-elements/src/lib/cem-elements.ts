@@ -730,11 +730,11 @@ export interface CemDeclarationRegistrationOptions {
 export const CEM_DECLARATIVE_CAPABILITIES = Object.freeze({
     'native-surface': {
         behavior: CEM_NATIVE_SURFACE_CAPABILITY,
-        behaviorIdentity: 'cem-elements-native-surface-v1',
+        behaviorIdentity: 'cem-elements-native-surface-v2',
     },
     'form-control': {
         behavior: CEM_FORM_CONTROL_CAPABILITY,
-        behaviorIdentity: 'cem-elements-form-control-v1',
+        behaviorIdentity: 'cem-elements-form-control-v2',
     },
     'popup': {
         behavior: CEM_POPUP_CAPABILITY,
