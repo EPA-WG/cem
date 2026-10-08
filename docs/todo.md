@@ -534,7 +534,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       pass; the two existing lint warnings remain. Visibility/dismissal and
       native publication are the next separate prerequisites below.
 
-- [ ] Extract the shared native visibility/dismissal session service and add the
+- [x] Extract the shared native visibility/dismissal session service and add the
       manual-listbox semantic delegate using the completed geometry leases.
       Require one admitted editor/surface relationship and explicit readiness;
       preserve editor focus, inspect actual native visibility, reject external
@@ -543,11 +543,29 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       rules. Shared services must not filter sources or commit field values.
       Fixture action: add exact-owner, direct native open/hide, stale generation,
       independent surfaces, ancestor teardown and editor/listbox dismissal-region
-      browser contracts before the delegate; rerun native profile regressions.
+      browser contracts before the delegate; include native veto/reentrancy,
+      runtime-copy ownership, unsupported editor/list conflicts and pointer
+      sequences that outlive an opening; rerun native profile regressions.
       Scenarios for later design verification: geometry cannot reopen a dismissed
       session; opening/refits preserve the existing editor/caret; an invalid
       anchor or zero-size surface never exposes expanded state; nested Escape
       and native parent teardown follow one close route without focus restoration.
+      Completed 2026-10-07: shared transient owner registration and actual native
+      visibility observation now serve the existing dialog/tooltip adapters and
+      the package-private manual-listbox delegate. The delegate requires a
+      verified text-editor provider lease, explicit consumer lifecycle admission
+      and readiness, and captured ancestor lifetimes. Generation checks fence
+      prepared openings and pointer sequences; native hide drops visibility
+      claims synchronously. Unsupported editors/native list conflicts, failed
+      geometry, ancestor teardown and authority/provider changes close without
+      refocusing or value writes. Geometry supplies a bounded editor inline-size
+      minimum. Seven new browser plays plus existing provider, native-surface,
+      geometry, typed-reference and dropdown regressions pass (22 plays total),
+      including trusted Escape inside a modal parent. All 25 logical/declaration
+      unit checks, build, typecheck, lint and fresh npm package verification pass;
+      the two existing lint warnings remain. Editor ARIA/placement publication,
+      filtering/row activation and the public suggestions capability remain in
+      the separate actions below.
 
 - [ ] Publish the retained suggestions view into component native frames and
       outbound bindings, then coordinate editor-provider attributes and original
@@ -568,8 +586,8 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       Inventory and add applicable native
       metadata/constraint forwarding on both field declarations before promising
       the legacy surface. Add focused fixture actions before implementation.
-      Use the shared geometry leases and visibility/dismissal services, add the
-      manual-listbox delegate and isolated per-surface leases, and preserve current
+      Use the completed shared geometry leases, visibility/dismissal services
+      and manual-listbox delegate, and preserve current
       dropdown/dialog/tooltip behavior with regression fixtures. Admit no source-
       or component-local popup controller or broadened button endpoint shortcut.
       Deliver native `editor-for` consumption/markers, coordinated editor claim
@@ -603,9 +621,11 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       composition/held-press routing and fresh leases after disconnect/rebind are
       implemented. Both fields forward native scalar constraints/editing hints
       and list. The shared native source/view transport, atomic source/text/filter
-      adapters and native row/group label frames are delivered. Reserved
+      adapters and native row/group label frames are delivered. Shared native
+      visibility/dismissal sessions and the manual-listbox semantic delegate are
+      delivered with explicit lifecycle admission/readiness hooks. Reserved
       suggestions view publication/outbound bindings, attribute/placement claims,
-      visibility/dismissal services, suggestions capability and declarative composition remain
+      suggestions capability and declarative composition remain
       open; do not mark this complete from the provider foundation alone.
       Scenarios for later design verification: submission and validity update
       before commit observers; stale render work cannot restore an older edit;

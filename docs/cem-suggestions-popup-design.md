@@ -107,8 +107,8 @@ Native dialog/tooltip adapters use those leases and retain their registered
 semantic kind. A changed kind requires disconnect and fresh registration.
 Geometry alone does not admit an editor or foreign placement, show/hide a
 native surface, choose dismissal regions or change focus. The suggestions
-manual-listbox delegate and coordinated native bindings remain explicit runtime
-actions.
+manual-listbox delegate now uses the shared session service; coordinated native
+bindings remain an explicit runtime action.
 
 ## Placement and visibility
 
@@ -211,14 +211,32 @@ its native endpoint, provider lease and source/row view require implementation.
 
 Geometry leases and their registration/style cleanup are implemented and verified
 with independent panels, stale callbacks, runtime copies and existing native
-dialog/tooltip/dropdown contracts. Implementation still needs the shared
-visibility/dismissal coordinator, suggestions editor-provider claims,
-manual-region dismissal, ancestor invalidation and generation-safe native
-visibility reconciliation.
-Those gaps and their scenarios are recorded beside the active TODO actions.
-The existing logical geometry units and dropdown/native-surface stories now pass
-as regression checks for this prerequisite. They do not establish the full
-suggestions semantic profile or its accessibility interoperability.
+dialog/tooltip/dropdown contracts. The package-private
+[session service](../packages/cem-elements/src/lib/surface-session.ts) shares exact
+native owner registration and visibility observation with dialog/tooltip adapters.
+It fences prepared openings, reconciles actual native visibility and captures
+ancestor open lifetimes that cannot revive after a close or disposal. The
+[manual-listbox delegate](../packages/cem-elements/src/lib/manual-listbox.ts)
+adds the verified text-editor lease, focus/eligibility and native-list conflict
+checks, usable geometry, modal containment and editor/listbox dismissal region.
+Outside pointer sequences retain their opening generation and ignore cancellation,
+drag and scroll. Escape uses the provider's existing composition/handled-press
+route; Tab, focus leaving and teardown close without value writes or refocusing.
+
+The delegate requires an explicit trusted lifecycle hook for current relationship
+and source/query/row readiness. That hook is a consumer integration boundary,
+not a grant created by DOM pointers, IDs, attributes or the surface registry.
+Provider/source changes invalidate prepared attempts; a later geometry callback
+cannot reopen them. Visibility notifications follow successful native showing,
+fitting and revision rechecks, and release synchronously on native hide. The
+delegate does not patch editor ARIA. Source filtering, row activation, field
+commits and public suggestions declarations remain owned by the later controller.
+
+Coordinated native reference bindings, editor attribute claims and source-to-row
+publication still need implementation. Those gaps and their scenarios are
+recorded beside the active TODO actions. The session browser contracts and existing
+logical geometry/dropdown/native-surface regressions establish this prerequisite;
+they do not establish full suggestions or accessibility interoperability.
 
 Before release, verify repeated independent fields, input identity/caret/focus
 through opening and refits, one commit/close route, pointer scrolling/cancellation,

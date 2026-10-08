@@ -5,6 +5,7 @@ import { focusSurface, restoreSurfaceFocus } from './surface-references.js';
 import { captureCemSurfaceInvocation, snapshotGeometryRect, type CemSurfaceInvocation } from './surface-invocation.js';
 import type { CemProducedElementBehavior } from './cem-elements.js';
 import { isCemEditorCompositionKey } from './form-control-capability.js';
+import { nativeSurfaceVisible as visible, registerCemSurfaceOwner } from './surface-session.js';
 
 export type CemNativeSurfaceKind = 'dialog' | 'tooltip';
 export interface CemNativeSurfaceController {
@@ -23,7 +24,6 @@ function surfaceKind(owner: HTMLElement, host: HTMLElement): CemNativeSurfaceKin
     if (kind) return kind === 'dialog' || kind === 'tooltip' ? kind : undefined;
     return owner.getAttribute('role') === 'tooltip' ? 'tooltip' : nativeDialog(owner) || owner.getAttribute('role') === 'dialog' ? 'dialog' : undefined;
 }
-function visible(node: HTMLElement): boolean { return node.hasAttribute('popover') ? node.matches(':popover-open') : nativeDialog(node) && node.open; }
 function retainInvocation(invocation: CemSurfaceInvocation): CemSurfaceInvocation {
     return Object.freeze({ ...invocation, geometry: invocation.geometry && Object.freeze({
         pointer: snapshotGeometryRect(invocation.geometry.pointer, true), selection: snapshotGeometryRect(invocation.geometry.selection),
@@ -32,7 +32,7 @@ function retainInvocation(invocation: CemSurfaceInvocation): CemSurfaceInvocatio
 /** An eager native owner owns visibility; this adapter owns its transient session. */
 class NativeSurface implements CemNativeSurfaceController {
     private readonly abort = new AbortController();
-    private readonly observer: MutationObserver;
+    private readonly releaseVisibility: () => void;
     private readonly releaseReferences: () => void;
     private readonly geometry: CemSurfaceGeometryLease;
     private readonly registeredKind?: CemNativeSurfaceKind;
@@ -52,8 +52,8 @@ class NativeSurface implements CemNativeSurfaceController {
         this.registeredKind = surfaceKind(owner, host);
         this.geometry = createCemSurfaceGeometryLease(host, owner, () => this.reposition());
         const options = { signal: this.abort.signal }, root = owner.getRootNode();
-        this.observer = new MutationObserver(() => { this.sync(); this.bindTooltipSources(); });
-        this.observer.observe(owner, { attributes: true, attributeFilter: ['open', 'popover', 'hidden', 'role'], childList: true, subtree: true });
+        try { this.releaseVisibility = registerCemSurfaceOwner(host, owner, this.registeredKind ?? 'invalid', () => { this.sync(); this.bindTooltipSources(); }); }
+        catch (error) { this.geometry.release(); throw error; }
         this.releaseReferences = observeInteractionReferences(host, () => { this.sync(); this.bindTooltipSources(); this.reposition(); });
         owner.addEventListener('command', e => this.command(e as CommandEvent), options);
         owner.addEventListener('beforetoggle', e => {
@@ -64,8 +64,6 @@ class NativeSurface implements CemNativeSurfaceController {
             } else { this.phase = 'closing'; this.captureReturn(); }
             this.reflect(); queueMicrotask(() => this.sync());
         }, options);
-        owner.addEventListener('toggle', () => this.sync(), options);
-        owner.addEventListener('close', () => this.sync(), options);
         owner.addEventListener('cancel', e => {
             this.captureReturn();
             if (!this.emit('cem-before-close', true, this.closeReason)) { e.preventDefault(); this.phase = 'open'; this.restore = false; }
@@ -299,7 +297,7 @@ class NativeSurface implements CemNativeSurfaceController {
         if (this.disposed) return;
         this.cancelTimer(); this.closeReason = 'disconnect'; this.restore = false;
         if (visible(this.owner)) { if (this.owner.hasAttribute('popover')) this.owner.hidePopover(); else if (nativeDialog(this.owner)) this.owner.close(); this.sync(); }
-        this.disposed = true; this.abort.abort(); this.observer.disconnect(); this.releaseReferences(); this.geometry.release();
+        this.disposed = true; this.abort.abort(); this.releaseVisibility(); this.releaseReferences(); this.geometry.release();
         for (const abort of this.tooltipSources.values()) abort.abort(); this.tooltipSources.clear();
         for (const source of this.describedSources.keys()) this.forgetDescription(source);
         this.describedSources.clear(); this.invocation = undefined; this.activation = undefined; controllers.delete(this.owner);

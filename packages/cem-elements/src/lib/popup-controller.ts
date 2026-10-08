@@ -82,7 +82,7 @@ export function fitNativeSurface(host: HTMLElement, panel: HTMLElement, trigger:
     return fitSurface(host, panel, trigger, geometry, placement);
 }
 function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement | undefined,
-    geometry: CemInvocationGeometry | undefined, placement: string, token?: object): boolean {
+    geometry: CemInvocationGeometry | undefined, placement: string, token?: object, matchAnchorInlineSize = false): boolean {
     if (!ownsSurfaceGeometry(panel, token)) return false;
     const prepared = nativeSurfaceGeometry(host, panel, trigger, geometry, placement);
     if (!prepared) return false;
@@ -97,7 +97,15 @@ function fitSurface(host: HTMLElement, panel: HTMLElement, trigger: HTMLElement 
     } else {
         for (const name of ['max-width', 'max-height', 'overflow']) restoreGeometryStyle(panel, name);
     }
-    const size = panel.getBoundingClientRect(), style = getComputedStyle(anchor ?? host);
+    const style = getComputedStyle(anchor ?? host);
+    if (matchAnchorInlineSize && rect) {
+        const vertical = style.writingMode.startsWith('vertical') || style.writingMode.startsWith('sideways');
+        restoreGeometryStyle(panel, vertical ? 'min-width' : 'min-height');
+        writeGeometryStyle(panel, vertical ? 'min-height' : 'min-width', `${Math.max(0, Math.min(
+            vertical ? rect.bottom - rect.top : rect.right - rect.left,
+            vertical ? bounds.bottom - bounds.top - 8 : bounds.right - bounds.left - 8))}px`);
+    } else { restoreGeometryStyle(panel, 'min-width'); restoreGeometryStyle(panel, 'min-height'); }
+    const size = panel.getBoundingClientRect();
     const point = surfacePosition(rect, size.width, size.height, bounds, placement, style.direction === 'rtl', style.writingMode,
         host.getAttribute('fallback')?.split(',').map(value => value.trim()), { flip: overflow.includes('flip'), shift: overflow.includes('shift') });
     if (overflow.includes('hide') && (point.left < bounds.left || point.top < bounds.top || point.left + size.width > bounds.right || point.top + size.height > bounds.bottom)) return false;
@@ -135,7 +143,7 @@ export function hidePopup(panel: HTMLElement): void {
 }
 export interface CemSurfaceGeometryLease {
     readonly valid: boolean;
-    fit(trigger: HTMLElement | undefined, geometry: CemInvocationGeometry | undefined, placement: string): boolean;
+    fit(trigger: HTMLElement | undefined, geometry: CemInvocationGeometry | undefined, placement: string, matchAnchorInlineSize?: boolean): boolean;
     /** End this fit's claims and queued work while keeping the registration. */
     reset(): void;
     release(): void;
@@ -153,7 +161,7 @@ export function createCemSurfaceGeometryLease(host: HTMLElement, panel: HTMLElem
     view?.visualViewport?.addEventListener('resize', queue, options); view?.visualViewport?.addEventListener('scroll', queue, options);
     return {
         get valid() { return valid(); },
-        fit(trigger, geometry, placement) { return valid() && host.isConnected && panel.isConnected && fitSurface(host, panel, trigger, geometry, placement, token); },
+        fit(trigger, geometry, placement, matchAnchorInlineSize = false) { return valid() && host.isConnected && panel.isConnected && fitSurface(host, panel, trigger, geometry, placement, token, matchAnchorInlineSize); },
         reset() { if (valid()) releaseSurfaceGeometry(panel, token); },
         release() {
             if (!valid()) return;
