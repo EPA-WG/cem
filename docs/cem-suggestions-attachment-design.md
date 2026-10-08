@@ -490,3 +490,13 @@ Superseding a query invalidates its publication and consumer results without
 reimporting sources or releasing unrelated publications. Source replacement or
 owner loss invalidates the entire session. Query revisions do not grant authority
 and need not be globally ordered across independent consumers.
+
+## Additional native profile design
+
+The [native-profile design](cem-suggestions-native-profiles-design.md) adopts an
+explicit native-datalist follow-up for text/search/tel/url/single-email/number,
+with browser-owned presentation and provider-owned list claims over retained
+source publications. It does not broaden the delivered custom text-listbox
+profile. Implementation and supported-browser/device acceptance remain open in
+[todo.md](todo.md). Field conversion, token completion and foreign surface
+adoption remain separate capabilities.

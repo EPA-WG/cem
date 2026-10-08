@@ -287,3 +287,13 @@ They must include worker/fallback and source/installed-package paths where
 applicable. Those are acceptance scenarios, not tests claimed by this design
 change. The source audit, existing field source/contracts and reviewed standards
 are the evidence used here; no suggestions runtime is implemented by this file.
+
+## Additional native profile design
+
+The [native-profile design](cem-suggestions-native-profiles-design.md) adopts an
+explicit native-datalist follow-up for text/search/tel/url/single-email/number,
+with browser-owned presentation and provider-owned list claims over retained
+source publications. It does not broaden the delivered custom text-listbox
+profile. Implementation and supported-browser/device acceptance remain open in
+[todo.md](todo.md). Field conversion, token completion and foreign surface
+adoption remain separate capabilities.

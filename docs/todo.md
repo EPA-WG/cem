@@ -1034,12 +1034,16 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       the additional native profile; bare numeric field editing is not autocomplete
       selection evidence.
 
-- [ ] Design additional native suggestion profiles for search/email/tel/url and
+- [x] Design additional native suggestion profiles for search/email/tel/url and
       number inputs, evaluating `list`/datalist integration without duplicate
       popups or loss of native roles/constraints. Separately assess an explicit
       field-owner label/submission conversion contract and a multiline/token
       completion profile if those extensions are needed; no implicit type or
       value-contract conversion is admitted by the first text-input profile.
+      Adopted 2026-10-08: [native profile design](cem-suggestions-native-profiles-design.md)
+      selects explicit browser-owned datalist presentation, with original native
+      sources and provider-owned list claims. Custom text listbox remains default.
+      The design is complete; runtime/profile acceptance is tracked below.
       Scenarios for later design verification: the numeric source example commits
       `1` rather than `One`; native browser routes remain singular; a future
       multiline profile preserves newline/caret/undo and accessible feedback.
@@ -1047,6 +1051,48 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       the first profile accepts label templates only. Scenarios for later design
       verification: an adopted listbox has one visibility/semantic owner, valid
       row mappings and fresh foreign placement authority, without menu behavior.
+
+- [ ] Implement the [native-datalist profile](cem-suggestions-native-profiles-design.md)
+      source projection: retain original owners/scopes, consume bounded ungrouped
+      materialized sets, preserve value/label rules, omit unavailable/empty rows,
+      and reject grouped/rich-label/query-dependent inputs with diagnostics.
+      Fixture action: native Rust cases for numeric values versus word labels,
+      missing/empty native values, duplicates, mixed families and scope/reference
+      bounds. Scenarios for later design verification: projection does not infer
+      committed source identity or silently flatten groups; numeric value is `1`.
+
+- [ ] Add provider-owned datalist claims and native `list` placement admission:
+      retain the original input, enforce exact current grants/unique target IDs,
+      preserve authored relationships and newer author writes, and stage options
+      before claiming the relationship. Fixture action: shared provider cases for
+      conflicts, competing profiles, source readiness/replacement, revision loss,
+      disposal and resume. Scenarios for later design verification: only one route
+      owns the editor; revoked or serialized IDs cannot reestablish authority.
+
+- [ ] Integrate explicit profile selection into the declarative attachment,
+      accepting text/search/tel/url/single-email/number under the native profile;
+      keep custom listbox as the omitted default. Reject email-multiple,
+      require-selection/vocabulary proof, custom filter and surface/label APIs
+      in the native profile. Fixture action: both-field browser and source/package
+      cases for native roles, constraints, FormData/events, original focus,
+      unsupported configuration recovery and profile changes. Scenarios for later
+      design verification: browser edits do not become native-row proof; no
+      custom popup, key interception or implicit type conversion is installed.
+
+- [ ] Record supported-browser native datalist selection, accessibility and device
+      evidence before claiming additional-profile acceptance. Fixture action:
+      real numeric selection stores/submits `1` rather than One, email/URL
+      sanitization, range/step mismatches, browser filtering, source withdrawal,
+      physical IME and mobile keyboard/AT runs. Scenarios for later design
+      verification: a connected list alone is not selection evidence; unsupported
+      native UI preserves ordinary editing without a custom popup fallback.
+
+- [ ] Design field-owned label/submission conversion, multiline/email-multiple
+      token completion and full surface-provider adoption only when requested.
+      Carry explicit value/provenance, selection/history, native semantics and
+      relationship grants into each separate contract. Scenarios for later design
+      verification: no label rewrites a numeric value; token edits preserve
+      caret/separators/composition, and one provider owns each adopted surface.
 
 - [ ] Assess an explicit field-owned undoable replacement adapter before
       promising an option commit is one native undo entry. Keep the first
