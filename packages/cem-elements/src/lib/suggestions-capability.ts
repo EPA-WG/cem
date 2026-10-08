@@ -281,7 +281,8 @@ function synchronize(instance: HTMLElement, state: State): void {
         stop(state); reportInteractionReference(instance, endpoint.code ?? 'suggestions-admission-required', 'suggestions-binding'); return;
     }
     if (!state.controller?.retained || state.options?.prepare !== options.prepare || state.options?.editorHost !== options.editorHost || state.options?.listbox !== options.listbox
-        || state.options?.current !== options.current || state.options?.ancestors !== options.ancestors) {
+        || state.options?.current !== options.current || state.options?.ancestors !== options.ancestors
+        || state.options?.platformClose !== options.platformClose) {
         stop(state);
         const current = () => resolveCemSuggestionsEditor(instance).host === options.editorHost && (options.current?.() ?? true);
         try { state.controller = connectCemSuggestionsController(instance, { ...options, current,

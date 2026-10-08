@@ -1198,22 +1198,37 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
       when independent parent grouping cannot be established. Implementation and
       device support remain gated by the following actions.
 
-  - [ ] Implement shared platform-close admission and watcher lifecycle for the
+  - [x] Implement shared platform-close admission and watcher lifecycle for the
         manual-listbox session. Fixture action: pending cancellation before
         publication, generation fencing, source/parent/authority loss, disposal,
         reentrant close and fresh reopen. Scenarios for later design verification:
         no stale completion revives a canceled intent; no duplicate watcher or
         close notification; native datalist acquires no watcher.
-  - [ ] Integrate admitted watchers with the existing editor Escape/IME route and
+        Delivered 2026-10-08: shared host coordinator reserves on a fresh trusted
+        arrow opening, tracks event consumption and explicit ancestor authority,
+        and releases on query replacement, revocation, DOM loss and teardown.
+        Suggestions own the reservation before async row readiness; canceled
+        intent cannot reopen, including synchronous admission revocation.
+  - [x] Integrate admitted watchers with the existing editor Escape/IME route and
         test native grouping with modal dialogs and auto/hint popovers. Fixture
         action: separately activated child, same-activation/unmanaged-parent
         refusal, held Escape and unsupported API. Scenarios for later design
         verification: first Escape closes only the child; late async readiness
         creates no new group; direct requestClose tests do not prove UA grouping.
+        Delivered 2026-10-08: both production field providers preserve existing
+        Escape/IME/held-press routing. Browser tests cover actual UA close
+        processing under modal/auto/hint parents, separate activations, denied
+        or consumed interactions, unmanaged ancestors and unsupported APIs.
+        All 29 focused controller/manual-listbox/native-surface/browser tests pass.
   - [ ] Record supported-device Back/dismiss-gesture evidence before advertising
         platform close support. Scenarios for later design verification: one
         accepted platform request dismisses the admitted child, preserves text
         and parent state, and releases the watcher so normal navigation resumes.
+        Progress 2026-10-08: acceptance notes distinguish Chromium protocol-driven
+        close/grouping evidence from physical Back/gesture runs and specify a
+        host-enabled device procedure. No physical mobile/device session is
+        available here; this item stays open. The ordinary local gallery does
+        not supply platform-close authority and is not a substitute test host.
 
 ## Restore the components declarative verification gate
 

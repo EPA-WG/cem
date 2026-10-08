@@ -31,3 +31,5 @@ export { CemElementPlacementCoordinator, type CemBrowserPlacementStage, type Cem
     type CemPlacementLease, type CemPlacementTransaction } from './lib/element-placement-coordinator.js';
 export type { CemElementPlacementUse, CemElementPlacementSnapshot } from './lib/element-reference-inputs.js';
 export { CemSsrPlacementCoordinator, type CemSsrPlacementStage, type CemSsrPlacementPublication, type CemPlacementResumeHints } from './lib/element-placement-ssr.js';
+
+export { createCemPlatformCloseCoordinator, type CemPlatformCloseCoordinator, type CemPlatformCloseAuthority, type CemPlatformCloseContext, type CemPlatformCloseLease } from './lib/platform-close.js';

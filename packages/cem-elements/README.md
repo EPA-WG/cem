@@ -381,6 +381,19 @@ use `@suggestion-row={#row}` to return bounded consumer placement metadata, remo
 from DOM/CEMV output. `runtime.renderedSuggestionsFor(instance)` supplies exact
 committed shells and native row handles for host-issued placement grants. Copies,
 old views, ambiguous mappings and later render attempts cannot reuse the authority.
+For opt-in platform close requests, supply a `platformClose` coordinator from
+`createCemPlatformCloseCoordinator(window, admit)` in that host hook. The host
+must control native watcher creation and return revocable authority for the
+original editor and explicit ancestor lifetimes. Call `consume(event)` before
+another native surface/watcher uses the same interaction. The runtime cannot
+infer independent browser grouping from activation or markup alone. Admission
+currently covers deliberate, fresh Arrow Up/Down openings; focus-only opens and
+query refreshes do not acquire watchers. Pending cancellation, revocation and
+teardown release the reservation; Escape/IME continue through the existing editor
+lease. This does not enable platform close in the ordinary local gallery or the
+native-datalist profile. See the [adopted close contract](../../docs/cem-suggestions-popup-design.md#non-key-platform-close-requests-adopted-design)
+and [acceptance boundary](../cem-components/docs/suggestions-acceptance.md#platform-close-integration-2026-10-08).
+
 Hosts can instead opt into local composition with
 `new CemElementRuntime({ localSuggestions: true })`. The shared adapter admits a
 single local slotted editor managed by that runtime, captures the original inert

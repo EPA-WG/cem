@@ -287,3 +287,64 @@ requires unavailable libraries, as recorded above. Safari/macOS/iOS, branded Edg
 physical keyboard/IME and assistive-technology evidence remain in the manual
 release matrix. A future undoable adapter must meet the design's admission and
 verification requirements before exposing a stronger promise.
+
+
+## Platform-close integration: 2026-10-08
+
+The shared controller now accepts explicit host admission for a CloseWatcher
+reservation before a deliberate opening waits for source publication. Both
+production fields preserve their original editor, text/FormData, preview cleanup,
+IME ownership and Escape press handling. This API is opt-in through
+`suggestionsControllerInputs.platformClose`; ordinary local suggestions and
+native datalist do not acquire it.
+
+```sh
+yarn nx run cem-elements:test -- packages/cem-elements/src/lib/platform-close.stories.ts packages/cem-elements/src/lib/suggestions-controller.stories.ts packages/cem-elements/src/lib/manual-listbox.stories.ts packages/cem-elements/src/lib/native-surface.stories.ts
+```
+
+The Chromium browser runner passes 29 plays across those four suites. New checks
+cover denied/synthetic/consumed interaction refusal, unsupported API, datalist
+refusal, exact editor/ancestor lifetime, synchronous authority revocation,
+reentrant disposal, pending cancellation, late publication, original input
+preservation, held Escape, composing Escape, parent close and DOM removal.
+A separate fixture leaves Escape uncanceled so the browser itself processes its
+watcher stack: with a separately activated modal dialog, auto popover or hint
+popover, the first native close request closes the child watcher and the next
+closes its parent. These are browser-protocol observations, not device gestures.
+Direct `requestClose()` tests cover lifecycle callbacks separately and do not
+stand in for native grouping evidence.
+
+The production suggestions and native-datalist attachment suites also pass all
+13 checks. Runtime verification passes 608 unit tests, typecheck, lint (two
+existing warnings), and package verification (222 emitted files and a clean
+installed-package import).
+
+The host admission callback in these isolated fixtures controls all relevant
+watcher creation. Production hosts must independently establish that contract;
+copying an always-accept callback into an uncontrolled page is not admission.
+See the [host contract](../../../docs/cem-suggestions-popup-design.md#non-key-platform-close-requests-adopted-design).
+
+Physical device run (still pending):
+
+1. Use a host wired to the opt-in coordinator and original retained native
+   source/placement grants; record browser/OS/device, source revision, field
+   provider and admission status. The local property gallery supplies none of
+   this platform-close authority.
+2. Open a modal or auto/hint parent through one deliberate action, then open its
+   child suggestions through a fresh admitted Arrow Up/Down interaction. Test
+   both fields, including a hardware keyboard on mobile for this first admission
+   mode. Keep the same editor focused and record its value/FormData.
+3. Send the device's actual Back/dismiss gesture. Confirm child-only dismissal,
+   unchanged text, cleared preview and intact parent. Repeat to close the parent,
+   then verify normal navigation is no longer intercepted. Record actual outcomes
+   rather than requiring identical platform navigation gestures.
+4. Repeat with delayed source preparation, then finish the request: canceled
+   suggestions must stay closed. Repeat parent closure, authority revocation,
+   source withdrawal, same-activation refusal and fresh reopen.
+5. Record IME/soft-keyboard and assistive-technology interaction separately.
+   Unsupported/declined admission must retain ordinary editing and the existing
+   keyboard route, without claiming Back interception.
+
+No physical Back/dismiss-gesture run has been performed in this environment.
+That todo remains open; no mobile, Firefox, Safari or screen-reader platform-close
+support claim follows from the Chromium checks.

@@ -200,8 +200,8 @@ grant does not exempt native containment. No body portal is introduced.
 
 ## Non-key platform close requests: adopted design
 
-This extension belongs to the shared surface/session runtime. It is not enabled
-by the current manual-listbox implementation. The host supplies a short-lived
+This opt-in extension belongs to the shared surface/session runtime. The
+suggestions controller owns its pending intent before manual-listbox readiness. The host supplies a short-lived
 close-request admission tied to the original editor, session generation and
 explicit ancestor lifetimes. Component markup, DOM adjacency and reference
 values cannot manufacture that authority. Native-datalist remains browser-owned
@@ -274,15 +274,37 @@ combination cannot advertise independent platform close support.
 
 ### Implementation and acceptance gates
 
-The following work remains actionable in [todo.md](todo.md): shared admission and
-watcher/session disposal, integration with the original editor route, and browser
-plus physical-device verification. Cover pending cancellation and delayed
+Shared admission, watcher/session disposal, and editor routing are implemented.
+Browser regression evidence and remaining physical-device verification are
+tracked in [todo.md](todo.md). Cover pending cancellation and delayed
 publication, separately activated modal/auto-popover parents, same-activation
 refusal, unmanaged parents, repeated Escape/IME keys, unsupported browsers,
 reentrant dismissal and fresh reopening. Verify native close processing in a
 browser independently from direct `requestClose()`/`close()` method tests;
 method calls alone do not establish group isolation or mobile Back behavior.
-No platform-support claim is made until those gates pass.
+No physical platform-support claim is made until those gates pass.
+
+The host API is `createCemPlatformCloseCoordinator(window, admit)`, exported by
+`cem-elements`. Supply it as `platformClose` in `suggestionsControllerInputs`.
+The callback receives the original keyboard event, editor and explicit ancestor
+lifetimes and returns revocable authority (`current`/`subscribe`) only when the
+host controls the relevant grouping sequence and has verified that browser.
+`consume(event)` marks an interaction already used for another native surface or
+watcher; consumption is shared across coordinator instances in the runtime realm.
+The host must report all such use, including native surfaces it opens itself.
+The runtime cannot discover arbitrary third-party watcher construction.
+
+The first integration admits fresh, unmodified, trusted Arrow Up/Down openings
+on text inputs during event dispatch. Focus, programmatic opens, input-driven
+refreshes, held/IME keys, and already-open sessions do not acquire a watcher.
+The host callback is not a blanket feature-detection switch. An unsupported API,
+consumed interaction, denied authority or unmanaged native ancestor reports
+`interaction-platform-close-unavailable` while ordinary suggestions remain
+available. Native-datalist inputs are explicitly rejected by admission. Every
+query replacement releases the old reservation; only a new deliberate opening
+can acquire another. Native `close` notifications dismiss once; synthetic close
+events confer no authority. Removal/hidden/inert changes also revoke pending
+reservations, even if source preparation never completes.
 
 ## Delivery gaps and verification
 

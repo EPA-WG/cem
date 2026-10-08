@@ -1,3 +1,4 @@
+import { createCemPlatformCloseCoordinator, type CemPlatformCloseCoordinator } from './platform-close.js';
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { nativeTap, nativeTouchGesture, nativePenDrag, nativeInputPoint, nativeWheel } from '../../.storybook/native-input.js';
 import { cemComponentDeclarationSource, loadCemComponent, whenCemRendered } from '../../.storybook/preview.js';
@@ -20,7 +21,7 @@ import * as wasm from '../../../cem_ql/dist/wasm/cem_ql.js';
 export default { title: 'CEM Elements/Suggestions Controller', tags: ['test'] } satisfies Meta;
 type Story = StoryObj;
 const workerScriptUrl = new URL('./internal/runtime-support/processing-worker.ts', import.meta.url);
-async function fixture(root: HTMLElement, fallback: boolean, declarative = false, productionField?: string) {
+async function fixture(root: HTMLElement, fallback: boolean, declarative = false, productionField?: string, platformClose?: CemPlatformCloseCoordinator) {
     await wasm.default({ module_or_path: new URL('../../../cem_ql/dist/wasm/cem_ql_bg.wasm', import.meta.url) });
     if (productionField) await loadCemComponent(productionField);
     const suffix = crypto.randomUUID(), declarationTag = `controller-declaration-${suffix}`, tag = productionField ?? `controller-field-${suffix}`;
@@ -86,7 +87,7 @@ async function fixture(root: HTMLElement, fallback: boolean, declarative = false
     let latest = 0, delay: Promise<void> | undefined;
     const errors: unknown[] = [], feedbacks: CemSuggestionsFeedback[] = [];
     let failed = false;
-    const controllerOptions: CemSuggestionsControllerOptions = { editorHost: field, listbox: panel, onError: error => errors.push(error),
+    const controllerOptions: CemSuggestionsControllerOptions = { editorHost: field, listbox: panel, platformClose, onError: error => errors.push(error),
         onFeedback: feedback => feedbacks.push(feedback),
         async prepare(query, queryRevision) {
             latest = queryRevision;
@@ -602,5 +603,60 @@ export const ProductionFieldsExternalSourcesAndTrustedAncestorResume: Story = {
                 expect(f.editor.hasAttribute('aria-activedescendant')).toBe(false);
             } finally { child.disconnect(); await f.cleanup(); parent.disconnect(); dialog.remove(); }
         }
+    },
+};
+
+
+export const PlatformCloseCancelsPendingAndPreservesEditorRouting: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        if (import.meta.env.MODE !== 'test') return;
+        const { cdp } = await import('vitest/browser'), driver = cdp();
+        type Watcher = EventTarget & { requestClose(): void; destroy(): void };
+        const view = window as unknown as { CloseWatcher: new () => Watcher }, Native = view.CloseWatcher;
+        expect(Native).toBeDefined();
+        const watchers: Watcher[] = [], revokers = new Set<() => void>();
+        let immediateRevoke = false;
+        view.CloseWatcher = class extends Native { constructor() { super(); watchers.push(this); } };
+        const coordinator = createCemPlatformCloseCoordinator(window, () => ({ current: () => true,
+            subscribe(fn) { revokers.add(fn); if (immediateRevoke) fn(); return () => { revokers.delete(fn); }; } }));
+        const press = async (key: string) => {
+            await driver.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: key, windowsVirtualKeyCode: key === 'Escape' ? 27 : 40 });
+            await driver.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: key === 'Escape' ? 27 : 40 });
+        };
+        try {
+            for (const tag of ['cem-field', 'cem-text-field']) {
+                const f = await fixture(canvasElement, true, true, tag, coordinator);
+                let resume: (() => void) | undefined;
+                try {
+                    f.editor.focus(); await f.settled(); f.controller.dismiss();
+                    immediateRevoke = true; await press('ArrowDown');
+                    expect(f.controller.visible).toBe(false); expect(revokers.size).toBe(0); immediateRevoke = false;
+                    const before = watchers.length;
+                    await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
+                    expect(watchers.length).toBe(before + 1);
+                    await driver.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+                    expect(f.controller.visible).toBe(false); expect(revokers.size).toBe(0);
+                    expect(f.key('Escape', { repeat: true }).defaultPrevented).toBe(true);
+                    await driver.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+                    await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
+                    f.key('Escape', { isComposing: true }); expect(f.controller.visible).toBe(true);
+                    watchers.at(-1)?.requestClose(); expect(f.controller.visible).toBe(false);
+                    expect(f.editor.value).toBe(''); expect(new FormData(f.form).get('choice')).toBe('');
+                    expect(document.activeElement).toBe(f.editor); expect(f.controller.active).toBeUndefined();
+                    resume = f.block(); const refresh = f.controller.refresh(); f.controller.dismiss();
+                    const pendingBefore = watchers.length; await press('ArrowDown');
+                    expect(f.controller.pending).toBe(true); expect(watchers.length).toBe(pendingBefore + 1);
+                    watchers.at(-1)?.requestClose(); expect(f.controller.feedback.qualifying).toBe(false);
+                    resume(); resume = undefined; await refresh; await f.settled();
+                    expect(f.controller.visible).toBe(false); expect(f.controller.active).toBeUndefined();
+                    await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
+                    for (const revoke of [...revokers]) revoke();
+                    expect(f.controller.visible).toBe(false); expect(revokers.size).toBe(0);
+                    expect(f.field.querySelector('input')).toBe(f.editor);
+                    await press('ArrowDown'); await waitFor(() => expect(f.controller.visible).toBe(true));
+                } finally { resume?.(); await f.cleanup(); expect(revokers.size).toBe(0); }
+            }
+        } finally { for (const watcher of watchers) watcher.destroy(); view.CloseWatcher = Native; }
     },
 };
