@@ -701,7 +701,7 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         Scenarios for later design verification: an unconfigured host stays
         inactive; local opt-in cannot admit unrelated foreign sources; revocation
         and resume require current authority.
-      - [ ] Implement the shared local suggestions authorization adapter before
+      - [x] Implement the shared local suggestions authorization adapter before
         production composition: expose a revocable host-only runtime opt-in,
         capture the one local inert options template at the native CEM boundary,
         retain its session across queries, and use exact provider/rendered-row
@@ -710,11 +710,34 @@ Reference: [legacy autocomplete 0.0.39](https://unpkg.com/@epa-wg/custom-element
         back or extending local admission to external endpoints/foreign references.
         Fence asynchronous preparation and release affected sessions/publications,
         grants and provider claims on revocation, replacement, disconnect or loss.
+        - [x] Fixture: verify bounded native XML capture with retained namespaces
+          and original source identity, plus denied cross-source selection.
+        - [x] Fixture: verify worker/fallback local opt-in, query reuse, source
+          replacement, explicit-input conflicts, revocation and fresh resume.
+        - [x] Fixture: verify worker/fallback XML import byte bounds, rejection
+          of injected grant metadata, ready-empty local sources and isolation
+          of provider endpoints belonging to a different runtime; verify owner
+          loss cannot regain authority through a markup/configuration mutation; pending
+          or failed readiness must not activate rows as a ready-empty source. Verify
+          readiness recovery reacquires an expired editor lease even when the
+          editor/provider pointers are unchanged after parent reconciliation. Verify
+          conflicting live editor claims remain suspended rather than choosing
+          a winner by reconnecting one controller.
         Fixture action: add native capture/grant cases first for retained lexical
         scopes, bounds and denied foreign references; then worker/fallback browser
         cases for unconfigured/local opt-in hosts, exact endpoint admission,
         conflicting slots/explicit inputs, query reuse, source replacement,
         revocation during preparation and fresh collapsed admission after resume.
+        Delivered 2026-10-08: host-only `localSuggestions` opt-in and synchronous
+        revocation, original inert payload capture through bounded native XML
+        ingress (protocol v22), reusable source sessions, canonical owner/frame
+        compilation and exact two-way placement grants. Source mutations,
+        readiness, controller generations, expired editor connections and owner
+        loss fence stale work; competing live claims remain suspended.
+        Verification: 54 focused Rust contracts, 85 unit checks, 24 browser
+        checks, typecheck and fresh package build/import verification pass.
+        Lint has only the two existing non-null-assertion warnings. Production
+        XHTML composition and the full field/device acceptance matrix stay open.
         Scenarios for later design verification: local composition needs no
         per-attachment host preparation code after opt-in; copying attributes,
         IDs or saved state cannot confer authority; stale work cannot restore

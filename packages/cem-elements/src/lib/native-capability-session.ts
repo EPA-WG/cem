@@ -13,6 +13,13 @@ export interface CemNativeSessionHandle {
 export type CemNativeSessionSources = Omit<CemElementReferenceInputs, 'kind' | 'placements'> & {
     kind: 'cem-native-session-sources-v1';
 };
+/** Explicit format import at the native boundary, with no implicit crossing grants. */
+export interface CemNativeSessionImport {
+    kind: 'cem-native-session-import-v1';
+    bytes: ArrayBuffer;
+    contentType: 'application/xml';
+    sourceUri: string;
+}
 export interface CemNativeSessionView {
     handle: CemNativeSessionHandle;
     values: readonly NativeCemValue[];

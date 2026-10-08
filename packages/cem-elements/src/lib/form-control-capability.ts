@@ -12,6 +12,8 @@ export interface CemEditorCommit {
     applied?(revision: number): void;
 }
 export interface CemEditorLease {
+    /** Captured provider connection is still alive, even when exclusivity is contested. */
+    readonly current: boolean;
     readonly valid: boolean;
     readonly attributes: CemEditorAttributeClaim;
     handlePress(event: KeyboardEvent): boolean;
@@ -292,14 +294,16 @@ function editorProvider(instance: HTMLElement, state: FormControlState): CemEdit
             const token = { owner }, admitted = controlFor(instance);
             state.leases.add(token); publish(instance, state, 'claims');
             let released = false;
-            const valid = () => !released && state.leases.has(token) && instance.isConnected && !!state.abort
-                && state.leases.size === 1 && !!admitted && controlFor(instance) === admitted;
+            const current = () => !released && state.leases.has(token) && instance.isConnected && !!state.abort
+                && !!admitted && controlFor(instance) === admitted;
+            const valid = () => current() && state.leases.size === 1;
             const attributes = admitted ? createCemEditorAttributeClaim(admitted, () => valid() && editable(instance, state),
                 () => state.revision, () => publish(instance, state, 'attribute-claims')) : {
                     valid: false, set: () => false, refresh: () => undefined, clear: () => undefined, dispose: () => undefined, preserves: () => false,
                 };
             state.attributeClaims.set(token, attributes);
             const lease: CemEditorLease = {
+                get current() { return current(); },
                 get valid() { return valid(); },
                 attributes,
                 handlePress(event) {

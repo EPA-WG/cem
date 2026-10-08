@@ -1,4 +1,4 @@
-import type { CemNativeSessionHandle, CemNativeSessionSources, CemNativeSuggestionsConfig } from '../../native-capability-session.js';
+import type { CemNativeSessionHandle, CemNativeSessionSources, CemNativeSessionImport, CemNativeSuggestionsConfig } from '../../native-capability-session.js';
 import type { CemElementReferenceInputs, CemElementPlacementUse } from '../../element-reference-inputs.js';
 import type { CemModuleUrlContextWire } from './module-url-resolution.js';
 import type { NativeCemAttributeBinding, NativeCemSliceBinding, NativeCemValue, CemValueArtifactLimits } from "../../native-values.js";
@@ -19,7 +19,7 @@ import {
 } from '../../declaration-scope.js';
 
 /** @internal Phase 3A worker/main-thread protocol. Not a public package export. */
-export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v21' as const;
+export const CEM_PROCESSING_HOST_PROTOCOL_VERSION = 'cem-processing-host-v22' as const;
 
 export const CEM_PROCESSING_HOST_CAPABILITIES = [
     'compile',
@@ -211,7 +211,7 @@ export type CemProcessingValueResult = { value: NativeCemValue } | { text: strin
 
 /** Retained executable sources and live publications stay on the original owner. */
 export type CemProcessingNativeSessionInput = { handle: CemNativeSessionHandle } & (
-    | { action: 'prepare'; sources: CemNativeSessionSources; data: Record<string, unknown>;
+    | { action: 'prepare'; sources: CemNativeSessionSources | CemNativeSessionImport; data: Record<string, unknown>;
         select: string; resolve?: boolean; limits: CemValueArtifactLimits; adapter?: 'suggestions-v1';
         nativeAttributes?: readonly NativeCemAttributeBinding[]; nativeSlices?: readonly NativeCemSliceBinding[] }
     | { action: 'view'; expression: string; index?: number; suggestions?: CemNativeSuggestionsConfig }

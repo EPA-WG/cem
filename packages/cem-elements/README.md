@@ -317,7 +317,10 @@ The shared provider now admits exactly one owned control, offers synchronous
 replacement transactions with cancellable synthetic beforeinput, and updates
 native value, slices, submission and validity before commit notifications.
 Exclusive editor leases and independent validity-contributor leases are transient
-and expire on disconnect/editor replacement. Author custom validity and native
+and expire on disconnect/editor replacement. A lease's `current` reports its
+captured provider connection; `valid` additionally requires exclusive ownership.
+This lets the suggestions capability reacquire expired connections while leaving
+competing live claims suspended. Author custom validity and native
 constraints retain precedence. Composition ownership and handled key presses
 remain captured through their terminal key so deferred submission/native surface
 routes cannot reinterpret them. Native history remains browser-owned; a runtime
@@ -362,8 +365,23 @@ use `@suggestion-row={#row}` to return bounded consumer placement metadata, remo
 from DOM/CEMV output. `runtime.renderedSuggestionsFor(instance)` supplies exact
 committed shells and native row handles for host-issued placement grants. Copies,
 old views, ambiguous mappings and later render attempts cannot reuse the authority.
-The public XHTML declaration, local host-authorization policy, loading feedback
-and full touch/pen/field acceptance matrix remain in the active checklist.
+Hosts can instead opt into local composition with
+`new CemElementRuntime({ localSuggestions: true })`. The shared adapter admits a
+single local slotted editor managed by that runtime, captures the original inert
+options template from the payload island at the native XML/CEM import boundary,
+and issues exact editor/listbox/row placement grants. It preserves the source
+session across queries and uses canonical component compilation inputs on that
+same processing owner. An absent source is ready-empty. Explicit inputs and
+ambiguous slots conflict; foreign endpoints/sources require their own host hooks
+and grants. Use the standard inert payload envelope for editor-plus-template
+composition. `runtime.setLocalSuggestionsEnabled(false)` revokes affected local
+controllers, source authority and provider claims synchronously; enabling again
+or reconnecting obtains fresh collapsed admissions. Owner loss cannot restore
+local authority from markup. The host opt-in and live bindings are excluded from
+snapshot state. Protocol v22 carries the bounded native XML source import.
+
+The public XHTML declaration, loading feedback and full touch/pen/field acceptance
+matrix remain in the active checklist.
 
 Changing an option's `selected` presence or replacing selected option nodes
 refreshes the owning select after the whole render transaction. Single selects

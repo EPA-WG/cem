@@ -68,6 +68,7 @@ export const Transactions: Story = {
 
         const competing = provider.lease({});
         expect(lease.valid).toBe(false); expect(competing.valid).toBe(false);
+        expect(lease.current).toBe(true); expect(competing.current).toBe(true);
         expect(lease.commit('pear', { revision: provider.revision })).toBe(false);
         competing.release(); expect(lease.valid).toBe(true);
 
@@ -176,12 +177,12 @@ export const ReentrancyAndAdmission: Story = {
         const next = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
         input.dispatchEvent(next); expect(next.defaultPrevented).toBe(false);
         const contribution = provider.validity({}); contribution.set('Transient error');
-        field.remove(); expect(lease.valid).toBe(false);
+        field.remove(); expect(lease.valid).toBe(false); expect(lease.current).toBe(false);
         canvasElement.append(field); await runtime.whenRenderSettled(field);
         expect(lease.valid).toBe(false);
         expect(contribution.set('Stale error')).toBe(false);
         expect(field.validity.customError).toBe(false);
-        const fresh = provider.lease({}); expect(fresh.valid).toBe(true); fresh.release();
+        const fresh = provider.lease({}); expect(fresh.valid).toBe(true); expect(fresh.current).toBe(true); fresh.release(); expect(fresh.current).toBe(false);
         lease.release(); contribution.release();
         await define('story-editor-nested-owner', '{story-editor-reentrant}');
         const outer = document.createElement('story-editor-nested-owner'); canvasElement.append(outer);

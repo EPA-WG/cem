@@ -127,7 +127,7 @@ import {
     type CemRepositoryStatus,
 } from './repository.js';
 import { CEM_FORM_CONTROL_CAPABILITY } from './form-control-capability.js';
-import { CEM_SUGGESTIONS_CAPABILITY } from './suggestions-capability.js';
+import { CEM_SUGGESTIONS_CAPABILITY, refreshCemSuggestionsAuthorization, localCemSuggestionsBinding, type CemLocalSuggestionsEnvironment } from './suggestions-capability.js';
 import type { CemSuggestionsControllerOptions } from './suggestions-controller.js';
 import { CEM_POPUP_CAPABILITY } from './popup-capability.js';
 import { CEM_NATIVE_SURFACE_CAPABILITY } from './native-surface.js';
@@ -565,6 +565,8 @@ export interface CemRenderedSuggestions {
 }
 
 export interface CemElementRuntimeOptions {
+    /** Host-only local source/placement authorization; default false, revocable through the runtime. */
+    localSuggestions?: boolean;
     /** Transient host-admitted outbound publications, reacquired for each consumer frame. */
     nativeSuggestionsInputs?: (instance: HTMLElement, snapshot: DataIslandSnapshot) => readonly CemNativeSuggestionsBinding[];
     /** Explicit host preparation/placement authority; transient and excluded from islands. */
@@ -1771,6 +1773,8 @@ export class CemElementRuntime {
     private readonly elementReferenceInputsOption?: CemElementRuntimeOptions['elementReferenceInputs'];
     private readonly nativeSuggestionsInputsOption?: CemElementRuntimeOptions['nativeSuggestionsInputs'];
     private readonly suggestionsControllerInputsOption?: CemElementRuntimeOptions['suggestionsControllerInputs'];
+    private localSuggestionsEnabled = false;
+    private readonly localSuggestionsInstances = new Set<HTMLElement>();
     private readonly preparedSuggestionRows = new WeakMap<CemProcessingRenderDiffResult, { binding: CemNativeSuggestionsBinding; rows: readonly { native: CemNativeSuggestionRow; renderNodeId: string }[] }>();
     private readonly committedSuggestionRows = new WeakMap<HTMLElement, CemRenderedSuggestions>();
     private readonly nativeSuggestionsBindings = new WeakMap<HTMLElement, CemNativeSuggestionsBinding>();
@@ -1813,6 +1817,8 @@ export class CemElementRuntime {
         this.elementReferenceInputsOption = options.elementReferenceInputs;
         this.nativeSuggestionsInputsOption = options.nativeSuggestionsInputs;
         this.suggestionsControllerInputsOption = options.suggestionsControllerInputs;
+        if (options.localSuggestions !== undefined && typeof options.localSuggestions !== 'boolean') throw new TypeError('Local suggestions authorization must be boolean');
+        this.localSuggestionsEnabled = options.localSuggestions ?? false;
         this.placementCoordinator = options.placementCoordinator;
         this.resolveScopedModuleUrlOption = options.resolveScopedModuleUrl;
         this.resolveModuleUrlOption = options.resolveModuleUrl;
@@ -2488,10 +2494,39 @@ export class CemElementRuntime {
         return this.suggestionsControllerInputsOption?.(instance, this.snapshotInstance(instance));
     }
 
+    /** Explicit host policy. Disabling synchronously revokes affected local controllers and claims. */
+    setLocalSuggestionsEnabled(enabled: boolean): void {
+        if (typeof enabled !== 'boolean') throw new TypeError('Local suggestions authorization must be boolean');
+        this.localSuggestionsEnabled = enabled;
+        for (const instance of this.localSuggestionsInstances) refreshCemSuggestionsAuthorization(instance);
+    }
+
+    /** Shared capability boundary; author markup cannot acquire a native processing owner. */
+    localSuggestionsEnvironmentFor(instance: HTMLElement): CemLocalSuggestionsEnvironment | undefined {
+        const compiled = this.declarationForInstance(instance);
+        if (!compiled || !instance.isConnected) return undefined;
+        this.localSuggestionsInstances.add(instance);
+        if (!this.localSuggestionsEnabled || compiled.mode !== 'cem-ml' || compiled.declarationScope.disposed) return undefined;
+        const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
+        const optionsSources = [...(payload?.children ?? [])].filter(child => child.getAttribute('slot') === 'options');
+        return { snapshot: this.snapshotInstance(instance), owner: this.processingHost(compiled), limits: this.nativeValueLimits, optionsSources, sourceRoot: payload ?? undefined,
+            ownsEditor: editor => this.initializedInstances.has(editor) && !!this.declarationForInstance(editor),
+            current: () => this.localSuggestionsEnabled && instance.isConnected && !compiled.declarationScope.disposed
+                && this.declarationForInstance(instance) === compiled,
+        };
+    }
+
+    /** Check original inert source identity without importing another producer's output. */
+    localSuggestionsSourceCurrent(instance: HTMLElement, source: HTMLTemplateElement | undefined): boolean {
+        const payload = directIslandSection(this.ensureDataIsland(instance), DATA_ISLAND_SECTIONS.payload);
+        const sources = [...(payload?.children ?? [])].filter(child => child.getAttribute('slot') === 'options');
+        return source ? sources.length === 1 && sources[0] === source : sources.length === 0;
+    }
+
     /** Refresh host-owned reference readiness/authority without changing authored attributes. */
     refreshElementReferences(instance: HTMLElement): boolean {
         const compiled = this.declarationForInstance(instance);
-        if (!(this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption) || !compiled || compiled.declarationScope.disposed || !instance.isConnected || !this.initializedInstances.has(instance)) return false;
+        if (!(this.elementReferenceInputsOption || this.nativeSuggestionsInputsOption || this.localSuggestionsEnabled) || !compiled || compiled.declarationScope.disposed || !instance.isConnected || !this.initializedInstances.has(instance)) return false;
         this.renderInstance(instance, compiled);
         return true;
     }
@@ -2707,6 +2742,7 @@ export class CemElementRuntime {
     }
 
     private disconnectProducedInstance(instance: HTMLElement): void {
+        this.localSuggestionsInstances.delete(instance);
         this.nativeSuggestionsBindings.get(instance)?.release();
         this.nativeSuggestionsBindings.delete(instance);
         this.committedSuggestionRows.delete(instance);
@@ -3320,6 +3356,7 @@ export class CemElementRuntime {
             ...compiled.declaredAttributes.map((attribute) => attribute.name),
             ...compiled.declaredSlices.map((slice) => slice.name),
             ...renderBindings,
+            'suggestions',
         ];
         if (compiled.xsltSource !== null && compiled.xsltOptions !== null) {
             const modules = await preflightXsltModules(compiled.xsltSource, this.declarationModuleLoader(compiled));
@@ -3359,7 +3396,7 @@ export class CemElementRuntime {
                 ]);
             }
         }
-        const result = await this.processingHost(compiled).compile({
+        const canonicalInput: CemProcessingCompileInput = {
             linkBaseUrl: compiled.linkBaseUrl ?? undefined,
             language: 'cem-ml',
             producedTag: compiled.producedTag,
@@ -3375,7 +3412,9 @@ export class CemElementRuntime {
             ...(xpathFunctionLibrary === undefined ? {} : { xpathFunctionLibrary }),
             ...(precompiledArtifact === undefined ? {} : { precompiledArtifact }),
             ...(moduleClosure || this.artifactRegistry?.putArtifact === undefined ? {} : { exportCompiledArtifact: true as const }),
-        }).result;
+        };
+        this.nativeSuggestionsCompilations.set(compiled, Promise.resolve(canonicalInput));
+        const result = await this.processingHost(compiled).compile(canonicalInput).result;
         if (moduleClosure && !result.diagnostics.some((diagnostic) => diagnostic.severity === 'error' || diagnostic.severity === 'fatal')) {
             compiled.stylesheets = result.stylesheets ?? [];
             compiled.stylesheetsReady = true;
@@ -3806,8 +3845,14 @@ export class CemElementRuntime {
     ): Promise<CemProcessingRenderDiffResult> {
         const references = await this.prepareElementReferenceInputs(instance, input.snapshot, token);
         if (this.renderTokens.get(instance) !== token || !instance.isConnected) throw new Error('Reference invocation was superseded or disposed');
-        if (this.nativeSuggestionsInputsOption) {
-            const bindings = this.nativeSuggestionsInputsOption(instance, input.snapshot);
+        if (this.nativeSuggestionsInputsOption || this.localSuggestionsEnabled) {
+            const explicit = this.nativeSuggestionsInputsOption?.(instance, input.snapshot) ?? [];
+            const local = localCemSuggestionsBinding(instance, input.snapshot);
+            if (local && Array.isArray(explicit) && explicit.length) {
+                local.release(); for (const binding of explicit) if (isCemNativeSuggestionsBinding(binding)) binding.release();
+                throw new Error('Local and explicit native suggestions inputs conflict');
+            }
+            const bindings = local ? [local] : explicit;
             if (!Array.isArray(bindings) || bindings.length > 1 || bindings.some(binding => !isCemNativeSuggestionsBinding(binding))) {
                 if (Array.isArray(bindings)) for (const binding of bindings) if (isCemNativeSuggestionsBinding(binding)) binding.release();
                 throw new Error('A component frame admits one verified live suggestions owner');
@@ -3820,19 +3865,8 @@ export class CemElementRuntime {
                 const compiled = this.declarationForInstance(instance);
                 if (!compiled || compiled.mode !== 'cem-ml' || !binding.valid) throw new Error('Live suggestions require a current canonical component frame');
                 if (input.documents?.length) throw new Error('Live owner routing requires materialized resource inputs');
-                let compilation = this.nativeSuggestionsCompilations.get(compiled);
-                if (!compilation) {
-                    compilation = (async (): Promise<CemProcessingCompileInput> => {
-                        const hostBindings = [...new Set([...compiled.declaredAttributes.map(a => a.name), ...compiled.declaredSlices.map(s => s.name), ...Object.keys(input.data), 'suggestions'])];
-                        const moduleClosure = await this.preflightDeclarationModules(compiled, hostBindings);
-                        const xpathFunctionLibrary = await this.preflightXPathFunctionLibrary(compiled);
-                        return { language: 'cem-ml', producedTag: compiled.producedTag, templateArtifactId: compiled.artifactId,
-                            registrationIdentity: compiled.registrationIdentity ?? compiled.artifactId, source: createCemProcessingTextSource(compiled.cemMlSource ?? ''),
-                            sourceRef: compiled.sourceRef, resolverIdentity: compiled.resolverIdentity, scopePolicyStamp: input.revision.scopePolicyStamp,
-                            sourceMapMode: 'dev', linkBaseUrl: compiled.linkBaseUrl ?? undefined, hostBindings, moduleClosure, xpathFunctionLibrary };
-                    })().catch(error => { this.nativeSuggestionsCompilations.delete(compiled); throw error; });
-                    this.nativeSuggestionsCompilations.set(compiled, compilation);
-                }
+                const compilation = this.nativeSuggestionsCompilations.get(compiled);
+                if (!compilation) throw new Error('Native suggestions require the canonical compilation inputs');
                 const { artifact: _artifact, ...render } = input;
                 const result = await binding.renderComponent({
                     compile: await compilation,

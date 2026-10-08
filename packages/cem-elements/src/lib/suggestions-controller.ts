@@ -15,6 +15,8 @@ export interface CemSuggestionsControllerOptions {
     onError?(error: unknown): void;
 }
 export interface CemSuggestionsController {
+    /** Current editor/host lease, independent of query readiness. */
+    readonly retained: boolean;
     readonly visible: boolean;
     readonly pending: boolean;
     readonly active: CemNativeSuggestionSource | undefined;
@@ -40,7 +42,8 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     let popup: CemManualListboxController | undefined, pending = false, reconciling = false;
     let pointer: { row: CemSuggestionsPlacedRow; generation: number; id: number; x: number; y: number; ended: boolean } | undefined;
     const focused = () => editor.ownerDocument.activeElement === editor;
-    const bound = () => !disposed && host.isConnected && options.editorHost.isConnected && lease.valid && provider.control === editor && (options.current?.() ?? true);
+    const retained = () => !disposed && host.isConnected && options.editorHost.isConnected && lease.current && provider.control === editor && (options.current?.() ?? true);
+    const bound = () => retained() && lease.valid;
     const current = () => bound() && provider.editable && !provider.composing && !!placements?.current()
         && preparedRevision === provider.revision && query === editor.value;
     const eligibleRow = (row: CemSuggestionsPlacedRow) => row.native.valid && row.native.eligible
@@ -136,7 +139,9 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
         if (disposed) return;
         if (update.cause === 'attribute-claims') return;
         if (update.cause === 'claims' || update.cause === 'availability') {
-            if (!bound() || !provider.editable) invalidate(); else claim();
+            if (!bound() || !provider.editable) invalidate();
+            else if (!pending && placements && !current()) void request(false);
+            else claim();
             return;
         }
         if (update.cause === 'composition-start') { ++generation; pending = false; dismiss('composition'); lease.attributes.clear(); return; }
@@ -183,6 +188,7 @@ export function connectCemSuggestionsController(host: HTMLElement, options: CemS
     editor.addEventListener('focusout', () => { dismiss('focus'); }, { signal: abort.signal });
     void request(false); updateValidity();
     return {
+        get retained() { return retained(); },
         get visible() { return !!popup?.visible; }, get pending() { return pending; },
         get active() { return active?.native.source; }, get committed() { updateValidity(); return committed?.source; },
         refresh: () => request(false), reconcile: () => { popup?.reconcile(); claim(); updateValidity(); }, dismiss,

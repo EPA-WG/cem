@@ -222,3 +222,149 @@ export const DeclarativeCapabilityRequiresFreshHostAdmission: Story = {
         }
     },
 };
+
+async function localFixture(root: HTMLElement, fallback: boolean, enabled = true, empty = false) {
+    const suffix = crypto.randomUUID(), declarationTag = `local-declaration-${suffix}`, fieldTag = `local-field-${suffix}`, tag = `local-suggestions-${suffix}`;
+    const scope = createCemDeclarationScope({ document });
+    const runtime = new CemElementRuntime({ declarationTag, declarationScope: scope, localSuggestions: enabled,
+        ...(fallback ? { processingWorkerFactory: () => { throw new Error('local fallback'); } } : {}) }); runtime.install(window);
+    const declarations: HTMLElement[] = [];
+    for (const [name, capability, source] of [
+        [fieldTag, 'form-control', '{input @part=control @form="" @type=text @value={datadom.slices.value} @slice=value @slice-event=input @slice-value="$target.value"}'],
+        [tag, 'suggestions', '{slot @name=editor}{slot @name=options}{div @part=surface @role=listbox @popover=manual @aria-label=Suggestions | {cem:for-each @select="datadom.slices.suggestions.children" @as=row | {div @role=option @suggestion-row={#row} @hidden={if row.dom:attribute("hidden").value {true} else {null}} | {$row.dom:attribute("label").value}}}}'],
+    ]) {
+        const declaration = document.createElement(declarationTag); declaration.setAttribute('tag', name); declaration.setAttribute('capability', capability);
+        const template = document.createElement('template'); template.type = 'text/cem-ml'; template.textContent = source; declaration.append(template);
+        root.append(declaration); runtime.registerDeclaration(declaration); await runtime.whenDeclarationSettled(declaration); declarations.push(declaration);
+    }
+    const form = document.createElement('form'), host = document.createElement(tag);
+    let field = document.createElement(fieldTag) as HTMLElement & { value: string };
+    field.slot = 'editor'; field.setAttribute('name', 'choice');
+    const options = document.createElement('template'); options.slot = 'options'; options.innerHTML = '<option value="a">Alpha</option><option value="b">Beta</option>';
+    const payload = document.createElement('template'); payload.content.append(field); if (!empty) payload.content.append(options); host.append(payload); form.append(host); root.append(form); await runtime.whenRenderSettled(host); field = host.querySelector(fieldTag) as HTMLElement & { value: string }; if (!field) throw new Error(`Local fixture rendering failed: ${JSON.stringify(runtime.diagnosticsFor(host))}`); await runtime.whenRenderSettled(field);
+    const editor = field.querySelector('input'); if (!editor) throw new Error('Missing local editor'); editor.style.width = '150px';
+    const ready = async () => { await waitFor(() => { const controller = cemSuggestionsControllerFor(host); expect(controller).toBeDefined(); expect(controller?.pending).toBe(false); expect(runtime.renderedSuggestionsFor(host)?.current()).toBe(true); }); expect(runtime.localSuggestionsEnvironmentFor(host)?.owner.mode).toBe(fallback ? 'main-thread' : 'worker'); };
+    return { runtime, host, field, editor, form, options: host.querySelector('template[slot=options]') as HTMLTemplateElement, ready,
+        async cleanup() { form.remove(); for (const declaration of declarations) declaration.remove(); await Promise.resolve(); scope.dispose(); },
+    };
+}
+export const LocalOptInRetainsSourcesAndRevokesAuthority: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const f = await localFixture(canvasElement, fallback, false);
+            try {
+                expect(cemSuggestionsControllerFor(f.host)).toBeUndefined();
+                f.runtime.setLocalSuggestionsEnabled(true); await f.ready();
+                const first = f.runtime.renderedSuggestionsFor(f.host); expect(first?.rows).toHaveLength(2);
+                const controller = cemSuggestionsControllerFor(f.host), competing = getCemEditorProvider(f.field)?.lease({});
+                if (!controller || !competing) throw new Error('Missing local lease fixture');
+                expect(competing.valid).toBe(false); expect(competing.current).toBe(true);
+                f.host.setAttribute('filter', 'prefix'); await new Promise(resolve => setTimeout(resolve));
+                expect(cemSuggestionsControllerFor(f.host)).toBe(controller); expect(controller.retained).toBe(true);
+                expect(competing.valid).toBe(false); expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+                competing.release(); f.host.removeAttribute('filter'); await f.ready();
+                f.editor.focus(); await waitFor(() => expect(cemSuggestionsControllerFor(f.host)?.visible).toBe(true));
+                f.editor.value = 'Beta'; f.editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+                await f.ready(); const filtered = f.runtime.renderedSuggestionsFor(f.host);
+                expect(filtered?.rows[0].native.source).toBe(first?.rows[0].native.source);
+                expect(filtered?.rows[0].native.eligible).toBe(false); expect(filtered?.rows[1].native.eligible).toBe(true);
+                f.runtime.setLocalSuggestionsEnabled(false);
+                expect(cemSuggestionsControllerFor(f.host)).toBeUndefined(); expect(filtered?.current()).toBe(false);
+                expect(f.editor.hasAttribute('aria-controls')).toBe(false); expect(f.editor.hasAttribute('aria-activedescendant')).toBe(false);
+                f.runtime.setLocalSuggestionsEnabled(true); await f.ready();
+                expect(cemSuggestionsControllerFor(f.host)?.visible).toBe(false);
+                expect(f.runtime.renderedSuggestionsFor(f.host)?.rows[0].native.source).not.toBe(first?.rows[0].native.source);
+                const before = f.runtime.renderedSuggestionsFor(f.host);
+                const source = f.runtime.localSuggestionsEnvironmentFor(f.host)?.optionsSources[0] as HTMLTemplateElement;
+                source.innerHTML = '<option value="c">Gamma</option>'; f.runtime.refreshElementReferences(f.host); await waitFor(() => expect(before?.current()).toBe(false));
+                await f.ready(); expect(f.runtime.renderedSuggestionsFor(f.host)?.rows).toHaveLength(1);
+                expect(f.runtime.renderedSuggestionsFor(f.host)?.rows[0].native.value).toBe('c');
+                f.form.remove(); await Promise.resolve(); expect(cemSuggestionsControllerFor(f.host)).toBeUndefined();
+                canvasElement.append(f.form); await f.ready(); expect(cemSuggestionsControllerFor(f.host)?.visible).toBe(false);
+            } finally { await f.cleanup(); }
+        }
+    },
+};
+export const LocalOptInDoesNotAdmitExplicitForeignInputs: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        const f = await localFixture(canvasElement, true);
+        try {
+            await f.ready(); const ready = f.runtime.renderedSuggestionsFor(f.host);
+            f.host.setAttribute('options-state', 'pending'); expect(ready?.current()).toBe(false);
+            await waitFor(() => { expect(cemSuggestionsControllerFor(f.host)?.pending).toBe(false); expect(f.editor.hasAttribute('aria-controls')).toBe(false); });
+            f.host.setAttribute('options-state', 'ready'); await f.ready();
+            expect(f.runtime.renderedSuggestionsFor(f.host)?.rows[0].native.source).toBe(ready?.rows[0].native.source);
+            f.host.setAttribute('options', 'foreign');
+            await waitFor(() => expect(cemSuggestionsControllerFor(f.host)).toBeUndefined());
+            expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+            f.host.removeAttribute('options'); await f.ready();
+            const options = f.options.cloneNode(true); f.host.append(options);
+            await waitFor(() => expect(cemSuggestionsControllerFor(f.host)).toBeUndefined());
+            options.remove(); await f.ready();
+            f.runtime.setLocalSuggestionsEnabled(false); f.runtime.setLocalSuggestionsEnabled(true); f.runtime.setLocalSuggestionsEnabled(false);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            expect(cemSuggestionsControllerFor(f.host)).toBeUndefined(); expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+        } finally { await f.cleanup(); }
+    },
+};
+
+export const LocalEmptySourcesAndForeignEditorsRemainBounded: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const local = await localFixture(canvasElement, fallback, true, true);
+            const foreign = await localFixture(canvasElement, fallback, false);
+            try {
+                await local.ready(); expect(local.runtime.renderedSuggestionsFor(local.host)?.rows).toHaveLength(0);
+                local.editor.focus(); expect(cemSuggestionsControllerFor(local.host)?.visible).toBe(false);
+                local.host.insertBefore(foreign.field, local.field); local.field.remove();
+                await waitFor(() => expect(cemSuggestionsControllerFor(local.host)).toBeUndefined());
+                expect(foreign.editor.hasAttribute('aria-controls')).toBe(false);
+                expect(foreign.runtime.renderedSuggestionsFor(foreign.host)).toBeUndefined();
+            } finally { await local.cleanup(); await foreign.cleanup(); }
+        }
+    },
+};
+export const NativeLocalImportRejectsBoundsAndGrantInjection: Story = {
+    render: () => '<section></section>',
+    play: async () => {
+        for (const fallback of [false, true]) {
+            const scope = createCemDeclarationScope({ document }), owner = cemProcessingHostForScope(scope, { workerScriptUrl,
+                ...(fallback ? { workerFactory: () => { throw new Error('import fallback'); } } : {}) });
+            const input = { action: 'prepare' as const, adapter: 'suggestions-v1' as const,
+                handle: { sessionKey: crypto.randomUUID(), instanceId: 'import', sourceRevision: '1', scopePolicyStamp: 'import' },
+                sources: { kind: 'cem-native-session-import-v1' as const, contentType: 'application/xml' as const,
+                    sourceUri: 'memory:local.xml', bytes: new TextEncoder().encode('<options xmlns="http://www.w3.org/1999/xhtml"><option value="a">Alpha</option></options>').buffer as ArrayBuffer },
+                data: {}, select: 'input.children.children', limits: DEFAULT_CEM_VALUE_ARTIFACT_LIMITS };
+            try {
+                const session = await CemNativeCapabilitySession.prepare(owner, input, () => true);
+                expect(session.length).toBe(1); await session.release();
+                await expect(CemNativeCapabilitySession.prepare(owner, { ...input, handle: { ...input.handle, sessionKey: crypto.randomUUID() },
+                    limits: { ...input.limits, maxBytes: 8 } }, () => true)).rejects.toThrow('Invalid bounded native source import');
+                const injected = { ...input.sources, grants: [[0, 1]] };
+                await expect(CemNativeCapabilitySession.prepare(owner, { ...input, handle: { ...input.handle, sessionKey: crypto.randomUUID() },
+                    sources: injected }, () => true)).rejects.toThrow('Invalid bounded native source import');
+            } finally { await owner.dispose({ reason: 'runtime-disposed' }).result; scope.dispose(); }
+        }
+    },
+};
+
+export const LocalOwnerLossCannotRecoverFromMarkup: Story = {
+    render: () => '<section></section>',
+    play: async ({ canvasElement }) => {
+        for (const fallback of [false, true]) {
+            const f = await localFixture(canvasElement, fallback);
+            try {
+                await f.ready(); const mapped = f.runtime.renderedSuggestionsFor(f.host);
+                const owner = f.runtime.localSuggestionsEnvironmentFor(f.host)?.owner; if (!owner) throw new Error('Missing local owner');
+                await owner.dispose({ reason: 'runtime-disposed' }).result;
+                expect(mapped?.current()).toBe(false); expect(mapped?.rows[0].native.source.valid).toBe(false);
+                expect(cemSuggestionsControllerFor(f.host)).toBeUndefined(); expect(f.editor.hasAttribute('aria-controls')).toBe(false);
+                f.host.setAttribute('filter', 'prefix'); await new Promise(resolve => setTimeout(resolve));
+                expect(cemSuggestionsControllerFor(f.host)).toBeUndefined();
+            } finally { await f.cleanup(); }
+        }
+    },
+};

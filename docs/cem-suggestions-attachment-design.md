@@ -191,10 +191,32 @@ starts collapsed and obtains fresh capture/admission and leases; saved IDs and
 snapshots restore no authority. Query changes alone retain the source session
 and replace only the immutable publication and its consumer leases.
 
-This policy is adopted; the shared opt-in adapter and its fixtures remain an
-[implementation action](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
-Existing explicit host hooks remain the implemented route until that action is
-complete. Production XHTML composition follows the adapter.
+Implemented 2026-10-08: `new CemElementRuntime({ localSuggestions: true })`
+enables the shared local adapter; the default is false.
+`runtime.setLocalSuggestionsEnabled(false)` synchronously revokes local
+controllers and provider claims. Enabling again obtains fresh collapsed
+admissions. Existing explicit host hooks remain available and take responsibility
+for their own authority. A simultaneous local and explicit native publication
+is a conflict. Owner loss blocks local recovery until a fresh host authorization
+and usable processing owner are available.
+
+The runtime captures the original inert options template from the instance's
+payload island, independently of its rendered slot projection. It imports one
+bounded XML source through the native CEM boundary, retaining expanded names and
+captured namespace bindings. Source mutations/replacement invalidate that session;
+query renders and their transient debug metadata cannot change source identity.
+When composing a field with an options template, use the standard explicit payload
+envelope to avoid the lifecycle's mixed-template ambiguity. Native publications
+reuse the component's canonical compilation inputs on the original processing
+owner. Local preparation carries a separate monotonically increasing operation
+generation across controller rebindings, so a restarted query revision cannot
+admit an older controller's work. Pending/failed readiness fences publication
+eligibility and clears relationships; returning to ready prepares a current view.
+The capability reacquires an expired editor connection even when its pointers
+remain unchanged. A live lease contested by another claim stays suspended;
+reconnection must not choose a winner. The public production XHTML and full
+acceptance matrix remain in the
+[active checklist](todo.md#autocomplete-and-suggestions-design-for-cem-inputs).
 
 Only one suggestions attachment may lease an editor and one controller may own
 the listbox. Competing claims suspend suggestions for that editor with a stable
@@ -381,8 +403,8 @@ interaction design. Loading/status announcements follow the source-data lifecycl
 | Whole menu/surface substitution | Keep label templates inside owned shells for the first profile; richer adoption needs separate semantic/visibility/authority evidence. |
 | Existing choice/autocomplete record normalization | Implement retained native adapters; copied records and value-as-identity would break the selected source and reference contracts. |
 
-Public XHTML composition still requires the adopted local authorization adapter
-and source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
+The local authorization adapter is implemented. Public XHTML composition still
+requires source/readiness/label wiring. Native-render row-to-source metadata is delivered. The shared editor-for,
 provider, native source/view, placement and capability prerequisites are delivered.
 Complete the canonical component, colocated stories, catalog/slot documentation and
 source/installed galleries. The [active actions](todo.md#autocomplete-and-suggestions-design-for-cem-inputs)
@@ -426,7 +448,7 @@ hook and route ordinary compile/render/diff execution to the original publicatio
 owner. They retain the consuming declaration's module/function context, native
 materialized inputs, CSS/DOM publication and source-map metadata. Compilation
 bindings remain fixed for the declaration, as on the ordinary retained path.
-The processing protocol is v21. A second live binding is rejected; execution
+The processing protocol is v22. A second live binding is rejected; execution
 across multiple live owners needs a separate design. Retained HTTP document handles
 belonging to another owner cannot ride this channel; supply materialized inputs.
 These leases are excluded from snapshots and reacquired on subsequent frames.
@@ -445,8 +467,8 @@ The binding accepts only its exact render result and preserves native source ord
 `runtime.renderedSuggestionsFor(instance)` exposes the captured committed elements
 and opaque rows with a current-admission check; it supplies no grants by itself.
 A newer render attempt, disconnect or native owner loss expires that mapping.
-Production composition still requires implementation of the adopted
-[local host authorization](#local-host-authorization) policy in the active checklist. `editor-for` now has native singleton
+The adopted [local host authorization](#local-host-authorization) adapter is
+implemented; production XHTML composition remains in the active checklist. `editor-for` now has native singleton
 projection, a property-specific placement grant, and an exact-provider endpoint
 adapter. The adapter admits typed endpoints, scoped local names or a single direct
 editor slot, rejects ambiguous/conflicting/unsupported editors, and grants no

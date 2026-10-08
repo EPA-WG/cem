@@ -923,3 +923,62 @@ fn native_row_placement_metadata_requires_exact_current_view_and_unique_shells()
     )
     .is_err());
 }
+
+#[test]
+fn local_xml_options_capture_retains_namespace_owner_and_bounds() {
+    let text = r#"<options xmlns="http://www.w3.org/1999/xhtml"><option value="a">Alpha</option><option value="b">Beta</option></options>"#;
+    let captured = session(text);
+    let plan = captured.suggestions().unwrap();
+    let first = plan.view(&config("Alpha")).unwrap();
+    let second = plan.view(&config("Beta")).unwrap();
+    assert_eq!(plan.len(), 2);
+    let selected = captured.evaluate("input", None).unwrap();
+    assert_eq!(
+        strings(captured.evaluate("input.namespace", None).unwrap()),
+        vec!["http://www.w3.org/1999/xhtml"; 2]
+    );
+    let root = first.root().view().unwrap().field("children").unwrap();
+    let other = second.root().view().unwrap().field("children").unwrap();
+    assert_eq!(
+        root[0].view().unwrap().field("source").unwrap()[0]
+            .view()
+            .unwrap()
+            .identity(),
+        selected.items[0].view().unwrap().identity()
+    );
+    assert_eq!(
+        root[0].view().unwrap().field("source").unwrap()[0]
+            .view()
+            .unwrap()
+            .identity(),
+        other[0].view().unwrap().field("source").unwrap()[0]
+            .view()
+            .unwrap()
+            .identity()
+    );
+    let limits = cem_ml::value::artifact::CemValueArtifactLimits {
+        max_values: 1,
+        ..Default::default()
+    };
+    assert!(NativeCapabilitySession::prepare(
+        vec![ElementReferenceSource {
+            source: RetainedReferenceSource::parse(
+                text.as_bytes(),
+                "application/xml",
+                "memory:local-options.xml",
+                ReloadLimits::default()
+            )
+            .unwrap(),
+            context: true,
+            policy: ReferenceScopePolicy::schema_defaults().unwrap(),
+        }],
+        0,
+        &[],
+        &[],
+        TemplateData::default(),
+        "input.children.children",
+        true,
+        limits
+    )
+    .is_err());
+}

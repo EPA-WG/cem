@@ -111,7 +111,7 @@ native diagnostic; projecting a presentation value does not transfer source
 authority. Original source edges stay inside the native session rather than
 becoming serialized JavaScript records.
 
-Processing-host protocol v21 provides prepare/view/render/release operations
+Processing-host protocol v22 provides prepare/view/render/release operations
 with immutable source revisions and root-owned session identities. Source leases
 survive query changes; immutable publications capture query revisions and
 consumer leases check attachment/query eligibility before and after async work. Cancellation, release and root disposal fence in-flight preparation and
@@ -147,11 +147,18 @@ an already-evaluated native reference. Source nodes, scalar handles, prior-view
 rows and duplicate row placements are rejected. The annotation is removed before
 DOM/CEMV export. The runtime binds the metadata to exact committed elements under
 the current render attempt; neither saved IDs nor row positions restore it.
-The production declaration remains open pending the shared adapter for the adopted
-[local host authorization](cem-suggestions-attachment-design.md#local-host-authorization).
+The shared adapter for adopted
+[local host authorization](cem-suggestions-attachment-design.md#local-host-authorization)
+is implemented; the production declaration remains open.
 Explicit host opt-in may authorize native capture of the attachment's local inert
 options template; it does not authorize foreign references inside that template.
-Capture retains original lexical bindings and effective bounds. Query filtering
+Protocol v22 adds the explicit `cem-native-session-import-v1` XML ingress for
+original inert payload capture. Parsing and retained CEM source construction run
+inside the processing owner; no AST record or debug reload/reparse round trip
+intervenes. This ingress supplies one requesting source with no bindings or grants
+and rejects injected authority metadata. Existing CEMB source sessions retain
+their explicit host bindings/grants. Capture retains original lexical bindings
+and effective bounds. Query filtering
 reuses the captured source session; source replacement or authorization loss
 invalidates it and any dependent publication/commit proof. The opt-in is host
 policy, excluded from source attributes and durable resume state.

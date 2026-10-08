@@ -40,6 +40,7 @@ import initCemQlWasm, {
     exportCemJsonValue,
     importNativeValueArtifact,
     importReferenceReloadBundle,
+    parseReferenceSource,
     prepareNativeCapabilitySession,
     nativeCapabilitySessionLength,
     nativeSuggestionRowControls,
@@ -865,21 +866,33 @@ function nativeSessionCall<T>(call: () => T): T {
 }
 export async function prepareRetainedNativeSession(input: Extract<CemProcessingNativeSessionInput, { action: 'prepare' }>): Promise<{ id: number; length: number; suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions'] }> {
     assertProcessingBoundaryValue(input.data, 'native session control frame');
-    if (input.sources.kind !== 'cem-native-session-sources-v1' || 'placements' in input.sources) throw new TypeError('Invalid native session source authority');
     await ensureRuntimeReady();
-    const options: CemQlRenderOptions = { nativeAttributes: input.nativeAttributes, nativeSlices: input.nativeSlices,
-        nativeValueLimits: input.limits, elementReferenceInputs: { ...input.sources, kind: 'cem-element-reference-inputs-v1' } };
-    return nativeSessionCall(() => withNativeAttributes(options, bindings => withElementReferences(options, sources => {
-        const id = nativeSessionCall(() => prepareNativeCapabilitySession(JSON.stringify(input.data), sources ?? '', input.select, input.resolve !== false, bindings, JSON.stringify(input.limits)));
-        try {
-            const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
-            const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
-                sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;
-            return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)), ...(suggestions ? { suggestions } : {}) };
-        }
-        catch (error) { disposeNativeCapabilitySession(id); throw error; }
-    }, true)));
+    const options: CemQlRenderOptions = { nativeAttributes: input.nativeAttributes, nativeSlices: input.nativeSlices, nativeValueLimits: input.limits };
+    const prepare = (sources: string | undefined): { id: number; length: number; suggestions?: Extract<CemProcessingNativeSessionResult, { status: 'ready' }>['suggestions'] } =>
+        nativeSessionCall(() => withNativeAttributes(options, bindings => {
+            const id = nativeSessionCall(() => prepareNativeCapabilitySession(JSON.stringify(input.data), sources ?? '', input.select, input.resolve !== false, bindings, JSON.stringify(input.limits)));
+            try {
+                const prepared = input.adapter ? JSON.parse(nativeSessionCall(() => prepareNativeSuggestions(id))) as { identity: string; rows: number; groups: number; diagnostics: { code: string; message: string; severity: 'warning'; sourceMap: unknown }[] } : undefined;
+                const suggestions = prepared ? { ...prepared, diagnostics: prepared.diagnostics.map(d => ({ code: d.code, message: d.message, severity: d.severity,
+                    sourceMapRef: { fidelity: 'author-byte-exact', frame: `native-source:${JSON.stringify(d.sourceMap)}` } as SourceMapRef })) } : undefined;
+                return { id, length: nativeSessionCall(() => nativeCapabilitySessionLength(id)), ...(suggestions ? { suggestions } : {}) };
+            } catch (error) { disposeNativeCapabilitySession(id); throw error; }
+        }));
+    if (input.sources.kind === 'cem-native-session-import-v1') {
+        const source = input.sources;
+        if (!(source.bytes instanceof ArrayBuffer) || source.contentType !== 'application/xml' || typeof source.sourceUri !== 'string'
+            || !source.sourceUri || source.sourceUri.length > 4096 || source.bytes.byteLength > input.limits.maxBytes
+            || 'grants' in source || 'bindings' in source || 'placements' in source) throw new TypeError('Invalid bounded native source import');
+        const id = nativeSessionCall(() => parseReferenceSource(new Uint8Array(source.bytes), source.contentType, source.sourceUri,
+            JSON.stringify({ maxBytes: input.limits.maxBytes, maxNodes: input.limits.maxValues })));
+        try { return prepare(JSON.stringify({ requesting: 0, sources: [{ sourceId: id, context: true }], bindings: [], grants: [] })); }
+        finally { disposeReferenceSource(id); }
+    }
+    if (input.sources.kind !== 'cem-native-session-sources-v1' || 'placements' in input.sources) throw new TypeError('Invalid native session source authority');
+    options.elementReferenceInputs = { ...input.sources, kind: 'cem-element-reference-inputs-v1' };
+    return withElementReferences(options, prepare, true);
 }
+
 export function releaseRetainedNativeSession(id: number): void { disposeNativeCapabilitySession(id); }
 export async function processRetainedSuggestionsPublication(id: number, input: Extract<CemProcessingNativeSessionInput,
     { action: 'publish-suggestions' | 'release-suggestions' | 'render-suggestions-frame' | 'suggestions-rows' }>): Promise<CemProcessingNativeSessionResult> {

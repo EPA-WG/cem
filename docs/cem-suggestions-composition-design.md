@@ -63,7 +63,7 @@ The adopted [local host authorization](cem-suggestions-attachment-design.md#loca
 policy lets an explicitly opted-in runtime prepare the local source and issue
 exact editor/listbox/row grants through the shared adapter. It remains inactive
 without host authorization; external bindings still need their own admissions.
-The adapter is pending implementation, while explicit host hooks remain available.
+The shared local adapter is implemented, while explicit host hooks remain available.
 The consumer may generate DOM IDs for accessible relationships; the runtime
 context and suggestion source need no authored root IDs.
 
