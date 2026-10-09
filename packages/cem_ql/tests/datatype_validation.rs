@@ -954,3 +954,6 @@ fn original_candidate_supplies_fallback_attribution_for_source_less_diagnostics(
 
 #[path = "datatype_validation/compilation.rs"]
 mod compilation;
+
+#[path = "datatype_validation/shipped.rs"]
+mod shipped;

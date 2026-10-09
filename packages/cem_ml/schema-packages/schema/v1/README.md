@@ -217,6 +217,30 @@ Constants are prepared once per token, then checked against all effective rules
 and inherited vocabularies. Runtime equality shares the existing comparison
 budget. Neither capability invokes conversion or changes `@values` token syntax.
 
+## Shipped datatype compatibility capabilities
+
+`document_model::shipped_datatypes::ShippedDatatype` inventories all 18 shipped
+CEM-ML declarations as explicit host choices. Its lexical checks share existing
+document-validator predicates. `content-model` returns unavailable until a grammar
+consumer is registered. Name lists remain nonempty; symbolic values receive syntax
+checks only. URI checks currently retain the existing absolute-URI requirement.
+
+`convert_lexical` offers the existing string/boolean/integer/number conversion
+contracts, preserves original source maps and cancellation, and keeps wide integer
+lexical values intact. Other datatypes return no conversion capability.
+
+`cem_ql::datatype_shipped::register_validation` binds a chosen native validator to
+an original behavior profile with the exact `cemml:datatype:<name>` primitive and
+matching kind, representation and acceptance-result signatures. Validation never
+converts input. Lists consume already-tokenized string sequences, preserving order
+and rejecting empty sequences or items that fail their own lexical predicate. Scalar input
+representations are string, boolean, integer and decimal as declared by the
+capability. Host registration is required; matching a datatype name is insufficient.
+
+Native converter registration, retained wide-integer signature support, remaining
+lexical/list conversions and the content-model grammar consumer remain tracked in
+the [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
+
 ## Folder Contract
 
 `package.cem` is the manifest-owned index for this folder. It declares the

@@ -1530,3 +1530,42 @@ interpreter and equality registrations; local replacements cannot reinterpret
 base constants. Neither profile calls the runtime converter or changes ordinary
 attribute-local vocabulary semantics. Shipped datatype parity, executable
 attribute type integration and final design consolidation remain tracked actions.
+
+
+## Shared shipped contracts and native validation adapters
+
+Implemented 2026-10-08. `document_model::shipped_datatypes::ShippedDatatype`
+provides an explicit host-selected capability inventory matching the 18 original
+CEM-ML declarations. It shares the existing document validator predicates instead
+of introducing a second lexical grammar. `validate_lexical` returns an explicit
+unavailable outcome for `content-model`; the absence of a registered grammar is
+never successful validation. Name lists remain nonempty. Symbolic-reference
+validation checks syntax only and cannot resolve references or grant scope access.
+
+`convert_lexical` reuses the shipped string/boolean/integer/number conversion path,
+including whitespace preservation for strings, boolean normalization, integer
+normalization, finite numeric checking, original source maps and control polling.
+Other inventory members return an absent conversion capability. Unsupported
+conversion is distinct from rejection of a particular input. Arbitrarily wide
+integer text remains intact in the returned typed lexical value.
+
+`cem_ql::datatype_shipped::register_validation` binds the host's chosen capability
+to an original retained behavior profile. It requires matching kind/value/result
+signatures and the exact declared `cemml:datatype:<name>` primitive identifier.
+Authored names alone never register implementations. String-backed lexical and
+symbolic values use the shared predicates; booleans and integers require their
+typed atoms, and numbers require a finite decimal atom. List profiles receive
+ordered string values, reject empty sequences, and validate each item under its
+original lexical predicate without joining, splitting or rewriting it.
+Rejections return explicit acceptance plus diagnostics attributed by the shared
+result adapter. Runtime control and validation budgets remain the caller's.
+
+This completes shared lexical contracts and native validators, not full shipped
+conversion integration. General integer signature checks still recognize `i64`
+atoms while the existing rendering scalar view can retain wider integers. Bridging
+that retained representation without narrowing or changing the declared datatype
+is the next conversion action. Missing lexical/list converters and the concrete
+content-model grammar consumer remain open. The existing URI validator requires
+an absolute URI although declaration prose admits relative references; this
+compatibility slice preserves the validator and records reconciliation separately.
+Automatic attribute type activation stays guarded pending those parity tasks.

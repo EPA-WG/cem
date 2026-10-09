@@ -51,6 +51,22 @@ fn shipped_datatype_inventory_retains_original_declarations_and_kind_boundaries(
         .map(|id| SchemaDeclarationNode::new(owner.clone(), *id).unwrap())
         .collect();
     assert_eq!(declarations.len(), 18);
+    let shipped = cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::ALL;
+    let names: std::collections::BTreeSet<_> = declarations
+        .iter()
+        .map(|d| attribute(d, "name").unwrap())
+        .collect();
+    assert_eq!(names, shipped.iter().map(|t| t.name()).collect());
+    for datatype in shipped {
+        let declaration = declarations
+            .iter()
+            .find(|d| attribute(d, "name") == Some(datatype.name()))
+            .unwrap();
+        assert_eq!(
+            attribute(declaration, "kind").unwrap(),
+            format!("{:?}", datatype.kind()).to_ascii_lowercase()
+        );
+    }
     assert!(declarations
         .iter()
         .all(|declaration| Arc::ptr_eq(declaration.document(), &owner)));

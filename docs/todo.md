@@ -306,6 +306,45 @@ activation depends on those tasks.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
 
+- [x] Add shipped-contract parity fixtures for all 18 original declarations,
+      lexical and sequence validation, primitive normalization, wide integers,
+      unsupported grammar/conversion and explicit native validator registration.
+      Scenarios for later design verification: native validation never converts;
+      symbolic values never resolve nodes; unavailable grammar cannot report success.
+
+- [x] Expose shared shipped lexical contracts and explicitly registered native
+      validation adapters, reusing existing predicates and scalar conversion rules.
+      Scenarios for later design verification: URI validation preserves its current
+      absolute-URI rule; the broader declaration prose grants no new semantics.
+
+Verification (2026-10-08): 127 tests pass across shipped inventory/contracts,
+datatype validation, shared value contracts and schema-package lifecycle. The three
+native shipped-validator tests pass again after final list-policy review; final
+schema-package Nx verification and its CLI build prerequisite pass.
+
+- [ ] Bridge shipped string/boolean/integer/number conversion into exact native
+      datatype registrations. Preserve wide integer identity across the existing
+      retained typed scalar view, input/output signature checks and result adapters;
+      never narrow to `i64` or silently change an integer contract to decimal.
+      Add conversion, equality and constant-preparation fixtures before implementation.
+      Scenarios for later design verification: an integer outside `i64` remains an
+      integer; normalization runs once; validation-only use never calls conversion.
+
+- [ ] Complete native shipped list/item/tokenizer registrations and explicitly
+      designed lexical/URI/semver/media-type/path/symbolic conversion capabilities.
+      Existing unsupported conversion must remain explicit until each output and
+      normalization contract is adopted; no default string conversion.
+      Add end-to-end descriptor and package readiness fixtures before implementation.
+      Scenarios for later design verification: name lists remain nonempty, tokens
+      preserve order and source spans, and symbolic values confer no lookup authority.
+
+- [ ] Specify and register the shipped content-model grammar consumer, and reconcile
+      URI declaration prose (absolute or relative) with existing absolute-URI
+      validation before broadening it. Keep grammar capability unavailable meanwhile.
+      Add malformed grammar, unresolved capability and compatibility fixtures first.
+      Scenarios for later design verification: absent grammar cannot validate arbitrary
+      text; URI policy changes never arise incidentally from conversion migration.
+
 - [x] Add datatype name-catalog fixtures for forward local references, original
       per-declaration aliases, explicit exports, duplicate/ambiguous names, pending
       bindings, foreign metamodel names, bounded collection and denied scope crossings.
