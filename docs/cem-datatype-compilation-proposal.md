@@ -408,10 +408,19 @@ validation result must contain `diagnostics`, but its sequence may be empty;
 contains zero-or-one original native node. Reusing the diagnostic contract retains
 these constraints in each consuming result contract.
 
-The declaration surface, type/name binding and additional-field policy still need
-specification before implementation. Existing AST element field-contracts and
-legacy behavior result/detail contracts remain compatible. This decision adds no
-enabled source syntax, implicit behavior registration or datatype execution.
+Adopted 2026-10-08: value-contract records reject undeclared fields by default.
+An explicit schema option may allow additional fields. Allowing extensions does
+not relax the types, presence or cardinality of declared fields. A misspelled
+`soruce` field therefore fails a closed diagnostic record contract rather than
+silently selecting fallback attribution. This policy governs record-field
+validation; existing native diagnostic metadata remains preserved by its native
+adapter and is not discarded or rejected as undeclared record fields.
+
+The declaration surface and type/name binding still need specification before
+implementation, including the source form for the explicit extension option.
+Existing AST element field-contracts and legacy behavior result/detail contracts
+remain compatible. This decision adds no enabled source syntax, implicit behavior
+registration or datatype execution.
 
 ## Implemented native diagnostic query prerequisite
 

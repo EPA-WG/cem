@@ -1069,8 +1069,11 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Adopt shared value-contract declarations for reusable result/diagnostic
       records and sequence cardinality, compiled without invoking user datatype
       rules (2026-10-08).
+- [x] Reject undeclared value-contract record fields by default; permit extensions
+      only through an explicit schema option. Preserve declared-field checks and
+      native diagnostic metadata (2026-10-08).
 - [ ] Specify the shared declaration surface, field type/name binding and
-      additional-field policy, then implement the compiler with native fixtures.
+      explicit extension option, then implement the compiler with native fixtures.
 - [ ] Specify result metamodel admission and declare diagnostic field rules in the
       schema-owned contract; implement the shared adapter into the existing report
       pipeline with native fixtures for field validation and retained attribution.
@@ -1106,6 +1109,9 @@ of core reference adoption. Preserve the adopted contracts in the
 - Reusable value contracts distinguish field presence from sequence cardinality:
   a required diagnostics field may be empty, and compiling its shared shape does
   not invoke a user datatype rule or grant execution authority.
+- A misspelled undeclared record field fails by default; explicitly allowing
+  extensions does not weaken declared-field checks or strip native diagnostics of
+  their existing metadata.
 - Other reference consumers progress while executable native attribute `@type` stays
   explicitly pending; complete dependency selection alone grants no type execution.
 - Equality preserves original restriction bindings without converting or rewriting

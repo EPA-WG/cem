@@ -180,11 +180,19 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: a required diagnostics field may be
       empty; multiple behaviors reuse one diagnostic shape without copying it.
 
+- [x] Adopt rejection of undeclared value-contract record fields by default, with
+      an explicit schema option allowing extensions (2026-10-08). Keep declared
+      field constraints effective and preserve existing native diagnostic metadata.
+      Scenarios for later design verification: `soruce` fails a closed diagnostic
+      contract; an open contract still rejects an invalid declared `source` value.
+
 - [ ] Specify the shared value-contract declaration surface, field type/name
-      binding and additional-field policy before implementing its compiler. Add
+      binding and explicit extension option before implementing its compiler. Add
       native fixtures first for required-but-empty fields, optional native sources,
       nested diagnostic contracts, invalid cardinalities and retained declaration
-      identity; preserve existing element field-contract and behavior metadata.
+      identity. Cover default rejection of undeclared fields, explicit extensions
+      without weakened declared-field checks, and preserved native diagnostic
+      metadata; preserve existing element field-contract and behavior metadata.
       Scenarios for later design verification: unknown contracts do not become
       untyped fallbacks; compiling shape metadata never invokes user datatype rules.
 
