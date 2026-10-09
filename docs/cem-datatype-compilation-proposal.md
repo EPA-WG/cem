@@ -10,8 +10,10 @@ are per registered capability. Derived declarations inherit an omitted kind from
 a resolved base, with explicit list kind for item-base semantics. Whitespace-token
 `@values` authoring is adopted; richer retained constants are deferred. Exact signatures and
 remaining kind contracts need decisions. Datatype validation inputs use the adopted
-fixed names `value`, `datatype` and `candidate`. General datatype compilation must be
-designed before enabling native attribute `@type` consumption.
+fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
+CEM-QL records under a dedicated contract enforced at the consumer boundary;
+candidate cardinality must be visible to compilation. General datatype compilation
+must be designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
@@ -271,7 +273,8 @@ failed execution. An implementation cannot claim completeness for a missing
 dependency or extend scope grants. Conversion continues to use a distinct
 capability with declared typed output, followed by every effective restriction.
 Datatype validation parameter names are fixed by the adopted input-role contract
-below. Concrete metamodel types and result bindings remain to be specified.
+below. Result construction and boundary checks follow the adopted contract below;
+concrete metamodel admission and diagnostic representation remain to be specified.
 
 ## Adopted validation result protocol
 
@@ -309,10 +312,52 @@ The result cannot be supplied through an unvalidated legacy object shape.
 
 This protocol is adopted but not enabled. Specify the registered validation
 adapter's metamodel type names, diagnostic element representation, input
-signatures and compatibility boundary before invocation. Existing diagnostic-only behaviors require an explicit adapter
-with a declared validity mapping; they do not acquire datatype compatibility just
-because their result has diagnostic metadata. No JSON record substitutes for a
-retained candidate or datatype node.
+signatures and compatibility boundary before invocation. Existing diagnostic-only
+behaviors require an explicit adapter with a declared validity mapping; they do
+not acquire datatype compatibility just because their result has diagnostic
+metadata. No JSON record substitutes for a retained candidate or datatype node.
+
+## Adopted result construction and consumer boundary
+
+Adopted 2026-10-08: the dedicated validation result contract permits ordinary
+CEM-QL record construction. A special constructor is optional. The registered
+rule must declare the contract; it is checked statically where possible and
+enforced at the consumer boundary for CEM-QL and native implementations alike.
+
+Each completed invocation returns exactly one result. Its required `accepted`
+field contains exactly one boolean, without truthiness conversion. Its required
+`diagnostics` field is a sequence of valid diagnostic values, which may be empty.
+Missing fields, incompatible values or invalid cardinality fail execution; they
+do not constitute rejection of the input value. Pending/unavailable execution
+remains outside the completed result in the consumer-owned lifecycle envelope.
+
+| Concern | Contract owner |
+| --- | --- |
+| Authority to execute a datatype rule | Explicit capability registration and retained behavior/owner identity |
+| Correctness of the returned value | Declared result contract, static checks where possible and runtime boundary checks |
+| Diagnostic source attribution | Retained source handles and source-map information |
+
+Matching result fields do not register a legacy behavior or satisfy its source
+signature requirements. A constructor cannot grant execution authority or replace
+boundary checks. The dedicated type denotes the declared, enforced contract;
+construction through a particular function is not required for membership.
+
+The outer result record is newly produced validation information. Constructing it
+does not project the candidate or datatype AST into records. Original node handles
+retain their owners and identity throughout invocation and reporting.
+
+The shared diagnostic contract must cover severity, message/code and attribution.
+The existing native diagnostic view retains source maps but exposes only part of
+the diagnostic information; it is a foundation, not a complete datatype diagnostic
+API. Existing diagnostics preserve their original attribution. Newly produced
+diagnostics may use the consumer's available input attribution without fabricating
+a candidate. Concrete diagnostic representation and metamodel admission remain
+open work; this decision does not require a new result constructor or introduce
+new type literals.
+
+Implement the registered signature and result validator first, then connect
+CEM-QL construction and native implementations to that shared contract. Checking
+rule results must not recursively invoke the unfinished general datatype compiler.
 
 ## Adopted general list emptiness
 
@@ -440,15 +485,21 @@ Missing a required `candidate` leaves execution unavailable; do not manufacture
 a node or infer acceptance. Adopted 2026-10-08: an optional `candidate` is a
 zero-or-one native node sequence, empty when absent and containing the original
 input node when present. Multiple nodes violate this input contract. Absence is
-not a null/object placeholder or a fabricated node. The concrete signature must
-express this cardinality; this decision does not enable an optional-argument
-convention in the existing function engine.
+not a null/object placeholder or a fabricated node.
+
+Adopted 2026-10-08: the registered signature records zero-or-one candidate
+cardinality for an optional input and exactly-one for a required input. Compilation
+checks the source declaration against that signature; runtime enforces actual
+cardinality. General CEM-QL cardinality syntax may remain deferred without hiding
+this requirement from compilation. An empty candidate value does not imply an
+omitted function argument. Missing a required candidate remains unavailable, as
+specified above.
 
 Completed validation returns explicit acceptance plus attributed diagnostics.
 Validation cannot replace `value`; conversion remains a separate capability.
-The decision fixes validation input names, not a conversion ABI, parameter order,
-new metamodel type literals or result construction syntax. Those remaining
-contracts must be specified before enabling invocation.
+The decision fixes validation input names and candidate cardinality. Conversion
+ABI, parameter order and concrete metamodel admission remain separate work;
+validation invocation remains guarded until its required contracts are ready.
 
 ## Typed adapter signature requirements
 
@@ -461,11 +512,11 @@ values through legacy object parameters.
 | Binding | Required representation | Compiler/runtime check |
 | --- | --- | --- |
 | Datatype | Original retained named `{type}` declaration | Declaring identity, lexical scope and registered capability ownership |
-| `candidate` | Original retained input node; zero-or-one native node sequence when optional | Check native identity and cardinality; missing required input is unavailable |
+| `candidate` | Original retained input node; zero-or-one when optional, exactly-one when required | Compiler checks source against registered cardinality; runtime checks native identity and count; missing required input is unavailable |
 | `value` (scalar/lexical/grammar/symbolic) | Declared scalar representation | Registered input type; no inferred primitive from a local name |
 | `value` (list) | Ordered typed item sequence | Registered item contract and sequence type |
 | `value` (node) | Ordered retained target sequence | Original owners and permitted native view |
-| Validation result | Dedicated typed result with required boolean `accepted` and sequence `diagnostics` | Empty diagnostics allowed; missing/mistyped fields fail execution |
+| Validation result | Exactly one result under the dedicated contract; ordinary CEM-QL record construction allowed | Required singleton boolean `accepted` and sequence `diagnostics`; static checks where possible and runtime boundary checks |
 | Conversion result | Declared canonical scalar/items/native representation | Separate explicit capability; all effective restrictions validate the result |
 
 A registry entry must declare which of these capabilities and required inputs it

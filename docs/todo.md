@@ -129,10 +129,20 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: absent candidates need no fabricated
       node; validity remains independent of diagnostic severity.
 
+- [x] Adopt ordinary CEM-QL record construction under the dedicated validation
+      result contract, with static checks where possible and mandatory consumer
+      boundary checks (2026-10-08). Constructors are optional; execution authority
+      remains with registered capabilities and retained behavior/owner identity.
+      Make candidate cardinality visible to compilation through registered signatures.
+      Scenarios for later design verification: a matching legacy record grants no
+      execution authority; an empty candidate value does not change function arity.
+
 - [ ] Add native signature/invocation fixtures after concrete metamodel types and
-      result metamodel admission is specified: reject renamed/inferred roles, retain original
-      datatype/candidate owners, and cover source-less rules with and without a
+      result metamodel admission are specified: reject renamed/inferred roles,
+      retain original datatype/candidate owners, and cover source-less rules with and without a
       required candidate. Check optional candidates with zero, one and multiple nodes.
+      Check source-declaration compatibility with registered zero-or-one/exactly-one
+      candidate cardinality, independently of optional-argument syntax.
       Keep executable native attribute `@type` guarded.
       Scenarios for later design verification: role naming supplies no scope grants;
       scalar, list and node values preserve their registered representations.
@@ -156,14 +166,30 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
 
-- [ ] Specify validation result metamodel admission, construction and diagnostic
-      element representation, plus an explicit compatibility adapter for
-      diagnostic-only behaviors with a declared acceptance mapping.
-      Add native fixtures before implementation for required `accepted`/`diagnostics`
-      fields, wrong field types, empty diagnostics, acceptance/severity independence,
-      cumulative rejection and retained source attribution.
+- [ ] Specify the shared diagnostic contract and metamodel representation for
+      severity, message/code and attribution, using the existing native view as a
+      foundation. Add native fixtures before implementation for retained attribution
+      and newly produced diagnostics with source-less consumer input attribution.
+      Scenarios for later design verification: no diagnostic requires a fabricated
+      candidate; existing source maps survive construction and consumption.
+
+- [ ] Specify validation result metamodel admission, then implement the registered
+      signature and result validator before binding CEM-QL/native implementations.
+      Add native fixtures first for zero/one/multiple results, required fields,
+      singleton boolean `accepted` without truthiness conversion, invalid diagnostic
+      entries, empty diagnostics, acceptance/severity independence, cumulative
+      rejection and retained source attribution. Check results without recursively
+      invoking the unfinished general datatype compiler.
       Scenarios for later design verification: an accepted rule cannot erase another
       restriction's rejection; lifecycle incompleteness cannot masquerade as success.
+
+- [ ] Connect ordinary CEM-QL result construction and native implementations to the
+      shared validator; specify an explicit diagnostic-only compatibility adapter
+      with a declared acceptance mapping. Add parity fixtures before wiring both
+      paths, including a matching legacy record from an unregistered behavior.
+      Scenarios for later design verification: constructors are optional; matching
+      fields never bypass capability registration or source signature checks;
+      result construction leaves original candidate and datatype handles intact.
 
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
