@@ -1,12 +1,13 @@
-//! Discover literal schema members using captured names and source-position QName
-//! contexts. Native collection slots remain explicit pending consumer work.
+//! Discover schema members using captured names and bounded native collection selection.
 use super::*;
 use crate::schema_references::CemQlSchemaDeclarationHost;
 use cem_ml::schema::{
     datatype_registry::{DatatypeDependencyValue, DatatypeRegistry, DatatypeRegistryError},
     machine::LexicallyScopedDocument,
+    reference_traversal::ReferenceTraversalLimits,
 };
 use std::sync::Arc;
+mod selection;
 #[derive(Debug, Clone)]
 pub struct DatatypeSchemaSource {
     pub schema: SchemaDeclarationNode,
@@ -102,71 +103,92 @@ impl DatatypeNameCatalog {
     pub fn discover(
         inputs: &[DatatypeSchemaSource],
         host: &mut CemQlSchemaDeclarationHost,
-        mut limits: DatatypeNameLimits,
+        limits: DatatypeNameLimits,
     ) -> Result<Self, DatatypeNameError> {
-        let mut scopes = vec![];
-        for input in inputs {
+        if inputs.is_empty() {
+            return Ok(Self::default());
+        }
+        Self::discover_with_limits(
+            inputs,
+            host,
+            limits,
+            ReferenceTraversalLimits::schema_defaults().map_err(|_| {
+                pending("datatype-selection-defaults-unavailable", &inputs[0].schema)
+            })?,
+        )
+    }
+
+    /// Native collection slots run at this explicit consumer stage, under one
+    /// request per selected schema and a shared remaining request work budget.
+    /// Selected declarations retain their original supplied schema environment.
+    pub fn discover_with_limits(
+        inputs: &[DatatypeSchemaSource],
+        host: &mut CemQlSchemaDeclarationHost,
+        mut limits: DatatypeNameLimits,
+        mut traversal: ReferenceTraversalLimits,
+    ) -> Result<Self, DatatypeNameError> {
+        let mut indices = BTreeMap::new();
+        // Attach every supplied owner's immutable names before selecting across owners.
+        for (index, input) in inputs.iter().enumerate() {
             spend(&mut limits, 0, &input.schema)?;
             if !Arc::ptr_eq(input.schema.document(), input.captured.document()) {
                 return Err(error("datatype-capture-owner", &input.schema));
+            }
+            if indices.insert(input.schema.identity(), index).is_some() {
+                return Err(error("duplicate-datatype-name-scope", &input.schema));
             }
             host.attach_captured_names(&input.captured)
                 .map_err(|_| pending("datatype-source-owner-unavailable", &input.schema))?;
             if !named(host, &input.schema, "schema")? {
                 return Err(error("datatype-schema-required", &input.schema));
             }
+        }
+        let mut members = vec![BTreeMap::new(); inputs.len()];
+        let mut environments = vec![];
+        for input in inputs {
             let namespace = field(host, &input.schema, "namespace", &mut limits)?
                 .ok_or_else(|| error("datatype-schema-namespace-required", &input.schema))?
                 .0;
-            let mut declarations = vec![];
+            let (types, entries) =
+                selection::collections(input, host, &mut limits, &mut traversal)?;
             let mut uses = BTreeMap::<String, (String, SchemaDeclarationNode)>::new();
-            let mut types = vec![];
-            for collection in children(&input.schema, &mut limits)? {
-                if !matches!(collection.node(), CemAstNode::Element { .. }) {
-                    return Err(
-                        if matches!(collection.node(), CemAstNode::Reference { .. }) {
-                            pending("datatype-schema-selection-unavailable", &collection)
-                        } else {
-                            error("datatype-schema-content", &collection)
-                        },
-                    );
+            for entry in entries {
+                if !matches!(entry.node(), CemAstNode::Element { .. }) {
+                    return Err(error("datatype-use-content", &entry));
                 }
-                if named(host, &collection, "types")? {
-                    types.extend(children(&collection, &mut limits)?);
-                } else if named(host, &collection, "uses")? {
-                    for entry in children(&collection, &mut limits)? {
-                        if !matches!(entry.node(), CemAstNode::Element { .. }) {
-                            return Err(if matches!(entry.node(), CemAstNode::Reference { .. }) {
-                                pending("datatype-use-selection-unavailable", &entry)
-                            } else {
-                                error("datatype-use-content", &entry)
-                            });
-                        }
-                        if !named(host, &entry, "use")? {
-                            return Err(error("datatype-use-required", &entry));
-                        }
-                        let (alias, origin) = field(host, &entry, "as", &mut limits)?
-                            .ok_or_else(|| error("datatype-use-alias-required", &entry))?;
-                        if !local(&alias) {
-                            return Err(error("invalid-datatype-prefix", &origin));
-                        }
-                        let uri = field(host, &entry, "schema", &mut limits)?
-                            .ok_or_else(|| error("datatype-use-schema-required", &entry))?
-                            .0;
-                        if let Some((old, source)) = uses.get(&alias) {
-                            if old != &uri {
-                                return Err(DatatypeNameError {
-                                    related: Some(source.clone()),
-                                    ..error("conflicting-datatype-use", &origin)
-                                });
-                            }
-                        }
-                        uses.insert(alias, (uri, origin));
+                if !named(host, &entry, "use")? {
+                    return Err(error("datatype-use-required", &entry));
+                }
+                original_input(&entry, inputs, &indices, host)?;
+                let (alias, origin) = field(host, &entry, "as", &mut limits)?
+                    .ok_or_else(|| error("datatype-use-alias-required", &entry))?;
+                if !local(&alias) {
+                    return Err(error("invalid-datatype-prefix", &origin));
+                }
+                let uri = field(host, &entry, "schema", &mut limits)?
+                    .ok_or_else(|| error("datatype-use-schema-required", &entry))?
+                    .0;
+                if let Some((old, source)) = uses.get(&alias) {
+                    if old != &uri {
+                        return Err(DatatypeNameError {
+                            related: Some(source.clone()),
+                            ..error("conflicting-datatype-use", &origin)
+                        });
                     }
                 }
+                uses.insert(alias, (uri, origin));
             }
-            let mut registry = DatatypeRegistry::default();
             for declaration in types {
+                let index = original_input(&declaration, inputs, &indices, host)?;
+                members[index].insert(declaration.identity(), declaration);
+            }
+            environments.push((namespace, uses));
+        }
+        let mut scopes = vec![];
+        for ((input, types), (namespace, uses)) in inputs.iter().zip(members).zip(environments) {
+            let mut declarations = vec![];
+            let mut registry = DatatypeRegistry::default();
+            for declaration in types.into_values() {
                 if input
                     .captured
                     .namespace_binding(declaration.document(), declaration.node_id())
@@ -268,4 +290,22 @@ impl DatatypeNameCatalog {
         }
         Self::collect(&scopes, host, limits)
     }
+}
+
+fn original_input(
+    node: &SchemaDeclarationNode,
+    inputs: &[DatatypeSchemaSource],
+    indices: &BTreeMap<String, usize>,
+    host: &CemQlSchemaDeclarationHost,
+) -> Result<usize, DatatypeNameError> {
+    let schema = host
+        .declaration_schema(node)
+        .ok_or_else(|| pending("datatype-selected-schema-unavailable", node))?;
+    let index = *indices
+        .get(&schema.identity())
+        .ok_or_else(|| pending("datatype-selected-schema-unavailable", node))?;
+    if !Arc::ptr_eq(node.document(), inputs[index].captured.document()) {
+        return Err(error("datatype-capture-owner", node));
+    }
+    Ok(index)
 }

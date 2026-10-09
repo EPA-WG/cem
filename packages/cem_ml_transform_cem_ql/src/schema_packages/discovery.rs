@@ -51,10 +51,12 @@ impl CemQlSchemaPackageCompiler {
                     "Datatype discovery omitted the package source owner",
                 )]);
             }
-            let catalog = match DatatypeNameCatalog::discover(&inputs, host, name_limits) {
-                Ok(catalog) => Arc::new(catalog),
-                Err(error) => return Ok(incomplete(request, error)),
-            };
+            let catalog =
+                match DatatypeNameCatalog::discover_with_limits(&inputs, host, name_limits, limits)
+                {
+                    Ok(catalog) => Arc::new(catalog),
+                    Err(error) => return Ok(incomplete(request, error)),
+                };
             let declarations = catalog.sources().cloned().collect::<Vec<_>>();
             if let Err(reason) = host.install_datatype_names(catalog) {
                 let source = inputs[0].schema.clone();
@@ -65,6 +67,7 @@ impl CemQlSchemaPackageCompiler {
                         source,
                         related: None,
                         pending: reason == "unregistered-datatype-owner",
+                        diagnostics: vec![],
                     },
                 ));
             }
@@ -89,6 +92,7 @@ fn incomplete(
     error: DatatypeNameError,
 ) -> DatatypeCompilation {
     let mut compilation = DatatypeCompilation::new(request.source.ast_owner().clone());
+    compilation.diagnostics = error.diagnostics;
     compilation.issues.push(DatatypeCompilationIssue {
         code: error.code,
         state: if error.pending {

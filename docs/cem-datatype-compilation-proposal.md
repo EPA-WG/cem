@@ -75,8 +75,8 @@ conversion of scalar values from retained node validation.
    distinct datatype declarations claiming the same name in one lexical schema;
    repeated selection of the same original declaration is valid.
 2. Bind literal local/QName names through the declaration's own schema and
-   declared exports. Native selection uses the shared lifecycle resolver and
-   requires exactly one named `{type}` target. Do not infer URL lookup or grants.
+   declared exports. Native dependency selection uses the shared lifecycle resolver
+   and requires exactly one named `{type}` target. Do not infer URL lookup or grants.
 3. Build a bounded dependency graph without recursive source expansion. Bases,
    item contracts and native chains share the enclosing request and destination
    budgets, active link identities and explicit scope-crossing rules.
@@ -1055,8 +1055,7 @@ work budget, including descriptor compilation. Scope grants, destination limits,
 cycles and incomplete dependency states remain owned by the shared resolver.
 Literal names enter through an explicit immutable namespace/export catalog or the
 legacy original-scope binding API. The catalog implementation is described below;
-literal schema/package discovery is implemented below; native collection selection
-remains separate pending work.
+literal and native schema/package collection discovery are implemented below.
 Native `@base`/`@rule` targets retain their original owners and source attributes.
 
 The host registers a kind, typed representation, accepted cross-kind bases,
@@ -1302,8 +1301,8 @@ and publishes no partial catalog. These discovery bounds are separate from, and 
 not reset, the later shared dependency traversal budgets. Consumers must supply a
 fresh catalog when lexical environments or admitted exports change. This adds no
 authored import/export syntax and does not infer effective aliases from raw source
-strings. Connecting schema/package source discovery to these inputs, completing
-metamodel admission and migrating shipped datatype implementations remain in `todo.md`.
+strings. Schema/package source discovery now connects to these inputs below;
+metamodel admission and shipped datatype migration remain in `todo.md`.
 
 
 ## Implemented literal source discovery and package handoff
@@ -1333,8 +1332,8 @@ adapter is extended. No AST or internal binary codec changes are required.
 
 Source scanning and catalog construction spend one caller-supplied discovery budget.
 Duplicate declarations/aliases, malformed fields and content are reported at their
-original nodes; collisions retain the related original declaration. Native collection
-slots and nonliteral schema fields remain explicit pending discovery work. No slot
+original nodes; collisions retain the related original declaration. Nonliteral schema
+fields and schema-level collection replacement remain pending discovery work. No slot
 is silently dropped or treated as an empty declaration collection. External schemas
 and their public export contracts remain explicit host inputs; a URI is never a
 request for implicit loading or a grant of access.
@@ -1347,5 +1346,48 @@ errors become inspectable datatype compilation issues on the candidate owner.
 Every discovered declaration remains in the compilation's required source set, so
 a callback cannot certify readiness by omitting an unsupported type. The existing
 package gates preserve the last complete schema, converters and artifacts together
-until the new candidate is ready. Native collection selection, XML literal capture,
+until the new candidate is ready. XML literal capture,
 remaining metamodel admission and shipped datatype parity stay actionable in `todo.md`.
+
+
+## Implemented native datatype discovery collections
+
+`DatatypeNameCatalog::discover` now consumes native reference slots inside `types`
+and `uses`. A slot accepts zero or more original `type` or `use` declarations,
+respectively. Reference chains resolve through the shared lifecycle resolver;
+selected declaration descendants stay authored. A selected container is not a
+request to splice or recursively discover its contents. General expression slots
+and schema-level collection replacement are not newly admitted.
+
+All `types`/`uses` slots for one schema run in one consumer traversal, sharing
+request and effective destination limits, directed crossing checks and active
+reference identities. `discover_with_limits` accepts explicit traversal bounds;
+`discover` uses the standard schema defaults. Across supplied schemas, discovery
+carries forward the remaining request work cap. Destination accounting belongs
+to each schema's traversal. Scanning, traversal and catalog construction also
+spend the shared name-collection work budget. Package discovery passes the host's
+explicit traversal limits; descriptor compilation remains its own bounded stage.
+
+All supplied original owners' name metadata is attached before selection. Each
+selected datatype must have its original declaring schema among the supplied
+`DatatypeSchemaSource` inputs. It is collected under that original schema, using
+that schema's selected `uses` and the declaration's captured attribute namespaces.
+Missing original schema input keeps discovery pending. Selecting a vendor type
+does not introduce a local-name alias in the consuming schema. Public QName lookup
+still requires explicit `DatatypeExport` mappings, and exports do not grant
+crossings. Selected `use` declarations contribute their explicit literal alias/URI
+pair to the consuming schema's alias collection without rewriting their source.
+
+Repeated selection of one original datatype reuses its handle; distinct local
+name collisions remain errors. Empty completed selection is valid. Pending,
+unresolved, denied, cyclic, invalid and budget-limited selections cannot publish a
+complete catalog, even when other slots yield usable nodes. Errors retain their
+original failing source when available and retain original query/traversal diagnostics
+through package compilation. A pending sibling cannot hide an invalid
+or forbidden branch. No targets are written into source references.
+
+Fixtures cover original vendor environments and export visibility, selected aliases,
+repeated handles, retained descendants, nested chains, scope denial, depth/work
+bounds and empty/pending/invalid outcomes. The package fixture retries the same
+retained candidate after its native slot becomes ready, preserving the previous
+schema/converters/artifacts until the complete replacement can activate.

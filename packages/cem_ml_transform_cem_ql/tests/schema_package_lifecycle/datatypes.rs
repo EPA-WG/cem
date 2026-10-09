@@ -425,10 +425,13 @@ fn discovered_compiler(name: &str) -> CemQlSchemaPackageCompiler {
     discovered_compiler_mode(name, false)
 }
 fn discovered_compiler_mode(name: &str, omit: bool) -> CemQlSchemaPackageCompiler {
+    discovered_native_compiler(name, omit, false)
+}
+fn discovered_native_compiler(name: &str, omit: bool, ready: bool) -> CemQlSchemaPackageCompiler {
     use cem_ql::datatype_names::DatatypeSchemaSource;
     compiler(Some(name)).with_datatype_discovery(
         Default::default(),
-        |request, _| {
+        move |request, host| {
             let owner = request.source.ast_owner();
             let schema = owner
                 .nodes
@@ -447,6 +450,23 @@ fn discovered_compiler_mode(name: &str, omit: bool) -> CemQlSchemaPackageCompile
                     _ => None,
                 })
                 .unwrap();
+            use cem_ml::{schema::declaration_references::SchemaDeclarationHost, value::reference_resolution::ReferenceResolutionHost};
+            let parent = host.scope(&host.source_reference(schema.clone())).unwrap();
+            for node in &owner.nodes {
+                if let CemAstNode::Reference { node_id, expression, .. } = node {
+                    if expression != "#types" { continue; }
+                    let evaluation = ready.then(|| {
+                        let target = owner.nodes.iter().find_map(|node| match node {
+                            CemAstNode::Element {node_id, expanded_name, attributes, ..}
+                                if expanded_name.local_name == "type" && attributes.iter().any(|id| matches!(owner.get(*id), Some(CemAstNode::Attribute {value: Some(v), ..}) if v == "base")) => Some(*node_id),
+                            _ => None,
+                        }).unwrap();
+                        StandaloneExpressionContext::default().with_binding("types", StandaloneExpressionBinding::any(ItemStream::once(RetainedCemNode::new(request.source.clone(), target).unwrap().query_item())))
+                    });
+                    let lexical = host.register_lexical_scope(parent, evaluation, ReferenceScopePolicy::schema_defaults().unwrap()).unwrap();
+                    assert!(host.assign_subtree_scope(&request.source, *node_id, lexical));
+                }
+            }
             Ok(vec![DatatypeSchemaSource {
                 schema,
                 captured: request.lexical_scopes.clone(),
@@ -509,7 +529,12 @@ fn discovered_source_bindings_gate_package_publication_and_ready_retry() {
     context.schema_package_compiler = Some(Arc::new(discovered_compiler("old")));
     load(&mut context, &input());
     assert_active(&context, "old", "runtime-converter", "old.cemt");
-    let replacement_source = authored.replace("{type @name=base @kind=scalar}", "{#types}");
+    let replacement_source = authored
+        .replace("{type @name=base @kind=scalar}", "{#types}")
+        .replace(
+            "{elements |",
+            "{library | {type @name=base @kind=scalar}} {elements |",
+        );
     set_source(&mut context, &replacement_source);
     let mut replacement = input();
     replacement.bytes = MANIFEST
@@ -532,11 +557,16 @@ fn discovered_source_bindings_gate_package_publication_and_ready_retry() {
         .as_ref()
         .unwrap();
     assert!(!pending.is_ready());
-    assert_eq!(
-        pending.issues[0].code,
-        "datatype-collection-selection-unavailable"
-    );
+    assert_eq!(pending.issues[0].code, "datatype-selection-pending");
     assert!(pending.matches_owner(candidate.ast_owner()));
+    context.schema_package_compiler =
+        Some(Arc::new(discovered_native_compiler("new", false, true)));
+    load(&mut context, &replacement);
+    assert!(Arc::ptr_eq(
+        &candidate,
+        context.schema_package_sources.get(SOURCE_URI).unwrap()
+    ));
+    assert_active(&context, "new", "new-converter", "new.cemt");
     set_source(&mut context, &authored);
     load(&mut context, &replacement);
     assert_active(&context, "new", "new-converter", "new.cemt");
@@ -553,6 +583,24 @@ fn discovered_source_bindings_gate_package_publication_and_ready_retry() {
     assert_eq!(omitted.sources.len(), 2);
     assert!(!omitted.is_ready());
     context.schema_package_compiler = Some(Arc::new(discovered_compiler("new")));
+    set_source(&mut context, &replacement_source.replace("#types", "#1 +"));
+    let diagnostics =
+        load_schema_package_manifest_into_context(&mut context, &replacement).unwrap();
+    let invalid = context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .datatype_compilation
+        .as_ref()
+        .unwrap();
+    assert!(!invalid.is_ready());
+    assert!(!invalid.diagnostics.is_empty());
+    for original in &invalid.diagnostics {
+        assert!(diagnostics.iter().any(|d| d.code == original.code
+            && d.message == original.message
+            && d.uri.as_deref() == Some(SOURCE_URI)));
+    }
+    assert_active(&context, "new", "new-converter", "new.cemt");
     set_source(
         &mut context,
         &authored.replace(

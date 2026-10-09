@@ -295,7 +295,7 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: native discovery collection slots, checked source/query
+Next implementation order: XML literal namespace capture, checked source/query
 capability adapters, then shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
@@ -331,12 +331,22 @@ automatic attribute type activation depend on those tasks.
       Scenarios for later design verification: source discovery grants no exports,
       runtime contexts or implementation authority; declarations keep original owners.
 
-- [ ] Add bounded native selection for schema `types`/`uses` collection slots to
+- [x] Add native datatype-discovery fixtures for original owner/alias retention,
+      explicit exports and crossing grants, selected `uses`, empty versus pending
+      results, wrong targets, cycles, retained query diagnostics and shared bounds.
+      Scenarios for later design verification: repeated collection slots cannot
+      replenish work; incomplete discovery never replaces the active package.
+
+- [x] Add bounded native selection for schema `types`/`uses` collection slots to
       source discovery, preserving each selected declaration's original schema and
-      captured aliases. Add fixture actions before admitting those slots; literal
-      collections and the opt-in package discovery path are implemented.
+      captured aliases. Collection slots share request/destination traversal bounds;
+      package retries retain the candidate and last complete active package.
       Scenarios for later design verification: an unresolved collection never
-      disappears from readiness; a selected vendor source needs explicit exports/grants.
+      disappears from readiness; vendor selection needs a crossing grant, and QName
+      exposure still needs an explicit export. Descendant references remain authored.
+
+Verification (2026-10-08): 118 native datatype, declaration-reference and package
+lifecycle tests pass; Nx schema-package verification passes with its CLI build.
 
 - [ ] Add literal attribute namespace capture to imported XML schema sources before
       enabling their automatic QName discovery. Missing metadata stays pending;

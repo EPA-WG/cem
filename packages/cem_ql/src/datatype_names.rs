@@ -55,6 +55,8 @@ pub struct DatatypeNameError {
     pub source: SchemaDeclarationNode,
     pub related: Option<SchemaDeclarationNode>,
     pub pending: bool,
+    /// Original expression and traversal diagnostics from native discovery.
+    pub diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
 }
 fn error(code: &'static str, source: &SchemaDeclarationNode) -> DatatypeNameError {
     DatatypeNameError {
@@ -62,6 +64,7 @@ fn error(code: &'static str, source: &SchemaDeclarationNode) -> DatatypeNameErro
         source: source.clone(),
         related: None,
         pending: false,
+        diagnostics: vec![],
     }
 }
 fn local(value: &str) -> bool {

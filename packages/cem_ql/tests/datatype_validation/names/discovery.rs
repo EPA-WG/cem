@@ -109,8 +109,8 @@ fn discovery_does_not_ignore_native_collection_slots_or_duplicate_declarations()
     for (types, code, pending) in [
         (
             "{#library}",
-            "datatype-collection-selection-unavailable",
-            true,
+            "datatype-selection-invalid",
+            false,
         ),
         (
             "{type @name=same @kind=scalar}{type @name=same @kind=scalar}",
@@ -125,6 +125,7 @@ fn discovery_does_not_ignore_native_collection_slots_or_duplicate_declarations()
             DatatypeNameCatalog::discover(&[input], &mut host, Default::default()).unwrap_err();
         assert_eq!(error.code, code);
         assert_eq!(error.pending, pending);
+        if code == "datatype-selection-invalid" { assert!(!error.diagnostics.is_empty()); }
     }
 }
 #[test]
@@ -223,3 +224,6 @@ fn discovery_consumes_only_the_current_completed_namespace_view() {
         DatatypeNameLookup::Pending(_)
     ));
 }
+
+#[path = "native.rs"]
+mod native;

@@ -1096,7 +1096,9 @@ of core reference adoption. Preserve the adopted contracts in the
       diagnostics, bounded collection and unchanged scope-crossing checks.
 - [x] Connect literal schema/package discovery to the datatype name catalog, with
       retained attribute namespace snapshots, reload metadata and pending package gates.
-- [ ] Complete native discovery collection selection and XML literal capture; implement
+- [x] Complete bounded native `types`/`uses` discovery selection, with original schema
+      environments, explicit crossing grants and retained package retry candidates.
+- [ ] Complete XML literal namespace capture; implement
       source/query conversion, equality and constant adapters; complete metamodel
       admission and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
