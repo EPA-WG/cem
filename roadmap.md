@@ -1094,7 +1094,9 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Implement immutable datatype namespace/export catalogs over original sources,
       with forward names, per-declaration aliases, explicit public names, collision
       diagnostics, bounded collection and unchanged scope-crossing checks.
-- [ ] Connect schema/package discovery to the datatype name catalog and implement
+- [x] Connect literal schema/package discovery to the datatype name catalog, with
+      retained attribute namespace snapshots, reload metadata and pending package gates.
+- [ ] Complete native discovery collection selection and XML literal capture; implement
       source/query conversion, equality and constant adapters; complete metamodel
       admission and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation

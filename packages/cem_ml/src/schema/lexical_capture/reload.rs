@@ -12,6 +12,8 @@ pub struct LexicalReloadMetadata {
     pub version: u16,
     pub payload_fingerprint: [u8; 32],
     pub occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub attribute_namespaces: BTreeMap<AstNodeId, AttributeNamespaceSnapshot>,
     pub names: BTreeMap<AstNodeId, ExpandedName>,
     pub schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     pub namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
@@ -28,6 +30,7 @@ impl LexicalReloadMetadata {
             version: LEXICAL_RELOAD_VERSION,
             payload_fingerprint,
             occurrences: capture.occurrences.clone(),
+            attribute_namespaces: capture.attribute_namespaces.clone(),
             names: capture.names.clone(),
             schema_element_forms: capture.schema_element_forms.clone(),
             namespace_bindings: capture.namespace_bindings.clone(),
@@ -68,6 +71,21 @@ impl LexicalReloadMetadata {
                     || declaration.source_node.is_some_and(|node| {
                         !matches!(document.get(node), Some(CemAstNode::Element { .. }))
                     })
+                {
+                    return Err(invalid());
+                }
+            }
+        }
+        for (&id, snapshot) in &self.attribute_namespaces {
+            if !matches!(document.get(id), Some(CemAstNode::Attribute { .. }))
+                || !snapshot.namespaces.valid_snapshot()
+            {
+                return Err(invalid());
+            }
+            for (prefix, target) in &snapshot.pending {
+                if !self.pending_namespace_declarations.get(target)
+                    .is_some_and(|d| &d.prefix == prefix)
+                    || snapshot.namespaces.binding(prefix).is_some()
                 {
                     return Err(invalid());
                 }
@@ -157,6 +175,9 @@ impl LexicalReloadMetadata {
                     .values()
                     .flat_map(|s| s.namespaces.retained_bindings().map(|b| &b.source_map)),
             )
+            .chain(self.attribute_namespaces.values().flat_map(|s| {
+                s.namespaces.retained_bindings().map(|b| &b.source_map)
+            }))
             .chain(self.occurrences.values().flat_map(|s| {
                 s.schema
                     .declared_inlines
@@ -170,6 +191,7 @@ impl LexicalReloadMetadata {
         LexicallyScopedDocument {
             document,
             occurrences: self.occurrences.clone(),
+            attribute_namespaces: self.attribute_namespaces.clone(),
             names: self.names.clone(),
             schema_element_forms: self.schema_element_forms.clone(),
             namespace_bindings: self.namespace_bindings.clone(),

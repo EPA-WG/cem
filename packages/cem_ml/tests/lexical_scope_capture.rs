@@ -372,3 +372,50 @@ fn intrinsic_namespace_attribute_names_do_not_require_an_xmlns_binding() {
         }
     }
 }
+
+#[test]
+fn literal_attribute_namespaces_retain_source_position_and_pending_shadow() {
+    let source="@ns v = urn:first\n{type @base=v:one}\n{host @xmlns:v={#namespace} | {type @base=v:two}}\n@ns v = urn:last\n{type @base=v:three}";
+    let captured = CemSchemaMachine::new(
+        CompiledSchema::cem_core(),
+        CemEventNormalizer::new(CemTokenizer::from_source(BytesSource::new(
+            SourceId(1),
+            source.as_bytes().to_vec(),
+        ))),
+    )
+    .build_with_lexical_scopes();
+    let fields = captured
+        .document()
+        .nodes
+        .iter()
+        .filter_map(|n| match n {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "base" => Some(*node_id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fields.len(), 3);
+    let first = captured
+        .attribute_namespaces(captured.document(), fields[0])
+        .unwrap();
+    assert_eq!(
+        first.namespaces.binding("v").unwrap().namespace_uri,
+        "urn:first"
+    );
+    let pending = captured
+        .attribute_namespaces(captured.document(), fields[1])
+        .unwrap();
+    assert!(pending.namespaces.binding("v").is_none());
+    assert!(pending.pending.contains_key("v"));
+    let last = captured
+        .attribute_namespaces(captured.document(), fields[2])
+        .unwrap();
+    assert_eq!(
+        last.namespaces.binding("v").unwrap().namespace_uri,
+        "urn:last"
+    );
+    assert!(last.pending.is_empty());
+}

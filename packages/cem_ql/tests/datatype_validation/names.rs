@@ -398,3 +398,6 @@ fn names_equal_namespaces_do_not_merge_independent_scopes_or_rebind_owners() {
         "conflicting-datatype-scope"
     );
 }
+
+#[path = "names/discovery.rs"]
+mod discovery;

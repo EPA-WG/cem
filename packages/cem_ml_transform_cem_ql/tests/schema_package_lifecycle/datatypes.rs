@@ -420,3 +420,153 @@ fn unprepared_vocabulary_preserves_active_package_and_retries_original_owner() {
     );
     assert_active(&context, "new", "new-converter", "new.cemt");
 }
+
+fn discovered_compiler(name: &str) -> CemQlSchemaPackageCompiler {
+    discovered_compiler_mode(name, false)
+}
+fn discovered_compiler_mode(name: &str, omit: bool) -> CemQlSchemaPackageCompiler {
+    use cem_ql::datatype_names::DatatypeSchemaSource;
+    compiler(Some(name)).with_datatype_discovery(
+        Default::default(),
+        |request, _| {
+            let owner = request.source.ast_owner();
+            let schema = owner
+                .nodes
+                .iter()
+                .find_map(|n| match n {
+                    CemAstNode::Element {
+                        node_id,
+                        expanded_name,
+                        ..
+                    } if expanded_name.local_name == "schema" => {
+                        cem_ml::schema::declaration_references::SchemaDeclarationNode::new(
+                            owner.clone(),
+                            *node_id,
+                        )
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            Ok(vec![DatatypeSchemaSource {
+                schema,
+                captured: request.lexical_scopes.clone(),
+                imports: vec![],
+            }])
+        },
+        move |request, host, sources, limits| {
+            if omit {
+                return Ok(
+                    cem_ml::schema::datatype_contracts::DatatypeCompilation::new(
+                        request.source.ast_owner().clone(),
+                    ),
+                );
+            }
+            use cem_ml::schema::{
+                datatype_registry::DatatypeKind,
+                datatype_validation::{ScalarRepresentation, ValueRepresentation},
+            };
+            use cem_ql::datatype_compilation::{
+                compile_datatypes, DatatypeImplementation, DatatypeImplementations,
+                TokenizerBinding,
+            };
+            let mut implementations = DatatypeImplementations::default();
+            for source in sources {
+                if source.attribute("kind").is_some() {
+                    implementations
+                        .register(DatatypeImplementation {
+                            source: source.clone(),
+                            kind: DatatypeKind::Scalar,
+                            representation: ValueRepresentation::Scalar(
+                                ScalarRepresentation::String,
+                            ),
+                            accepted_bases: vec![],
+                            bounds: Default::default(),
+                            tokenizer: TokenizerBinding::Absent,
+                            validator: None,
+                        })
+                        .unwrap();
+                }
+            }
+            Ok(compile_datatypes(
+                request.source.ast_owner().clone(),
+                sources,
+                host,
+                &implementations,
+                &Default::default(),
+                limits,
+            ))
+        },
+    )
+}
+#[test]
+fn discovered_source_bindings_gate_package_publication_and_ready_retry() {
+    let authored = SOURCE.replace(
+        "{elements |",
+        "{types | {type @name=derived @base=p:base} {type @name=base @kind=scalar}} {elements |",
+    );
+    let authored = format!("@ns p = https://example.test/schema/runtime/1\n{authored}");
+    let mut context = context(&authored);
+    context.schema_package_compiler = Some(Arc::new(discovered_compiler("old")));
+    load(&mut context, &input());
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let replacement_source = authored.replace("{type @name=base @kind=scalar}", "{#types}");
+    set_source(&mut context, &replacement_source);
+    let mut replacement = input();
+    replacement.bytes = MANIFEST
+        .replace("runtime-converter", "new-converter")
+        .replace("old.cemt", "new.cemt")
+        .into_bytes();
+    context.schema_package_compiler = Some(Arc::new(discovered_compiler("new")));
+    load(&mut context, &replacement);
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let candidate = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let pending = context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .datatype_compilation
+        .as_ref()
+        .unwrap();
+    assert!(!pending.is_ready());
+    assert_eq!(
+        pending.issues[0].code,
+        "datatype-collection-selection-unavailable"
+    );
+    assert!(pending.matches_owner(candidate.ast_owner()));
+    set_source(&mut context, &authored);
+    load(&mut context, &replacement);
+    assert_active(&context, "new", "new-converter", "new.cemt");
+    context.schema_package_compiler = Some(Arc::new(discovered_compiler_mode("ignored", true)));
+    load(&mut context, &replacement);
+    assert_active(&context, "new", "new-converter", "new.cemt");
+    let omitted = context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .datatype_compilation
+        .as_ref()
+        .unwrap();
+    assert_eq!(omitted.sources.len(), 2);
+    assert!(!omitted.is_ready());
+    context.schema_package_compiler = Some(Arc::new(discovered_compiler("new")));
+    set_source(
+        &mut context,
+        &authored.replace(
+            "{type @name=base @kind=scalar}",
+            "{type @name=base @kind=scalar}{type @name=base @kind=scalar}",
+        ),
+    );
+    let diagnostics =
+        load_schema_package_manifest_into_context(&mut context, &replacement).unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("duplicate-datatype-name") && d.source_map.is_some()),
+        "{diagnostics:?}"
+    );
+    assert_active(&context, "new", "new-converter", "new.cemt");
+}

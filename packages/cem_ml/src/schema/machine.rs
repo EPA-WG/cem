@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 #[path = "lexical_capture.rs"]
 mod lexical_capture;
 pub use lexical_capture::{
-    LexicalReloadMetadata, LexicalScopeEvents, LexicalScopeSnapshot, LexicallyScopedDocument, SchemaElementForm,
+    AttributeNamespaceSnapshot, LexicalReloadMetadata, LexicalScopeEvents, LexicalScopeSnapshot, LexicallyScopedDocument, SchemaElementForm,
 };
 #[path = "xml_capture.rs"]
 mod xml_capture;

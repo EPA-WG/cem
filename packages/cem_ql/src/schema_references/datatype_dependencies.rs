@@ -4,6 +4,36 @@ use cem_ml::schema::datatype_registry::{
     DatatypeDependency, DatatypeDependencyHost, DatatypeSource,
 };
 impl CemQlSchemaDeclarationHost {
+    pub(crate) fn datatype_captured_prefix(
+        &self,
+        captured: &cem_ml::schema::machine::LexicallyScopedDocument,
+        attribute: &SchemaDeclarationNode,
+        prefix: &str,
+    ) -> Result<Option<Option<String>>, &'static str> {
+        let snapshot = captured
+            .attribute_namespaces(attribute.document(), attribute.node_id())
+            .ok_or("datatype-literal-namespace-context-unavailable")?;
+        if let Some(declaration) = snapshot.pending.get(prefix) {
+            let owner = Arc::as_ptr(attribute.document()) as usize;
+            let completed = self
+                .namespace_name_completions
+                .get(&owner)
+                .filter(|view| view.contains(attribute.node_id()));
+            let declaration =
+                SchemaDeclarationNode::new(attribute.document().clone(), *declaration)
+                    .ok_or("datatype-namespace-declaration-unavailable")?;
+            return Ok(Some(
+                completed
+                    .and_then(|view| view.binding_namespace_uri(&declaration).ok())
+                    .map(str::to_owned),
+            ));
+        }
+        Ok(snapshot
+            .namespaces
+            .binding(prefix)
+            .map(|binding| Some(binding.namespace_uri.clone())))
+    }
+
     /// Replace the complete name snapshot only after every original owner and
     /// scope is available. This does not register runtime inputs or crossing grants.
     pub fn install_datatype_names(

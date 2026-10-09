@@ -1055,7 +1055,8 @@ work budget, including descriptor compilation. Scope grants, destination limits,
 cycles and incomplete dependency states remain owned by the shared resolver.
 Literal names enter through an explicit immutable namespace/export catalog or the
 legacy original-scope binding API. The catalog implementation is described below;
-automatic schema/package source discovery remains a separate integration step.
+literal schema/package discovery is implemented below; native collection selection
+remains separate pending work.
 Native `@base`/`@rule` targets retain their original owners and source attributes.
 
 The host registers a kind, typed representation, accepted cross-kind bases,
@@ -1303,3 +1304,48 @@ fresh catalog when lexical environments or admitted exports change. This adds no
 authored import/export syntax and does not infer effective aliases from raw source
 strings. Connecting schema/package source discovery to these inputs, completing
 metamodel admission and migrating shipped datatype implementations remain in `todo.md`.
+
+
+## Implemented literal source discovery and package handoff
+
+`DatatypeNameCatalog::discover` consumes selected `DatatypeSchemaSource` inputs:
+original schema handles, their matching lexical capture and explicit public exports.
+It reads literal `types/type` declarations and `uses/use` aliases, validates effective
+metamodel names and collects forward references before building the catalog. It
+attaches immutable source-name metadata to an already registered owner; it creates
+no runtime inputs, implementations, loaded resources or relationship grants.
+
+CEM lexical capture now retains an `AttributeNamespaceSnapshot` at each original
+attribute name. Literal QName discovery reads the dependency attribute's snapshot,
+including pending bindings that shadow inherited URIs. Only the consumed prefix
+needs resolution. A completed namespace view may supply that binding for the current
+selected invocation; its URI is not written back into the source capture. The legacy
+expression-occurrence index remains unchanged. `uses` aliases supply explicitly
+declared schema bindings when a lexical prefix is absent. Equal bindings agree;
+conflicting lexical/`uses` bindings are source-attributed errors, and pending lexical
+bindings never fall back to `uses`.
+
+Literal snapshots are passive reload metadata with original-owner checks, validated
+attribute/declaration handles and retained source maps. Older sidecars without them
+remain readable; a consumer needing a missing snapshot stays pending. Imported XML
+schema literals currently retain that missing-metadata boundary until their capture
+adapter is extended. No AST or internal binary codec changes are required.
+
+Source scanning and catalog construction spend one caller-supplied discovery budget.
+Duplicate declarations/aliases, malformed fields and content are reported at their
+original nodes; collisions retain the related original declaration. Native collection
+slots and nonliteral schema fields remain explicit pending discovery work. No slot
+is silently dropped or treated as an empty declaration collection. External schemas
+and their public export contracts remain explicit host inputs; a URI is never a
+request for implicit loading or a grant of access.
+
+`CemQlSchemaPackageCompiler::with_datatype_discovery` adds an opt-in handoff: its
+source callback selects the original schemas/exports, discovery builds and installs
+the complete catalog, then its compile callback receives the discovered sources for
+exact implementation registration and bounded descriptor compilation. Discovery
+errors become inspectable datatype compilation issues on the candidate owner.
+Every discovered declaration remains in the compilation's required source set, so
+a callback cannot certify readiness by omitting an unsupported type. The existing
+package gates preserve the last complete schema, converters and artifacts together
+until the new candidate is ready. Native collection selection, XML literal capture,
+remaining metamodel admission and shipped datatype parity stay actionable in `todo.md`.

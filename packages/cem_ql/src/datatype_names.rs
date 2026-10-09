@@ -11,6 +11,9 @@ use cem_ml::{
 };
 use std::collections::BTreeMap;
 
+mod discovery;
+pub use discovery::DatatypeSchemaSource;
+
 /// Effective aliases at this original declaration, supplied by its lexical consumer.
 /// None is a retained pending binding, distinct from an undeclared prefix.
 #[derive(Debug, Clone)]

@@ -227,3 +227,67 @@ fn reload_limits_and_verified_late_source_handoff_are_enforced() {
         Err(cem_ml::ast::decode::DecodeError::CountLimitExceeded)
     ));
 }
+
+#[test]
+fn reload_preserves_literal_attribute_namespace_contexts_and_legacy_absence() {
+    let text =
+        "@ns v = urn:first\n{type @base=v:a}\n{host @xmlns:v={#namespace} | {type @base=v:b}}";
+    let saved = bundle(text, true);
+    let bytes = saved.encode(ReloadLimits::default()).unwrap();
+    let restored = ReferenceReloadBundle::decode(&bytes, ReloadLimits::default())
+        .unwrap()
+        .reload(ReloadLimits::default())
+        .unwrap();
+    let captured = restored.require_lexical().unwrap();
+    let ids = restored
+        .document
+        .nodes
+        .iter()
+        .filter_map(|n| match n {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "base" => Some(*node_id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        captured
+            .attribute_namespaces(&restored.document, ids[0])
+            .unwrap()
+            .namespaces
+            .binding("v")
+            .unwrap()
+            .namespace_uri,
+        "urn:first"
+    );
+    assert!(captured
+        .attribute_namespaces(&restored.document, ids[1])
+        .unwrap()
+        .pending
+        .contains_key("v"));
+    let mut legacy = saved.clone();
+    legacy
+        .lexical
+        .as_mut()
+        .unwrap()
+        .attribute_namespaces
+        .clear();
+    let restored = legacy.reload(ReloadLimits::default()).unwrap();
+    assert!(restored
+        .require_lexical()
+        .unwrap()
+        .attribute_namespaces(&restored.document, ids[0])
+        .is_none());
+    let mut invalid = saved;
+    let metadata = invalid.lexical.as_mut().unwrap();
+    let snapshot = metadata
+        .attribute_namespaces
+        .values()
+        .next()
+        .unwrap()
+        .clone();
+    metadata.attribute_namespaces.insert(0, snapshot);
+    assert!(invalid.reload(ReloadLimits::default()).is_err());
+}

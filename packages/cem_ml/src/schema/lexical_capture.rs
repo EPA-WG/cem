@@ -34,12 +34,21 @@ pub enum SchemaElementForm {
     Prelude,
 }
 
+/// Passive namespace context at an original attribute name. Literal QName consumers
+/// use this without manufacturing an expression occurrence or runtime context.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttributeNamespaceSnapshot {
+    pub namespaces: NsContext,
+    pub pending: BTreeMap<String, AstNodeId>,
+}
+
 /// Original builder allocation with source-position expression and name metadata.
 /// Lookup checks allocation identity, not IDs or source-coordinate equality.
 #[derive(Debug)]
 pub struct LexicallyScopedDocument {
     document: Arc<CemDocument>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+    attribute_namespaces: BTreeMap<AstNodeId, AttributeNamespaceSnapshot>,
     names: BTreeMap<AstNodeId, ExpandedName>,
     schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
@@ -83,6 +92,7 @@ impl LexicallyScopedDocument {
         Self {
             document,
             occurrences,
+            attribute_namespaces: BTreeMap::new(),
             names,
             schema_element_forms,
             namespace_bindings,
@@ -99,6 +109,16 @@ impl LexicallyScopedDocument {
 
     pub fn document(&self) -> &Arc<CemDocument> {
         &self.document
+    }
+
+    pub fn attribute_namespaces(
+        &self,
+        owner: &Arc<CemDocument>,
+        node: AstNodeId,
+    ) -> Option<&AttributeNamespaceSnapshot> {
+        Arc::ptr_eq(owner, &self.document)
+            .then(|| self.attribute_namespaces.get(&node))
+            .flatten()
     }
 
     pub fn snapshot(
@@ -236,6 +256,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let diagnostics = Mutex::new(Vec::new());
         let opening_name = Mutex::new(None);
         let attribute_names = Mutex::new(VecDeque::new());
+        let attribute_contexts = Mutex::new(VecDeque::new());
         let builder_node = Arc::new(Mutex::new(None));
         let namespace_capture = Arc::new(Mutex::new(NamespaceDeclarationCapture::default()));
         let mut events = self.track_lexical_scope(|event, machine| {
@@ -259,6 +280,15 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 _ => None,
             };
             if let Some(NormalizedEvent::Name { name, .. }) = event {
+                let pending = namespace_capture.lock().unwrap().pending_bindings();
+                let mut namespaces = machine.current_ns_context().clone();
+                for prefix in pending.keys() {
+                    namespaces.defer_binding(prefix);
+                }
+                attribute_contexts.lock().unwrap().push_back(AttributeNamespaceSnapshot {
+                    namespaces,
+                    pending,
+                });
                 // Namespace headers are intrinsic attributes, as in the
                 // completed-name view; ordinary prefixed names still require
                 // their original lexical binding. Never apply this to elements.
@@ -279,6 +309,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         });
         events.builder_node = Some(builder_node.clone());
         events.namespace_capture = Some(namespace_capture.clone());
+        let mut attribute_namespaces = BTreeMap::new();
         let mut occurrences = BTreeMap::new();
         let mut occurrence_pending_bindings = BTreeMap::new();
         let mut names = BTreeMap::new();
@@ -286,6 +317,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             *builder_node.lock().unwrap() = node;
             namespace_capture.lock().unwrap().observed(node, attribute);
             if let Some(attribute) = attribute {
+                if let Some(snapshot) = attribute_contexts.lock().unwrap().pop_front() {
+                    attribute_namespaces.insert(attribute, snapshot);
+                }
                 if let Some(Some(name)) = attribute_names.lock().unwrap().pop_front() {
                     names.insert(attribute, name);
                 }
@@ -326,6 +360,9 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         });
         names.retain(|node, _| !pending_namespace_names.contains_key(node));
         occurrence_pending_bindings.retain(|node, _| occurrences.contains_key(node));
+        attribute_namespaces.retain(|node, _| {
+            matches!(document.get(*node), Some(CemAstNode::Attribute { .. }))
+        });
         let mut schema_element_forms: BTreeMap<_, _> = names
             .iter()
             .filter_map(|(id, name)| {
@@ -361,6 +398,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         });
         LexicallyScopedDocument {
             document: Arc::new(document),
+            attribute_namespaces,
             occurrences,
             names,
             schema_element_forms,

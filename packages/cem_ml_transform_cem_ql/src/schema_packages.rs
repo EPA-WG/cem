@@ -15,6 +15,7 @@ use cem_ml::{
 };
 use cem_ql::schema_references::CemQlSchemaDeclarationHost;
 use std::sync::Arc;
+mod discovery;
 
 type Prepare = dyn Fn(
         &SchemaPackageCompilationRequest,

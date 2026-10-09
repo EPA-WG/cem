@@ -295,7 +295,7 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: schema/package name-catalog integration, checked source/query
+Next implementation order: native discovery collection slots, checked source/query
 capability adapters, then shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
@@ -319,11 +319,33 @@ automatic attribute type activation depend on those tasks.
       Scenarios for later design verification: equal names in independent scopes
       stay independent; pending aliases and unexported targets cannot activate a type.
 
-- [ ] Connect schema/package source discovery to the datatype name catalog using
-      original captured lexical environments and explicitly admitted exports. Complete
-      remaining metamodel admission and shipped grammar/reference implementations;
-      add fixture actions for source-driven collection and concrete parsers before wiring.
-      The explicit catalog, original-scope bindings and tokenization policies are implemented.
+- [x] Add source-discovery fixtures for literal QName namespace capture/reload,
+      forward declarations, source-position rebinding, explicit `uses` aliases,
+      conflicting aliases, bounded/malformed collections and package readiness retries.
+      Scenarios for later design verification: unavailable metadata never borrows a
+      later binding; incomplete discovery preserves the last active package.
+
+- [x] Discover literal schema datatype collections and original lexical bindings,
+      install their catalog through an opt-in package compilation path and preserve
+      pending native collection/namespace slots without guessing their results.
+      Scenarios for later design verification: source discovery grants no exports,
+      runtime contexts or implementation authority; declarations keep original owners.
+
+- [ ] Add bounded native selection for schema `types`/`uses` collection slots to
+      source discovery, preserving each selected declaration's original schema and
+      captured aliases. Add fixture actions before admitting those slots; literal
+      collections and the opt-in package discovery path are implemented.
+      Scenarios for later design verification: an unresolved collection never
+      disappears from readiness; a selected vendor source needs explicit exports/grants.
+
+- [ ] Add literal attribute namespace capture to imported XML schema sources before
+      enabling their automatic QName discovery. Missing metadata stays pending;
+      legacy reload sidecars remain readable without inventing bindings.
+      Scenarios for later design verification: CEM and XML use the same native catalog,
+      and later namespace bindings never reinterpret earlier literal QNames.
+
+- [ ] Complete remaining datatype metamodel admission and shipped grammar/reference
+      implementations; add fixture actions for concrete parsers before wiring.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 
