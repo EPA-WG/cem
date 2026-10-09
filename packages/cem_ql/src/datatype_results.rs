@@ -137,7 +137,7 @@ impl DiagnosticAttribution {
         }
         attribution
     }
-    fn apply(&self, diagnostic: &mut Diagnostic) {
+    pub(crate) fn apply(&self, diagnostic: &mut Diagnostic) {
         diagnostic.uri = self.uri.clone();
         diagnostic.node = self.node.clone();
         diagnostic.line = self.line;

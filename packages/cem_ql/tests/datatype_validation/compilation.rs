@@ -715,3 +715,6 @@ fn compilation_retains_reference_failure_locations_and_rejects_scope_rebinding()
     assert!(!result.is_ready());
     assert_eq!(result.issues[0].code, "conflicting-datatype-scope");
 }
+
+#[path = "conversion.rs"]
+mod conversion;

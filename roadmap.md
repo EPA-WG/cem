@@ -1085,8 +1085,11 @@ of core reference adoption. Preserve the adopted contracts in the
       readiness and original-owner checks (2026-10-08).
 - [x] Adopt separate typed conversion/equality/constant-interpretation outcomes;
       keep their invocation separate from validation and reference resolution.
-- [ ] Implement those capability adapters, complete namespace/export and shipped
-      parity checks before enabling executable native attribute `@type`.
+- [x] Implement explicit native converter selection/execution with compatible
+      inherited/replaced output, one-call validation and package readiness. Preserve
+      original native views and typed completion/rejection/incomplete outcomes.
+- [ ] Implement equality/constants and source/query conversion adapters, complete
+      namespace/export and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
       preserves the active package; empty converted output differs from failure;
       inherited vocabularies retain their original equality and token interpretation.

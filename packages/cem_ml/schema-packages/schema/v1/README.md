@@ -2618,3 +2618,14 @@ source owner. Namespace/export discovery, conversion/equality adapters, enumerat
 execution and shipped parity remain tracked in the
 [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
 Automatic attribute `@type` consumption remains guarded as described above.
+
+
+The explicit descriptor also supports host-selected native conversion through
+`DatatypeImplementations::select_converter` and `ExecutableDatatype::convert`.
+An inherited converter retains its original implementation owner; a compatible
+local selection replaces it. Conversion executes once and its checked output
+passes every effective datatype restriction. Optional absence permits validation,
+while explicit unavailability blocks package readiness. Native output preserves
+the exact input views and cannot broaden navigation. No converter runs during
+ordinary validation. Source/query converter profiles and automatic attribute
+consumption remain separate actions.

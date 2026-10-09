@@ -295,8 +295,8 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: effective converter selection, scalar equality and
-`@values` constant preparation, then namespace/export discovery. Implementations
+Next implementation order: scalar equality and `@values` constant preparation,
+namespace/export discovery, then shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
 
@@ -325,12 +325,34 @@ automatic attribute type activation depend on those tasks.
       Scenarios for later design verification: a derived restriction retains the
       base implementation identity; incompatible contracts never activate by name.
 
-- [ ] Implement effective converter selection with original implementation identity
-      and registered output compatibility; add fixture actions for inherited reuse,
-      explicit replacement, unavailable selected capability and validation-only types
-      before wiring executable conversion. Never fall back after selected failure.
+- [x] Add native converter fixtures for exact source/implementation binding,
+      inherited reuse and explicit compatible replacement, absent versus unavailable
+      capabilities, one-call execution without fallback, scalar/list/native outputs,
+      empty output versus rejection, malformed representations, required candidates,
+      cancellation, cumulative bounds and original source/diagnostic attribution.
+      Add a package readiness fixture for an unavailable selected converter.
+      Scenarios for later design verification: validation never calls a converter;
+      converted output still faces every inherited/local restriction; native output
+      cannot acquire a broader view or manufacture source nodes.
+
+- [x] Implement effective native converter selection with original implementation
+      identity, checked input/output signatures, inherited reuse and explicit
+      compatible replacement. Invoke once, then validate all datatype restrictions;
+      preserve unavailable selection and validation-only contracts without fallback.
       Scenarios for later design verification: one converter produces the canonical
       value; inherited/local restrictions all inspect it without rewriting or chaining.
+
+Verification (2026-10-08): 64 focused native tests cover descriptor/result
+validation, ten conversion fixtures and package lifecycle preservation. The schema
+package Nx verification includes the CLI build. Native attribute `@type` and
+source/query converter profiles remain guarded or deferred as recorded below.
+
+- [ ] Add schema-owned source/query converter bindings and a checked tagged-result
+      adapter under the adopted conversion contract. Add fixtures before admitting
+      new behavior profiles; native callback selection/execution is implemented.
+      Scenarios for later design verification: empty converted sequences remain
+      present values; malformed tags/output never imply rejection or acceptance;
+      source profiles grant no implementation authority by themselves.
 
 - [ ] Implement registered scalar equality and enumeration constant interpretation,
       preserving each inherited restriction's original contract and binding. Add

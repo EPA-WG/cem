@@ -107,3 +107,139 @@ fn incomplete_datatype_capability_preserves_package_and_retries_original_candida
     );
     assert_active(&context, "new", "new-converter", "new.cemt");
 }
+
+fn converter_compiler(name: &str, ready: bool) -> CemQlSchemaPackageCompiler {
+    compiler(Some(name)).with_datatypes(move |request, host, limits| {
+        use cem_ml::schema::{
+            datatype_registry::{DatatypeKind, DatatypeRegistry},
+            datatype_validation::{CandidateRequirement, ValueRepresentation},
+            declaration_references::SchemaDeclarationNode,
+        };
+        use cem_ql::{
+            datatype_compilation::{
+                compile_datatypes, DatatypeImplementation, DatatypeImplementations,
+                TokenizerBinding,
+            },
+            datatype_conversion::*,
+        };
+        #[derive(Debug)]
+        struct Identity;
+        impl NativeDatatypeConverter for Identity {
+            fn convert(&self, call: ConversionCall<'_>) -> ConversionExecution {
+                let ConversionValue::Values(value) = call.value else {
+                    panic!()
+                };
+                ConversionExecution::Converted {
+                    value: value.clone(),
+                    diagnostics: vec![],
+                }
+            }
+        }
+        let ast = request.source.ast_owner();
+        let find = |name: &str| {
+            ast.nodes
+                .iter()
+                .find_map(|n| match n {
+                    CemAstNode::Element {
+                        node_id,
+                        expanded_name,
+                        ..
+                    } if expanded_name.local_name == name => {
+                        SchemaDeclarationNode::new(ast.clone(), *node_id)
+                    }
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let schema = find("schema");
+        let mut registry = DatatypeRegistry::default();
+        registry.insert(schema.clone(), find("type")).unwrap();
+        let source = registry.source(&schema, "sample").unwrap();
+        host.register_datatype_source(source.clone()).unwrap();
+        let mut implementations = DatatypeImplementations::default();
+        implementations
+            .register(DatatypeImplementation {
+                source: source.clone(),
+                kind: DatatypeKind::Node,
+                representation: ValueRepresentation::Nodes,
+                accepted_bases: vec![],
+                bounds: Default::default(),
+                tokenizer: TokenizerBinding::Absent,
+                validator: None,
+            })
+            .unwrap();
+        let binding = if ready {
+            ConverterBinding::Ready(
+                RegisteredDatatypeConverter::new(
+                    source.clone(),
+                    "retained-identity",
+                    ConversionSignature {
+                        kind: DatatypeKind::Node,
+                        input: ConversionRepresentation::Values(ValueRepresentation::Nodes),
+                        output: ValueRepresentation::Nodes,
+                        candidate: CandidateRequirement::Optional,
+                    },
+                    Identity,
+                )
+                .unwrap(),
+            )
+        } else {
+            ConverterBinding::Unavailable
+        };
+        implementations
+            .select_converter(source.clone(), binding)
+            .unwrap();
+        Ok(compile_datatypes(
+            ast.clone(),
+            &[source],
+            host,
+            &implementations,
+            &Default::default(),
+            limits,
+        ))
+    })
+}
+#[test]
+fn selected_unavailable_converter_preserves_active_package_until_ready() {
+    let authored = SOURCE.replace(
+        "{elements |",
+        "{types | {type @name=sample @kind=node}} {elements |",
+    );
+    let mut context = context(&authored);
+    context.schema_package_compiler = Some(Arc::new(converter_compiler("old", true)));
+    load(&mut context, &input());
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let owner = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let mut replacement = input();
+    replacement.bytes = MANIFEST
+        .replace("runtime-converter", "new-converter")
+        .replace("old.cemt", "new.cemt")
+        .into_bytes();
+    context.schema_package_compiler = Some(Arc::new(converter_compiler("new", false)));
+    load(&mut context, &replacement);
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    assert!(context
+        .converter_registry
+        .converter("new-converter")
+        .is_none());
+    let pending = context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .datatype_compilation
+        .as_ref()
+        .unwrap();
+    assert!(!pending.is_ready());
+    assert_eq!(pending.issues[0].code, "datatype-converter-unavailable");
+    context.schema_package_compiler = Some(Arc::new(converter_compiler("new", true)));
+    load(&mut context, &replacement);
+    assert_active(&context, "new", "new-converter", "new.cemt");
+    assert!(Arc::ptr_eq(
+        &owner,
+        context.schema_package_sources.get(SOURCE_URI).unwrap()
+    ));
+}

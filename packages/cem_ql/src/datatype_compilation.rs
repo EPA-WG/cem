@@ -1,6 +1,7 @@
 //! Explicit lifecycle compilation. Registrations select contracts for original
 //! declarations; names and successful reference selection alone confer no authority.
 use crate::{
+    datatype_conversion::{BoundDatatypeConverter, ConverterBinding},
     datatype_validation::{BoundDatatypeRule, DatatypeValidationRegistry},
     eval::RetainedCemNode,
 };
@@ -55,8 +56,32 @@ pub struct DatatypeImplementation {
 #[derive(Debug, Clone, Default)]
 pub struct DatatypeImplementations {
     entries: BTreeMap<String, DatatypeImplementation>,
+    converters: BTreeMap<String, (DatatypeSource, ConverterBinding)>,
 }
 impl DatatypeImplementations {
+    /// No entry means inherit an available base converter, or remain validation-only.
+    /// An explicit unavailable selection blocks readiness; it never falls back.
+    pub fn select_converter(
+        &mut self,
+        source: DatatypeSource,
+        binding: ConverterBinding,
+    ) -> Result<(), &'static str> {
+        let key = source.declaration().identity();
+        if self.converters.contains_key(&key) {
+            return Err("duplicate-converter-selection");
+        }
+        if let ConverterBinding::Ready(converter) = &binding {
+            let registered = &converter.identity().source;
+            if registered.declaration().identity() != key
+                || registered.scope().identity() != source.scope().identity()
+            {
+                return Err("unrelated-converter-source");
+            }
+        }
+        self.converters.insert(key, (source, binding));
+        Ok(())
+    }
+
     pub fn register(&mut self, implementation: DatatypeImplementation) -> Result<(), &'static str> {
         let key = implementation.source.declaration().identity();
         let compatible = match implementation.kind {
@@ -106,6 +131,7 @@ pub struct ExecutableDatatype {
     base: Option<Arc<ExecutableDatatype>>,
     item: Option<Arc<ExecutableDatatype>>,
     rules: Vec<BoundDatatypeRule>,
+    converter: Option<BoundDatatypeConverter>,
 }
 impl CompiledDatatypeContract for ExecutableDatatype {
     fn as_any(&self) -> &dyn Any {
@@ -119,6 +145,10 @@ impl CompiledDatatypeContract for ExecutableDatatype {
     }
 }
 impl ExecutableDatatype {
+    pub fn converter(&self) -> Option<&BoundDatatypeConverter> {
+        self.converter.as_ref()
+    }
+
     pub fn kind(&self) -> DatatypeKind {
         self.kind
     }
@@ -611,6 +641,43 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
                 source.declaration(),
             ));
         }
+        let converter = match self
+            .implementations
+            .converters
+            .get(&source.declaration().identity())
+        {
+            Some((registered, _)) if registered.scope().identity() != source.scope().identity() => {
+                return Err(invalid("converter-source-scope", source.declaration()))
+            }
+            Some((_, ConverterBinding::Unavailable)) => {
+                return Err(pending(
+                    "datatype-converter-unavailable",
+                    source.declaration(),
+                ))
+            }
+            Some((_, ConverterBinding::Ready(converter))) => {
+                if converter.signature().kind != kind
+                    || converter.signature().output != representation
+                {
+                    return Err(invalid(
+                        "converter-output-incompatible",
+                        source.declaration(),
+                    ));
+                }
+                let tree = self
+                    .host
+                    .input_source_tree(source.declaration())
+                    .ok_or_else(|| {
+                        pending("datatype-source-owner-unavailable", source.declaration())
+                    })?;
+                Some(
+                    converter
+                        .bind(tree)
+                        .ok_or_else(|| invalid("converter-source-owner", source.declaration()))?,
+                )
+            }
+            None => base.as_ref().and_then(|base| base.converter.clone()),
+        };
         // A root implementation registration explicitly admits its native value
         // representation. Optional additional rules restrict that admission.
         Ok(Arc::new(ExecutableDatatype {
@@ -623,6 +690,7 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
             base,
             item,
             rules,
+            converter,
         }))
     }
 }

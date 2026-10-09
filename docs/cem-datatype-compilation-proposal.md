@@ -8,9 +8,10 @@ with diagnostics, empty lists unless constrained and a dedicated `node` kind are
 adopted. Node rules validate complete target sequences, and candidate requirements
 are per registered capability. Derived declarations inherit an omitted kind from
 a resolved base, with explicit list kind for item-base semantics. Whitespace-token
-`@values` authoring is adopted; richer retained constants are deferred. Validation descriptors, sequence bounds and tokenizers are implemented. Separate
-conversion/equality capability signatures are adopted below; their adapters and
-remaining effective kind contracts remain separate work. Datatype validation inputs use the adopted
+`@values` authoring is adopted; richer retained constants are deferred. Validation
+descriptors, sequence bounds, tokenizers and explicit native conversion are
+implemented. Separate conversion/equality signatures are adopted; equality/query
+adapters and remaining kind contracts remain open. Datatype validation uses the adopted
 fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
 CEM-QL records under a dedicated contract enforced at the consumer boundary;
 candidate cardinality must be visible to compilation. Diagnostics admit existing
@@ -240,8 +241,9 @@ containing native nodes must retain their original owner/handle identity rather
 than copy nodes into scalar records. This contract does not itself admit native
 node item types or introduce a new list syntax.
 
-The representation is adopted but conversion remains disabled pending registered
-signatures, item contracts and migration fixtures. Existing scalar conversion
+Explicit registered native list conversion now uses the descriptor adapter below.
+Shipped lexical list conversion still needs its concrete implementations and
+migration fixtures. Existing scalar conversion
 APIs must not silently reinterpret a string result as a typed sequence.
 
 ## Adopted list restrictions
@@ -717,7 +719,8 @@ Validation cannot replace `value`; conversion remains a separate capability.
 The decision fixes validation input names and candidate cardinality. Conversion
 ABI, parameter order and concrete metamodel admission remain separate work;
 the explicit validation profile below fixes named binding and metamodel admission.
-Full datatype compilation and conversion invocation remain separate.
+The explicit native conversion adapter below consumes compiled validation descriptors;
+full datatype/attribute migration remains separate.
 
 ## Typed adapter signature requirements
 
@@ -1086,7 +1089,8 @@ Unknown fields/structural children, duplicate fields, incompatible bases and
 invalid bounds cannot compile. Node lexical facets and list declaration `values`
 are rejected. Scalar `values` keeps compilation incomplete until registered
 constant interpretation and equality are implemented; it is never ignored.
-Conversion, grammar/reference implementations and full shipped parity remain open.
+Explicit native conversion is implemented below. Grammar/reference implementations,
+query conversion profiles and full shipped parity remain open.
 
 `CemQlSchemaPackageCompiler::with_datatypes` adds an explicit lifecycle compilation
 callback using the current prepared host. It attaches the resulting immutable
@@ -1104,7 +1108,8 @@ migration parity are complete. CEM-ML parsing does not evaluate these references
 
 ## Adopted separate conversion and equality capability contracts
 
-Adopted 2026-10-08; implementation remains tracked separately. A conversion
+Adopted 2026-10-08; the native conversion adapter is implemented below; equality
+and query bindings remain tracked separately. A conversion
 registration names the exact original implementation, accepted input representation,
 canonical output representation and candidate requirement. Inputs retain the
 original datatype and optional/required native candidate; a lexical input retains
@@ -1140,3 +1145,55 @@ Each inherited vocabulary retains its own interpreter and equality implementatio
 Unavailable interpretation/equality blocks that restriction's readiness; there is
 no lexical fallback. These semantic signatures introduce no new executable
 `@rule` behavior, conversion source syntax or richer constant syntax by themselves.
+
+
+## Implemented explicit native conversion
+
+`DatatypeImplementations::select_converter` selects an exact retained datatype's
+registered native converter or explicitly records its unavailability. With no
+local selection, a derived descriptor inherits its base converter. With neither
+selection nor inheritance, the descriptor remains validation-only. Local selection
+must match the original declaration and scope, effective kind and canonical output
+representation. A selected unavailable converter prevents descriptor/package
+readiness; a selected failure never falls back to a base converter. Immutable bound
+registrations retain their original implementation and declaring datatype owner.
+
+`RegisteredDatatypeConverter` declares a typed lexical or scalar/list/native value
+input, canonical output representation and candidate requirement. The caller supplies
+lexical text/source maps or an already typed value sequence. Required candidates
+are checked before invoking the converter. Representation checks never extract
+scalars from nodes. Scalar/list conversion cannot produce native nodes, and native
+conversion cannot produce scalars. Native output must clone the exact supplied
+query views; rebuilding a broader view for the same underlying node is rejected.
+Order, repeated handles and authored descendant references remain intact.
+
+`ExecutableDatatype::convert` invokes the selected native callback exactly once.
+The callback receives its original declaring datatype, the original candidate and
+the same runtime context/control as subsequent validation. `Converted` carries a
+present typed sequence (including an empty list); `Rejected` carries no value.
+Pending, unavailable and failed execution are distinct incomplete states. The
+boundary checks output count and representation before calling any validation
+rule. It then applies the effective descriptor's inherited/local rules, list item
+contracts and sequence bounds to that one output. It never chains item/base
+converters or tokenizers implicitly. Attribute-local restrictions remain the
+responsibility of the still-guarded attribute consumer.
+
+The result exposes `accepted` only after explicit rejection or complete validation.
+A converted value remains inspectable when its validation rejects or stops;
+publication requires `accepted == Some(true)`. Validation retains its own stop
+reason and original restriction outcomes. Native diagnostic attribution is kept;
+wholly source-less diagnostics receive original candidate attribution, or the
+caller's lexical/source fallback. Severity does not determine acceptance.
+
+Default bounds are 1 MiB lexical input and 100,000 input/output values, all
+host-overridable. The existing validation bounds govern subsequent rule execution;
+conversion and validation share its cumulative diagnostic allowance and operation
+control. Native callbacks must poll that control and bound their allocations/work.
+Checks before/after the callback and during input/output inspection prevent
+cancelled or malformed results from being published.
+
+This implements explicit native capability selection and execution. It introduces
+no new authored conversion behavior or function syntax, does not activate native
+attribute `@type`, and does not migrate the shipped scalar conversion API. Checked
+source/query adapters, scalar equality/constants and shipped parity remain tracked
+in `todo.md`, with their verification scenarios.

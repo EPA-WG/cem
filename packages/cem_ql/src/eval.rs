@@ -261,6 +261,12 @@ pub struct NativeItemView {
 }
 
 impl NativeItemView {
+    /// Internal retained-view identity. Rebuilding a view for the same source node
+    /// must not silently broaden a conversion's navigation permissions.
+    pub(crate) fn storage_key(&self) -> usize {
+        Arc::as_ptr(&self.view) as *const () as usize
+    }
+
     pub fn new(view: impl QueryItemView + 'static) -> Self {
         Self {
             view: Arc::new(view),
