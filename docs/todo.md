@@ -110,6 +110,13 @@ archived, while executable datatype consumption remains guarded.
       replace a contract without import order silently weakening restrictions;
       existing native selections retain identity unless explicit rebinding is chosen.
 
+- [ ] Deferred: define compatible replacement of an inherited lexical preparer
+      before supporting derived capability replacement. Specify original base
+      admission checks, typed representation compatibility and source identity;
+      the current compiler requires inheritance and rejects replacement.
+      Scenarios for later design verification: a child preparer cannot admit
+      conversion-only forms rejected by its base or discard original provenance.
+
 - [ ] Specify list conversion adapters and explicit canonical serialization, then
       add fixture actions for ordered items, duplicates and retained item provenance
       before implementing conversion or changing scalar API result types.
@@ -465,21 +472,30 @@ reference and datatype tests pass; Nx schema-package verification and CLI build 
       accepting conversion-only `1`/`0`; integer `003` retains its source spelling;
       list tokenization does not invoke an item converter.
 
-- [ ] Add lexical-preparation fixtures before implementation: exact registration
+- [x] Add lexical-preparation fixtures before implementation: exact registration
       and inherited identity, absent/unavailable capabilities, typed output checks,
       shipped lexical admission, original text/token provenance, no converter calls,
       rejection versus incomplete execution, cancellation and cumulative limits.
+      Add package replacement coverage for an unavailable selected preparer.
       Scenarios for later design verification: prepared integer values keep their
       authored spelling; boolean presence remains compatible; ordered list items
       and duplicate tokens retain their original source attribution.
 
-- [ ] Implement registered lexical preparation and effective descriptor selection
+- [x] Implement registered lexical preparation and effective descriptor selection
       under the adopted contract, including scalar/list preparation and original
       implementation inheritance. Preserve existing typed/native validation paths
-      and apply every effective restriction after successful preparation.
+      and apply every effective datatype restriction after successful preparation.
+      Completed 2026-10-08: explicit scalar and composed list APIs; automatic
+      attribute-local facets and model activation remain separate actions below.
       Scenarios for later design verification: missing required preparation cannot
       activate automatic validation or fall back to conversion; derived restrictions
       cannot widen lexical admission; interrupted preparation stays incomplete.
+
+Verification (2026-10-08): 210 datatype, value-contract, attribute-value,
+template and package lifecycle tests pass, including eight new preparation fixture
+groups and unavailable-preparer replacement/retry. All 18 original shipped
+descriptors prepare and validate through explicit registrations. Schema-package
+Nx verification and its CLI build prerequisite pass.
 
 - [ ] Add remaining attribute descriptor-consumer fixtures for local facet
       intersection, typed node sequences, input preparation, cancellation and
@@ -608,8 +624,9 @@ fixture groups. Schema-package Nx verification and its CLI build prerequisite pa
 - [ ] Integrate the descriptor into literal and native attribute type consumers,
       preserve compatibility through explicit parity checks, and update the
       metamodel's native datatype admission contract before enabling consumption.
-      Original-slot binding and dedicated metamodel admission are implemented;
-      lifecycle value preparation, local facets and activation remain open.
+      Original-slot binding, dedicated metamodel admission and explicit lexical
+      preparation are implemented; automatic lifecycle integration, local facets
+      and activation remain open.
       Scenarios for later design verification: referenced type owners and their
       restrictions survive package replacement and independent runtime contexts.
 

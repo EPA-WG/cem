@@ -1,5 +1,5 @@
 //! Shared immutable view for scalar values whose declared datatype is richer
-//! than the query engine's atom. Only validated conversion paths construct it.
+//! than the query engine's atom. Only checked preparation/conversion paths construct it.
 use crate::eval::{AtomValue, Item, QueryItemView, QueryItemViewKind};
 use cem_ml::{
     schema::{datatype_validation::ScalarRepresentation, document_model::TypedAttributeValue},
@@ -42,8 +42,9 @@ impl QueryItemView for TypedValue {
         self.source.clone()
     }
 }
-/// Conversion has already checked and normalized the lexical value.
-pub(crate) fn from_converted(value: TypedAttributeValue, source: Option<SourceMapStack>) -> Item {
+/// The caller has checked the primitive lexical value. Construct its native
+/// representation without invoking normalization or a registered capability.
+pub(crate) fn from_typed_value(value: TypedAttributeValue, source: Option<SourceMapStack>) -> Item {
     match value.datatype.as_str() {
         "integer" => match value.lexical.parse::<i64>() {
             Ok(value) => Item::Atomic(AtomValue::Integer(value)),

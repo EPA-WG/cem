@@ -349,6 +349,37 @@ conversion, apply attribute-local facets, or clear model readiness. The dedicate
 `schema:attribute-type` metamodel contract admits native slots only on attribute
 declarations, preserving literal QName checks and pending compilation state.
 
+### Lexical preparation for datatype validation
+
+`DatatypeImplementations::select_preparation` explicitly selects a registered
+`NativeLexicalPreparer` for an original scalar implementation, or
+`RegisteredLexicalPreparation::list_items` for tokenization through the effective
+item preparer. `datatype_shipped::lexical_preparation` supplies the shipped
+capabilities. Derived descriptors inherit their base's original preparer; replacing
+that capability on a derived declaration is currently rejected. A selected
+unavailable preparer prevents compilation readiness; no selection leaves a
+usable typed-only descriptor.
+
+`ExecutableDatatype::prepare_lexical` takes the original `LexicalInput`, optional
+native candidate, caller runtime/control and `PreparationLimits`. It prepares the
+typed value, then runs every effective datatype restriction. The report retains
+the original input, preparer identity, diagnostics and ordered list token spans in
+decoded UTF-8 bytes. Scalars require exactly one correctly typed output; lists use
+their registered tokenizer and prepare each scalar item without converter calls.
+Shipped boolean presence is true, while `1` and `0` remain invalid validation input.
+Integer `003` prepares as integer `3` while retaining the original spelling.
+String values preserve whitespace; other shipped lexical values follow their
+existing boundary-whitespace admission rules.
+
+Preparation and validation share input-visit and diagnostic budgets; preparation
+calls, input bytes and output counts have explicit caps. Callbacks must cooperate
+with the supplied control and limits. Rejection differs from pending/unavailable,
+malformed, interrupted or exhausted execution. Partial preparation exposes no
+value; complete prepared values may remain inspectable after validation rejects
+or stops. Publication requires `accepted == Some(true)`. Typed `validate` calls
+bypass preparation and conversion. Automatic attribute-local facet integration
+and model activation remain pending in the TODO.
+
 ### Retained-node navigation
 
 `dom:parent(node)`, `dom:children(node)`, `dom:descendants(node)` and

@@ -239,7 +239,7 @@ impl PlanRenderer<'_> {
             control.check_scope(scope)
         }) {
             Ok(value) => {
-                let item = crate::typed_scalar::from_converted(value, Some(source.clone()));
+                let item = crate::typed_scalar::from_typed_value(value, Some(source.clone()));
                 ItemStream::once(item)
             }
             Err(AttributeValueConversionError::Interrupted(error)) => {

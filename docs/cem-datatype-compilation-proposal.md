@@ -23,8 +23,8 @@ The shared value-contract source surface and explicit result consumer are implem
 Explicit registered validation dispatch and opt-in datatype descriptor/package
 readiness integration are implemented below. Automatic native attribute `@type`
 remains guarded pending the remaining compiler and migration work. Separate
-registered lexical preparation for literal validation inputs is adopted below;
-its implementation remains open.
+registered lexical preparation for literal validation inputs is adopted and
+implemented below; automatic attribute activation remains open.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
 are separate from core reference adoption. Preserve the adopted contracts here, but
@@ -1749,9 +1749,27 @@ uses the caller's control and cumulative bounds for preparation and subsequent
 validation. Missing required preparation prevents automatic consumer activation;
 a per-input interruption leaves that validation incomplete.
 
-This adoption introduces no new authored attribute or behavior syntax. Native
-registration and fixtures precede automatic attribute integration, as tracked in
-`todo.md`; implementation and activation are still pending.
+Native registration and execution are implemented on 2026-10-08. There is no new
+authored attribute or behavior syntax. The explicit `prepare_lexical` descriptor
+API prepares scalar inputs or composes the registered tokenizer and original item
+preparer, then validates all effective datatype restrictions. It retains complete
+original input and ordered decoded token spans. Shipped boolean presence, wide
+integers and existing boundary-whitespace admission remain compatible.
+
+Typed-only descriptors can compile without preparation. Explicitly unavailable
+selection prevents readiness; selected list preparation also requires its tokenizer
+and item preparer. Derived descriptors inherit the original base preparer. Explicit
+replacement on a derived declaration is rejected pending a separate compatibility
+contract, so registering a child capability cannot widen the base's lexical input
+admission. Existing typed and node-valued validation paths bypass preparation.
+
+Preparation calls, input bytes and output counts are bounded. Input visits and
+diagnostics share cumulative allowances with subsequent validation. Control is
+checked before and after callbacks and during tokenization. No partial preparation
+value is exposed; a completely prepared value may be inspected after validation
+rejects or stops, but publication requires explicit completed acceptance. Package
+replacement retains its last complete active version while preparation is unavailable.
+Automatic attribute-local facet integration and activation remain in `todo.md`.
 
 Scenarios for later design verification: boolean presence and lexical forms keep
 their existing admission; integer spelling and source maps survive preparation;

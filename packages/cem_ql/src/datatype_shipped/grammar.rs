@@ -42,7 +42,7 @@ impl NativeDatatypeConverter for GrammarConverter {
             call.runtime.control.check_scope(call.runtime.scope)
         }) {
             Ok(()) => ConversionExecution::Converted {
-                value: vec![crate::typed_scalar::from_converted(
+                value: vec![crate::typed_scalar::from_typed_value(
                     TypedAttributeValue {
                         datatype: "content-model".into(),
                         lexical: input.text.trim().into(),
@@ -113,7 +113,7 @@ impl NativeConstantInterpreter for GrammarConverter {
             call.runtime.control.check_scope(call.runtime.scope)
         }) {
             Ok(()) => ConstantExecution::Prepared {
-                value: vec![crate::typed_scalar::from_converted(
+                value: vec![crate::typed_scalar::from_typed_value(
                     TypedAttributeValue {
                         datatype: "content-model".into(),
                         lexical: call.token.text().trim().into(),

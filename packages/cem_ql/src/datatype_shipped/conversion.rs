@@ -82,7 +82,7 @@ impl NativeDatatypeConverter for ScalarConverter {
             .unwrap()
         {
             Ok(value) => ConversionExecution::Converted {
-                value: vec![crate::typed_scalar::from_converted(
+                value: vec![crate::typed_scalar::from_typed_value(
                     value,
                     Some(input.source.clone()),
                 )],
@@ -113,7 +113,7 @@ impl NativeConstantInterpreter for ScalarConverter {
             .unwrap()
         {
             Ok(value) => ConstantExecution::Prepared {
-                value: vec![crate::typed_scalar::from_converted(value, Some(source))],
+                value: vec![crate::typed_scalar::from_typed_value(value, Some(source))],
                 diagnostics: vec![],
             },
             Err(AttributeValueConversionError::Invalid(mut diagnostics)) => {

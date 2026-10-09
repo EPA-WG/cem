@@ -171,6 +171,12 @@ fn incomplete_datatype_capability_preserves_package_and_retries_original_candida
 }
 
 fn converter_compiler(name: &str, ready: bool) -> CemQlSchemaPackageCompiler {
+    capability_compiler(name, ready, false)
+}
+fn preparation_compiler(name: &str, ready: bool) -> CemQlSchemaPackageCompiler {
+    capability_compiler(name, ready, true)
+}
+fn capability_compiler(name: &str, ready: bool, preparation: bool) -> CemQlSchemaPackageCompiler {
     compiler(Some(name)).with_datatypes(move |request, host, limits| {
         use cem_ml::schema::{
             datatype_registry::{DatatypeKind, DatatypeRegistry},
@@ -222,35 +228,63 @@ fn converter_compiler(name: &str, ready: bool) -> CemQlSchemaPackageCompiler {
         implementations
             .register(DatatypeImplementation {
                 source: source.clone(),
-                kind: DatatypeKind::Node,
-                representation: ValueRepresentation::Nodes,
+                kind: if preparation {
+                    DatatypeKind::Scalar
+                } else {
+                    DatatypeKind::Node
+                },
+                representation: if preparation {
+                    ValueRepresentation::Scalar(
+                        cem_ml::schema::datatype_validation::ScalarRepresentation::String,
+                    )
+                } else {
+                    ValueRepresentation::Nodes
+                },
                 accepted_bases: vec![],
                 bounds: Default::default(),
                 tokenizer: TokenizerBinding::Absent,
                 validator: None,
             })
             .unwrap();
-        let binding = if ready {
-            ConverterBinding::Ready(
-                RegisteredDatatypeConverter::new(
-                    source.clone(),
-                    "retained-identity",
-                    ConversionSignature {
-                        kind: DatatypeKind::Node,
-                        input: ConversionRepresentation::Values(ValueRepresentation::Nodes),
-                        output: ValueRepresentation::Nodes,
-                        candidate: CandidateRequirement::Optional,
-                    },
-                    Identity,
+        if preparation {
+            use cem_ql::datatype_preparation::PreparationBinding;
+            let binding = if ready {
+                PreparationBinding::Ready(
+                    cem_ql::datatype_shipped::lexical_preparation(
+                        source.clone(),
+                        cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::String,
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            )
+            } else {
+                PreparationBinding::Unavailable
+            };
+            implementations
+                .select_preparation(source.clone(), binding)
+                .unwrap();
         } else {
-            ConverterBinding::Unavailable
-        };
-        implementations
-            .select_converter(source.clone(), binding)
-            .unwrap();
+            let binding = if ready {
+                ConverterBinding::Ready(
+                    RegisteredDatatypeConverter::new(
+                        source.clone(),
+                        "retained-identity",
+                        ConversionSignature {
+                            kind: DatatypeKind::Node,
+                            input: ConversionRepresentation::Values(ValueRepresentation::Nodes),
+                            output: ValueRepresentation::Nodes,
+                            candidate: CandidateRequirement::Optional,
+                        },
+                        Identity,
+                    )
+                    .unwrap(),
+                )
+            } else {
+                ConverterBinding::Unavailable
+            };
+            implementations
+                .select_converter(source.clone(), binding)
+                .unwrap();
+        }
         Ok(compile_datatypes(
             ast.clone(),
             &[source],
@@ -298,6 +332,51 @@ fn selected_unavailable_converter_preserves_active_package_until_ready() {
     assert!(!pending.is_ready());
     assert_eq!(pending.issues[0].code, "datatype-converter-unavailable");
     context.schema_package_compiler = Some(Arc::new(converter_compiler("new", true)));
+    load(&mut context, &replacement);
+    assert_active(&context, "new", "new-converter", "new.cemt");
+    assert!(Arc::ptr_eq(
+        &owner,
+        context.schema_package_sources.get(SOURCE_URI).unwrap()
+    ));
+}
+
+#[test]
+fn selected_unavailable_preparation_preserves_active_package_until_ready() {
+    let authored = SOURCE.replace(
+        "{elements |",
+        "{types | {type @name=sample @kind=scalar}} {elements |",
+    );
+    let mut context = context(&authored);
+    context.schema_package_compiler = Some(Arc::new(preparation_compiler("old", true)));
+    load(&mut context, &input());
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    let owner = context
+        .schema_package_sources
+        .get(SOURCE_URI)
+        .unwrap()
+        .clone();
+    let mut replacement = input();
+    replacement.bytes = MANIFEST
+        .replace("runtime-converter", "new-converter")
+        .replace("old.cemt", "new.cemt")
+        .into_bytes();
+    context.schema_package_compiler = Some(Arc::new(preparation_compiler("new", false)));
+    load(&mut context, &replacement);
+    assert_active(&context, "old", "runtime-converter", "old.cemt");
+    assert!(context
+        .converter_registry
+        .converter("new-converter")
+        .is_none());
+    let pending = context
+        .schema_document_models
+        .get(SCHEMA_URI)
+        .unwrap()
+        .datatype_compilation
+        .as_ref()
+        .unwrap();
+    assert!(!pending.is_ready());
+    assert_eq!(pending.issues[0].code, "datatype-preparation-unavailable");
+    context.schema_package_compiler = Some(Arc::new(preparation_compiler("new", true)));
     load(&mut context, &replacement);
     assert_active(&context, "new", "new-converter", "new.cemt");
     assert!(Arc::ptr_eq(

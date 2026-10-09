@@ -2,6 +2,7 @@
 //! declarations; names and successful reference selection alone confer no authority.
 use crate::{
     datatype_conversion::{BoundDatatypeConverter, ConverterBinding},
+    datatype_preparation::{BoundLexicalPreparation, PreparationBinding},
     datatype_enumeration::{
         ConstantBinding, ConstantPreparationLimits, EnumerationRestriction, EqualityBinding,
     },
@@ -62,9 +63,32 @@ pub struct DatatypeImplementations {
     entries: BTreeMap<String, DatatypeImplementation>,
     equalities: BTreeMap<String, (DatatypeSource, EqualityBinding)>,
     interpreters: BTreeMap<String, (DatatypeSource, ConstantBinding)>,
+    preparations: BTreeMap<String, (DatatypeSource, PreparationBinding)>,
     converters: BTreeMap<String, (DatatypeSource, ConverterBinding)>,
 }
 impl DatatypeImplementations {
+    /// Explicit lexical ingress selection; absence preserves typed-only validation.
+    pub fn select_preparation(
+        &mut self,
+        source: DatatypeSource,
+        binding: PreparationBinding,
+    ) -> Result<(), &'static str> {
+        let key = source.declaration().identity();
+        if self.preparations.contains_key(&key) {
+            return Err("duplicate-preparation-selection");
+        }
+        if let PreparationBinding::Ready(registered) = &binding {
+            let selected = &registered.identity().source;
+            if selected.declaration().identity() != key
+                || selected.scope().identity() != source.scope().identity()
+            {
+                return Err("unrelated-preparation-source");
+            }
+        }
+        self.preparations.insert(key, (source, binding));
+        Ok(())
+    }
+
     /// No entry means inherit an available base converter, or remain validation-only.
     /// An explicit unavailable selection blocks readiness; it never falls back.
     pub fn select_converter(
@@ -178,6 +202,7 @@ pub struct ExecutableDatatype {
     item: Option<Arc<ExecutableDatatype>>,
     rules: Vec<BoundDatatypeRule>,
     converter: Option<BoundDatatypeConverter>,
+    preparation: Option<BoundLexicalPreparation>,
     equality: Option<EqualityBinding>,
     interpreter: Option<ConstantBinding>,
     enumerations: Vec<Arc<EnumerationRestriction>>,
@@ -194,6 +219,10 @@ impl CompiledDatatypeContract for ExecutableDatatype {
     }
 }
 impl ExecutableDatatype {
+    pub fn preparation(&self) -> Option<&BoundLexicalPreparation> {
+        self.preparation.as_ref()
+    }
+
     pub fn enumerations(&self) -> &[Arc<EnumerationRestriction>] {
         &self.enumerations
     }
@@ -779,6 +808,69 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
             }
             None => base.as_ref().and_then(|base| base.converter.clone()),
         };
+        let preparation = match self
+            .implementations
+            .preparations
+            .get(&source.declaration().identity())
+        {
+            Some((registered, _)) if registered.scope().identity() != source.scope().identity() => {
+                return Err(invalid("preparation-source-scope", source.declaration()))
+            }
+            Some((_, PreparationBinding::Unavailable)) => {
+                return Err(pending(
+                    "datatype-preparation-unavailable",
+                    source.declaration(),
+                ))
+            }
+            Some((_, PreparationBinding::Ready(selected))) => {
+                // Preserve the original base's lexical admission. Replacement is
+                // separate future work, not an implicit consequence of registration.
+                if base.is_some() {
+                    return Err(invalid(
+                        "preparation-base-replacement-unsupported",
+                        source.declaration(),
+                    ));
+                }
+                if selected.signature().kind != kind
+                    || selected.signature().output != representation
+                {
+                    return Err(invalid(
+                        "preparation-output-incompatible",
+                        source.declaration(),
+                    ));
+                }
+                if kind == DatatypeKind::List
+                    && (tokenizer.is_none()
+                        || item.as_ref().and_then(|i| i.preparation()).is_none())
+                {
+                    return Err(pending(
+                        "list-item-preparation-unavailable",
+                        source.declaration(),
+                    ));
+                }
+                let tree = self
+                    .host
+                    .input_source_tree(source.declaration())
+                    .ok_or_else(|| {
+                        pending("datatype-source-owner-unavailable", source.declaration())
+                    })?;
+                Some(
+                    selected
+                        .bind(tree)
+                        .ok_or_else(|| invalid("preparation-source-owner", source.declaration()))?,
+                )
+            }
+            None => base.as_ref().and_then(|base| base.preparation.clone()),
+        };
+        if preparation
+            .as_ref()
+            .is_some_and(|p| p.signature().output != representation)
+        {
+            return Err(invalid(
+                "inherited-preparation-output-incompatible",
+                source.declaration(),
+            ));
+        }
         // A root implementation registration explicitly admits its native value
         // representation. Optional additional rules restrict that admission.
         let equality = self.equality(source, base.as_deref(), representation)?;
@@ -798,6 +890,7 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
             item,
             rules,
             converter,
+            preparation,
             equality,
             interpreter,
             enumerations,

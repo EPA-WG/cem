@@ -15,6 +15,7 @@ pub mod debug_control;
 pub mod diagnostics;
 pub mod datatype_compilation;
 pub mod datatype_conversion;
+pub mod datatype_preparation;
 pub mod datatype_enumeration;
 pub mod datatype_names;
 pub mod datatype_results;

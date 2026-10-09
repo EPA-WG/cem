@@ -206,3 +206,7 @@ pub fn implementation(
         validator: Some(validator),
     }
 }
+
+#[path = "datatype_shipped/preparation.rs"]
+mod preparation;
+pub use preparation::lexical_preparation;

@@ -65,6 +65,16 @@ fn all_original_shipped_declarations_compile_with_explicit_capabilities() {
         let entry =
             datatype_shipped::implementation(src.clone(), ty, (profile.schema.clone(), behavior));
         implementations.register(entry).unwrap();
+        if !matches!(ty, T::ContentModel | T::TypeReference) {
+            implementations
+                .select_preparation(
+                    src.clone(),
+                    cem_ql::datatype_preparation::PreparationBinding::Ready(
+                        datatype_shipped::lexical_preparation(src.clone(), ty).unwrap(),
+                    ),
+                )
+                .unwrap();
+        }
         implementations
             .select_converter(
                 src.clone(),
@@ -113,7 +123,7 @@ fn all_original_shipped_declarations_compile_with_explicit_capabilities() {
         (T::WildcardName, "a:*"),
         (T::String, " keep "),
         (T::Boolean, "true"),
-        (T::ReferenceUnresolvedDisposition, "warning"),
+        (T::ReferenceUnresolvedDisposition, " warning "),
         (T::Integer, "003"),
         (T::Number, "1.2"),
         (T::Uri, "urn:example:a"),
@@ -140,6 +150,20 @@ fn all_original_shipped_declarations_compile_with_explicit_capabilities() {
             Default::default(),
         );
         assert_eq!(validation.accepted, Some(true), "{ty:?}: {validation:?}");
+        let prepared = d.prepare_lexical(
+            &cem_ql::datatype_preparation::PreparationInput {
+                lexical: cem_ml::schema::datatype_contracts::LexicalInput::new(
+                    Arc::from(text),
+                    Default::default(),
+                ),
+                candidate: vec![],
+                fallback: Default::default(),
+            },
+            &runtime,
+            Default::default(),
+        );
+        assert_eq!(prepared.accepted, Some(true), "{ty:?}: {prepared:?}");
+        assert_eq!(&*prepared.input.lexical.text, text);
         if let Some(base) = d.base() {
             assert!(Arc::ptr_eq(base.source().declaration().document(), &owner));
         }

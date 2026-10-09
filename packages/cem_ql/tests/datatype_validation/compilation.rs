@@ -750,3 +750,6 @@ mod shipped_inventory;
 
 #[path = "attribute_types.rs"]
 mod attribute_types;
+
+#[path = "preparation.rs"]
+mod preparation;
