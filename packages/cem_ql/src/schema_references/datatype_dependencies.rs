@@ -4,11 +4,54 @@ use cem_ml::schema::datatype_registry::{
     DatatypeDependency, DatatypeDependencyHost, DatatypeSource,
 };
 impl CemQlSchemaDeclarationHost {
+    /// Replace the complete name snapshot only after every original owner and
+    /// scope is available. This does not register runtime inputs or crossing grants.
+    pub fn install_datatype_names(
+        &mut self,
+        catalog: Arc<crate::datatype_names::DatatypeNameCatalog>,
+    ) -> Result<(), &'static str> {
+        for scope in catalog.scopes() {
+            if self.source_tree(scope).is_none() {
+                return Err("unregistered-datatype-owner");
+            }
+        }
+        for source in catalog.sources() {
+            if self.source_tree(source.declaration()).is_none() {
+                return Err("unregistered-datatype-owner");
+            }
+            if self
+                .datatype_names
+                .as_ref()
+                .and_then(|old| old.source(source.declaration()))
+                .is_some_and(|old| old.scope().identity() != source.scope().identity())
+            {
+                return Err("conflicting-datatype-scope");
+            }
+            if self
+                .datatype_sources
+                .get(&source.declaration().identity())
+                .is_some_and(|old| old.scope().identity() != source.scope().identity())
+            {
+                return Err("conflicting-datatype-scope");
+            }
+        }
+        self.datatype_names = Some(catalog);
+        Ok(())
+    }
+
     pub fn register_datatype_source(&mut self, source: DatatypeSource) -> Result<(), &'static str> {
         if self.source_tree(source.declaration()).is_none() {
             return Err("unregistered-datatype-owner");
         }
         let key = source.declaration().identity();
+        if self
+            .datatype_names
+            .as_ref()
+            .and_then(|c| c.source(source.declaration()))
+            .is_some_and(|old| old.scope().identity() != source.scope().identity())
+        {
+            return Err("conflicting-datatype-scope");
+        }
         if self
             .datatype_sources
             .get(&key)
@@ -48,7 +91,11 @@ impl CemQlSchemaDeclarationHost {
 }
 impl DatatypeDependencyHost for CemQlSchemaDeclarationHost {
     fn datatype_source(&self, target: &SchemaDeclarationNode) -> Option<DatatypeSource> {
-        self.datatype_sources.get(&target.identity()).cloned()
+        self.datatype_names
+            .as_ref()
+            .and_then(|catalog| catalog.source(target))
+            .or_else(|| self.datatype_sources.get(&target.identity()))
+            .cloned()
     }
     fn lookup_literal_type(
         &mut self,
@@ -56,6 +103,23 @@ impl DatatypeDependencyHost for CemQlSchemaDeclarationHost {
         _: &DatatypeDependency,
         qname: &str,
     ) -> ReferenceLinkEvaluation<Self::Node> {
+        if let Some(catalog) = &self.datatype_names {
+            if catalog.contains_scope(source.scope()) {
+                return match catalog.lookup(source, qname) {
+                    crate::datatype_names::DatatypeNameLookup::Target(target) => {
+                        ReferenceLinkEvaluation::Resolved(vec![
+                            self.source_reference(target.declaration().clone())
+                        ])
+                    }
+                    crate::datatype_names::DatatypeNameLookup::Pending(reason) => {
+                        ReferenceLinkEvaluation::Pending(reason.into())
+                    }
+                    crate::datatype_names::DatatypeNameLookup::Unresolved(reason) => {
+                        ReferenceLinkEvaluation::Unresolved(reason.into())
+                    }
+                };
+            }
+        }
         self.datatype_literals
             .get(&(source.scope().identity(), qname.into()))
             .map(|target| {

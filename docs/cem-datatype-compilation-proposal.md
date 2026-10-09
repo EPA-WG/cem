@@ -1053,8 +1053,9 @@ name-list nonemptiness must be registered explicitly during the pending migratio
 `traverse_native_datatype_dependencies`. All requested roots share the remaining
 work budget, including descriptor compilation. Scope grants, destination limits,
 cycles and incomplete dependency states remain owned by the shared resolver.
-Literal names enter through explicit original-scope bindings on the declaration
-host; this narrow binding API does not implement namespace import/export discovery.
+Literal names enter through an explicit immutable namespace/export catalog or the
+legacy original-scope binding API. The catalog implementation is described below;
+automatic schema/package source discovery remains a separate integration step.
 Native `@base`/`@rule` targets retain their original owners and source attributes.
 
 The host registers a kind, typed representation, accepted cross-kind bases,
@@ -1250,3 +1251,55 @@ artifacts together.
 These native adapters do not activate native attribute `@type`, alter attribute-local
 vocabularies, infer equality from a datatype's name, or add source/query execution
 profiles. Those integrations remain actionable items in `todo.md`.
+
+
+## Implemented explicit datatype namespace/export catalog
+
+`DatatypeNameCatalog::collect` builds an immutable name snapshot from original
+`DatatypeSource` handles and lifecycle-supplied lexical environments. Each given
+scope has its own namespace, local declarations and explicitly admitted public
+exports. Each declaration carries its own effective prefix bindings. A pending
+namespace/prefix is represented separately from an undeclared prefix. These inputs
+come from the original declaring context, never from an attribute that happens to
+consume the resulting datatype. They require no authored scope IDs.
+
+Collection indexes all local names before checking exports, so literal forward
+references work without source-order overrides. It checks effective metamodel names
+through the host's current native name view, requires one literal local declaration
+name, rejects foreign `type`/`name` lookalikes and retains both sources for collisions.
+Full kind/facet/capability checks remain in descriptor compilation. Repeated selection
+of one original declaration is valid only with the same scope and lexical bindings.
+Equal public namespace/local names in independent scopes do not merge those scopes.
+
+An export supplies a public namespace/local name and an exact original datatype
+source already collected in its own environment. An explicitly supplied public name
+may differ from its source's local name; that rename never changes the target's base
+or item dependency bindings. Imports are scoped to their requesting environment.
+Two distinct sources claiming the same imported name, or an import conflicting with
+a local name in that namespace, are errors. There is no global namespace search,
+automatic URL load, document-fragment convention or built-in implementation fallback.
+
+Unprefixed names resolve in the declaring scope's namespace; qualified names use
+that declaration's effective aliases and its scope's explicit exports. A pending
+binding yields pending lookup; malformed QNames, unknown prefixes and absent public
+names remain unresolved. Both literal and native targets then pass the existing
+reference consumer's scope grants, context readiness, cardinality, traversal limits
+and original-source checks. A public export does not itself grant a crossing or an
+executable implementation.
+
+`CemQlSchemaDeclarationHost::install_datatype_names` installs the complete snapshot
+only after checking every owner and scope. Failed installation preserves the previous
+catalog, and a replacement cannot reassign a retained declaration's original scope.
+Host clones keep their existing immutable snapshots. Scopes covered by a catalog
+never fall back to legacy explicit name bindings after a lookup is pending or fails;
+scopes outside the catalog retain the existing explicit binding API. Native selection
+continues to identify original declarations independently of their public names.
+
+Collection defaults to 100,000 work units and 1 MiB of retained name/alias/export
+text; callers may override both. Exhaustion returns a source-attributed pending error
+and publishes no partial catalog. These discovery bounds are separate from, and do
+not reset, the later shared dependency traversal budgets. Consumers must supply a
+fresh catalog when lexical environments or admitted exports change. This adds no
+authored import/export syntax and does not infer effective aliases from raw source
+strings. Connecting schema/package source discovery to these inputs, completing
+metamodel admission and migrating shipped datatype implementations remain in `todo.md`.

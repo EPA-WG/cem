@@ -295,7 +295,7 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: namespace/export discovery, checked source/query
+Next implementation order: schema/package name-catalog integration, checked source/query
 capability adapters, then shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
@@ -306,10 +306,24 @@ automatic attribute type activation depend on those tasks.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
 
-- [ ] Complete datatype namespace/export discovery and full metamodel admission,
-      plus shipped grammar/reference implementations. Explicit original-scope
-      bindings and registered tokenization policies are implemented; add fixture
-      actions for exported names, alias ownership and concrete parsers before wiring.
+- [x] Add datatype name-catalog fixtures for forward local references, original
+      per-declaration aliases, explicit exports, duplicate/ambiguous names, pending
+      bindings, foreign metamodel names, bounded collection and denied scope crossings.
+      Scenarios for later design verification: importing a public name never grants
+      access; an exporter keeps its own dependency aliases; failed catalog replacement
+      leaves the previous snapshot usable and never falls back to legacy bindings.
+
+- [x] Implement an immutable namespace/export catalog over explicitly collected
+      original datatype sources and lifecycle-supplied lexical environments. Wire
+      literal dependency lookup through it without changing native selection or grants.
+      Scenarios for later design verification: equal names in independent scopes
+      stay independent; pending aliases and unexported targets cannot activate a type.
+
+- [ ] Connect schema/package source discovery to the datatype name catalog using
+      original captured lexical environments and explicitly admitted exports. Complete
+      remaining metamodel admission and shipped grammar/reference implementations;
+      add fixture actions for source-driven collection and concrete parsers before wiring.
+      The explicit catalog, original-scope bindings and tokenization policies are implemented.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 

@@ -1091,8 +1091,12 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Implement native scalar equality and token-constant preparation with exact
       original registrations, inherited vocabulary ownership, lifecycle context and
       cumulative bounds (2026-10-08).
-- [ ] Implement source/query conversion, equality and constant adapters, complete
-      namespace/export and shipped parity before enabling executable native attribute `@type`.
+- [x] Implement immutable datatype namespace/export catalogs over original sources,
+      with forward names, per-declaration aliases, explicit public names, collision
+      diagnostics, bounded collection and unchanged scope-crossing checks.
+- [ ] Connect schema/package discovery to the datatype name catalog and implement
+      source/query conversion, equality and constant adapters; complete metamodel
+      admission and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
       preserves the active package; empty converted output differs from failure;
       inherited vocabularies retain their original equality and token interpretation.
