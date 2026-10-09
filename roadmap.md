@@ -1072,15 +1072,14 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Reject undeclared value-contract record fields by default; permit extensions
       only through an explicit schema option. Preserve declared-field checks and
       native diagnostic metadata (2026-10-08).
-- [ ] Specify the shared declaration surface, field type/name binding and
-      explicit extension option, then implement the compiler with native fixtures.
-- [ ] Specify result metamodel admission and declare diagnostic field rules in the
-      schema-owned contract; implement the shared adapter into the existing report
-      pipeline with native fixtures for field validation and retained attribution.
-- [ ] Implement registered signatures and the result validator before connecting
-      CEM-QL/native implementations and explicit diagnostic-only compatibility.
-      Verify candidate cardinality, malformed result rejection, retained attribution
-      and parity without recursively invoking the unfinished datatype compiler.
+- [x] Implement the shared declaration surface, QName binding, explicit
+      `allow-extra`, bounded compiler and record checks with native fixtures.
+- [x] Declare schema-owned result/diagnostic shapes and implement explicit CEM-QL
+      and native result consumption into shared report values, retaining source
+      attribution and one-read native snapshots.
+- [ ] Implement registered input signatures, authorized behavior dispatch and
+      explicit diagnostic-only compatibility. Verify candidate cardinality and
+      cumulative rejection without inferring execution authority from result shape.
 - [ ] Finish registered datatype capability signatures, effective kind/facet contracts
       and execution adapters before enabling executable native attribute `@type`.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;

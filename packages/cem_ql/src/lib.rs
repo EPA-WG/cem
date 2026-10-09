@@ -12,6 +12,7 @@ pub mod artifact;
 #[cfg(feature = "debug-control")]
 pub mod debug_control;
 pub mod diagnostics;
+pub mod datatype_results;
 pub mod embedded;
 pub mod eval;
 pub mod ir;

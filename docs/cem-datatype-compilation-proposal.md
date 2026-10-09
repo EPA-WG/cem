@@ -17,7 +17,8 @@ native values and checked records with optional original source nodes. Shared
 value-contract declarations are adopted for reusable result/diagnostic shapes.
 General datatype compilation must be designed before enabling native attribute
 `@type` consumption.
-This draft does not adopt a new executable grammar or enable datatype references.
+The shared value-contract source surface and explicit result consumer are implemented.
+General datatype rule execution and native attribute `@type` remain guarded.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
 are separate from core reference adoption. Preserve the adopted contracts here, but
@@ -277,7 +278,8 @@ dependency or extend scope grants. Conversion continues to use a distinct
 capability with declared typed output, followed by every effective restriction.
 Datatype validation parameter names are fixed by the adopted input-role contract
 below. Result construction and boundary checks follow the adopted contract below;
-concrete metamodel admission and adapter bindings remain to be specified.
+shared record metamodel admission and result adapters are implemented below.
+Registered datatype behavior signatures and execution binding remain separate work.
 
 ## Adopted validation result protocol
 
@@ -313,9 +315,9 @@ attributed diagnostics that may be empty. A missing or mistyped field is an
 execution contract failure, not a completed rejection or implicit acceptance.
 The result cannot be supplied through an unvalidated legacy object shape.
 
-This protocol is adopted but not enabled. Specify the registered validation
-adapter's metamodel type names, diagnostic representation bindings, input
-signatures and compatibility boundary before invocation. Existing diagnostic-only
+The explicit result consumer implements this protocol through shared value
+contracts. Registered rule invocation still requires its typed input signatures
+and execution/compatibility binding. Existing diagnostic-only
 behaviors require an explicit adapter with a declared validity mapping; they do
 not acquire datatype compatibility just because their result has diagnostic
 metadata. No JSON record substitutes for a retained candidate or datatype node.
@@ -350,12 +352,12 @@ does not project the candidate or datatype AST into records. Original node handl
 retain their owners and identity throughout invocation and reporting.
 
 The shared diagnostic value contract below covers severity, message/code and
-attribution. Concrete metamodel admission and adapter bindings remain open work;
-this decision does not require a new result constructor or introduce new type
-literals.
+attribution. The shared record metamodel and explicit result adapter implement
+these checks without requiring a result constructor. Function parameter types and
+registered execution bindings remain separate work.
 
-Implement the registered signature and result validator first, then connect
-CEM-QL construction and native implementations to that shared contract. Checking
+The shared result validator connects explicit CEM-QL/native results to this
+contract; registered signatures must be checked before rule dispatch. Checking
 rule results must not recursively invoke the unfinished general datatype compiler.
 
 ## Adopted diagnostic value contract
@@ -390,10 +392,10 @@ host reporting and abort policies remain applicable independently.
 
 Declare these field rules in the schema-owned contract and compile them into
 consumer boundary checks. Use the existing report pipeline rather than a separate
-datatype reporting model. Concrete metamodel admission and native/CEM-QL adapter
-bindings remain to be implemented without a recursive dependency on the unfinished
-general datatype compiler. Diagnostic-only behavior compatibility still requires
-its explicit acceptance mapping.
+datatype reporting model. The explicit native/CEM-QL result adapter below uses
+these declarations without a recursive dependency on the unfinished general
+datatype compiler. Diagnostic-only behavior compatibility still requires its
+explicit acceptance mapping.
 
 ## Adopted shared value-contract declarations
 
@@ -416,11 +418,68 @@ silently selecting fallback attribution. This policy governs record-field
 validation; existing native diagnostic metadata remains preserved by its native
 adapter and is not discarded or rejected as undeclared record fields.
 
-The declaration surface and type/name binding still need specification before
-implementation, including the source form for the explicit extension option.
+The bounded declaration surface and compiler below implement this decision.
 Existing AST element field-contracts and legacy behavior result/detail contracts
-remain compatible. This decision adds no enabled source syntax, implicit behavior
-registration or datatype execution.
+remain compatible. Contract compilation grants no behavior registration or
+datatype execution.
+
+## Implemented value-contract surface and result adapters
+
+Adopted and implemented 2026-10-08: a schema's `value-contracts` collection holds
+named `value-contract` records with `value-field` children. `allow-extra=true`
+explicitly admits undeclared record fields; the default is false.
+
+Each field declares `name`, exactly one of `kind` or `type`, optional `required`
+(default false), optional `cardinality` (default `one`) and optional `values`.
+`kind` selects the primitive representation `string`, `boolean` or original native
+`node`. `type` selects another named record contract. The supported cardinalities
+are `one`, `zero-or-one`, `zero-or-more` and `one-or-more`. `values` is a
+whitespace-token vocabulary on string fields only. Arrays remain single values;
+checking a sequence never implicitly flattens an array. String/boolean fields
+require atomic representations; a node or record's scalar accessor does not
+implicitly convert it to a scalar field value.
+
+The shipped schema declares `datatype-validation-result` and
+`datatype-diagnostic` in this vocabulary. Their field rules and severity
+vocabulary come from the source declarations. This does not repurpose the legacy
+`schema:diagnostic` datatype or broaden existing function return-type literals.
+
+`schema::value_contracts::ValueContracts` compiles original retained schema
+handles with caller-supplied declaring namespaces and QName bindings. CEM sources
+use owner-checked captured names; pending names do not fall back to lexical names.
+Unprefixed contract references use the declaring namespace, qualified references
+use its supplied bindings, and targets must be present among explicitly supplied
+sources. The compiler loads nothing and grants no scope crossing. Distinct
+same-name declarations, unknown types, unsupported fields/facets and cyclic record
+contracts fail compilation; repeated use of the same source is reusable.
+
+The first profile uses overridable limits of 256 contracts, 4096 fields,
+64 nested record edges and 100,000 validation work units. Field/value visits share
+one validation budget across nested records. Source expressions and native
+reference operands are not evaluated by this record-contract compiler; future
+source consumers must be explicitly designed before admitting them.
+
+`cem_ql::datatype_results::DatatypeResultAdapter` binds the result and diagnostic
+contracts, checks their protocol representations, then consumes an explicitly
+completed query/native result. Native record fields and scalar observations are
+snapshotted once so decoding uses the values that were checked. Runtime result
+checking preserves original handles and emits no report as a side effect.
+The returned shared `Diagnostic` values enter the host's existing report pipeline;
+`original` retains the result and native owners. Source-node attribution uses the
+original retained owner; source-less calls use explicitly supplied fallback
+metadata. Existing native diagnostics retain all their metadata.
+
+Execution errors retain their original failed stream and diagnostics. Diagnostics
+already emitted by query execution remain separate from returned rule diagnostics;
+neither determines the acceptance boolean. A rejection without a diagnostic gets
+a generic consumer explanation. Malformed result errors identify the contract
+source and field path where available. Diagnostic-only legacy behaviors do not
+acquire acceptance by returning a matching record.
+
+These APIs provide explicit result consumption, not registered behavior dispatch,
+full datatype compilation or automatic native attribute `@type` activation. Input
+capability signatures, effective datatype contracts and the legacy acceptance
+mapping remain tracked separately.
 
 ## Implemented native diagnostic query prerequisite
 
@@ -432,8 +491,8 @@ interpret validation acceptance. This is query access, not result validation.
 
 A native query fixture covers all four severities and retained attribution, with
 22 existing query/template/XSLT error-recovery regressions passing alongside it.
-Shared value-contract compilation and native attribute `@type` execution remain
-guarded separately.
+Registered datatype rule execution and native attribute `@type` consumption
+remain guarded separately.
 
 ## Adopted general list emptiness
 

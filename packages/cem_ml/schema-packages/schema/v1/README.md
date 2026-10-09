@@ -55,6 +55,46 @@ may still emit compatibility diagnostics keyed to the shipped schema/package
 fields, but target reference checks consume explicit schema URI declarations,
 complete schema identity records, and namespace claims as separate domains.
 
+## Shared runtime value contracts
+
+`value-contracts` declares reusable structural record contracts. These are
+consumed explicitly by `cem_ml::schema::value_contracts::ValueContracts` and the
+CEM-QL datatype result adapter. They do not enable datatype rule dispatch or
+native attribute `@type` execution.
+
+```cem
+{value-contracts |
+    {value-contract @name="datatype-diagnostic" |
+        {value-field @name="code" @kind="string" @required=true}
+        {value-field @name="severity" @kind="string" @required=true @values="info warning error fatal"}
+        {value-field @name="message" @kind="string" @required=true}
+        {value-field @name="source" @kind="node" @cardinality="zero-or-one"}
+    }
+    {value-contract @name="datatype-validation-result" |
+        {value-field @name="accepted" @kind="boolean" @required=true}
+        {value-field @name="diagnostics" @type="schema:datatype-diagnostic" @required=true @cardinality="zero-or-more"}
+    }
+}
+```
+
+Each field uses either primitive `kind` (`string`, `boolean`, `node`) or a named
+record `type`. The compiler resolves local names in the declaring namespace and
+QNames through its explicitly supplied bindings. It preserves original declaration
+owners and captured source names; it does not load dependencies or run user rules.
+
+Field presence (`required`, default false) is independent of cardinality (`one`,
+`zero-or-one`, `zero-or-more`, `one-or-more`; default `one`). A present empty
+`diagnostics` sequence is valid, while an absent field is not. String fields may
+restrict their values with whitespace-token `values`; arrays are not implicitly
+flattened. Records reject undeclared fields unless `allow-extra=true` is declared.
+
+The bounded first profile rejects unknown/cyclic contracts and unsupported source
+expressions. Default compiler limits are 256 contracts, 4096 fields and 64 nested
+record edges; validation permits 100,000 field/value work units per request.
+Hosts may override these limits. The result adapter preserves native diagnostics
+and source nodes, and validates a single snapshot of native record fields. Native
+diagnostic metadata is preserved independently of closed record-field checks.
+
 ## Folder Contract
 
 `package.cem` is the manifest-owned index for this folder. It declares the

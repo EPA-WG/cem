@@ -138,6 +138,10 @@ pub trait QueryItemView: fmt::Debug + Send + Sync {
 #[derive(Debug)]
 struct DiagnosticView(Diagnostic);
 
+pub(crate) fn native_diagnostic(item: &Item) -> Option<&Diagnostic> {
+    item.view()?.downcast_ref::<DiagnosticView>().map(|view| &view.0)
+}
+
 pub(crate) fn diagnostic_item(diagnostic: Diagnostic) -> Item {
     Item::native(DiagnosticView(diagnostic))
 }

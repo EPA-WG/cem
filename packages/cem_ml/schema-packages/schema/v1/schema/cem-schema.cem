@@ -17,7 +17,7 @@
     }
 
     {elements |
-        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics behaviors field-contracts constraints diagnostics open-content compatibility"}
+        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types value-contracts namespace-semantics behaviors field-contracts constraints diagnostics open-content compatibility"}
         {element @name="summary" @children="text"}
         {element @name="text"}
         {element @name="uses" @children="use"}
@@ -37,6 +37,9 @@
         {element @name="lexical" @children="rule"}
         {element @name="rule" @required-attributes="name value"}
         {element @name="types" @children="type"}
+        {element @name="value-contracts" @children="value-contract"}
+        {element @name="value-contract" @required-attributes="name" @optional-attributes="allow-extra" @children="value-field"}
+        {element @name="value-field" @required-attributes="name" @optional-attributes="kind type required cardinality values"}
         {element @name="type" @required-attributes="name" @optional-attributes="kind base rule values"}
         {element @name="namespace-semantics" @children="binding resolution handoff"}
         {element @name="binding" @required-attributes="directive scope"}
@@ -162,6 +165,7 @@
         {attribute @name="support" @type="cemml:identifier"}
         {attribute @name="package" @type="cemml:identifier"}
         {attribute @name="binding" @type="cemml:identifier"}
+        {attribute @name="allow-extra" @type="schema:boolean"}
         {attribute @name="cardinality" @type="cemml:identifier"}
         {attribute @name="on-empty" @type="cemml:identifier"}
         {attribute @name="from" @type="schema:string"}
@@ -323,6 +327,19 @@
         {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}
         {type @name="white-space" @base="cemml:identifier" @values="preserve replace collapse"}
         {type @name="boolean-or-policy" @base="cemml:string"}
+    }
+
+    {value-contracts |
+        {value-contract @name="datatype-diagnostic" |
+            {value-field @name="code" @kind="string" @required=true}
+            {value-field @name="severity" @kind="string" @required=true @values="info warning error fatal"}
+            {value-field @name="message" @kind="string" @required=true}
+            {value-field @name="source" @kind="node" @cardinality="zero-or-one"}
+        }
+        {value-contract @name="datatype-validation-result" |
+            {value-field @name="accepted" @kind="boolean" @required=true}
+            {value-field @name="diagnostics" @type="schema:datatype-diagnostic" @required=true @cardinality="zero-or-more"}
+        }
     }
 
     {behaviors |

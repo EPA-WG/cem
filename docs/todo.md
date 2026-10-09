@@ -186,23 +186,35 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: `soruce` fails a closed diagnostic
       contract; an open contract still rejects an invalid declared `source` value.
 
-- [ ] Specify the shared value-contract declaration surface, field type/name
-      binding and explicit extension option before implementing its compiler. Add
-      native fixtures first for required-but-empty fields, optional native sources,
-      nested diagnostic contracts, invalid cardinalities and retained declaration
-      identity. Cover default rejection of undeclared fields, explicit extensions
-      without weakened declared-field checks, and preserved native diagnostic
-      metadata; preserve existing element field-contract and behavior metadata.
+- [x] Implement the shared value-contract declaration surface and compiler:
+      `value-contracts`/`value-contract`/`value-field`, primitive representation kinds,
+      QName-bound nested record contracts, independent presence/cardinality and
+      explicit `allow-extra`. Retain original declarations and owner-checked captured
+      names; reject unknown/cyclic types and unsupported source forms under bounds.
       Scenarios for later design verification: unknown contracts do not become
       untyped fallbacks; compiling shape metadata never invokes user datatype rules.
 
-- [ ] Declare diagnostic fields and severity vocabulary in the schema-owned
-      metamodel contract, then compile the shared native/record consumer adapter
-      into the existing report pipeline. Add native fixtures first for missing or
-      mistyped fields, invalid severity, source cardinality, an offending target from
-      a node sequence with its original owner, preserved native metadata, and
-      source-less invocation attribution. Check that an invalid source fails rather
-      than falling back and that attribution performs no ID lookup.
+- [x] Implement and verify the first shared value-contract compiler and CEM-QL
+      result adapter. Fifteen native fixtures cover schema-driven fields and
+      vocabularies, QName binding, declaration identity, invalid/cyclic dependencies,
+      bounds, closed/extended records, missing/empty fields, native node attribution,
+      malformed results, native/record parity, one-read native snapshots and
+      preservation of execution-side reports. The shipped schema validates the new
+      vocabulary and declares its result/diagnostic shapes.
+      Verification: all 15 new fixtures, 46 CEM-ML regression tests, the native
+      diagnostic fixture and 22 recovery tests pass (84 total); the schema package's
+      Nx `verify` target passes, including its CLI build prerequisite.
+      Scenarios for later design verification: consumers cannot acquire execution
+      authority by returning a matching record; retained sources outlive evaluation.
+
+- [x] Verify primitive record fields reject native node/record scalar accessors
+      while admitting typed native atomic values; require the declared representation
+      without implicit conversion.
+
+- [x] Declare diagnostic fields and severity vocabulary in the schema-owned
+      metamodel and implement the shared native/record consumer. It returns existing
+      shared report diagnostics with original attribution, preserves native metadata
+      and diagnoses invalid source values without fallback or ID lookup.
       Scenarios for later design verification: both representations retain source
       attribution through reporting; severity never substitutes for `accepted`,
       while host reporting and abort policies still apply.
@@ -211,27 +223,35 @@ archived, while executable datatype consumption remains guarded.
       query fixture covers all four severities, field enumeration and retained
       diagnostic metadata/source maps inside a constructed result record. The
       fixture and 22 existing query/template/XSLT recovery tests pass. This is
-      query access only; datatype result validation stays guarded.
+      query access only; datatype rule execution stays guarded.
       Scenarios for later design verification: reading severity does not emit a
       diagnostic, infer acceptance or replace the retained diagnostic with a record.
 
-- [ ] Specify validation result metamodel admission, then implement the registered
-      signature and result validator before binding CEM-QL/native implementations.
-      Add native fixtures first for zero/one/multiple results, required fields,
-      singleton boolean `accepted` without truthiness conversion, invalid diagnostic
-      entries, empty diagnostics, acceptance/severity independence, cumulative
-      rejection and retained source attribution. Check results without recursively
-      invoking the unfinished general datatype compiler.
-      Scenarios for later design verification: an accepted rule cannot erase another
-      restriction's rejection; lifecycle incompleteness cannot masquerade as success.
+- [x] Implement validation result metamodel admission and structural result checking
+      without invoking the unfinished datatype compiler. Enforce exactly one result,
+      required fields, singleton boolean acceptance, typed diagnostic sequences and
+      retained attribution. Keep execution failures separate from rejected values.
+      Scenarios for later design verification: lifecycle incompleteness cannot
+      masquerade as success; diagnostic severity does not determine acceptance.
 
-- [ ] Connect ordinary CEM-QL result construction and native implementations to the
-      shared validator; specify an explicit diagnostic-only compatibility adapter
-      with a declared acceptance mapping. Add parity fixtures before wiring both
-      paths, including a matching legacy record from an unregistered behavior.
-      Scenarios for later design verification: constructors are optional; matching
-      fields never bypass capability registration or source signature checks;
-      result construction leaves original candidate and datatype handles intact.
+- [x] Connect CEM-QL-constructed records and native diagnostic values to the same
+      explicit result consumer, with parity and snapshot fixtures. Retain the
+      original result and owners; matching fields grant no behavior registration.
+      Scenarios for later design verification: constructors are optional; result
+      construction leaves original candidate and datatype handles intact.
+
+- [ ] Implement registered datatype input signature checking and authorized behavior
+      dispatch before invocation. Add fixtures for missing required candidates,
+      registered zero-or-one/exactly-one cardinality, kind-specific value inputs,
+      retained owners and cumulative rejection across effective restrictions.
+      Scenarios for later design verification: a matching legacy result never grants
+      execution authority; later acceptance cannot erase an earlier rejection.
+
+- [ ] Specify and implement the explicit diagnostic-only compatibility adapter with
+      a registered acceptance mapping. Add fixtures before wiring legacy behavior
+      outputs, including unavailable execution and severity/acceptance independence.
+      Scenarios for later design verification: diagnostic-only results cannot imply
+      acceptance until the selected registered mapping is applied.
 
 - [ ] Specify the registered implementation identity, typed input/result signature,
       package ownership checks and compilation/validation/conversion adapters.
