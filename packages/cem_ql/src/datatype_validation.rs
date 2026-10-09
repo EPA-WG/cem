@@ -79,6 +79,7 @@ pub struct ValidationInput {
 #[derive(Debug, Clone, Copy)]
 pub struct ValidationLimits {
     pub max_rules: usize,
+    pub max_comparisons: usize,
     pub max_input_values: usize,
     pub max_diagnostics: usize,
 }
@@ -86,6 +87,7 @@ impl Default for ValidationLimits {
     fn default() -> Self {
         Self {
             max_rules: 256,
+            max_comparisons: 100_000,
             max_input_values: 100_000,
             max_diagnostics: 100_000,
         }
@@ -288,6 +290,7 @@ pub enum ValidationStopReason {
     Pending(Vec<Diagnostic>),
     Unavailable(Vec<Diagnostic>),
     Result(DatatypeResultError),
+    Failed(Vec<Diagnostic>),
 }
 #[derive(Debug, Clone)]
 pub struct ValidationStop {

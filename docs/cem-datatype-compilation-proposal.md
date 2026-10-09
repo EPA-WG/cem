@@ -934,7 +934,8 @@ Each inherited values restriction retains its original declaring contract,
 constant interpretation and equality binding. A derived equality does not replace
 a base restriction's equality or widen the inherited allowed values. Existing
 attribute-local vocabulary behavior remains unchanged until migration is explicit.
-Registered equality invocation and constant preparation are not enabled yet.
+Explicit native equality and constant preparation are implemented below; authored
+source/query capability profiles remain deferred.
 
 ## Implemented bounded native dependency traversal
 
@@ -1088,7 +1089,7 @@ actual count. Descendant references remain authored native nodes.
 Unknown fields/structural children, duplicate fields, incompatible bases and
 invalid bounds cannot compile. Node lexical facets and list declaration `values`
 are rejected. Scalar `values` keeps compilation incomplete until registered
-constant interpretation and equality are implemented; it is never ignored.
+constant interpretation and equality are available; it is never ignored.
 Explicit native conversion is implemented below. Grammar/reference implementations,
 query conversion profiles and full shipped parity remain open.
 
@@ -1195,5 +1196,57 @@ cancelled or malformed results from being published.
 This implements explicit native capability selection and execution. It introduces
 no new authored conversion behavior or function syntax, does not activate native
 attribute `@type`, and does not migrate the shipped scalar conversion API. Checked
-source/query adapters, scalar equality/constants and shipped parity remain tracked
+source/query adapters and shipped parity remain tracked
 in `todo.md`, with their verification scenarios.
+
+
+## Implemented native scalar equality and token preparation
+
+`RegisteredScalarEquality` and `RegisteredConstantInterpreter` are separate exact
+registrations selected through `DatatypeImplementations`. Each carries the original
+datatype declaration, scope, implementation identity and scalar representation.
+No local selection inherits the base capability; an explicit unavailable selection
+remains unavailable through further inheritance. An absent/unavailable capability
+blocks any vocabulary that needs it. Already prepared inherited restrictions retain
+their own bound registrations even if a derived declaration selects another one.
+
+`compile_datatypes_with_runtime` requires the consumer's explicit lifecycle context
+and operation control to prepare vocabularies. The existing context-free compiler
+keeps such declarations pending. Preparation retains each whitespace token's byte
+range in the decoded attribute value, the full lexical value and original attribute
+owner. This is not a fabricated byte range in the original source document.
+Nonliteral and empty vocabularies are invalid; no additional constant syntax is
+introduced. Token interpretation returns one scalar in the registered representation,
+explicit rejection, or an incomplete pending/unavailable/failed outcome.
+
+Before admitting a constant, compilation validates it against the original effective
+descriptor's base/local rules and inherited vocabularies. Its own vocabulary is added
+only afterward, avoiding recursive membership checks. The original `@values`
+attribute supplies the preparation candidate and fallback diagnostic attribution.
+Failed contract validation rejects the declaration; incomplete execution preserves
+an incomplete candidate. Preparation never invokes a runtime converter. The resulting
+immutable snapshot belongs to this lifecycle execution; hosts recompile when its
+inputs/capabilities change, rather than mutating a previously published contract.
+
+Runtime validation applies all vocabulary restrictions conjunctively. Within each
+restriction, it compares against constants until one registered comparison returns
+true. A rejected restriction does not skip later restrictions. Pending/unavailable/
+failed comparison leaves overall acceptance unknown, retaining earlier outcomes,
+diagnostics and the original stopped vocabulary attribute. Neither operand nor
+candidate is converted or rewritten. Explicit comparison booleans determine
+membership independently of diagnostic severity; supplied diagnostic metadata is
+preserved and only wholly source-less diagnostics receive candidate attribution.
+
+Default preparation bounds are 4,096 constants and 1 MiB of decoded vocabulary
+text across all roots, plus cumulative validation allowances (256 rules, 100,000
+input/candidate values, 100,000 comparisons and 100,000 diagnostics). Every bound is
+host-overridable. Runtime validation shares one comparison and diagnostic allowance
+across inherited vocabularies and list items. Callbacks must cooperate with operation
+control and bound their own work; boundary checks run before and after callbacks.
+Invalid, unavailable or bounded-out preparation never activates a replacement
+package. A ready retry on the retained owner publishes the schema, converters and
+artifacts together.
+
+These native adapters do not activate native attribute `@type`, alter attribute-local
+vocabularies, infer equality from a datatype's name, or add source/query execution
+profiles. Those integrations remain actionable items in `todo.md`.

@@ -1088,14 +1088,18 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Implement explicit native converter selection/execution with compatible
       inherited/replaced output, one-call validation and package readiness. Preserve
       original native views and typed completion/rejection/incomplete outcomes.
-- [ ] Implement equality/constants and source/query conversion adapters, complete
+- [x] Implement native scalar equality and token-constant preparation with exact
+      original registrations, inherited vocabulary ownership, lifecycle context and
+      cumulative bounds (2026-10-08).
+- [ ] Implement source/query conversion, equality and constant adapters, complete
       namespace/export and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
       preserves the active package; empty converted output differs from failure;
       inherited vocabularies retain their original equality and token interpretation.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;
       richer retained constants are deferred (adopted 2026-10-08).
-- [ ] Add fixtures before token-constant/equality execution under the adopted contract.
+- [x] Add native token-constant/equality fixtures, including inherited restrictions,
+      typed outcomes, source spans, cancellation, shared budgets and package retries.
 - [ ] Deferred: design richer retained constants with explicit source/metamodel
       compatibility before admitting new syntax; preserve existing token meanings.
 - [ ] Integrate the completed compiler through the reference consumer readiness boundary,

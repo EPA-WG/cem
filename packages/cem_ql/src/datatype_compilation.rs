@@ -2,7 +2,10 @@
 //! declarations; names and successful reference selection alone confer no authority.
 use crate::{
     datatype_conversion::{BoundDatatypeConverter, ConverterBinding},
-    datatype_validation::{BoundDatatypeRule, DatatypeValidationRegistry},
+    datatype_enumeration::{
+        ConstantBinding, ConstantPreparationLimits, EnumerationRestriction, EqualityBinding,
+    },
+    datatype_validation::{BoundDatatypeRule, DatatypeValidationRegistry, ValidationRuntime},
     eval::RetainedCemNode,
 };
 use cem_ml::{
@@ -28,6 +31,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+mod enumeration;
 mod execution;
 pub use execution::{CardinalityRejection, DatatypeValidation};
 
@@ -56,6 +60,8 @@ pub struct DatatypeImplementation {
 #[derive(Debug, Clone, Default)]
 pub struct DatatypeImplementations {
     entries: BTreeMap<String, DatatypeImplementation>,
+    equalities: BTreeMap<String, (DatatypeSource, EqualityBinding)>,
+    interpreters: BTreeMap<String, (DatatypeSource, ConstantBinding)>,
     converters: BTreeMap<String, (DatatypeSource, ConverterBinding)>,
 }
 impl DatatypeImplementations {
@@ -82,6 +88,46 @@ impl DatatypeImplementations {
         Ok(())
     }
 
+    pub fn select_equality(
+        &mut self,
+        source: DatatypeSource,
+        binding: EqualityBinding,
+    ) -> Result<(), &'static str> {
+        let key = source.declaration().identity();
+        if self.equalities.contains_key(&key) {
+            return Err("duplicate-scalar-capability-selection");
+        }
+        if let EqualityBinding::Ready(registered) = &binding {
+            let selected = &registered.identity().source;
+            if selected.declaration().identity() != key
+                || selected.scope().identity() != source.scope().identity()
+            {
+                return Err("unrelated-scalar-capability-source");
+            }
+        }
+        self.equalities.insert(key, (source, binding));
+        Ok(())
+    }
+    pub fn select_constant_interpreter(
+        &mut self,
+        source: DatatypeSource,
+        binding: ConstantBinding,
+    ) -> Result<(), &'static str> {
+        let key = source.declaration().identity();
+        if self.interpreters.contains_key(&key) {
+            return Err("duplicate-scalar-capability-selection");
+        }
+        if let ConstantBinding::Ready(registered) = &binding {
+            let selected = &registered.identity().source;
+            if selected.declaration().identity() != key
+                || selected.scope().identity() != source.scope().identity()
+            {
+                return Err("unrelated-scalar-capability-source");
+            }
+        }
+        self.interpreters.insert(key, (source, binding));
+        Ok(())
+    }
     pub fn register(&mut self, implementation: DatatypeImplementation) -> Result<(), &'static str> {
         let key = implementation.source.declaration().identity();
         let compatible = match implementation.kind {
@@ -132,6 +178,9 @@ pub struct ExecutableDatatype {
     item: Option<Arc<ExecutableDatatype>>,
     rules: Vec<BoundDatatypeRule>,
     converter: Option<BoundDatatypeConverter>,
+    equality: Option<EqualityBinding>,
+    interpreter: Option<ConstantBinding>,
+    enumerations: Vec<Arc<EnumerationRestriction>>,
 }
 impl CompiledDatatypeContract for ExecutableDatatype {
     fn as_any(&self) -> &dyn Any {
@@ -145,6 +194,9 @@ impl CompiledDatatypeContract for ExecutableDatatype {
     }
 }
 impl ExecutableDatatype {
+    pub fn enumerations(&self) -> &[Arc<EnumerationRestriction>] {
+        &self.enumerations
+    }
     pub fn converter(&self) -> Option<&BoundDatatypeConverter> {
         self.converter.as_ref()
     }
@@ -200,6 +252,49 @@ pub fn compile_datatypes<H: DatatypeDependencyHost>(
     validations: &DatatypeValidationRegistry,
     limits: ReferenceTraversalLimits,
 ) -> DatatypeCompilation {
+    compile_datatypes_inner(
+        owner,
+        roots,
+        host,
+        implementations,
+        validations,
+        limits,
+        None,
+        Default::default(),
+    )
+}
+/// Prepare token constants only with the caller's explicit lifecycle context.
+pub fn compile_datatypes_with_runtime<H: DatatypeDependencyHost>(
+    owner: Arc<CemDocument>,
+    roots: &[DatatypeSource],
+    host: &mut H,
+    implementations: &DatatypeImplementations,
+    validations: &DatatypeValidationRegistry,
+    limits: ReferenceTraversalLimits,
+    runtime: &ValidationRuntime<'_>,
+    preparation: ConstantPreparationLimits,
+) -> DatatypeCompilation {
+    compile_datatypes_inner(
+        owner,
+        roots,
+        host,
+        implementations,
+        validations,
+        limits,
+        Some(runtime),
+        preparation,
+    )
+}
+fn compile_datatypes_inner<H: DatatypeDependencyHost>(
+    owner: Arc<CemDocument>,
+    roots: &[DatatypeSource],
+    host: &mut H,
+    implementations: &DatatypeImplementations,
+    validations: &DatatypeValidationRegistry,
+    limits: ReferenceTraversalLimits,
+    runtime: Option<&ValidationRuntime<'_>>,
+    preparation: ConstantPreparationLimits,
+) -> DatatypeCompilation {
     let mut output = DatatypeCompilation::new(owner);
     let mut compiler = Compiler {
         host,
@@ -211,6 +306,9 @@ pub fn compile_datatypes<H: DatatypeDependencyHost>(
         active: BTreeSet::new(),
         remaining: limits.max_work,
         max_depth: limits.max_depth,
+        runtime,
+        preparation,
+        diagnostics: vec![],
     };
     for root in roots {
         let id = root.declaration().identity();
@@ -327,6 +425,7 @@ pub fn compile_datatypes<H: DatatypeDependencyHost>(
             output.issues.push(e);
         }
     }
+    output.diagnostics.extend(compiler.diagnostics);
     output.contracts = compiler
         .compiled
         .into_values()
@@ -334,7 +433,10 @@ pub fn compile_datatypes<H: DatatypeDependencyHost>(
         .collect();
     output
 }
-struct Compiler<'a, H> {
+struct Compiler<'a, 'r, H> {
+    runtime: Option<&'a ValidationRuntime<'r>>,
+    preparation: ConstantPreparationLimits,
+    diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
     host: &'a mut H,
     implementations: &'a DatatypeImplementations,
     validations: &'a DatatypeValidationRegistry,
@@ -345,7 +447,7 @@ struct Compiler<'a, H> {
     remaining: usize,
     max_depth: usize,
 }
-impl<H: DatatypeDependencyHost> Compiler<'_, H> {
+impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
     fn spend(
         &mut self,
         amount: usize,
@@ -542,11 +644,9 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
             }
         }
         if let Some(values) = source.attribute("values") {
-            return Err(if matches!(kind, DatatypeKind::Node | DatatypeKind::List) {
-                invalid("unsupported-datatype-facet", values)
-            } else {
-                pending("datatype-enumeration-unavailable", values)
-            });
+            if matches!(kind, DatatypeKind::Node | DatatypeKind::List) {
+                return Err(invalid("unsupported-datatype-facet", values));
+            }
         }
         let authored = read_bounds(source)?;
         if !matches!(kind, DatatypeKind::List | DatatypeKind::Node)
@@ -584,8 +684,9 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
             _ => None,
         };
         self.spend(
-            base.as_ref()
-                .map_or(0, |b| b.rules.len() + b.restrictions.len()),
+            base.as_ref().map_or(0, |b| {
+                b.rules.len() + b.restrictions.len() + b.enumerations.len()
+            }),
             source.declaration(),
         )?;
         let mut rules = base.as_ref().map(|b| b.rules.clone()).unwrap_or_default();
@@ -680,7 +781,13 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
         };
         // A root implementation registration explicitly admits its native value
         // representation. Optional additional rules restrict that admission.
-        Ok(Arc::new(ExecutableDatatype {
+        let equality = self.equality(source, base.as_deref(), representation)?;
+        let interpreter = self.interpreter(source, base.as_deref(), representation)?;
+        let enumerations = base
+            .as_ref()
+            .map(|b| b.enumerations.clone())
+            .unwrap_or_default();
+        let mut descriptor = ExecutableDatatype {
             source: source.clone(),
             kind,
             representation,
@@ -691,7 +798,15 @@ impl<H: DatatypeDependencyHost> Compiler<'_, H> {
             item,
             rules,
             converter,
-        }))
+            equality,
+            interpreter,
+            enumerations,
+        };
+        if let Some(values) = source.attribute("values") {
+            let restriction = self.prepare_enumeration(&descriptor, values)?;
+            descriptor.enumerations.push(Arc::new(restriction));
+        }
+        Ok(Arc::new(descriptor))
     }
 }
 fn read_bounds(source: &DatatypeSource) -> Result<ItemBounds, DatatypeCompilationIssue> {

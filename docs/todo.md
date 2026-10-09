@@ -295,8 +295,8 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: scalar equality and `@values` constant preparation,
-namespace/export discovery, then shipped validation/conversion parity. Implementations
+Next implementation order: namespace/export discovery, checked source/query
+capability adapters, then shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
 
@@ -354,12 +354,26 @@ source/query converter profiles remain guarded or deferred as recorded below.
       present values; malformed tags/output never imply rejection or acceptance;
       source profiles grant no implementation authority by themselves.
 
-- [ ] Implement registered scalar equality and enumeration constant interpretation,
-      preserving each inherited restriction's original contract and binding. Add
-      fixture actions before adapters for numeric/string equality, unavailable equality
-      and inherited restriction provenance; do not rewrite input during comparison.
+- [x] Add native equality/constant fixtures for numeric versus lexical equality,
+      original token spans and owners, exact registration, inherited vocabulary
+      intersections, unavailable/malformed/rejected preparation, no implicit converter,
+      cancellation and cumulative comparison/preparation budgets. Add package retry
+      coverage preserving the active package until its vocabulary is prepared.
+      Scenarios for later design verification: derived equality cannot reinterpret a
+      base vocabulary; missing lifecycle inputs never make constants ready.
+
+- [x] Implement registered scalar equality and enumeration constant interpretation
+      (2026-10-08), retaining each inherited vocabulary's original contract and
+      implementations. Native compilation requires an explicit lifecycle runtime;
+      preparation and validation share cumulative budgets and never invoke conversion.
       Scenarios for later design verification: a derived equality cannot widen a base
       vocabulary; unknown constant interpretation prevents readiness rather than fallback.
+
+- [ ] Add checked schema-owned source/query equality and constant-interpreter
+      profiles, with fixture actions for exact signatures, tagged results, original
+      owners and context/control propagation before enabling authored execution.
+      Scenarios for later design verification: a query returning no comparison boolean
+      stays incomplete; malformed constants cannot activate a package; no lexical fallback.
 
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`
       and defer richer retained constants. Adopted 2026-10-08; each token is one

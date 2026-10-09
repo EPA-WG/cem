@@ -16,6 +16,11 @@ pub struct CardinalityRejection {
 #[derive(Debug, Clone)]
 pub struct DatatypeValidation {
     pub accepted: Option<bool>,
+    pub enumerations: Vec<crate::datatype_enumeration::EnumerationValidation>,
+    /// Includes diagnostics from a comparison that stopped before membership completed.
+    pub enumeration_diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+    pub comparisons: usize,
+    pub enumeration_stop: Option<SchemaDeclarationNode>,
     pub completed: Vec<RuleValidation>,
     pub cardinality: Vec<CardinalityRejection>,
     pub stopped: Option<ValidationStop>,
@@ -41,6 +46,10 @@ impl ExecutableDatatype {
     ) -> DatatypeValidation {
         let mut result = DatatypeValidation {
             accepted: Some(true),
+            enumerations: vec![],
+            enumeration_diagnostics: vec![],
+            comparisons: 0,
+            enumeration_stop: None,
             completed: vec![],
             cardinality: vec![],
             stopped: None,
@@ -129,6 +138,7 @@ impl ExecutableDatatype {
         }
         result.accepted = Some(result.cardinality.is_empty());
         let mut remaining_diagnostics = limits.max_diagnostics - result.cardinality.len();
+        let mut remaining_comparisons = limits.max_comparisons;
         for (descriptor, value) in calls {
             let input = ValidationInput {
                 value: Vec::<Item>::from(value),
@@ -156,6 +166,33 @@ impl ExecutableDatatype {
                 return result;
             }
             result.accepted = Some(result.accepted.unwrap() && batch.accepted.unwrap());
+            let attribution = input
+                .candidate
+                .first()
+                .map(crate::datatype_results::DiagnosticAttribution::from_node)
+                .unwrap_or_else(|| input.fallback.clone());
+            for restriction in &descriptor.enumerations {
+                let outcome = restriction.validate(
+                    &value[0],
+                    runtime,
+                    &attribution,
+                    &mut remaining_comparisons,
+                    &mut remaining_diagnostics,
+                    &mut result.enumeration_diagnostics,
+                );
+                result.comparisons = limits.max_comparisons - remaining_comparisons;
+                match outcome {
+                    Ok(outcome) => {
+                        result.accepted = Some(result.accepted.unwrap() && outcome.accepted);
+                        result.enumerations.push(outcome);
+                    }
+                    Err(reason) => {
+                        result.enumeration_stop =
+                            Some(restriction.source().attribute("values").unwrap().clone());
+                        return result.stop(reason);
+                    }
+                }
+            }
         }
         result
     }

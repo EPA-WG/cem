@@ -718,3 +718,6 @@ fn compilation_retains_reference_failure_locations_and_rejects_scope_rebinding()
 
 #[path = "conversion.rs"]
 mod conversion;
+
+#[path = "enumeration.rs"]
+mod enumeration;
