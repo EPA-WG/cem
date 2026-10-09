@@ -11,7 +11,16 @@ fn fixture() -> (
     cem_ml::schema::datatype_contracts::DatatypeCompilation,
     Vec<SchemaDeclarationNode>,
 ) {
-    let profile = source("{schema @name=test @namespace=urn:test | {types | {type @name=sample @kind=scalar}} {attributes | {attribute @name=literal @type=vendor:sample} {attribute @name=native @type={#target}}}}");
+    fixture_with_fields("")
+}
+fn fixture_with_fields(
+    fields: &str,
+) -> (
+    cem_ql::schema_references::CemQlSchemaDeclarationHost,
+    cem_ml::schema::datatype_contracts::DatatypeCompilation,
+    Vec<SchemaDeclarationNode>,
+) {
+    let profile = source(&format!("@ns ext = \"urn:constraint-extension\"\n{{schema @name=test @namespace=urn:test | {{types | {{type @name=sample @kind=scalar}}}} {{attributes | {{attribute @name=literal @type=vendor:sample {fields}}} {{attribute @name=native @type={{#target}} {fields}}}}}}}"));
     let declarations = profile
         .schema
         .document()
@@ -235,4 +244,115 @@ fn attribute_type_binding_retains_pending_context_and_traversal_limits() {
         assert!(bounded.bound.is_none(), "{bounded:?}");
         assert_ne!(bounded.state, ReferenceResolutionState::Resolved);
     }
+}
+
+#[test]
+fn attribute_binding_retains_original_local_constraints_without_activation() {
+    let (mut host, compilation, declarations) = fixture_with_fields(
+        r#"@values="red blue" @pattern="[a-z]+" @whiteSpace=collapse @minLength=2 @default=red"#,
+    );
+    let target = compilation.sources[0].declaration().clone();
+    host.bind_literal_attribute_type(slot(&declarations[0]), target.clone())
+        .unwrap();
+    let scope = host
+        .scope(&host.source_reference(declarations[1].clone()))
+        .unwrap();
+    assert!(host.set_context(
+        scope,
+        Some(
+            cem_ql::api::StandaloneExpressionContext::default().with_binding(
+                "target",
+                cem_ql::api::StandaloneExpressionBinding::any(ItemStream::once(native(&target)))
+            )
+        )
+    ));
+    for (index, decl) in declarations.iter().enumerate() {
+        let result = bind_attribute_datatype(
+            decl.clone(),
+            &compilation,
+            &mut host,
+            ReferenceTraversalLimits::schema_defaults().unwrap(),
+        )
+        .unwrap();
+        let bound = result.bound.unwrap();
+        let local = bound.local_constraints();
+        assert_eq!(local.pattern.as_deref(), Some("[a-z]+"));
+        assert_eq!(local.white_space.as_deref(), Some("collapse"));
+        assert_eq!(local.min_length.as_deref(), Some("2"));
+        assert_eq!(local.default_value.as_deref(), Some("red"));
+        assert_eq!(
+            local.allowed_values,
+            std::collections::BTreeSet::from(["red".into(), "blue".into()])
+        );
+        assert_eq!(local.native_type_pending, index == 1);
+        let CemAstNode::Element { source, .. } = decl.node() else {
+            panic!()
+        };
+        assert_eq!(&local.source_map, source);
+        assert!(bound
+            .constraint_fields()
+            .iter()
+            .all(|field| Arc::ptr_eq(field.document(), decl.document())));
+        let field=bound.constraint_fields().iter().find(|field|matches!(field.node(),CemAstNode::Attribute {expanded_name,..} if expanded_name.local_name=="pattern")).unwrap();
+        assert!(
+            matches!(field.node(),CemAstNode::Attribute {value:Some(value),..} if value=="[a-z]+")
+        );
+    }
+}
+#[test]
+fn attribute_binding_requires_ready_literal_constraint_fields() {
+    for (fields, state, issue) in [
+        (
+            "@pattern={pattern}",
+            ReferenceResolutionState::Pending,
+            "attribute-constraint-value-pending",
+        ),
+        (
+            "@name={name}",
+            ReferenceResolutionState::Pending,
+            "attribute-constraint-value-pending",
+        ),
+        (
+            r#"@name="""#,
+            ReferenceResolutionState::Invalid,
+            "attribute-name-required",
+        ),
+        (
+            "@ext:pattern=ignored",
+            ReferenceResolutionState::Invalid,
+            "attribute-constraint-field-namespace",
+        ),
+    ] {
+        let (mut host, compilation, declarations) = fixture_with_fields(fields);
+        let target = compilation.sources[0].declaration().clone();
+        host.bind_literal_attribute_type(slot(&declarations[0]), target)
+            .unwrap();
+        let result = bind_attribute_datatype(
+            declarations[0].clone(),
+            &compilation,
+            &mut host,
+            ReferenceTraversalLimits::schema_defaults().unwrap(),
+        )
+        .unwrap();
+        assert!(result.bound.is_none(), "{fields}: {result:?}");
+        assert_eq!(result.state, state);
+        assert_eq!(result.issue, Some(issue));
+    }
+    let (mut host, compilation, declarations) =
+        fixture_with_fields("@pattern={pending} @pattern=ready");
+    host.bind_literal_attribute_type(
+        slot(&declarations[0]),
+        compilation.sources[0].declaration().clone(),
+    )
+    .unwrap();
+    let bound = bind_attribute_datatype(
+        declarations[0].clone(),
+        &compilation,
+        &mut host,
+        ReferenceTraversalLimits::schema_defaults().unwrap(),
+    )
+    .unwrap()
+    .bound
+    .unwrap();
+    assert_eq!(bound.local_constraints().pattern.as_deref(), Some("ready"));
 }

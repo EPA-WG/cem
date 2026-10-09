@@ -1776,3 +1776,59 @@ their existing admission; integer spelling and source maps survive preparation;
 lists preserve duplicate items and token provenance without converter calls;
 derived/local restrictions still intersect; cancellation and replacement owners
 cannot expose partially prepared values as a completed validation result.
+
+
+## Implemented original attribute-constraint retention
+
+Implemented 2026-10-08. Successful literal/native attribute type bindings now retain
+the source attribute's local constraint metadata and all original field handles.
+The projection preserves the original declaration/source spans and the authored
+native-type readiness flag; obtaining a descriptor does not activate the attribute.
+Effective local metadata follows existing last-authored-slot precedence, with all
+original occurrences still available for attribution. Unresolved effective names
+or dynamic constraint values leave binding pending. Namespaced fields are rejected
+by this consumer instead of being collapsed into unqualified facet names. Missing
+or empty declaration names cannot produce a usable binding.
+
+Constraint retention is independent of facet applicability and execution. The
+explicit inherited facet profile below supplies specialized URI/path semantics;
+scalar representation and authored datatype names do not choose that behavior.
+
+Scenarios for later design verification: resolving `@type` cannot discard a pending
+`@pattern`; a foreign namespaced `pattern` cannot become a local facet; reused
+attribute declarations keep their original constraints and owners; binding alone
+cannot clear native-type readiness or make local constraints optional.
+
+
+## Adopted and implemented inherited facet profiles
+
+Adopted and implemented 2026-10-08. The host explicitly registers a facet profile
+against an original datatype declaration and scope, with an implementation identity
+and a representation-compatible facet family. Derived descriptors inherit that
+same registration. Duplicate or unrelated registrations fail; an explicitly
+unavailable profile leaves compilation pending. A descriptor without a profile
+can support typed validation, but cannot compile this local facet adapter.
+Replacing an inherited profile is rejected until its compatibility contract is
+designed in the deferred TODO item.
+
+The local adapter compiles applicability and syntax using the shipped validators.
+It checks scalar domain admission and local URI/path/string/numeric restrictions;
+local whitespace handling does not rewrite the original input or prepared value.
+Attribute-local `values` retain their lexical comparison, independently of datatype
+enumerations' registered equality. Lists use the supplied prepared sequence count
+without another tokenization pass. Native node sequences use counts without scalar
+extraction and preserve existing attribute singleton defaults. Original declaration,
+constraint fields, source spans and registration identity remain available.
+
+Model and input bytes and diagnostic counts have explicit limits; runtime control
+is checked around validation. A local facet verdict covers only local constraints.
+Overall acceptance still requires completed datatype preparation/validation and all
+inherited restrictions. Callers supply the original input and declaring-scope
+diagnostic bindings. Defaults, diagnostic dependency readiness, cumulative budgets
+across phases and automatic lifecycle activation remain integration work. Neither
+profile selection nor local compilation clears the source model's readiness guard.
+
+Scenarios for later design verification: an alias named `uri` gains no profile by
+name; a replacement source owner cannot satisfy an old registration; derived local
+restrictions intersect the datatype contract; list counts do not retokenize lexical
+input; native values are never atomized; interruption cannot publish acceptance.

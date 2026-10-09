@@ -64,6 +64,7 @@ use crate::tokenizer::cem::CemTokenizer;
 mod value_contract;
 pub mod content_model;
 pub mod shipped_datatypes;
+pub mod attribute_facets;
 pub use value_contract::{convert_attribute_value, convert_attribute_value_with_check, AttributeValueContract, AttributeValueConversionError, TypedAttributeValue};
 
 pub const MODEL_NOT_READY_CODE: &str = "cem.schema_model.not_ready";
@@ -1560,16 +1561,47 @@ pub(crate) fn validate_native_attribute_count(
     let Some(attribute) = model.attributes.get(attribute_name) else {
         return;
     };
+    validate_attribute_count(
+        &model.schema_uri,
+        &model.diagnostic_behaviors,
+        element_name,
+        attribute_name,
+        attribute,
+        count,
+        node,
+        Some(1),
+        diagnostics,
+    );
+}
+
+fn validate_attribute_count(
+    schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    element_name: &str,
+    attribute_name: &str,
+    attribute: &AttributeModel,
+    count: usize,
+    node: &CemAstNode,
+    default_count: Option<usize>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let default_value = default_count.map(|v| v.to_string());
+    let item_kind = if default_count.is_some() {
+        "nodes"
+    } else {
+        "items"
+    };
     let explicit = attribute.item_count.is_some()
         || attribute.min_items.is_some()
         || attribute.max_items.is_some();
     for (facet, value) in [
         (
             "itemCount",
-            attribute
-                .item_count
-                .as_deref()
-                .or((!explicit).then_some("1")),
+            attribute.item_count.as_deref().or(if explicit {
+                None
+            } else {
+                default_value.as_deref()
+            }),
         ),
         ("minItems", attribute.min_items.as_deref()),
         ("maxItems", attribute.max_items.as_deref()),
@@ -1589,7 +1621,7 @@ pub(crate) fn validate_native_attribute_count(
             continue;
         }
         let behavior = engine_diagnostic_behavior(
-            &model.diagnostic_behaviors,
+            diagnostic_behaviors,
             attribute.datatype_param_diagnostic.as_deref(),
             EngineDiagnosticBehavior::DatatypeParam,
         );
@@ -1599,9 +1631,9 @@ pub(crate) fn validate_native_attribute_count(
         diagnostics.push(diag_at_with_details_and_severity(
             code,
             behavior.map(|b| b.severity).unwrap_or(Severity::Error),
-            behavior_message(behavior, format!("attribute `{attribute_name}` on element `{element_name}` resolves to {count} nodes, violating {facet} `{value}`")),
+            behavior_message(behavior, format!("attribute `{attribute_name}` on element `{element_name}` resolves to {count} {item_kind}, violating {facet} `{value}`")),
             node,
-            serde_json::json!({"schemaUri": model.schema_uri, "element": element_name, "attribute": attribute_name, "valueKind": "native", "targetCount": count, "checkKind": format!("datatype-param:{facet}"), "datatypeParam": facet, "paramValue": value, "diagnosticCode": code}),
+            serde_json::json!({"schemaUri": schema_uri, "element": element_name, "attribute": attribute_name, "valueKind": if default_count.is_some() { "native" } else { "list" }, "targetCount": count, "checkKind": format!("datatype-param:{facet}"), "datatypeParam": facet, "paramValue": value, "diagnosticCode": code}),
         ));
     }
 }
@@ -5145,7 +5177,10 @@ fn collect_attribute_models(
     attributes
 }
 
-pub(crate) fn compile_attribute_model(
+/// Project original literal declaration fields without validating or activating
+/// their datatype contract. Lifecycle consumers must first check effective field
+/// names and unresolved values; native type readiness is retained in the result.
+pub fn compile_attribute_model(
     document: &CemDocument,
     node_id: AstNodeId,
 ) -> Option<AttributeModel> {

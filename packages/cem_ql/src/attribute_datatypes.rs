@@ -7,6 +7,7 @@ use cem_ml::{
         datatype_contracts::DatatypeCompilation,
         datatype_registry::DatatypeDependencyHost,
         declaration_references::SchemaDeclarationNode,
+        document_model::{compile_attribute_model, AttributeModel},
         reference_policy::{ReferenceOccurrence, ReferenceUnresolvedPolicy},
         reference_traversal::ReferenceTraversalLimits,
     },
@@ -31,6 +32,20 @@ pub struct BoundAttributeDatatype {
     pub declaration: SchemaDeclarationNode,
     pub slot: SchemaDeclarationNode,
     pub datatype: Arc<ExecutableDatatype>,
+    local_constraints: AttributeModel,
+    constraint_fields: Vec<SchemaDeclarationNode>,
+}
+impl BoundAttributeDatatype {
+    /// Original metadata only; facet applicability and execution remain the
+    /// consumer's responsibility. The authored native-type guard is preserved.
+    pub fn local_constraints(&self) -> &AttributeModel {
+        &self.local_constraints
+    }
+    /// All original field occurrences, including shadowed fields, retain owners
+    /// and source spans. Local metadata follows last-authored-slot precedence.
+    pub fn constraint_fields(&self) -> &[SchemaDeclarationNode] {
+        &self.constraint_fields
+    }
 }
 #[derive(Debug, Clone)]
 pub struct AttributeDatatypeBinding {
@@ -137,6 +152,38 @@ pub fn bind_attribute_datatype<H: AttributeDatatypeHost>(
     }
     let CemAstNode::Element { attributes, .. } = declaration.node() else {
         return Ok(invalid("attribute-declaration-required"));
+    };
+    // Do not let the legacy literal projection turn an unresolved constraint
+    // into an empty/absent facet, or erase a namespace by indexing its local name.
+    let mut constraint_fields = Vec::with_capacity(attributes.len());
+    let mut effective_fields = std::collections::BTreeMap::new();
+    for id in attributes {
+        let Some(field) = SchemaDeclarationNode::new(declaration.document().clone(), *id) else {
+            return Ok(invalid("attribute-constraint-field-required"));
+        };
+        if !matches!(field.node(), CemAstNode::Attribute { .. }) {
+            return Ok(invalid("attribute-constraint-field-required"));
+        }
+        let Some(name) = host.input_expanded_name(&field) else {
+            return Ok(pending("attribute-constraint-name-pending"));
+        };
+        if !name.namespace_uri.is_empty() {
+            return Ok(invalid("attribute-constraint-field-namespace"));
+        }
+        effective_fields.insert(name.local_name.clone(), field.clone());
+        constraint_fields.push(field);
+    }
+    for (name, field) in &effective_fields {
+        if name != "type"
+            && matches!(field.node(), CemAstNode::Attribute {value_nodes,..} if !value_nodes.is_empty())
+        {
+            return Ok(pending("attribute-constraint-value-pending"));
+        }
+    }
+    let Some(local_constraints) =
+        compile_attribute_model(declaration.document(), declaration.node_id())
+    else {
+        return Ok(invalid("attribute-name-required"));
     };
     let Some(slot) = attributes
         .iter()
@@ -246,6 +293,8 @@ pub fn bind_attribute_datatype<H: AttributeDatatypeHost>(
         declaration,
         slot,
         datatype: Arc::new(contract.clone()),
+        local_constraints,
+        constraint_fields,
     });
     Ok(report)
 }

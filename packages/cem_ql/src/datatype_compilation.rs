@@ -1,6 +1,7 @@
 //! Explicit lifecycle compilation. Registrations select contracts for original
 //! declarations; names and successful reference selection alone confer no authority.
 use crate::{
+    datatype_facets::{FacetProfileBinding, RegisteredFacetProfile},
     datatype_conversion::{BoundDatatypeConverter, ConverterBinding},
     datatype_preparation::{BoundLexicalPreparation, PreparationBinding},
     datatype_enumeration::{
@@ -63,10 +64,31 @@ pub struct DatatypeImplementations {
     entries: BTreeMap<String, DatatypeImplementation>,
     equalities: BTreeMap<String, (DatatypeSource, EqualityBinding)>,
     interpreters: BTreeMap<String, (DatatypeSource, ConstantBinding)>,
+    facet_profiles: BTreeMap<String, (DatatypeSource, FacetProfileBinding)>,
     preparations: BTreeMap<String, (DatatypeSource, PreparationBinding)>,
     converters: BTreeMap<String, (DatatypeSource, ConverterBinding)>,
 }
 impl DatatypeImplementations {
+    pub fn select_facets(
+        &mut self,
+        source: DatatypeSource,
+        binding: FacetProfileBinding,
+    ) -> Result<(), &'static str> {
+        let key = source.declaration().identity();
+        if self.facet_profiles.contains_key(&key) {
+            return Err("duplicate-facet-profile-selection");
+        }
+        if let FacetProfileBinding::Ready(profile) = &binding {
+            if profile.source().declaration().identity() != key
+                || profile.source().scope().identity() != source.scope().identity()
+            {
+                return Err("unrelated-facet-profile-source");
+            }
+        }
+        self.facet_profiles.insert(key, (source, binding));
+        Ok(())
+    }
+
     /// Explicit lexical ingress selection; absence preserves typed-only validation.
     pub fn select_preparation(
         &mut self,
@@ -203,6 +225,7 @@ pub struct ExecutableDatatype {
     rules: Vec<BoundDatatypeRule>,
     converter: Option<BoundDatatypeConverter>,
     preparation: Option<BoundLexicalPreparation>,
+    facet_profile: Option<RegisteredFacetProfile>,
     equality: Option<EqualityBinding>,
     interpreter: Option<ConstantBinding>,
     enumerations: Vec<Arc<EnumerationRestriction>>,
@@ -219,6 +242,10 @@ impl CompiledDatatypeContract for ExecutableDatatype {
     }
 }
 impl ExecutableDatatype {
+    pub fn facet_profile(&self) -> Option<&RegisteredFacetProfile> {
+        self.facet_profile.as_ref()
+    }
+
     pub fn preparation(&self) -> Option<&BoundLexicalPreparation> {
         self.preparation.as_ref()
     }
@@ -871,6 +898,37 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 source.declaration(),
             ));
         }
+        let facet_profile = match self
+            .implementations
+            .facet_profiles
+            .get(&source.declaration().identity())
+        {
+            Some((registered, _)) if registered.scope().identity() != source.scope().identity() => {
+                return Err(invalid("facet-profile-source-scope", source.declaration()))
+            }
+            Some((_, FacetProfileBinding::Unavailable)) => {
+                return Err(pending(
+                    "datatype-facet-profile-unavailable",
+                    source.declaration(),
+                ))
+            }
+            Some((_, FacetProfileBinding::Ready(profile))) => {
+                if base.is_some() {
+                    return Err(invalid(
+                        "facet-profile-base-replacement-unsupported",
+                        source.declaration(),
+                    ));
+                }
+                if profile.family().representation() != representation {
+                    return Err(invalid(
+                        "facet-profile-representation-incompatible",
+                        source.declaration(),
+                    ));
+                }
+                Some(profile.clone())
+            }
+            None => base.as_ref().and_then(|b| b.facet_profile.clone()),
+        };
         // A root implementation registration explicitly admits its native value
         // representation. Optional additional rules restrict that admission.
         let equality = self.equality(source, base.as_deref(), representation)?;
@@ -891,6 +949,7 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
             rules,
             converter,
             preparation,
+            facet_profile,
             equality,
             interpreter,
             enumerations,

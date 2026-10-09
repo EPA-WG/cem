@@ -341,8 +341,14 @@ host binding recorded by `CemQlSchemaDeclarationHost::bind_literal_attribute_typ
 native `@type={#target}` slots evaluate in their captured scope. Both use the shared
 bounded reference resolver, require a singleton datatype target, and honor directed
 scope grants. Retained slot, declaration and datatype owners remain available in
-`BoundAttributeDatatype`. A same-named declaration from a replacement owner cannot
-satisfy an older compilation snapshot.
+`BoundAttributeDatatype`. Its `local_constraints()` accessor preserves the authored
+attribute metadata, including the pending native-type flag; `constraint_fields()`
+retains every original field occurrence and source span. Metadata follows the
+existing last-authored-slot precedence. Effective constraint fields must have
+completed, unqualified names and literal values (apart from the native type slot).
+Pending constraint values produce no binding; foreign namespace fields are rejected
+instead of losing their namespace during projection. A same-named declaration from
+a replacement owner cannot satisfy an older compilation snapshot.
 
 This API binds descriptors only. It does not prepare literal values, invoke
 conversion, apply attribute-local facets, or clear model readiness. The dedicated
@@ -379,6 +385,32 @@ value; complete prepared values may remain inspectable after validation rejects
 or stops. Publication requires `accepted == Some(true)`. Typed `validate` calls
 bypass preparation and conversion. Automatic attribute-local facet integration
 and model activation remain pending in the TODO.
+
+### Registered attribute facet profiles
+
+`DatatypeImplementations::select_facets` selects a `RegisteredFacetProfile` for an
+original datatype declaration and scope. The profile records an implementation ID
+and explicit `FacetFamily`; authored names and scalar representations alone select
+no facet behavior. Derived descriptors inherit the same original profile. Duplicate,
+unrelated or representation-incompatible selections fail. An explicitly unavailable
+profile prevents readiness; an absent profile leaves typed validation available.
+Replacing a derived descriptor's inherited profile is deferred and rejected.
+
+`BoundAttributeDatatype::compile_facets` requires that profile and compiles local
+facet applicability and syntax with the shipped validators. The resulting
+`BoundAttributeFacets` retains the original binding and profile. Its contract's
+`validate_with_check` checks local restrictions with `FacetLimits` and caller control;
+`FacetContext` supplies original source attribution and declaring-scope diagnostic
+bindings. Scalar checks retain URI/path/string/numeric semantics. Lists receive
+already-prepared counts without another tokenization pass; nodes receive counts
+without scalar extraction. Attribute-local `values` still compare lexical values;
+datatype enumerations separately use registered equality. Local whitespace checks
+do not overwrite authored input or the prepared typed value.
+
+The returned acceptance covers local facets only. Completed datatype validation is
+also required. This adapter does not resolve defaults or diagnostic dependencies,
+join cumulative budgets across phases, or activate automatic attribute validation.
+Original metadata and the source model's native-type readiness guard remain intact.
 
 ### Retained-node navigation
 

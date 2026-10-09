@@ -67,6 +67,21 @@ fn all_original_shipped_declarations_compile_with_explicit_capabilities() {
         implementations.register(entry).unwrap();
         if !matches!(ty, T::ContentModel | T::TypeReference) {
             implementations
+                .select_facets(
+                    src.clone(),
+                    cem_ql::datatype_facets::FacetProfileBinding::Ready(
+                        cem_ql::datatype_facets::RegisteredFacetProfile::new(
+                            src.clone(),
+                            format!("shipped:{}", ty.name()),
+                            cem_ml::schema::document_model::attribute_facets::FacetFamily::Shipped(
+                                ty,
+                            ),
+                        )
+                        .unwrap(),
+                    ),
+                )
+                .unwrap();
+            implementations
                 .select_preparation(
                     src.clone(),
                     cem_ql::datatype_preparation::PreparationBinding::Ready(
@@ -138,6 +153,10 @@ fn all_original_shipped_declarations_compile_with_explicit_capabilities() {
     ] {
         let d = result.contracts.iter().find(|c| matches!(c.source().attribute("name").unwrap().node(), CemAstNode::Attribute {value: Some(name),..} if name == ty.name())).unwrap().as_any().downcast_ref::<ExecutableDatatype>().unwrap();
         assert!(Arc::ptr_eq(d.source().declaration().document(), &owner));
+        assert!(Arc::ptr_eq(
+            d.facet_profile().unwrap().source().declaration().document(),
+            &owner
+        ));
         let converted = super::shipped_conversion::convert(d, text);
         assert_eq!(converted.accepted, Some(true), "{ty:?}");
         let validation = d.validate(

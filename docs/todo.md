@@ -117,6 +117,13 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: a child preparer cannot admit
       conversion-only forms rejected by its base or discard original provenance.
 
+- [ ] Deferred: define compatible replacement of an inherited facet profile before
+      admitting derived profile overrides. Specify base restriction preservation,
+      representation compatibility and original registration identity; the compiler
+      currently inherits the original profile and rejects replacement.
+      Scenarios for later design verification: a derived profile cannot silently
+      discard URI/path restrictions or replace its base semantics by name.
+
 - [ ] Specify list conversion adapters and explicit canonical serialization, then
       add fixture actions for ordered items, duplicates and retained item provenance
       before implementing conversion or changing scalar API result types.
@@ -495,6 +502,33 @@ Verification (2026-10-08): 210 datatype, value-contract, attribute-value,
 template and package lifecycle tests pass, including eight new preparation fixture
 groups and unavailable-preparer replacement/retry. All 18 original shipped
 descriptors prepare and validate through explicit registrations. Schema-package
+Nx verification and its CLI build prerequisite pass.
+
+- [x] Retain original attribute constraint metadata with literal/native datatype
+      bindings. Add fixtures for original facet fields/source spans, pending dynamic
+      constraints, missing names, namespaced fields and last-authored precedence.
+      Scenarios for later design verification: a native type binding cannot clear
+      source readiness or silently discard a local constraint before validation.
+
+- [x] Choose the facet applicability contract for native datatype descriptors.
+      Adopted 2026-10-08: explicit host-registered facet profiles on original
+      datatypes, inherited through compatible bases, reusing shipped validators.
+      A scalar representation or authored name alone grants no facet semantics.
+      Scenarios for later design verification: an alias named `uri` grants no URI
+      behavior; native and literal bindings use the same original facet profile.
+
+- [x] Add registered facet-profile fixtures and implementation for exact source
+      registration, inheritance, absent/unavailable profiles, representation checks,
+      local facet applicability/syntax, shipped URI/path/string/numeric checks,
+      sequence counts without atomization, original provenance and bounded control.
+      Implemented as an explicit local facet adapter; automatic activation stays guarded.
+      Scenarios for later design verification: missing semantics cannot discard
+      restrictions; profile selection cannot clear model readiness; local `values`
+      remain lexical while datatype enumerations retain registered equality.
+
+Verification (2026-10-08): 274 datatype, value-contract, declaration-reference and
+package lifecycle tests pass, including six facet-profile fixture groups. All 18
+original shipped descriptors carry explicit or inherited profiles. Schema-package
 Nx verification and its CLI build prerequisite pass.
 
 - [ ] Add remaining attribute descriptor-consumer fixtures for local facet
