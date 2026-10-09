@@ -363,12 +363,27 @@ native datatype/result validation, attribute conversion, template rendering and
 package lifecycle. Schema-package Nx verification and its CLI build pass. The five
 lexical/list fixture groups also verify descriptor tokenization and item bounds.
 
-- [ ] Specify and register the shipped content-model grammar consumer, and reconcile
-      URI declaration prose (absolute or relative) with existing absolute-URI
-      validation before broadening it. Keep grammar capability unavailable meanwhile.
-      Add malformed grammar, unresolved capability and compatibility fixtures first.
+- [x] Add content-model grammar fixtures for shipped source inventory, malformed
+      alternatives/groups/postfixes, Unicode names, controlled byte/token/depth limits,
+      explicit registration/readiness, conversion and token constant preparation;
+      pin absolute-URI compatibility.
+      Scenarios for later design verification: unavailable parsing cannot accept text;
+      grouped CSS alternatives survive; validation does not gain document matching authority.
+
+- [x] Specify and register the bounded shipped content-model grammar consumer,
+      including explicit conversion and token constant preparation. Correct generic
+      URI prose to the existing absolute-URI contract without broadening admission.
+      Malformed grammar, absent registration, overridden bounds and compatibility
+      fixtures cover the adopted consumer. Full document matching and relative-URI
+      extensions remain deferred actions in roadmap.md.
       Scenarios for later design verification: absent grammar cannot validate arbitrary
       text; URI policy changes never arise incidentally from conversion migration.
+
+Verification (2026-10-08): the 207-test regression suite and six focused grammar
+checks pass, including the added mid-scan cancellation/decoded-offset case.
+Schema-package Nx verification and its CLI build prerequisite pass. Parser syntax
+is covered against every shipped `@children` expression; automatic attribute type
+activation and full document matching remain outside this completed consumer slice.
 
 - [x] Add datatype name-catalog fixtures for forward local references, original
       per-declaration aliases, explicit exports, duplicate/ambiguous names, pending
@@ -427,8 +442,9 @@ lifecycle tests pass; Nx schema-package verification passes with its CLI build.
 Verification (2026-10-08): 210 native import, lexical capture/reload, declaration
 reference and datatype tests pass; Nx schema-package verification and CLI build pass.
 
-- [ ] Complete remaining datatype metamodel admission and shipped grammar/reference
-      implementations; add fixture actions for concrete parsers before wiring.
+- [ ] Complete remaining datatype metamodel admission and end-to-end shipped
+      declaration/base/consumer parity using the registered grammar/reference
+      capabilities. Add fixtures before wiring literal/native attribute admission.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 

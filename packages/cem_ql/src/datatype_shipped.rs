@@ -7,6 +7,9 @@ use crate::{
     },
     eval::{AtomValue, Item, ItemStream},
 };
+use cem_ml::schema::document_model::content_model::{
+    validate_with_check, GrammarError, GrammarLimits,
+};
 use cem_ml::schema::{
     datatype_validation::{DatatypeBehaviorContract, ResultRepresentation},
     document_model::shipped_datatypes::ShippedDatatype,
@@ -20,14 +23,41 @@ pub fn register_validation(
     contract: DatatypeBehaviorContract,
     adapter: DatatypeResultAdapter,
 ) -> Result<(), ValueContractError> {
+    register_with_limits(
+        registry,
+        datatype,
+        contract,
+        adapter,
+        GrammarLimits::default(),
+    )
+}
+/// Explicit registration with host-selected grammar work bounds.
+pub fn register_content_model_validation(
+    registry: &mut DatatypeValidationRegistry,
+    contract: DatatypeBehaviorContract,
+    adapter: DatatypeResultAdapter,
+    limits: GrammarLimits,
+) -> Result<(), ValueContractError> {
+    register_with_limits(
+        registry,
+        ShippedDatatype::ContentModel,
+        contract,
+        adapter,
+        limits,
+    )
+}
+fn register_with_limits(
+    registry: &mut DatatypeValidationRegistry,
+    datatype: ShippedDatatype,
+    contract: DatatypeBehaviorContract,
+    adapter: DatatypeResultAdapter,
+    limits: GrammarLimits,
+) -> Result<(), ValueContractError> {
     let fail = |code| {
         let mut error = ValueContractError::new(code);
         error.source = Some(contract.behavior().clone());
         error
     };
-    if datatype == ShippedDatatype::ContentModel {
-        return Err(fail("shipped-grammar-unavailable"));
-    }
     let signature = contract.signature();
     if signature.kind != datatype.kind()
         || signature.value != datatype.representation()
@@ -40,11 +70,11 @@ pub fn register_validation(
         contract,
         adapter,
         None,
-        Validator(datatype),
+        Validator(datatype, limits),
     )
 }
 #[derive(Debug)]
-struct Validator(ShippedDatatype);
+struct Validator(ShippedDatatype, GrammarLimits);
 impl NativeDatatypeValidator for Validator {
     fn validate(&self, call: ValidationCall<'_>) -> RuleExecution {
         let mut accepted = if self.0.item().is_some() {
@@ -71,6 +101,22 @@ impl NativeDatatypeValidator for Validator {
                     | (ShippedDatatype::Integer, Some(AtomValue::Integer(_))) => true,
                     (ShippedDatatype::Number, Some(AtomValue::Decimal(value))) => {
                         scalar.validate_lexical(&value) == Some(true)
+                    }
+                    (ShippedDatatype::ContentModel, Some(AtomValue::String(value))) => {
+                        match validate_with_check(&value, self.1, &mut || {
+                            call.runtime.control.check_scope(call.runtime.scope)
+                        }) {
+                            Ok(()) => true,
+                            Err(GrammarError::Invalid { .. }) => false,
+                            Err(GrammarError::Interrupted(_)) => {
+                                return RuleExecution::Pending(vec![])
+                            }
+                            Err(GrammarError::Limit(reason)) => {
+                                return RuleExecution::Unavailable(vec![grammar::limit_diagnostic(
+                                    reason, &call,
+                                )])
+                            }
+                        }
                     }
                     (_, Some(AtomValue::String(value))) => {
                         // Validate each supplied item under its own contract; do not
@@ -115,3 +161,7 @@ pub use conversion::{constant_interpreter, converter};
 #[path = "datatype_shipped/lists.rs"]
 mod lists;
 pub use lists::{list_implementation, token_source};
+
+#[path = "datatype_shipped/grammar.rs"]
+mod grammar;
+pub use grammar::{content_model_constant_interpreter, content_model_converter};

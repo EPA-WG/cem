@@ -34,6 +34,7 @@ pub(super) fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableData
         match ty.kind() {
             DatatypeKind::Lexical => "lexical",
             DatatypeKind::Reference => "reference",
+            DatatypeKind::Grammar => "grammar",
             _ => "scalar",
         }
     ));
@@ -43,6 +44,19 @@ pub(super) fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableData
     entry.validator = Some((profile_source.schema.clone(), behavior.clone()));
     implementations.register(entry).unwrap();
     let mut validations = DatatypeValidationRegistry::default();
+    if ty == T::ContentModel {
+        let pending = compile_datatypes(
+            src.declaration().document().clone(),
+            &[src.clone()],
+            &mut host,
+            &implementations,
+            &validations,
+            ReferenceTraversalLimits::schema_defaults().unwrap(),
+        );
+        assert!(!pending.is_ready());
+        assert_eq!(pending.issues[0].code, "validation-capability-unavailable");
+    }
+
     let mut sig = signature(false);
     sig.kind = ty.kind();
     sig.value = ty.representation();
@@ -432,6 +446,6 @@ fn conversion_rejections_control_bounds_and_original_sources_are_preserved() {
         Some(ConversionStop::Control(_))
     ));
     let (_, sources) = types_fixture("{type @name=sample @kind=scalar}");
-    assert!(datatype_shipped::converter(sources[0].clone(), T::ContentModel).is_err());
-    assert!(datatype_shipped::constant_interpreter(sources[0].clone(), T::ContentModel).is_err());
+    assert!(datatype_shipped::converter(sources[0].clone(), T::ContentModel).is_ok());
+    assert!(datatype_shipped::constant_interpreter(sources[0].clone(), T::ContentModel).is_ok());
 }

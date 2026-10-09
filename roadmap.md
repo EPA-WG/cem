@@ -1113,9 +1113,19 @@ of core reference adoption. Preserve the adopted contracts in the
       spans and original item validation (2026-10-08).
       Scenarios for later design verification: duplicate token occurrences preserve
       their decoded spans; lexical conversion grants no symbolic lookup authority.
-- [ ] Complete the content-model grammar consumer and reconcile URI admission policy.
+- [x] Complete the bounded content-model grammar consumer and align URI declaration
+      prose with existing absolute-URI admission (2026-10-08).
       Scenarios for later design verification: type identity survives conversion;
       unsupported capabilities never fall back to strings or unchecked acceptance.
+- [ ] Deferred: define document matching for grouped content models, sequence and
+      postfix cardinality before replacing the legacy allowed-child projection.
+      Scenarios for later design verification: syntax acceptance alone never claims
+      matching parity; CSS alternatives and existing child allow-lists stay compatible.
+- [ ] Deferred: design an explicit URI-reference extension if relative references
+      are needed, including scope/base context and compatibility with the absolute
+      URI datatype. Add fixtures before broadening admission.
+      Scenarios for later design verification: fragment-only strings confer no
+      native reference authority; resolving a relative value never loads implicitly.
 - [ ] Complete metamodel admission and shipped parity before enabling executable
       native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation

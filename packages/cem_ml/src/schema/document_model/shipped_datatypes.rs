@@ -99,7 +99,7 @@ impl ShippedDatatype {
         }
     }
     /// Literal validation preserves existing whitespace and boolean-presence rules.
-    /// None means no executable grammar implementation, never successful validation.
+    /// None requires the controlled grammar consumer, never successful validation.
     pub fn validate_lexical(self, value: &str) -> Option<bool> {
         let value = value.trim();
         Some(match self {
@@ -124,8 +124,8 @@ impl ShippedDatatype {
             Self::ContentModel => return None,
         })
     }
-    /// Availability is explicit per shipped family; adding a type must choose a
-    /// conversion contract rather than acquiring an implicit string fallback.
+    /// Availability of the shared scalar normalization kernel. Controlled grammar
+    /// parsing is separate; new families never acquire a string fallback.
     pub fn supports_scalar_conversion(self) -> bool {
         match self {
             Self::Identifier

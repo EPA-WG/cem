@@ -3,6 +3,12 @@ use cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype as T;
 use cem_ql::datatype_shipped::register_validation;
 
 fn bound(ty: T) -> cem_ql::datatype_validation::BoundDatatypeRule {
+    bound_with_limits(ty, None)
+}
+fn bound_with_limits(
+    ty: T,
+    limits: Option<cem_ml::schema::document_model::content_model::GrammarLimits>,
+) -> cem_ql::datatype_validation::BoundDatatypeRule {
     let (primitive, cardinality) = match ty.representation() {
         ValueRepresentation::List(_) => ("string", "zero-or-more"),
         ValueRepresentation::Scalar(ScalarRepresentation::Boolean) => ("boolean", "one"),
@@ -26,7 +32,17 @@ fn bound(ty: T) -> cem_ql::datatype_validation::BoundDatatypeRule {
             ty.kind()
         )
         .is_err());
-    register_validation(&mut registry, ty, contract, adapter()).unwrap();
+    if let Some(limits) = limits {
+        cem_ql::datatype_shipped::register_content_model_validation(
+            &mut registry,
+            contract,
+            adapter(),
+            limits,
+        )
+        .unwrap();
+    } else {
+        register_validation(&mut registry, ty, contract, adapter()).unwrap();
+    }
     registry
         .bind(
             &src.schema,
@@ -144,7 +160,7 @@ fn shipped_native_validation_uses_exact_representations_without_conversion() {
     }
 }
 #[test]
-fn shipped_registration_rejects_wrong_signatures_and_unavailable_grammar() {
+fn shipped_registration_rejects_wrong_signatures_and_primitive_identity() {
     let src = source(&declaration(false));
     let mut registry = DatatypeValidationRegistry::default();
     assert!(
@@ -153,12 +169,7 @@ fn shipped_registration_rejects_wrong_signatures_and_unavailable_grammar() {
     let mut sig = signature(false);
     sig.kind = DatatypeKind::Grammar;
     let grammar = DatatypeBehaviorContract::compile(&src, &node(&src, "behavior"), sig).unwrap();
-    assert_eq!(
-        register_validation(&mut registry, T::ContentModel, grammar, adapter())
-            .unwrap_err()
-            .code,
-        "shipped-grammar-unavailable"
-    );
+    assert!(register_validation(&mut registry, T::ContentModel, grammar, adapter()).is_err());
 }
 
 #[test]
@@ -192,4 +203,61 @@ fn shipped_native_validation_keeps_control_and_sequence_limits() {
         result.stopped.unwrap().reason,
         cem_ql::datatype_validation::ValidationStopReason::Control(_)
     ));
+}
+
+#[test]
+fn shipped_grammar_requires_registration_and_preserves_controlled_incompleteness() {
+    let rule = bound(T::ContentModel); // helper first verifies missing registration
+    let control = OperationControl::default();
+    let runtime = ValidationRuntime {
+        control: &control,
+        scope: ROOT_EXECUTION_SCOPE_ID,
+        query: Default::default(),
+    };
+    for (text, accepted) in [("(a | b)*", Some(true)), ("a??", Some(false))] {
+        let result = validate_rules(
+            &[rule.clone()],
+            &ValidationInput {
+                value: vec![Item::Atomic(AtomValue::String(text.into()))],
+                ..input()
+            },
+            &runtime,
+            Default::default(),
+        );
+        assert_eq!(result.accepted, accepted, "{result:?}");
+    }
+    let deep = format!("{}a{}", "(".repeat(65), ")".repeat(65));
+    let result = validate_rules(
+        &[rule.clone()],
+        &ValidationInput {
+            value: vec![Item::Atomic(AtomValue::String(deep))],
+            ..input()
+        },
+        &runtime,
+        Default::default(),
+    );
+    assert_eq!(result.accepted, None);
+    let expanded = bound_with_limits(
+        T::ContentModel,
+        Some(
+            cem_ml::schema::document_model::content_model::GrammarLimits {
+                max_depth: 128,
+                ..Default::default()
+            },
+        ),
+    );
+    let deep = format!("{}a{}", "(".repeat(65), ")".repeat(65));
+    let result = validate_rules(
+        &[expanded],
+        &ValidationInput {
+            value: vec![Item::Atomic(AtomValue::String(deep))],
+            ..input()
+        },
+        &runtime,
+        Default::default(),
+    );
+    assert_eq!(result.accepted, Some(true));
+    control.cancel_root(None, None).unwrap();
+    let result = validate_rules(&[rule], &input(), &runtime, Default::default());
+    assert_eq!(result.accepted, None);
 }

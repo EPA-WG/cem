@@ -221,14 +221,14 @@ budget. Neither capability invokes conversion or changes `@values` token syntax.
 
 `document_model::shipped_datatypes::ShippedDatatype` inventories all 18 shipped
 CEM-ML declarations as explicit host choices. Its lexical checks share existing
-document-validator predicates. `content-model` returns unavailable until a grammar
-consumer is registered. Name lists remain nonempty; symbolic values receive syntax
-checks only. URI checks currently retain the existing absolute-URI requirement.
+document-validator predicates. `content-model` uses the separately controlled
+grammar consumer described below and still requires explicit registration. Name
+lists remain nonempty; symbolic values receive syntax checks only. URI checks currently retain the existing absolute-URI requirement.
 
 `convert_lexical` offers the existing string/boolean/integer/number conversion
 contracts, preserves original source maps and cancellation, and keeps wide integer
 lexical values intact. Explicit lexical conversion is described below; lists use
-their registered tokenizer, while grammar conversion remains unavailable.
+their registered tokenizer; grammar uses the bounded syntax consumer below.
 
 `cem_ql::datatype_shipped::register_validation` binds a chosen native validator to
 an original behavior profile with the exact `cemml:datatype:<name>` primitive and
@@ -239,7 +239,7 @@ representations are string, boolean, integer and decimal as declared by the
 capability. Host registration is required; matching a datatype name is insufficient.
 
 Native scalar conversion and retained wide-integer signatures are implemented below.
-The remaining content-model grammar consumer and URI policy reconciliation are tracked in
+Remaining metamodel admission and automatic attribute integration are tracked in
 the [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
 
 ## Native scalar conversion and retained integers
@@ -305,6 +305,53 @@ exhaustion remains incomplete rather than lexical rejection. A missing tokenizer
 reports conversion unavailable; an explicitly unavailable tokenizer blocks package
 readiness and preserves the previous active package. List constants remain
 unsupported, as declaration `@values` is still scalar token syntax.
+
+
+
+## Controlled content-model grammar
+
+The shipped `content-model` capability accepts an empty model, or alternatives
+(`|`) of whitespace-separated terms. A term is a lexical QName, standalone `*`,
+or a nonempty parenthesized model. Names and groups may have one immediately
+adjacent `?`, `*`, or `+` postfix. A standalone wildcard has no additional postfix.
+Whitespace separates successive terms; `|` and parentheses do not require padding.
+Empty alternatives/groups, repeated postfixes, commas and unmatched groups fail.
+All shipped `@children` expressions, including CSS grouped alternatives, are covered
+by inventory fixtures. QName spelling is checked without expanding or resolving it.
+
+`content_model::validate_with_check` reports malformed decoded spans, resource
+limits and interruption separately. Its default limits are 1 MiB of UTF-8 text,
+100,000 tokens and 64 nested groups. Scanning and an explicit parse stack poll
+operation control; parsing uses no call-stack recursion. Hosts may override these
+limits in explicit `register_content_model_validation`, `content_model_converter`
+and `content_model_constant_interpreter` registrations. Generic shipped factories
+select these same defaults. The simple `validate_lexical` predicate deliberately
+returns `None` for grammar; consumers must use the controlled parser.
+
+Native validation returns explicit acceptance and leaves input unchanged. A parser
+limit leaves validation unavailable with an attributed diagnostic, never accepted
+or rejected. Explicit conversion checks syntax, trims boundary whitespace only,
+and retains the original source map with string-valued grammar text. Conversion
+byte limits additionally constrain its parser; parser limits produce a conversion
+limit stop. Invalid syntax diagnostics distinguish decoded offsets from source
+maps. Every effective descriptor restriction still validates converted output.
+
+Constant preparation is separately registered and parses each existing `@values`
+whitespace token. `(a|b)*` is one possible token; spaces do not acquire quoting or
+grouping semantics for constants. Equality remains a separately registered
+capability, with no automatic grammar equivalence. Names, prose and references
+grant no implementation authority; absent registration keeps compilation incomplete.
+
+This capability validates grammar text. The existing document-model allowed-child
+projection continues unchanged; enforcing grouped alternatives, ordering or
+postfix cardinality on documents requires a separate matcher integration.
+Automatic native attribute `@type` consumption remains guarded.
+
+The generic `uri` declaration now says `absolute URI with scheme`, matching the
+existing shared validator and converter. Relative paths, query-only references,
+fragment-only references and Windows drive paths remain outside this contract.
+This corrects the prose without strengthening URI parsing, adding resolution or
+loading resources. A broader URI-reference datatype requires a separate contract.
 
 
 ## Folder Contract

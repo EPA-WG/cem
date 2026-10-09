@@ -220,3 +220,40 @@ fn list_converter_does_not_substitute_a_second_tokenizer() {
     assert_eq!(result.value.unwrap().len(), 1);
     assert_eq!(result.validation.unwrap().completed.len(), 1);
 }
+
+#[test]
+fn grammar_conversion_validates_syntax_and_retains_typed_output() {
+    let d = descriptor(T::ContentModel);
+    let result = convert(&d, "  (a | ns:b)*  ");
+    assert_eq!(result.accepted, Some(true), "{result:?}");
+    assert_eq!(
+        result.value.unwrap()[0].atom(),
+        Some(AtomValue::String("(a | ns:b)*".into()))
+    );
+    assert_eq!(result.validation.unwrap().completed.len(), 1);
+    let invalid = convert(&d, "(a | )*");
+    assert_eq!(invalid.accepted, Some(false));
+    assert!(invalid.validation.is_none());
+    let deep = format!("{}a{}", "(".repeat(65), ")".repeat(65));
+    let result = convert(&d, &deep);
+    assert!(
+        matches!(result.stopped, Some(ConversionStop::Limit(_))),
+        "{result:?}"
+    );
+    assert!(result.value.is_none());
+}
+
+#[test]
+fn grammar_constants_keep_existing_token_syntax_without_runtime_converter() {
+    let d = descriptor_with(T::ContentModel, Some("(a|b)* text?"));
+    assert!(d.converter().is_none());
+    assert_eq!(d.enumerations()[0].constants().len(), 2);
+    assert_eq!(
+        validate_descriptor(&d, vec![Item::Atomic(AtomValue::String("(a|b)*".into()))]).accepted,
+        Some(true)
+    );
+    assert_eq!(
+        validate_descriptor(&d, vec![Item::Atomic(AtomValue::String("(a | b)*".into()))]).accepted,
+        Some(false)
+    );
+}

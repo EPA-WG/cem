@@ -30,6 +30,9 @@ pub fn converter(
     source: DatatypeSource,
     datatype: ShippedDatatype,
 ) -> Result<RegisteredDatatypeConverter, &'static str> {
+    if datatype == ShippedDatatype::ContentModel {
+        return super::content_model_converter(source, GrammarLimits::default());
+    }
     if datatype.item().is_some() {
         return super::lists::converter(source, datatype);
     }
@@ -50,6 +53,9 @@ pub fn constant_interpreter(
     source: DatatypeSource,
     datatype: ShippedDatatype,
 ) -> Result<RegisteredConstantInterpreter, &'static str> {
+    if datatype == ShippedDatatype::ContentModel {
+        return super::content_model_constant_interpreter(source, GrammarLimits::default());
+    }
     supported(datatype)?;
     let ValueRepresentation::Scalar(representation) = datatype.representation() else {
         unreachable!()

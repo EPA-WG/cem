@@ -1562,10 +1562,9 @@ result adapter. Runtime control and validation budgets remain the caller's.
 
 This completes shared lexical contracts and native validators, not full shipped
 conversion integration. The native scalar bridge below now shares the rendering scalar view and preserves
-wide integer identity through signatures, results and exact query comparison. Lexical/list converters are implemented below; the concrete
-content-model grammar consumer remains open. The existing URI validator requires
-an absolute URI although declaration prose admits relative references; this
-compatibility slice preserves the validator and records reconciliation separately.
+wide integer identity through signatures, results and exact query comparison. Lexical/list converters and the controlled content-model consumer are implemented
+below. The URI declaration prose now agrees with the existing absolute-URI
+validator; broader URI-reference admission remains a deferred extension.
 Automatic attribute type activation stays guarded pending those parity tasks.
 
 
@@ -1606,8 +1605,8 @@ constants without stringification or an implicit runtime conversion.
 
 Input/output limits, cumulative preparation and diagnostic budgets, cancellation,
 explicit rejection and package readiness remain on the existing consumer paths.
-The grammar consumer, URI policy reconciliation and native attribute activation
-remain actionable in `todo.md`.
+The controlled grammar consumer and URI reconciliation are implemented below.
+Remaining metamodel parity and native attribute activation are actionable in `todo.md`.
 
 
 ## Adopted shipped lexical and list conversion contracts
@@ -1645,3 +1644,39 @@ its target; percent escapes and media-type case survive unchanged; an empty ship
 name list fails even when the authored minimum is zero; a decoded token span never
 masquerades as a source-file offset; a replacement with unavailable tokenization
 cannot displace the active package.
+
+
+## Adopted controlled content-model grammar and URI compatibility
+
+Adopted 2026-10-08. The shipped grammar syntax admits empty input or alternatives
+of whitespace-separated terms, with lexical QNames, a standalone wildcard and
+nonempty parenthesized models. Names/groups support a single adjacent `?`, `*` or
+`+`; a wildcard has no extra postfix. Alternatives use `|`; empty branches,
+unmatched groups and repeated postfixes fail. This includes the existing CSS
+`(animation-name-slot | animation-value-slot)*` declaration. Sequence binds within
+an alternative; grouping is explicit. No namespace lookup or document matching
+runs while validating syntax.
+
+The consumer scans bounded UTF-8 tokens and uses an explicit stack. Default
+byte/token/depth limits are 1 MiB, 100,000 and 64, overridable by the registering
+host. Cancellation is checked during scanning and parsing. Syntax rejection,
+limit exhaustion and interruption remain distinct. Native validation with exhausted
+limits stays incomplete. Explicit conversion produces grammar text with only
+boundary whitespace trimmed, retains its original source map and is followed by
+all effective restrictions. Invalid spans refer to decoded text, not fabricated
+source offsets. Constant preparation parses existing whitespace-delimited tokens
+under a separate registration and does not invoke the converter. Registered
+equality remains authoritative; no structural grammar equivalence is inferred.
+
+The generic URI declaration prose is corrected to `absolute URI with scheme`.
+Existing absolute-URI compatibility predicates and conversion behavior stay intact.
+Relative URI admission requires an explicit future contract rather than incidental
+broadening during reference adoption. This change supplies neither strict RFC URI
+validation nor resource loading authority.
+
+Scenarios for later design verification: all shipped content-model strings parse;
+malformed groups cannot acquire readiness through a string base; absent grammar
+registration stays incomplete; parser limits never imply rejection or acceptance;
+URI fragments do not become native scope references. The maintained package README
+owns the public consumer syntax and API contract. Full document matching and future
+URI-reference extensions are separately actionable in the roadmap.

@@ -60,7 +60,7 @@
         {type @name="reference-unresolved-disposition" @kind="scalar" @values="neutral mandatory warning ignore"}
         {type @name="integer" @kind="scalar" @rule="signed decimal integer"}
         {type @name="number" @kind="scalar" @rule="decimal number"}
-        {type @name="uri" @kind="scalar" @rule="absolute or relative URI reference"}
+        {type @name="uri" @kind="scalar" @rule="absolute URI with scheme"}
         {type @name="semver" @kind="scalar" @rule="major.minor.patch with optional prerelease and build metadata"}
         {type @name="media-type" @kind="scalar" @rule="type slash subtype with optional structured suffix and parameters"}
         {type @name="path" @kind="scalar" @rule="scope-context path: ./context-relative, protocol URI, or module-map specifier"}
