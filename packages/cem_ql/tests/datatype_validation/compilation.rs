@@ -135,6 +135,14 @@ fn types_fixture(
     let src = source(&format!(
         "{{schema @name=test @namespace=\"urn:test\" | {{types | {declarations}}} }}"
     ));
+    types_fixture_source(src)
+}
+fn types_fixture_source(
+    src: ValueContractSource,
+) -> (
+    cem_ql::schema_references::CemQlSchemaDeclarationHost,
+    Vec<DatatypeSource>,
+) {
     let mut registry = DatatypeRegistry::default();
     let mut sources = vec![];
     for n in &src.schema.document().nodes {
@@ -736,3 +744,9 @@ mod shipped_conversion;
 
 #[path = "shipped_lists.rs"]
 mod shipped_lists;
+
+#[path = "shipped_inventory.rs"]
+mod shipped_inventory;
+
+#[path = "attribute_types.rs"]
+mod attribute_types;

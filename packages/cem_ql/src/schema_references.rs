@@ -40,6 +40,7 @@ use std::{
     },
 };
 
+mod attribute_datatypes;
 mod element_references;
 mod datatype_dependencies;
 pub use element_references::CemQlElementReferenceHost;
@@ -139,6 +140,7 @@ pub struct CemQlSchemaDeclarationHost {
     source_expressions: BTreeMap<(DeclarationScope, String), Arc<CompiledExpression>>,
     datatype_sources: BTreeMap<String, cem_ml::schema::datatype_registry::DatatypeSource>,
     datatype_names: Option<Arc<crate::datatype_names::DatatypeNameCatalog>>,
+    attribute_datatype_literals: BTreeMap<String, (SchemaDeclarationNode, SchemaDeclarationNode)>,
     datatype_literals: BTreeMap<(String, String), SchemaDeclarationNode>,
 }
 impl Default for CemQlSchemaDeclarationHost {
@@ -159,6 +161,7 @@ impl CemQlSchemaDeclarationHost {
             datatype_sources: BTreeMap::new(),
             datatype_literals: BTreeMap::new(),
             datatype_names: None,
+            attribute_datatype_literals: BTreeMap::new(),
             namespace_input_snapshot: namespace_publication::next_snapshot(),
             namespace_publications: BTreeMap::new(),
             schema_uri_loads: BTreeMap::new(),

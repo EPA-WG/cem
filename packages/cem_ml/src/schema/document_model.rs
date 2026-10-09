@@ -1510,6 +1510,11 @@ pub(crate) fn validate_native_attribute_contract(
 ) {
     let attribute = model.attributes.get(attribute_name);
     if attribute.is_some_and(AttributeModel::is_node_valued)
+        || (element_name == "attribute"
+            && attribute_name == "type"
+            && attribute
+                .and_then(|a| a.value_type.as_deref())
+                .is_some_and(|ty| type_reference_local_name(ty) == "attribute-type"))
         || (element_name == "element"
             && attribute_name == "base"
             && attribute
@@ -2041,7 +2046,10 @@ fn is_name_list_type_reference(value_type: &str) -> bool {
 }
 
 fn is_type_reference_type_reference(value_type: &str) -> bool {
-    type_reference_local_name(value_type) == "type-reference"
+    matches!(
+        type_reference_local_name(value_type),
+        "type-reference" | "attribute-type"
+    )
 }
 
 fn is_symbol_reference_type_reference(value_type: &str) -> bool {

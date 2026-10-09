@@ -1680,3 +1680,34 @@ registration stays incomplete; parser limits never imply rejection or acceptance
 URI fragments do not become native scope references. The maintained package README
 owns the public consumer syntax and API contract. Full document matching and future
 URI-reference extensions are separately actionable in the roadmap.
+
+
+## Implemented original shipped parity and attribute type binding
+
+Implemented 2026-10-08. All 18 original CEM-ML datatype declarations compile together
+through explicit host registrations. The shipped implementation factory records
+cross-kind compatibility for content-model/string and type-reference/symbol-reference
+bases, list item contracts and nonempty shipped list bounds. Conversion and validation
+checks retain original declaration/base/item owners and typed enumeration restrictions;
+shipped names without registrations remain incomplete.
+
+The schema metamodel now uses dedicated `schema:attribute-type` for its type field.
+Literal values preserve existing QName checks. Native values are structurally admitted
+on attribute declarations only and remain pending until the consumer binds and activates
+the original contract. Other type fields retain their existing native-value rejection.
+
+The explicit CEM-QL binding API resolves literal and native type slots through the
+same bounded resolver. Literal bindings are supplied for the exact original slot;
+they do not borrow a nearby datatype declaration's aliases. Native expressions use
+the original scope's current context. Both require one exact compiled original type
+and honor directed crossing grants. Pending expression inputs, incomplete compilation,
+missing descriptors and traversal failures produce no usable binding. An already
+completed literal binding does not require unused expression inputs. Binding itself
+does not clear model readiness, prepare values or execute conversion/validation.
+Automatic literal/native attribute validation remains actionable in `todo.md`, with
+literal validation input preparation awaiting its explicit contract decision.
+
+Scenarios for later design verification: package replacement with the same name and
+node IDs cannot substitute for the selected original owner; a QName binding cannot
+grant a scope crossing; incomplete native bindings never turn into scalar strings;
+attribute validation cannot gain conversion-only lexical admission accidentally.

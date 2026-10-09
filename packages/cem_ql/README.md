@@ -333,6 +333,22 @@ provide module defaults below caller overrides. XPath functions also consume
 constructed and portable CEM values through a cached shared native projection;
 they preserve output occurrence parents separately from reference targets.
 
+### Original schema attribute type bindings
+
+`attribute_datatypes::bind_attribute_datatype` binds one original schema attribute
+`@type` slot to an exact ready `ExecutableDatatype`. Literal slots use an explicit
+host binding recorded by `CemQlSchemaDeclarationHost::bind_literal_attribute_type`;
+native `@type={#target}` slots evaluate in their captured scope. Both use the shared
+bounded reference resolver, require a singleton datatype target, and honor directed
+scope grants. Retained slot, declaration and datatype owners remain available in
+`BoundAttributeDatatype`. A same-named declaration from a replacement owner cannot
+satisfy an older compilation snapshot.
+
+This API binds descriptors only. It does not prepare literal values, invoke
+conversion, apply attribute-local facets, or clear model readiness. The dedicated
+`schema:attribute-type` metamodel contract admits native slots only on attribute
+declarations, preserving literal QName checks and pending compilation state.
+
 ### Retained-node navigation
 
 `dom:parent(node)`, `dom:children(node)`, `dom:descendants(node)` and

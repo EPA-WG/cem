@@ -4309,3 +4309,30 @@ fn unsupported_retained_structural_target_reports_invalid_admission_without_pani
         }
     )));
 }
+
+#[test]
+fn dedicated_attribute_type_slot_preserves_literal_checks_and_native_readiness() {
+    use cem_ml::schema::document_model::{validate_document_model, INVALID_ATTRIBUTE_TYPE_CODE};
+    let metamodel = compile_schema_document_model("metamodel", "{schema | {elements | {element @name=attribute @optional-attributes=type} {element @name=input-binding @optional-attributes=type}} {attributes | {attribute @name=type @type=schema:attribute-type}}}");
+    for (text, invalid) in [
+        ("{attribute @type=vendor:record}", false),
+        ("{attribute @type=bad:name:extra}", true),
+        ("{attribute @type={#target}}", false),
+        ("{input-binding @type={#target}}", true),
+    ] {
+        let document = parse(text);
+        let diagnostics = validate_document_model(&document, &metamodel);
+        assert_eq!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == INVALID_ATTRIBUTE_TYPE_CODE),
+            invalid,
+            "{text}: {diagnostics:?}"
+        );
+    }
+    let candidate = compile_schema_document_model(
+        "candidate",
+        "{schema | {attributes | {attribute @name=target @type={#datatype}}}}",
+    );
+    assert!(!candidate.is_ready_for_validation());
+}

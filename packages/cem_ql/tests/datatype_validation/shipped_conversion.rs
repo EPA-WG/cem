@@ -185,7 +185,10 @@ fn wide_integer_remains_integer_and_does_not_satisfy_decimal_contract() {
     }
 }
 
-fn equality(src: &DatatypeSource, ty: T) -> cem_ql::datatype_enumeration::RegisteredScalarEquality {
+pub(super) fn equality(
+    src: &DatatypeSource,
+    ty: T,
+) -> cem_ql::datatype_enumeration::RegisteredScalarEquality {
     use cem_ml::schema::datatype_enumeration::EqualityBehaviorContract;
     use cem_ql::datatype_enumeration::{DatatypeEqualityResultAdapter, RegisteredScalarEquality};
     let text = r#"@ns schema = "https://cem.dev/ns/schema/1"
@@ -204,10 +207,11 @@ fn equality(src: &DatatypeSource, ty: T) -> cem_ql::datatype_enumeration::Regist
     let ValueRepresentation::Scalar(representation) = ty.representation() else {
         panic!()
     };
-    let primitive = if representation == ScalarRepresentation::Integer {
-        "integer"
-    } else {
-        "string"
+    let primitive = match representation {
+        ScalarRepresentation::Integer => "integer",
+        ScalarRepresentation::Boolean => "boolean",
+        ScalarRepresentation::Decimal => "decimal",
+        _ => "string",
     };
     let text = text.replace("@type=integer", &format!("@type={primitive}"));
     let profile = source(&text);

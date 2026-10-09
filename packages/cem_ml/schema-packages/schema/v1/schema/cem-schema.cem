@@ -142,7 +142,7 @@
         {attribute @name="path-layout-basenames" @type="schema:string"}
         {attribute @name="path-layout-forbidden-basenames" @type="schema:string"}
         {attribute @name="children" @type="schema:content-model"}
-        {attribute @name="type" @type="schema:type-reference"}
+        {attribute @name="type" @type="schema:attribute-type"}
         {attribute @name="required" @type="schema:boolean-or-policy"}
         {attribute @name="severity" @type="schema:diagnostic-severity"}
         {attribute @name="code" @type="schema:diagnostic-code"}
@@ -312,6 +312,7 @@
         {type @name="name-value-list" @base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
+        {type @name="attribute-type" @base="cemml:type-reference"}
         {type @name="element-base" @base="cemml:wildcard-type-reference"}
         {type @name="wildcard-type-reference" @base="cemml:wildcard-type-reference"}
         {type @name="diagnostic-code" @base="cemml:string"}

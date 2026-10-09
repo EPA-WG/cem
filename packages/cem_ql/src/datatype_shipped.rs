@@ -165,3 +165,44 @@ pub use lists::{list_implementation, token_source};
 #[path = "datatype_shipped/grammar.rs"]
 mod grammar;
 pub use grammar::{content_model_constant_interpreter, content_model_converter};
+
+/// Host-selected implementation for one original shipped declaration. The caller
+/// supplies its original registered validation profile; names never select it.
+pub fn implementation(
+    source: cem_ml::schema::datatype_registry::DatatypeSource,
+    datatype: ShippedDatatype,
+    validator: (
+        cem_ml::schema::declaration_references::SchemaDeclarationNode,
+        cem_ml::schema::declaration_references::SchemaDeclarationNode,
+    ),
+) -> crate::datatype_compilation::DatatypeImplementation {
+    use crate::datatype_compilation::{
+        BaseCompatibility, DatatypeImplementation, TokenizerBinding,
+    };
+    use cem_ml::schema::{datatype_contracts::ItemBounds, datatype_registry::DatatypeKind};
+    if datatype.item().is_some() {
+        let mut entry = list_implementation(source, datatype).unwrap();
+        entry.validator = Some(validator);
+        return entry;
+    }
+    let base = match datatype {
+        ShippedDatatype::ContentModel => Some(DatatypeKind::Scalar),
+        ShippedDatatype::TypeReference => Some(DatatypeKind::Lexical),
+        _ => None,
+    };
+    DatatypeImplementation {
+        source,
+        kind: datatype.kind(),
+        representation: datatype.representation(),
+        accepted_bases: base
+            .into_iter()
+            .map(|kind| BaseCompatibility {
+                kind,
+                representation: datatype.representation(),
+            })
+            .collect(),
+        bounds: ItemBounds::default(),
+        tokenizer: TokenizerBinding::Absent,
+        validator: Some(validator),
+    }
+}

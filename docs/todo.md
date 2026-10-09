@@ -442,11 +442,44 @@ lifecycle tests pass; Nx schema-package verification passes with its CLI build.
 Verification (2026-10-08): 210 native import, lexical capture/reload, declaration
 reference and datatype tests pass; Nx schema-package verification and CLI build pass.
 
-- [ ] Complete remaining datatype metamodel admission and end-to-end shipped
+- [x] Add original shipped-descriptor fixtures for all 18 declarations, cross-kind
+      bases, list items, typed enumerations, capability absence and consumer parity;
+      add dedicated native attribute-type admission and pending-slot fixtures.
+      Scenarios for later design verification: source names do not grant authority;
+      a native type slot remains incomplete until its original contract is bound.
+
+- [x] Add and implement original literal/native attribute type-slot binding fixtures:
+      one exact compiled descriptor, explicit lexical binding, original scopes,
+      directed crossing grants, request limits, pending query context, incomplete
+      compilation and replacement-owner isolation. Binding alone cannot activate
+      the model or clear native-type readiness.
+      Scenarios for later design verification: matching names in a replacement
+      owner cannot satisfy an old slot; a lexical binding grants no scope crossing.
+
+- [ ] Decide literal attribute validation input preparation before automatic
+      descriptor activation. Recommended: separately registered lexical preparation
+      inherited from the original datatype, preserving authored text/source;
+      incomplete preparation remains incomplete. Alternative: require caller-supplied
+      typed inputs. Decision requested 2026-10-08; not implemented yet.
+      Scenarios for later design verification: boolean validation must not start
+      accepting conversion-only `1`/`0`; integer `003` retains its source spelling;
+      list tokenization does not invoke an item converter.
+
+- [ ] Add remaining attribute descriptor-consumer fixtures for local facet
+      intersection, typed node sequences, input preparation, cancellation and
+      package replacement readiness before automatic validation integration.
+      Scenarios for later design verification: validation never invokes conversion;
+      unresolved binding cannot clear readiness or become an untyped string.
+
+- [x] Complete remaining datatype metamodel admission and end-to-end shipped
       declaration/base/consumer parity using the registered grammar/reference
       capabilities. Add fixtures before wiring literal/native attribute admission.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
+
+Verification (2026-10-08): 330 native declaration-reference, datatype,
+attribute-value, template and package lifecycle tests pass. The schema-package
+Nx verification and CLI build pass. Automatic attribute activation remains guarded.
 
 - [ ] Design whole-list inheritance syntax, dependency roles and compatibility as
       separate future work before admitting derived whole-list declarations.
@@ -559,6 +592,8 @@ fixture groups. Schema-package Nx verification and its CLI build prerequisite pa
 - [ ] Integrate the descriptor into literal and native attribute type consumers,
       preserve compatibility through explicit parity checks, and update the
       metamodel's native datatype admission contract before enabling consumption.
+      Original-slot binding and dedicated metamodel admission are implemented;
+      lifecycle value preparation, local facets and activation remain open.
       Scenarios for later design verification: referenced type owners and their
       restrictions survive package replacement and independent runtime contexts.
 
