@@ -1052,3 +1052,6 @@ fn package_source_capture_survives_closure_refresh_and_pending_lifecycle_prepara
         .elements
         .contains_key("second"));
 }
+
+#[path = "schema_package_lifecycle/datatypes.rs"]
+mod datatypes;

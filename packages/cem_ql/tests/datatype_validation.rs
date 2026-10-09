@@ -951,3 +951,6 @@ fn original_candidate_supplies_fallback_attribution_for_source_less_diagnostics(
     assert_eq!(diagnostic.source_map, request.candidate[0].source_map());
     assert_ne!(diagnostic.uri.as_deref(), Some("input.cem"));
 }
+
+#[path = "datatype_validation/compilation.rs"]
+mod compilation;

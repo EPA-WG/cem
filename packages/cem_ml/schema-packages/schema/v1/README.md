@@ -2592,3 +2592,29 @@ by the readiness guard. General datatype compilation is being designed before co
 Pending metadata defers type-dependent facet/default checks while retaining
 independent schema errors. Standalone conversion rejects pending type contracts;
 literal metadata keeps its existing serialization and decoding behavior.
+
+
+### Explicit compiled datatype contracts
+
+Datatype declarations of effective kind `list` or `node` admit nonnegative literal
+`min-items` and `max-items`; defaults are zero and unbounded. Registered, authored
+and inherited bounds intersect, preserving their declaring sources. Node types
+reject lexical facets. Lists keep item-base semantics; whole-list inheritance is
+deferred. These declaration fields are separate from attribute-local camel-case
+`minItems`/`maxItems` facets.
+
+The opt-in `cem_ql::datatype_compilation` compiler resolves dependencies through
+the shared bounded reference consumer, binds exact retained implementation owners,
+and produces validation descriptors for typed scalar/list/native-node inputs.
+Cross-kind bases require registered compatibility and the same representation;
+node/scalar mixing is rejected. List tokenization is explicitly registered and
+returns checked source byte spans; it does not convert items. An authored native
+`@rule` must resolve to a registered behavior with a compatible validation signature.
+
+`CemQlSchemaPackageCompiler::with_datatypes` can attach that compilation to the
+package model. Incomplete datatype capabilities keep replacements inspectable and
+preserve the complete active package. The engine rejects snapshots from another
+source owner. Namespace/export discovery, conversion/equality adapters, enumeration
+execution and shipped parity remain tracked in the
+[datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
+Automatic attribute `@type` consumption remains guarded as described above.

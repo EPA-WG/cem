@@ -144,6 +144,8 @@ pub struct SchemaDocumentModel {
     /// Explicit declaration-reference outcomes; diagnostics alone cannot
     /// distinguish neutral/ignored incompleteness from a complete model.
     pub declaration_references: super::declaration_references::DeclarationReferenceCompilation,
+    /// Opt-in executable datatype snapshot from the same retained package source.
+    pub datatype_compilation: Option<std::sync::Arc<super::datatype_contracts::DatatypeCompilation>>,
 }
 
 impl SchemaDocumentModel {
@@ -153,6 +155,10 @@ impl SchemaDocumentModel {
     /// Package activation separately checks hard compilation diagnostics.
     pub fn is_ready_for_validation(&self) -> bool {
         self.declaration_references.is_complete()
+            && self
+                .datatype_compilation
+                .as_ref()
+                .is_none_or(|snapshot| snapshot.is_ready())
             && !self.declaration_references.failed()
             && !self
                 .attributes
@@ -5051,6 +5057,7 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         diagnostic_behaviors: BTreeMap::new(),
         compile_diagnostics: Vec::new(),
         declaration_references: Default::default(),
+        datatype_compilation: None,
     }
 }
 

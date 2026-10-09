@@ -4,6 +4,8 @@ use cem_ml::{
     diagnostics::Diagnostic,
     engine::EngineContext,
     schema::{
+        datatype_contracts::{DatatypeCompilation, DatatypeIssueState},
+        declaration_references::SchemaDeclarationHost,
         document_model::SchemaDocumentModel,
         package_compilation::{
             compilation_failure, SchemaPackageCompilationRequest, SchemaPackageCompiler,
@@ -19,12 +21,21 @@ type Prepare = dyn Fn(
     ) -> Result<(CemQlSchemaDeclarationHost, ReferenceTraversalLimits), Vec<Diagnostic>>
     + Send
     + Sync;
+type CompileDatatypes = dyn Fn(
+        &SchemaPackageCompilationRequest,
+        &mut CemQlSchemaDeclarationHost,
+        ReferenceTraversalLimits,
+    ) -> Result<DatatypeCompilation, Vec<Diagnostic>>
+    + Send
+    + Sync;
+
 /// Prepare a new consumer host for each lifecycle snapshot. The callback
 /// registers the request's retained source and supplies contexts, effective
 /// scopes and crossing grants. No reference selections are cached or shared.
 #[derive(Clone)]
 pub struct CemQlSchemaPackageCompiler {
     prepare: Arc<Prepare>,
+    datatypes: Option<Arc<CompileDatatypes>>,
 }
 impl std::fmt::Debug for CemQlSchemaPackageCompiler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -45,7 +56,25 @@ impl CemQlSchemaPackageCompiler {
     {
         Self {
             prepare: Arc::new(prepare),
+            datatypes: None,
         }
+    }
+    /// Opt in to executable datatype readiness for this package. The callback
+    /// supplies fresh original sources and exact implementation registrations;
+    /// compilation never promotes local names into execution authority.
+    pub fn with_datatypes<F>(mut self, compile: F) -> Self
+    where
+        F: Fn(
+                &SchemaPackageCompilationRequest,
+                &mut CemQlSchemaDeclarationHost,
+                ReferenceTraversalLimits,
+            ) -> Result<DatatypeCompilation, Vec<Diagnostic>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.datatypes = Some(Arc::new(compile));
+        self
     }
 }
 impl SchemaPackageCompiler for CemQlSchemaPackageCompiler {
@@ -54,13 +83,41 @@ impl SchemaPackageCompiler for CemQlSchemaPackageCompiler {
         request: &SchemaPackageCompilationRequest,
     ) -> Result<SchemaDocumentModel, Vec<Diagnostic>> {
         let (mut host, limits) = (self.prepare)(request)?;
-        host.compile(&request.schema_uri, request.source.clone(), limits)
+        let mut model = host
+            .compile(&request.schema_uri, request.source.clone(), limits)
             .map_err(|error| {
                 vec![compilation_failure(
                     request.source.source_uri(),
                     error.to_string(),
                 )]
-            })
+            })?;
+        if let Some(compile) = &self.datatypes {
+            let datatypes = compile(request, &mut host, limits)?;
+            model
+                .compile_diagnostics
+                .extend(datatypes.diagnostics.clone());
+            for issue in &datatypes.issues {
+                if issue.state != DatatypeIssueState::Invalid {
+                    continue;
+                }
+                let tree = host.input_source_tree(&issue.source);
+                let mut diagnostic = compilation_failure(
+                    tree.as_ref()
+                        .map_or(request.source.source_uri(), |tree| tree.source_uri()),
+                    format!("Invalid datatype contract: {}", issue.code),
+                );
+                diagnostic.node = Some(issue.source.identity());
+                if let cem_ml::parser::CemAstNode::Element { source, .. }
+                | cem_ml::parser::CemAstNode::Attribute { source, .. }
+                | cem_ml::parser::CemAstNode::Reference { source, .. } = issue.source.node()
+                {
+                    diagnostic.source_map = Some(source.clone());
+                }
+                model.compile_diagnostics.push(diagnostic);
+            }
+            model.datatype_compilation = Some(Arc::new(datatypes));
+        }
+        Ok(model)
     }
 }
 pub fn register_cem_ql_schema_package_compiler(

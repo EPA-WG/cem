@@ -110,6 +110,15 @@ pub struct DatatypeValidationRegistry {
     entries: BTreeMap<(String, String), Arc<Registration>>,
 }
 impl DatatypeValidationRegistry {
+    pub fn signature(
+        &self,
+        owner: &SchemaDeclarationNode,
+        behavior: &SchemaDeclarationNode,
+    ) -> Option<&cem_ml::schema::datatype_validation::ValidationSignature> {
+        self.entries
+            .get(&(owner.identity(), behavior.identity()))
+            .map(|entry| entry.contract.signature())
+    }
     pub fn register_native(
         &mut self,
         implementation_id: &str,
@@ -254,6 +263,9 @@ pub struct BoundDatatypeRule {
     declaration: SchemaDeclarationNode,
 }
 impl BoundDatatypeRule {
+    pub fn signature(&self) -> &cem_ml::schema::datatype_validation::ValidationSignature {
+        self.registration.contract.signature()
+    }
     pub fn datatype(&self) -> &Item {
         &self.datatype
     }
@@ -484,12 +496,12 @@ fn consume(
     }
     Ok(result)
 }
-fn native_node(value: &Item) -> bool {
+pub(crate) fn native_node(value: &Item) -> bool {
     value
         .view()
         .is_some_and(|v| v.kind() == QueryItemViewKind::Node)
 }
-fn scalar(value: &Item, p: ScalarRepresentation) -> bool {
+pub(crate) fn scalar(value: &Item, p: ScalarRepresentation) -> bool {
     if !matches!(value, Item::Atomic(_))
         && !value
             .view()

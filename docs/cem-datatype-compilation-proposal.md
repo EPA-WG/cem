@@ -8,7 +8,8 @@ with diagnostics, empty lists unless constrained and a dedicated `node` kind are
 adopted. Node rules validate complete target sequences, and candidate requirements
 are per registered capability. Derived declarations inherit an omitted kind from
 a resolved base, with explicit list kind for item-base semantics. Whitespace-token
-`@values` authoring is adopted; richer retained constants are deferred. Validation signatures are implemented; conversion/equality signatures and
+`@values` authoring is adopted; richer retained constants are deferred. Validation descriptors, sequence bounds and tokenizers are implemented. Separate
+conversion/equality capability signatures are adopted below; their adapters and
 remaining effective kind contracts remain separate work. Datatype validation inputs use the adopted
 fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
 CEM-QL records under a dedicated contract enforced at the consumer boundary;
@@ -18,8 +19,9 @@ value-contract declarations are adopted for reusable result/diagnostic shapes.
 General datatype compilation must be designed before enabling native attribute
 `@type` consumption.
 The shared value-contract source surface and explicit result consumer are implemented.
-Explicit registered validation dispatch is implemented below. Full datatype
-compilation and native attribute `@type` remain guarded.
+Explicit registered validation dispatch and opt-in datatype descriptor/package
+readiness integration are implemented below. Automatic native attribute `@type`
+remains guarded pending the remaining compiler and migration work.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
 are separate from core reference adoption. Preserve the adopted contracts here, but
@@ -94,10 +96,10 @@ not receive an intrinsic implementation merely because its local name matches.
 | --- | --- | --- |
 | `scalar` | One value with an explicit primitive conversion/validation contract and restrictions | Built-in registry binding, normalization and custom implementations |
 | `lexical` | A value checked by a declared lexical predicate | Executable `rule` binding and compatibility with shipped descriptions |
-| `list` | Ordered typed values satisfying an item datatype contract, with authored lexical source retained; declaration `values` rejected | Registered tokenization, cardinality admission and concrete adapters |
+| `list` | Ordered typed values satisfying an item datatype contract, with authored lexical source retained; declaration `values` rejected | Shipped tokenizer/item conversion adapters and parity |
 | `grammar` | A value checked by a registered grammar consumer; source prose is descriptive | Concrete registered parser/validation adapters and parity |
 | `reference` | A symbolic-reference value contract such as a QName | Separate lexical validation from consumer-requested dereferencing; do not imply URL or AST link evaluation |
-| `node` | Original retained nodes checked by registered native validation rules; lexical facets rejected | Rule invocation unit, typed sequence signature and metamodel admission |
+| `node` | Original retained nodes checked by registered native validation rules; lexical facets rejected | Automatic attribute consumption and migration parity |
 
 For inherited scalar restrictions, the adopted composition is intersection: the base
 and every restriction must hold, including locally authored attribute facets.
@@ -256,8 +258,8 @@ normalization semantics, plus its own metamodel and migration contract. These
 forms must not be inferred from an authored string or a native reference.
 
 General lists permit empty sequences unless an effective contract forbids them;
-shipped name-list contracts continue to reject empty values. Custom tokenizers
-and source syntax for declaring list cardinality remain separate work.
+shipped name-list contracts continue to reject empty values. Registered tokenizer contracts and source cardinality are implemented below;
+shipped conversion adapters remain separate work.
 
 ## Adopted datatype execution adapter
 
@@ -556,9 +558,9 @@ diagnostics or accept error diagnostics, so severity alone never determines
 validity. Existing legacy object/result formats still need an explicit host bridge
 to this checked diagnostic sequence; they are not reinterpreted automatically.
 
-This completes the explicit validation adapter, not effective datatype compilation,
-conversion/equality adapters, automatic native `@type` consumption or the package
-activation integration. Those tasks remain in `todo.md` with their scenarios.
+The validation adapter now feeds the explicit descriptor compiler and package
+readiness integration below. Conversion/equality adapters and automatic native
+`@type` consumption remain in `todo.md` with their scenarios.
 
 ## Implemented native diagnostic query prerequisite
 
@@ -588,9 +590,9 @@ Converting a supplied empty sequence does not manufacture an item, a default or
 a null value. Lexical empty-input handling belongs to the registered tokenizer;
 representation-level emptiness does not authorize dropping invalid lexical tokens.
 
-Source syntax for declaring custom list cardinality, registered tokenizers and
-exact adapter signatures remain separate action items. No conversion adapter or
-new cardinality field is enabled by this decision.
+The adopted sequence-bound fields and registered tokenizer boundary are implemented
+below. Tokenization does not enable conversion; its typed capability contract is
+adopted separately and implementation remains open.
 
 ## Registry implementation boundary
 
@@ -636,9 +638,9 @@ nodes. Scalar conversion rejects node input; any separately registered capabilit
 for native nodes must preserve original handles and declare its own contract.
 Adding this kind does not silently admit a node datatype as every list's item base.
 
-The explicit validation adapter accepts native node sequences. Effective node
-datatype compilation, source kind admission and base compatibility remain required
-before custom node datatypes can activate through attribute `@type`.
+The explicit descriptor compiler below implements node kind admission, native
+sequence validation and compatible inherited bases. Automatic attribute `@type`
+consumption remains guarded pending complete namespace/facet and migration checks.
 Reference-to-ID conversion remains deferred to the `cem-element` consumer track.
 
 ## Grammar and symbolic-reference consumer boundaries
@@ -1016,3 +1018,125 @@ then establish the descriptor and lexical registry, bind dependency graphs,
 implement kind consumers, and finally enable native attribute type consumption.
 Keep function reference contracts, child-scope override syntax, and
 `cem-element` ID conversion on their existing deferred tracks.
+
+## Adopted sequence bounds and registered tokenizers
+
+Adopted and implemented 2026-10-08: datatype declarations of effective kind
+`list` or `node` admit literal nonnegative `min-items` and `max-items` fields.
+Defaults are zero and unbounded. Registered, inherited and authored bounds
+intersect; every restriction retains its original declaration. Contradictory
+bounds are compilation errors. Scalar declarations reject sequence bounds.
+The existing attribute-local `minItems`/`maxItems` facets remain separate.
+
+An absent lexical input is distinct from supplied empty input. An explicitly
+registered tokenizer returns ordered, nonempty UTF-8 byte spans into the retained
+lexical input, preserving source maps and duplicates. Spans cannot overlap or
+skip content outside the tokenizer's declared separator policy. The provided
+Unicode-whitespace tokenizer is a capability value that the host must select for
+an exact list declaration; there is no implicit tokenizer or new `@tokenizer`
+syntax. Custom tokenizers declare their separator policy and cooperate with the
+caller's operation control. Default limits are 1 MiB of input and 100,000 tokens,
+with host overrides and checks before/after execution and during span inspection.
+
+Tokenization does not convert tokens into typed items or execute item rules.
+An optional absent tokenizer permits validation of already typed items; an
+explicitly selected unavailable tokenizer prevents executable readiness. Shipped
+name-list nonemptiness must be registered explicitly during the pending migration.
+
+## Implemented validation descriptors and package readiness
+
+`cem_ql::datatype_compilation::compile_datatypes` compiles retained sources through
+`traverse_native_datatype_dependencies`. All requested roots share the remaining
+work budget, including descriptor compilation. Scope grants, destination limits,
+cycles and incomplete dependency states remain owned by the shared resolver.
+Literal names enter through explicit original-scope bindings on the declaration
+host; this narrow binding API does not implement namespace import/export discovery.
+Native `@base`/`@rule` targets retain their original owners and source attributes.
+
+The host registers a kind, typed representation, accepted cross-kind bases,
+optional bounds/tokenizer and optional default validator for an exact original
+datatype and lexical scope. This registration does not follow a same-name vendor
+declaration. Omitted or identical derived kinds can reuse the resolved base's
+contract. A different kind requires an explicit compatibility entry, and every
+base restriction must inspect the same representation. Node/scalar mixing is
+invalid even with a compatibility entry. An explicit list's `base` selects its
+item contract; the initial executable list representation admits scalar items.
+Whole-list inheritance and list-of-list/native-node items remain unsupported.
+
+An explicitly registered primitive scalar or native-node representation can be
+validated without additional predicates. Lexical, grammar and symbolic-reference
+contracts require a registered rule; a representation alone does not establish
+those semantics. Both host-selected validators and authored native rules restrict
+the value. An authored rule still requires complete authorized selection even
+when its target is also the registered default. Compilation checks exact behavior
+owner, effective kind and value signature. Inherited rules retain their original
+declaring datatype handles. Literal rule prose remains descriptive.
+
+The descriptor validates complete native values without conversion. It checks
+representations and required candidates for the entire scheduled invocation before
+any callback. Node rules receive the complete ordered sequence once; list item
+rules receive each item in order, preserving duplicates, and list rules receive
+the whole sequence. Bounds and every rule restrict acceptance. All calls share
+operation control and aggregate rule/input/diagnostic limits; cancellation or
+incomplete execution leaves acceptance unset and preserves completed outcomes.
+Cardinality rejection records retain the declaring source, required bounds and
+actual count. Descendant references remain authored native nodes.
+
+Unknown fields/structural children, duplicate fields, incompatible bases and
+invalid bounds cannot compile. Node lexical facets and list declaration `values`
+are rejected. Scalar `values` keeps compilation incomplete until registered
+constant interpretation and equality are implemented; it is never ignored.
+Conversion, grammar/reference implementations and full shipped parity remain open.
+
+`CemQlSchemaPackageCompiler::with_datatypes` adds an explicit lifecycle compilation
+callback using the current prepared host. It attaches the resulting immutable
+`DatatypeCompilation` snapshot to `SchemaDocumentModel`; incomplete snapshots
+prevent activation. The engine verifies that the snapshot belongs to the exact
+retained request owner. Missing capabilities preserve the candidate for inspection
+and leave the last complete schema, converters and artifacts active together.
+A retry reuses unchanged source ownership but recompiles under current capabilities.
+A ready snapshot from an old or unrelated owner cannot authorize a replacement.
+Host callbacks must include every datatype they intend to expose as executable.
+
+This is an opt-in validation compiler. Automatic literal/native attribute `@type`
+consumption remains guarded until namespace binding, full facet contracts and
+migration parity are complete. CEM-ML parsing does not evaluate these references.
+
+## Adopted separate conversion and equality capability contracts
+
+Adopted 2026-10-08; implementation remains tracked separately. A conversion
+registration names the exact original implementation, accepted input representation,
+canonical output representation and candidate requirement. Inputs retain the
+original datatype and optional/required native candidate; a lexical input retains
+its original text and source maps. Node-to-scalar extraction is never implicit.
+The consumer explicitly requests conversion under its existing runtime context
+and operation budget.
+
+A completed conversion has one of two typed outcomes: `Converted`, containing one
+canonical scalar or an ordered item/native sequence of the declared output type
+plus attributed diagnostics; or `Rejected`, containing diagnostics and no value.
+An empty converted sequence is a present successful value, distinct from rejection
+or absent input. Pending/unavailable execution, control failure and malformed
+output stay separate from both completed outcomes. A source record/query adapter
+must check this tagged result and exact output cardinality before publishing it.
+Select one inherited or explicitly replaced compatible converter, invoke it once,
+then validate the result with every effective restriction. Failure never falls
+back to another converter, and diagnostics cannot replace the tagged outcome.
+
+Scalar equality is a separate exact registration declaring the operand
+representation and original contract. It accepts two singleton values of that
+representation and returns an explicit equality boolean with attributed diagnostics.
+Pending/unavailable/failed execution has no comparison boolean. Equality neither
+converts operands nor changes their representation; it shares the consumer's
+operation control. Sequence equality and node equality are outside this scalar
+capability.
+
+Enumeration preparation is another explicit registered operation: interpret each
+existing whitespace token as one scalar constant under the restriction's original
+contract, retaining its token span and owner. Its typed success/rejection follows
+the conversion outcome distinction without implicitly selecting the runtime
+converter. Prepared constants must satisfy their original contract before use.
+Each inherited vocabulary retains its own interpreter and equality implementation.
+Unavailable interpretation/equality blocks that restriction's readiness; there is
+no lexical fallback. These semantic signatures introduce no new executable
+`@rule` behavior, conversion source syntax or richer constant syntax by themselves.

@@ -83,10 +83,11 @@ remains guarded until that compiler is ready.
 
 Completed prerequisites and verification: [archived checklist](archive/todo-snapshot-2026-10-07.md#reference-adoption-dependency-binding-and-readiness).
 
-- [ ] Integrate dependency selection outcomes with schema consumer readiness when
-      the separate datatype compiler supplies its executable contracts. Add readiness
-      fixtures before integration; preserve available sources for inspection and the
-      last complete active package while replacement dependencies remain incomplete.
+- [x] Integrate explicit datatype compilation snapshots with package readiness
+      and source-owner checks. Fixtures preserve available sources for inspection,
+      retry the same retained candidate and keep schema/converters/artifacts active
+      together while a selected capability is incomplete. Automatic attribute type
+      consumption remains in the separate compiler integration action below.
       Scenarios for later design verification: complete selection cannot activate an
       unavailable execution contract; pending lookup is distinct from a complete empty result.
 
@@ -154,18 +155,37 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: original candidate/type handles remain
       native; unavailable execution differs from invalid data; conversion stays separate.
 
-- [ ] Specify custom list cardinality admission and registered tokenizer contracts,
-      then add fixture actions for absent versus empty input, inherited nonempty
-      restrictions and invalid lexical tokens before implementing adapters.
+- [x] Implement effective `min-items`/`max-items` sequence bounds and explicit
+      registered tokenizer contracts (2026-10-08). Preserve absent/empty input,
+      inherited and registered nonempty restrictions, original lexical spans and
+      separator admission. Tokenization stays separate from item conversion.
       Scenarios for later design verification: an item base does not require an item;
       empty conversion manufactures neither a default item nor a null value.
 
-- [ ] Specify effective node-kind metamodel admission and base compatibility, then
-      connect the implemented native sequence validation signature to datatype
-      compilation. Add fixtures for lexical-facet rejection and unchanged descendant
-      references through that integration before enabling native attribute types.
+- [x] Add native fixtures for list bounds and registered tokenization: absent versus
+      empty input, nonempty registered bounds, ordered duplicate tokens, Unicode
+      source spans, malformed custom spans, cancellation and bounded work. Add
+      descriptor fixtures for node/scalar base compatibility, inherited restrictions,
+      exact validation registration, incomplete dependencies and original owners.
+      Add package fixtures for preserving the active schema, converters and artifacts
+      during incomplete replacement, attributing invalid declarations to their
+      original sources, and rejecting stale owner snapshots.
+      Scenarios for later design verification: tokenization does not convert items;
+      native target subtrees retain authored references; ready selection alone
+      cannot activate an unavailable implementation.
+
+- [x] Implement effective node-kind metamodel admission and base compatibility,
+      connecting native sequence validation to explicit datatype descriptors.
+      Verify lexical-facet rejection and unchanged descendant references through
+      that integration. Automatic native attribute type activation stays guarded.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
+
+Verification for these three slices (2026-10-08): 131 focused native tests cover
+source/registry/traversal contracts, sequence tokenization, descriptor/result
+validation, retained behaviors and package/region lifecycles. The schema package
+Nx verification includes its CLI build prerequisite. Automatic native attribute
+`@type` activation, conversion and equality adapters remain deferred below.
 
 - [x] Adopt the shared diagnostic value contract (2026-10-08): accept existing
       native diagnostics and checked CEM-QL records with required singleton `code`,
@@ -268,11 +288,17 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: diagnostic-only results cannot imply
       acceptance until the selected registered mapping is applied.
 
-- [ ] Integrate retained validation registrations with complete datatype descriptors
-      and package readiness/ownership checks; specify separate conversion and equality
-      capabilities and their typed output contracts before enabling them.
+- [x] Integrate retained validation registrations with explicit datatype descriptors
+      and package readiness/ownership checks (2026-10-08). Adopt separate conversion,
+      scalar equality and token-constant interpretation signatures with typed
+      outcomes; their executable adapters remain the actions below.
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
+
+Next implementation order: effective converter selection, scalar equality and
+`@values` constant preparation, then namespace/export discovery. Implementations
+and fixtures follow the adopted capability signatures; full shipped parity and
+automatic attribute type activation depend on those tasks.
 
 - [ ] Establish full validation/conversion parity for shipped datatype families;
       add fixture actions for lexical, URI/semver/media-type/path, list, grammar
@@ -280,8 +306,10 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: unsupported conversion stays explicit;
       a primitive predicate alone does not prove a complete conversion contract.
 
-- [ ] Complete datatype namespace/export API and metamodel admission, registered
-      tokenization policies, and grammar/reference kind contracts.
+- [ ] Complete datatype namespace/export discovery and full metamodel admission,
+      plus shipped grammar/reference implementations. Explicit original-scope
+      bindings and registered tokenization policies are implemented; add fixture
+      actions for exported names, alias ownership and concrete parsers before wiring.
       Scenarios for later design verification: attribute restrictions cannot widen
       a base; native node contracts retain typed input without scalar extraction.
 
@@ -290,10 +318,10 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: list-of-list items are not inheritance;
       existing shipped item-base declarations preserve their effective item contracts.
 
-- [ ] Specify the registered base compatibility contract and its source-attributed
-      validation; add fixture actions for inherited-kind reuse, permitted shipped
-      cross-kind bases, incompatible bases and unavailable registration before wiring
-      the bounded dependency compiler.
+- [x] Implement registered base compatibility and source-attributed validation
+      in the bounded dependency compiler. Verify inherited-kind reuse, explicit
+      cross-kind permission, incompatible node/scalar bases and unavailable
+      registration. Shipped-family migration remains in the parity action above.
       Scenarios for later design verification: a derived restriction retains the
       base implementation identity; incompatible contracts never activate by name.
 
@@ -326,9 +354,10 @@ archived, while executable datatype consumption remains guarded.
       have an explicit representation; inherited restrictions retain their
       original bindings and never reinterpret existing token vocabularies.
 
-- [ ] Implement retained datatype descriptors and lexical name binding, then a
-      bounded dependency compiler and kind consumers under the adopted contracts.
-      Add focused native fixture items before implementing each slice.
+- [x] Implement retained validation descriptors, explicit original-scope lexical
+      bindings and a bounded dependency compiler. Preserve dependency sites,
+      reference failures, partial sources and original restriction owners.
+      Namespace/export discovery and remaining kind/facet consumers stay open above.
       Scenarios for later design verification: cycles and incomplete dependencies
       prevent activation while original declarations stay available for inspection.
 

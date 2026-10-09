@@ -40,7 +40,7 @@
         {element @name="value-contracts" @children="value-contract"}
         {element @name="value-contract" @required-attributes="name" @optional-attributes="allow-extra" @children="value-field"}
         {element @name="value-field" @required-attributes="name" @optional-attributes="kind type required cardinality values"}
-        {element @name="type" @required-attributes="name" @optional-attributes="kind base rule values"}
+        {element @name="type" @required-attributes="name" @optional-attributes="kind base rule values min-items max-items"}
         {element @name="namespace-semantics" @children="binding resolution handoff"}
         {element @name="binding" @required-attributes="directive scope"}
         {element @name="resolution" @required-attributes="target mode"}
@@ -207,6 +207,8 @@
         {attribute @name="base" @type="schema:element-base"}
         {attribute @name="rule" @type="cemml:string"}
         {attribute @name="values" @type="cemml:string"}
+        {attribute @name="min-items" @type="schema:integer" @minInclusive=0}
+        {attribute @name="max-items" @type="schema:integer" @minInclusive=0}
         {attribute @name="directive" @type="cemml:identifier"}
         {attribute @name="scope" @type="cemml:string"}
         {attribute @name="mode" @type="cemml:identifier"}

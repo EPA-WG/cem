@@ -1080,8 +1080,16 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Implement registered input signatures, authorized behavior dispatch and
       explicit diagnostic-only compatibility. Verify candidate cardinality and
       cumulative rejection without inferring execution authority from result shape.
-- [ ] Finish conversion/equality capability signatures, effective kind/facet contracts
-      and compiler/readiness integration before enabling executable native attribute `@type`.
+- [x] Implement intersecting sequence bounds, registered source-span tokenizers,
+      node/base compatibility and explicit validation descriptors with package
+      readiness and original-owner checks (2026-10-08).
+- [x] Adopt separate typed conversion/equality/constant-interpretation outcomes;
+      keep their invocation separate from validation and reference resolution.
+- [ ] Implement those capability adapters, complete namespace/export and shipped
+      parity checks before enabling executable native attribute `@type`.
+      Scenarios for later design verification: an unavailable selected implementation
+      preserves the active package; empty converted output differs from failure;
+      inherited vocabularies retain their original equality and token interpretation.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;
       richer retained constants are deferred (adopted 2026-10-08).
 - [ ] Add fixtures before token-constant/equality execution under the adopted contract.
