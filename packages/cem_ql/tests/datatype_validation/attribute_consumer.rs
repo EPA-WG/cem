@@ -15,6 +15,18 @@ fn fixture(
     accepted: bool,
     warning: bool,
 ) -> BoundAttributeFacets {
+    fixture_with_host(family, fields, prepare, accepted, warning).0
+}
+pub(super) fn fixture_with_host(
+    family: FacetFamily,
+    fields: &str,
+    prepare: bool,
+    accepted: bool,
+    warning: bool,
+) -> (
+    BoundAttributeFacets,
+    cem_ql::schema_references::CemQlSchemaDeclarationHost,
+) {
     let (kind, kind_name) = match family.representation() {
         ValueRepresentation::Scalar(_) => (DatatypeKind::Scalar, "scalar"),
         ValueRepresentation::Nodes => (DatatypeKind::Node, "node"),
@@ -133,7 +145,7 @@ fn fixture(
     let slot = attributes.iter().filter_map(|id|SchemaDeclarationNode::new(decl.document().clone(),*id)).find(|n|matches!(n.node(),CemAstNode::Attribute{expanded_name,..} if expanded_name.local_name=="type")).unwrap();
     host.bind_literal_attribute_type(slot, selected.declaration().clone())
         .unwrap();
-    bind_attribute_datatype(
+    let bound = bind_attribute_datatype(
         decl,
         &compilation,
         &mut host,
@@ -143,7 +155,8 @@ fn fixture(
     .bound
     .unwrap()
     .compile_facets("urn:test", Default::default())
-    .unwrap()
+    .unwrap();
+    (bound, host)
 }
 fn lexical(text: &str) -> PreparationInput {
     PreparationInput {

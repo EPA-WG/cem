@@ -437,9 +437,35 @@ datatype input visits share their existing allowance; local node/list cardinalit
 checks read the resulting count without revisiting targets or items.
 
 This explicit adapter requires declaring-scope diagnostic bindings in `FacetContext`.
-Resolving those dependencies, validating defaults, accepting pretyped scalar/list
-inputs with lexical provenance, and activating automatic schema validation remain
-separate integration work in the TODO.
+The declaration-readiness API below checks those dependencies and validates defaults.
+Accepting pretyped scalar/list inputs with lexical provenance and activating automatic
+schema validation remain separate integration work in the TODO.
+
+### Attribute declaration readiness
+
+`BoundAttributeFacets::check_declaration_readiness` checks an explicit
+`AttributeDiagnosticBindings` snapshot against the original schema returned by the
+source host. The host supplies compiled diagnostic bindings and their collection/
+behavior completeness; equal schema URIs or names do not replace source identity.
+Referenced diagnostics require a complete snapshot, matching codes and the expected
+engine diagnostic family. An incomplete catalog is pending; a missing binding in a
+complete catalog is invalid. Declarations with no diagnostic dependencies do not
+wait for unrelated catalog work. This prevents declared diagnostics from silently
+falling back to built-in messages.
+
+A literal default runs through `validate_lexical` with its original `@default`
+attribute as candidate and source attribution, following the `@values` constant
+precedent. No use-site node is fabricated. Absent and authored-empty defaults remain
+distinct; the last authored slot supplies the effective default. List defaults
+retain token spans. Literal defaults cannot become native node references.
+
+`AttributeDeclarationReadiness` retains the declaration, diagnostic schema, original
+default slot and complete phase report. Rejection is invalid regardless of diagnostic
+severity; unavailable preparation, stopped validation or cancellation is incomplete.
+Checks use the supplied runtime and limits, with control checked again before return.
+A ready report covers these declaration prerequisites for this invocation. It neither
+activates the schema nor replaces validation when the default is used in a different
+consumer context; hosts must recheck when source, bindings or runtime inputs change.
 
 ### Retained-node navigation
 

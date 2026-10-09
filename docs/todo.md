@@ -544,11 +544,27 @@ package lifecycle tests pass, including six combined-consumer fixture groups.
 The Nx CLI build passes; schema-package verification passes from cache. Automatic
 model activation remains guarded pending the lifecycle integration below.
 
-- [ ] Add remaining attribute lifecycle fixtures and readiness checks for defaults
+- [x] Add explicit declaration-readiness fixtures for original default candidates,
+      default rule/facet rejection, unavailable preparation and cancellation,
+      diagnostic collection pending versus missing bindings, family compatibility,
+      and rejection of same-named replacement scopes. Use the original `@default`
+      attribute as the candidate, matching the adopted `@values` constant precedent.
+      Scenarios for later design verification: retry uses the retained declaration;
+      missing diagnostic dependencies never silently choose fallback behavior;
+      an absent default is distinct from an authored empty default.
+
+- [x] Add remaining attribute lifecycle fixtures and readiness checks for defaults
       and declaring-scope diagnostic dependencies before automatic activation.
       Validate default values through the same compiled datatype/local constraints.
+      Implemented as an explicit per-invocation declaration-readiness API; automatic
+      model activation and diagnostic snapshot wiring remain the next action.
       Scenarios for later design verification: unavailable diagnostic bindings or
       invalid defaults cannot publish a complete model; validation never invokes conversion.
+
+Verification (2026-10-08): 287 datatype, value-contract, declaration-reference and
+package lifecycle tests pass, including seven declaration-readiness fixture groups.
+The Nx CLI build passes; schema-package verification passes from cache. Original
+default candidates and diagnostic schema identities survive checks without model activation.
 
 - [ ] Integrate bound attribute consumers into literal QName discovery, native type
       slots and coordinated package activation/replacement. Add lifecycle fixtures

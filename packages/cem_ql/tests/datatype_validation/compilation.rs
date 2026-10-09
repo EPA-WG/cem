@@ -759,3 +759,6 @@ mod facets;
 
 #[path = "attribute_consumer.rs"]
 mod attribute_consumer;
+
+#[path = "attribute_readiness.rs"]
+mod attribute_readiness;

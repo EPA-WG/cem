@@ -1824,9 +1824,10 @@ Model and input bytes and diagnostic counts have explicit limits; runtime contro
 is checked around validation. A local facet verdict covers only local constraints.
 Overall acceptance still requires completed datatype preparation/validation and all
 inherited restrictions. Callers supply the original input and declaring-scope
-diagnostic bindings. The combined explicit adapter below shares phase limits. Defaults, diagnostic
-dependency readiness and automatic lifecycle activation remain integration work. Neither
-profile selection nor local compilation clears the source model's readiness guard.
+diagnostic bindings. The combined explicit adapter below shares phase limits.
+Defaults and diagnostic dependency readiness are checked by the explicit declaration
+API below; automatic lifecycle activation remains integration work. Neither profile
+selection nor local compilation clears the source model's readiness guard.
 
 Scenarios for later design verification: an alias named `uri` gains no profile by
 name; a replacement source owner cannot satisfy an old registration; derived local
@@ -1859,9 +1860,45 @@ Input/model bytes remain bounded and all phases share the caller's lifecycle
 control. Local sequence counts do not iterate or re-tokenize the prepared values.
 
 This is an explicit consumer API. It leaves automatic model activation guarded.
-Default-value validation, diagnostic dependency readiness, package replacement
-integration and pretyped scalar/list lexical provenance remain tracked actions.
+Default-value validation and diagnostic dependency readiness are implemented by the
+explicit declaration API below. Package replacement integration and pretyped
+scalar/list lexical provenance remain tracked actions.
 Scenarios for later design verification: partial acceptance cannot escape after a
 later stop; duplicate native targets retain the exact original query views; list
 items retain token spans; a base rejection cannot be weakened by local acceptance;
 typed rejection reports spend the same diagnostic allowance as rendered messages.
+
+
+## Implemented explicit attribute declaration readiness
+
+Implemented 2026-10-08. The consumer checks host-supplied diagnostic bindings against
+the attribute's original declaring schema handle. The snapshot includes diagnostic
+collection and behavior dependency completeness. Equal names or URIs in a replacement
+owner do not establish that identity. Declared diagnostic dependencies remain pending
+until their snapshot is complete; a complete snapshot with a missing code or wrong
+engine family is invalid. No diagnostic dependency means unrelated catalog work need
+not block this declaration. The host remains responsible for compiling and associating
+the snapshot with the stated original schema.
+
+Literal defaults use the same registered preparation, effective datatype rules and
+local facets as supplied values. The original `@default` attribute provides the native
+candidate and source attribution, following the adopted original-`@values` constant
+contract. No hypothetical consuming attribute or second source tree is manufactured.
+An absent default is distinct from an authored empty value. Effective defaults retain
+last-authored-slot precedence and list token spans. A literal default for a node
+contract is invalid; this path never turns strings into references.
+
+The readiness report retains original declaration/default/schema handles, typed
+issues and the complete default-validation phase report. Explicit default rejection
+makes the declaration invalid even if its diagnostics are only warnings. Incomplete
+preparation/validation or cancellation keeps it pending. The caller's lifecycle
+control and limits apply, with a final control check before readiness is returned.
+
+This API checks declaration prerequisites for one supplied lifecycle invocation.
+It does not activate a model, bypass use-site validation in another runtime context,
+or authorize reusing a report after its inputs change. Automatic binding/activation,
+coordinated package replacement and pretyped scalar/list provenance remain TODO work.
+Scenarios for later design verification: pending diagnostics never choose fallback
+behavior; replacement owners cannot satisfy older declarations by name; original
+default candidates retain their source maps; incomplete retries preserve the same
+source; declaration-time validation does not replace use-site checks.
