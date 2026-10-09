@@ -321,10 +321,10 @@
         {type @name="function-reference" @base="cemml:qualified-name"}
         {type @name="cem-ql-expression" @base="cemml:string"}
         {type @name="behavior-implementation" @base="cemml:identifier" @values="engine function"}
-        {type @name="behavior-execution" @base="cemml:identifier" @values="tokenizer event-normalizer schema-machine reference-resolution ast-validation datatype-validation transform policy"}
+        {type @name="behavior-execution" @base="cemml:identifier" @values="tokenizer event-normalizer schema-machine reference-resolution ast-validation datatype-validation datatype-conversion transform policy"}
         {type @name="behavior-input-source" @base="cemml:identifier" @values="candidate diagnostic contract schema document query-match value datatype"}
         {type @name="source-range-propagation" @base="cemml:identifier" @values="candidate diagnostic behavior contract none"}
-        {type @name="function-return-type" @base="cemml:identifier" @values="any string boolean number integer array object json datatype-validation-result diagnostic-sequence"}
+        {type @name="function-return-type" @base="cemml:identifier" @values="any string boolean number integer array object json datatype-validation-result datatype-conversion-result diagnostic-sequence"}
         {type @name="function-visibility" @base="cemml:identifier" @values="private package public"}
         {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}
         {type @name="white-space" @base="cemml:identifier" @values="preserve replace collapse"}
@@ -337,6 +337,11 @@
             {value-field @name="severity" @kind="string" @required=true @values="info warning error fatal"}
             {value-field @name="message" @kind="string" @required=true}
             {value-field @name="source" @kind="node" @cardinality="zero-or-one"}
+        }
+        {value-contract @name="datatype-conversion-result" |
+            {value-field @name="status" @kind="string" @required=true @values="converted rejected"}
+            {value-field @name="value" @kind="value" @cardinality="zero-or-more"}
+            {value-field @name="diagnostics" @type="schema:datatype-diagnostic" @required=true @cardinality="zero-or-more"}
         }
         {value-contract @name="datatype-validation-result" |
             {value-field @name="accepted" @kind="boolean" @required=true}

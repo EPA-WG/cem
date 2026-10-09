@@ -295,8 +295,8 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: checked source/query capability adapters, then shipped
-validation/conversion parity. Implementations
+Next implementation order: checked source/query equality and constant-interpreter
+adapters, then remaining metamodel support and shipped validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
 
@@ -399,15 +399,27 @@ reference and datatype tests pass; Nx schema-package verification and CLI build 
 
 Verification (2026-10-08): 64 focused native tests cover descriptor/result
 validation, ten conversion fixtures and package lifecycle preservation. The schema
-package Nx verification includes the CLI build. Native attribute `@type` and
-source/query converter profiles remain guarded or deferred as recorded below.
+package Nx verification includes the CLI build. Native attribute `@type` remains
+guarded; source/query conversion is completed below, while source/query equality
+and constant-interpreter profiles remain pending.
 
-- [ ] Add schema-owned source/query converter bindings and a checked tagged-result
-      adapter under the adopted conversion contract. Add fixtures before admitting
-      new behavior profiles; native callback selection/execution is implemented.
+- [x] Add source/query conversion fixtures for closed tagged results, empty versus
+      absent output, exact signatures/owners, malformed and failed execution,
+      original diagnostics, retained node boundaries, cancellation and bounded output.
+      Scenarios for later design verification: authored profiles grant no execution
+      authority; query conversion runs once before all effective restrictions.
+
+- [x] Add schema-owned source/query converter bindings and a checked tagged-result
+      adapter under the adopted conversion contract. The `datatype-conversion` profile
+      checks fixed roles and explicit host registration; source/query execution uses
+      the existing one-conversion path and all effective validation restrictions.
       Scenarios for later design verification: empty converted sequences remain
       present values; malformed tags/output never imply rejection or acceptance;
       source profiles grant no implementation authority by themselves.
+
+Verification (2026-10-08): all 110 tests across datatype validation, value contracts
+and schema-package lifecycle pass. The 94 datatype tests also pass after final
+review changes; schema-package Nx verification and its CLI build prerequisite pass.
 
 - [x] Add native equality/constant fixtures for numeric versus lexical equality,
       original token spans and owners, exact registration, inherited vocabulary

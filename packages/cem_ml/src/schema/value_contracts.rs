@@ -107,6 +107,8 @@ pub enum ValueFieldType {
     String,
     Boolean,
     Node,
+    /// A typed scalar or native node. Consumers refine representation/cardinality.
+    Value,
     Record(ContractName),
 }
 #[derive(Debug, Clone)]
@@ -169,6 +171,7 @@ pub trait ContractValue: Clone {
     fn string(&self) -> Option<String>;
     fn boolean(&self) -> Option<bool>;
     fn is_native_node(&self) -> bool;
+    fn is_scalar_value(&self) -> bool { false }
     fn record_fields(&self) -> Option<Vec<(String, Vec<Self>)>>;
 }
 #[derive(Debug, Clone)]
@@ -266,6 +269,7 @@ impl ValueContracts {
                                 "string" => ValueFieldType::String,
                                 "boolean" => ValueFieldType::Boolean,
                                 "node" => ValueFieldType::Node,
+                                "value" => ValueFieldType::Value,
                                 _ => {
                                     return Err(ValueContractError::at(
                                         "unsupported-field-kind",
@@ -439,6 +443,7 @@ impl ValueContracts {
                     }),
                     ValueFieldType::Boolean => item.boolean().is_some(),
                     ValueFieldType::Node => item.is_native_node(),
+                    ValueFieldType::Value => item.is_native_node() || item.is_scalar_value(),
                     ValueFieldType::Record(target) => {
                         self.validate_record(target, item, depth + 1, work)
                             .map_err(|e| e.field(index.to_string()).field(key))?;

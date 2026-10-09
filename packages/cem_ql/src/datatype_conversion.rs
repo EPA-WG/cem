@@ -1,4 +1,4 @@
-//! Explicit native conversion capabilities. Validation never calls these implicitly.
+//! Explicit registered conversion capabilities. Validation never calls these implicitly.
 use crate::{
     datatype_compilation::{DatatypeValidation, ExecutableDatatype},
     datatype_results::DiagnosticAttribution,
@@ -11,24 +11,19 @@ use cem_ml::{
     parser::tree::RetainedCemTree,
     schema::{
         datatype_contracts::LexicalInput,
-        datatype_registry::{DatatypeKind, DatatypeSource},
+        datatype_registry::DatatypeSource,
         datatype_validation::{CandidateRequirement, ValueRepresentation},
     },
 };
 use std::{collections::BTreeSet, fmt::Debug, sync::Arc};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConversionRepresentation {
-    Lexical,
-    Values(ValueRepresentation),
-}
-#[derive(Debug, Clone, Copy)]
-pub struct ConversionSignature {
-    pub kind: DatatypeKind,
-    pub input: ConversionRepresentation,
-    pub output: ValueRepresentation,
-    pub candidate: CandidateRequirement,
-}
+pub use crate::datatype_results::conversion::{
+    DatatypeConversionResult, DatatypeConversionResultAdapter,
+};
+pub use cem_ml::schema::datatype_conversion::{ConversionRepresentation, ConversionSignature};
+mod source;
+pub use source::SourceDatatypeConverter;
+
 #[derive(Debug, Clone)]
 pub enum ConversionValue {
     Lexical(LexicalInput),
@@ -61,6 +56,7 @@ pub struct ConversionCall<'a> {
     pub candidate: &'a [Item],
     pub runtime: &'a ValidationRuntime<'a>,
     pub limits: ConversionLimits,
+    pub fallback: &'a DiagnosticAttribution,
 }
 /// Native callbacks cooperate with the caller's control and bound their own work.
 /// Returning native nodes requires clones of input views, retaining access boundaries.
@@ -89,20 +85,7 @@ impl RegisteredDatatypeConverter {
         if id.trim().is_empty() {
             return Err("empty-converter-id");
         }
-        let valid = match signature.kind {
-            DatatypeKind::Node => signature.output == ValueRepresentation::Nodes,
-            DatatypeKind::List => matches!(signature.output, ValueRepresentation::List(_)),
-            _ => matches!(signature.output, ValueRepresentation::Scalar(_)),
-        };
-        if !valid {
-            return Err("converter-kind-output-mismatch");
-        }
-        // Native conversion preserves input handles; it is not data import or scalar extraction.
-        if (signature.input == ConversionRepresentation::Values(ValueRepresentation::Nodes))
-            != (signature.output == ValueRepresentation::Nodes)
-        {
-            return Err("converter-node-scalar-boundary");
-        }
+        signature.check()?;
         Ok(Self {
             identity: ConverterIdentity {
                 source,
@@ -277,6 +260,16 @@ impl ExecutableDatatype {
         if input.candidate.len() > limits.max_input_values {
             return result.stop(ConversionStop::Limit("input-values"));
         }
+        let mut attribution = input
+            .candidate
+            .first()
+            .map(DiagnosticAttribution::from_node)
+            .unwrap_or_else(|| input.fallback.clone());
+        if attribution.source_map.is_none() {
+            if let ConversionValue::Lexical(lexical) = &input.value {
+                attribution.source_map = Some(lexical.source.clone());
+            }
+        }
         let execution = selected
             .registration
             .implementation
@@ -286,6 +279,7 @@ impl ExecutableDatatype {
                 candidate: &input.candidate,
                 runtime,
                 limits,
+                fallback: &attribution,
             });
         if let Err(e) = runtime.control.check_scope(runtime.scope) {
             return result.stop(ConversionStop::Control(e));
@@ -304,16 +298,6 @@ impl ExecutableDatatype {
         result.diagnostics = diagnostics;
         if result.diagnostics.len() > limits.validation.max_diagnostics {
             return result.stop(ConversionStop::Limit("diagnostics"));
-        }
-        let mut attribution = input
-            .candidate
-            .first()
-            .map(DiagnosticAttribution::from_node)
-            .unwrap_or_else(|| input.fallback.clone());
-        if attribution.source_map.is_none() {
-            if let ConversionValue::Lexical(lexical) = &input.value {
-                attribution.source_map = Some(lexical.source.clone());
-            }
         }
         for (index, diagnostic) in result.diagnostics.iter_mut().enumerate() {
             if index % 64 == 0 {

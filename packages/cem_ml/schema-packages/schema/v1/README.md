@@ -137,8 +137,40 @@ source attribution use the shared result adapter. Existing object-shaped legacy
 results need an explicit host bridge to the diagnostic sequence.
 
 These APIs execute explicitly registered validation contracts. Effective datatype
-compilation, conversion/equality adapters and automatic native `@type` activation
-remain separate work.
+compilation and native attribute activation remain separate boundaries; the
+explicit conversion profile is documented below.
+
+## Explicit datatype conversion profile
+
+`execution="datatype-conversion"` uses fixed `value`, `datatype` and `candidate`
+inputs, checked against an explicitly registered conversion signature. Query
+parameters repeat those exact types/cardinalities; the query function declares
+`returns="datatype-conversion-result"`, and the behavior declares
+`result @type="schema:datatype-conversion-result"`. Lexical input is supplied as
+its original string, with source provenance retained by the conversion call.
+
+The schema-owned result record contains:
+
+- `status`: exactly `"converted"` or `"rejected"`.
+- `value`: present only for `converted`, with exact registered output type and
+  cardinality; an empty sequence is a present converted value when allowed.
+- `diagnostics`: a required sequence of `schema:datatype-diagnostic` records or
+  retained native diagnostics.
+
+For example, `{ status: "converted", value: value, diagnostics: () }` returns
+its supplied value; `{ status: "rejected", diagnostics: () }` rejects it.
+Pending/unavailable execution is a separate host outcome. Malformed records are
+execution failures, never acceptance or rejection inferred from their contents.
+The structural `value-field @kind="value"` accepts typed scalars/native nodes;
+the registered output signature refines it without invoking user datatype rules.
+
+`ConversionBehaviorContract::compile` validates the original source profile.
+`RegisteredDatatypeConverter::from_query` or `from_source` creates an explicit
+registration; the latter checks the declared primitive identifier. The host must
+still select it for an exact original datatype. Queries use fixed role bindings
+and the caller's operation context. Returned native nodes must preserve supplied
+input views. One conversion is followed by all effective validation restrictions.
+Source/query equality and constant adapters remain separate work.
 
 ## Folder Contract
 
@@ -2614,8 +2646,8 @@ returns checked source byte spans; it does not convert items. An authored native
 `CemQlSchemaPackageCompiler::with_datatypes` can attach that compilation to the
 package model. Incomplete datatype capabilities keep replacements inspectable and
 preserve the complete active package. The engine rejects snapshots from another
-source owner. Namespace/export discovery, conversion/equality adapters, enumeration
-execution and shipped parity remain tracked in the
+source owner. Native namespace/export discovery and conversion are implemented;
+source/query equality/constant adapters and shipped parity remain tracked in the
 [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
 Automatic attribute `@type` consumption remains guarded as described above.
 
@@ -2627,5 +2659,5 @@ local selection replaces it. Conversion executes once and its checked output
 passes every effective datatype restriction. Optional absence permits validation,
 while explicit unavailability blocks package readiness. Native output preserves
 the exact input views and cannot broaden navigation. No converter runs during
-ordinary validation. Source/query converter profiles and automatic attribute
-consumption remain separate actions.
+ordinary validation. The source/query conversion profile is documented above;
+automatic attribute consumption remains a separate action.

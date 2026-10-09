@@ -83,6 +83,9 @@ impl ContractValue for QueryValue {
             _ => None,
         }
     }
+    fn is_scalar_value(&self) -> bool {
+        self.atom.get_or_init(|| self.read_atom()).is_some()
+    }
     fn is_native_node(&self) -> bool {
         self.native_kind == Some(QueryItemViewKind::Node)
     }
@@ -204,25 +207,7 @@ impl DatatypeResultAdapter {
         {
             return Err(ValueContractError::new("incompatible-result-contract"));
         }
-        let diagnostic_shape = contracts
-            .get(&diagnostic)
-            .ok_or_else(|| ValueContractError::new("unknown-diagnostic-contract"))?;
-        for name in ["code", "severity", "message"] {
-            if !diagnostic_shape.fields.get(name).is_some_and(|field| {
-                field.value_type == ValueFieldType::String
-                    && field.required
-                    && field.cardinality == Cardinality::One
-            }) {
-                return Err(ValueContractError::new("incompatible-diagnostic-contract"));
-            }
-        }
-        if !diagnostic_shape.fields.get("source").is_some_and(|field| {
-            field.value_type == ValueFieldType::Node
-                && !field.required
-                && field.cardinality == Cardinality::ZeroOrOne
-        }) {
-            return Err(ValueContractError::new("incompatible-diagnostic-contract"));
-        }
+        check_diagnostic_contract(&contracts, &diagnostic)?;
         Ok(Self {
             contracts,
             result,
@@ -264,53 +249,10 @@ impl DatatypeResultAdapter {
             .and_then(|v| v.first())
             .and_then(ContractValue::boolean)
             .ok_or_else(|| ValueContractError::new("accepted-required"))?;
-        let mut diagnostics = Vec::new();
-        for value in
-            field("diagnostics").ok_or_else(|| ValueContractError::new("diagnostics-required"))?
-        {
-            if let Some(diagnostic) = eval::native_diagnostic(&value.original) {
-                diagnostics.push(diagnostic.clone());
-                continue;
-            }
-            let fields = value
-                .record_fields()
-                .ok_or_else(|| ValueContractError::new("diagnostic-record-required"))?;
-            let get = |key: &str| {
-                fields
-                    .iter()
-                    .find(|(name, _)| name == key)
-                    .map(|(_, v)| v.as_slice())
-            };
-            let string = |key: &str| -> Result<String, ValueContractError> {
-                match get(key) {
-                    Some([value]) => value
-                        .string()
-                        .ok_or_else(|| ValueContractError::new("diagnostic-string-required")),
-                    _ => Err(ValueContractError::new("diagnostic-string-required")),
-                }
-            };
-            let severity = match string("severity")?.as_str() {
-                "info" => Severity::Info,
-                "warning" => Severity::Warning,
-                "error" => Severity::Error,
-                "fatal" => Severity::Fatal,
-                _ => return Err(ValueContractError::new("invalid-severity").into()),
-            };
-            let mut diagnostic = Diagnostic {
-                code: string("code")?,
-                message: string("message")?,
-                severity,
-                ..Default::default()
-            };
-            match get("source") {
-                None | Some([]) => fallback.apply(&mut diagnostic),
-                Some([source]) if source.is_native_node() => {
-                    DiagnosticAttribution::from_node(&source.original).apply(&mut diagnostic)
-                }
-                _ => return Err(ValueContractError::new("invalid-diagnostic-source").into()),
-            }
-            diagnostics.push(diagnostic);
-        }
+        let mut diagnostics = decode_diagnostics(
+            field("diagnostics").ok_or_else(|| ValueContractError::new("diagnostics-required"))?,
+            fallback,
+        )?;
         if !accepted && diagnostics.is_empty() {
             let mut diagnostic = Diagnostic {
                 code: "cem.datatype.rejected".into(),
@@ -328,4 +270,86 @@ impl DatatypeResultAdapter {
             original,
         })
     }
+}
+
+#[path = "datatype_results/conversion.rs"]
+pub(crate) mod conversion;
+
+fn check_diagnostic_contract(
+    contracts: &ValueContracts,
+    diagnostic: &ContractName,
+) -> Result<(), ValueContractError> {
+    use cem_ml::schema::value_contracts::{Cardinality, ValueFieldType};
+    let diagnostic_shape = contracts
+        .get(diagnostic)
+        .ok_or_else(|| ValueContractError::new("unknown-diagnostic-contract"))?;
+    for name in ["code", "severity", "message"] {
+        if !diagnostic_shape.fields.get(name).is_some_and(|field| {
+            field.value_type == ValueFieldType::String
+                && field.required
+                && field.cardinality == Cardinality::One
+        }) {
+            return Err(ValueContractError::new("incompatible-diagnostic-contract"));
+        }
+    }
+    if !diagnostic_shape.fields.get("source").is_some_and(|field| {
+        field.value_type == ValueFieldType::Node
+            && !field.required
+            && field.cardinality == Cardinality::ZeroOrOne
+    }) {
+        return Err(ValueContractError::new("incompatible-diagnostic-contract"));
+    }
+    Ok(())
+}
+
+fn decode_diagnostics(
+    values: &[QueryValue],
+    fallback: &DiagnosticAttribution,
+) -> Result<Vec<Diagnostic>, ValueContractError> {
+    let mut diagnostics = Vec::new();
+    for value in values {
+        if let Some(diagnostic) = eval::native_diagnostic(&value.original) {
+            diagnostics.push(diagnostic.clone());
+            continue;
+        }
+        let fields = value
+            .record_fields()
+            .ok_or_else(|| ValueContractError::new("diagnostic-record-required"))?;
+        let get = |key: &str| {
+            fields
+                .iter()
+                .find(|(name, _)| name == key)
+                .map(|(_, v)| v.as_slice())
+        };
+        let string = |key: &str| -> Result<String, ValueContractError> {
+            match get(key) {
+                Some([value]) => value
+                    .string()
+                    .ok_or_else(|| ValueContractError::new("diagnostic-string-required")),
+                _ => Err(ValueContractError::new("diagnostic-string-required")),
+            }
+        };
+        let severity = match string("severity")?.as_str() {
+            "info" => Severity::Info,
+            "warning" => Severity::Warning,
+            "error" => Severity::Error,
+            "fatal" => Severity::Fatal,
+            _ => return Err(ValueContractError::new("invalid-severity")),
+        };
+        let mut diagnostic = Diagnostic {
+            code: string("code")?,
+            message: string("message")?,
+            severity,
+            ..Default::default()
+        };
+        match get("source") {
+            None | Some([]) => fallback.apply(&mut diagnostic),
+            Some([source]) if source.is_native_node() => {
+                DiagnosticAttribution::from_node(&source.original).apply(&mut diagnostic)
+            }
+            _ => return Err(ValueContractError::new("invalid-diagnostic-source")),
+        }
+        diagnostics.push(diagnostic);
+    }
+    Ok(diagnostics)
 }

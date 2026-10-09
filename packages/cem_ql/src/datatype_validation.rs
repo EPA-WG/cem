@@ -522,7 +522,7 @@ pub(crate) fn scalar(value: &Item, p: ScalarRepresentation) -> bool {
             | (Some(AtomValue::AnyUri(_)), ScalarRepresentation::AnyUri)
     )
 }
-fn value_type(value: ValueRepresentation) -> Type {
+pub(crate) fn value_type(value: ValueRepresentation) -> Type {
     let atomic = |p| {
         Type::Atom(match p {
             ScalarRepresentation::String => AtomType::String,

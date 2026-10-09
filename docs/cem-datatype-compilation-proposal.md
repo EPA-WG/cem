@@ -1092,7 +1092,7 @@ invalid bounds cannot compile. Node lexical facets and list declaration `values`
 are rejected. Scalar `values` keeps compilation incomplete until registered
 constant interpretation and equality are available; it is never ignored.
 Explicit native conversion is implemented below. Grammar/reference implementations,
-query conversion profiles and full shipped parity remain open.
+source/query equality and constant profiles and full shipped parity remain open.
 
 `CemQlSchemaPackageCompiler::with_datatypes` adds an explicit lifecycle compilation
 callback using the current prepared host. It attaches the resulting immutable
@@ -1197,7 +1197,8 @@ cancelled or malformed results from being published.
 This implements explicit native capability selection and execution. It introduces
 no new authored conversion behavior or function syntax, does not activate native
 attribute `@type`, and does not migrate the shipped scalar conversion API. Checked
-source/query adapters and shipped parity remain tracked
+source/query conversion adapters are implemented below; equality/constant adapters
+and shipped parity remain tracked
 in `todo.md`, with their verification scenarios.
 
 
@@ -1423,3 +1424,59 @@ discovery pending, without reconstructing bindings from later declarations.
 CEM and XML discovery use the same native catalog, alias-conflict rules and
 explicit export/crossing contracts. No XML-specific lookup logic is added to
 CEM-QL or datatype compilation.
+
+
+## Implemented source/query conversion adapters
+
+Adopted and implemented 2026-10-08. The `datatype-conversion` behavior profile
+uses fixed `value`, `datatype` and `candidate` roles. Its source inputs and query
+parameters must match the explicitly registered `ConversionSignature` in type,
+requiredness and cardinality. `datatype` is the original datatype node; candidate
+is an optional or required original native node. Lexical query input is the exact
+input text as a string; its source map remains on the conversion call and supplies
+fallback diagnostic attribution. Value inputs preserve their registered scalar,
+list or native-node representation. No source declaration selects a converter
+or grants execution authority on its own.
+
+A behavior declares `result @type="schema:datatype-conversion-result"`. Query
+implementations declare `returns="datatype-conversion-result"`. The shared schema
+owns a closed result envelope: required string `status` (`converted` or `rejected`),
+optional `value` sequence, and required diagnostic sequence. The new structural
+`value-field @kind="value"` admits typed scalars or native nodes without coercion;
+it admits neither record/array substitutes nor arbitrary structural recursion.
+The registered conversion signature further checks exact output representation
+and cardinality. Structural contract adapters explicitly opt into scalar-value
+recognition; no datatype rule executes during structural checking.
+
+`converted` requires a present `value` field, including a present empty sequence
+when the output signature allows it. `rejected` requires that field to be absent;
+even an empty field is invalid on rejection. Unknown tags, extra fields under the
+closed schema, missing fields and malformed output leave completion unset. No tag
+represents pending or unavailable execution: those remain explicit host/runtime
+outcomes. Diagnostics cannot substitute for the tag. Result fields are observed
+once and the same retained snapshot is validated and decoded.
+
+`ConversionBehaviorContract::compile` checks original source membership and the
+complete profile. `RegisteredDatatypeConverter::from_query` compiles its query;
+`from_source` additionally requires the exact declared primitive identifier for a
+host callback returning source records. Both retain original behavior owners and
+produce the same explicit converter registrations as native typed callbacks.
+The host still selects a registration for an exact original datatype through
+`DatatypeImplementations::select_converter`. No new datatype binding syntax,
+implicit `@rule` conversion, URI loading or native attribute `@type` activation
+is introduced.
+
+Queries use a closed role-binding environment and the caller's existing operation,
+execution scope and query capabilities. Ambient bindings cannot replace those
+roles. Pending/unavailable callbacks remain separate; cancellation is checked
+before and after execution and before decoding source results. Output and
+diagnostics are bounded, including reports already emitted by a query. Malformed
+records retain those reports alongside a source-attributed adapter error. Native
+diagnostics keep their metadata; source-less records use the original candidate
+or lexical call attribution.
+
+Successful output enters the existing convert-once path: exact native input-view
+identity is checked before every effective datatype restriction validates the
+result. Failure never invokes a fallback converter. Source/query scalar equality
+and constant-interpreter profiles, shipped datatype parity and automatic native
+attribute activation remain separate TODO items.

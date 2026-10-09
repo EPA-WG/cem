@@ -51,6 +51,11 @@ pub enum ValidationImplementation {
         body: String,
     },
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum BehaviorProfile {
+    Validation,
+    Conversion,
+}
 #[derive(Debug, Clone)]
 pub struct DatatypeBehaviorContract {
     owner: SchemaDeclarationNode,
@@ -78,6 +83,14 @@ impl DatatypeBehaviorContract {
         behavior: &SchemaDeclarationNode,
         signature: ValidationSignature,
     ) -> Result<Self, ValueContractError> {
+        Self::compile_profile(source, behavior, signature, BehaviorProfile::Validation)
+    }
+    pub(super) fn compile_profile(
+        source: &ValueContractSource,
+        behavior: &SchemaDeclarationNode,
+        signature: ValidationSignature,
+        profile: BehaviorProfile,
+    ) -> Result<Self, ValueContractError> {
         let fail = |code| ValueContractError::at(code, behavior);
         if !source.named(&source.schema, "schema")
             || !Arc::ptr_eq(source.schema.document(), behavior.document())
@@ -104,17 +117,19 @@ impl DatatypeBehaviorContract {
         if !member || !source.named(behavior, "behavior") {
             return Err(fail("unowned-behavior"));
         }
-        match (signature.kind, signature.value) {
-            (DatatypeKind::List, ValueRepresentation::List(_))
-            | (DatatypeKind::Node, ValueRepresentation::Nodes) => {}
-            (
-                DatatypeKind::Scalar
-                | DatatypeKind::Lexical
-                | DatatypeKind::Grammar
-                | DatatypeKind::Reference,
-                ValueRepresentation::Scalar(_),
-            ) => {}
-            _ => return Err(fail("incompatible-kind-representation")),
+        if profile == BehaviorProfile::Validation {
+            match (signature.kind, signature.value) {
+                (DatatypeKind::List, ValueRepresentation::List(_))
+                | (DatatypeKind::Node, ValueRepresentation::Nodes) => {}
+                (
+                    DatatypeKind::Scalar
+                    | DatatypeKind::Lexical
+                    | DatatypeKind::Grammar
+                    | DatatypeKind::Reference,
+                    ValueRepresentation::Scalar(_),
+                ) => {}
+                _ => return Err(fail("incompatible-kind-representation")),
+            }
         }
         let behavior_attrs = fields::attrs(
             source,
@@ -130,9 +145,16 @@ impl DatatypeBehaviorContract {
         if fields::required(&behavior_attrs, "name", behavior)?
             .trim()
             .is_empty()
-            || fields::required(&behavior_attrs, "execution", behavior)? != "datatype-validation"
+            || fields::required(&behavior_attrs, "execution", behavior)?
+                != match profile {
+                    BehaviorProfile::Validation => "datatype-validation",
+                    BehaviorProfile::Conversion => "datatype-conversion",
+                }
         {
-            return Err(fail("invalid-validation-behavior"));
+            return Err(fail(match profile {
+                BehaviorProfile::Validation => "invalid-validation-behavior",
+                BehaviorProfile::Conversion => "invalid-conversion-behavior",
+            }));
         }
         let children = fields::elements(behavior)?;
         let mut inputs = None;
@@ -147,7 +169,10 @@ impl DatatypeBehaviorContract {
                 functions.push(child);
             } else {
                 return Err(ValueContractError::at(
-                    "unsupported-validation-child",
+                    match profile {
+                        BehaviorProfile::Validation => "unsupported-validation-child",
+                        BehaviorProfile::Conversion => "unsupported-conversion-child",
+                    },
                     &child,
                 ));
             }
@@ -210,9 +235,13 @@ impl DatatypeBehaviorContract {
                 {
                     return Err(fail("function-binding-mismatch"));
                 }
-                let expected = match signature.result {
-                    ResultRepresentation::Accepted(_) => "datatype-validation-result",
-                    ResultRepresentation::Diagnostics(_) => "diagnostic-sequence",
+                let expected = if profile == BehaviorProfile::Conversion {
+                    "datatype-conversion-result"
+                } else {
+                    match signature.result {
+                        ResultRepresentation::Accepted(_) => "datatype-validation-result",
+                        ResultRepresentation::Diagnostics(_) => "diagnostic-sequence",
+                    }
                 };
                 if fields::required(&fa, "returns", &function)? != expected {
                     return Err(ValueContractError::at(

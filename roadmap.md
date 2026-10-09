@@ -1100,7 +1100,9 @@ of core reference adoption. Preserve the adopted contracts in the
       environments, explicit crossing grants and retained package retry candidates.
 - [x] Capture XML literal attribute namespaces at import, preserving whole-tag
       bindings, original provenance, folded-node cleanup and passive reload metadata.
-- [ ] Implement source/query conversion, equality and constant adapters; complete metamodel
+- [x] Implement checked source/query conversion profiles and tagged result adapters,
+      retaining original owners, explicit registrations, operation context and output bounds.
+- [ ] Implement source/query equality and constant adapters; complete metamodel
       admission and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
       preserves the active package; empty converted output differs from failure;

@@ -8,6 +8,7 @@ pub mod declaration_references;
 pub mod datatype_registry;
 pub mod value_contracts;
 pub mod datatype_validation;
+pub mod datatype_conversion;
 pub mod datatype_contracts;
 pub(crate) mod diagnostics;
 pub mod disposition;
