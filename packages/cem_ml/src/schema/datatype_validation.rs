@@ -55,6 +55,8 @@ pub enum ValidationImplementation {
 pub(super) enum BehaviorProfile {
     Validation,
     Conversion,
+    Equality,
+    Constant,
 }
 #[derive(Debug, Clone)]
 pub struct DatatypeBehaviorContract {
@@ -149,11 +151,15 @@ impl DatatypeBehaviorContract {
                 != match profile {
                     BehaviorProfile::Validation => "datatype-validation",
                     BehaviorProfile::Conversion => "datatype-conversion",
+                    BehaviorProfile::Equality => "datatype-equality",
+                    BehaviorProfile::Constant => "datatype-constant",
                 }
         {
             return Err(fail(match profile {
                 BehaviorProfile::Validation => "invalid-validation-behavior",
                 BehaviorProfile::Conversion => "invalid-conversion-behavior",
+                BehaviorProfile::Equality => "invalid-equality-behavior",
+                BehaviorProfile::Constant => "invalid-constant-behavior",
             }));
         }
         let children = fields::elements(behavior)?;
@@ -172,6 +178,8 @@ impl DatatypeBehaviorContract {
                     match profile {
                         BehaviorProfile::Validation => "unsupported-validation-child",
                         BehaviorProfile::Conversion => "unsupported-conversion-child",
+                        BehaviorProfile::Equality => "unsupported-equality-child",
+                        BehaviorProfile::Constant => "unsupported-constant-child",
                     },
                     &child,
                 ));
@@ -193,7 +201,7 @@ impl DatatypeBehaviorContract {
             if fields::required(&a, "source", &input)? != name {
                 return Err(ValueContractError::at("input-role-mismatch", &input));
             }
-            check_role(source, &input, &a, &signature)?;
+            check_role(source, &input, &a, &signature, profile)?;
             if roles.insert(name, input.clone()).is_some() {
                 return Err(ValueContractError::at("duplicate-input", &input));
             }
@@ -235,13 +243,14 @@ impl DatatypeBehaviorContract {
                 {
                     return Err(fail("function-binding-mismatch"));
                 }
-                let expected = if profile == BehaviorProfile::Conversion {
-                    "datatype-conversion-result"
-                } else {
-                    match signature.result {
+                let expected = match profile {
+                    BehaviorProfile::Conversion => "datatype-conversion-result",
+                    BehaviorProfile::Equality => "datatype-equality-result",
+                    BehaviorProfile::Constant => "datatype-constant-result",
+                    BehaviorProfile::Validation => match signature.result {
                         ResultRepresentation::Accepted(_) => "datatype-validation-result",
                         ResultRepresentation::Diagnostics(_) => "diagnostic-sequence",
-                    }
+                    },
                 };
                 if fields::required(&fa, "returns", &function)? != expected {
                     return Err(ValueContractError::at(
@@ -261,7 +270,7 @@ impl DatatypeBehaviorContract {
                             &child,
                             &["name", "type", "required", "cardinality"],
                         )?;
-                        check_role(source, &child, &pa, &signature)?;
+                        check_role(source, &child, &pa, &signature, profile)?;
                         let name = fields::required(&pa, "name", &child)?;
                         if params.insert(name, child.clone()).is_some()
                             || !fields::elements(&child)?.is_empty()
@@ -309,9 +318,19 @@ fn check_role(
     node: &SchemaDeclarationNode,
     a: &BTreeMap<String, String>,
     signature: &ValidationSignature,
+    profile: BehaviorProfile,
 ) -> Result<(), ValueContractError> {
     let name = fields::required(a, "name", node)?;
-    let (ty, required, card) = match name.as_str() {
+    let role = if profile == BehaviorProfile::Equality {
+        match name.as_str() {
+            "left" | "right" => "value",
+            "datatype" => "datatype",
+            _ => return Err(ValueContractError::at("unknown-input-role", node)),
+        }
+    } else {
+        name.as_str()
+    };
+    let (ty, required, card) = match role {
         "value" => match signature.value {
             ValueRepresentation::Scalar(p) => (primitive(p), true, Cardinality::One),
             ValueRepresentation::List(p) => (primitive(p), true, Cardinality::ZeroOrMore),

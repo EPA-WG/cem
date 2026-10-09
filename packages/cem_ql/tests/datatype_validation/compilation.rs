@@ -727,3 +727,6 @@ mod names;
 
 #[path = "conversion_source.rs"]
 mod conversion_source;
+
+#[path = "enumeration_source.rs"]
+mod enumeration_source;

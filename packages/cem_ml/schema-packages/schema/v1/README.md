@@ -170,7 +170,52 @@ registration; the latter checks the declared primitive identifier. The host must
 still select it for an exact original datatype. Queries use fixed role bindings
 and the caller's operation context. Returned native nodes must preserve supplied
 input views. One conversion is followed by all effective validation restrictions.
-Source/query equality and constant adapters remain separate work.
+The separate source/query equality and constant profiles are described below.
+
+## Explicit scalar equality and constant profiles
+
+`execution="datatype-equality"` declares required singleton `left` and `right`
+inputs of the registered scalar type and a required singleton native `datatype`
+node. Its function repeats those roles and declares
+`returns="datatype-equality-result"`; the behavior result names
+`schema:datatype-equality-result`. The checked record contains required singleton
+boolean `equal` and required `diagnostics`. For example:
+
+```cem-ql
+{ equal: left == right, diagnostics: () }
+```
+
+`execution="datatype-constant"` declares required singleton `value` (string),
+`datatype` (node) and `candidate` (node). `value` is the current whitespace token;
+`candidate` is its original `@values` attribute in the retained consumer view.
+The native invocation also retains the decoded token span and owner. The function
+returns `datatype-constant-result`, and the behavior result names
+`schema:datatype-constant-result`. Its checked record has `status` equal to
+`"prepared"` or `"rejected"`, required `diagnostics`, and a `value` field present
+exactly for preparation, containing one scalar of the registered output type:
+
+```cem-ql
+{ status: "prepared", value: value, diagnostics: () }
+{ status: "rejected", diagnostics: () }
+```
+
+`EqualityBehaviorContract` and `ConstantBehaviorContract` check source membership,
+original names, roles and function signatures without executing code.
+`RegisteredScalarEquality::from_query`/`from_source` and
+`RegisteredConstantInterpreter::from_query`/`from_source` create explicit host
+registrations. Native registration checks the declared primitive identifier.
+The host still selects these capabilities for an exact datatype through
+`DatatypeImplementations`; an authored profile alone grants no authority.
+
+The result adapters share schema-owned diagnostic validation and observe native
+record fields once. Missing booleans, unknown tags, absent/empty/multiple prepared
+scalars, wrong scalar representations and undeclared fields fail execution.
+Diagnostic severity does not determine equality. Pending and unavailable states
+remain distinct host outcomes. Both paths use the caller's operation context and
+remaining diagnostic allowance; queries receive only the fixed role bindings.
+Constants are prepared once per token, then checked against all effective rules
+and inherited vocabularies. Runtime equality shares the existing comparison
+budget. Neither capability invokes conversion or changes `@values` token syntax.
 
 ## Folder Contract
 
@@ -2647,7 +2692,7 @@ returns checked source byte spans; it does not convert items. An authored native
 package model. Incomplete datatype capabilities keep replacements inspectable and
 preserve the complete active package. The engine rejects snapshots from another
 source owner. Native namespace/export discovery and conversion are implemented;
-source/query equality/constant adapters and shipped parity remain tracked in the
+source/query equality/constant adapters are also available. Shipped parity remains tracked in the
 [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
 Automatic attribute `@type` consumption remains guarded as described above.
 

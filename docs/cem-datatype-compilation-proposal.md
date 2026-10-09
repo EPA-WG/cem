@@ -1092,7 +1092,7 @@ invalid bounds cannot compile. Node lexical facets and list declaration `values`
 are rejected. Scalar `values` keeps compilation incomplete until registered
 constant interpretation and equality are available; it is never ignored.
 Explicit native conversion is implemented below. Grammar/reference implementations,
-source/query equality and constant profiles and full shipped parity remain open.
+source/query equality and constant profiles are implemented below; full shipped parity remains open.
 
 `CemQlSchemaPackageCompiler::with_datatypes` adds an explicit lifecycle compilation
 callback using the current prepared host. It attaches the resulting immutable
@@ -1197,9 +1197,8 @@ cancelled or malformed results from being published.
 This implements explicit native capability selection and execution. It introduces
 no new authored conversion behavior or function syntax, does not activate native
 attribute `@type`, and does not migrate the shipped scalar conversion API. Checked
-source/query conversion adapters are implemented below; equality/constant adapters
-and shipped parity remain tracked
-in `todo.md`, with their verification scenarios.
+source/query conversion, equality and constant adapters are implemented below;
+shipped parity remains tracked in `todo.md`, with its verification scenarios.
 
 
 ## Implemented native scalar equality and token preparation
@@ -1250,8 +1249,8 @@ package. A ready retry on the retained owner publishes the schema, converters an
 artifacts together.
 
 These native adapters do not activate native attribute `@type`, alter attribute-local
-vocabularies, infer equality from a datatype's name, or add source/query execution
-profiles. Those integrations remain actionable items in `todo.md`.
+vocabularies or infer equality from a datatype's name. Source/query execution
+profiles are implemented below; attribute integration remains in `todo.md`.
 
 
 ## Implemented explicit datatype namespace/export catalog
@@ -1347,8 +1346,8 @@ errors become inspectable datatype compilation issues on the candidate owner.
 Every discovered declaration remains in the compilation's required source set, so
 a callback cannot certify readiness by omitting an unsupported type. The existing
 package gates preserve the last complete schema, converters and artifacts together
-until the new candidate is ready. Source/query capability adapters, remaining
-metamodel admission and shipped datatype parity stay actionable in `todo.md`.
+until the new candidate is ready. Source/query capability adapters are implemented
+below; remaining metamodel admission and shipped datatype parity stay in `todo.md`.
 
 
 ## Implemented native datatype discovery collections
@@ -1478,5 +1477,56 @@ or lexical call attribution.
 Successful output enters the existing convert-once path: exact native input-view
 identity is checked before every effective datatype restriction validates the
 result. Failure never invokes a fallback converter. Source/query scalar equality
-and constant-interpreter profiles, shipped datatype parity and automatic native
-attribute activation remain separate TODO items.
+and constant-interpreter profiles are implemented below. Shipped datatype parity
+and automatic native attribute activation remain separate TODO items.
+
+
+## Implemented source/query scalar enumeration adapters
+
+Adopted and implemented 2026-10-08. The passive `EqualityBehaviorContract` profile
+uses `execution="datatype-equality"` with required singleton `left`, `right` and
+`datatype` roles. Both operands use the exact registered scalar representation;
+`datatype` is the original native implementation datatype node. The function
+repeats those roles and returns `datatype-equality-result`; its behavior result
+names a compatible schema-owned record with required singleton boolean `equal`
+and required diagnostic sequence. An empty result, missing boolean or malformed
+record is incomplete execution, never a false comparison inferred from absence.
+
+The passive `ConstantBehaviorContract` uses `execution="datatype-constant"` with
+required singleton string `value` and native-node `datatype`/`candidate` roles.
+`value` is precisely one existing whitespace token. `candidate` is the original
+vocabulary attribute in its lifecycle-owned view; the native call and prepared
+constant retain the original decoded token span and owner. No richer constant
+syntax is introduced. Its function returns `datatype-constant-result`; the checked
+schema-owned record requires `status` (`prepared` or `rejected`) and diagnostics.
+Exactly one scalar `value` of the registered representation must be present for
+`prepared`; rejection requires that field to be absent. Empty prepared output,
+wrong types and pending/unavailable tags are invalid results.
+
+Explicit `RegisteredScalarEquality` and `RegisteredConstantInterpreter`
+`from_query`/`from_source` constructors bind these descriptors and result adapters.
+Native registration requires the exact declared primitive identifier. Registrations
+retain the original behavior owner and fixed signature; the host still selects
+them for an exact original datatype. Source compilation itself performs no lookup,
+reference resolution, execution or grant. Result-contract identity must match the
+adapter registration. Scalar constants cannot import native nodes, arrays or
+records as substitutes for their registered primitive.
+
+Queries compile against only the fixed role bindings. Each invocation replaces
+ambient role values, clears any current item and uses the caller's operation
+context/control. Native callbacks receive remaining limits and original fallback
+attribution. Cancellation is checked before and after execution; pending,
+unavailable and failed execution remain distinct from completed outcomes.
+Malformed results preserve already-emitted reports and add an attributed failure.
+Checked diagnostic severity never substitutes for a comparison boolean or tag.
+Native result fields are observed once for structural validation and decoding.
+
+Both profiles use the existing bounded enumeration path. Preparation runs once
+per token, validates the prepared scalar against every effective restriction and
+keeps the package incomplete on rejected, unavailable or malformed preparation.
+Runtime comparison spends the same cumulative comparison/diagnostic allowance
+across all vocabularies and list items. Inherited vocabularies retain their original
+interpreter and equality registrations; local replacements cannot reinterpret
+base constants. Neither profile calls the runtime converter or changes ordinary
+attribute-local vocabulary semantics. Shipped datatype parity, executable
+attribute type integration and final design consolidation remain tracked actions.

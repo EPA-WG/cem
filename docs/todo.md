@@ -185,7 +185,7 @@ Verification for these three slices (2026-10-08): 131 focused native tests cover
 source/registry/traversal contracts, sequence tokenization, descriptor/result
 validation, retained behaviors and package/region lifecycles. The schema package
 Nx verification includes its CLI build prerequisite. Automatic native attribute
-`@type` activation, conversion and equality adapters remain deferred below.
+`@type` activation remains guarded; conversion and equality adapters are completed below.
 
 - [x] Adopt the shared diagnostic value contract (2026-10-08): accept existing
       native diagnostics and checked CEM-QL records with required singleton `code`,
@@ -295,10 +295,10 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: checked source/query equality and constant-interpreter
-adapters, then remaining metamodel support and shipped validation/conversion parity. Implementations
-and fixtures follow the adopted capability signatures; full shipped parity and
-automatic attribute type activation depend on those tasks.
+Next implementation order: shipped validation/conversion parity, then remaining
+metamodel support and attribute type consumer integration. Implementations and
+fixtures follow the adopted capability signatures; automatic attribute type
+activation depends on those tasks.
 
 - [ ] Establish full validation/conversion parity for shipped datatype families;
       add fixture actions for lexical, URI/semver/media-type/path, list, grammar
@@ -400,8 +400,8 @@ reference and datatype tests pass; Nx schema-package verification and CLI build 
 Verification (2026-10-08): 64 focused native tests cover descriptor/result
 validation, ten conversion fixtures and package lifecycle preservation. The schema
 package Nx verification includes the CLI build. Native attribute `@type` remains
-guarded; source/query conversion is completed below, while source/query equality
-and constant-interpreter profiles remain pending.
+guarded; source/query conversion, equality and constant-interpreter profiles are
+completed below.
 
 - [x] Add source/query conversion fixtures for closed tagged results, empty versus
       absent output, exact signatures/owners, malformed and failed execution,
@@ -436,11 +436,23 @@ review changes; schema-package Nx verification and its CLI build prerequisite pa
       Scenarios for later design verification: a derived equality cannot widen a base
       vocabulary; unknown constant interpretation prevents readiness rather than fallback.
 
-- [ ] Add checked schema-owned source/query equality and constant-interpreter
-      profiles, with fixture actions for exact signatures, tagged results, original
-      owners and context/control propagation before enabling authored execution.
+- [x] Add source/query enumeration fixtures for exact role/result signatures,
+      explicit registration, closed query bindings, retained token owners and spans,
+      malformed/failed/pending output, diagnostics, cancellation and shared budgets.
+      Scenarios for later design verification: incomplete preparation cannot activate
+      a package; inherited vocabularies retain their original equality implementation.
+
+- [x] Add checked schema-owned source/query equality and constant-interpreter
+      profiles (2026-10-08), with exact signatures, explicit host registrations,
+      typed/tagged results, original owners and shared context/control propagation.
+      Constant queries receive token text and the original vocabulary attribute;
+      the existing bounded preparation/validation path retains token spans.
       Scenarios for later design verification: a query returning no comparison boolean
       stays incomplete; malformed constants cannot activate a package; no lexical fallback.
+
+Verification (2026-10-08): 118 tests pass across datatype validation, shared value
+contracts and schema-package lifecycle, including eight new source/query enumeration
+fixture groups. Schema-package Nx verification and its CLI build prerequisite pass.
 
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`
       and defer richer retained constants. Adopted 2026-10-08; each token is one

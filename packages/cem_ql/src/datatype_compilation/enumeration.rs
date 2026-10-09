@@ -155,6 +155,9 @@ impl<H: DatatypeDependencyHost> Compiler<'_, '_, H> {
                 .implementation
                 .interpret(ConstantCall {
                     token: &token,
+                    candidate: &candidate,
+                    fallback: &attribution,
+                    limits: self.preparation.validation,
                     datatype: &interpreter.datatype,
                     runtime,
                 });

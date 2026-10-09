@@ -353,3 +353,6 @@ fn decode_diagnostics(
     }
     Ok(diagnostics)
 }
+
+#[path = "datatype_results/enumeration.rs"]
+pub(crate) mod enumeration;

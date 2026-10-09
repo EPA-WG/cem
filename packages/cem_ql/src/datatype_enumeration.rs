@@ -53,16 +53,30 @@ pub enum EqualityExecution {
     Unavailable(Vec<Diagnostic>),
     Failed(Vec<Diagnostic>),
 }
+#[path = "datatype_enumeration/source.rs"]
+mod source;
+pub use crate::datatype_results::enumeration::{
+    DatatypeConstantResult, DatatypeConstantResultAdapter, DatatypeEqualityResult,
+    DatatypeEqualityResultAdapter,
+};
+pub use source::{SourceConstantInterpreter, SourceScalarEquality};
+
 pub struct ConstantCall<'a> {
     pub token: &'a ConstantToken,
+    /// Original vocabulary attribute, in its retained consumer view.
+    pub candidate: &'a Item,
     pub datatype: &'a Item,
     pub runtime: &'a ValidationRuntime<'a>,
+    pub fallback: &'a DiagnosticAttribution,
+    pub limits: ValidationLimits,
 }
 pub struct EqualityCall<'a> {
     pub left: &'a Item,
     pub right: &'a Item,
     pub datatype: &'a Item,
     pub runtime: &'a ValidationRuntime<'a>,
+    pub fallback: &'a DiagnosticAttribution,
+    pub limits: ValidationLimits,
 }
 /// Callbacks cooperate with the supplied control and bound their own internal work.
 pub trait NativeConstantInterpreter: Debug + Send + Sync {
@@ -236,6 +250,13 @@ impl EnumerationRestriction {
                     right: &constant.value,
                     datatype: &self.equality.datatype,
                     runtime,
+                    fallback: attribution,
+                    limits: ValidationLimits {
+                        max_diagnostics: *diagnostics,
+                        max_comparisons: *comparisons,
+                        max_input_values: 2,
+                        max_rules: 0,
+                    },
                 });
             runtime
                 .control
