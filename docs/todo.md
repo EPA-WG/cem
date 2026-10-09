@@ -295,8 +295,8 @@ Nx verification includes its CLI build prerequisite. Automatic native attribute
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 
-Next implementation order: XML literal namespace capture, checked source/query
-capability adapters, then shipped validation/conversion parity. Implementations
+Next implementation order: checked source/query capability adapters, then shipped
+validation/conversion parity. Implementations
 and fixtures follow the adopted capability signatures; full shipped parity and
 automatic attribute type activation depend on those tasks.
 
@@ -348,11 +348,20 @@ automatic attribute type activation depend on those tasks.
 Verification (2026-10-08): 118 native datatype, declaration-reference and package
 lifecycle tests pass; Nx schema-package verification passes with its CLI build.
 
-- [ ] Add literal attribute namespace capture to imported XML schema sources before
+- [x] Add XML literal-namespace fixtures for whole-start-tag scope, child rebinding
+      and sibling restoration, default/implicit bindings, original owners and source
+      spans, folded expression attributes, reload compatibility and native discovery.
+      Scenarios for later design verification: declaration order within an XML start
+      tag cannot change QName values; discarded nodes cannot leak metadata to reused IDs.
+
+- [x] Add literal attribute namespace capture to imported XML schema sources before
       enabling their automatic QName discovery. Missing metadata stays pending;
       legacy reload sidecars remain readable without inventing bindings.
       Scenarios for later design verification: CEM and XML use the same native catalog,
       and later namespace bindings never reinterpret earlier literal QNames.
+
+Verification (2026-10-08): 210 native import, lexical capture/reload, declaration
+reference and datatype tests pass; Nx schema-package verification and CLI build pass.
 
 - [ ] Complete remaining datatype metamodel admission and shipped grammar/reference
       implementations; add fixture actions for concrete parsers before wiring.

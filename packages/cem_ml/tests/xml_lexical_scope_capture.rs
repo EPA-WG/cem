@@ -156,3 +156,119 @@ fn imported_name_lookup_retains_xml_namespace_rules_and_checks_owner() {
         .expanded_name(other.captured.document(), 1)
         .is_none());
 }
+
+#[test]
+fn xml_literal_attributes_capture_whole_start_tag_namespaces_and_restore_siblings() {
+    let text = "<schema xmlns='https://cem.dev/ns/schema/1' xmlns:p='urn:outer'><type base='p:first' xmlns:p='urn:inn&#101;r'/><type base='p:second'/><type xmlns='' base='local'/></schema>";
+    let imported = capture(text);
+    let owner = imported.captured.document();
+    let snapshots = owner
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "base" => {
+                assert!(expanded_name.namespace_uri.is_empty());
+                Some(
+                    imported
+                        .captured
+                        .attribute_namespaces(owner, *node_id)
+                        .unwrap(),
+                )
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(snapshots.len(), 3);
+    for (snapshot, uri) in snapshots
+        .iter()
+        .zip(["urn:inner", "urn:outer", "urn:outer"])
+    {
+        let binding = snapshot.namespaces.binding("p").unwrap();
+        assert_eq!(binding.namespace_uri, uri);
+        assert!(!binding.source_map.frames.is_empty());
+        let span = binding.declared_at;
+        let raw = &text[span.start as usize..span.end() as usize];
+        assert!(
+            raw.contains(if uri == "urn:inner" {
+                "urn:inn&#101;r"
+            } else {
+                "urn:outer"
+            }),
+            "{raw}"
+        );
+        assert!(snapshot.pending.is_empty());
+        assert_eq!(
+            snapshot.namespaces.binding("xml").unwrap().namespace_uri,
+            "http://www.w3.org/XML/1998/namespace"
+        );
+    }
+    assert_eq!(
+        snapshots[0].namespaces.binding("").unwrap().namespace_uri,
+        "https://cem.dev/ns/schema/1"
+    );
+    assert_eq!(
+        snapshots[2].namespaces.binding("").unwrap().namespace_uri,
+        ""
+    );
+    assert_eq!(imported.captured.occurrences().count(), 0);
+    let other = capture(text);
+    let id = owner
+        .nodes
+        .iter()
+        .find_map(|node| match node {
+            CemAstNode::Attribute { node_id, .. } => Some(*node_id),
+            _ => None,
+        })
+        .unwrap();
+    assert!(imported
+        .captured
+        .attribute_namespaces(other.captured.document(), id)
+        .is_none());
+}
+
+#[test]
+fn folded_xml_expression_metadata_cannot_leak_to_reused_nodes() {
+    let imported = capture("<root xmlns:r='https://cem.dev/ns/cem-ml/1'><r:expr xmlns:p='urn:discarded'>#library</r:expr><next value='p:later'/></root>");
+    let owner = imported.captured.document();
+    let reference = imported.captured.occurrences().next().unwrap();
+    assert_eq!(
+        imported
+            .captured
+            .snapshot(owner, reference)
+            .unwrap()
+            .namespaces
+            .binding("p")
+            .unwrap()
+            .namespace_uri,
+        "urn:discarded"
+    );
+    for node in &owner.nodes {
+        let id = match node {
+            CemAstNode::Element { node_id, .. }
+            | CemAstNode::Attribute { node_id, .. }
+            | CemAstNode::Reference { node_id, .. } => *node_id,
+            _ => continue,
+        };
+        if matches!(node,CemAstNode::Attribute {expanded_name,..} if expanded_name.local_name == "value")
+        {
+            assert!(imported
+                .captured
+                .attribute_namespaces(owner, id)
+                .unwrap()
+                .namespaces
+                .binding("p")
+                .is_none());
+        }
+        if !matches!(node,CemAstNode::Attribute {expanded_name,..} if expanded_name.namespace_uri == "http://www.w3.org/2000/xmlns/")
+        {
+            assert!(imported.captured.namespace_binding(owner, id).is_none());
+        }
+        if !matches!(node, CemAstNode::Attribute { .. }) {
+            assert!(imported.captured.attribute_namespaces(owner, id).is_none());
+        }
+    }
+}

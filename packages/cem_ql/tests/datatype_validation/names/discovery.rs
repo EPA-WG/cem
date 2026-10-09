@@ -227,3 +227,6 @@ fn discovery_consumes_only_the_current_completed_namespace_view() {
 
 #[path = "native.rs"]
 mod native;
+
+#[path = "xml.rs"]
+mod xml;

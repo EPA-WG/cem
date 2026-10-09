@@ -1559,7 +1559,7 @@ fn xml_source_lexeme(source: &str, start: usize, end: usize) -> String {
         .to_owned()
 }
 
-fn xml_initial_namespaces() -> BTreeMap<String, String> {
+pub(crate) fn xml_initial_namespaces() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
             "xml".to_owned(),

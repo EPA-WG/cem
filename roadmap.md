@@ -1098,8 +1098,9 @@ of core reference adoption. Preserve the adopted contracts in the
       retained attribute namespace snapshots, reload metadata and pending package gates.
 - [x] Complete bounded native `types`/`uses` discovery selection, with original schema
       environments, explicit crossing grants and retained package retry candidates.
-- [ ] Complete XML literal namespace capture; implement
-      source/query conversion, equality and constant adapters; complete metamodel
+- [x] Capture XML literal attribute namespaces at import, preserving whole-tag
+      bindings, original provenance, folded-node cleanup and passive reload metadata.
+- [ ] Implement source/query conversion, equality and constant adapters; complete metamodel
       admission and shipped parity before enabling executable native attribute `@type`.
       Scenarios for later design verification: an unavailable selected implementation
       preserves the active package; empty converted output differs from failure;

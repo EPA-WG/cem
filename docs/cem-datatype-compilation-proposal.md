@@ -1327,8 +1327,8 @@ bindings never fall back to `uses`.
 Literal snapshots are passive reload metadata with original-owner checks, validated
 attribute/declaration handles and retained source maps. Older sidecars without them
 remain readable; a consumer needing a missing snapshot stays pending. Imported XML
-schema literals currently retain that missing-metadata boundary until their capture
-adapter is extended. No AST or internal binary codec changes are required.
+schema literals now use the same metadata and native catalog, as described below.
+No AST or internal binary codec changes are required.
 
 Source scanning and catalog construction spend one caller-supplied discovery budget.
 Duplicate declarations/aliases, malformed fields and content are reported at their
@@ -1346,8 +1346,8 @@ errors become inspectable datatype compilation issues on the candidate owner.
 Every discovered declaration remains in the compilation's required source set, so
 a callback cannot certify readiness by omitting an unsupported type. The existing
 package gates preserve the last complete schema, converters and artifacts together
-until the new candidate is ready. XML literal capture,
-remaining metamodel admission and shipped datatype parity stay actionable in `todo.md`.
+until the new candidate is ready. Source/query capability adapters, remaining
+metamodel admission and shipped datatype parity stay actionable in `todo.md`.
 
 
 ## Implemented native datatype discovery collections
@@ -1391,3 +1391,35 @@ repeated handles, retained descendants, nested chains, scope denial, depth/work
 bounds and empty/pending/invalid outcomes. The package fixture retries the same
 retained candidate after its native slot becomes ready, preserving the previous
 schema/converters/artifacts until the complete replacement can activate.
+
+
+## Implemented XML literal namespace capture
+
+The shared XML import boundary now retains `AttributeNamespaceSnapshot` metadata
+for every surviving original attribute. Capture happens after processing all
+namespace declarations on the start tag: a declaration after `base="p:item"`
+still governs that value. Child rebindings remain local, siblings restore the
+parent context, and already captured values keep their original namespace URIs.
+XML attribute expanded names remain unchanged; the default namespace does not
+qualify an unprefixed attribute name. Interpretation of unprefixed datatype values
+continues to belong to the common datatype catalog's declaring-schema rules.
+
+The capture uses the importer's predefined `xml`/`xmlns` bindings. Those implicit
+bindings have no fabricated authored source span. Explicit bindings preserve
+original lexical spans and decoded URI values, including entity references.
+XML namespace declarations remain literals: the existing expression-attribute
+marker rejects `xmlns` targets. This adds no XML namespace-reference syntax or
+new expression occurrences for literal attributes.
+
+When XML expression folding discards attribute/payload nodes, lexical capture
+removes their node associations before those arena addresses can be reused.
+The surviving reference's lexical snapshot still retains the binding values and
+source provenance needed by its expression. No stale namespace declaration or
+attribute snapshot can attach to a later unrelated node.
+
+The existing reload metadata carries these snapshots to a fresh original owner.
+Older sidecars remain readable; absence of required literal metadata keeps QName
+discovery pending, without reconstructing bindings from later declarations.
+CEM and XML discovery use the same native catalog, alias-conflict rules and
+explicit export/crossing contracts. No XML-specific lookup logic is added to
+CEM-QL or datatype compilation.

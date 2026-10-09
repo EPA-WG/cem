@@ -65,12 +65,16 @@ impl LexicallyScopedDocument {
         diagnostics: Vec<Diagnostic>,
         schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
         namespace_bindings: BTreeMap<AstNodeId, NamespaceBinding>,
+        mut attribute_namespaces: BTreeMap<AstNodeId, AttributeNamespaceSnapshot>,
     ) -> Self {
         occurrences.retain(|node, _| {
             matches!(document.get(*node), Some(CemAstNode::Reference { .. }))
                 || matches!(document.get(*node),
                     Some(CemAstNode::Element { expanded_name, .. }) if expanded_name.local_name == "$"
                 )
+        });
+        attribute_namespaces.retain(|id, _| {
+            matches!(document.get(*id), Some(CemAstNode::Attribute { .. }))
         });
         let names = document
             .nodes
@@ -92,7 +96,7 @@ impl LexicallyScopedDocument {
         Self {
             document,
             occurrences,
-            attribute_namespaces: BTreeMap::new(),
+            attribute_namespaces,
             names,
             schema_element_forms,
             namespace_bindings,

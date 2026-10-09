@@ -291,3 +291,72 @@ fn reload_preserves_literal_attribute_namespace_contexts_and_legacy_absence() {
     metadata.attribute_namespaces.insert(0, snapshot);
     assert!(invalid.reload(ReloadLimits::default()).is_err());
 }
+
+#[test]
+fn xml_literal_namespace_capture_survives_reload_without_reinterpreting_old_sidecars() {
+    let text = "<root xmlns:r='https://cem.dev/ns/cem-ml/1' xmlns:p='urn:outer'><r:expr xmlns:q='urn:discarded'>#library</r:expr><type base='p:local' xmlns:p='urn:inner'/><type base='p:outer'/></root>";
+    let imported = import_bytes_with_lexical_scopes(
+        text.as_bytes(),
+        "application/xml",
+        "source.xml",
+        CompiledSchema::cem_core(),
+    )
+    .unwrap();
+    let bundle = ReferenceReloadBundle::export(
+        &imported.captured,
+        vec![ReloadSource::new(
+            SourceId(1),
+            "source.xml",
+            text.as_bytes(),
+            true,
+        )],
+        ReloadLimits::default(),
+    )
+    .unwrap();
+    let bytes = bundle.encode(ReloadLimits::default()).unwrap();
+    let mut saved = ReferenceReloadBundle::decode(&bytes, ReloadLimits::default()).unwrap();
+    let reloaded = saved.reload(ReloadLimits::default()).unwrap();
+    let capture = reloaded.require_lexical().unwrap();
+    assert!(!Arc::ptr_eq(
+        &reloaded.document,
+        imported.captured.document()
+    ));
+    let ids = reloaded
+        .document
+        .nodes
+        .iter()
+        .filter_map(|node| match node {
+            CemAstNode::Attribute {
+                node_id,
+                expanded_name,
+                ..
+            } if expanded_name.local_name == "base" => Some(*node_id),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ids.len(), 2);
+    for (id, uri) in ids.iter().zip(["urn:inner", "urn:outer"]) {
+        let snapshot = capture
+            .attribute_namespaces(&reloaded.document, *id)
+            .unwrap();
+        assert_eq!(snapshot.namespaces.binding("p").unwrap().namespace_uri, uri);
+        assert!(snapshot.namespaces.binding("q").is_none());
+        assert_eq!(
+            snapshot.namespaces.binding("xml").unwrap().namespace_uri,
+            "http://www.w3.org/XML/1998/namespace"
+        );
+        assert!(snapshot.pending.is_empty());
+        assert!(capture
+            .attribute_namespaces(imported.captured.document(), *id)
+            .is_none());
+    }
+    saved.lexical.as_mut().unwrap().attribute_namespaces.clear();
+    let legacy = saved.reload(ReloadLimits::default()).unwrap();
+    for id in ids {
+        assert!(legacy
+            .require_lexical()
+            .unwrap()
+            .attribute_namespaces(&legacy.document, id)
+            .is_none());
+    }
+}

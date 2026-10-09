@@ -230,6 +230,7 @@ fn import_xml_ast_tracked(
                             semantics.sources.insert(closed, source.clone());
                             let cut = closed + 1;
                             b.ast.nodes.truncate(cut as usize);
+                            if let Some(capture) = capture.as_mut() { capture.truncate(cut); }
                             b.ast.nodes[closed as usize] = CemAstNode::Reference { node_id: closed, expression: expression.trim().into(), context: *stack.last().expect("XML context"), targets: None, source };
                             for id in &mut event_nodes { if id.is_some_and(|id| id >= cut) { *id = None; } }
                             for ids in &mut attribute_nodes { ids.retain(|id| *id < cut); }

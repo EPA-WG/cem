@@ -7,7 +7,7 @@ use crate::{
     diagnostics::Diagnostic,
     events::SeparatorKind,
     parser::AstNodeId,
-    schema::machine::{LexicalScopeSnapshot, SchemaElementForm},
+    schema::machine::{AttributeNamespaceSnapshot, LexicalScopeSnapshot, SchemaElementForm},
     source::ByteRange,
     validation::xml::{XmlEventAst, XmlEventKind},
 };
@@ -23,14 +23,31 @@ impl EventNormalizer for NoEvents {
 pub(crate) struct XmlLexicalCapture {
     machine: CemSchemaMachine<NoEvents>,
     occurrences: BTreeMap<AstNodeId, LexicalScopeSnapshot>,
+    attribute_namespaces: BTreeMap<AstNodeId, AttributeNamespaceSnapshot>,
     schema_element_forms: BTreeMap<AstNodeId, SchemaElementForm>,
     namespace_bindings: BTreeMap<AstNodeId, crate::schema::namespace::NamespaceBinding>,
 }
 impl XmlLexicalCapture {
     pub(crate) fn new(schema: CompiledSchema) -> Self {
+        let mut machine = CemSchemaMachine::new(schema, NoEvents);
+        // XML's predefined bindings have no authored declaration/source span.
+        for (prefix, uri) in crate::validation::xml::xml_initial_namespaces() {
+            machine
+                .ns_contexts
+                .last_mut()
+                .expect("root namespace frame")
+                .declare(
+                    prefix,
+                    uri,
+                    ByteRange::new(0, 0),
+                    ByteRange::new(0, 0),
+                    Default::default(),
+                );
+        }
         Self {
-            machine: CemSchemaMachine::new(schema, NoEvents),
+            machine,
             occurrences: BTreeMap::new(),
+            attribute_namespaces: BTreeMap::new(),
             schema_element_forms: BTreeMap::new(),
             namespace_bindings: BTreeMap::new(),
         }
@@ -136,6 +153,19 @@ impl XmlLexicalCapture {
                 );
             }
         }
+        // XML namespace declarations govern the entire start tag, regardless
+        // of their textual order relative to literal or expression attributes.
+        let namespaces = self.machine.current_ns_context().clone();
+        for node in attributes {
+            self.attribute_namespaces.insert(
+                *node,
+                AttributeNamespaceSnapshot {
+                    namespaces: namespaces.clone(),
+                    // XML reserves xmlns attributes for literal declarations.
+                    pending: BTreeMap::new(),
+                },
+            );
+        }
         for (_, value) in native_values {
             self.occurrences
                 .insert(*value, self.machine.lexical_snapshot());
@@ -160,6 +190,14 @@ impl XmlLexicalCapture {
         self.machine
             .on_close(event.qualified_name.as_deref().unwrap_or(""));
     }
+    /// Expression folding removes original attributes/payload nodes. Their arena
+    /// addresses may be reused; retain only associations to surviving nodes.
+    pub(crate) fn truncate(&mut self, cut: AstNodeId) {
+        drop(self.occurrences.split_off(&cut));
+        drop(self.attribute_namespaces.split_off(&cut));
+        drop(self.schema_element_forms.split_off(&cut));
+        drop(self.namespace_bindings.split_off(&cut));
+    }
     pub(crate) fn finish(
         mut self,
     ) -> (
@@ -167,6 +205,7 @@ impl XmlLexicalCapture {
         Vec<Diagnostic>,
         BTreeMap<AstNodeId, SchemaElementForm>,
         BTreeMap<AstNodeId, crate::schema::namespace::NamespaceBinding>,
+        BTreeMap<AstNodeId, AttributeNamespaceSnapshot>,
     ) {
         self.machine.finalize();
         (
@@ -174,6 +213,7 @@ impl XmlLexicalCapture {
             self.machine.diagnostics,
             self.schema_element_forms,
             self.namespace_bindings,
+            self.attribute_namespaces,
         )
     }
 }
