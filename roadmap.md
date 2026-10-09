@@ -1055,8 +1055,11 @@ of core reference adoption. Preserve the adopted contracts in the
 
 - [ ] Finish registered datatype capability signatures, effective kind/facet contracts
       and execution adapters before enabling executable native attribute `@type`.
-- [ ] Decide enumeration constant authoring in that workstream; the token-preservation
-      recommendation remains undecided. Add fixtures before constant/equality execution.
+- [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;
+      richer retained constants are deferred (adopted 2026-10-08).
+- [ ] Add fixtures before token-constant/equality execution under the adopted contract.
+- [ ] Deferred: design richer retained constants with explicit source/metamodel
+      compatibility before admitting new syntax; preserve existing token meanings.
 - [ ] Integrate the completed compiler through the reference consumer readiness boundary,
       then adopt the remaining proposal into maintained designs and remove the draft.
 

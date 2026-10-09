@@ -7,7 +7,8 @@ results, rejection of list declaration `values` and explicit rule acceptance
 with diagnostics, empty lists unless constrained and a dedicated `node` kind are
 adopted. Node rules validate complete target sequences, and candidate requirements
 are per registered capability. Derived declarations inherit an omitted kind from
-a resolved base, with explicit list kind for item-base semantics. Exact signatures and
+a resolved base, with explicit list kind for item-base semantics. Whitespace-token
+`@values` authoring is adopted; richer retained constants are deferred. Exact signatures and
 remaining kind contracts need decisions. General datatype compilation must be
 designed before enabling native attribute `@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
@@ -650,28 +651,29 @@ Compiler namespace/capability adapters, effective facet checks and conversion/eq
 execution remain pending in this separate datatype workstream; existing native
 attribute type consumption stays guarded.
 
-## Deferred datatype decision: enumeration constant authoring
+## Adopted enumeration constant authoring
 
-The existing `values` attribute is a string whose current compiler helper splits
-whitespace-separated tokens. It can express a vocabulary such as `true false` or
-numeric tokens, but cannot represent one string constant containing whitespace.
-Registered datatype equality does not itself supply a new literal syntax.
+Adopted 2026-10-08: preserve the existing whitespace-token `@values` form.
+Each whitespace-separated token is one constant. This form can express
+vocabularies such as `true false` or numeric tokens, but cannot represent one
+string constant containing whitespace.
 
-Recommended first contract: preserve the existing token form and defer richer
-retained enumeration constant authoring to a separate design item. Token constants
-must still be checked through their registered datatype contract; constraints
-beyond this source form can use registered validation rules. Do not invent nested
-quoting, parse JSON, or treat the whole attribute as a single enum constant.
+Token constants must be checked through their original registered datatype
+contract and compared using its registered equality. Equality does not supply
+new literal syntax or rewrite the candidate. Unavailable constant interpretation
+keeps the executable contract incomplete; do not fall back to lexical equality.
+Constraints beyond the token form can use registered validation rules.
 
-Alternative: design retained enumeration constant declarations now, including
-original owners, typed scalar literal admission, references and compatibility with
-the existing token form. This supports whitespace-containing strings and richer
-values directly but adds metamodel and source-selection work before activation.
+Richer retained enumeration constants remain deferred to a separate future
+design item covering original owners, typed scalar admission, references and
+compatibility with existing tokens. No repeated `{value | …}` child syntax,
+nested quoting or implicit JSON interpretation is adopted. Do not treat the
+whole `@values` attribute as a single constant.
 
-This decision is deferred to the separate datatype workstream and remains unanswered.
-Choose this source boundary before enum constant compilation. Whichever form is
-chosen, list/node declaration `values` rejection and the separation of existing
-attribute-local vocabulary migration remain effective.
+List/node declaration `values` rejection and the separate migration of existing
+attribute-local vocabularies remain effective. This source decision does not
+enable executable native attribute `@type`; its other compiler contracts remain
+open.
 
 ## Verified inventory and current native boundary
 

@@ -94,8 +94,8 @@ Completed prerequisites and verification: [archived checklist](archive/todo-snap
 
 Separate workstream: preserve all adopted contracts here, but keep execution,
 equality and enumeration decisions outside the core reference implementation.
-The enumeration authoring recommendation remains undecided and deferred to this
-workstream; no new constant syntax is adopted by the reference work.
+Whitespace-token `@values` authoring is adopted; richer retained constants remain
+deferred in this workstream. No new constant syntax is adopted.
 
 The [adopted datatype decisions](archive/todo-snapshot-2026-10-07.md#general-datatype-compilation-design)
 remain requirements for the open work below. The [temporary proposal](cem-datatype-compilation-proposal.md)
@@ -183,11 +183,20 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: a derived equality cannot widen a base
       vocabulary; unknown constant interpretation prevents readiness rather than fallback.
 
-- [ ] Decide enumeration constant authoring: preserve whitespace-token `values` and
-      defer richer retained constants (recommended), or design retained constant
-      declarations now with source/reference/metamodel compatibility.
-      Scenarios for later design verification: one string containing spaces is never
-      silently split into a different claimed enum constant; no implicit JSON parsing.
+- [x] Decide enumeration constant authoring: preserve whitespace-token `@values`
+      and defer richer retained constants. Adopted 2026-10-08; each token is one
+      constant, checked through its original registered datatype contract.
+      Scenarios for later design verification: `@values="In progress"` means two
+      tokens, never one string constant containing a space; no implicit quoting,
+      JSON parsing or `{value | …}` child syntax.
+
+- [ ] Deferred: design richer retained enumeration constant authoring only as a
+      separate extension, including original owners, typed scalar admission,
+      references, metamodel admission and compatibility with `@values` tokens.
+      Add fixture actions before implementation.
+      Scenarios for later design verification: whitespace-containing constants
+      have an explicit representation; inherited restrictions retain their
+      original bindings and never reinterpret existing token vocabularies.
 
 - [ ] Implement retained datatype descriptors and lexical name binding, then a
       bounded dependency compiler and kind consumers under the adopted contracts.
