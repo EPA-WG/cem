@@ -1077,11 +1077,11 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Declare schema-owned result/diagnostic shapes and implement explicit CEM-QL
       and native result consumption into shared report values, retaining source
       attribution and one-read native snapshots.
-- [ ] Implement registered input signatures, authorized behavior dispatch and
+- [x] Implement registered input signatures, authorized behavior dispatch and
       explicit diagnostic-only compatibility. Verify candidate cardinality and
       cumulative rejection without inferring execution authority from result shape.
-- [ ] Finish registered datatype capability signatures, effective kind/facet contracts
-      and execution adapters before enabling executable native attribute `@type`.
+- [ ] Finish conversion/equality capability signatures, effective kind/facet contracts
+      and compiler/readiness integration before enabling executable native attribute `@type`.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;
       richer retained constants are deferred (adopted 2026-10-08).
 - [ ] Add fixtures before token-constant/equality execution under the adopted contract.

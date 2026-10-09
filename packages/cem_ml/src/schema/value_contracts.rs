@@ -50,7 +50,7 @@ impl ValueContractSource {
         self.captured = Some(captured);
         Ok(self)
     }
-    fn name<'a>(
+    pub(crate) fn name<'a>(
         &'a self,
         node: &'a SchemaDeclarationNode,
     ) -> Option<&'a crate::parser::ExpandedName> {
@@ -63,7 +63,7 @@ impl ValueContractSource {
             _ => None,
         }
     }
-    fn named(&self, node: &SchemaDeclarationNode, local: &str) -> bool {
+    pub(crate) fn named(&self, node: &SchemaDeclarationNode, local: &str) -> bool {
         self.name(node)
             .is_some_and(|name| name.namespace_uri == CEM_SCHEMA_URI && name.local_name == local)
     }
@@ -151,7 +151,7 @@ impl ValueContractError {
             source: None,
         }
     }
-    fn at(code: &'static str, source: &SchemaDeclarationNode) -> Self {
+    pub(crate) fn at(code: &'static str, source: &SchemaDeclarationNode) -> Self {
         Self {
             code,
             path: vec![],
@@ -469,7 +469,7 @@ fn charge(
     }
     Ok(())
 }
-fn elements(
+pub(crate) fn elements(
     parent: &SchemaDeclarationNode,
 ) -> Result<Vec<SchemaDeclarationNode>, ValueContractError> {
     let CemAstNode::Element { children, .. } = parent.node() else {
@@ -487,7 +487,7 @@ fn elements(
     }
     Ok(result)
 }
-fn attrs(
+pub(crate) fn attrs(
     input: &ValueContractSource,
     source: &SchemaDeclarationNode,
     allowed: &[&str],
@@ -527,7 +527,7 @@ fn attrs(
     }
     Ok(result)
 }
-fn required(
+pub(crate) fn required(
     a: &BTreeMap<String, String>,
     key: &str,
     source: &SchemaDeclarationNode,
@@ -536,7 +536,7 @@ fn required(
         .cloned()
         .ok_or_else(|| ValueContractError::at("missing-source-field", source).field(key))
 }
-fn boolean(
+pub(crate) fn boolean(
     a: &BTreeMap<String, String>,
     key: &str,
     source: &SchemaDeclarationNode,
@@ -552,7 +552,7 @@ fn identifier(value: &str) -> bool {
     chars.next().is_some_and(|c| c.is_alphabetic() || c == '_')
         && chars.all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.'))
 }
-fn resolve_name(
+pub(crate) fn resolve_name(
     value: &str,
     input: &ValueContractSource,
     source: &SchemaDeclarationNode,

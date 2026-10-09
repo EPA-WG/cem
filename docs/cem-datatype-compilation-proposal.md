@@ -8,8 +8,8 @@ with diagnostics, empty lists unless constrained and a dedicated `node` kind are
 adopted. Node rules validate complete target sequences, and candidate requirements
 are per registered capability. Derived declarations inherit an omitted kind from
 a resolved base, with explicit list kind for item-base semantics. Whitespace-token
-`@values` authoring is adopted; richer retained constants are deferred. Exact signatures and
-remaining kind contracts need decisions. Datatype validation inputs use the adopted
+`@values` authoring is adopted; richer retained constants are deferred. Validation signatures are implemented; conversion/equality signatures and
+remaining effective kind contracts remain separate work. Datatype validation inputs use the adopted
 fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
 CEM-QL records under a dedicated contract enforced at the consumer boundary;
 candidate cardinality must be visible to compilation. Diagnostics admit existing
@@ -18,7 +18,8 @@ value-contract declarations are adopted for reusable result/diagnostic shapes.
 General datatype compilation must be designed before enabling native attribute
 `@type` consumption.
 The shared value-contract source surface and explicit result consumer are implemented.
-General datatype rule execution and native attribute `@type` remain guarded.
+Explicit registered validation dispatch is implemented below. Full datatype
+compilation and native attribute `@type` remain guarded.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
 are separate from core reference adoption. Preserve the adopted contracts here, but
@@ -126,7 +127,8 @@ Registration supplies a capability, not a scope-crossing grant. Native binding
 must obey the shared reference resolver's context, budget and permission rules.
 Compilation checks the implementation's datatype compatibility and retains its
 original declaration; rule execution happens when a consumer validates or
-converts a value. Exact typed input/result signatures still need specification.
+converts a value. Explicit validation signatures are implemented below; conversion
+capabilities still need their own typed contracts.
 
 ## Adopted custom binding in source
 
@@ -144,9 +146,9 @@ according to effective scope policy; malformed targets and complete zero/multipl
 selections are schema errors. Selecting a behavior does not import its entire
 schema or authorize arbitrary code execution.
 
-This binding is designed but not enabled. The metamodel admission contract,
-registered implementation signature and lifecycle adapter must be specified
-before implementation. Generic CEM-ML parsing still only retains reference nodes;
+Native `@rule` selection remains guarded by the unfinished effective datatype
+compiler. The explicit registered validation adapter below checks retained
+behavior signatures without enabling automatic source datatype consumption. Generic CEM-ML parsing still only retains reference nodes;
 the datatype consumer owns the behavior-target and signature checks.
 
 ## Adopted validation and conversion roles
@@ -257,7 +259,7 @@ General lists permit empty sequences unless an effective contract forbids them;
 shipped name-list contracts continue to reject empty values. Custom tokenizers
 and source syntax for declaring list cardinality remain separate work.
 
-## Proposed datatype execution adapter
+## Adopted datatype execution adapter
 
 Existing schema behaviors expose typed input bindings, function signatures and a
 `schema:diagnostic-result` description with source-range and detail metadata.
@@ -279,7 +281,8 @@ capability with declared typed output, followed by every effective restriction.
 Datatype validation parameter names are fixed by the adopted input-role contract
 below. Result construction and boundary checks follow the adopted contract below;
 shared record metamodel admission and result adapters are implemented below.
-Registered datatype behavior signatures and execution binding remain separate work.
+The explicit registered validation adapter below implements source signature
+checking and execution binding. Effective datatype compilation remains separate.
 
 ## Adopted validation result protocol
 
@@ -316,8 +319,8 @@ execution contract failure, not a completed rejection or implicit acceptance.
 The result cannot be supplied through an unvalidated legacy object shape.
 
 The explicit result consumer implements this protocol through shared value
-contracts. Registered rule invocation still requires its typed input signatures
-and execution/compatibility binding. Existing diagnostic-only
+contracts. Registered invocation uses the checked signatures and explicit
+execution/compatibility binding below. Existing diagnostic-only
 behaviors require an explicit adapter with a declared validity mapping; they do
 not acquire datatype compatibility just because their result has diagnostic
 metadata. No JSON record substitutes for a retained candidate or datatype node.
@@ -353,8 +356,8 @@ retain their owners and identity throughout invocation and reporting.
 
 The shared diagnostic value contract below covers severity, message/code and
 attribution. The shared record metamodel and explicit result adapter implement
-these checks without requiring a result constructor. Function parameter types and
-registered execution bindings remain separate work.
+these checks without requiring a result constructor. The registered adapter below
+checks fixed function roles and explicit cardinalities before execution.
 
 The shared result validator connects explicit CEM-QL/native results to this
 contract; registered signatures must be checked before rule dispatch. Checking
@@ -476,10 +479,86 @@ a generic consumer explanation. Malformed result errors identify the contract
 source and field path where available. Diagnostic-only legacy behaviors do not
 acquire acceptance by returning a matching record.
 
-These APIs provide explicit result consumption, not registered behavior dispatch,
-full datatype compilation or automatic native attribute `@type` activation. Input
-capability signatures, effective datatype contracts and the legacy acceptance
-mapping remain tracked separately.
+These result APIs are also used by the registered dispatch adapter below. Full
+datatype compilation and automatic native attribute `@type` activation remain
+separate work.
+
+## Implemented registered validation profile
+
+Adopted and implemented 2026-10-08: `DatatypeBehaviorContract` checks the original
+schema-owned `{behavior @execution=datatype-validation}` declaration against an
+explicit `ValidationSignature`. The owner must contain that exact behavior in its
+`behaviors` collection. Captured names and QName bindings come from the declaring
+source; a matching name in another owner has no registration authority.
+
+The three `inputs/input-binding` declarations use fixed `name` and `source`
+values: `value`, `datatype`, `candidate`. `datatype` has explicit `node` type,
+`required=true` and cardinality `one`. An optional `candidate` has `node` type,
+`required=false` and `zero-or-one`; a required candidate has `required=true` and
+`one`. All three argument bindings are supplied even when the candidate is empty.
+Missing roles, duplicate roles, renamed inputs, object substitutes and incompatible
+cardinalities fail source compilation.
+
+The registered value representation is a singleton scalar, ordered scalar-item
+sequence, or ordered native node sequence. The first scalar adapter recognizes
+the CEM-QL atomic representations `string`, `boolean`, `integer`, `decimal`,
+`double` and `uri` explicitly. Qualified primitive names must bind to the schema
+namespace; an unrelated `vendor:string` does not inherit string semantics.
+List/node sequences declare `cardinality=zero-or-more` and may be empty. These
+representation checks do not establish full shipped datatype semantics, list
+item compatibility, tokenization, normalization or wider numeric conversion.
+
+Native implementations use `implementation=engine` and an exact registered
+`primitive` identifier. Query implementations use `implementation=function`, a
+selected inline `function`, and one retained expression in `body`. Each function
+`param` repeats its checked role, type, required flag and cardinality. The ordinary
+result profile declares `result @type=schema:datatype-validation-result`, with
+cardinality `one`; its function declares `returns=datatype-validation-result`.
+The source consumer rejects unsupported extra fields, defaults and selector forms.
+Existing AST-validation/legacy object functions do not acquire this profile.
+
+`DatatypeValidationRegistry` has no default entries. Registration binds the
+checked original owner and behavior to a native callback or the compiled original
+query body, plus the shared result adapter. Duplicate registrations fail; retained
+bindings keep their original implementation when a registry clone changes. A host
+binds only after authorized dependency selection and effective-kind compilation,
+passing the original named datatype node and the effective kind. Registration
+and binding do not resolve a native `@rule`, authorize a scope crossing or publish
+a complete datatype descriptor.
+
+`validate_rules` takes the host's effective ordered restriction list and complete
+runtime inputs. It checks every input before executing any callback, preserves
+native handles and order, and checks the same operation control before and after
+calls. Queries receive the fixed bindings and the consumer's current runtime
+capabilities. No new control budget or context ID is created per restriction.
+Default batch caps are 256 rules, 100,000 input values and 100,000 accumulated
+diagnostics, all host-overridable. Native implementations must cooperate with
+operation control and bound their own work; query execution uses the supplied
+control directly.
+
+Every completed rule is retained with its original datatype and behavior source.
+Acceptance is the conjunction of all completed restrictions. A rejection does not
+skip later rules or let their acceptance overwrite it. Missing required candidates,
+pending/unavailable execution, cancellation, malformed results and failed queries
+leave aggregate acceptance unset and preserve prior completed results. An original
+candidate supplies fallback attribution when present; source-less consumers use
+their supplied attribution. Explicit diagnostic source handles and native metadata
+retain their own attribution.
+
+Diagnostic-only compatibility is opt-in per registration. It declares
+`result @type=schema:datatype-diagnostic @cardinality=zero-or-more`; a query
+function declares `returns=diagnostic-sequence`. The host must separately register
+an acceptance mapping: reject selected codes, reject selected severities, or
+accept only an empty returned diagnostic sequence. There is no implicit mapping.
+All returned diagnostics pass the same structural checks before mapping; previously
+emitted query reports remain separate. Code-based mappings can reject informational
+diagnostics or accept error diagnostics, so severity alone never determines
+validity. Existing legacy object/result formats still need an explicit host bridge
+to this checked diagnostic sequence; they are not reinterpreted automatically.
+
+This completes the explicit validation adapter, not effective datatype compilation,
+conversion/equality adapters, automatic native `@type` consumption or the package
+activation integration. Those tasks remain in `todo.md` with their scenarios.
 
 ## Implemented native diagnostic query prerequisite
 
@@ -491,8 +570,8 @@ interpret validation acceptance. This is query access, not result validation.
 
 A native query fixture covers all four severities and retained attribution, with
 22 existing query/template/XSLT error-recovery regressions passing alongside it.
-Registered datatype rule execution and native attribute `@type` consumption
-remain guarded separately.
+Registered validation dispatch is implemented separately below; native attribute
+`@type` consumption remains guarded.
 
 ## Adopted general list emptiness
 
@@ -557,8 +636,9 @@ nodes. Scalar conversion rejects node input; any separately registered capabilit
 for native nodes must preserve original handles and declare its own contract.
 Adding this kind does not silently admit a node datatype as every list's item base.
 
-The kind is adopted but custom node datatype execution is not enabled. Metamodel
-admission, base compatibility and typed adapter signatures remain required work.
+The explicit validation adapter accepts native node sequences. Effective node
+datatype compilation, source kind admission and base compatibility remain required
+before custom node datatypes can activate through attribute `@type`.
 Reference-to-ID conversion remains deferred to the `cem-element` consumer track.
 
 ## Grammar and symbolic-reference consumer boundaries
@@ -592,10 +672,10 @@ a reason to skip validation. Incomplete resolution is a lifecycle outcome, not a
 empty successful result. The adapter does not automatically invoke the same rule
 once for every target; a rule may explicitly inspect its permitted target view.
 
-This unit is adopted but not enabled. Existing attribute cardinality constraints
-remain effective alongside datatype rules; neither can erase the other's
-rejection. Concrete native sequence parameter types and metamodel admission
-remain required before execution.
+The explicit adapter implements this invocation unit for registered native node
+sequences, including empty sequences. Existing attribute cardinality constraints
+remain effective alongside datatype rules; the effective compiler must include
+all restrictions before enabling attribute `@type` execution.
 
 ## Adopted datatype validation input roles
 
@@ -634,7 +714,8 @@ Completed validation returns explicit acceptance plus attributed diagnostics.
 Validation cannot replace `value`; conversion remains a separate capability.
 The decision fixes validation input names and candidate cardinality. Conversion
 ABI, parameter order and concrete metamodel admission remain separate work;
-validation invocation remains guarded until its required contracts are ready.
+the explicit validation profile below fixes named binding and metamodel admission.
+Full datatype compilation and conversion invocation remain separate.
 
 ## Typed adapter signature requirements
 
@@ -658,8 +739,9 @@ A registry entry must declare which of these capabilities and required inputs it
 supports. The compiler checks source signatures against that registration; the
 runtime checks that the actual consumer inputs are available. Reusing diagnostic
 metadata does not turn an `object` function into a native datatype adapter.
-Typed representation names for schema/function declarations remain to be specified;
-this table does not introduce enabled metamodel literals or serialize AST handles.
+The explicit profile below specifies validation representation names and source
+cardinalities. Conversion representations and full datatype compatibility still
+need their own compiler checks; none of these signatures serialize AST handles.
 
 ## Adopted source-less value consumers
 
@@ -721,7 +803,8 @@ Four source fixtures verify native dependency fields, unknown-field visibility,
 omitted versus empty kind, source lifetime and last-authored precedence. Together
 with the adjacent registry/inventory/value/declaration-reference tests, 87 focused
 tests pass. These are source descriptors, not compiled executable descriptors;
-kind inference, dependency resolution and registered adapters remain guarded.
+kind inference, dependency resolution and automatic datatype consumer activation
+remain guarded; explicit validation registration is available separately.
 
 ## Adopted list dependency boundary
 

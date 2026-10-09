@@ -13,6 +13,7 @@ pub mod artifact;
 pub mod debug_control;
 pub mod diagnostics;
 pub mod datatype_results;
+pub mod datatype_validation;
 pub mod embedded;
 pub mod eval;
 pub mod ir;

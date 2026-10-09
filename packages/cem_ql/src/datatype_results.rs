@@ -232,6 +232,9 @@ impl DatatypeResultAdapter {
     pub fn diagnostic_contract(&self) -> &ContractName {
         &self.diagnostic
     }
+    pub fn result_contract(&self) -> &ContractName {
+        &self.result
+    }
     /// Only complete streams can be consumed. Execution failures remain separate
     /// from validation rejection; no pending state is inferred from an empty stream.
     pub fn consume(

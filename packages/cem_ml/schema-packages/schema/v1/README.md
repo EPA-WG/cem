@@ -59,8 +59,8 @@ complete schema identity records, and namespace claims as separate domains.
 
 `value-contracts` declares reusable structural record contracts. These are
 consumed explicitly by `cem_ml::schema::value_contracts::ValueContracts` and the
-CEM-QL datatype result adapter. They do not enable datatype rule dispatch or
-native attribute `@type` execution.
+CEM-QL datatype result adapter. Registered validation uses these contracts through
+an explicit host API; native attribute `@type` execution remains guarded.
 
 ```cem
 {value-contracts |
@@ -94,6 +94,51 @@ record edges; validation permits 100,000 field/value work units per request.
 Hosts may override these limits. The result adapter preserves native diagnostics
 and source nodes, and validates a single snapshot of native record fields. Native
 diagnostic metadata is preserved independently of closed record-field checks.
+
+## Explicit registered datatype validation
+
+The opt-in `datatype-validation` behavior profile uses fixed `value`, `datatype`
+and `candidate` inputs. `DatatypeBehaviorContract` checks the original source
+signature; `cem_ql::datatype_validation::DatatypeValidationRegistry` binds that
+exact behavior and schema owner to a native implementation or inline query.
+Matching local names or result records confer no registration authority.
+
+```cem
+{behavior @name="check-value" @implementation="engine"
+          @primitive="urn:example:check-value" @execution="datatype-validation" |
+    {inputs |
+        {input-binding @name="value" @type="schema:string" @source="value" @required=true @cardinality="one"}
+        {input-binding @name="datatype" @type="schema:node" @source="datatype" @required=true @cardinality="one"}
+        {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=false @cardinality="zero-or-one"}
+    }
+    {result @type="schema:datatype-validation-result"}
+}
+```
+
+An inline query uses `implementation="function"` and a selected inline function.
+Its three `param` declarations must match the input roles, types, required flags
+and cardinalities; `returns="datatype-validation-result"` declares the checked
+result profile. Optional candidates keep an empty argument binding. Value inputs
+are registered atomic representations or ordered scalar/native-node sequences;
+validation does not convert them or expand descendant references.
+
+`validate_rules` checks all inputs before dispatch, retains original sources and
+combines every completed rule's acceptance. Missing required candidates and
+pending, failed or malformed execution leave aggregate acceptance unset. The
+same operation control applies across calls. Default host-overridable caps are
+256 rules, 100,000 input values and 100,000 accumulated diagnostics.
+
+Diagnostic-only compatibility declares
+`result @type="schema:datatype-diagnostic" @cardinality="zero-or-more"` and, for a
+query, `returns="diagnostic-sequence"`. Registration must explicitly choose an
+acceptance mapping: rejected codes, rejected severities, or no returned diagnostics.
+Previously emitted reports remain separate. Native/record diagnostic checks and
+source attribution use the shared result adapter. Existing object-shaped legacy
+results need an explicit host bridge to the diagnostic sequence.
+
+These APIs execute explicitly registered validation contracts. Effective datatype
+compilation, conversion/equality adapters and automatic native `@type` activation
+remain separate work.
 
 ## Folder Contract
 

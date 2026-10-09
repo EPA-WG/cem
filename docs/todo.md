@@ -137,8 +137,8 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: a matching legacy record grants no
       execution authority; an empty candidate value does not change function arity.
 
-- [ ] Add native signature/invocation fixtures after concrete metamodel types and
-      result metamodel admission are specified: reject renamed/inferred roles,
+- [x] Add native signature/invocation fixtures for the explicit registered profile:
+      reject renamed/inferred roles,
       retain original datatype/candidate owners, and cover source-less rules with and without a
       required candidate. Check optional candidates with zero, one and multiple nodes.
       Check source-declaration compatibility with registered zero-or-one/exactly-one
@@ -147,10 +147,10 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: role naming supplies no scope grants;
       scalar, list and node values preserve their registered representations.
 
-- [ ] Specify a registered datatype validation
+- [x] Implement an explicit registered datatype validation
       adapter that checks retained behavior/owner identity, required input bindings
       and kind-specific representation, distinct from diagnostic-only behaviors.
-      Add fixture actions before implementing signature checking or invocation.
+      Native and inline query implementations use the same checked result adapter.
       Scenarios for later design verification: original candidate/type handles remain
       native; unavailable execution differs from invalid data; conversion stays separate.
 
@@ -160,9 +160,10 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: an item base does not require an item;
       empty conversion manufactures neither a default item nor a null value.
 
-- [ ] Specify node-kind metamodel admission, base compatibility and native sequence
-      signatures; add fixture actions for retained targets, lexical-facet rejection
-      and unchanged descendant reference nodes before implementing the node adapter.
+- [ ] Specify effective node-kind metamodel admission and base compatibility, then
+      connect the implemented native sequence validation signature to datatype
+      compilation. Add fixtures for lexical-facet rejection and unchanged descendant
+      references through that integration before enabling native attribute types.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
 
@@ -240,21 +241,36 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: constructors are optional; result
       construction leaves original candidate and datatype handles intact.
 
-- [ ] Implement registered datatype input signature checking and authorized behavior
+- [x] Implement registered datatype input signature checking and authorized behavior
       dispatch before invocation. Add fixtures for missing required candidates,
       registered zero-or-one/exactly-one cardinality, kind-specific value inputs,
       retained owners and cumulative rejection across effective restrictions.
       Scenarios for later design verification: a matching legacy result never grants
       execution authority; later acceptance cannot erase an earlier rejection.
 
-- [ ] Specify and implement the explicit diagnostic-only compatibility adapter with
-      a registered acceptance mapping. Add fixtures before wiring legacy behavior
-      outputs, including unavailable execution and severity/acceptance independence.
+- [x] Add 15 native fixtures for the registered validation adapter: exact behavior/owner
+      registration, fixed input roles and source cardinalities, native datatype and
+      candidate retention, scalar/list/node representations, missing candidates,
+      cumulative acceptance, bounded/control-aware execution, query/native parity,
+      pending/failed outcomes and explicit diagnostic-only acceptance mappings.
+      Verification: 15 new adapter fixtures, 48 query/result/native-function recovery
+      tests, 46 CEM-ML regressions and 27 retained/region/namespace behavior tests
+      pass (136 tests total). The schema package's Nx `verify` target passes,
+      including its CLI build prerequisite.
+      Scenarios for later design verification: equal names in another owner confer
+      no authority; an empty candidate occupies its argument; later acceptance
+      cannot hide incomplete execution or earlier rejection.
+
+- [x] Implement explicit diagnostic-sequence compatibility with a registered
+      acceptance mapping (codes, severities, or empty sequence). Native/query fixtures
+      cover malformed/unavailable outputs, retained attribution and independence
+      from previously emitted reports. Legacy object formats require a host bridge.
       Scenarios for later design verification: diagnostic-only results cannot imply
       acceptance until the selected registered mapping is applied.
 
-- [ ] Specify the registered implementation identity, typed input/result signature,
-      package ownership checks and compilation/validation/conversion adapters.
+- [ ] Integrate retained validation registrations with complete datatype descriptors
+      and package readiness/ownership checks; specify separate conversion and equality
+      capabilities and their typed output contracts before enabling them.
       Scenarios for later design verification: registration grants no scope access;
       an unrelated vendor type cannot borrow a built-in implementation by name.
 

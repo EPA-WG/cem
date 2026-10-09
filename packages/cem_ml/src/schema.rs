@@ -7,6 +7,7 @@ pub mod compiler;
 pub mod declaration_references;
 pub mod datatype_registry;
 pub mod value_contracts;
+pub mod datatype_validation;
 pub(crate) mod diagnostics;
 pub mod disposition;
 pub mod document_model;
