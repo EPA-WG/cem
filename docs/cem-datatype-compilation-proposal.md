@@ -1562,8 +1562,8 @@ result adapter. Runtime control and validation budgets remain the caller's.
 
 This completes shared lexical contracts and native validators, not full shipped
 conversion integration. The native scalar bridge below now shares the rendering scalar view and preserves
-wide integer identity through signatures, results and exact query comparison. Missing lexical/list converters and the concrete
-content-model grammar consumer remain open. The existing URI validator requires
+wide integer identity through signatures, results and exact query comparison. Lexical/list converters are implemented below; the concrete
+content-model grammar consumer remains open. The existing URI validator requires
 an absolute URI although declaration prose admits relative references; this
 compatibility slice preserves the validator and records reconciliation separately.
 Automatic attribute type activation stays guarded pending those parity tasks.
@@ -1606,5 +1606,42 @@ constants without stringification or an implicit runtime conversion.
 
 Input/output limits, cumulative preparation and diagnostic budgets, cancellation,
 explicit rejection and package readiness remain on the existing consumer paths.
-Remaining shipped list/lexical conversions, the grammar consumer, URI policy
-reconciliation and native attribute activation remain actionable in `todo.md`.
+The grammar consumer, URI policy reconciliation and native attribute activation
+remain actionable in `todo.md`.
+
+
+## Adopted shipped lexical and list conversion contracts
+
+Adopted and implemented 2026-10-08. Explicit lexical conversion trims boundary
+Unicode whitespace and applies the existing shipped validation predicate. Its
+string result preserves all remaining spelling, including case, percent escapes,
+internal whitespace and symbolic prefixes. It carries the original source map.
+This applies to identifier/qualified-name/symbol-reference/wildcard-name,
+URI/semver/media-type/path, type-reference/wildcard-type-reference and unresolved
+disposition. URI admission remains absolute-only pending the separate declaration
+prose reconciliation. These values grant no namespace, resource or lookup authority.
+Separate constant interpretation supports the same scalar contracts without
+selecting or invoking a runtime converter; `@values` remains token syntax.
+
+Explicit shipped list registrations select nonempty bounds and the existing
+Unicode-whitespace tokenizer. The original identifier or wildcard-name declaration
+remains the item contract and must have its own registered validator. Conversion
+uses the consuming descriptor's selected tokenizer and returns ordered strings,
+then the shared consumer validates every original item rule and effective list
+restriction. No item conversion runs implicitly and no list constant syntax is
+introduced. A host-provided tokenizer is honored; absent tokenization cannot be
+silently supplied at execution.
+
+Tokens retain one shared decoded input and source map plus individual UTF-8 spans.
+Spans are not projected into source-file coordinates: escaped/decoded input can
+have different byte lengths. Duplicate occurrences and token order survive.
+Conversion byte/output caps bound tokenization and retain a distinct limit stop;
+operation control is checked through tokenization, construction and validation.
+Unavailable tokenizer registrations block package replacement readiness, retaining
+the last complete schema/converters/artifacts while the original candidate retries.
+
+Scenarios for later design verification: a namespaced symbolic string never resolves
+its target; percent escapes and media-type case survive unchanged; an empty shipped
+name list fails even when the authored minimum is zero; a decoded token span never
+masquerades as a source-file offset; a replacement with unavailable tokenization
+cannot displace the active package.

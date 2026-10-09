@@ -124,6 +124,28 @@ impl ShippedDatatype {
             Self::ContentModel => return None,
         })
     }
+    /// Availability is explicit per shipped family; adding a type must choose a
+    /// conversion contract rather than acquiring an implicit string fallback.
+    pub fn supports_scalar_conversion(self) -> bool {
+        match self {
+            Self::Identifier
+            | Self::QualifiedName
+            | Self::SymbolReference
+            | Self::WildcardName
+            | Self::String
+            | Self::Boolean
+            | Self::ReferenceUnresolvedDisposition
+            | Self::Integer
+            | Self::Number
+            | Self::Uri
+            | Self::Semver
+            | Self::MediaType
+            | Self::Path
+            | Self::TypeReference
+            | Self::WildcardTypeReference => true,
+            Self::NameList | Self::WildcardNameList | Self::ContentModel => false,
+        }
+    }
     /// Reuse the shipped explicit normalization contract. Unsupported conversion
     /// has no capability; it is not a failed attempt to parse some supplied value.
     pub fn convert_lexical<E>(
@@ -132,11 +154,37 @@ impl ShippedDatatype {
         source: &SourceMapStack,
         check: &mut impl FnMut() -> Result<(), E>,
     ) -> Option<Result<TypedAttributeValue, AttributeValueConversionError<E>>> {
+        if !self.supports_scalar_conversion() {
+            return None;
+        }
         if !matches!(
             self,
             Self::String | Self::Boolean | Self::Integer | Self::Number
         ) {
-            return None;
+            // The explicit lexical contract trims boundary whitespace only. URI,
+            // path and symbolic values remain spelling, never lookup authority.
+            return Some((|| {
+                check().map_err(AttributeValueConversionError::Interrupted)?;
+                let lexical = value.trim();
+                let valid = self.validate_lexical(lexical) == Some(true);
+                check().map_err(AttributeValueConversionError::Interrupted)?;
+                if !valid {
+                    return Err(AttributeValueConversionError::Invalid(vec![Diagnostic {
+                        code: "cem.datatype.shipped.invalid".into(),
+                        severity: Severity::Error,
+                        message: format!(
+                            "Value does not satisfy shipped {} conversion",
+                            self.name()
+                        ),
+                        source_map: Some(source.clone()),
+                        ..Default::default()
+                    }]));
+                }
+                Ok(TypedAttributeValue {
+                    datatype: self.name().into(),
+                    lexical: lexical.into(),
+                })
+            })());
         }
         Some(convert_attribute_value_with_check(
             value,

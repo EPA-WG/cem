@@ -8,10 +8,10 @@ use cem_ql::{
     datatype_shipped,
 };
 
-fn descriptor(ty: T) -> ExecutableDatatype {
+pub(super) fn descriptor(ty: T) -> ExecutableDatatype {
     descriptor_with(ty, None)
 }
-fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableDatatype {
+pub(super) fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableDatatype {
     let primitive = match ty {
         T::Boolean => "boolean",
         T::Integer => "integer",
@@ -30,7 +30,12 @@ fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableDatatype {
         .map(|v| format!(" @values={v:?}"))
         .unwrap_or_default();
     let (mut host, sources) = types_fixture(&format!(
-        "{{type @name=sample @kind=scalar{vocabulary_attr}}}"
+        "{{type @name=sample @kind={}{vocabulary_attr}}}",
+        match ty.kind() {
+            DatatypeKind::Lexical => "lexical",
+            DatatypeKind::Reference => "reference",
+            _ => "scalar",
+        }
     ));
     let src = sources[0].clone();
     let mut implementations = DatatypeImplementations::default();
@@ -55,7 +60,7 @@ fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableDatatype {
         implementations
             .select_equality(
                 src.clone(),
-                cem_ql::datatype_enumeration::EqualityBinding::Ready(equality(&src)),
+                cem_ql::datatype_enumeration::EqualityBinding::Ready(equality(&src, ty)),
             )
             .unwrap();
     } else {
@@ -85,7 +90,7 @@ fn descriptor_with(ty: T, vocabulary: Option<&str>) -> ExecutableDatatype {
     assert!(result.is_ready(), "{:?}", result.issues);
     compiled(&result, &src).clone()
 }
-fn convert(
+pub(super) fn convert(
     descriptor: &ExecutableDatatype,
     text: &str,
 ) -> cem_ql::datatype_conversion::DatatypeConversion {
@@ -166,7 +171,7 @@ fn wide_integer_remains_integer_and_does_not_satisfy_decimal_contract() {
     }
 }
 
-fn equality(src: &DatatypeSource) -> cem_ql::datatype_enumeration::RegisteredScalarEquality {
+fn equality(src: &DatatypeSource, ty: T) -> cem_ql::datatype_enumeration::RegisteredScalarEquality {
     use cem_ml::schema::datatype_enumeration::EqualityBehaviorContract;
     use cem_ql::datatype_enumeration::{DatatypeEqualityResultAdapter, RegisteredScalarEquality};
     let text = r#"@ns schema = "https://cem.dev/ns/schema/1"
@@ -182,11 +187,20 @@ fn equality(src: &DatatypeSource) -> cem_ql::datatype_enumeration::RegisteredSca
  }
 }}
 "#;
-    let profile = source(text);
+    let ValueRepresentation::Scalar(representation) = ty.representation() else {
+        panic!()
+    };
+    let primitive = if representation == ScalarRepresentation::Integer {
+        "integer"
+    } else {
+        "string"
+    };
+    let text = text.replace("@type=integer", &format!("@type={primitive}"));
+    let profile = source(&text);
     let contract = EqualityBehaviorContract::compile(
         &profile,
         &node(&profile, "behavior"),
-        ScalarRepresentation::Integer,
+        representation,
         ContractName::new(CEM_SCHEMA_URI, "datatype-equality-result"),
     )
     .unwrap();
@@ -418,6 +432,6 @@ fn conversion_rejections_control_bounds_and_original_sources_are_preserved() {
         Some(ConversionStop::Control(_))
     ));
     let (_, sources) = types_fixture("{type @name=sample @kind=scalar}");
-    assert!(datatype_shipped::converter(sources[0].clone(), T::Uri).is_err());
-    assert!(datatype_shipped::constant_interpreter(sources[0].clone(), T::Uri).is_err());
+    assert!(datatype_shipped::converter(sources[0].clone(), T::ContentModel).is_err());
+    assert!(datatype_shipped::constant_interpreter(sources[0].clone(), T::ContentModel).is_err());
 }

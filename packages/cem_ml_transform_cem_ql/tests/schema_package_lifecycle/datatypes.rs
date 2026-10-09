@@ -12,7 +12,37 @@ fn datatype_compiler(name: &str, tokenizer_ready: bool) -> CemQlSchemaPackageCom
             let name=attributes.iter().find_map(|id|match ast.get(*id){Some(CemAstNode::Attribute{expanded_name,value,..}) if expanded_name.local_name=="name"=>value.as_deref(),_=>None}).unwrap();
             let source=registry.source(&schema,name).unwrap();host.register_datatype_source(source.clone()).unwrap();host.bind_literal_datatype(&schema,name,source.declaration().clone()).unwrap();
             let list=name=="names";
-            implementations.register(DatatypeImplementation{source:source.clone(),kind:if list {DatatypeKind::List}else{DatatypeKind::Scalar},representation:if list {ValueRepresentation::List(ScalarRepresentation::String)}else{ValueRepresentation::Scalar(ScalarRepresentation::String)},accepted_bases:vec![],bounds:Default::default(),tokenizer:if !list {TokenizerBinding::Absent}else if tokenizer_ready {TokenizerBinding::Ready(cem_ml::schema::datatype_contracts::RegisteredTokenizer::whitespace())}else{TokenizerBinding::Unavailable},validator:None}).unwrap();sources.push(source);
+            let mut entry = if list {
+                cem_ql::datatype_shipped::list_implementation(
+                    source.clone(),
+                    cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::NameList,
+                )
+                .unwrap()
+            } else {
+                DatatypeImplementation {
+                    source: source.clone(),
+                    kind: DatatypeKind::Scalar,
+                    representation: ValueRepresentation::Scalar(ScalarRepresentation::String),
+                    accepted_bases: vec![],
+                    bounds: Default::default(),
+                    tokenizer: TokenizerBinding::Absent,
+                    validator: None,
+                }
+            };
+            if list {
+                if !tokenizer_ready {
+                    entry.tokenizer = TokenizerBinding::Unavailable;
+                }
+                let converter = cem_ql::datatype_shipped::converter(
+                    source.clone(),
+                    cem_ml::schema::document_model::shipped_datatypes::ShippedDatatype::NameList,
+                ).unwrap();
+                implementations.select_converter(
+                    source.clone(), cem_ql::datatype_conversion::ConverterBinding::Ready(converter),
+                ).unwrap();
+            }
+            implementations.register(entry).unwrap();
+            sources.push(source);
         }}}
         Ok(compile_datatypes(ast.clone(),&sources,host,&implementations,&Default::default(),limits))
     })
@@ -37,6 +67,38 @@ fn incomplete_datatype_capability_preserves_package_and_retries_original_candida
         .clone()
         .unwrap();
     assert!(active.is_ready());
+    let list = active
+        .contracts
+        .iter()
+        .find_map(|entry| {
+            entry
+                .as_any()
+                .downcast_ref::<cem_ql::datatype_compilation::ExecutableDatatype>()
+                .filter(|d| d.kind() == cem_ml::schema::datatype_registry::DatatypeKind::List)
+        })
+        .unwrap();
+    let control = cem_ml::operation_control::OperationControl::default();
+    let runtime = cem_ql::datatype_validation::ValidationRuntime {
+        control: &control,
+        scope: cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
+        query: Default::default(),
+    };
+    let result = list.convert(
+        &cem_ql::datatype_conversion::ConversionInput {
+            value: cem_ql::datatype_conversion::ConversionValue::Lexical(
+                cem_ml::schema::datatype_contracts::LexicalInput::new(
+                    Arc::from("a b a"),
+                    Default::default(),
+                ),
+            ),
+            candidate: vec![],
+            fallback: Default::default(),
+        },
+        &runtime,
+        Default::default(),
+    );
+    assert_eq!(result.accepted, Some(true), "{result:?}");
+    assert_eq!(result.value.unwrap().len(), 3);
     set_source(
         &mut context,
         &authored.replace("@kind=list", "@kind=list @max-items=2"),

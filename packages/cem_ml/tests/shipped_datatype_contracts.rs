@@ -34,7 +34,7 @@ fn shipped_validation_preserves_lexical_contracts_and_explicit_grammar_gap() {
 }
 #[test]
 fn explicit_conversion_matches_legacy_without_inventing_unsupported_capabilities() {
-    for ty in T::ALL {
+    for ty in [T::String, T::Boolean, T::Integer, T::Number] {
         for input in [
             "",
             " 1 ",
@@ -98,4 +98,32 @@ fn shipped_conversion_retains_wide_integer_lexical_and_interruption() {
             cem_ml::schema::document_model::AttributeValueConversionError::Interrupted("cancelled")
         )
     ));
+}
+
+#[test]
+fn explicit_lexical_normalization_is_separate_from_legacy_conversion() {
+    for (ty, text) in [
+        (T::Identifier, "éclair"),
+        (T::Uri, "HTTPS://Example.test/a%2Fb"),
+        (T::MediaType, "Text/Plain; charset=UTF-8"),
+        (T::TypeReference, "unbound:item"),
+    ] {
+        let result = ty
+            .convert_lexical(&format!(" \t{text}\n"), &Default::default(), &mut || {
+                Ok::<_, ()>(())
+            })
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.datatype, ty.name());
+        assert_eq!(result.lexical, text);
+        assert!(ty
+            .convert_lexical(text, &Default::default(), &mut || Err("stop"))
+            .unwrap()
+            .is_err());
+    }
+    for ty in [T::NameList, T::WildcardNameList, T::ContentModel] {
+        assert!(ty
+            .convert_lexical("a b", &Default::default(), &mut || Ok::<_, ()>(()))
+            .is_none());
+    }
 }

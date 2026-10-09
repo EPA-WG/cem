@@ -10,7 +10,7 @@ use cem_ml::{
     operation_control::ControlError,
     parser::tree::RetainedCemTree,
     schema::{
-        datatype_contracts::LexicalInput,
+        datatype_contracts::{LexicalInput, RegisteredTokenizer},
         datatype_registry::DatatypeSource,
         datatype_validation::{CandidateRequirement, ValueRepresentation},
     },
@@ -48,11 +48,15 @@ pub enum ConversionExecution {
     Pending(Vec<Diagnostic>),
     Unavailable(Vec<Diagnostic>),
     Failed(Vec<Diagnostic>),
+    Limit(&'static str),
 }
 pub struct ConversionCall<'a> {
     pub value: &'a ConversionValue,
     /// The original declaration whose registered implementation was selected.
     pub datatype: &'a Item,
+    /// Tokenizer selected by the consuming descriptor; conversion still validates
+    /// every effective list and item restriction after preparation.
+    pub tokenizer: Option<&'a RegisteredTokenizer>,
     pub candidate: &'a [Item],
     pub runtime: &'a ValidationRuntime<'a>,
     pub limits: ConversionLimits,
@@ -276,6 +280,7 @@ impl ExecutableDatatype {
             .convert(ConversionCall {
                 value: &input.value,
                 datatype: &selected.datatype,
+                tokenizer: self.tokenizer(),
                 candidate: &input.candidate,
                 runtime,
                 limits,
@@ -294,6 +299,9 @@ impl ExecutableDatatype {
                 (None, d, Some(ConversionStop::Unavailable), false)
             }
             ConversionExecution::Failed(d) => (None, d, Some(ConversionStop::Failed), false),
+            ConversionExecution::Limit(reason) => {
+                (None, vec![], Some(ConversionStop::Limit(reason)), false)
+            }
         };
         result.diagnostics = diagnostics;
         if result.diagnostics.len() > limits.validation.max_diagnostics {

@@ -19,22 +19,20 @@ use cem_ml::{
     },
 };
 fn supported(datatype: ShippedDatatype) -> Result<(), &'static str> {
-    if matches!(
-        datatype,
-        ShippedDatatype::String
-            | ShippedDatatype::Boolean
-            | ShippedDatatype::Integer
-            | ShippedDatatype::Number
-    ) {
+    if datatype.supports_scalar_conversion() {
         Ok(())
     } else {
         Err("shipped-scalar-conversion-unavailable")
     }
 }
+
 pub fn converter(
     source: DatatypeSource,
     datatype: ShippedDatatype,
 ) -> Result<RegisteredDatatypeConverter, &'static str> {
+    if datatype.item().is_some() {
+        return super::lists::converter(source, datatype);
+    }
     supported(datatype)?;
     RegisteredDatatypeConverter::new(
         source,

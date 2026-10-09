@@ -227,7 +227,8 @@ checks only. URI checks currently retain the existing absolute-URI requirement.
 
 `convert_lexical` offers the existing string/boolean/integer/number conversion
 contracts, preserves original source maps and cancellation, and keeps wide integer
-lexical values intact. Other datatypes return no conversion capability.
+lexical values intact. Explicit lexical conversion is described below; lists use
+their registered tokenizer, while grammar conversion remains unavailable.
 
 `cem_ql::datatype_shipped::register_validation` binds a chosen native validator to
 an original behavior profile with the exact `cemml:datatype:<name>` primitive and
@@ -238,7 +239,7 @@ representations are string, boolean, integer and decimal as declared by the
 capability. Host registration is required; matching a datatype name is insufficient.
 
 Native scalar conversion and retained wide-integer signatures are implemented below.
-Remaining lexical/list conversions and the content-model grammar consumer are tracked in
+The remaining content-model grammar consumer and URI policy reconciliation are tracked in
 the [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
 
 ## Native scalar conversion and retained integers
@@ -272,6 +273,39 @@ distinct during registered query equality and enumeration membership. The existi
 query arithmetic implementation is unchanged. Checked conversion and constant
 results preserve the original native scalar handle instead of rebuilding it from
 its query atom. Automatic native attribute type activation remains guarded.
+
+
+## Native lexical and list conversion
+
+The same explicit `converter` and separate `constant_interpreter` factories support
+identifier, qualified-name, symbol-reference, wildcard-name, URI, semver,
+media-type, path, type-reference, wildcard-type-reference and unresolved-disposition
+values. They trim boundary Unicode whitespace, validate with the existing shipped
+predicate, and return a string scalar with the remaining spelling and original
+source map. Case, escaping, separators and internal whitespace are preserved.
+URI validation still requires an absolute URI. No conversion loads a resource,
+resolves a path, expands a QName, or obtains reference lookup authority.
+
+`list_implementation(source, datatype)` explicitly supplies the shipped name-list
+or wildcard-name-list representation, nonempty bounds and Unicode-whitespace
+tokenizer. Hosts register the original identifier or wildcard-name item declaration
+and its validation capability, resolve the list's item dependency, and separately
+select `converter(source, datatype)`. The converter receives the consuming
+descriptor's selected tokenizer; it neither substitutes a tokenizer nor invokes
+item converters. Every produced string is validated against the original compiled
+item, and effective list bounds and restrictions also apply. Already-materialized
+sequences remain validation inputs; validation never tokenizes them.
+
+Each converted token retains a shared immutable decoded input, occurrence span and
+original source map. `token_source(&item)` returns that decoded input and its UTF-8
+byte range, preserving order and duplicates. The range is deliberately separate
+from the source map because decoding may change byte lengths. Tokenization obeys
+conversion byte/output limits and operation control before publication; limit
+exhaustion remains incomplete rather than lexical rejection. A missing tokenizer
+reports conversion unavailable; an explicitly unavailable tokenizer blocks package
+readiness and preserves the previous active package. List constants remain
+unsupported, as declaration `@values` is still scalar token syntax.
+
 
 ## Folder Contract
 

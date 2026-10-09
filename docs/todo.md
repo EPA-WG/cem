@@ -342,13 +342,26 @@ attribute conversion, template rendering and schema-package lifecycle, including
 six native scalar fixture groups. Schema-package Nx verification and its CLI build
 prerequisite pass.
 
-- [ ] Complete native shipped list/item/tokenizer registrations and explicitly
+- [x] Add shipped lexical/list conversion fixtures for exact descriptor registration,
+      original item validation, nonempty bounds, ordered duplicate UTF-8 token spans,
+      retained maps, cancellation/limits and unavailable-tokenizer package retries.
+      Scenarios for later design verification: lexical normalization only trims;
+      symbolic strings gain no lookup authority; decoded spans are not source offsets.
+
+- [x] Complete native shipped list/item/tokenizer registrations and explicitly
       designed lexical/URI/semver/media-type/path/symbolic conversion capabilities.
       Existing unsupported conversion must remain explicit until each output and
       normalization contract is adopted; no default string conversion.
-      Add end-to-end descriptor and package readiness fixtures before implementation.
+      Implemented with descriptor-selected tokenization, original item validation,
+      trim-only lexical conversion and separate scalar constant interpretation.
+      End-to-end descriptor and package readiness fixtures pass.
       Scenarios for later design verification: name lists remain nonempty, tokens
       preserve order and source spans, and symbolic values confer no lookup authority.
+
+Verification (2026-10-08): 200 tests pass across shipped inventory/contracts,
+native datatype/result validation, attribute conversion, template rendering and
+package lifecycle. Schema-package Nx verification and its CLI build pass. The five
+lexical/list fixture groups also verify descriptor tokenization and item bounds.
 
 - [ ] Specify and register the shipped content-model grammar consumer, and reconcile
       URI declaration prose (absolute or relative) with existing absolute-URI

@@ -1109,7 +1109,11 @@ of core reference adoption. Preserve the adopted contracts in the
       retained wide integer lexical values and unavailable grammar/conversion.
 - [x] Bridge native shipped scalar conversion without narrowing wide integers,
       with retained type checks, exact integer comparison and separate constant preparation.
-- [ ] Complete list/lexical conversion contracts and the content-model grammar consumer.
+- [x] Complete explicit shipped list/lexical conversion contracts, retained token
+      spans and original item validation (2026-10-08).
+      Scenarios for later design verification: duplicate token occurrences preserve
+      their decoded spans; lexical conversion grants no symbolic lookup authority.
+- [ ] Complete the content-model grammar consumer and reconcile URI admission policy.
       Scenarios for later design verification: type identity survives conversion;
       unsupported capabilities never fall back to strings or unchecked acceptance.
 - [ ] Complete metamodel admission and shipped parity before enabling executable
