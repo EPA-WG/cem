@@ -756,3 +756,6 @@ mod preparation;
 
 #[path = "facets.rs"]
 mod facets;
+
+#[path = "attribute_consumer.rs"]
+mod attribute_consumer;

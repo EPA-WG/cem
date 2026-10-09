@@ -531,11 +531,35 @@ package lifecycle tests pass, including six facet-profile fixture groups. All 18
 original shipped descriptors carry explicit or inherited profiles. Schema-package
 Nx verification and its CLI build prerequisite pass.
 
-- [ ] Add remaining attribute descriptor-consumer fixtures for local facet
-      intersection, typed node sequences, input preparation, cancellation and
-      package replacement readiness before automatic validation integration.
-      Scenarios for later design verification: validation never invokes conversion;
-      unresolved binding cannot clear readiness or become an untyped string.
+- [x] Add a combined explicit attribute-consumer fixture suite and adapter for
+      lexical preparation plus datatype/local restriction intersection, native
+      sequence identity and cardinality, shared diagnostic limits, cancellation,
+      and unavailable preparation. Preserve separate phase reports and original inputs.
+      Scenarios for later design verification: a completed rule rejection remains
+      invalid even with no error diagnostics; an interrupted facet phase cannot
+      publish earlier datatype acceptance; nodes never acquire lexical fallback.
+
+Verification (2026-10-08): 280 datatype, value-contract, declaration-reference and
+package lifecycle tests pass, including six combined-consumer fixture groups.
+The Nx CLI build passes; schema-package verification passes from cache. Automatic
+model activation remains guarded pending the lifecycle integration below.
+
+- [ ] Add remaining attribute lifecycle fixtures and readiness checks for defaults
+      and declaring-scope diagnostic dependencies before automatic activation.
+      Validate default values through the same compiled datatype/local constraints.
+      Scenarios for later design verification: unavailable diagnostic bindings or
+      invalid defaults cannot publish a complete model; validation never invokes conversion.
+
+- [ ] Integrate bound attribute consumers into literal QName discovery, native type
+      slots and coordinated package activation/replacement. Add lifecycle fixtures
+      for source-owner changes, pending replacement and retry of retained candidates.
+      Scenarios for later design verification: a replacement cannot reuse an old owner
+      snapshot; unresolved binding cannot clear readiness or become an untyped string.
+
+- [ ] Define pretyped scalar/list attribute input provenance before extending the
+      combined consumer beyond lexical input and resolved native node sequences.
+      Scenarios for later design verification: local lexical facets never receive
+      implicit stringification; original spelling and typed input remain distinct.
 
 - [x] Complete remaining datatype metamodel admission and end-to-end shipped
       declaration/base/consumer parity using the registered grammar/reference

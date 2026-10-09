@@ -1824,11 +1824,44 @@ Model and input bytes and diagnostic counts have explicit limits; runtime contro
 is checked around validation. A local facet verdict covers only local constraints.
 Overall acceptance still requires completed datatype preparation/validation and all
 inherited restrictions. Callers supply the original input and declaring-scope
-diagnostic bindings. Defaults, diagnostic dependency readiness, cumulative budgets
-across phases and automatic lifecycle activation remain integration work. Neither
+diagnostic bindings. The combined explicit adapter below shares phase limits. Defaults, diagnostic
+dependency readiness and automatic lifecycle activation remain integration work. Neither
 profile selection nor local compilation clears the source model's readiness guard.
 
 Scenarios for later design verification: an alias named `uri` gains no profile by
 name; a replacement source owner cannot satisfy an old registration; derived local
 restrictions intersect the datatype contract; list counts do not retokenize lexical
 input; native values are never atomized; interruption cannot publish acceptance.
+
+
+## Implemented explicit attribute validation composition
+
+Implemented 2026-10-08. Bound attribute facets now provide explicit lexical and
+native-sequence consumer entry points. Lexical consumption prepares the original
+input and executes every effective datatype restriction before applying local
+facets to the original lexical text and prepared sequence count. Native consumption
+validates the complete supplied node sequence and intersects local cardinality
+constraints without scalar extraction, preparation, conversion or descendant
+reference expansion. The host supplies already-completed reference selections and
+declaring-scope diagnostic bindings.
+
+The combined verdict requires both phases to accept. Rule rejection remains invalid
+even without error-severity diagnostics. Pending/unavailable execution, invalid
+input, cancellation and exhausted limits leave the result incomplete. The report
+retains original inputs and each phase's inspection data; prior datatype acceptance
+cannot publish after a failed local phase. A completed lexical rejection exposes no
+fabricated typed value for facet execution.
+
+Preparation and datatype validation retain their shared input-visit bounds. Local
+facets receive the diagnostic allowance remaining after preparation, rules,
+execution diagnostics, enumeration diagnostics and typed cardinality rejections.
+Input/model bytes remain bounded and all phases share the caller's lifecycle
+control. Local sequence counts do not iterate or re-tokenize the prepared values.
+
+This is an explicit consumer API. It leaves automatic model activation guarded.
+Default-value validation, diagnostic dependency readiness, package replacement
+integration and pretyped scalar/list lexical provenance remain tracked actions.
+Scenarios for later design verification: partial acceptance cannot escape after a
+later stop; duplicate native targets retain the exact original query views; list
+items retain token spans; a base rejection cannot be weakened by local acceptance;
+typed rejection reports spend the same diagnostic allowance as rendered messages.

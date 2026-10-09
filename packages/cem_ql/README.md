@@ -408,9 +408,38 @@ datatype enumerations separately use registered equality. Local whitespace check
 do not overwrite authored input or the prepared typed value.
 
 The returned acceptance covers local facets only. Completed datatype validation is
-also required. This adapter does not resolve defaults or diagnostic dependencies,
-join cumulative budgets across phases, or activate automatic attribute validation.
-Original metadata and the source model's native-type readiness guard remain intact.
+also required. Original metadata and the source model's native-type readiness guard
+remain intact.
+
+### Combined explicit attribute validation
+
+`BoundAttributeFacets::validate_lexical` joins registered lexical preparation,
+complete datatype validation and local facets in one `AttributeValidation` report.
+`validate_nodes` instead takes a completed native `ValidationInput`, validates its
+whole sequence and applies local count constraints. The host must finish reference
+resolution before calling it; pending selection cannot be supplied as an empty
+sequence. Native inputs preserve the original query views and authored descendants.
+These entry points never invoke converters or stringify native values.
+
+Only `accepted == Some(true)` permits publication. A completed rejection remains
+false regardless of diagnostic severity; a stopped phase makes the combined result
+incomplete. `AttributeDatatypePhase` retains original inputs, prepared values and
+individual datatype reports; `facets` retains a completed local result. An input
+rejected during preparation has no fabricated value or local facet report. Scalar
+and list facets use the original lexical text, and list counts come from the prepared
+sequence without another tokenization pass.
+
+`AttributeValidationLimits` carries preparation/validation limits and a facet model
+byte cap. Local facets receive only the diagnostic allowance left after preparation,
+rule diagnostics (including execution diagnostics), enumeration diagnostics and typed
+cardinality rejections. All phases use the same lifecycle control. Preparation and
+datatype input visits share their existing allowance; local node/list cardinality
+checks read the resulting count without revisiting targets or items.
+
+This explicit adapter requires declaring-scope diagnostic bindings in `FacetContext`.
+Resolving those dependencies, validating defaults, accepting pretyped scalar/list
+inputs with lexical provenance, and activating automatic schema validation remain
+separate integration work in the TODO.
 
 ### Retained-node navigation
 
