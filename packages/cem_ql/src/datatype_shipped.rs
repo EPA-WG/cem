@@ -63,18 +63,22 @@ impl NativeDatatypeValidator for Validator {
             {
                 return RuleExecution::Pending(vec![]);
             }
-            let valid = match (scalar, value.atom()) {
-                (ShippedDatatype::Boolean, Some(AtomValue::Boolean(_)))
-                | (ShippedDatatype::Integer, Some(AtomValue::Integer(_))) => true,
-                (ShippedDatatype::Number, Some(AtomValue::Decimal(value))) => {
-                    scalar.validate_lexical(&value) == Some(true)
+            let valid = if let Some(lexical) = crate::typed_scalar::integer_lexical(value) {
+                scalar == ShippedDatatype::Integer && scalar.validate_lexical(lexical) == Some(true)
+            } else {
+                match (scalar, value.atom()) {
+                    (ShippedDatatype::Boolean, Some(AtomValue::Boolean(_)))
+                    | (ShippedDatatype::Integer, Some(AtomValue::Integer(_))) => true,
+                    (ShippedDatatype::Number, Some(AtomValue::Decimal(value))) => {
+                        scalar.validate_lexical(&value) == Some(true)
+                    }
+                    (_, Some(AtomValue::String(value))) => {
+                        // Validate each supplied item under its own contract; do not
+                        // concatenate, split or rewrite an already-typed sequence.
+                        scalar.validate_lexical(&value) == Some(true)
+                    }
+                    _ => false,
                 }
-                (_, Some(AtomValue::String(value))) => {
-                    // Validate each supplied item under its own contract; do not
-                    // concatenate, split or rewrite an already-typed sequence.
-                    scalar.validate_lexical(&value) == Some(true)
-                }
-                _ => false,
             };
             accepted &= valid;
         }
@@ -103,3 +107,7 @@ impl NativeDatatypeValidator for Validator {
         ]))))
     }
 }
+
+#[path = "datatype_shipped/conversion.rs"]
+mod conversion;
+pub use conversion::{constant_interpreter, converter};

@@ -322,13 +322,25 @@ datatype validation, shared value contracts and schema-package lifecycle. The th
 native shipped-validator tests pass again after final list-policy review; final
 schema-package Nx verification and its CLI build prerequisite pass.
 
-- [ ] Bridge shipped string/boolean/integer/number conversion into exact native
+- [x] Add native scalar conversion fixtures for normalization, wide integer
+      identity, checked source/query results, typed validation, constant preparation,
+      exact integer equality, retained source maps, cancellation and cumulative bounds.
+      Scenarios for later design verification: metadata lookalikes cannot forge an
+      integer; a decimal query projection cannot change the retained datatype.
+
+- [x] Bridge shipped string/boolean/integer/number conversion into exact native
       datatype registrations. Preserve wide integer identity across the existing
       retained typed scalar view, input/output signature checks and result adapters;
       never narrow to `i64` or silently change an integer contract to decimal.
-      Add conversion, equality and constant-preparation fixtures before implementation.
+      Implemented with separate constant-interpreter registrations and exact retained
+      integer query comparison; checked results retain the shared immutable scalar view.
       Scenarios for later design verification: an integer outside `i64` remains an
       integer; normalization runs once; validation-only use never calls conversion.
+
+Verification (2026-10-08): 188 tests pass across datatype validation/results,
+attribute conversion, template rendering and schema-package lifecycle, including
+six native scalar fixture groups. Schema-package Nx verification and its CLI build
+prerequisite pass.
 
 - [ ] Complete native shipped list/item/tokenizer registrations and explicitly
       designed lexical/URI/semver/media-type/path/symbolic conversion capabilities.

@@ -36,6 +36,20 @@ impl QueryValue {
             None
         }
     }
+    fn matches_scalar(
+        &self,
+        expected: cem_ml::schema::datatype_validation::ScalarRepresentation,
+    ) -> bool {
+        if let Some(retained) = crate::typed_scalar::representation(&self.original) {
+            return retained == expected;
+        }
+        self.atom
+            .get_or_init(|| self.read_atom())
+            .as_ref()
+            .is_some_and(|atom| {
+                crate::datatype_validation::scalar(&Item::Atomic(atom.clone()), expected)
+            })
+    }
     fn read_fields(&self) -> Option<Vec<(String, Vec<Self>)>> {
         // Extra native diagnostic metadata stays on the retained value; these
         // are the logical fields checked by the schema-owned diagnostic shape.

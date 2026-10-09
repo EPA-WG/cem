@@ -730,3 +730,6 @@ mod conversion_source;
 
 #[path = "enumeration_source.rs"]
 mod enumeration_source;
+
+#[path = "shipped_conversion.rs"]
+mod shipped_conversion;

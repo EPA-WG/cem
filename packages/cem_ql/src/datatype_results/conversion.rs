@@ -1,6 +1,6 @@
 //! Closed tagged conversion envelopes; exact output representation is registered.
 use super::*;
-use crate::{datatype_conversion::ConversionLimits, datatype_validation};
+use crate::datatype_conversion::ConversionLimits;
 use cem_ml::schema::{
     datatype_validation::ValueRepresentation,
     value_contracts::{Cardinality, ValueFieldType},
@@ -102,13 +102,9 @@ impl DatatypeConversionResultAdapter {
                 for value in values {
                     let valid = match output {
                         ValueRepresentation::Nodes => value.is_native_node(),
-                        ValueRepresentation::Scalar(p) | ValueRepresentation::List(p) => value
-                            .atom
-                            .get_or_init(|| value.read_atom())
-                            .as_ref()
-                            .is_some_and(|a| {
-                                datatype_validation::scalar(&Item::Atomic(a.clone()), p)
-                            }),
+                        ValueRepresentation::Scalar(p) | ValueRepresentation::List(p) => {
+                            value.matches_scalar(p)
+                        }
                     };
                     if !valid {
                         return Err(

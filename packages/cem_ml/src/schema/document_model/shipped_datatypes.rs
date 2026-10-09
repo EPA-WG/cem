@@ -152,3 +152,9 @@ impl ShippedDatatype {
         ))
     }
 }
+
+/// Exact comparison for values already admitted as integers. This shares the
+/// shipped lexical normalization rules without converting or rewriting either value.
+pub fn compare_integer_lexical(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    super::decimal_integer_cmp(left, right)
+}

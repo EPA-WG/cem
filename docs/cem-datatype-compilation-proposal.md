@@ -1561,11 +1561,50 @@ Rejections return explicit acceptance plus diagnostics attributed by the shared
 result adapter. Runtime control and validation budgets remain the caller's.
 
 This completes shared lexical contracts and native validators, not full shipped
-conversion integration. General integer signature checks still recognize `i64`
-atoms while the existing rendering scalar view can retain wider integers. Bridging
-that retained representation without narrowing or changing the declared datatype
-is the next conversion action. Missing lexical/list converters and the concrete
+conversion integration. The native scalar bridge below now shares the rendering scalar view and preserves
+wide integer identity through signatures, results and exact query comparison. Missing lexical/list converters and the concrete
 content-model grammar consumer remain open. The existing URI validator requires
 an absolute URI although declaration prose admits relative references; this
 compatibility slice preserves the validator and records reconciliation separately.
 Automatic attribute type activation stays guarded pending those parity tasks.
+
+
+## Native scalar conversion with retained wide integers
+
+Implemented 2026-10-08. `datatype_shipped::converter` creates explicit native
+string/boolean/integer/number registrations using the original datatype source,
+lexical input and the shipped canonical output representation. The host must
+select the capability; names and authored references grant no implementation
+authority. Conversion reuses the existing normalization kernel, preserves source
+maps and operation control, then lets `ExecutableDatatype::convert` validate every
+effective restriction on its one result. Unsupported families remain unavailable;
+invalid lexical input is rejected without falling back or narrowing values.
+
+The separate `constant_interpreter` registration reuses that kernel only for the
+explicit constant-preparation operation. It works with no runtime converter
+selected. Each prepared token retains its original declaration owner and decoded
+span and is validated under the original effective datatype before publication.
+Diagnostics retain lexical source maps and receive the caller's original attribution.
+
+Rendering and these capabilities now share the existing `cem.typed-atomic` view.
+Wide integer values retain normalized text, `integer` datatype and their source
+map. The concrete immutable view, not public field names or representation-id
+strings, determines its registered scalar representation. Ordinary integer atoms
+retain their existing path; an ordinary decimal atom does not become an integer
+because its text contains only digits. Conversely, a retained integer's decimal
+query projection does not let it satisfy a decimal datatype signature.
+
+Conversion-result and constant-result adapters check retained scalar identity
+before inspecting a cached primitive projection, then publish the original value
+handle. Native validators also recognize the retained integer representation.
+Query comparisons involving retained integers use the shared exact signed-integer
+lexical comparator, preserving distinctions beyond floating-point and `i64`
+precision. Comparison with ordinary integer atoms remains exact; this change does
+not introduce new mixed-numeric coercion or rewrite general query arithmetic.
+Registered query equality therefore supports exact membership of wide integer
+constants without stringification or an implicit runtime conversion.
+
+Input/output limits, cumulative preparation and diagnostic budgets, cancellation,
+explicit rejection and package readiness remain on the existing consumer paths.
+Remaining shipped list/lexical conversions, the grammar consumer, URI policy
+reconciliation and native attribute activation remain actionable in `todo.md`.

@@ -18,6 +18,7 @@ pub mod datatype_enumeration;
 pub mod datatype_names;
 pub mod datatype_results;
 pub mod datatype_shipped;
+mod typed_scalar;
 pub mod datatype_validation;
 pub mod embedded;
 pub mod eval;

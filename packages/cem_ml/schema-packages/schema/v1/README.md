@@ -237,9 +237,41 @@ and rejecting empty sequences or items that fail their own lexical predicate. Sc
 representations are string, boolean, integer and decimal as declared by the
 capability. Host registration is required; matching a datatype name is insufficient.
 
-Native converter registration, retained wide-integer signature support, remaining
-lexical/list conversions and the content-model grammar consumer remain tracked in
+Native scalar conversion and retained wide-integer signatures are implemented below.
+Remaining lexical/list conversions and the content-model grammar consumer are tracked in
 the [datatype actions](../../../../../docs/todo.md#general-datatype-compilation-design).
+
+## Native scalar conversion and retained integers
+
+`cem_ql::datatype_shipped::converter(source, datatype)` creates an explicit
+registration for shipped string, boolean, integer or number conversion. The host
+selects it through `DatatypeImplementations::select_converter` for the original
+datatype. Input is lexical text with its original source map; output uses the
+registered scalar representation. Existing normalization runs once, followed by
+all effective descriptor restrictions. Unsupported shipped conversion returns an
+unavailable-capability error; malformed input produces explicit rejection, while
+operation interruption remains separate.
+
+`constant_interpreter(source, datatype)` creates a separate registration for the
+same four families. The host selects it for token preparation independently of
+runtime conversion. It shares the scalar normalization implementation but does
+not invoke or select the runtime converter. Prepared values still face every
+effective restriction and retain their original token owner and decoded span.
+
+The renderer and datatype converter share one immutable typed scalar view for
+integers outside `i64`. Its `datatype` remains `integer`, its `value` retains the
+normalized integer text, and it carries the original source map. Datatype input,
+output and checked result signatures recognize that concrete retained type;
+user-defined fields or a matching representation identifier cannot impersonate it.
+A wide integer does not satisfy a decimal contract merely because the query
+engine exposes a decimal atom for numeric evaluation.
+
+Query comparison of retained integers uses exact signed decimal-digit comparison,
+including comparisons with ordinary integer atoms. Adjacent large integers remain
+distinct during registered query equality and enumeration membership. The existing
+query arithmetic implementation is unchanged. Checked conversion and constant
+results preserve the original native scalar handle instead of rebuilding it from
+its query atom. Automatic native attribute type activation remains guarded.
 
 ## Folder Contract
 

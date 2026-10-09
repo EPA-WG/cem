@@ -505,6 +505,9 @@ pub(crate) fn native_node(value: &Item) -> bool {
         .is_some_and(|v| v.kind() == QueryItemViewKind::Node)
 }
 pub(crate) fn scalar(value: &Item, p: ScalarRepresentation) -> bool {
+    if let Some(retained) = crate::typed_scalar::representation(value) {
+        return retained == p;
+    }
     if !matches!(value, Item::Atomic(_))
         && !value
             .view()

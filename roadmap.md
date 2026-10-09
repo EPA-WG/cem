@@ -1107,8 +1107,9 @@ of core reference adoption. Preserve the adopted contracts in the
 - [x] Expose shared shipped lexical contracts and explicitly registered native
       validators; verify original inventory, primitive normalization, sequence rules,
       retained wide integer lexical values and unavailable grammar/conversion.
-- [ ] Bridge native shipped scalar conversion without narrowing wide integers;
-      complete list/lexical conversion contracts and the content-model grammar consumer.
+- [x] Bridge native shipped scalar conversion without narrowing wide integers,
+      with retained type checks, exact integer comparison and separate constant preparation.
+- [ ] Complete list/lexical conversion contracts and the content-model grammar consumer.
       Scenarios for later design verification: type identity survives conversion;
       unsupported capabilities never fall back to strings or unchecked acceptance.
 - [ ] Complete metamodel admission and shipped parity before enabling executable

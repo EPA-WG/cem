@@ -2,7 +2,7 @@
 use super::*;
 use cem_ml::schema::document_model::{
     convert_attribute_value_with_check, AttributeModel, AttributeValueContract,
-    AttributeValueConversionError, TypedAttributeValue,
+    AttributeValueConversionError,
 };
 
 /// Final string projection. The authoritative sequence stays available to
@@ -16,36 +16,6 @@ pub fn project_attribute_value(attribute: &RenderPlanAttribute) -> String {
         cem_ml::operation_control::ROOT_EXECUTION_SCOPE_ID,
     )
     .unwrap_or_default()
-}
-
-#[derive(Debug, Clone)]
-struct TypedValue(TypedAttributeValue);
-impl crate::eval::QueryItemView for TypedValue {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn representation_id(&self) -> &'static str {
-        "cem.typed-atomic"
-    }
-    fn identity(&self) -> String {
-        format!("{}:{}", self.0.datatype, self.0.lexical)
-    }
-    fn kind(&self) -> crate::eval::QueryItemViewKind {
-        crate::eval::QueryItemViewKind::Atomic
-    }
-    fn atom(&self) -> Option<AtomValue> {
-        Some(match self.0.datatype.as_str() {
-            "integer" => AtomValue::from_integer_lexical(&self.0.lexical),
-            _ => AtomValue::String(self.0.lexical.clone()),
-        })
-    }
-    fn field(&self, name: &str) -> Option<Vec<Item>> {
-        match name {
-            "datatype" => Some(string_stream(self.0.datatype.clone()).items),
-            "value" => Some(string_stream(self.0.lexical.clone()).items),
-            _ => None,
-        }
-    }
 }
 
 impl PlanRenderer<'_> {
@@ -269,16 +239,7 @@ impl PlanRenderer<'_> {
             control.check_scope(scope)
         }) {
             Ok(value) => {
-                let item = match value.datatype.as_str() {
-                    "integer" => match value.lexical.parse::<i64>() {
-                        Ok(value) => Item::Atomic(AtomValue::Integer(value)),
-                        Err(_) => Item::native(TypedValue(value)),
-                    },
-                    "number" | "decimal" => Item::Atomic(AtomValue::Decimal(value.lexical)),
-                    "boolean" => Item::Atomic(AtomValue::Boolean(value.lexical == "true")),
-                    "string" => Item::Atomic(AtomValue::String(value.lexical)),
-                    _ => Item::native(TypedValue(value)),
-                };
+                let item = crate::typed_scalar::from_converted(value, Some(source.clone()));
                 ItemStream::once(item)
             }
             Err(AttributeValueConversionError::Interrupted(error)) => {

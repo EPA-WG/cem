@@ -1,6 +1,6 @@
 //! Checked schema-owned scalar comparison and constant preparation records.
 use super::*;
-use crate::datatype_validation::{scalar, ValidationLimits};
+use crate::datatype_validation::ValidationLimits;
 use cem_ml::schema::{
     datatype_validation::ScalarRepresentation,
     value_contracts::{Cardinality, ValueFieldType},
@@ -182,13 +182,7 @@ impl DatatypeConstantResultAdapter {
             .and_then(ContractValue::string)
             .ok_or_else(|| ValueContractError::new("constant-status-required"))?;
         let value = match (status.as_str(), result.get("value")) {
-            ("prepared", Some([value]))
-                if value
-                    .atom
-                    .get_or_init(|| value.read_atom())
-                    .as_ref()
-                    .is_some_and(|a| scalar(&Item::Atomic(a.clone()), representation)) =>
-            {
+            ("prepared", Some([value])) if value.matches_scalar(representation) => {
                 Some(value.original.clone())
             }
             ("rejected", None) => None,

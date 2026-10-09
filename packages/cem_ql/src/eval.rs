@@ -2292,6 +2292,9 @@ fn gcd_u128(mut lhs: u128, mut rhs: u128) -> u128 {
 }
 
 fn atom_cmp(lhs: &Item, rhs: &Item) -> Option<std::cmp::Ordering> {
+    if let Some(comparison) = crate::typed_scalar::compare_integers(lhs, rhs) {
+        return comparison;
+    }
     match (lhs.atom(), rhs.atom()) {
         (Some(lhs), Some(rhs)) => atom_value_cmp(&lhs, &rhs),
         _ => match (lhs, rhs) {
