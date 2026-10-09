@@ -1066,6 +1066,11 @@ of core reference adoption. Preserve the adopted contracts in the
       `severity` and `message`, plus optional original native `source`; preserve
       existing attribution or derive it from source/available invocation input
       attribution. Malformed diagnostics fail invocation (2026-10-08).
+- [x] Adopt shared value-contract declarations for reusable result/diagnostic
+      records and sequence cardinality, compiled without invoking user datatype
+      rules (2026-10-08).
+- [ ] Specify the shared declaration surface, field type/name binding and
+      additional-field policy, then implement the compiler with native fixtures.
 - [ ] Specify result metamodel admission and declare diagnostic field rules in the
       schema-owned contract; implement the shared adapter into the existing report
       pipeline with native fixtures for field validation and retained attribution.
@@ -1098,6 +1103,9 @@ of core reference adoption. Preserve the adopted contracts in the
   ID lookup. Native diagnostic metadata survives intact; an invalid source fails
   invocation instead of selecting fallback attribution. Both diagnostic forms use
   the existing reporting path and remain subject to host reporting/abort policies.
+- Reusable value contracts distinguish field presence from sequence cardinality:
+  a required diagnostics field may be empty, and compiling its shared shape does
+  not invoke a user datatype rule or grant execution authority.
 - Other reference consumers progress while executable native attribute `@type` stays
   explicitly pending; complete dependency selection alone grants no type execution.
 - Equality preserves original restriction bindings without converting or rewriting

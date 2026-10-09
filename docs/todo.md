@@ -174,6 +174,20 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: no diagnostic requires a fabricated
       candidate; existing source maps survive construction and consumption.
 
+- [x] Adopt shared value-contract declarations for reusable result/diagnostic
+      records and sequence cardinality (2026-10-08), compiled without invoking
+      user datatype rules. Keep field presence distinct from sequence cardinality.
+      Scenarios for later design verification: a required diagnostics field may be
+      empty; multiple behaviors reuse one diagnostic shape without copying it.
+
+- [ ] Specify the shared value-contract declaration surface, field type/name
+      binding and additional-field policy before implementing its compiler. Add
+      native fixtures first for required-but-empty fields, optional native sources,
+      nested diagnostic contracts, invalid cardinalities and retained declaration
+      identity; preserve existing element field-contract and behavior metadata.
+      Scenarios for later design verification: unknown contracts do not become
+      untyped fallbacks; compiling shape metadata never invokes user datatype rules.
+
 - [ ] Declare diagnostic fields and severity vocabulary in the schema-owned
       metamodel contract, then compile the shared native/record consumer adapter
       into the existing report pipeline. Add native fixtures first for missing or
@@ -184,6 +198,14 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: both representations retain source
       attribution through reporting; severity never substitutes for `accepted`,
       while host reporting and abort policies still apply.
+
+- [x] Expose severity on the existing native diagnostic query view. The native
+      query fixture covers all four severities, field enumeration and retained
+      diagnostic metadata/source maps inside a constructed result record. The
+      fixture and 22 existing query/template/XSLT recovery tests pass. This is
+      query access only; datatype result validation stays guarded.
+      Scenarios for later design verification: reading severity does not emit a
+      diagnostic, infer acceptance or replace the retained diagnostic with a record.
 
 - [ ] Specify validation result metamodel admission, then implement the registered
       signature and result validator before binding CEM-QL/native implementations.

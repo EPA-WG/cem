@@ -47,6 +47,8 @@ pub mod types_runtime;
 pub(crate) mod binding_profile_tests;
 #[cfg(test)]
 pub(crate) mod let_profile_tests;
+#[cfg(test)]
+mod diagnostic_tests;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct QueryContextScope(pub u32);
@@ -157,6 +159,7 @@ impl QueryItemView for DiagnosticView {
         Some(
             [
                 "code",
+                "severity",
                 "message",
                 "error_namespace",
                 "error_local",
@@ -230,12 +233,18 @@ impl QueryItemView for DiagnosticView {
             }
             _ => {}
         }
-        let value = match name {
+        let value: &str = match name {
             "code" => &self.0.code,
+            "severity" => match self.0.severity {
+                Severity::Info => "info",
+                Severity::Warning => "warning",
+                Severity::Error => "error",
+                Severity::Fatal => "fatal",
+            },
             "message" => &self.0.message,
             _ => return None,
         };
-        Some(vec![Item::Atomic(AtomValue::String(value.clone()))])
+        Some(vec![Item::Atomic(AtomValue::String(value.to_owned()))])
     }
     fn source_map(&self) -> Option<SourceMapStack> {
         self.0.source_map.clone()

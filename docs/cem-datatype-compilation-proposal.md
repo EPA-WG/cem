@@ -13,9 +13,10 @@ remaining kind contracts need decisions. Datatype validation inputs use the adop
 fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
 CEM-QL records under a dedicated contract enforced at the consumer boundary;
 candidate cardinality must be visible to compilation. Diagnostics admit existing
-native values and checked records with optional original source nodes. General
-datatype compilation must be designed before enabling native attribute `@type`
-consumption.
+native values and checked records with optional original source nodes. Shared
+value-contract declarations are adopted for reusable result/diagnostic shapes.
+General datatype compilation must be designed before enabling native attribute
+`@type` consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
@@ -393,6 +394,37 @@ datatype reporting model. Concrete metamodel admission and native/CEM-QL adapter
 bindings remain to be implemented without a recursive dependency on the unfinished
 general datatype compiler. Diagnostic-only behavior compatibility still requires
 its explicit acceptance mapping.
+
+## Adopted shared value-contract declarations
+
+Adopted 2026-10-08: add a small shared value-contract declaration for reusable
+record fields and sequence cardinality. Validation results and diagnostics use
+these declarations; behavior-local result/detail metadata does not need to repeat
+each diagnostic shape. Compile the contracts without invoking user datatype rules.
+
+Field presence and value-sequence cardinality are distinct. For example, the
+validation result must contain `diagnostics`, but its sequence may be empty;
+`accepted` must be present with one boolean. Diagnostic `source` is optional and
+contains zero-or-one original native node. Reusing the diagnostic contract retains
+these constraints in each consuming result contract.
+
+The declaration surface, type/name binding and additional-field policy still need
+specification before implementation. Existing AST element field-contracts and
+legacy behavior result/detail contracts remain compatible. This decision adds no
+enabled source syntax, implicit behavior registration or datatype execution.
+
+## Implemented native diagnostic query prerequisite
+
+The existing native diagnostic view exposes `severity` through direct field access
+and record enumeration, using `info`, `warning`, `error` and `fatal`. Placing a
+native diagnostic inside a constructed CEM-QL result retains its full underlying
+diagnostic metadata, source map and identity; reading it does not emit a report or
+interpret validation acceptance. This is query access, not result validation.
+
+A native query fixture covers all four severities and retained attribution, with
+22 existing query/template/XSLT error-recovery regressions passing alongside it.
+Shared value-contract compilation and native attribute `@type` execution remain
+guarded separately.
 
 ## Adopted general list emptiness
 
