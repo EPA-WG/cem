@@ -1062,8 +1062,13 @@ of core reference adoption. Preserve the adopted contracts in the
       static checks where possible and runtime consumer boundary checks; constructors
       are optional. Registered signatures expose candidate cardinality to compilation
       while execution authority remains explicitly registered (2026-10-08).
-- [ ] Specify result metamodel admission and the shared diagnostic contract for
-      severity, message/code and attribution; add native fixtures before implementation.
+- [x] Adopt native diagnostics and checked diagnostic records with required `code`,
+      `severity` and `message`, plus optional original native `source`; preserve
+      existing attribution or derive it from source/available invocation input
+      attribution. Malformed diagnostics fail invocation (2026-10-08).
+- [ ] Specify result metamodel admission and declare diagnostic field rules in the
+      schema-owned contract; implement the shared adapter into the existing report
+      pipeline with native fixtures for field validation and retained attribution.
 - [ ] Implement registered signatures and the result validator before connecting
       CEM-QL/native implementations and explicit diagnostic-only compatibility.
       Verify candidate cardinality, malformed result rejection, retained attribution
@@ -1089,6 +1094,10 @@ of core reference adoption. Preserve the adopted contracts in the
 - Compilation checks registered candidate cardinality, while an empty value does
   not imply an omitted argument. Diagnostic attribution survives source-less calls
   without a fabricated candidate.
+- A diagnostic identifies the offending original target in a node sequence without
+  ID lookup. Native diagnostic metadata survives intact; an invalid source fails
+  invocation instead of selecting fallback attribution. Both diagnostic forms use
+  the existing reporting path and remain subject to host reporting/abort policies.
 - Other reference consumers progress while executable native attribute `@type` stays
   explicitly pending; complete dependency selection alone grants no type execution.
 - Equality preserves original restriction bindings without converting or rewriting

@@ -12,8 +12,10 @@ a resolved base, with explicit list kind for item-base semantics. Whitespace-tok
 remaining kind contracts need decisions. Datatype validation inputs use the adopted
 fixed names `value`, `datatype` and `candidate`. Result construction uses ordinary
 CEM-QL records under a dedicated contract enforced at the consumer boundary;
-candidate cardinality must be visible to compilation. General datatype compilation
-must be designed before enabling native attribute `@type` consumption.
+candidate cardinality must be visible to compilation. Diagnostics admit existing
+native values and checked records with optional original source nodes. General
+datatype compilation must be designed before enabling native attribute `@type`
+consumption.
 This draft does not adopt a new executable grammar or enable datatype references.
 
 Workstream boundary: general datatype execution, conversion, equality and enumeration
@@ -274,7 +276,7 @@ dependency or extend scope grants. Conversion continues to use a distinct
 capability with declared typed output, followed by every effective restriction.
 Datatype validation parameter names are fixed by the adopted input-role contract
 below. Result construction and boundary checks follow the adopted contract below;
-concrete metamodel admission and diagnostic representation remain to be specified.
+concrete metamodel admission and adapter bindings remain to be specified.
 
 ## Adopted validation result protocol
 
@@ -311,7 +313,7 @@ execution contract failure, not a completed rejection or implicit acceptance.
 The result cannot be supplied through an unvalidated legacy object shape.
 
 This protocol is adopted but not enabled. Specify the registered validation
-adapter's metamodel type names, diagnostic element representation, input
+adapter's metamodel type names, diagnostic representation bindings, input
 signatures and compatibility boundary before invocation. Existing diagnostic-only
 behaviors require an explicit adapter with a declared validity mapping; they do
 not acquire datatype compatibility just because their result has diagnostic
@@ -346,18 +348,51 @@ The outer result record is newly produced validation information. Constructing i
 does not project the candidate or datatype AST into records. Original node handles
 retain their owners and identity throughout invocation and reporting.
 
-The shared diagnostic contract must cover severity, message/code and attribution.
-The existing native diagnostic view retains source maps but exposes only part of
-the diagnostic information; it is a foundation, not a complete datatype diagnostic
-API. Existing diagnostics preserve their original attribution. Newly produced
-diagnostics may use the consumer's available input attribution without fabricating
-a candidate. Concrete diagnostic representation and metamodel admission remain
-open work; this decision does not require a new result constructor or introduce
-new type literals.
+The shared diagnostic value contract below covers severity, message/code and
+attribution. Concrete metamodel admission and adapter bindings remain open work;
+this decision does not require a new result constructor or introduce new type
+literals.
 
 Implement the registered signature and result validator first, then connect
 CEM-QL construction and native implementations to that shared contract. Checking
 rule results must not recursively invoke the unfinished general datatype compiler.
+
+## Adopted diagnostic value contract
+
+Adopted 2026-10-08: the same consumer adapter accepts existing native diagnostics
+and newly constructed, checked CEM-QL diagnostic records. Both representations
+feed the existing report pipeline under the shared diagnostic contract.
+
+| Record field | Contract |
+| --- | --- |
+| `code` | Required; exactly one diagnostic-code string |
+| `severity` | Required; exactly one of `info`, `warning`, `error` or `fatal` |
+| `message` | Required; exactly one string |
+| `source` | Optional; zero-or-one original native node |
+
+For an existing native diagnostic, preserve its source maps and metadata rather
+than rebuilding it from the fields exposed by the query view. The current native
+view exposes only part of that information; adapter implementation must retain
+the underlying diagnostic attribution.
+
+For a newly constructed record, derive attribution from the supplied `source`
+node. When no source node is supplied, use the invocation's available input
+attribution. Source-less consumers need no fabricated candidate or context ID.
+A rule validating a node sequence can identify the particular offending target;
+the target retains its original owner and identity. Do not perform ID lookup to
+interpret `source` or replace its native node with an object projection.
+
+Missing required fields, incompatible values or invalid cardinality make the
+diagnostic malformed and fail the invocation. An invalid source value does not
+select fallback attribution. Diagnostic severity does not determine `accepted`;
+host reporting and abort policies remain applicable independently.
+
+Declare these field rules in the schema-owned contract and compile them into
+consumer boundary checks. Use the existing report pipeline rather than a separate
+datatype reporting model. Concrete metamodel admission and native/CEM-QL adapter
+bindings remain to be implemented without a recursive dependency on the unfinished
+general datatype compiler. Diagnostic-only behavior compatibility still requires
+its explicit acceptance mapping.
 
 ## Adopted general list emptiness
 

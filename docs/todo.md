@@ -166,12 +166,24 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
 
-- [ ] Specify the shared diagnostic contract and metamodel representation for
-      severity, message/code and attribution, using the existing native view as a
-      foundation. Add native fixtures before implementation for retained attribution
-      and newly produced diagnostics with source-less consumer input attribution.
+- [x] Adopt the shared diagnostic value contract (2026-10-08): accept existing
+      native diagnostics and checked CEM-QL records with required singleton `code`,
+      `severity` and `message`, plus optional zero-or-one original native `source`.
+      Preserve native metadata; derive new attribution from the source node or
+      available invocation input attribution. Malformed diagnostics fail invocation.
       Scenarios for later design verification: no diagnostic requires a fabricated
       candidate; existing source maps survive construction and consumption.
+
+- [ ] Declare diagnostic fields and severity vocabulary in the schema-owned
+      metamodel contract, then compile the shared native/record consumer adapter
+      into the existing report pipeline. Add native fixtures first for missing or
+      mistyped fields, invalid severity, source cardinality, an offending target from
+      a node sequence with its original owner, preserved native metadata, and
+      source-less invocation attribution. Check that an invalid source fails rather
+      than falling back and that attribution performs no ID lookup.
+      Scenarios for later design verification: both representations retain source
+      attribution through reporting; severity never substitutes for `accepted`,
+      while host reporting and abort policies still apply.
 
 - [ ] Specify validation result metamodel admission, then implement the registered
       signature and result validator before binding CEM-QL/native implementations.
