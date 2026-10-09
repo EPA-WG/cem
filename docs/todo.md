@@ -122,10 +122,18 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: typed value and original candidate
       remain distinct; a missing required candidate is unavailable, not invalid.
 
+- [x] Adopt optional `candidate` as a zero-or-one native node sequence and a
+      dedicated typed validation result with required boolean `accepted` and
+      sequence `diagnostics` (2026-10-08). Empty diagnostics are valid; missing or
+      mistyped fields fail execution. Missing a required candidate is unavailable.
+      Scenarios for later design verification: absent candidates need no fabricated
+      node; validity remains independent of diagnostic severity.
+
 - [ ] Add native signature/invocation fixtures after concrete metamodel types and
-      result bindings are specified: reject renamed/inferred roles, retain original
+      result metamodel admission is specified: reject renamed/inferred roles, retain original
       datatype/candidate owners, and cover source-less rules with and without a
-      required candidate. Keep executable native attribute `@type` guarded.
+      required candidate. Check optional candidates with zero, one and multiple nodes.
+      Keep executable native attribute `@type` guarded.
       Scenarios for later design verification: role naming supplies no scope grants;
       scalar, list and node values preserve their registered representations.
 
@@ -148,10 +156,12 @@ archived, while executable datatype consumption remains guarded.
       Scenarios for later design verification: native validation never stringifies
       targets or expands descendant references implicitly; scope bounds still apply.
 
-- [ ] Specify concrete validation result bindings and an explicit compatibility
-      adapter for diagnostic-only behaviors, with a declared acceptance mapping.
-      Add fixture actions for acceptance/diagnostic independence, cumulative rejection,
-      missing-result failures and retained source attribution before implementation.
+- [ ] Specify validation result metamodel admission, construction and diagnostic
+      element representation, plus an explicit compatibility adapter for
+      diagnostic-only behaviors with a declared acceptance mapping.
+      Add native fixtures before implementation for required `accepted`/`diagnostics`
+      fields, wrong field types, empty diagnostics, acceptance/severity independence,
+      cumulative rejection and retained source attribution.
       Scenarios for later design verification: an accepted rule cannot erase another
       restriction's rejection; lifecycle incompleteness cannot masquerade as success.
 

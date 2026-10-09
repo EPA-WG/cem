@@ -1055,6 +1055,12 @@ of core reference adoption. Preserve the adopted contracts in the
 
 - [x] Adopt fixed validation input names `value`, `datatype` and `candidate`,
       with candidate requirements declared per capability (2026-10-08).
+- [x] Adopt optional candidate absence as an empty native node sequence and a
+      dedicated typed result with required `accepted` boolean and `diagnostics`
+      sequence; missing/mistyped result fields fail execution (2026-10-08).
+- [ ] Specify result metamodel admission/construction and diagnostic representation;
+      verify optional candidate cardinality and malformed result rejection in native
+      fixtures before enabling invocation.
 - [ ] Finish registered datatype capability signatures, effective kind/facet contracts
       and execution adapters before enabling executable native attribute `@type`.
 - [x] Decide enumeration constant authoring: preserve whitespace-token `@values`;
@@ -1067,6 +1073,9 @@ of core reference adoption. Preserve the adopted contracts in the
 
 ### Scenarios for later design verification
 
+- An optional candidate is absent or one original node; a missing required candidate
+  stays unavailable. Empty diagnostics are valid, but absent result fields never
+  imply acceptance; diagnostic severity does not determine the acceptance boolean.
 - Other reference consumers progress while executable native attribute `@type` stays
   explicitly pending; complete dependency selection alone grants no type execution.
 - Equality preserves original restriction bindings without converting or rewriting

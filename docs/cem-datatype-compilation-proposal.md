@@ -301,9 +301,15 @@ consumer's reporting/publication policy, independently of the explicit datatype
 acceptance result. Validation does not implicitly convert, and neither acceptance
 nor diagnostics can replace the consumer's typed value.
 
+Adopted 2026-10-08: the completed validation result is a dedicated typed result
+with two required fields: `accepted`, a boolean, and `diagnostics`, a sequence of
+attributed diagnostics that may be empty. A missing or mistyped field is an
+execution contract failure, not a completed rejection or implicit acceptance.
+The result cannot be supplied through an unvalidated legacy object shape.
+
 This protocol is adopted but not enabled. Specify the registered validation
-adapter's concrete typed result, input signatures and compatibility boundary
-before invocation. Existing diagnostic-only behaviors require an explicit adapter
+adapter's metamodel type names, diagnostic element representation, input
+signatures and compatibility boundary before invocation. Existing diagnostic-only behaviors require an explicit adapter
 with a declared validity mapping; they do not acquire datatype compatibility just
 because their result has diagnostic metadata. No JSON record substitutes for a
 retained candidate or datatype node.
@@ -431,13 +437,17 @@ as required by its contract. A node-valued `value` is distinct from `candidate`.
 
 Candidate availability follows the adopted source-less consumer policy below.
 Missing a required `candidate` leaves execution unavailable; do not manufacture
-a node or infer acceptance. This naming decision does not choose an absent-value
-encoding for an optional candidate.
+a node or infer acceptance. Adopted 2026-10-08: an optional `candidate` is a
+zero-or-one native node sequence, empty when absent and containing the original
+input node when present. Multiple nodes violate this input contract. Absence is
+not a null/object placeholder or a fabricated node. The concrete signature must
+express this cardinality; this decision does not enable an optional-argument
+convention in the existing function engine.
 
 Completed validation returns explicit acceptance plus attributed diagnostics.
 Validation cannot replace `value`; conversion remains a separate capability.
 The decision fixes validation input names, not a conversion ABI, parameter order,
-new metamodel type literals or the concrete result binding. Those remaining
+new metamodel type literals or result construction syntax. Those remaining
 contracts must be specified before enabling invocation.
 
 ## Typed adapter signature requirements
@@ -451,11 +461,11 @@ values through legacy object parameters.
 | Binding | Required representation | Compiler/runtime check |
 | --- | --- | --- |
 | Datatype | Original retained named `{type}` declaration | Declaring identity, lexical scope and registered capability ownership |
-| `candidate`, when supplied | Original retained input node | Explicit native node parameter; no synthesized candidate record |
+| `candidate` | Original retained input node; zero-or-one native node sequence when optional | Check native identity and cardinality; missing required input is unavailable |
 | `value` (scalar/lexical/grammar/symbolic) | Declared scalar representation | Registered input type; no inferred primitive from a local name |
 | `value` (list) | Ordered typed item sequence | Registered item contract and sequence type |
 | `value` (node) | Ordered retained target sequence | Original owners and permitted native view |
-| Validation result | Explicit acceptance and attributed diagnostics | Completed typed result distinct from unavailable/failed execution |
+| Validation result | Dedicated typed result with required boolean `accepted` and sequence `diagnostics` | Empty diagnostics allowed; missing/mistyped fields fail execution |
 | Conversion result | Declared canonical scalar/items/native representation | Separate explicit capability; all effective restrictions validate the result |
 
 A registry entry must declare which of these capabilities and required inputs it
